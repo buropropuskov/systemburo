@@ -15,6 +15,439 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/announcements": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "announcements"
+                ],
+                "summary": "Создание объявления",
+                "parameters": [
+                    {
+                        "description": "Данные объявления",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.CreateAnnouncementRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.AnnouncementWithUser"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/announcements/active": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "announcements"
+                ],
+                "summary": "Получение активного объявления",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.AnnouncementWithUser"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/announcements/all": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "announcements"
+                ],
+                "summary": "Получение всех объявлений",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.AnnouncementWithUser"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/announcements/set-active": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Деактивирует все объявления и активирует выбранное",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "announcements"
+                ],
+                "summary": "Установка активного объявления",
+                "parameters": [
+                    {
+                        "description": "ID объявления",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.SetActiveAnnouncementRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Активное объявление обновлено",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/announcements/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "announcements"
+                ],
+                "summary": "Обновление объявления",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID объявления",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Данные для обновления",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.UpdateAnnouncementRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.AnnouncementWithUser"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "announcements"
+                ],
+                "summary": "Удаление объявления",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID объявления",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Объявление удалено",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/announcements/{id}/hide": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Снимает is_active с конкретного объявления; не трогает остальные.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "announcements"
+                ],
+                "summary": "Скрытие объявления",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID объявления",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Объявление скрыто",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/audit": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Единый журнал действий (#870). Фильтры: entity_type, entity_id, action, actor_user_id, from, to (YYYY-MM-DD). Пагинация page/per_page.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "audit"
+                ],
+                "summary": "Журнал аудита",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Тип сущности (citizenship, car, application, ...)",
+                        "name": "entity_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID сущности (история одной сущности)",
+                        "name": "entity_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Тип действия (created/updated/...)",
+                        "name": "action",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID пользователя-инициатора",
+                        "name": "actor_user_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Дата с (YYYY-MM-DD, включительно)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Дата по (YYYY-MM-DD, включительно)",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Страница",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Размер страницы (\u003c=100)",
+                        "name": "per_page",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/application-approvers": {
             "get": {
                 "security": [
@@ -132,6 +565,40 @@ const docTemplate = `{
                 }
             }
         },
+        "/application-approvers/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Глобальный аудит-лог: кто и когда был добавлен или удалён из принимающих",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "application-approvers"
+                ],
+                "summary": "Журнал принимающих заявки",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.ApplicationApproverHistoryItem"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/application-approvers/{id}": {
             "delete": {
                 "security": [
@@ -163,6 +630,70 @@ const docTemplate = `{
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "application-approvers"
+                ],
+                "summary": "Задать/снять маску отображаемого имени принимающего",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Approver ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Display name (null/empty снимает маску)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.UpdateApproverRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
                         }
                     },
                     "403": {
@@ -215,6 +746,30 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "ID компании",
                         "name": "company_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID организаций через запятую (мультивыбор)",
+                        "name": "organization_ids",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID компаний через запятую (мультивыбор)",
+                        "name": "company_ids",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID мест разгрузки через запятую (мультивыбор)",
+                        "name": "unload_place_ids",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID таблиц проходной через запятую (мультивыбор)",
+                        "name": "passage_table_ids",
                         "in": "query"
                     },
                     {
@@ -313,6 +868,214 @@ const docTemplate = `{
                             "$ref": "#/definitions/models.HTTPError"
                         }
                     },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/attachable": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Активные согласованные заявки для привязки (#1049 режим-2). Только super/admin\n(гейт page.admin). В отличие от GET /applications НЕ скоупит по автор/ответственный\n- админ видит все заявки для привязки.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Заявки, доступные для привязки ручного вложения",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Поисковый запрос",
+                        "name": "search_query",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.ApplicationWithDetails"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/available-attachments": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Плоский список вложений подтверждённых заявок. Супер-админ, обычный админ и носитель права page.available видят все подтверждённые вложения; охранник (тип security) - по совпадению мест разгрузки/прохода. Прочим - 403.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Доступные мне вложения",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Номер страницы",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Размер страницы",
+                        "name": "per_page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Поиск по номеру заявки, имени вложения и ФИО отправителя",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Тип вложения: cars/people/items",
+                        "name": "attachment_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID организации",
+                        "name": "organization_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID компании",
+                        "name": "company_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Только завершённые заявки (по умолчанию скрыты); при активном search игнорируется",
+                        "name": "completed",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Только вложения с ночным окном въезда [22:00-06:00); при активном search игнорируется",
+                        "name": "night",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.AvailableAttachment"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/available-attachments/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Заголовок вложения с инфо заявки и типизированное содержимое (автомобили/сотрудники/ТМЦ). Доступ: супер-админ/админ/носитель page.available - любое подтверждённое вложение; охранник - только по совпавшему месту; иначе 403.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Деталь доступного вложения",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID вложения",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.AvailableAttachmentDetail"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -387,7 +1150,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Создаёт заявку вместе с вложениями (машины, сотрудники, ТМЦ) в одной транзакции.",
+                "description": "Создаёт заявку вместе с вложениями (машины, сотрудники, ТМЦ) в одной транзакции.\nОрганизация и компания, отличные от указанных в профиле, требуют права application.organization.override.",
                 "consumes": [
                     "application/json"
                 ],
@@ -424,6 +1187,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -481,7 +1250,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Возвращает все заявки для текущего пользователя с фильтрацией.",
+                "description": "Возвращает заявки текущего пользователя (отправленные им или его организацией)\nс фильтрацией. Без per_page - полный список (legacy). С per_page - страница\nчерез GetUserApplicationsPaginated, meta.total в envelope (#1158).",
                 "consumes": [
                     "application/json"
                 ],
@@ -522,6 +1291,18 @@ const docTemplate = `{
                         "description": "Дата до (YYYY-MM-DD)",
                         "name": "date_to",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Номер страницы",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Размер страницы (включает пагинацию)",
+                        "name": "per_page",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -532,6 +1313,43 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/services.ApplicationWithDetails"
                             }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/user/status-updates-count": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Счётчик для чипа \"Обновления\" в ЛК (#1349): заявки пользователя (его или\nорганизации), чей статус/подтверждение менялись после последнего просмотра.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Число заявок ЛК с обновлённым статусом",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.StatusUpdatesCountResponse"
                         }
                     },
                     "401": {
@@ -735,6 +1553,49 @@ const docTemplate = `{
                 }
             }
         },
+        "/applications/{id}/archive": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Доступ - как у скачивания одного бланка (участник заявки либо охрана/носитель page.available по своему вложению).",
+                "produces": [
+                    "application/zip"
+                ],
+                "tags": [
+                    "file-archive"
+                ],
+                "summary": "Скачать сохранённые бланки заявки единым ZIP",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/applications/{id}/attachments": {
             "get": {
                 "security": [
@@ -777,6 +1638,203 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/{id}/blacklist-overrides": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Ответственный фиксирует \"всё равно пропустить\" по конкретному предупреждению (#481), снимая блокировку согласования по нему.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Подтвердить пропуск похожего на ЧС элемента",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "flag_id + комментарий",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.OverrideBlacklistFlagRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "success + message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Снимает ранее подтверждённый пропуск по флагу (#481), снова блокируя согласование. Право: ответственный по заявке или принимающий.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Отменить подтверждение пропуска",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID предупреждения",
+                        "name": "flag_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "success + message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/{id}/blank": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Доступ: участник заявки (как у детали заявки) либо охрана/носитель page.available по своему вложению (как у детали вкладки \"Доступные мне\"). Прочим - 403. source=archive отдаёт файл с диска по записи файлового архива вместо генерации заново (#1615, C6); нет строки или файл не сгенерирован - 404.",
+                "produces": [
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ],
+                "tags": [
+                    "attachment-blanks"
+                ],
+                "summary": "Скачать заполненный бланк для одного вложения заявки",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID Attachment",
+                        "name": "attachment_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "live (по умолчанию) или archive - сохранённый файл",
+                        "name": "source",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -889,6 +1947,160 @@ const docTemplate = `{
                 }
             }
         },
+        "/applications/{id}/elements/tables": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Принимающий добавляет или снимает посты проезда/прохода у машин и сотрудников заявки (#1393).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Назначение постов элементам заявки",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Элементы, посты и режим",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.AssignElementTablesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "success + message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/{id}/elements/unload-places": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Принимающий добавляет или снимает места разгрузки у машин заявки (#1393).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Назначение мест разгрузки машинам заявки",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Машины, места и режим",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.AssignCarUnloadPlacesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "success + message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/applications/{id}/forward": {
             "post": {
                 "security": [
@@ -966,6 +2178,67 @@ const docTemplate = `{
                 }
             }
         },
+        "/applications/{id}/forward-messages": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает ветку заявки (#967) - все пересылки с автором, получателями и сопроводительным текстом (если он был), хронологически (старые сверху). Видно всем получателям заявки.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Ветка заявки (пересылки)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.ForwardMessageItem"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/applications/{id}/history": {
             "get": {
                 "security": [
@@ -1008,6 +2281,293 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/{id}/questions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает вопросы к заявке (#973) с вложенными ответами и вложениями. Видно всем, у кого есть доступ к заявке (включая инициатора).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Вопросы к заявке",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.QuestionWithAnswers"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Создаёт вопрос-топик (#973). Доступно любому с доступом к заявке, включая инициатора. Пишется в историю, инициатору уходит уведомление (если он не автор).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Задать вопрос к заявке",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Вопрос",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.CreateQuestionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/services.QuestionWithAnswers"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/{id}/questions/seen": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Обновляет last-seen пользователя по Q\u0026A заявки (#973), гасит маркер \"новые вопросы/ответы\".",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Отметить вопросы заявки просмотренными",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/{id}/questions/{questionId}/answers": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Добавляет ответ в тред вопроса (#973). Доступно любому с доступом к заявке. Участникам обсуждения уходит уведомление.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Ответить на вопрос к заявке",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID вопроса",
+                        "name": "questionId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Ответ",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.CreateAnswerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/services.AnswerItem"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/{id}/questions/{questionId}/read": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Помечает конкретный вопрос-топик прочитанным (#973): гасит его новизну для пользователя. Недочитанные топики остаются новыми.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Отметить вопрос-топик прочитанным",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID вопроса",
+                        "name": "questionId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -1551,6 +3111,71 @@ const docTemplate = `{
                 }
             }
         },
+        "/applications/{id}/withdraw": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Отправитель отзывает собственную заявку: статус -\u003e \"Отозвана\",\nмашины/люди/вложения деактивируются. Обратного пути нет (только дублирование).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Отзыв своей заявки отправителем",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "success + message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/attachments": {
             "get": {
                 "security": [
@@ -1681,6 +3306,109 @@ const docTemplate = `{
                         "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/custom-fields/{fid}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachment-templates"
+                ],
+                "summary": "Обновить кастомное поле",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID поля",
+                        "name": "fid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Данные",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.CreateCustomFieldRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Поле обновлено",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachment-templates"
+                ],
+                "summary": "Удалить кастомное поле (soft delete)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID поля",
+                        "name": "fid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Поле удалено",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/template-sources": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachment-templates"
+                ],
+                "summary": "Шаблоны-источники для переноса привязок",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.TemplateSource"
+                            }
                         }
                     }
                 }
@@ -1844,6 +3572,76 @@ const docTemplate = `{
                 }
             }
         },
+        "/attachments/{id}/attach-to-application": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Усыновляет вложение-сироту в заявку (application_id) ЛИБО перевешивает его сущности на существующее вложение заявки (target_attachment_id). Ровно одно поле.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachments"
+                ],
+                "summary": "Привязка ручного вложения к заявке (#1049, только super/admin)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID ручного вложения-сироты",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Целевая заявка или вложение",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.AttachToApplicationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.AttachToApplicationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/attachments/{id}/cars": {
             "get": {
                 "security": [
@@ -1893,6 +3691,85 @@ const docTemplate = `{
                 }
             }
         },
+        "/attachments/{id}/custom-fields": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachment-templates"
+                ],
+                "summary": "Список кастомных полей вложения",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID UniqueAttachment",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.AttachmentCustomField"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachment-templates"
+                ],
+                "summary": "Создать кастомное поле",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID UniqueAttachment",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Данные поля",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.CreateCustomFieldRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.AttachmentCustomField"
+                        }
+                    }
+                }
+            }
+        },
         "/attachments/{id}/employees": {
             "get": {
                 "security": [
@@ -1925,6 +3802,139 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/services.EmployeeWithTables"
                             }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/{id}/field-config": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Базовые поля реестра типа, смерженные с оверрайдами видимости/обязательности, плюс кастомные поля. Единый источник для админ-модалки и формы подачи.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachment-templates"
+                ],
+                "summary": "Настройка полей вложения (базовые + кастомные)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID UniqueAttachment",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.FieldConfigResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Bulk-upsert оверрайдов видимости/обязательности базовых полей. Ключи не из реестра типа отклоняются. Залоченные поля (дата/время) игнорируются.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachment-templates"
+                ],
+                "summary": "Сохранить настройку базовых полей вложения",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID UniqueAttachment",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Оверрайды базовых полей",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.SaveFieldConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Настройка полей сохранена",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/{id}/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает аудит создания/изменения/архивации/восстановления шаблона вложения (новые сверху)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachments"
+                ],
+                "summary": "История изменений шаблона вложения",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID шаблона вложения",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.UniqueAttachmentHistoryItem"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
                         }
                     },
                     "401": {
@@ -2040,6 +4050,668 @@ const docTemplate = `{
                 }
             }
         },
+        "/attachments/{id}/template": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachment-templates"
+                ],
+                "summary": "Получить настройки бланка вложения",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID UniqueAttachment",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.AttachmentTemplate"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachment-templates"
+                ],
+                "summary": "Загрузить .xlsx шаблон бланка",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID UniqueAttachment",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": ".xlsx файл",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Начало строк списка",
+                        "name": "list_start_row",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Конец строк списка",
+                        "name": "list_end_row",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Макс. записей (авто = end-start+1)",
+                        "name": "max_list_rows",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.AttachmentTemplate"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachment-templates"
+                ],
+                "summary": "Удалить шаблон бланка",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID UniqueAttachment",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Шаблон удалён",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/{id}/template-fields": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachment-templates"
+                ],
+                "summary": "Справочник полей доступных для маппинга",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID UniqueAttachment",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.TemplateFieldGroup"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/{id}/template/copy-mappings": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachment-templates"
+                ],
+                "summary": "Перенести привязки с другого шаблона",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID UniqueAttachment",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Шаблон-источник и режим переноса",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.CopyMappingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.CopyMappingsResult"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/{id}/template/file": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ],
+                "tags": [
+                    "attachment-templates"
+                ],
+                "summary": "Скачать файл шаблона для предпросмотра",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID UniqueAttachment",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/{id}/template/mappings": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachment-templates"
+                ],
+                "summary": "Обновить маппинг ячеек на поля",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID UniqueAttachment",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Список маппингов",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.UpdateMappingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Маппинги обновлены",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/{id}/template/params": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachment-templates"
+                ],
+                "summary": "Изменить границы строк списка без перезагрузки файла",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID UniqueAttachment",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Границы строк списка",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.UpdateTemplateParamsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Параметры списка сохранены",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/bug-report": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Принимает с фронта bug_hash и контекст 500-ошибки, записывает\nв bug_reports и асинхронно отправляет в Telegram. Один юзер -\nодин репорт на конкретный bug_hash (409 при повторе).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bug-report"
+                ],
+                "summary": "Отправить отчёт о баге",
+                "parameters": [
+                    {
+                        "description": "Контекст ошибки",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.BugReportRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.BugReport"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "409": {
+                        "description": "Already reported",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "429": {
+                        "description": "Rate limit exceeded",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/bureau/time-slots": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает все временные слоты расписания работы Бюро",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bureau"
+                ],
+                "summary": "Получение расписания Бюро",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.BureauTimeSlot"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Создаёт новый временной слот расписания работы Бюро",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bureau"
+                ],
+                "summary": "Добавление слота расписания Бюро",
+                "parameters": [
+                    {
+                        "description": "Данные временного слота",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.CreateTimeSlotRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "id и message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/bureau/time-slots/{slot_id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Обновляет поля временного слота расписания Бюро (только переданные)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bureau"
+                ],
+                "summary": "Обновление слота расписания Бюро",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID временного слота",
+                        "name": "slot_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Обновляемые поля",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.UpdateTimeSlotRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Временной слот успешно обновлен",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Удаляет временной слот расписания работы Бюро",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bureau"
+                ],
+                "summary": "Удаление слота расписания Бюро",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID временного слота",
+                        "name": "slot_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Временной слот успешно удален",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/cars/active-for-table/{table_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cars"
+                ],
+                "summary": "Получение активных машин конкретной таблицы «Проезд»",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "table_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.TableCarResponse"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/cars/active-for-tables": {
             "get": {
                 "security": [
@@ -2062,6 +4734,174 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/services.TableCarResponse"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/cars/bulk/add-table": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cars"
+                ],
+                "summary": "Групповое добавление машин в таблицы «Проезд» (#1194)",
+                "parameters": [
+                    {
+                        "description": "ID машин и целевые таблицы",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkAddCarsTableRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/cars/bulk/move-table": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cars"
+                ],
+                "summary": "Групповой перенос машин между таблицами «Проезд» (#1194)",
+                "parameters": [
+                    {
+                        "description": "ID машин, исходная и целевые таблицы",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkMoveCarsTableRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/cars/bulk/unbind-table": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cars"
+                ],
+                "summary": "Групповое снятие машин с таблицы «Проезд» (#1194)",
+                "parameters": [
+                    {
+                        "description": "ID машин и таблица",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkUnbindCarsTableRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
                         }
                     }
                 }
@@ -2114,6 +4954,42 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/services.CheckActiveCarResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/cars/fact-for-table/{table_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cars"
+                ],
+                "summary": "Получение машин «по факту» конкретной таблицы «Проезд»",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "table_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.TableCarResponse"
+                            }
                         }
                     }
                 }
@@ -2227,6 +5103,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/cars/history/table/{table_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cars"
+                ],
+                "summary": "Получение истории въездов/выездов таблицы проходной",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "table_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.AllCarsHistoryItem"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/cars/history/unified": {
             "get": {
                 "security": [
@@ -2277,6 +5189,56 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/services.CarHistoryItemResponse"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/cars/manual": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cars"
+                ],
+                "summary": "Ручное добавление машин в таблицу без заявки (#1049)",
+                "parameters": [
+                    {
+                        "description": "Машины, организация/компания и целевая таблица",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.ManualCarRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.ManualCarResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
                         }
                     }
                 }
@@ -2553,12 +5515,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Новый территориальный статус",
+                        "description": "Новый территориальный статус (+ опц. данные пропуска по факту)",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/services.UpdateTerritoryStatusRequest"
+                            "$ref": "#/definitions/services.UpdateCarTerritoryStatusRequest"
                         }
                     }
                 ],
@@ -2580,7 +5542,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Возвращает список всех гражданств в системе",
+                "description": "Возвращает список гражданств. По умолчанию только активные; include_archived=true добавляет архивные.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2591,6 +5553,14 @@ const docTemplate = `{
                     "citizenships"
                 ],
                 "summary": "Получить все гражданства",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "Включить архивные гражданства",
+                        "name": "include_archived",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2665,6 +5635,106 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/citizenships/bulk/archive": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "citizenships"
+                ],
+                "summary": "Групповая архивация гражданств",
+                "parameters": [
+                    {
+                        "description": "Список ID гражданств",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkIDsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/citizenships/bulk/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "citizenships"
+                ],
+                "summary": "Групповое восстановление гражданств",
+                "parameters": [
+                    {
+                        "description": "Список ID гражданств",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkIDsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -2781,7 +5851,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Удаляет гражданство по указанному ID",
+                "description": "Архивирует гражданство (soft-delete, is_active=false). Гражданство по умолчанию архивировать нельзя.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2791,7 +5861,7 @@ const docTemplate = `{
                 "tags": [
                     "citizenships"
                 ],
-                "summary": "Удалить гражданство",
+                "summary": "Архивировать гражданство",
                 "parameters": [
                     {
                         "type": "integer",
@@ -2803,7 +5873,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Гражданство успешно удалено",
+                        "description": "Гражданство архивировано",
                         "schema": {
                             "type": "string"
                         }
@@ -2822,6 +5892,140 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/citizenships/{id}/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает аудит создания/изменения/архивации/восстановления гражданства (новые сверху)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "citizenships"
+                ],
+                "summary": "История изменений гражданства",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID гражданства",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.CitizenshipHistoryItem"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/citizenships/{id}/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает гражданство из архива (is_active=true)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "citizenships"
+                ],
+                "summary": "Восстановить гражданство из архива",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID гражданства",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Гражданство восстановлено из архива",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -2920,6 +6124,438 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/companies/bulk/archive": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Архивирует набор компаний. Активные с пользователями попадают в errors. Требует права admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "companies"
+                ],
+                "summary": "Групповое архивирование компаний",
+                "parameters": [
+                    {
+                        "description": "ID компаний",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkIDsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/companies/bulk/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Восстанавливает набор компаний из архива. Требует права admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "companies"
+                ],
+                "summary": "Групповое восстановление компаний",
+                "parameters": [
+                    {
+                        "description": "ID компаний",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkIDsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/companies/bulk/tables": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Назначает целевые таблицы набору компаний. mode=replace|add. Требует права admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "companies"
+                ],
+                "summary": "Групповое назначение таблиц компаниям",
+                "parameters": [
+                    {
+                        "description": "ID компаний, таблиц и режим",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkTablesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/companies/bulk/type": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Меняет тип у набора компаний. Требует права admin. type=null снимает тип.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "companies"
+                ],
+                "summary": "Групповая смена типа компаний",
+                "parameters": [
+                    {
+                        "description": "ID компаний и новый тип",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkTypeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/companies/bulk/unload-places": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Назначает места разгрузки набору компаний. mode=replace|add. Требует права admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "companies"
+                ],
+                "summary": "Групповое назначение мест разгрузки компаниям",
+                "parameters": [
+                    {
+                        "description": "ID компаний, мест и режим",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkUnloadPlacesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/companies/bulk/users": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Назначает ответственных набору компаний. mode=replace|add. primary не назначается. Требует права admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "companies"
+                ],
+                "summary": "Групповое назначение ответственных компаниям",
+                "parameters": [
+                    {
+                        "description": "ID компаний, логины, режим",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkUsersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/companies/suggest": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Близкие к запросу проверенные компании (максимум 5) для ручного ввода наименования в заявке. Требует права application.organization.override. Запрос короче трёх символов даёт пустой список.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "companies"
+                ],
+                "summary": "Подсказки компаний по наименованию",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Наименование или его часть; короче трёх символов - пустой список",
+                        "name": "q",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.DirectorySuggestAnswer"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -3132,6 +6768,465 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/companies/{id}/blocking-users": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает активных участников (users.company_id=id), из-за которых\nкомпанию нельзя архивировать. Тот же набор, что GetMembers; отдельный\nendpoint для delete-флоу.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "companies"
+                ],
+                "summary": "Пользователи, блокирующие архивацию компании",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID компании",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.MemberResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/companies/{id}/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "companies"
+                ],
+                "summary": "История изменений компании",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID компании",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.CompanyHistoryItem"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/companies/{id}/members": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает пользователей, привязанных к компании через company_id (не ответственных)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "companies"
+                ],
+                "summary": "Получить участников компании",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID компании",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.MemberResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/companies/{id}/moderation/approve": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Разбор записи, заведённой из заявки (#1437). Требует права application.organization.moderate. При совпадении наименования с проверенной записью ответ приходит со status=conflict и самой записью; столкновение с другим черновиком даёт 400, его разбирают первым.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "companies"
+                ],
+                "summary": "Подтвердить компанию «на проверке»",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID компании",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.DirectoryModerationResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/companies/{id}/moderation/merge": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Переносит заявки, вложения, машины, сотрудников и привязки черновика на выбранную проверенную компанию и удаляет черновик. Требует права application.organization.moderate.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "companies"
+                ],
+                "summary": "Привязать компанию «на проверке» к существующей",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID компании «на проверке»",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "ID целевой компании",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.DirectoryMergeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.DirectoryMergeResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/companies/{id}/moderation/rename": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Правит наименование черновика и считает запись разобранной. Требует права application.organization.moderate. При совпадении с проверенной записью возвращает status=conflict, при совпадении с другим черновиком - 400.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "companies"
+                ],
+                "summary": "Исправить наименование компании «на проверке»",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID компании",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Новое наименование",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.DirectoryRenameRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.DirectoryModerationResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/companies/{id}/reassign-users": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Переносит активных участников компании в целевую (target_id),\nосвобождая исходную для архивации. Требует права admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "companies"
+                ],
+                "summary": "Перенести всех блокирующих пользователей в другую компанию",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID исходной компании",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "ID целевой компании",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.ReassignUsersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "reassigned",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "integer"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/companies/{id}/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "companies"
+                ],
+                "summary": "Восстановить компанию из архива",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID компании",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Company restored",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -3484,6 +7579,642 @@ const docTemplate = `{
                 }
             }
         },
+        "/document-groups": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "document-groups"
+                ],
+                "summary": "Список групп документов с количеством документов",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.DocumentGroupWithCount"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "document-groups"
+                ],
+                "summary": "Создание группы документов",
+                "parameters": [
+                    {
+                        "description": "Данные группы",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.CreateDocumentGroupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.DocumentGroup"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/document-groups/reorder": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "document-groups"
+                ],
+                "summary": "Изменение порядка групп документов",
+                "parameters": [
+                    {
+                        "description": "Новый порядок ID групп",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.ReorderDocumentGroupsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Порядок обновлён",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/document-groups/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "document-groups"
+                ],
+                "summary": "Переименование группы документов",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID группы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Новое название",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.UpdateDocumentGroupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.DocumentGroup"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Документы группы переходят в «Прочее» (group_id = NULL)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "document-groups"
+                ],
+                "summary": "Удаление группы документов",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID группы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Группа удалена",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/documents": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "summary": "Список документов для админки",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Фильтр по группе",
+                        "name": "group_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Включить скрытые (1=да)",
+                        "name": "include_hidden",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.DocumentListItem"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "summary": "Загрузка документа (multipart)",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Файл документа",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Название",
+                        "name": "title",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Описание",
+                        "name": "description",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID группы",
+                        "name": "group_id",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Дата публикации (RFC3339)",
+                        "name": "published_at",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Порядок",
+                        "name": "sort_order",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.DocumentListItem"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/documents/reorder": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "summary": "Изменение порядка документов внутри группы",
+                "parameters": [
+                    {
+                        "description": "group_id + массив ID",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.ReorderDocumentsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Порядок обновлён",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/documents/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "summary": "Обновление метаданных документа",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID документа",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Данные для обновления",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.UpdateDocumentMetaRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.DocumentListItem"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "summary": "Удаление документа (файл + запись в БД)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID документа",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Документ удалён",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/documents/{id}/download": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "summary": "Скачивание файла документа",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID документа",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/documents/{id}/file": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "summary": "Замена файла документа",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID документа",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Новый файл",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.DocumentListItem"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/employees": {
             "post": {
                 "security": [
@@ -3553,6 +8284,677 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/services.TableEmployeeResponse"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/employees/bulk/add-table": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Привязывает выбранных сотрудников к дополнительным таблицам, не отвязывая существующие. Требует права admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "employees"
+                ],
+                "summary": "Групповое добавление сотрудников в таблицы",
+                "parameters": [
+                    {
+                        "description": "ID сотрудников и таблицы",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.EmployeeBulkAddTableRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/employees/bulk/move-table": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Снимает у выбранных сотрудников привязку к исходной таблице и привязывает к целевым. Требует права admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "employees"
+                ],
+                "summary": "Групповой перенос сотрудников между таблицами",
+                "parameters": [
+                    {
+                        "description": "ID сотрудников, исходная и целевые таблицы",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.EmployeeBulkMoveTableRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/employees/bulk/unbind-table": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Снимает у выбранных сотрудников привязку к одной таблице; при снятии последней привязки сотрудник деактивируется. Требует права admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "employees"
+                ],
+                "summary": "Групповая отвязка сотрудников от таблицы",
+                "parameters": [
+                    {
+                        "description": "ID сотрудников и таблица",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.EmployeeBulkUnbindTableRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/employees/history/all": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "employees-history"
+                ],
+                "summary": "Получение истории въездов/выходов всех сотрудников",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.EmployeeHistoryItem"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/employees/history/current-status": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "employees-history"
+                ],
+                "summary": "Получение текущего территориального статуса сотрудников",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.EmployeeCurrentStatus"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/employees/history/table/{table_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "employees-history"
+                ],
+                "summary": "Получение истории сотрудников для конкретной таблицы",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "table_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.EmployeeHistoryItem"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/employees/history/unified": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "employees-history"
+                ],
+                "summary": "Получение объединённой истории по ФИО",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Фамилия",
+                        "name": "last_name",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Имя",
+                        "name": "first_name",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Отчество",
+                        "name": "middle_name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.EmployeeHistoryItem"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/employees/manual": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "employees"
+                ],
+                "summary": "Ручное добавление сотрудников в таблицу без заявки (#1049)",
+                "parameters": [
+                    {
+                        "description": "Сотрудники, организация/компания и целевая таблица",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.ManualEmployeeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.ManualEmployeeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/employees/{id}/activate": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "employees"
+                ],
+                "summary": "Активация сотрудника (ввод в работу)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID сотрудника",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Данные активации",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.ActivateEmployeeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/employees/{id}/deactivate": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "employees"
+                ],
+                "summary": "Деактивация сотрудника",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID сотрудника",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Данные деактивации",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.DeactivateEmployeeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/employees/{id}/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "employees-history"
+                ],
+                "summary": "Получение истории конкретного сотрудника",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID сотрудника",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.EmployeeHistoryItem"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/employees/{id}/restore": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "employees"
+                ],
+                "summary": "Восстановление удалённого сотрудника",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID сотрудника",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Данные восстановления",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.RestoreEmployeeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/employees/{id}/territory-status": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "employees"
+                ],
+                "summary": "Обновление статуса нахождения сотрудника на территории",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID сотрудника",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Новый территориальный статус",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.UpdateTerritoryStatusRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/events": {
+            "get": {
+                "description": "Server-Sent Events: лёгкие сигналы \"сходи обнови\" (event-then-fetch). Авторизация одноразовым билетом из query (см. POST /events/ticket). Поток живёт до 10 минут, затем закрывается событием reconnect.",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "SSE-поток real-time сигналов",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Одноразовый билет из POST /events/ticket",
+                        "name": "ticket",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE-поток событий",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/events/ticket": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Короткоживущий одноразовый билет для подключения к /events. EventSource не шлёт Authorization, поэтому подключение авторизуется билетом, а не access-токеном.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Выдать одноразовый билет для SSE-потока",
+                "responses": {
+                    "200": {
+                        "description": "ticket: string",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
                         }
                     }
                 }
@@ -3717,13 +9119,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/feedback/{id}/read": {
+        "/feedback/{id}/flag": {
             "put": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
+                "description": "Общий флажок \"важное / взять в работу\", виден всем администраторам.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3733,7 +9136,7 @@ const docTemplate = `{
                 "tags": [
                     "feedback"
                 ],
-                "summary": "Отметить обращение как прочитанное/непрочитанное",
+                "summary": "Установить/снять общий флажок обращения",
                 "parameters": [
                     {
                         "type": "integer",
@@ -3743,18 +9146,76 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Статус прочтения",
+                        "description": "Состояние флажка",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.MarkAsReadRequest"
+                            "$ref": "#/definitions/models.SetFlagRequest"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Статус прочтения обновлен",
+                        "description": "Флажок обращения обновлён",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/feedback/{id}/read": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Фиксирует прочтение обращения текущим администратором. Идемпотентно.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "feedback"
+                ],
+                "summary": "Отметить обращение прочитанным (персонально)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID обращения",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Обращение отмечено прочитанным",
                         "schema": {
                             "type": "string"
                         }
@@ -3767,6 +9228,12 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -3843,6 +9310,202 @@ const docTemplate = `{
                 }
             }
         },
+        "/file-archive/download": {
+            "get": {
+                "description": "Публичный роут (билет вместо Authorization) - по образцу /events, EventSource/прямая ссылка не шлёт заголовок Bearer.",
+                "produces": [
+                    "application/zip"
+                ],
+                "tags": [
+                    "file-archive"
+                ],
+                "summary": "Скачать потоковый ZIP файлового архива за период",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Билет из POST /file-archive/download-ticket",
+                        "name": "ticket",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/file-archive/download-ticket": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Билет одноразовый, живёт секунды и привязан к границам периода - GET /file-archive/download их не принимает заново.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "file-archive"
+                ],
+                "summary": "Выдать билет на потоковый ZIP файлового архива за период",
+                "parameters": [
+                    {
+                        "description": "Период",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.ArchiveDownloadRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/file-archive/estimate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "file-archive"
+                ],
+                "summary": "Оценить объём выгрузки файлового архива за период",
+                "parameters": [
+                    {
+                        "description": "Период",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.ArchiveDownloadRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/file-archive/files/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "file-archive"
+                ],
+                "summary": "Скачать один файл из реестра файлового архива",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID строки реестра (blank_exports.id)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/file-archive/items": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Фильтры: status (один из известных статусов), application_id. Пагинация page/per_page.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "file-archive"
+                ],
+                "summary": "Список реестра файлового архива",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Статус строки реестра",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "application_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Страница",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Размер страницы (\u003c=100)",
+                        "name": "per_page",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/get-organization": {
             "get": {
                 "security": [
@@ -3883,6 +9546,252 @@ const docTemplate = `{
                 }
             }
         },
+        "/guide/admin/sections": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает все разделы без фильтра по правам. Гейт page.admin.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "guide"
+                ],
+                "summary": "Все разделы руководства (админ-управление)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/guide/admin/sections/{role}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "guide"
+                ],
+                "summary": "Правка текста раздела руководства (lead + items)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Роль раздела (user|guard|admin)",
+                        "name": "role",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "lead + items",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.updateGuideContentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/guide/admin/sections/{role}/file": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "guide"
+                ],
+                "summary": "Загрузить/заменить PDF раздела руководства",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Роль раздела (user|guard|admin)",
+                        "name": "role",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "PDF-файл",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "guide"
+                ],
+                "summary": "Удалить PDF раздела руководства",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Роль раздела (user|guard|admin)",
+                        "name": "role",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/guide/sections": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает разделы (user/guard/admin), на которые есть право guide.\u003crole\u003e.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "guide"
+                ],
+                "summary": "Разделы руководства, доступные пользователю",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/guide/sections/{role}/download": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "guide"
+                ],
+                "summary": "Скачать PDF раздела руководства",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Роль раздела (user|guard|admin)",
+                        "name": "role",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/license-plate-formats": {
             "get": {
                 "security": [
@@ -3890,7 +9799,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Возвращает список всех форматов номерных знаков с их ячейками",
+                "description": "Возвращает список форматов номерных знаков с их ячейками. По умолчанию только активные; include_archived=true добавляет архивные.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3901,6 +9810,14 @@ const docTemplate = `{
                     "license-formats"
                 ],
                 "summary": "Получить все форматы номерных знаков",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "Включить архивные форматы",
+                        "name": "include_archived",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -3975,6 +9892,106 @@ const docTemplate = `{
                 }
             }
         },
+        "/license-plate-formats/bulk/archive": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "license-formats"
+                ],
+                "summary": "Групповая архивация форматов номеров",
+                "parameters": [
+                    {
+                        "description": "Список ID форматов",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkIDsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/license-plate-formats/bulk/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "license-formats"
+                ],
+                "summary": "Групповое восстановление форматов номеров",
+                "parameters": [
+                    {
+                        "description": "Список ID форматов",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkIDsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/license-plate-formats/{id}": {
             "put": {
                 "security": [
@@ -4038,7 +10055,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Удаляет формат номерного знака по указанному ID",
+                "description": "Архивирует формат (soft-delete, is_active=false). Формат по умолчанию архивировать нельзя.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4048,7 +10065,7 @@ const docTemplate = `{
                 "tags": [
                     "license-formats"
                 ],
-                "summary": "Удалить формат номерного знака",
+                "summary": "Архивировать формат номерного знака",
                 "parameters": [
                     {
                         "type": "integer",
@@ -4060,7 +10077,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Формат номеров успешно удален",
+                        "description": "Формат номеров архивирован",
                         "schema": {
                             "type": "string"
                         }
@@ -4073,6 +10090,134 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/license-plate-formats/{id}/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает аудит создания/изменения/архивации/восстановления формата (новые сверху)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "license-formats"
+                ],
+                "summary": "История изменений формата номерного знака",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID формата",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.LicensePlateFormatHistoryItem"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/license-plate-formats/{id}/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает формат из архива (is_active=true)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "license-formats"
+                ],
+                "summary": "Восстановить формат номерного знака из архива",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID формата",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Формат номеров восстановлен из архива",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -4112,7 +10257,7 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "Invalid credentials",
+                        "description": "Неверный логин или пароль",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -4158,6 +10303,933 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/logout-all": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Отзывает все активные refresh-токены пользователя",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Выйти со всех устройств",
+                "responses": {
+                    "200": {
+                        "description": "количество отозванных сессий в поле revoked",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "integer"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/marks": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marks"
+                ],
+                "summary": "Список марок автомобилей",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "Включать архивные марки",
+                        "name": "include_archived",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Mark"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marks"
+                ],
+                "summary": "Создать марку автомобиля",
+                "parameters": [
+                    {
+                        "description": "Данные марки",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.CreateMarkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.Mark"
+                        }
+                    }
+                }
+            }
+        },
+        "/marks/bulk/archive": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marks"
+                ],
+                "summary": "Групповая архивация марок",
+                "parameters": [
+                    {
+                        "description": "Список ID марок",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkIDsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/marks/bulk/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marks"
+                ],
+                "summary": "Групповое восстановление марок",
+                "parameters": [
+                    {
+                        "description": "Список ID марок",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkIDsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/marks/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marks"
+                ],
+                "summary": "Переименовать марку (логируется в истории)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID марки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Новое имя",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.UpdateMarkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Марка обновлена",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/marks/{id}/archive": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marks"
+                ],
+                "summary": "Архивировать марку (is_active=false)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID марки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Марка архивирована",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/marks/{id}/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marks"
+                ],
+                "summary": "История изменений марки",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID марки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.MarkHistoryItem"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/marks/{id}/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marks"
+                ],
+                "summary": "Разархивировать марку (is_active=true)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID марки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Марка восстановлена",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/news": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "news"
+                ],
+                "summary": "Получение активных новостей",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.NewsWithUser"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "news"
+                ],
+                "summary": "Создание новости",
+                "parameters": [
+                    {
+                        "description": "Данные новости",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.CreateNewsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.NewsWithUser"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/news/all": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "news"
+                ],
+                "summary": "Получение всех новостей (для управления)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.NewsWithUser"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/news/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "news"
+                ],
+                "summary": "Обновление новости",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID новости",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Данные для обновления",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.UpdateNewsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.NewsWithUser"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "news"
+                ],
+                "summary": "Удаление новости",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID новости",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Новость удалена",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notifications"
+                ],
+                "summary": "Получение уведомлений текущего пользователя",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Notification"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notifications"
+                ],
+                "summary": "Создание уведомления (admin-only)",
+                "parameters": [
+                    {
+                        "description": "Данные уведомления",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.CreateNotificationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Notification"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notifications"
+                ],
+                "summary": "Удаление всех уведомлений текущего пользователя",
+                "responses": {
+                    "200": {
+                        "description": "Все уведомления удалены",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notifications"
+                ],
+                "summary": "Удаление уведомления",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID уведомления",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Уведомление удалено",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications/{id}/read": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notifications"
+                ],
+                "summary": "Отметить уведомление как прочитанное/непрочитанное",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID уведомления",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Статус прочтения",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.MarkNotificationReadRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Notification"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/onboarding": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает версию тура, которую прошёл пользователь. null — не проходил.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "onboarding"
+                ],
+                "summary": "Статус онбординг-тура текущего пользователя",
+                "responses": {
+                    "200": {
+                        "description": "completed_version: int|null",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/onboarding/complete": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Сохраняет версию тура, которую прошёл текущий пользователь.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "onboarding"
+                ],
+                "summary": "Отметить прохождение онбординг-тура",
+                "parameters": [
+                    {
+                        "description": "Версия пройденного тура (\u003e=1)",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.markCompleteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "success + message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -4256,6 +11328,438 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/bulk/archive": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Архивирует набор организаций. Активные с пользователями попадают в errors. Требует права admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "organizations"
+                ],
+                "summary": "Групповое архивирование организаций",
+                "parameters": [
+                    {
+                        "description": "ID организаций",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkIDsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/bulk/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Восстанавливает набор организаций из архива. Требует права admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "organizations"
+                ],
+                "summary": "Групповое восстановление организаций",
+                "parameters": [
+                    {
+                        "description": "ID организаций",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkIDsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/bulk/tables": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Назначает целевые таблицы набору организаций. mode=replace|add. Требует права admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "organizations"
+                ],
+                "summary": "Групповое назначение таблиц организациям",
+                "parameters": [
+                    {
+                        "description": "ID организаций, таблиц и режим",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkTablesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/bulk/type": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Меняет тип у набора организаций. Требует права admin. type=null снимает тип.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "organizations"
+                ],
+                "summary": "Групповая смена типа организаций",
+                "parameters": [
+                    {
+                        "description": "ID организаций и новый тип",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkTypeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/bulk/unload-places": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Назначает места разгрузки набору организаций. mode=replace|add. Требует права admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "organizations"
+                ],
+                "summary": "Групповое назначение мест разгрузки организациям",
+                "parameters": [
+                    {
+                        "description": "ID организаций, мест и режим",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkUnloadPlacesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/bulk/users": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Назначает ответственных набору организаций. mode=replace|add. primary не назначается. Требует права admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "organizations"
+                ],
+                "summary": "Групповое назначение ответственных организациям",
+                "parameters": [
+                    {
+                        "description": "ID организаций, логины, режим",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkUsersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/suggest": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Близкие к запросу проверенные организации (максимум 5) для ручного ввода наименования в заявке. Требует права application.organization.override. Запрос короче трёх символов даёт пустой список.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "organizations"
+                ],
+                "summary": "Подсказки организаций по наименованию",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Наименование или его часть; короче трёх символов - пустой список",
+                        "name": "q",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.DirectorySuggestAnswer"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -4469,6 +11973,465 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{id}/blocking-users": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает активных участников (users.organization_id=id), из-за\nкоторых организацию нельзя архивировать. Тот же набор, что GetMembers\n(участники активны по определению); отдельный endpoint для delete-флоу.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "organizations"
+                ],
+                "summary": "Пользователи, блокирующие архивацию организации",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID организации",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.MemberResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{id}/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "organizations"
+                ],
+                "summary": "История изменений организации",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID организации",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.OrganizationHistoryItem"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{id}/members": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает пользователей, привязанных к организации через organization_id (не ответственных)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "organizations"
+                ],
+                "summary": "Получить участников организации",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID организации",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.MemberResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{id}/moderation/approve": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Разбор записи, заведённой из заявки (#1437). Требует права application.organization.moderate. Если наименование столкнулось с уже проверенной записью, ответ приходит со status=conflict и самой записью - её предлагают выбрать вместо черновика; столкновение с другим черновиком даёт 400, его разбирают первым.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "organizations"
+                ],
+                "summary": "Подтвердить организацию «на проверке»",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID организации",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.DirectoryModerationResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{id}/moderation/merge": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Переносит заявки, вложения, машины, сотрудников и привязки черновика на выбранную проверенную организацию и удаляет черновик. Требует права application.organization.moderate.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "organizations"
+                ],
+                "summary": "Привязать организацию «на проверке» к существующей",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID организации «на проверке»",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "ID целевой организации",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.DirectoryMergeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.DirectoryMergeResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{id}/moderation/rename": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Правит наименование черновика и считает запись разобранной. Требует права application.organization.moderate. При совпадении с проверенной записью возвращает status=conflict, при совпадении с другим черновиком - 400.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "organizations"
+                ],
+                "summary": "Исправить наименование организации «на проверке»",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID организации",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Новое наименование",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.DirectoryRenameRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.DirectoryModerationResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{id}/reassign-users": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Переносит активных участников организации в целевую (target_id),\nосвобождая исходную для архивации. Требует права admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "organizations"
+                ],
+                "summary": "Перенести всех блокирующих пользователей в другую организацию",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID исходной организации",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "ID целевой организации",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.ReassignUsersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "reassigned",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "integer"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{id}/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "organizations"
+                ],
+                "summary": "Восстановить организацию из архива",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID организации",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Organization restored",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -4821,6 +12784,498 @@ const docTemplate = `{
                 }
             }
         },
+        "/pd-audit": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Кто и когда обращался к данным сотрудников. Фильтры через query: user_id, username, action, resource, only_denied, from, to, page, limit. Право page.admin.pd_audit.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pd-audit"
+                ],
+                "summary": "Журнал доступа к персональным данным",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.PDAuditPageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/person-blacklist": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "person-blacklist"
+                ],
+                "summary": "Список чёрного списка людей",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "Включать снятые записи",
+                        "name": "include_archived",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.PersonBlacklist"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "person-blacklist"
+                ],
+                "summary": "Добавить человека в чёрный список",
+                "parameters": [
+                    {
+                        "description": "Данные записи",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.CreatePersonBlacklistRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.PersonBlacklist"
+                        }
+                    }
+                }
+            }
+        },
+        "/person-blacklist/bulk/archive": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "person-blacklist"
+                ],
+                "summary": "Групповое снятие людей с чёрного списка",
+                "parameters": [
+                    {
+                        "description": "Список ID записей",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkIDsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/person-blacklist/bulk/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "person-blacklist"
+                ],
+                "summary": "Групповое восстановление людей в чёрный список",
+                "parameters": [
+                    {
+                        "description": "Список ID записей",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkIDsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/person-blacklist/check": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "person-blacklist"
+                ],
+                "summary": "Проверить, в чёрном ли списке человек",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Фамилия",
+                        "name": "last_name",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Имя",
+                        "name": "first_name",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Отчество",
+                        "name": "middle_name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.PersonBlacklistCheckResult"
+                        }
+                    }
+                }
+            }
+        },
+        "/person-blacklist/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "person-blacklist"
+                ],
+                "summary": "Весь журнал чёрного списка людей",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.PersonBlacklistHistoryItem"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/person-blacklist/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "person-blacklist"
+                ],
+                "summary": "Редактировать запись чёрного списка (ФИО, причина)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID записи",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "ФИО, причина",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.UpdatePersonBlacklistRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.PersonBlacklist"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "person-blacklist"
+                ],
+                "summary": "Снять человека с чёрного списка (архивация)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID записи",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Человек снят с чёрного списка",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/person-blacklist/{id}/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "person-blacklist"
+                ],
+                "summary": "История записи чёрного списка людей",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID записи",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.PersonBlacklistHistoryItem"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/person-blacklist/{id}/purge": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "person-blacklist"
+                ],
+                "summary": "Удалить запись чёрного списка людей навсегда",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID записи",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Запись удалена навсегда",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/person-blacklist/{id}/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "person-blacklist"
+                ],
+                "summary": "Вернуть человека в чёрный список",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID записи",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Человек возвращён в чёрный список",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/public/documents": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "summary": "Публичный список документов (только видимые, сгруппированы)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.PublicDocumentGroup"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/refresh-token": {
             "post": {
                 "description": "Выдаёт новую пару access + refresh токенов по refresh token",
@@ -4861,9 +13316,847 @@ const docTemplate = `{
                 }
             }
         },
-        "/register": {
+        "/request-logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "request-logs"
+                ],
+                "summary": "Получение логов запросов с пагинацией и фильтрацией",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID пользователя",
+                        "name": "user_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "HTTP метод",
+                        "name": "method",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "HTTP статус",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Дата начала (ISO 8601)",
+                        "name": "from_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Дата окончания (ISO 8601)",
+                        "name": "to_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Поиск по URL и username",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Страница",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Записей на странице",
+                        "name": "per_page",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/request-logs/export": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "request-logs"
+                ],
+                "summary": "Экспорт логов в текстовый формат",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID пользователя",
+                        "name": "user_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "HTTP метод",
+                        "name": "method",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "HTTP статус",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Дата начала (ISO 8601)",
+                        "name": "from_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Дата окончания (ISO 8601)",
+                        "name": "to_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Поиск по URL и username",
+                        "name": "search",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/request-logs/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "request-logs"
+                ],
+                "summary": "Агрегаты логов за период (вкладка «Аналитика»)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Дата начала (YYYY-MM-DD)",
+                        "name": "from_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Дата окончания (YYYY-MM-DD)",
+                        "name": "to_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.RequestLogsHistory"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/request-logs/realtime": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "request-logs"
+                ],
+                "summary": "Получение статистики в реальном времени",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.RealtimeStats"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/request-logs/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "request-logs"
+                ],
+                "summary": "Получение статистики по логам",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.RequestLogsStats"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/request-logs/timeline": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "request-logs"
+                ],
+                "summary": "Получение таймлайна для графика",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 60,
+                        "description": "Интервал группировки в секундах",
+                        "name": "interval",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 24,
+                        "description": "Максимум точек",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Дата начала (ISO 8601)",
+                        "name": "from_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Дата окончания (ISO 8601)",
+                        "name": "to_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.TimelinePoint"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/request-logs/users": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "request-logs"
+                ],
+                "summary": "Получение уникальных пользователей для фильтра",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.RequestLogsUser"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/search": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Ищет по всем разделам, доступным пользователю, и возвращает результаты\nсгруппированными по сущностям. Раздел, на который у пользователя нет\nправа, в выдачу не попадает; внутри раздела строки сужаются так же, как\nв его листинге. Ответ отдаётся даже если часть разделов не ответила --\nих коды перечислены в degraded.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "search"
+                ],
+                "summary": "Сквозной поиск по системе",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Поисковый запрос, от 3 до 100 символов",
+                        "name": "q",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Коды разделов через запятую; пусто -- все доступные",
+                        "name": "types",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Результатов на раздел, 1..20 (по умолчанию 5)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.SearchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Слишком короткий или длинный запрос, неизвестный раздел",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Учётная запись заблокирована",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "503": {
+                        "description": "Ни один раздел не ответил",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/statistics/insights": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Готовые инсайты за период: пик по часам, сравнение с прошлым периодом, топ мест/организаций, тренды",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "statistics"
+                ],
+                "summary": "Инсайты аналитики",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Дата начала YYYY-MM-DD",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Дата конца YYYY-MM-DD",
+                        "name": "to",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.InsightsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/statistics/metrics": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Whitelist метрик, разрезов, фильтров и list-сущностей со значениями динамических справочников",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "statistics"
+                ],
+                "summary": "Каталог конструктора отчётов",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/statistics/online-peaks": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Серия дневных пиков одновременного онлайна за период для графика динамики пользователей",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "statistics"
+                ],
+                "summary": "Дневные пики онлайна пользователей",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Начало периода (YYYY-MM-DD)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Конец периода (YYYY-MM-DD)",
+                        "name": "to",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.OnlinePeakPoint"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/statistics/online-users": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Пользователи с активностью (last_seen) за окно онлайна, по убыванию свежести. Для модалки «кто онлайн» на дашборде.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "statistics"
+                ],
+                "summary": "Список пользователей онлайн",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/statistics/processing-journal": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Сквозная лента событий обработки за период по времени убыванием: согласования и несогласования, принятия в работу, отказы принимающего и отзывы инициатором — кто, по какой заявке, в какой роли, когда и сколько рабочего времени Бюро на это ушло. Страница задаётся limit и offset, общее число подходящих событий — в meta.total. Фильтры role и q сужают выборку и учитываются в meta.total.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "statistics"
+                ],
+                "summary": "Журнал обработки заявок",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Начало периода (YYYY-MM-DD), по умолчанию 7 дней назад",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Конец периода (YYYY-MM-DD), по умолчанию сегодня",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Роль события: approval, not_approved, acceptance, rejection или withdrawal (по умолчанию все)",
+                        "name": "role",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Поиск по номеру заявки или ФИО актора (подстрока, регистр не важен)",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Размер страницы (по умолчанию 50, максимум 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Смещение от начала ленты (по умолчанию 0)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/statistics/processing-summary": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Бандл вкладки «Обработка заявок»: KPI этапов пути заявки (среднее и 90-й перцентиль) со сравнением с прошлым периодом, качество обработки, топ медленных согласующих, разбивка по организациям",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "statistics"
+                ],
+                "summary": "Сводка обработки заявок",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Начало периода (YYYY-MM-DD), по умолчанию 7 дней назад",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Конец периода (YYYY-MM-DD), по умолчанию сегодня",
+                        "name": "to",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/statistics/recent-passages": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "statistics"
+                ],
+                "summary": "Последние проходы людей и проезды машин (живые ленты)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Количество последних записей (1-50, по умолчанию 15)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/statistics/report": {
             "post": {
-                "description": "Создаёт нового пользователя с указанными данными",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "mode=aggregate: одна/несколько метрик (metrics[]) x разрез (или none) x фильтры x период. mode=list: выгрузка строк сущности.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4871,29 +14164,340 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "auth"
+                    "statistics"
                 ],
-                "summary": "Регистрация пользователя",
+                "summary": "Исполнение отчёта конструктора",
                 "parameters": [
                     {
-                        "description": "Данные регистрации",
+                        "description": "Параметры отчёта",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.RegisterRequest"
+                            "$ref": "#/definitions/models.ReportRequest"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "User registered successfully",
+                        "description": "OK",
                         "schema": {
-                            "type": "string"
+                            "$ref": "#/definitions/handlers.Response"
                         }
                     },
                     "400": {
-                        "description": "Username already exists",
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/statistics/stuck-approvals": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Текущий снимок заявок, ждущих решения согласующего дольше настроенного порога молчания. Не зависит от периода вкладки: показывает состояние на данный момент, как журнал решений",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "statistics"
+                ],
+                "summary": "Зависшие согласования",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/statistics/summary": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "statistics"
+                ],
+                "summary": "Сводная статистика дашборда",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Начало периода (YYYY-MM-DD), по умолчанию 7 дней назад",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Конец периода (YYYY-MM-DD), по умолчанию сегодня",
+                        "name": "to",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/statistics/templates": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Системные пресеты + личные шаблоны пользователя + расшаренные",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "statistics"
+                ],
+                "summary": "Список шаблонов отчётов",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "statistics"
+                ],
+                "summary": "Сохранить личный шаблон отчёта",
+                "parameters": [
+                    {
+                        "description": "Шаблон",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.SaveReportTemplateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.ReportTemplate"
+                        }
+                    }
+                }
+            }
+        },
+        "/statistics/templates/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "statistics"
+                ],
+                "summary": "Обновить личный шаблон отчёта",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID шаблона",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Шаблон",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.SaveReportTemplateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.ReportTemplate"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "statistics"
+                ],
+                "summary": "Удалить личный шаблон отчёта",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID шаблона",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/statistics/timeline": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "statistics"
+                ],
+                "summary": "Данные для графика по метрике",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Начало периода (YYYY-MM-DD)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Конец периода (YYYY-MM-DD)",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "applications",
+                        "description": "Метрика: applications, car_entries, people_entries",
+                        "name": "metric",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "day",
+                        "description": "Гранулярность: day, week, month",
+                        "name": "granularity",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.StatsTimelinePoint"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -4908,14 +14512,22 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Возвращает все активные системные таблицы с полями, слотами, фото и текущим статусом (open/closed)",
+                "description": "По умолчанию возвращает только активные. include_archived=true возвращает только архивные (мягко удалённые).",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "system-tables"
                 ],
-                "summary": "Получение всех системных таблиц",
+                "summary": "Получение системных таблиц",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "Вернуть архивные таблицы вместо активных",
+                        "name": "include_archived",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -4997,6 +14609,106 @@ const docTemplate = `{
                 }
             }
         },
+        "/system-tables/bulk/archive": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system-tables"
+                ],
+                "summary": "Групповая архивация системных таблиц",
+                "parameters": [
+                    {
+                        "description": "Список ID таблиц",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkIDsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/system-tables/bulk/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system-tables"
+                ],
+                "summary": "Групповое восстановление системных таблиц",
+                "parameters": [
+                    {
+                        "description": "Список ID таблиц",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkIDsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/system-tables/name/{name}": {
             "get": {
                 "security": [
@@ -5019,6 +14731,12 @@ const docTemplate = `{
                         "name": "name",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Искать и среди архивных тоже (для страницы версий)",
+                        "name": "allow_archived",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -5162,7 +14880,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Мягкое удаление (is_active=false). Проверяет привязки к организациям и компаниям",
+                "description": "Мягкое удаление (is_active=false) - таблица уходит в архив. Проверяет привязки к организациям и компаниям",
                 "produces": [
                     "application/json"
                 ],
@@ -5194,6 +14912,513 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/system-tables/{id}/companies/{company_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Снимает привязку таблицы к конкретной компании (с записью в её историю). Идемпотентно",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system-tables"
+                ],
+                "summary": "Отвязать таблицу от компании",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID компании",
+                        "name": "company_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "boolean"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/system-tables/{id}/detach-all": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Разом снимает все привязки таблицы к организациям/компаниям (с записью в историю каждой). После этого таблицу можно архивировать",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system-tables"
+                ],
+                "summary": "Отвязать таблицу от всех организаций и компаний",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.SystemTableDetachResult"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/system-tables/{id}/fact-fields": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "То же что UpdateFields, но для table_fields_fact.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system-tables"
+                ],
+                "summary": "Bulk-обновление столбцов FactTable (#345)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Список столбцов с новой видимостью",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.UpdateFieldsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Видимость столбцов FactTable обновлена",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/system-tables/{id}/fields": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Обновляет is_visible для перечисленных field_name. Поля не из БД игнорируются.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system-tables"
+                ],
+                "summary": "Bulk-обновление видимости столбцов таблицы (#345)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Список столбцов с новой видимостью",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.UpdateFieldsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Видимость столбцов обновлена",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/system-tables/{id}/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает все CRUD-действия над таблицей (created/updated/archived/restored/columns/appearance)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system-tables"
+                ],
+                "summary": "История изменений системной таблицы",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.SystemTableHistoryItem"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/system-tables/{id}/organizations/{org_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Снимает привязку таблицы к конкретной организации (с записью в её историю). Идемпотентно",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system-tables"
+                ],
+                "summary": "Отвязать таблицу от организации",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID организации",
+                        "name": "org_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "boolean"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/system-tables/{id}/pass-report/live": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Счётчики событий въезд/выезд машин и вход/выход людей за незакрытое окно [последние 21:30 МСК, сейчас). Охранник видит свои строки + итог по таблице, admin/super - разбивку по всем.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pass-reports"
+                ],
+                "summary": "Живой отчёт по проходам за текущее окно",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "period_start/period_end, rows, totals",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/system-tables/{id}/pass-reports": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "История отчётов таблицы по дням (окно [21:30, 21:30) МСК, фиксируется кроном в 21:30). Фильтр периода from/to по report_date (YYYY-MM-DD); без фильтра - последний месяц. Новые дни первыми.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pass-reports"
+                ],
+                "summary": "Сохранённые суточные отчёты по проходам",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Начало периода (YYYY-MM-DD)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Конец периода (YYYY-MM-DD)",
+                        "name": "to",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "days: список дней с rows и totals",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -5247,6 +15472,370 @@ const docTemplate = `{
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/system-tables/{id}/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает таблицу из архива (is_active=false -\u003e true)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system-tables"
+                ],
+                "summary": "Восстановление системной таблицы из архива",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Системная таблица восстановлена",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/system-tables/{id}/snapshots": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Метаданные версий таблицы (дата, причина, автор, агрегаты) без payload. Пагинация + фильтр периода (from/to по дате снимка).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "table-snapshots"
+                ],
+                "summary": "Список версий состояния таблицы",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Страница (\u003e=1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Размер страницы (1-100)",
+                        "name": "per_page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Начало периода (YYYY-MM-DD или RFC3339)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Конец периода (YYYY-MM-DD или RFC3339)",
+                        "name": "to",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "data: список версий, meta: пагинация",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Сохраняет текущее состояние таблицы (машины/люди со статусами) как новую версию (reason=manual).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "table-snapshots"
+                ],
+                "summary": "Ручной снимок состояния таблицы",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "id версии, message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Удаляет версии таблицы старше older_than месяцев. Разрушительно - только admin/super (гейт requireAdmin на роуте).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "table-snapshots"
+                ],
+                "summary": "Чистка старых версий таблицы",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Порог в месяцах (\u003e0): удалить версии старше",
+                        "name": "older_than",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "deleted: число удалённых",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/system-tables/{id}/snapshots/{sid}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Одна версия с полным payload (строки+статусы). Скоуплена по таблице из URL.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "table-snapshots"
+                ],
+                "summary": "Версия состояния таблицы (полный слепок)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID версии",
+                        "name": "sid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "версия с payload",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/system-tables/{id}/snapshots/{sid}/export": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Отдаёт полную таблицу версии (или текущего состояния при sid=current / ?current=1) файлом на скачивание. format=xlsx (по умолчанию) или pdf. На сервере не хранится.",
+                "produces": [
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/pdf"
+                ],
+                "tags": [
+                    "table-snapshots"
+                ],
+                "summary": "Экспорт версии/текущего состояния таблицы (Excel/PDF)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID версии или 'current' для текущего состояния",
+                        "name": "sid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Формат: xlsx (по умолчанию) или pdf",
+                        "name": "format",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "1 - экспорт текущего состояния (sid игнорируется)",
+                        "name": "current",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Файл выгрузки",
+                        "schema": {
+                            "type": "file"
                         }
                     },
                     "400": {
@@ -5356,6 +15945,400 @@ const docTemplate = `{
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/models.CreateTimeSlotRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "id, message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/system-tables/{id}/trash": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trash"
+                ],
+                "summary": "Список элементов в корзине таблицы",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID SystemTable",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Поиск по номеру/ФИО",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Фильтр по организации",
+                        "name": "organization_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID организаций через запятую (мультивыбор)",
+                        "name": "organization_ids",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Дата удаления с (YYYY-MM-DD)",
+                        "name": "date_from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Дата удаления по (YYYY-MM-DD)",
+                        "name": "date_to",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.TrashItem"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trash"
+                ],
+                "summary": "Очистить корзину таблицы целиком",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID SystemTable",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "integer"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/system-tables/{id}/trash/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trash"
+                ],
+                "summary": "Лог массовых действий с корзиной таблицы",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID SystemTable",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.TrashHistoryItem"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/system-tables/{id}/trash/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trash"
+                ],
+                "summary": "Восстановить элементы из корзины",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID SystemTable",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "IDs",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.RestoreTrashRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "integer"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/system-tables/{id}/trash/{item_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trash"
+                ],
+                "summary": "Окончательно удалить элемент из корзины",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID SystemTable",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID элемента",
+                        "name": "item_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Удалено безвозвратно",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/system-tables/{id}/usage": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Организации и компании, к которым привязана таблица (те же, что блокируют удаление)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system-tables"
+                ],
+                "summary": "Привязки системной таблицы",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.SystemTableUsage"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/system-tables/{id}/warning-windows": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает все предупреждения по временным окнам для системной таблицы",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system-tables"
+                ],
+                "summary": "Получение предупреждений по окнам таблицы",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.SystemTableWarningWindow"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Создаёт новое предупреждение по временному окну для системной таблицы",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system-tables"
+                ],
+                "summary": "Добавление предупреждения по окну",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Данные предупреждения",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.WarningWindowRequest"
                         }
                     }
                 ],
@@ -5634,6 +16617,134 @@ const docTemplate = `{
                 }
             }
         },
+        "/system-tables/{table_id}/warning-windows/{window_id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Перезаписывает предупреждение по временному окну целиком",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system-tables"
+                ],
+                "summary": "Обновление предупреждения по окну",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "table_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID предупреждения по окну",
+                        "name": "window_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Данные предупреждения",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.WarningWindowRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Предупреждение по окну успешно обновлено",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Удаляет предупреждение по временному окну из системной таблицы",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system-tables"
+                ],
+                "summary": "Удаление предупреждения по окну",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID таблицы",
+                        "name": "table_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID предупреждения по окну",
+                        "name": "window_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Предупреждение по окну успешно удалено",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/unique-cars": {
             "get": {
                 "security": [
@@ -5641,7 +16752,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Возвращает список уникальных машин с фильтрацией по владельцу",
+                "description": "Возвращает список уникальных машин с фильтрацией по владельцу. Без per_page -\nполный массив (legacy, для ExistingCarsModal/CreateApplication). С per_page -\nпагинация + серверный поиск search_query (#1158, срез 2, для CarsView).",
                 "produces": [
                     "application/json"
                 ],
@@ -5654,6 +16765,24 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Тип фильтра: user, organization, company, all, all_system",
                         "name": "filter_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Поисковый запрос (номер/марка/формат/организация/компания)",
+                        "name": "search_query",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Номер страницы (с per_page)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Размер страницы (\u003c=100); наличие включает пагинацию",
+                        "name": "per_page",
                         "in": "query"
                     }
                 ],
@@ -5836,6 +16965,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/unique-cars/lookup": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Поиск машины (LOWER/TRIM) для открытия карточки со страницы ЧС. 404 если нет.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unique-cars"
+                ],
+                "summary": "Найти машину по номеру и марке",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Номер машины",
+                        "name": "number",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Марка",
+                        "name": "mark",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.UniqueCarWithRelations"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/unique-cars/ownership-info": {
             "get": {
                 "security": [
@@ -5990,6 +17165,61 @@ const docTemplate = `{
                 }
             }
         },
+        "/unique-cars/{id}/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает аудит изменений мастер-записи машины (data_changed)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unique-cars"
+                ],
+                "summary": "История изменений мастер-машины",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID машины",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.UniqueCarHistoryItem"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Нет прав",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Не найдена",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/unique-employees": {
             "get": {
                 "security": [
@@ -5997,7 +17227,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Возвращает список уникальных сотрудников с фильтрацией по владельцу",
+                "description": "Возвращает список уникальных сотрудников с фильтрацией по владельцу. Без per_page -\nполный массив (legacy). С per_page - пагинация + серверный поиск search_query\n(#1158, срез 3, для EmployeeView).",
                 "produces": [
                     "application/json"
                 ],
@@ -6008,8 +17238,26 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Тип фильтра: user, organization, company, all",
+                        "description": "Тип фильтра: user, organization, company, all, all_system",
                         "name": "filter_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Поисковый запрос (ФИО/должность/организация/компания/гражданство)",
+                        "name": "search_query",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Номер страницы (с per_page)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Размер страницы (\u003c=100); наличие включает пагинацию",
+                        "name": "per_page",
                         "in": "query"
                     }
                 ],
@@ -6074,6 +17322,65 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/unique-employees/lookup": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Поиск сотрудника (LOWER/TRIM) для открытия карточки со страницы ЧС. 404 если нет.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unique-employees"
+                ],
+                "summary": "Найти сотрудника по ФИО",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Фамилия",
+                        "name": "last_name",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Имя",
+                        "name": "first_name",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Отчество",
+                        "name": "middle_name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.UniqueEmployeeWithRelations"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -6235,6 +17542,61 @@ const docTemplate = `{
                 }
             }
         },
+        "/unique-employees/{id}/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает аудит изменений мастер-записи сотрудника (data_changed)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unique-employees"
+                ],
+                "summary": "История изменений мастер-сотрудника",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID сотрудника",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.UniqueEmployeeHistoryItem"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Нет прав",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Не найден",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/unload-places": {
             "get": {
                 "security": [
@@ -6250,6 +17612,14 @@ const docTemplate = `{
                     "unload-places"
                 ],
                 "summary": "Получение всех мест разгрузки",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "Включить архивные места",
+                        "name": "include_archived",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -6324,6 +17694,107 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/unload-places/bulk/archive": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Архивирует набор мест разгрузки. Привязанные к организациям/компаниям попадают в Errors (частичный успех)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unload-places"
+                ],
+                "summary": "Групповая архивация мест разгрузки",
+                "parameters": [
+                    {
+                        "description": "Список ID мест разгрузки",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkIDsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/unload-places/bulk/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unload-places"
+                ],
+                "summary": "Групповое восстановление мест разгрузки",
+                "parameters": [
+                    {
+                        "description": "Список ID мест разгрузки",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkIDsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -6507,6 +17978,249 @@ const docTemplate = `{
                 }
             }
         },
+        "/unload-places/{id}/companies/{company_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Снимает привязку места к конкретной компании (с записью в её историю). Идемпотентно",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unload-places"
+                ],
+                "summary": "Отвязать место разгрузки от компании",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID места разгрузки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID компании",
+                        "name": "company_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "boolean"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/unload-places/{id}/detach-all": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Разом снимает все привязки места к организациям/компаниям (с записью в историю каждой). После этого место можно архивировать",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unload-places"
+                ],
+                "summary": "Отвязать место разгрузки от всех организаций и компаний",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID места разгрузки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.UnloadPlaceDetachResult"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/unload-places/{id}/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает аудит создания/переименования/архивации/восстановления места разгрузки",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unload-places"
+                ],
+                "summary": "История изменений места разгрузки",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID места разгрузки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.UnloadPlaceHistoryItem"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/unload-places/{id}/organizations/{org_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Снимает привязку места к конкретной организации (с записью в её историю). Идемпотентно",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unload-places"
+                ],
+                "summary": "Отвязать место разгрузки от организации",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID места разгрузки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID организации",
+                        "name": "org_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "boolean"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/unload-places/{id}/photos": {
             "post": {
                 "security": [
@@ -6553,6 +18267,57 @@ const docTemplate = `{
                         "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/unload-places/{id}/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unload-places"
+                ],
+                "summary": "Восстановление места разгрузки из архива",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID места разгрузки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Место разгрузки восстановлено",
+                        "schema": {
+                            "type": "string"
                         }
                     },
                     "401": {
@@ -6656,6 +18421,176 @@ const docTemplate = `{
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/services.CreateTimeSlotRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "id и message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/unload-places/{id}/usage": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Организации и компании, к которым привязано место разгрузки (те же, что блокируют удаление)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unload-places"
+                ],
+                "summary": "Привязки места разгрузки",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID места разгрузки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.UnloadPlaceUsage"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/unload-places/{id}/warning-windows": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает все предупреждения по временным окнам для места разгрузки",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unload-places"
+                ],
+                "summary": "Получение предупреждений по окнам",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID места разгрузки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.UnloadPlaceWarningWindow"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Создаёт новое предупреждение по временному окну для места разгрузки",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unload-places"
+                ],
+                "summary": "Добавление предупреждения по окну",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID места разгрузки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Данные предупреждения",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.WarningWindowRequest"
                         }
                     }
                 ],
@@ -6921,6 +18856,140 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "Временной слот успешно удален",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/unload-places/{place_id}/warning-windows/{window_id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Перезаписывает предупреждение по временному окну целиком",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unload-places"
+                ],
+                "summary": "Обновление предупреждения по окну",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID места разгрузки",
+                        "name": "place_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID предупреждения по окну",
+                        "name": "window_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Данные предупреждения",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.WarningWindowRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Предупреждение по окну успешно обновлено",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Удаляет предупреждение по временному окну из места разгрузки",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unload-places"
+                ],
+                "summary": "Удаление предупреждения по окну",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID места разгрузки",
+                        "name": "place_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID предупреждения по окну",
+                        "name": "window_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Предупреждение по окну успешно удалено",
                         "schema": {
                             "type": "string"
                         }
@@ -7222,6 +19291,182 @@ const docTemplate = `{
                 }
             }
         },
+        "/user-types-management/{id}/blocking-users": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает всех пользователей типа (включая архивных), из-за которых\nтип нельзя удалить. Требует права admin.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user-types-management"
+                ],
+                "summary": "Пользователи, блокирующие удаление типа",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID типа пользователя",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.UserTypeMemberResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/user-types-management/{id}/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user-types-management"
+                ],
+                "summary": "История изменений типа пользователя",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID типа пользователя",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.UserTypeHistoryItem"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/user-types-management/{id}/reassign-users": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Переносит всех пользователей типа в целевой (target_type_id),\nосвобождая исходный для удаления. Требует права admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user-types-management"
+                ],
+                "summary": "Перенести всех пользователей типа в другой тип",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID исходного типа",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "ID целевого типа",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.ReassignUserTypeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "reassigned",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "integer"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/users": {
             "post": {
                 "security": [
@@ -7332,6 +19577,356 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/bulk/archive": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Групповое архивирование пользователей",
+                "parameters": [
+                    {
+                        "description": "Список username",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkUsernamesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/bulk/ban": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Групповая блокировка пользователей",
+                "parameters": [
+                    {
+                        "description": "Список username и причина",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkUserBanRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/bulk/company": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Групповое назначение компании пользователям",
+                "parameters": [
+                    {
+                        "description": "Список username и company_id",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkUserCompanyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/bulk/organization": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Групповое назначение организации пользователям",
+                "parameters": [
+                    {
+                        "description": "Список username и organization_id",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkUserOrganizationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/bulk/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Групповое восстановление пользователей",
+                "parameters": [
+                    {
+                        "description": "Список username",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkUsernamesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/bulk/type": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Групповая смена типа пользователей",
+                "parameters": [
+                    {
+                        "description": "Список username и type_id",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkUserTypeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/bulk/unban": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Групповая разблокировка пользователей",
+                "parameters": [
+                    {
+                        "description": "Список username",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkUsernamesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/users/me": {
             "get": {
                 "security": [
@@ -7363,6 +19958,100 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/me/theme": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает выбранную тему. null — пользователь тему не выбирал.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Тема оформления текущего пользователя",
+                "responses": {
+                    "200": {
+                        "description": "theme: string|null",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Сохраняет тему в профиле текущего пользователя, чтобы выбор ехал за ним между устройствами.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Выбрать тему оформления",
+                "parameters": [
+                    {
+                        "description": "Идентификатор темы",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.setThemeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "success + message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{username}": {
             "delete": {
                 "security": [
@@ -7379,7 +20068,7 @@ const docTemplate = `{
                 "tags": [
                     "users"
                 ],
-                "summary": "Удаление пользователя",
+                "summary": "Архивация пользователя (soft-delete)",
                 "parameters": [
                     {
                         "type": "string",
@@ -7413,6 +20102,88 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{username}/auth-events": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "События аутентификации пользователя (вход/выход/неудачные попытки/блокировки/сессии). Фильтры: category (login/logout/failed/locked/session), from, to (YYYY-MM-DD). Пагинация page/limit.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "История входов пользователя",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Имя пользователя",
+                        "name": "username",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Категория события (login/logout/failed/locked/session)",
+                        "name": "category",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Дата с (YYYY-MM-DD, включительно)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Дата по (YYYY-MM-DD, включительно)",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Страница",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Размер страницы (\u003c=100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -7483,6 +20254,60 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{username}/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "История изменений пользователя",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Имя пользователя",
+                        "name": "username",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.UserHistoryItem"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{username}/info": {
             "put": {
                 "security": [
@@ -7533,6 +20358,65 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{username}/onboarding/reset": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Обнуляет статус прохождения тура у пользователя по username - при\nследующем входе у него снова сработает автозапуск. Только для админов.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "onboarding"
+                ],
+                "summary": "Сбросить онбординг-тур пользователю (админ)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Логин пользователя",
+                        "name": "username",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "success + message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -7672,6 +20556,227 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{username}/reset-lockout": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Обнуляет счётчик неудачных попыток, лестницу кулдаунов и сам лок учётной записи",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Снять блокировку входа",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Логин пользователя",
+                        "name": "username",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "reset=false, если блокировки не было",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "boolean"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{username}/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Восстановление пользователя из архива",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Имя пользователя",
+                        "name": "username",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{username}/tables": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Получение мест прохода охранника",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Имя пользователя",
+                        "name": "username",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.SystemTable"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Замена мест прохода охранника",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Имя пользователя",
+                        "name": "username",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Список ID мест прохода",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.SetUserTablesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Tables updated successfully",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{username}/type": {
             "put": {
                 "security": [
@@ -7740,9 +20845,732 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/users/{username}/unload-places": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Получение мест разгрузки охранника",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Имя пользователя",
+                        "name": "username",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.UnloadPlace"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Замена мест разгрузки охранника",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Имя пользователя",
+                        "name": "username",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Список ID мест разгрузки",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.SetUserUnloadPlacesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Unload places updated successfully",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/vehicle-blacklist": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vehicle-blacklist"
+                ],
+                "summary": "Список чёрного списка машин",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "Включать снятые записи",
+                        "name": "include_archived",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.VehicleBlacklist"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vehicle-blacklist"
+                ],
+                "summary": "Добавить машину в чёрный список",
+                "parameters": [
+                    {
+                        "description": "Данные записи",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.CreateVehicleBlacklistRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.VehicleBlacklist"
+                        }
+                    }
+                }
+            }
+        },
+        "/vehicle-blacklist/bulk/archive": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vehicle-blacklist"
+                ],
+                "summary": "Групповое снятие машин с чёрного списка",
+                "parameters": [
+                    {
+                        "description": "Список ID записей",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkIDsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/vehicle-blacklist/bulk/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vehicle-blacklist"
+                ],
+                "summary": "Групповое восстановление машин в чёрный список",
+                "parameters": [
+                    {
+                        "description": "Список ID записей",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkIDsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Частичный успех",
+                        "schema": {
+                            "$ref": "#/definitions/services.BulkOpResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/vehicle-blacklist/check": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vehicle-blacklist"
+                ],
+                "summary": "Проверить, в чёрном ли списке машина",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Номер машины",
+                        "name": "car_number",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID марки",
+                        "name": "mark_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.VehicleBlacklistCheckResult"
+                        }
+                    }
+                }
+            }
+        },
+        "/vehicle-blacklist/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vehicle-blacklist"
+                ],
+                "summary": "Весь журнал чёрного списка машин",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.VehicleBlacklistHistoryItem"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/vehicle-blacklist/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vehicle-blacklist"
+                ],
+                "summary": "Редактировать запись чёрного списка (номер, марка, причина)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID записи",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Номер, марка, причина",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.UpdateVehicleBlacklistRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.VehicleBlacklist"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vehicle-blacklist"
+                ],
+                "summary": "Снять машину с чёрного списка (архивация)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID записи",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Машина снята с чёрного списка",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/vehicle-blacklist/{id}/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vehicle-blacklist"
+                ],
+                "summary": "История записи чёрного списка машин",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID записи",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.VehicleBlacklistHistoryItem"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/vehicle-blacklist/{id}/purge": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vehicle-blacklist"
+                ],
+                "summary": "Удалить запись чёрного списка машин навсегда",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID записи",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Запись удалена навсегда",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/vehicle-blacklist/{id}/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vehicle-blacklist"
+                ],
+                "summary": "Вернуть машину в чёрный список",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID записи",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Машина возвращена в чёрный список",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/work-modes": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Агрегирует расписания Бюро, мест разгрузки и мест прохода (постов) в единую форму слота с current_status. Неархивные объекты, включая операционно неактивные.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "work-modes"
+                ],
+                "summary": "Режимы работы",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.WorkModesResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "handlers.AvailableAttachmentDetail": {
+            "type": "object",
+            "properties": {
+                "attachment": {
+                    "$ref": "#/definitions/services.AvailableAttachment"
+                },
+                "cars": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.CarWithPlaces"
+                    }
+                },
+                "employees": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.EmployeeWithTables"
+                    }
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.ItemInfo"
+                    }
+                }
+            }
+        },
+        "handlers.Response": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "error": {
+                    "type": "string"
+                },
+                "meta": {},
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handlers.markCompleteRequest": {
+            "type": "object",
+            "properties": {
+                "version": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
+        "handlers.setThemeRequest": {
+            "type": "object",
+            "required": [
+                "theme"
+            ],
+            "properties": {
+                "theme": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.updateGuideContentRequest": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "lead": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.AnnouncementWithUser": {
+            "type": "object",
+            "properties": {
+                "activated_at": {
+                    "type": "string"
+                },
+                "activated_by": {
+                    "type": "integer"
+                },
+                "activated_by_name": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "integer"
+                },
+                "created_by_name": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "full_text": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "is_important": {
+                    "type": "boolean"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_by": {
+                    "type": "integer"
+                },
+                "updated_by_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ApplicationApproverHistoryItem": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "type": "string"
+                },
+                "actor_name": {
+                    "type": "string"
+                },
+                "actor_user_id": {
+                    "type": "integer"
+                },
+                "approver_name": {
+                    "type": "string"
+                },
+                "approver_user_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                }
+            }
+        },
         "models.ApplicationApproverWithUser": {
             "type": "object",
             "properties": {
@@ -7750,6 +21578,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "created_at": {
+                    "type": "string"
+                },
+                "display_name": {
                     "type": "string"
                 },
                 "first_name": {
@@ -7798,6 +21629,131 @@ const docTemplate = `{
                 }
             }
         },
+        "models.ArchiveDownloadRequest": {
+            "type": "object",
+            "required": [
+                "date_from",
+                "date_to"
+            ],
+            "properties": {
+                "date_from": {
+                    "description": "DateFrom/DateTo - границы периода включительно, формат YYYY-MM-DD. Сверяются\nс bucket_date реестра - местной датой подачи заявки, а не с текущим временем.",
+                    "type": "string"
+                },
+                "date_to": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.AttachmentCustomField": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "is_required": {
+                    "type": "boolean"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "placeholder": {
+                    "type": "string"
+                },
+                "sort_order": {
+                    "type": "integer"
+                },
+                "unique_attachment_id": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.AttachmentTemplate": {
+            "type": "object",
+            "properties": {
+                "concat_separator": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "file_path": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "items_list_end_row": {
+                    "type": "integer"
+                },
+                "items_list_start_row": {
+                    "description": "Вторая таблица бланка - ТМЦ «Заявок на ввоз» этой же заявки. Строки списка\nпринадлежат собственному типу вложения (у заявки на работы - сотрудникам),\nпоэтому ввозимый товар идёт отдельной таблицей.\n\nНастраивается ОДНИМ числом - сколько строк отведено под таблицу в бланке; ноль\nозначает, что таблицы нет. Строку начала задавать руками не нужно: её определяет\nячейка, в которую админ привязал поля группы «Имущество (список)».\nStartRow/EndRow остались от первой версии настройки и заполняются сервисом как\nснимок посчитанных границ - генерация их не читает.",
+                    "type": "integer"
+                },
+                "items_max_list_rows": {
+                    "type": "integer"
+                },
+                "list_end_row": {
+                    "type": "integer"
+                },
+                "list_start_row": {
+                    "type": "integer"
+                },
+                "mappings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.AttachmentTemplateMapping"
+                    }
+                },
+                "max_list_rows": {
+                    "type": "integer"
+                },
+                "original_file_name": {
+                    "type": "string"
+                },
+                "unique_attachment_id": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "uploaded_by_user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.AttachmentTemplateMapping": {
+            "type": "object",
+            "properties": {
+                "cell_ref": {
+                    "type": "string"
+                },
+                "field_path": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_list_field": {
+                    "type": "boolean"
+                },
+                "template_id": {
+                    "type": "integer"
+                }
+            }
+        },
         "models.AvailableApproverUser": {
             "type": "object",
             "properties": {
@@ -7823,6 +21779,93 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.BugReport": {
+            "type": "object",
+            "properties": {
+                "bug_hash": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "http_status": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "route": {
+                    "type": "string"
+                },
+                "user_agent": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.BugReportRequest": {
+            "type": "object",
+            "required": [
+                "bug_hash",
+                "http_status",
+                "route"
+            ],
+            "properties": {
+                "bug_hash": {
+                    "type": "string",
+                    "maxLength": 16,
+                    "minLength": 8
+                },
+                "http_status": {
+                    "type": "integer",
+                    "maximum": 599,
+                    "minimum": 400
+                },
+                "message": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "route": {
+                    "type": "string",
+                    "maxLength": 255
+                }
+            }
+        },
+        "models.BureauTimeSlot": {
+            "type": "object",
+            "properties": {
+                "close_time": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "day_of_week": {
+                    "description": "0=Пн..6=Вс",
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "is_next_day": {
+                    "type": "boolean"
+                },
+                "open_time": {
+                    "type": "string"
+                },
+                "updated_at": {
                     "type": "string"
                 }
             }
@@ -7856,14 +21899,163 @@ const docTemplate = `{
                 }
             }
         },
+        "models.CitizenshipHistoryItem": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "type": "string"
+                },
+                "actor_name": {
+                    "type": "string"
+                },
+                "actor_user_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                }
+            }
+        },
         "models.Company": {
             "type": "object",
             "properties": {
+                "created_by_user_id": {
+                    "description": "CreatedByUserID - кто завёл запись из заявки; NULL у записей справочника.",
+                    "type": "integer"
+                },
                 "id": {
                     "type": "integer"
                 },
+                "is_active": {
+                    "description": "IsActive - архивный флаг (soft-delete). Уникальность name - partial unique\nindex (WHERE is_active=true) в migrate.go, см. Organization.",
+                    "type": "boolean"
+                },
+                "moderation_status": {
+                    "description": "ModerationStatus - статус разбора записи, см. Organization.ModerationStatus.",
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
+                },
+                "type": {
+                    "description": "Type - тип справочника (issue #1046), см. Organization.Type.",
+                    "type": "string"
+                }
+            }
+        },
+        "models.CompanyHistoryItem": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "type": "string"
+                },
+                "actor_name": {
+                    "type": "string"
+                },
+                "actor_user_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.ComparisonInsight": {
+            "type": "object",
+            "properties": {
+                "current": {
+                    "type": "integer"
+                },
+                "delta_pct": {
+                    "type": "number"
+                },
+                "direction": {
+                    "description": "up | down | flat",
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "metric": {
+                    "type": "string"
+                },
+                "previous": {
+                    "type": "integer"
+                },
+                "unit": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.CopyMappingsRequest": {
+            "type": "object",
+            "required": [
+                "source_template_id"
+            ],
+            "properties": {
+                "copy_params": {
+                    "type": "boolean"
+                },
+                "replace": {
+                    "type": "boolean"
+                },
+                "source_template_id": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
+        "models.CopyMappingsResult": {
+            "type": "object",
+            "properties": {
+                "copied": {
+                    "type": "integer"
+                },
+                "params_copied": {
+                    "type": "boolean"
+                },
+                "remapped_custom": {
+                    "description": "RemappedCustom - кастомные поля, сопоставленные по названию с полями цели.",
+                    "type": "integer"
+                },
+                "skipped_custom": {
+                    "description": "SkippedCustom - кастомные поля источника, которых нет у цели: id таких полей\nпринадлежат своему типу вложения, переносить их некуда.",
+                    "type": "integer"
+                },
+                "skipped_duplicates": {
+                    "description": "SkippedDuplicates - пары ячейка-поле, которые у цели уже были (режим добавления).",
+                    "type": "integer"
+                },
+                "skipped_foreign_list": {
+                    "description": "SkippedForeignList - привязки списка чужой группы: у цели другой тип вложения,\nзаполнять их нечем (см. fillListSection).",
+                    "type": "integer"
+                }
+            }
+        },
+        "models.CreateAnnouncementRequest": {
+            "type": "object",
+            "required": [
+                "title"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "full_text": {
+                    "type": "string"
+                },
+                "is_important": {
+                    "type": "boolean"
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 255
                 }
             }
         },
@@ -7895,6 +22087,41 @@ const docTemplate = `{
                 },
                 "patent_required": {
                     "type": "boolean"
+                }
+            }
+        },
+        "models.CreateCustomFieldRequest": {
+            "type": "object",
+            "required": [
+                "label"
+            ],
+            "properties": {
+                "is_required": {
+                    "type": "boolean"
+                },
+                "label": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 1
+                },
+                "placeholder": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "sort_order": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.CreateDocumentGroupRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 255
                 }
             }
         },
@@ -7982,6 +22209,94 @@ const docTemplate = `{
                 }
             }
         },
+        "models.CreateMarkRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                }
+            }
+        },
+        "models.CreateNewsRequest": {
+            "type": "object",
+            "required": [
+                "title"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "full_text": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 255
+                }
+            }
+        },
+        "models.CreateNotificationRequest": {
+            "type": "object",
+            "required": [
+                "title",
+                "user_id"
+            ],
+            "properties": {
+                "data": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "type": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
+        "models.CreatePersonBlacklistRequest": {
+            "type": "object",
+            "required": [
+                "first_name",
+                "last_name",
+                "reason"
+            ],
+            "properties": {
+                "first_name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "last_name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "middle_name": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "reason": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            }
+        },
         "models.CreateSystemTableRequest": {
             "type": "object",
             "required": [
@@ -8018,6 +22333,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "table_type": {
+                    "type": "string"
+                },
+                "warning": {
                     "type": "string"
                 }
             }
@@ -8065,6 +22383,10 @@ const docTemplate = `{
                         "items"
                     ]
                 },
+                "auto_export": {
+                    "description": "AutoExport -- указатель, чтобы отличить явное false от отсутствия поля:\nклиенты, не знающие про файловый архив, должны получать значение по умолчанию.",
+                    "type": "boolean"
+                },
                 "display_name": {
                     "type": "string",
                     "maxLength": 255,
@@ -8096,6 +22418,28 @@ const docTemplate = `{
                 }
             }
         },
+        "models.CreateVehicleBlacklistRequest": {
+            "type": "object",
+            "required": [
+                "car_number",
+                "mark_id",
+                "reason"
+            ],
+            "properties": {
+                "car_number": {
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 1
+                },
+                "mark_id": {
+                    "type": "integer"
+                },
+                "reason": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            }
+        },
         "models.CurrentUserResponse": {
             "type": "object",
             "properties": {
@@ -8113,6 +22457,12 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "is_banned": {
+                    "type": "boolean"
+                },
+                "is_super_admin": {
+                    "type": "boolean"
                 },
                 "last_name": {
                     "type": "string"
@@ -8146,6 +22496,125 @@ const docTemplate = `{
                 }
             }
         },
+        "models.CustomValueInput": {
+            "type": "object",
+            "required": [
+                "custom_field_id"
+            ],
+            "properties": {
+                "custom_field_id": {
+                    "type": "integer"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.DocumentGroup": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "sort_order": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_by": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.DocumentGroupWithCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "sort_order": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_by": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.DocumentListItem": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "file_ext": {
+                    "type": "string"
+                },
+                "file_name": {
+                    "type": "string"
+                },
+                "file_size": {
+                    "type": "integer"
+                },
+                "group_id": {
+                    "type": "integer"
+                },
+                "group_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_visible": {
+                    "type": "boolean"
+                },
+                "published_at": {
+                    "type": "string"
+                },
+                "sort_order": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_by": {
+                    "type": "integer"
+                }
+            }
+        },
         "models.FeedbackStats": {
             "type": "object",
             "properties": {
@@ -8169,6 +22638,9 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
+                "flagged": {
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "integer"
                 },
@@ -8176,6 +22648,12 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "message": {
+                    "type": "string"
+                },
+                "resolution_comment": {
+                    "type": "string"
+                },
+                "resolved_at": {
                     "type": "string"
                 },
                 "status": {
@@ -8192,12 +22670,190 @@ const docTemplate = `{
                 }
             }
         },
+        "models.FieldConfigItem": {
+            "type": "object",
+            "required": [
+                "key"
+            ],
+            "properties": {
+                "key": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "visible": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "models.FieldConfigResponse": {
+            "type": "object",
+            "properties": {
+                "base": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.MergedField"
+                    }
+                },
+                "custom": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.AttachmentCustomField"
+                    }
+                }
+            }
+        },
+        "models.FieldVisibilityUpdate": {
+            "type": "object",
+            "required": [
+                "field_name"
+            ],
+            "properties": {
+                "display_order": {
+                    "type": "integer"
+                },
+                "enlarged_font_weight": {
+                    "type": "integer"
+                },
+                "enlarged_is_visible": {
+                    "type": "boolean"
+                },
+                "enlarged_width": {
+                    "type": "integer"
+                },
+                "field_name": {
+                    "type": "string"
+                },
+                "is_visible": {
+                    "type": "boolean"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "width": {
+                    "type": "integer"
+                }
+            }
+        },
         "models.HTTPError": {
             "type": "object",
             "properties": {
                 "message": {
                     "type": "string",
                     "example": "Error description"
+                }
+            }
+        },
+        "models.HistoryDailyPoint": {
+            "type": "object",
+            "properties": {
+                "day": {
+                    "type": "string"
+                },
+                "errors": {
+                    "type": "integer"
+                },
+                "requests": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.HistoryEndpoint": {
+            "type": "object",
+            "properties": {
+                "avg_duration_ms": {
+                    "type": "integer"
+                },
+                "endpoint": {
+                    "type": "string"
+                },
+                "error_rate": {
+                    "type": "number"
+                },
+                "p95_duration_ms": {
+                    "type": "integer"
+                },
+                "requests": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.HistoryTotals": {
+            "type": "object",
+            "properties": {
+                "avg_duration_ms": {
+                    "type": "integer"
+                },
+                "error_rate": {
+                    "type": "number"
+                },
+                "errors": {
+                    "type": "integer"
+                },
+                "requests": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.HistoryUser": {
+            "type": "object",
+            "properties": {
+                "requests": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.HourBucket": {
+            "type": "object",
+            "properties": {
+                "hour": {
+                    "type": "integer"
+                },
+                "value": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.InsightsResponse": {
+            "type": "object",
+            "properties": {
+                "comparisons": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ComparisonInsight"
+                    }
+                },
+                "peak_hours": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.PeakHoursInsight"
+                    }
+                },
+                "top_orgs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TopItemInsight"
+                    }
+                },
+                "top_places": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TopItemInsight"
+                    }
+                },
+                "trends": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TrendInsight"
+                    }
                 }
             }
         },
@@ -8268,6 +22924,26 @@ const docTemplate = `{
                 }
             }
         },
+        "models.LicensePlateFormatHistoryItem": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "type": "string"
+                },
+                "actor_name": {
+                    "type": "string"
+                },
+                "actor_user_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                }
+            }
+        },
         "models.LicensePlateFormatWithCells": {
             "type": "object",
             "properties": {
@@ -8306,6 +22982,12 @@ const docTemplate = `{
                 "company_id": {
                     "type": "integer"
                 },
+                "is_banned": {
+                    "type": "boolean"
+                },
+                "is_super_admin": {
+                    "type": "boolean"
+                },
                 "organization": {
                     "type": "string"
                 },
@@ -8337,10 +23019,113 @@ const docTemplate = `{
                 }
             }
         },
-        "models.MarkAsReadRequest": {
+        "models.MappingInput": {
+            "type": "object",
+            "required": [
+                "cell_ref",
+                "field_path"
+            ],
+            "properties": {
+                "cell_ref": {
+                    "type": "string",
+                    "maxLength": 10
+                },
+                "field_path": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "is_list_field": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "models.Mark": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by_user_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.MarkHistoryItem": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "type": "string"
+                },
+                "comment": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "mark_id": {
+                    "type": "integer"
+                },
+                "new_value": {
+                    "type": "string"
+                },
+                "old_value": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "user_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.MarkNotificationReadRequest": {
             "type": "object",
             "properties": {
                 "is_read": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "models.MergedField": {
+            "type": "object",
+            "properties": {
+                "group": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "locked": {
+                    "description": "Locked=true: поле не настраивается (дата/время). Админ-модалка не показывает\nдля него тумблеры, форма подачи рендерит как обязательное всегда.",
+                    "type": "boolean"
+                },
+                "requirable": {
+                    "description": "Requirable=false для булевых чекбоксов (крыша/парковка/уведомление): тумблер\n\"обязательно\" для них бессмыслен. Админ-модалка по нему прячет этот тумблер.",
+                    "type": "boolean"
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "visible": {
                     "type": "boolean"
                 }
             }
@@ -8367,6 +23152,317 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.NewsWithUser": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "integer"
+                },
+                "created_by_name": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "full_text": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_by": {
+                    "type": "integer"
+                },
+                "updated_by_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.Notification": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "data": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_read": {
+                    "type": "boolean"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.OnlinePeakPoint": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string"
+                },
+                "peak": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.OrganizationHistoryItem": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "type": "string"
+                },
+                "actor_name": {
+                    "type": "string"
+                },
+                "actor_user_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.PDAuditPageResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.PDAuditResponse"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.PDAuditResponse": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "ip_address": {
+                    "type": "string"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "status_code": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "user_name": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.PeakHoursInsight": {
+            "type": "object",
+            "properties": {
+                "hourly": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.HourBucket"
+                    }
+                },
+                "label": {
+                    "type": "string"
+                },
+                "metric": {
+                    "type": "string"
+                },
+                "peak_hour": {
+                    "type": "integer"
+                },
+                "peak_value": {
+                    "type": "integer"
+                },
+                "unit": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.PersonBlacklist": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by_user_id": {
+                    "type": "integer"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "middle_name": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.PersonBlacklistCheckResult": {
+            "type": "object",
+            "properties": {
+                "is_blacklisted": {
+                    "type": "boolean"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.PersonBlacklistHistoryItem": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "entity_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "user_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.PublicDocument": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "file_ext": {
+                    "type": "string"
+                },
+                "file_name": {
+                    "type": "string"
+                },
+                "file_size": {
+                    "type": "integer"
+                },
+                "group_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "published_at": {
+                    "type": "string"
+                },
+                "sort_order": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.PublicDocumentGroup": {
+            "type": "object",
+            "properties": {
+                "documents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.PublicDocument"
+                    }
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "sort_order": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.RealtimeStats": {
+            "type": "object",
+            "properties": {
+                "last_minute_count": {
+                    "type": "integer"
+                },
+                "last_second_count": {
                     "type": "integer"
                 }
             }
@@ -8428,6 +23524,293 @@ const docTemplate = `{
                 }
             }
         },
+        "models.ReorderDocumentGroupsRequest": {
+            "type": "object",
+            "required": [
+                "ids"
+            ],
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "models.ReorderDocumentsRequest": {
+            "type": "object",
+            "required": [
+                "ids"
+            ],
+            "properties": {
+                "group_id": {
+                    "type": "integer"
+                },
+                "ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "models.ReportFilterValue": {
+            "type": "object",
+            "properties": {
+                "from": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "to": {
+                    "type": "string"
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "models.ReportRequest": {
+            "type": "object",
+            "properties": {
+                "dimension": {
+                    "type": "string"
+                },
+                "entity": {
+                    "type": "string"
+                },
+                "filters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ReportFilterValue"
+                    }
+                },
+                "granularity": {
+                    "type": "string"
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "metric": {
+                    "type": "string"
+                },
+                "metrics": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "pivot": {
+                    "type": "string"
+                },
+                "sort": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ReportTemplate": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_shared": {
+                    "type": "boolean"
+                },
+                "is_system": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "owner_user_id": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.RequestLogsHistory": {
+            "type": "object",
+            "properties": {
+                "daily": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.HistoryDailyPoint"
+                    }
+                },
+                "top_endpoints": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.HistoryEndpoint"
+                    }
+                },
+                "top_users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.HistoryUser"
+                    }
+                },
+                "totals": {
+                    "$ref": "#/definitions/models.HistoryTotals"
+                }
+            }
+        },
+        "models.RequestLogsStats": {
+            "type": "object",
+            "properties": {
+                "avg_duration": {
+                    "type": "number"
+                },
+                "error_rate": {
+                    "type": "number"
+                },
+                "requests_per_minute": {
+                    "type": "number"
+                },
+                "today": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.RequestLogsUser": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.RestoreTrashRequest": {
+            "type": "object",
+            "required": [
+                "ids"
+            ],
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "models.SaveFieldConfigRequest": {
+            "type": "object",
+            "properties": {
+                "base": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.FieldConfigItem"
+                    }
+                }
+            }
+        },
+        "models.SaveReportTemplateRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "is_shared": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 1
+                }
+            }
+        },
+        "models.SetActiveAnnouncementRequest": {
+            "type": "object",
+            "required": [
+                "announcement_id"
+            ],
+            "properties": {
+                "announcement_id": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
+        "models.SetFlagRequest": {
+            "type": "object",
+            "properties": {
+                "flagged": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "models.SetUserTablesRequest": {
+            "type": "object",
+            "properties": {
+                "table_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "models.SetUserUnloadPlacesRequest": {
+            "type": "object",
+            "properties": {
+                "unload_place_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "models.StatsTimelinePoint": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "date": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.StatusUpdatesCountResponse": {
+            "type": "object",
+            "properties": {
+                "status_updates": {
+                    "type": "integer"
+                }
+            }
+        },
         "models.SystemTable": {
             "type": "object",
             "properties": {
@@ -8437,7 +23820,14 @@ const docTemplate = `{
                 "display_name": {
                     "type": "string"
                 },
+                "fact_fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TableFieldFact"
+                    }
+                },
                 "fact_table_hint": {
+                    "description": "форматированный HTML из TextConstructor - длина не лезет в varchar(255)",
                     "type": "string"
                 },
                 "fields": {
@@ -8445,6 +23835,14 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/models.TableField"
                     }
+                },
+                "font_size": {
+                    "description": "Оформление таблицы (#345). FontSize - размер шрифта строк (px, 10-24).\nRowDensity - плотность строк: compact|normal|spacious.",
+                    "type": "integer"
+                },
+                "font_size_fact": {
+                    "description": "То же самое, но для FactTable (отдельные настройки).",
+                    "type": "integer"
                 },
                 "id": {
                     "type": "integer"
@@ -8470,6 +23868,12 @@ const docTemplate = `{
                         "$ref": "#/definitions/models.SystemTablePhoto"
                     }
                 },
+                "row_density": {
+                    "type": "string"
+                },
+                "row_density_fact": {
+                    "type": "string"
+                },
                 "show_fact_table": {
                     "type": "boolean"
                 },
@@ -8491,6 +23895,36 @@ const docTemplate = `{
                     }
                 },
                 "updated_at": {
+                    "type": "string"
+                },
+                "warning": {
+                    "description": "Warning - свободное предупреждение, показывается заявителю всегда при\nдобавлении машины/человека с этим местом (#1183).",
+                    "type": "string"
+                },
+                "warning_windows": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SystemTableWarningWindow"
+                    }
+                }
+            }
+        },
+        "models.SystemTableHistoryItem": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "user_name": {
                     "type": "string"
                 }
             }
@@ -8560,11 +23994,54 @@ const docTemplate = `{
                 }
             }
         },
+        "models.SystemTableWarningWindow": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "day_of_week": {
+                    "description": "nil = каждый день, иначе 0-6",
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "is_next_day": {
+                    "type": "boolean"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "table_id": {
+                    "type": "integer"
+                },
+                "time_from": {
+                    "description": "nil = весь день",
+                    "type": "string"
+                },
+                "time_to": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "models.SystemTableWithDetails": {
             "type": "object",
             "properties": {
                 "current_status": {
                     "type": "string"
+                },
+                "fact_fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TableFieldFact"
+                    }
                 },
                 "fields": {
                     "type": "array",
@@ -8586,10 +24063,61 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/models.SystemTableTimeSlot"
                     }
+                },
+                "warning_windows": {
+                    "description": "WarningWindows -- предупреждения по временным окнам (#1183), показываются\nзаявителю, когда срок заявки пересекается с окном.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SystemTableWarningWindow"
+                    }
                 }
             }
         },
         "models.TableField": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "display_order": {
+                    "type": "integer"
+                },
+                "enlarged_font_weight": {
+                    "type": "integer"
+                },
+                "enlarged_is_visible": {
+                    "description": "Настройки для режима \"Увеличенный\" (#345).\nEnlargedIsVisible - видимость в enlarged (по умолчанию true).\nEnlargedWidth - вес ширины в enlarged (0 = брать обычный Width).\nEnlargedFontWeight - жирность шрифта в enlarged (400/500/600/700; 0 = default 500).",
+                    "type": "boolean"
+                },
+                "enlarged_width": {
+                    "type": "integer"
+                },
+                "field_name": {
+                    "type": "string"
+                },
+                "field_type": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_visible": {
+                    "type": "boolean"
+                },
+                "priority": {
+                    "description": "Priority - приоритет столбца для портретного режима (1-5).\n1 = всегда виден, 2 = виден на компактных экранах, 3-5 = скрывается в портрете.",
+                    "type": "integer"
+                },
+                "table_id": {
+                    "type": "integer"
+                },
+                "width": {
+                    "description": "Width - относительный вес ширины столбца. Используется как flex-grow:\nбраузер делит доступную ширину пропорционально весам видимых столбцов.",
+                    "type": "integer"
+                }
+            }
+        },
+        "models.TableFieldFact": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -8610,8 +24138,54 @@ const docTemplate = `{
                 "is_visible": {
                     "type": "boolean"
                 },
+                "priority": {
+                    "type": "integer"
+                },
                 "table_id": {
                     "type": "integer"
+                },
+                "width": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.TemplateSource": {
+            "type": "object",
+            "properties": {
+                "attachment_name": {
+                    "type": "string"
+                },
+                "attachment_type": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "mappings_count": {
+                    "type": "integer"
+                },
+                "original_file_name": {
+                    "type": "string"
+                },
+                "template_id": {
+                    "type": "integer"
+                },
+                "unique_attachment_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.TimelinePoint": {
+            "type": "object",
+            "properties": {
+                "avg_duration": {
+                    "type": "number"
+                },
+                "count": {
+                    "type": "integer"
+                },
+                "timestamp": {
+                    "type": "string"
                 }
             }
         },
@@ -8626,12 +24200,142 @@ const docTemplate = `{
                 }
             }
         },
+        "models.TopItemInsight": {
+            "type": "object",
+            "properties": {
+                "label": {
+                    "type": "string"
+                },
+                "metric": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.TrashHistoryItem": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "type": "string"
+                },
+                "affected_count": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "user_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.TrashItem": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "integer"
+                },
+                "application_number": {
+                    "type": "string"
+                },
+                "car_number": {
+                    "description": "Cars-only",
+                    "type": "string"
+                },
+                "citizenship_name": {
+                    "type": "string"
+                },
+                "company": {
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "type": "string"
+                },
+                "deleted_by_name": {
+                    "type": "string"
+                },
+                "entry_date_to": {
+                    "type": "string"
+                },
+                "entry_time_from": {
+                    "type": "string"
+                },
+                "entry_time_to": {
+                    "type": "string"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "last_name": {
+                    "description": "Employees-only",
+                    "type": "string"
+                },
+                "mark_name": {
+                    "type": "string"
+                },
+                "middle_name": {
+                    "type": "string"
+                },
+                "organization": {
+                    "type": "string"
+                },
+                "other_permission": {
+                    "type": "string"
+                },
+                "passport_series_number": {
+                    "type": "string"
+                },
+                "patent_number": {
+                    "type": "string"
+                },
+                "position": {
+                    "type": "string"
+                },
+                "type": {
+                    "description": "car | employee",
+                    "type": "string"
+                }
+            }
+        },
+        "models.TrendInsight": {
+            "type": "object",
+            "properties": {
+                "direction": {
+                    "description": "up | down | flat",
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "metric": {
+                    "type": "string"
+                },
+                "series": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
         "models.UniqueAttachment": {
             "type": "object",
             "properties": {
                 "attachment_type": {
                     "description": "cars, people, items",
                     "type": "string"
+                },
+                "auto_export": {
+                    "description": "AutoExport - писать ли бланки этого типа в файловый архив (#1615). Включён по\nумолчанию: администратор настраивает архив глобальным рубильником, а тумблер\nздесь нужен, чтобы исключить отдельный тип, а не чтобы перечислять нужные.",
+                    "type": "boolean"
                 },
                 "created_at": {
                     "type": "string"
@@ -8656,6 +24360,83 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
+                }
+            }
+        },
+        "models.UniqueAttachmentHistoryItem": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "type": "string"
+                },
+                "actor_name": {
+                    "type": "string"
+                },
+                "actor_user_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.UnloadPlace": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "map_link": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "active, inactive, maintenance",
+                    "type": "string"
+                },
+                "status_comment": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "warning": {
+                    "description": "Warning - свободное предупреждение, показывается заявителю всегда при\nдобавлении машины/человека с этим местом (#1183).",
+                    "type": "string"
+                }
+            }
+        },
+        "models.UnloadPlaceHistoryItem": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "type": "string"
+                },
+                "actor_name": {
+                    "type": "string"
+                },
+                "actor_user_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
                 }
             }
         },
@@ -8724,11 +24505,77 @@ const docTemplate = `{
                 }
             }
         },
+        "models.UnloadPlaceWarningWindow": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "day_of_week": {
+                    "description": "nil = каждый день, иначе 0-6",
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "is_next_day": {
+                    "type": "boolean"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "time_from": {
+                    "description": "nil = весь день",
+                    "type": "string"
+                },
+                "time_to": {
+                    "type": "string"
+                },
+                "unload_place_id": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "models.UnreadCountResponse": {
             "type": "object",
             "properties": {
                 "count": {
                     "type": "integer"
+                },
+                "status_updates": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.UpdateAnnouncementRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "full_text": {
+                    "type": "string"
+                },
+                "is_important": {
+                    "type": "boolean"
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 255
+                }
+            }
+        },
+        "models.UpdateApproverRequest": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
                 }
             }
         },
@@ -8740,9 +24587,6 @@ const docTemplate = `{
             "properties": {
                 "icon": {
                     "type": "string"
-                },
-                "is_active": {
-                    "type": "boolean"
                 },
                 "is_default": {
                     "type": "boolean"
@@ -8757,18 +24601,69 @@ const docTemplate = `{
                 }
             }
         },
+        "models.UpdateDocumentGroupRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 255
+                }
+            }
+        },
+        "models.UpdateDocumentMetaRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "group_id": {
+                    "type": "integer"
+                },
+                "is_visible": {
+                    "type": "boolean"
+                },
+                "published_at": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 255
+                }
+            }
+        },
         "models.UpdateFeedbackStatusRequest": {
             "type": "object",
             "required": [
                 "status"
             ],
             "properties": {
+                "comment": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
                 "status": {
                     "type": "string",
                     "enum": [
-                        "Нерешено",
+                        "Не решено",
                         "Решено"
                     ]
+                }
+            }
+        },
+        "models.UpdateFieldsRequest": {
+            "type": "object",
+            "required": [
+                "fields"
+            ],
+            "properties": {
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.FieldVisibilityUpdate"
+                    }
                 }
             }
         },
@@ -8835,6 +24730,54 @@ const docTemplate = `{
                 }
             }
         },
+        "models.UpdateMappingsRequest": {
+            "type": "object",
+            "required": [
+                "mappings"
+            ],
+            "properties": {
+                "concat_separator": {
+                    "type": "string"
+                },
+                "mappings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.MappingInput"
+                    }
+                }
+            }
+        },
+        "models.UpdateMarkRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                }
+            }
+        },
+        "models.UpdateNewsRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "full_text": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 255
+                }
+            }
+        },
         "models.UpdatePasswordRequest": {
             "type": "object",
             "required": [
@@ -8848,6 +24791,34 @@ const docTemplate = `{
                 }
             }
         },
+        "models.UpdatePersonBlacklistRequest": {
+            "type": "object",
+            "required": [
+                "first_name",
+                "last_name",
+                "reason"
+            ],
+            "properties": {
+                "first_name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "last_name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "middle_name": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "reason": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            }
+        },
         "models.UpdateSystemTableRequest": {
             "type": "object",
             "properties": {
@@ -8857,6 +24828,13 @@ const docTemplate = `{
                 "fact_table_hint": {
                     "type": "string"
                 },
+                "font_size": {
+                    "description": "Оформление таблицы (#345). Валидируется в сервисе: FontSize 10-24,\nRowDensity in {compact, normal, spacious}.",
+                    "type": "integer"
+                },
+                "font_size_fact": {
+                    "type": "integer"
+                },
                 "instruction": {
                     "type": "string"
                 },
@@ -8864,6 +24842,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "map_link": {
+                    "type": "string"
+                },
+                "row_density": {
+                    "type": "string"
+                },
+                "row_density_fact": {
                     "type": "string"
                 },
                 "show_fact_table": {
@@ -8877,6 +24861,31 @@ const docTemplate = `{
                 },
                 "table_type": {
                     "type": "string"
+                },
+                "warning": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.UpdateTemplateParamsRequest": {
+            "type": "object",
+            "properties": {
+                "items_max_list_rows": {
+                    "description": "ItemsMaxListRows - сколько строк бланка отведено под таблицу ТМЦ заявки. Ноль -\nтаблицы нет. Строку начала не передаём: её задаёт ячейка привязки полей ТМЦ.",
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "list_end_row": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "list_start_row": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "max_list_rows": {
+                    "type": "integer",
+                    "minimum": 0
                 }
             }
         },
@@ -8917,6 +24926,9 @@ const docTemplate = `{
                         "items"
                     ]
                 },
+                "auto_export": {
+                    "type": "boolean"
+                },
                 "display_name": {
                     "type": "string",
                     "maxLength": 255,
@@ -8955,6 +24967,9 @@ const docTemplate = `{
                 "first_name": {
                     "type": "string"
                 },
+                "is_important": {
+                    "type": "boolean"
+                },
                 "last_name": {
                     "type": "string"
                 },
@@ -8984,6 +24999,28 @@ const docTemplate = `{
                 "type_id": {
                     "type": "integer",
                     "minimum": 1
+                }
+            }
+        },
+        "models.UpdateVehicleBlacklistRequest": {
+            "type": "object",
+            "required": [
+                "car_number",
+                "mark_id",
+                "reason"
+            ],
+            "properties": {
+                "car_number": {
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 1
+                },
+                "mark_id": {
+                    "type": "integer"
+                },
+                "reason": {
+                    "type": "string",
+                    "minLength": 1
                 }
             }
         },
@@ -9019,6 +25056,26 @@ const docTemplate = `{
                 }
             }
         },
+        "models.UserHistoryItem": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "type": "string"
+                },
+                "actor_name": {
+                    "type": "string"
+                },
+                "actor_user_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                }
+            }
+        },
         "models.UserInfoResponse": {
             "type": "object",
             "properties": {
@@ -9027,6 +25084,17 @@ const docTemplate = `{
                 },
                 "company_id": {
                     "type": "integer"
+                },
+                "consent_at": {
+                    "type": "string"
+                },
+                "consent_granted": {
+                    "description": "ConsentGranted -- у работника есть действующее согласие на обработку\nперсональных данных, ConsentAt -- когда он его дал.",
+                    "type": "boolean"
+                },
+                "consent_required": {
+                    "description": "ConsentRequired -- согласие сейчас спрашивают, и этого работника это касается.\nБез признака «согласия нет» неотличимо от «его и не спрашивают»: пока запрос\nвыключен, согласия нет вообще ни у кого.",
+                    "type": "boolean"
                 },
                 "email": {
                     "type": "string"
@@ -9037,8 +25105,35 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "is_admin": {
+                    "type": "boolean"
+                },
+                "is_banned": {
+                    "type": "boolean"
+                },
+                "is_important": {
+                    "type": "boolean"
+                },
+                "is_super_admin": {
+                    "type": "boolean"
+                },
                 "last_name": {
                     "type": "string"
+                },
+                "last_seen": {
+                    "description": "LastSeen - последняя активность (см. User.LastSeen). Без omitempty: «никогда\nне заходил» должно доезжать до клиента явным null, а не отсутствием ключа -\nтаблица пользователей рисует по нему прочерк, а не «только что».",
+                    "type": "string"
+                },
+                "locked_until": {
+                    "description": "LockedUntil - момент окончания блокировки входа. null означает «не заблокирован»:\nистёкшие локи запрос отсекает сам, чтобы админке не пришлось сравнивать время.",
+                    "type": "string"
+                },
+                "lockout_level": {
+                    "description": "LockoutLevel - ступень лестницы кулдаунов. Показывает, каким будет следующий\nкулдаун, если человек продолжит ошибаться.",
+                    "type": "integer"
                 },
                 "middle_name": {
                     "type": "string"
@@ -9049,11 +25144,18 @@ const docTemplate = `{
                 "organization_id": {
                     "type": "integer"
                 },
+                "pd_hidden": {
+                    "description": "PDHidden -- персональные данные не пусты, а скрыты: работник не дал согласия\nна их обработку (#1567). Скрыты и ФИО, и рабочие контакты. Форма\nредактирования обязана отличать это от незаполненных полей, иначе сохранение\nсоседнего поля затрёт настоящие данные.",
+                    "type": "boolean"
+                },
                 "phone": {
                     "type": "string"
                 },
                 "position": {
                     "type": "string"
+                },
+                "role_id": {
+                    "type": "integer"
                 },
                 "type_id": {
                     "type": "integer"
@@ -9075,12 +25177,141 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "is_system": {
+                    "description": "IsSystem помечает встроенные типы, чьи code используются в авторизации\n(internal/auth/permissions.go). Такие типы нельзя переименовать или удалить.",
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 }
             }
         },
+        "models.UserTypeHistoryItem": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "type": "string"
+                },
+                "actor_name": {
+                    "type": "string"
+                },
+                "actor_user_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.VehicleBlacklist": {
+            "type": "object",
+            "properties": {
+                "car_number": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by_user_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "mark_id": {
+                    "type": "integer"
+                },
+                "mark_name": {
+                    "description": "снапшот имени марки на момент добавления",
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.VehicleBlacklistCheckResult": {
+            "type": "object",
+            "properties": {
+                "is_blacklisted": {
+                    "type": "boolean"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.VehicleBlacklistHistoryItem": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "entity_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "user_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.WarningWindowRequest": {
+            "type": "object",
+            "required": [
+                "message"
+            ],
+            "properties": {
+                "day_of_week": {
+                    "type": "integer",
+                    "maximum": 6,
+                    "minimum": 0
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "is_next_day": {
+                    "type": "boolean"
+                },
+                "message": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "minLength": 1
+                },
+                "time_from": {
+                    "type": "string"
+                },
+                "time_to": {
+                    "type": "string"
+                }
+            }
+        },
         "services.ActivateCarRequest": {
+            "type": "object",
+            "properties": {
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.ActivateEmployeeRequest": {
             "type": "object",
             "properties": {
                 "user_id": {
@@ -9178,10 +25409,39 @@ const docTemplate = `{
                 "organization": {
                     "type": "string"
                 },
+                "table_id": {
+                    "type": "integer"
+                },
+                "table_name": {
+                    "type": "string"
+                },
                 "user_id": {
                     "type": "integer"
                 },
                 "user_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.AnswerItem": {
+            "type": "object",
+            "properties": {
+                "author_name": {
+                    "type": "string"
+                },
+                "author_user_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "question_id": {
+                    "type": "integer"
+                },
+                "text": {
                     "type": "string"
                 }
             }
@@ -9301,8 +25561,14 @@ const docTemplate = `{
                 "application_number": {
                     "type": "string"
                 },
+                "blacklist_flags_count": {
+                    "type": "integer"
+                },
                 "company_id": {
                     "type": "integer"
+                },
+                "company_moderation_status": {
+                    "type": "string"
                 },
                 "company_name": {
                     "type": "string"
@@ -9316,14 +25582,36 @@ const docTemplate = `{
                 "data_approval": {
                     "type": "boolean"
                 },
+                "has_blank_template": {
+                    "type": "boolean"
+                },
+                "has_free_parking": {
+                    "type": "boolean"
+                },
+                "has_roof_access": {
+                    "type": "boolean"
+                },
+                "has_status_update": {
+                    "type": "boolean"
+                },
+                "has_unseen_questions": {
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "integer"
+                },
+                "is_read": {
+                    "type": "boolean"
                 },
                 "message": {
                     "type": "string"
                 },
                 "organization_id": {
                     "type": "integer"
+                },
+                "organization_moderation_status": {
+                    "description": "Статус разбора организации и компании заявки (#1437). nil - записи нет (заявка\nбез компании), pending - наименование заведено подачей и ждёт разбора: по нему\nдеталь заявки показывает плашку принимающему.",
+                    "type": "string"
                 },
                 "organization_name": {
                     "type": "string"
@@ -9345,6 +25633,9 @@ const docTemplate = `{
                 },
                 "sender_full_name": {
                     "type": "string"
+                },
+                "sender_is_important": {
+                    "type": "boolean"
                 },
                 "sender_name": {
                     "type": "string"
@@ -9368,6 +25659,100 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
+                }
+            }
+        },
+        "services.AssignCarUnloadPlacesRequest": {
+            "type": "object",
+            "required": [
+                "car_ids",
+                "mode"
+            ],
+            "properties": {
+                "car_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "add",
+                        "replace"
+                    ]
+                },
+                "place_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "services.AssignElementTablesRequest": {
+            "type": "object",
+            "required": [
+                "element_ids",
+                "element_type",
+                "mode"
+            ],
+            "properties": {
+                "element_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "element_type": {
+                    "type": "string",
+                    "enum": [
+                        "cars",
+                        "people"
+                    ]
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "add",
+                        "replace"
+                    ]
+                },
+                "table_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "services.AttachToApplicationRequest": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "integer"
+                },
+                "target_attachment_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.AttachToApplicationResponse": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "integer"
+                },
+                "attachment_id": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
                 }
             }
         },
@@ -9406,6 +25791,12 @@ const docTemplate = `{
                 "attachment_type": {
                     "type": "string"
                 },
+                "custom_values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.CustomValueInput"
+                    }
+                },
                 "data": {
                     "$ref": "#/definitions/services.AttachmentContentData"
                 },
@@ -9421,14 +25812,31 @@ const docTemplate = `{
                 "entry_time_to": {
                     "type": "string"
                 },
+                "free_parking": {
+                    "type": "boolean"
+                },
+                "roof_access": {
+                    "type": "boolean"
+                },
                 "unique_attachment_id": {
                     "type": "integer"
+                },
+                "unload_places": {
+                    "description": "UnloadPlaces - места разгрузки на уровне вложения (#706). Для items-вложений это\nединственный источник мест; для cars дублирует дедуп-union мест всех машин вложения.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 }
             }
         },
         "services.AttachmentInfo": {
             "type": "object",
             "properties": {
+                "archive_status": {
+                    "description": "ArchiveStatus - статус строки реестра файлового архива (blank_exports)\nдля этого вложения (#1615, C6). Пусто, если строки нет вовсе: архив\nвыключен, тумблер типа выключен, либо заявка ещё не выгружалась.\nDownloadBlanksModal показывает бейдж только на распознанных статусах.",
+                    "type": "string"
+                },
                 "attachment_display_name": {
                     "type": "string"
                 },
@@ -9436,6 +25844,77 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "attachment_type": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "custom_values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.CustomValueDetail"
+                    }
+                },
+                "entry_date_from": {
+                    "type": "string"
+                },
+                "entry_date_to": {
+                    "type": "string"
+                },
+                "entry_time_from": {
+                    "type": "string"
+                },
+                "entry_time_to": {
+                    "type": "string"
+                },
+                "free_parking": {
+                    "type": "boolean"
+                },
+                "has_template": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "roof_access": {
+                    "type": "boolean"
+                },
+                "unique_attachment_display_name": {
+                    "type": "string"
+                },
+                "unique_attachment_id": {
+                    "type": "integer"
+                },
+                "unique_attachment_title": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.AvailableAttachment": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "integer"
+                },
+                "application_number": {
+                    "type": "string"
+                },
+                "attachment_display_name": {
+                    "type": "string"
+                },
+                "attachment_id": {
+                    "type": "integer"
+                },
+                "attachment_name": {
+                    "type": "string"
+                },
+                "attachment_type": {
+                    "type": "string"
+                },
+                "company_name": {
+                    "type": "string"
+                },
+                "confirmation": {
                     "type": "string"
                 },
                 "created_at": {
@@ -9453,16 +25932,30 @@ const docTemplate = `{
                 "entry_time_to": {
                     "type": "string"
                 },
-                "id": {
-                    "type": "integer"
+                "has_blank": {
+                    "description": "HasBlank - у типа вложения (unique_attachment) есть активный Excel-шаблон, значит для этого\nвложения генерируется заполненный бланк (#706 S4). По нему фронт показывает \"Посмотреть файл\".",
+                    "type": "boolean"
                 },
-                "unique_attachment_display_name": {
+                "organization_name": {
                     "type": "string"
                 },
-                "unique_attachment_id": {
+                "places": {
+                    "type": "string"
+                },
+                "sender_full_name": {
+                    "type": "string"
+                },
+                "sender_name": {
+                    "type": "string"
+                },
+                "sender_user_id": {
+                    "description": "SenderUserID нужен маскировке ФИО подавшего, не давшего согласия на обработку\nперсональных данных: без него строку не с чем сопоставить.",
                     "type": "integer"
                 },
-                "unique_attachment_title": {
+                "sending_datetime": {
+                    "type": "string"
+                },
+                "status": {
                     "type": "string"
                 }
             }
@@ -9490,6 +25983,271 @@ const docTemplate = `{
                 }
             }
         },
+        "services.BlacklistFlagInfo": {
+            "type": "object",
+            "properties": {
+                "flag_id": {
+                    "type": "integer"
+                },
+                "matched_reason": {
+                    "type": "string"
+                },
+                "matched_value": {
+                    "type": "string"
+                },
+                "overridden": {
+                    "type": "boolean"
+                },
+                "similarity": {
+                    "type": "number"
+                }
+            }
+        },
+        "services.BulkAddCarsTableRequest": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "table_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "services.BulkIDsRequest": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "services.BulkItemError": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.BulkMoveCarsTableRequest": {
+            "type": "object",
+            "properties": {
+                "from_table_id": {
+                    "type": "integer"
+                },
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "to_table_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "services.BulkOpResult": {
+            "type": "object",
+            "properties": {
+                "error_count": {
+                    "type": "integer"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.BulkItemError"
+                    }
+                },
+                "success_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.BulkTablesRequest": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "table_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "services.BulkTypeRequest": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.BulkUnbindCarsTableRequest": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "table_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.BulkUnloadPlacesRequest": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "unload_place_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "services.BulkUserAssignment": {
+            "type": "object",
+            "properties": {
+                "required_approval": {
+                    "type": "boolean"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.BulkUserBanRequest": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string"
+                },
+                "usernames": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "services.BulkUserCompanyRequest": {
+            "type": "object",
+            "properties": {
+                "company_id": {
+                    "type": "integer"
+                },
+                "usernames": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "services.BulkUserOrganizationRequest": {
+            "type": "object",
+            "properties": {
+                "organization_id": {
+                    "type": "integer"
+                },
+                "usernames": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "services.BulkUserTypeRequest": {
+            "type": "object",
+            "properties": {
+                "type_id": {
+                    "type": "integer"
+                },
+                "usernames": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "services.BulkUsernamesRequest": {
+            "type": "object",
+            "properties": {
+                "usernames": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "services.BulkUsersRequest": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.BulkUserAssignment"
+                    }
+                }
+            }
+        },
         "services.CarCurrentStatus": {
             "type": "object",
             "properties": {
@@ -9512,6 +26270,9 @@ const docTemplate = `{
             "properties": {
                 "action_type": {
                     "type": "string"
+                },
+                "application_id": {
+                    "type": "integer"
                 },
                 "car_brand": {
                     "type": "string"
@@ -9558,6 +26319,12 @@ const docTemplate = `{
                 "organization": {
                     "type": "string"
                 },
+                "table_id": {
+                    "type": "integer"
+                },
+                "table_name": {
+                    "type": "string"
+                },
                 "user_id": {
                     "type": "integer"
                 },
@@ -9572,6 +26339,9 @@ const docTemplate = `{
                 "company_id": {
                     "type": "integer"
                 },
+                "company_name": {
+                    "type": "string"
+                },
                 "has_company": {
                     "type": "boolean"
                 },
@@ -9581,8 +26351,25 @@ const docTemplate = `{
                 "organization_id": {
                     "type": "integer"
                 },
+                "organization_name": {
+                    "type": "string"
+                },
                 "user_id": {
                     "type": "integer"
+                }
+            }
+        },
+        "services.CarPassageTableRef": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
                 }
             }
         },
@@ -9603,11 +26390,25 @@ const docTemplate = `{
         "services.CarWithPlaces": {
             "type": "object",
             "properties": {
+                "blacklist_similar": {
+                    "description": "BlacklistSimilar - предупреждение о возможном обходе ЧС (#481): заполнено, если\nномер близок к активной записи ЧС (но не точное совпадение). nil - элемент чист.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/services.BlacklistFlagInfo"
+                        }
+                    ]
+                },
                 "car_brand": {
                     "type": "string"
                 },
                 "car_number": {
                     "type": "string"
+                },
+                "company": {
+                    "type": "string"
+                },
+                "company_id": {
+                    "type": "integer"
                 },
                 "entry_date_from": {
                     "type": "string"
@@ -9623,6 +26424,19 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "organization": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "integer"
+                },
+                "target_tables": {
+                    "description": "TargetTables - таблицы «Проезд», выбранные для машины (#1036), зеркало\nEmployeeWithTables.TargetTables у сотрудников.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.TableInfoRef"
+                    }
                 },
                 "unload_place": {
                     "type": "string"
@@ -9750,7 +26564,16 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "moderation_status": {
+                    "type": "string"
+                },
                 "name": {
+                    "type": "string"
+                },
+                "type": {
                     "type": "string"
                 },
                 "unload_places": {
@@ -9770,7 +26593,13 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "is_active": {
+                    "type": "boolean"
+                },
                 "name": {
+                    "type": "string"
+                },
+                "type": {
                     "type": "string"
                 },
                 "user_count": {
@@ -9782,7 +26611,6 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "contact_phone",
-                "organization",
                 "responsible_person"
             ],
             "properties": {
@@ -9795,6 +26623,13 @@ const docTemplate = `{
                 "company": {
                     "type": "string"
                 },
+                "company_id": {
+                    "description": "CompanyID и CompanyName - то же для компании.",
+                    "type": "integer"
+                },
+                "company_name": {
+                    "type": "string"
+                },
                 "contact_phone": {
                     "type": "string"
                 },
@@ -9805,7 +26640,22 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "organization": {
+                    "description": "Organization и Company - наименования организации и компании в прежнем контракте\nподачи. Оставлены рядом с organization_name/company_name (#1437), потому что\nбандл, уже загруженный в браузере пользователя, продолжает слать именно их:\nчитать значение следует через OrganizationTitle и CompanyTitle.",
                     "type": "string"
+                },
+                "organization_id": {
+                    "description": "OrganizationID и OrganizationName - контракт подачи после #1437: id, когда\nорганизация выбрана (своя или из подсказок), наименование - когда введена руками.\nЗаполнять оба не нужно: при заданном id наименование не смотрится.",
+                    "type": "integer"
+                },
+                "organization_name": {
+                    "type": "string"
+                },
+                "readers": {
+                    "description": "Readers - получатели-читатели заявки (#884): доступ только на просмотр.\nКладутся в application_viewers (как форвард-флоу), без права согласования.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 },
                 "required_users": {
                     "type": "array",
@@ -9835,6 +26685,18 @@ const docTemplate = `{
                 }
             }
         },
+        "services.CreateAnswerRequest": {
+            "type": "object",
+            "required": [
+                "text"
+            ],
+            "properties": {
+                "text": {
+                    "type": "string",
+                    "maxLength": 5000
+                }
+            }
+        },
         "services.CreateCompanyRequest": {
             "type": "object",
             "required": [
@@ -9845,6 +26707,9 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 100,
                     "minLength": 1
+                },
+                "type": {
+                    "type": "string"
                 }
             }
         },
@@ -9918,6 +26783,32 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 100,
                     "minLength": 1
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.CreateQuestionRequest": {
+            "type": "object",
+            "required": [
+                "subject",
+                "text"
+            ],
+            "properties": {
+                "attachment_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "subject": {
+                    "type": "string",
+                    "maxLength": 150
+                },
+                "text": {
+                    "type": "string",
+                    "maxLength": 5000
                 }
             }
         },
@@ -9969,6 +26860,9 @@ const docTemplate = `{
                 },
                 "status_comment": {
                     "type": "string"
+                },
+                "warning": {
+                    "type": "string"
                 }
             }
         },
@@ -9991,14 +26885,282 @@ const docTemplate = `{
                 }
             }
         },
+        "services.CustomValueDetail": {
+            "type": "object",
+            "properties": {
+                "field_id": {
+                    "type": "integer"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
         "services.DeactivateCarRequest": {
             "type": "object",
             "properties": {
                 "status": {
                     "type": "integer"
                 },
+                "table_id": {
+                    "type": "integer"
+                },
                 "user_id": {
                     "type": "integer"
+                }
+            }
+        },
+        "services.DeactivateEmployeeRequest": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "integer"
+                },
+                "table_id": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.DirectoryEntry": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "moderation_status": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.DirectoryMergeRequest": {
+            "type": "object",
+            "required": [
+                "target_id"
+            ],
+            "properties": {
+                "target_id": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
+        "services.DirectoryMergeResult": {
+            "type": "object",
+            "properties": {
+                "dropped_duplicates": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "reassigned": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "target": {
+                    "$ref": "#/definitions/services.DirectoryEntry"
+                }
+            }
+        },
+        "services.DirectoryModerationResult": {
+            "type": "object",
+            "properties": {
+                "entry": {
+                    "$ref": "#/definitions/services.DirectoryEntry"
+                },
+                "existing": {
+                    "$ref": "#/definitions/services.DirectoryEntry"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.DirectoryRenameRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                }
+            }
+        },
+        "services.DirectorySuggestAnswer": {
+            "type": "object",
+            "properties": {
+                "canonical": {
+                    "type": "string"
+                },
+                "degenerate": {
+                    "type": "boolean"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.DirectorySuggestion"
+                    }
+                },
+                "matched": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "services.DirectorySuggestion": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.EmployeeBulkAddTableRequest": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "table_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "services.EmployeeBulkMoveTableRequest": {
+            "type": "object",
+            "properties": {
+                "from_table_id": {
+                    "type": "integer"
+                },
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "to_table_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "services.EmployeeBulkUnbindTableRequest": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "table_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.EmployeeCurrentStatus": {
+            "type": "object",
+            "properties": {
+                "employee_id": {
+                    "type": "integer"
+                },
+                "entry_time": {
+                    "type": "string"
+                },
+                "last_exit_time": {
+                    "type": "string"
+                },
+                "territory_status": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.EmployeeHistoryItem": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "type": "string"
+                },
+                "application_id": {
+                    "type": "integer"
+                },
+                "comment": {
+                    "type": "string"
+                },
+                "company": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "employee_first_name": {
+                    "type": "string"
+                },
+                "employee_id": {
+                    "type": "integer"
+                },
+                "employee_last_name": {
+                    "type": "string"
+                },
+                "employee_middle_name": {
+                    "type": "string"
+                },
+                "field_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "metadata": {
+                    "type": "string"
+                },
+                "new_value": {
+                    "type": "string"
+                },
+                "old_value": {
+                    "type": "string"
+                },
+                "organization": {
+                    "type": "string"
+                },
+                "table_id": {
+                    "type": "integer"
+                },
+                "table_name": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "user_name": {
+                    "type": "string"
                 }
             }
         },
@@ -10043,6 +27205,9 @@ const docTemplate = `{
                 "company_id": {
                     "type": "integer"
                 },
+                "company_name": {
+                    "type": "string"
+                },
                 "has_company": {
                     "type": "boolean"
                 },
@@ -10052,16 +27217,53 @@ const docTemplate = `{
                 "organization_id": {
                     "type": "integer"
                 },
+                "organization_name": {
+                    "type": "string"
+                },
                 "user_id": {
                     "type": "integer"
+                }
+            }
+        },
+        "services.EmployeePassageTableRef": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
                 }
             }
         },
         "services.EmployeeWithTables": {
             "type": "object",
             "properties": {
+                "blacklist_similar": {
+                    "description": "BlacklistSimilar - предупреждение о возможном обходе ЧС (#481): заполнено, если\nФИО близко к активной записи ЧС (но не точное совпадение). nil - элемент чист.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/services.BlacklistFlagInfo"
+                        }
+                    ]
+                },
                 "citizenship_id": {
                     "type": "integer"
+                },
+                "citizenship_name": {
+                    "type": "string"
+                },
+                "company": {
+                    "type": "string"
+                },
+                "company_id": {
+                    "type": "integer"
+                },
+                "entry_date_to": {
+                    "type": "string"
                 },
                 "first_name": {
                     "type": "string"
@@ -10075,7 +27277,16 @@ const docTemplate = `{
                 "middle_name": {
                     "type": "string"
                 },
+                "organization": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "integer"
+                },
                 "other_permission": {
+                    "type": "string"
+                },
+                "pass_time": {
                     "type": "string"
                 },
                 "passport_series_number": {
@@ -10095,14 +27306,79 @@ const docTemplate = `{
                 }
             }
         },
+        "services.FactPassData": {
+            "type": "object",
+            "properties": {
+                "format_id": {
+                    "type": "integer"
+                },
+                "format_name": {
+                    "type": "string"
+                },
+                "mark_id": {
+                    "type": "integer"
+                },
+                "mark_name": {
+                    "type": "string"
+                },
+                "number": {
+                    "type": "string"
+                }
+            }
+        },
         "services.ForwardApplicationRequest": {
             "type": "object",
             "properties": {
+                "attachment_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "message": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
                 "users": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/services.ForwardUser"
                     }
+                }
+            }
+        },
+        "services.ForwardMessageItem": {
+            "type": "object",
+            "properties": {
+                "attachments": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "author_id": {
+                    "type": "integer"
+                },
+                "author_name": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "recipients": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "whole": {
+                    "type": "boolean"
                 }
             }
         },
@@ -10148,6 +27424,206 @@ const docTemplate = `{
                 },
                 "order_index": {
                     "type": "integer"
+                }
+            }
+        },
+        "services.ManualCarRequest": {
+            "type": "object",
+            "properties": {
+                "company_id": {
+                    "type": "integer"
+                },
+                "entry_date_from": {
+                    "type": "string"
+                },
+                "entry_date_to": {
+                    "type": "string"
+                },
+                "entry_time_from": {
+                    "type": "string"
+                },
+                "entry_time_to": {
+                    "type": "string"
+                },
+                "free_parking": {
+                    "type": "boolean"
+                },
+                "organization_id": {
+                    "type": "integer"
+                },
+                "roof_access": {
+                    "type": "boolean"
+                },
+                "table_id": {
+                    "type": "integer"
+                },
+                "vehicles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.ManualVehicle"
+                    }
+                }
+            }
+        },
+        "services.ManualCarResponse": {
+            "type": "object",
+            "properties": {
+                "attachment_id": {
+                    "type": "integer"
+                },
+                "car_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "services.ManualEmployee": {
+            "type": "object",
+            "properties": {
+                "citizenship_id": {
+                    "type": "integer"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "middle_name": {
+                    "type": "string"
+                },
+                "other_permission": {
+                    "type": "string"
+                },
+                "passport_series_number": {
+                    "type": "string"
+                },
+                "patent_number": {
+                    "type": "string"
+                },
+                "position": {
+                    "type": "string"
+                },
+                "target_tables": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "services.ManualEmployeeRequest": {
+            "type": "object",
+            "properties": {
+                "company_id": {
+                    "type": "integer"
+                },
+                "employees": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.ManualEmployee"
+                    }
+                },
+                "entry_date_from": {
+                    "type": "string"
+                },
+                "entry_date_to": {
+                    "type": "string"
+                },
+                "entry_time_from": {
+                    "type": "string"
+                },
+                "entry_time_to": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "integer"
+                },
+                "table_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.ManualEmployeeResponse": {
+            "type": "object",
+            "properties": {
+                "attachment_id": {
+                    "type": "integer"
+                },
+                "employee_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "services.ManualVehicle": {
+            "type": "object",
+            "properties": {
+                "car_brand": {
+                    "type": "string"
+                },
+                "car_number": {
+                    "type": "string"
+                },
+                "mark_id": {
+                    "type": "integer"
+                },
+                "mark_name": {
+                    "type": "string"
+                },
+                "target_tables": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "unload_place": {
+                    "type": "string"
+                },
+                "unload_places": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "services.MemberResponse": {
+            "type": "object",
+            "properties": {
+                "first_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "middle_name": {
+                    "type": "string"
+                },
+                "position": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },
@@ -10235,7 +27711,14 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "moderation_status": {
+                    "description": "ModerationStatus - approved у обычной записи, pending у заведённой подачей и\nещё не разобранной (#1437). Нужен разбору: привязывать черновик можно только\nк проверенной записи, и список выбора обязан отсеять непроверенные.",
+                    "type": "string"
+                },
                 "name": {
+                    "type": "string"
+                },
+                "type": {
                     "type": "string"
                 }
             }
@@ -10320,10 +27803,105 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "moderation_status": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 },
+                "type": {
+                    "type": "string"
+                },
                 "user_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.OverrideBlacklistFlagRequest": {
+            "type": "object",
+            "required": [
+                "comment"
+            ],
+            "properties": {
+                "comment": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "minLength": 1
+                },
+                "flag_id": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
+        "services.QuestionAttachmentItem": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.QuestionWithAnswers": {
+            "type": "object",
+            "properties": {
+                "answers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.AnswerItem"
+                    }
+                },
+                "application_id": {
+                    "type": "integer"
+                },
+                "attachments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.QuestionAttachmentItem"
+                    }
+                },
+                "author_name": {
+                    "type": "string"
+                },
+                "author_user_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_new": {
+                    "description": "IsNew - в топике есть непрочитанное для смотрящего (#973): вопрос или его ответ созданы\nпозже read_at топика (или отметки прочтения нет), автор события != смотрящий.",
+                    "type": "boolean"
+                },
+                "subject": {
+                    "type": "string"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.ReassignUserTypeRequest": {
+            "type": "object",
+            "properties": {
+                "target_type_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.ReassignUsersRequest": {
+            "type": "object",
+            "properties": {
+                "target_id": {
                     "type": "integer"
                 }
             }
@@ -10351,6 +27929,10 @@ const docTemplate = `{
                 "approval_status": {
                     "type": "string"
                 },
+                "created_at": {
+                    "description": "CreatedAt - момент назначения согласующего (не подача заявки: его могли\nдобавить позже). От него карточка заявки считает \"не отвечает N дней\" (#1315 S3),\nтак же считает ReminderService. ReminderCount - сколько напоминаний уже ушло.",
+                    "type": "string"
+                },
                 "first_name": {
                     "type": "string"
                 },
@@ -10369,6 +27951,9 @@ const docTemplate = `{
                 "position": {
                     "type": "string"
                 },
+                "reminder_count": {
+                    "type": "integer"
+                },
                 "required_approval": {
                     "type": "boolean"
                 },
@@ -10378,6 +27963,14 @@ const docTemplate = `{
             }
         },
         "services.RestoreCarRequest": {
+            "type": "object",
+            "properties": {
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.RestoreEmployeeRequest": {
             "type": "object",
             "properties": {
                 "user_id": {
@@ -10422,11 +28015,165 @@ const docTemplate = `{
                 }
             }
         },
+        "services.SearchEntityType": {
+            "type": "string",
+            "enum": [
+                "employees",
+                "cars",
+                "applications",
+                "directories",
+                "users",
+                "blacklist",
+                "content",
+                "feedback"
+            ],
+            "x-enum-varnames": [
+                "SearchTypeEmployees",
+                "SearchTypeCars",
+                "SearchTypeApplications",
+                "SearchTypeDirectories",
+                "SearchTypeUsers",
+                "SearchTypeBlacklist",
+                "SearchTypeContent",
+                "SearchTypeFeedback"
+            ]
+        },
+        "services.SearchGroup": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "has_more": {
+                    "type": "boolean"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.SearchItem"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/services.SearchEntityType"
+                }
+            }
+        },
+        "services.SearchItem": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "matched_field": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "number"
+                },
+                "subtitle": {
+                    "type": "string"
+                },
+                "target": {
+                    "$ref": "#/definitions/services.SearchTarget"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/services.SearchEntityType"
+                }
+            }
+        },
+        "services.SearchResponse": {
+            "type": "object",
+            "properties": {
+                "degraded": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.SearchEntityType"
+                    }
+                },
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.SearchGroup"
+                    }
+                },
+                "query": {
+                    "type": "string"
+                },
+                "took_ms": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.SearchTarget": {
+            "type": "object",
+            "properties": {
+                "entity": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.SystemTableBinding": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.SystemTableDetachResult": {
+            "type": "object",
+            "properties": {
+                "companies_detached": {
+                    "type": "integer"
+                },
+                "organizations_detached": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.SystemTableUsage": {
+            "type": "object",
+            "properties": {
+                "companies": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.SystemTableBinding"
+                    }
+                },
+                "organizations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.SystemTableBinding"
+                    }
+                }
+            }
+        },
         "services.TableCarResponse": {
             "type": "object",
             "properties": {
                 "application_id": {
                     "type": "integer"
+                },
+                "application_number": {
+                    "type": "string"
                 },
                 "car_brand": {
                     "type": "string"
@@ -10461,6 +28208,17 @@ const docTemplate = `{
                 "status": {
                     "type": "integer"
                 },
+                "target_tables": {
+                    "description": "TargetTables - сами привязки «Проезд» с источником (#1227): карточка машины из\nконтекста проходной различает «из заявки» (application) и «добавлено» (manual).",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.CarPassageTableRef"
+                    }
+                },
+                "target_tables_count": {
+                    "description": "TargetTablesCount - число таблиц «Проезд», к которым привязана машина (#1194):\nFE показывает per-row «Убрать» без подменю при 1 (снятие с единственной =\nдеактивация) и с подменю «из этой/из всех» при \u003e1.",
+                    "type": "integer"
+                },
                 "territory_entry_time": {
                     "type": "string"
                 },
@@ -10481,6 +28239,18 @@ const docTemplate = `{
         "services.TableEmployeeResponse": {
             "type": "object",
             "properties": {
+                "application_id": {
+                    "type": "integer"
+                },
+                "application_number": {
+                    "type": "string"
+                },
+                "citizenship_name": {
+                    "type": "string"
+                },
+                "company": {
+                    "type": "string"
+                },
                 "entry_date_to": {
                     "type": "string"
                 },
@@ -10499,10 +28269,31 @@ const docTemplate = `{
                 "organization": {
                     "type": "string"
                 },
+                "pass_places": {
+                    "type": "string"
+                },
                 "pass_time": {
                     "type": "string"
                 },
+                "position": {
+                    "type": "string"
+                },
                 "status": {
+                    "type": "integer"
+                },
+                "target_tables": {
+                    "description": "TargetTables - список привязок сотрудника к таблицам проходной с источником\n(#1227): application/manual. Карточка сотрудника из контекста проходной раньше\nвидела только count - теперь получает и сам список для секции «Проезд».",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.EmployeePassageTableRef"
+                    }
+                },
+                "target_tables_count": {
+                    "description": "TargetTablesCount - число таблиц проходной, к которым привязан сотрудник\n(employee_target_tables). Используется FE (#1194) для решения, показывать ли\nper-row выбор «из этой/из всех» при отвязке (\u003e1) или сразу деактивировать (=1).",
+                    "type": "integer"
+                },
+                "territory_status": {
+                    "description": "TerritoryStatus - территориальный статус сотрудника (0 - не отмечен, 1 - вошёл,\n2 - вышел) из той же колонки employees.territory_status, что читает\n/employees/history/current-status. Отдаём вместе со строкой, чтобы счётчик\n«Людей зашло» и кнопки входа/выхода были верны сразу, а не проваливались в\n«никто не отмечен» до ответа второго запроса.",
                     "type": "integer"
                 }
             }
@@ -10543,6 +28334,78 @@ const docTemplate = `{
                 }
             }
         },
+        "services.TemplateField": {
+            "type": "object",
+            "properties": {
+                "is_list": {
+                    "type": "boolean"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.TemplateFieldGroup": {
+            "type": "object",
+            "properties": {
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.TemplateField"
+                    }
+                },
+                "group": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.UniqueCarHistoryItem": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "type": "string"
+                },
+                "comment": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "field_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "new_value": {
+                    "type": "string"
+                },
+                "old_value": {
+                    "type": "string"
+                },
+                "unique_car_id": {
+                    "type": "integer"
+                },
+                "user_first_name": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "user_last_name": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
         "services.UniqueCarResponse": {
             "type": "object",
             "properties": {
@@ -10578,6 +28441,29 @@ const docTemplate = `{
         "services.UniqueCarWithRelations": {
             "type": "object",
             "properties": {
+                "active_app_company_name": {
+                    "type": "string"
+                },
+                "active_app_org_name": {
+                    "type": "string"
+                },
+                "active_application_id": {
+                    "description": "ActiveApplicationID -- id заявки (applications.id) той же активной заявки, что и\nпрочие active_*-поля. Нужен фронту для кнопки \"Открыть заявку\" на вкладке Автомобили.",
+                    "type": "integer"
+                },
+                "active_car_id": {
+                    "description": "ActiveCarID -- id строки в cars активной заявки (заявочная таблица, не реестр).\nНужен фронту, чтобы подтянуть статус территории и места разгрузки активной машины\n(current-status и cars/unload-places ключуются по cars.id, а не по unique_cars.id).",
+                    "type": "integer"
+                },
+                "active_entry_date_to": {
+                    "type": "string"
+                },
+                "active_entry_time_from": {
+                    "type": "string"
+                },
+                "active_entry_time_to": {
+                    "type": "string"
+                },
                 "company_id": {
                     "type": "integer"
                 },
@@ -10595,6 +28481,10 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "is_blacklisted": {
+                    "description": "IsBlacklisted -- машина в активном чёрном списке (совпадение по номеру и марке).\nСчитается на сервере, чтобы фронт не выгружал весь список ЧС ради подсветки.",
+                    "type": "boolean"
                 },
                 "mark": {
                     "type": "string"
@@ -10615,6 +28505,47 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "user_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.UniqueEmployeeHistoryItem": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "type": "string"
+                },
+                "comment": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "field_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "new_value": {
+                    "type": "string"
+                },
+                "old_value": {
+                    "type": "string"
+                },
+                "unique_employee_id": {
+                    "type": "integer"
+                },
+                "user_first_name": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "user_last_name": {
+                    "type": "string"
+                },
+                "username": {
                     "type": "string"
                 }
             }
@@ -10669,6 +28600,26 @@ const docTemplate = `{
         "services.UniqueEmployeeWithRelations": {
             "type": "object",
             "properties": {
+                "active_app_company_name": {
+                    "type": "string"
+                },
+                "active_app_org_name": {
+                    "type": "string"
+                },
+                "active_application_id": {
+                    "description": "ActiveApplicationID -- id заявки (applications.id) той же активной заявки, что и\nпрочие active_*-поля. Нужен фронту для кнопки \"Открыть заявку\" на вкладке Сотрудники.",
+                    "type": "integer"
+                },
+                "active_employee_id": {
+                    "description": "ActiveEmployeeID -- id строки в employees активной заявки (заявочная таблица,\nне реестр). Нужен фронту, чтобы подтянуть территориальный статус сотрудника\n(current-status ключуется по employees.id, а не по unique_employees.id).",
+                    "type": "integer"
+                },
+                "active_entry_date_to": {
+                    "type": "string"
+                },
+                "active_pass_time": {
+                    "type": "string"
+                },
                 "citizenship_id": {
                     "type": "integer"
                 },
@@ -10689,6 +28640,10 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "is_blacklisted": {
+                    "description": "IsBlacklisted -- сотрудник в активном чёрном списке людей (совпадение по ФИО).\nСчитается на сервере, чтобы фронт не выгружал весь список ПД ради подсветки.",
+                    "type": "boolean"
                 },
                 "last_name": {
                     "type": "string"
@@ -10722,6 +28677,31 @@ const docTemplate = `{
                 }
             }
         },
+        "services.UnloadPlaceBinding": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.UnloadPlaceDetachResult": {
+            "type": "object",
+            "properties": {
+                "companies_detached": {
+                    "type": "integer"
+                },
+                "organizations_detached": {
+                    "type": "integer"
+                }
+            }
+        },
         "services.UnloadPlaceRef": {
             "type": "object",
             "properties": {
@@ -10733,6 +28713,23 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "services.UnloadPlaceUsage": {
+            "type": "object",
+            "properties": {
+                "companies": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.UnloadPlaceBinding"
+                    }
+                },
+                "organizations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.UnloadPlaceBinding"
+                    }
                 }
             }
         },
@@ -10780,6 +28777,16 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
+                },
+                "warning": {
+                    "type": "string"
+                },
+                "warning_windows": {
+                    "description": "WarningWindows -- предупреждения по временным окнам (#1183), показываются\nзаявителю, когда срок заявки пересекается с окном.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.UnloadPlaceWarningWindow"
+                    }
                 }
             }
         },
@@ -10797,6 +28804,24 @@ const docTemplate = `{
                 },
                 "update_data": {
                     "$ref": "#/definitions/services.NewUniqueCarRequest"
+                }
+            }
+        },
+        "services.UpdateCarTerritoryStatusRequest": {
+            "type": "object",
+            "properties": {
+                "pass": {
+                    "$ref": "#/definitions/services.FactPassData"
+                },
+                "table_id": {
+                    "description": "TableID -- таблица (КПП), из которой отмечен въезд/выезд; пишется в историю,\nчтобы в карточке истории было видно, где произошло событие.",
+                    "type": "integer"
+                },
+                "territory_status": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "integer"
                 }
             }
         },
@@ -10869,6 +28894,10 @@ const docTemplate = `{
         "services.UpdateTerritoryStatusRequest": {
             "type": "object",
             "properties": {
+                "table_id": {
+                    "description": "TableID -- таблица (КПП), из которой отмечен въезд/выезд; пишется в историю,\nчтобы в карточке истории было видно, где произошло событие.",
+                    "type": "integer"
+                },
                 "territory_status": {
                     "type": "integer"
                 },
@@ -10914,6 +28943,9 @@ const docTemplate = `{
                 },
                 "status_comment": {
                     "type": "string"
+                },
+                "warning": {
+                    "type": "string"
                 }
             }
         },
@@ -10958,6 +28990,32 @@ const docTemplate = `{
                 }
             }
         },
+        "services.UserTypeMemberResponse": {
+            "type": "object",
+            "properties": {
+                "first_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "middle_name": {
+                    "type": "string"
+                },
+                "position": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
         "services.UserTypeWithCount": {
             "type": "object",
             "properties": {
@@ -10966,6 +29024,9 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "is_system": {
+                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"
@@ -10983,6 +29044,16 @@ const docTemplate = `{
                 },
                 "car_number": {
                     "type": "string"
+                },
+                "mark_id": {
+                    "type": "integer"
+                },
+                "passage_tables": {
+                    "description": "TargetTables — таблицы «Проезд» (#1036): машина видна только в них. Зеркало\nEmployeeInput.TargetTables.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 },
                 "unload_place": {
                     "type": "string"
@@ -11021,6 +29092,76 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "services.WorkModeEntity": {
+            "type": "object",
+            "properties": {
+                "current_status": {
+                    "description": "open | closed",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "kind": {
+                    "description": "bureau | unload_place | checkpoint",
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "active | inactive | maintenance",
+                    "type": "string"
+                },
+                "time_slots": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.WorkModeSlot"
+                    }
+                }
+            }
+        },
+        "services.WorkModeSlot": {
+            "type": "object",
+            "properties": {
+                "close_time": {
+                    "type": "string"
+                },
+                "day_of_week": {
+                    "description": "0=Пн..6=Вс",
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "is_next_day": {
+                    "type": "boolean"
+                },
+                "open_time": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.WorkModesResponse": {
+            "type": "object",
+            "properties": {
+                "bureau": {
+                    "$ref": "#/definitions/services.WorkModeEntity"
+                },
+                "checkpoints": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.WorkModeEntity"
+                    }
+                },
+                "unload_places": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.WorkModeEntity"
+                    }
                 }
             }
         }
