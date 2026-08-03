@@ -82,6 +82,14 @@ describe('GuideManagement', () => {
     expect(w.findAll('[data-testid="guide-item-input"]')).toHaveLength(2)
   })
 
+  it('размер файла раздела считает общий formatBytes, а не своя копия', async () => {
+    const w = mountCmp()
+    await flushPromises()
+    await w.findAll('[data-testid="guide-row"]')[0].trigger('click')
+    // 1048576 байт: общий формат даёт «1.0 МБ», снятая локальная копия давала «1,0 МБ»
+    expect(w.find('.file-card__meta').text()).toContain('1.0 МБ')
+  })
+
   it('кнопка «Сохранить» неактивна без изменений', async () => {
     const w = mountCmp()
     await flushPromises()

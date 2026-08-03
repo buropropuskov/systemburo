@@ -171,7 +171,7 @@
                 <div class="file-card__meta">
                   {{ fileTypeLabel(selectedSection.file) }}
                   <span class="sep">·</span>
-                  {{ formatSize(selectedSection.file.size) }}
+                  {{ formatBytes(selectedSection.file.size) }}
                   <span class="sep">·</span>
                   обновлено {{ formatDate(selectedSection.file.updated_at) }}
                 </div>
@@ -278,6 +278,7 @@ import FileTypeIcon from './ui/FileTypeIcon.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
+import { formatBytes } from '@/utils/download';
 import {
   listAllGuideSections,
   updateGuideSection,
@@ -440,14 +441,6 @@ async function download(sec) {
 function fileTypeLabel(file) {
   const ext = (file.ext || '').replace(/^\./, '').toUpperCase();
   return ext || 'PDF';
-}
-
-function formatSize(bytes) {
-  if (!bytes) return '';
-  const mb = bytes / (1024 * 1024);
-  if (mb >= 1) return `${mb.toFixed(1).replace('.', ',')} МБ`;
-  const kb = Math.max(1, Math.round(bytes / 1024));
-  return `${kb} КБ`;
 }
 
 function formatDate(iso) {
