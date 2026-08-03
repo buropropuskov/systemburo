@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"log/slog"
+	"net/url"
 	"time"
 
 	"systemburo/internal/models"
@@ -39,6 +40,36 @@ func skipRequestLog(path string, status int) bool {
 	return false
 }
 
+// secretQueryKeys - параметры, значение которых нельзя писать в журнал. Билет
+// скачивания и подписки на события даёт доступ к данным без заголовка Authorization:
+// он одноразовый и живёт меньше минуты, но журнал обращений хранится месяцами, его
+// читают через интерфейс и выгружают - секрету там не место. Особенно у файлового
+// архива, где билет открывает выгрузку бланков с паспортами (#1615).
+var secretQueryKeys = []string{"ticket", "token", "access_token", "key"}
+
+// maskSecretQuery отдаёт адрес запроса с затёртыми значениями секретных параметров.
+// Сам факт «пришёл с билетом» в журнале остаётся - пропадает только значение.
+func maskSecretQuery(u *url.URL) string {
+	if u == nil {
+		return ""
+	}
+	q := u.Query()
+	masked := false
+	for _, key := range secretQueryKeys {
+		if q.Has(key) {
+			q.Set(key, "***")
+			masked = true
+		}
+	}
+	if !masked {
+		return u.String()
+	}
+
+	clone := *u
+	clone.RawQuery = q.Encode()
+	return clone.String()
+}
+
 // RequestLogger записывает HTTP-запросы в таблицу request_logs.
 func RequestLogger(db *gorm.DB) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -54,7 +85,7 @@ func RequestLogger(db *gorm.DB) echo.MiddlewareFunc {
 			duration := time.Since(start).Milliseconds()
 
 			method := c.Request().Method
-			url := c.Request().URL.String()
+			url := maskSecretQuery(c.Request().URL)
 			status := c.Response().Status
 			durationInt := int(duration)
 
