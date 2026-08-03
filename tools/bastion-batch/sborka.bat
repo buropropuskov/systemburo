@@ -1,51 +1,49 @@
 @echo off
-chcp 65001 >nul
-rem Сборка bastion_zayavki.py в один exe. Запускать в папке со скриптом.
+rem ASCII only - cmd.exe reads .bat in OEM codepage and mangles Cyrillic.
+setlocal
 
 echo.
-echo === Сборка "Бастион-2 - пакетное создание заявок" ===
+echo === Building "Bastion-2 batch requests" ===
 echo.
 
 where python >nul 2>&1
 if errorlevel 1 (
-    echo Python не найден. Установи с python.org и поставь галочку
-    echo "Add python.exe to PATH", затем запусти сборку заново.
+    echo Python not found.
+    echo Install it from python.org and tick "Add python.exe to PATH",
+    echo then close this window, open a new one and run the build again.
+    echo.
     pause
     exit /b 1
 )
 
-echo [1/3] Проверяю PyInstaller...
+echo [1/3] Checking PyInstaller...
 python -m PyInstaller --version >nul 2>&1
 if errorlevel 1 (
-    echo      не установлен, ставлю...
-    python -m pip install --upgrade pyinstaller || goto :oshibka
+    echo       not installed, installing...
+    python -m pip install --upgrade pyinstaller
+    if errorlevel 1 goto :failed
 )
 
-echo [2/3] Собираю...
-python -m PyInstaller ^
-    --onefile ^
-    --windowed ^
-    --name "Заявки Бастион" ^
-    --clean ^
-    --noconfirm ^
-    bastion_zayavki.py || goto :oshibka
+echo [2/3] Building...
+python -m PyInstaller --onefile --windowed --clean --noconfirm --name BastionZayavki bastion_zayavki.py
+if errorlevel 1 goto :failed
 
-echo [3/3] Убираю временные файлы...
+echo [3/3] Cleaning up...
 if exist build rmdir /s /q build
-if exist "Заявки Бастион.spec" del /q "Заявки Бастион.spec"
+if exist BastionZayavki.spec del /q BastionZayavki.spec
 
 echo.
-echo Готово. Файл лежит здесь:
-echo     %CD%\dist\Заявки Бастион.exe
+echo Done. The program is here:
+echo     %CD%\dist\BastionZayavki.exe
 echo.
-echo Его можно копировать на любой компьютер с Windows,
-echo Python там уже не нужен.
+echo Copy it to any Windows machine - Python is not needed there.
 echo.
 pause
 exit /b 0
 
-:oshibka
+:failed
 echo.
-echo Сборка не удалась - смотри сообщение выше.
+echo Build failed - see the message above.
+echo.
 pause
 exit /b 1

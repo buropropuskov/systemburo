@@ -1,0 +1,2 @@
+# cmd.exe требует CRLF и ломается на не-ASCII в bat-файлах
+*.bat text eol=crlf
