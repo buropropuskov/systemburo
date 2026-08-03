@@ -242,11 +242,11 @@ defineExpose({ loadSettings });
 /* ===== МОБИЛКА (<=768): каркас без переполнения (образец - StatisticsView.vue) ===== */
 @media (max-width: 768px) {
   .management-header {
-    padding: 0 12px;
+    padding: 0 var(--gutter);
   }
 
   .file-archive__tabs {
-    padding: 0 12px;
+    padding: 0 var(--gutter);
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
@@ -256,9 +256,11 @@ defineExpose({ loadSettings });
     display: none;
   }
 
+  /* min-height - тач-таргет 44px: одного padding 12px хватало только на 42. */
   .file-archive__tab {
     flex-shrink: 0;
     white-space: nowrap;
+    min-height: 44px;
     padding: 12px 14px;
     font-size: 14px;
   }
@@ -268,7 +270,7 @@ defineExpose({ loadSettings });
   }
 
   .file-archive__panel {
-    padding: 14px 12px 24px;
+    padding: 14px var(--gutter) 24px;
   }
 }
 </style>

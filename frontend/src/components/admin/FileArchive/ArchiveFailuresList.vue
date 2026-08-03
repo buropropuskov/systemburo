@@ -236,7 +236,7 @@ defineExpose({ refresh: load });
 
 .afl__row {
   display: grid;
-  grid-template-columns: 90px 160px 1fr 140px 120px;
+  grid-template-columns: 90px 160px minmax(0, 1fr) 140px 120px;
   gap: 12px;
   align-items: center;
   padding: 10px 4px;
@@ -286,6 +286,16 @@ defineExpose({ refresh: load });
   margin: 0;
 }
 
+/* Планшет: колонка ошибки получает остаток от пяти фиксированных ширин, и на
+   768 ей доставалось 102px - путь к шаблону рассыпался в узкий столбик на
+   двенадцать строк. Узкие колонки поджимаются, ошибке остаётся вдвое больше. */
+@media (max-width: 1023.98px) {
+  .afl__row {
+    grid-template-columns: 74px 130px minmax(0, 1fr) 110px 112px;
+    gap: 8px;
+  }
+}
+
 @media (max-width: 767.98px) {
   .afl__toolbar {
     flex-direction: column;
@@ -296,16 +306,49 @@ defineExpose({ refresh: load });
     max-width: 100%;
   }
 
+  /* Тач-таргет даём самой кнопке дропдауна: min-height обёртки её не
+     растягивает, у неё свой 30px (образец - AccessDenialsLog). */
+  .afl__status-select :deep(.base-dropdown__button) {
+    min-height: 44px;
+  }
+
   .afl__toolbar .lk-button {
     min-height: 44px;
   }
 
+  /* В карточке строка становится колонкой, и align-items:center из десктопной
+     раскладки центрирует ячейки по горизонтали: колонка действий (она без
+     data-label, ширину от card-правил не получает) сжималась до кнопки и висела
+     посреди карточки. */
+  .afl__row {
+    align-items: stretch;
+  }
+
+  /* Текст ошибки - единственная многострочная ячейка карточки: прижатый вправо
+     он рвётся лесенкой, поэтому подпись сверху, значение под ней слева.
+     Селектор из трёх классов - иначе проигрывает card-правилу
+     responsive-tables.css (.rt-table .rt-row > [data-label], те же свойства). */
+  .afl__table .afl__row > .afl__cell--error {
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .afl__cell--actions {
+    padding-top: 6px;
+  }
+
   .afl__retry-btn {
+    width: 100%;
     min-height: 44px;
   }
 
   .afl__pager {
     justify-content: center;
+  }
+
+  .afl__pager :deep(.lk-button) {
+    min-height: 44px;
   }
 }
 </style>
