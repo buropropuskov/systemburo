@@ -120,9 +120,11 @@ func (s *applicationService) GetApplicationAttachments(ctx context.Context, appl
 			a.unique_attachment_id,
 			ua.title as unique_attachment_title,
 			ua.display_name as unique_attachment_display_name,
-			EXISTS (SELECT 1 FROM attachment_templates at2 WHERE at2.unique_attachment_id = a.unique_attachment_id) as has_template
+			EXISTS (SELECT 1 FROM attachment_templates at2 WHERE at2.unique_attachment_id = a.unique_attachment_id) as has_template,
+			COALESCE(be.status, '') as archive_status
 		FROM attachments a
 		LEFT JOIN unique_attachments ua ON a.unique_attachment_id = ua.id
+		LEFT JOIN blank_exports be ON be.application_id = a.application_id AND be.attachment_id = a.id
 		WHERE a.application_id = ?
 		ORDER BY ua.title, a.created_at
 	`, applicationID).Scan(&attachments).Error
