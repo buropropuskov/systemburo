@@ -93,13 +93,12 @@ func (w quotaWorld) reset(t *testing.T) {
 	require.NoError(t, w.db.Exec("DELETE FROM notifications").Error)
 	require.NoError(t, w.db.Exec("DELETE FROM system_settings WHERE key IN (?, ?)",
 		archiveBlockFlagSettingKey, archiveWarnFlagSettingKey).Error)
-	w.setSettings(t, `{"enabled":true,"min_free_bytes":0,"quota_bytes":0,"warn_percent":99}`)
+	w.setSettings(t, models.UpdateArchiveSettingsRequest{Enabled: testutil.Ptr(true), MinFreeBytes: testutil.Ptr[int64](0), QuotaBytes: testutil.Ptr[int64](0), WarnPercent: testutil.Ptr(99)})
 }
 
-func (w quotaWorld) setSettings(t *testing.T, body string) {
+func (w quotaWorld) setSettings(t *testing.T, req models.UpdateArchiveSettingsRequest) {
 	t.Helper()
-	rec := testutil.PUT(t, w.e, "/file-archive/settings", body, w.adminH)
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	testutil.SetArchiveSettings(t, w.db, req)
 }
 
 func (w quotaWorld) auditRows(t *testing.T, action string) []models.AuditLog {
@@ -209,7 +208,7 @@ func quotaBlocksQueueSection(t *testing.T, w quotaWorld) {
 	done := quotaSeedRow(t, w.db, 7103, 6103, models.BlankExportOK, 4096, bucket)
 	noTemplate := quotaSeedRow(t, w.db, 7104, 6104, models.BlankExportNoTemplate, 0, bucket)
 
-	w.setSettings(t, fmt.Sprintf(`{"min_free_bytes":%d}`, quotaImpossibleFreeBytes))
+	w.setSettings(t, models.UpdateArchiveSettingsRequest{MinFreeBytes: testutil.Ptr(quotaImpossibleFreeBytes)})
 	quota := w.newQuota(services.NewNotificationService(w.db), services.NewAuditRecorder(w.db))
 
 	res, err := quota.EnforceThresholds(context.Background())
@@ -255,7 +254,7 @@ func quotaBlocksQueueSection(t *testing.T, w quotaWorld) {
 	assert.Len(t, w.auditRows(t, models.ArchiveQuotaActionBlocked), 1)
 
 	// Место вернулось.
-	w.setSettings(t, `{"min_free_bytes":0}`)
+	w.setSettings(t, models.UpdateArchiveSettingsRequest{MinFreeBytes: testutil.Ptr[int64](0)})
 	back, err := restarted.EnforceThresholds(context.Background())
 	require.NoError(t, err)
 	assert.False(t, back.HardTripped)
@@ -265,7 +264,7 @@ func quotaBlocksQueueSection(t *testing.T, w quotaWorld) {
 		"строки снимает с блокировки воркер по next_attempt_at, а не проверка порога")
 
 	// Место снова кончилось - это новый переход, очередь обязана встать опять.
-	w.setSettings(t, fmt.Sprintf(`{"min_free_bytes":%d}`, quotaImpossibleFreeBytes))
+	w.setSettings(t, models.UpdateArchiveSettingsRequest{MinFreeBytes: testutil.Ptr(quotaImpossibleFreeBytes)})
 	again, err := restarted.EnforceThresholds(context.Background())
 	require.NoError(t, err)
 	assert.True(t, again.HardTripped)
@@ -282,14 +281,14 @@ func quotaExceededSection(t *testing.T, w quotaWorld) {
 	// Незаписанная строка в сумму объёма не входит - файла на диске ещё нет.
 	pending := quotaSeedRow(t, w.db, 7203, 6203, models.BlankExportPending, 9000, bucket)
 
-	w.setSettings(t, `{"quota_bytes":5001}`)
+	w.setSettings(t, models.UpdateArchiveSettingsRequest{QuotaBytes: testutil.Ptr[int64](5001)})
 	quota := w.newQuota(services.NewNotificationService(w.db), services.NewAuditRecorder(w.db))
 	below, err := quota.EnforceThresholds(context.Background())
 	require.NoError(t, err)
 	assert.False(t, below.HardTripped, "5000 байт архива против квоты 5001 - порог не нарушен")
 	assert.Equal(t, models.BlankExportPending, w.registryRowByID(t, pending.ID).Status)
 
-	w.setSettings(t, `{"quota_bytes":5000}`)
+	w.setSettings(t, models.UpdateArchiveSettingsRequest{QuotaBytes: testutil.Ptr[int64](5000)})
 	atEdge, err := quota.EnforceThresholds(context.Background())
 	require.NoError(t, err)
 	require.True(t, atEdge.HardTripped, "архив ровно на потолке квоты обязан останавливать очередь")
@@ -309,7 +308,7 @@ func quotaRetriesBlockSection(t *testing.T, w quotaWorld) {
 	w.reset(t)
 	bucket := time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC)
 	pending := quotaSeedRow(t, w.db, 7301, 6301, models.BlankExportPending, 0, bucket)
-	w.setSettings(t, fmt.Sprintf(`{"min_free_bytes":%d}`, quotaImpossibleFreeBytes))
+	w.setSettings(t, models.UpdateArchiveSettingsRequest{MinFreeBytes: testutil.Ptr(quotaImpossibleFreeBytes)})
 
 	recorder := &flakyRecorder{AuditRecorder: services.NewAuditRecorder(w.db), failAction: models.ArchiveQuotaActionBlocked}
 	quota := w.newQuota(services.NewNotificationService(w.db), recorder)
@@ -340,7 +339,7 @@ func quotaWarnsAdminsSection(t *testing.T, w quotaWorld) {
 	w.reset(t)
 	// Порог в 1% заведомо пройден на любом рабочем разделе; если вдруг нет -
 	// проверка упадёт на require ниже, а не притворится зелёной.
-	w.setSettings(t, `{"warn_percent":1}`)
+	w.setSettings(t, models.UpdateArchiveSettingsRequest{WarnPercent: testutil.Ptr(1)})
 	quota := w.newQuota(services.NewNotificationService(w.db), services.NewAuditRecorder(w.db))
 
 	res, err := quota.EnforceThresholds(context.Background())
@@ -369,7 +368,7 @@ func quotaWarnsAdminsSection(t *testing.T, w quotaWorld) {
 // следующий тик предупреждает заново.
 func quotaRetriesWarnSection(t *testing.T, w quotaWorld) {
 	w.reset(t)
-	w.setSettings(t, `{"warn_percent":1}`)
+	w.setSettings(t, models.UpdateArchiveSettingsRequest{WarnPercent: testutil.Ptr(1)})
 	notifier := &flakyNotifier{NotificationService: services.NewNotificationService(w.db), fail: true}
 	quota := w.newQuota(notifier, services.NewAuditRecorder(w.db))
 
@@ -394,7 +393,7 @@ func quotaDisabledSection(t *testing.T, w quotaWorld) {
 	w.reset(t)
 	bucket := time.Date(2026, 7, 25, 0, 0, 0, 0, time.UTC)
 	pending := quotaSeedRow(t, w.db, 7401, 6401, models.BlankExportPending, 0, bucket)
-	w.setSettings(t, fmt.Sprintf(`{"enabled":false,"min_free_bytes":%d,"warn_percent":1}`, quotaImpossibleFreeBytes))
+	w.setSettings(t, models.UpdateArchiveSettingsRequest{Enabled: testutil.Ptr(false), MinFreeBytes: testutil.Ptr(quotaImpossibleFreeBytes), WarnPercent: testutil.Ptr(1)})
 
 	quota := w.newQuota(services.NewNotificationService(w.db), services.NewAuditRecorder(w.db))
 	res, err := quota.EnforceThresholds(context.Background())

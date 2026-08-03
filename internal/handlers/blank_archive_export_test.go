@@ -44,8 +44,7 @@ func setupArchiveWorld(t *testing.T) archiveWorld {
 	senderID := secUserIDByUsername(t, db, "testadmin")
 
 	// Рубильник выгрузки выключен по умолчанию - без него сервис отвечает отказом.
-	rec := testutil.PUT(t, e, "/file-archive/settings", `{"enabled":true}`, adminH)
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	testutil.SetArchiveSettings(t, db, models.UpdateArchiveSettingsRequest{Enabled: testutil.Ptr(true)})
 
 	return archiveWorld{e: e, db: db, root: root, adminH: adminH, orgID: td.OrgID, senderID: senderID}
 }
@@ -258,13 +257,9 @@ func archiveSkippedSection(t *testing.T, w archiveWorld) {
 // Шаблон раскладки без номера складывает две заявки одного дня в общую папку -
 // вторая обязана разойтись суффиксом, иначе её файлы затрут чужие.
 func archiveDirCollisionSection(t *testing.T, w archiveWorld) {
-	rec := testutil.PUT(t, w.e, "/file-archive/settings",
-		`{"dir_template":"{год}/{дата} {организация}"}`, w.adminH)
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	testutil.SetArchiveSettings(t, w.db, models.UpdateArchiveSettingsRequest{DirTemplate: testutil.Ptr("{год}/{дата} {организация}")})
 	t.Cleanup(func() {
-		restore := testutil.PUT(t, w.e, "/file-archive/settings",
-			`{"dir_template":"{год}/{месяц_число} {МЕСЯЦ} {год}/{дата}/{дата} №{номер} {организация}"}`, w.adminH)
-		require.Equal(t, http.StatusOK, restore.Code, restore.Body.String())
+		testutil.SetArchiveSettings(t, w.db, models.UpdateArchiveSettingsRequest{DirTemplate: testutil.Ptr("{год}/{месяц_число} {МЕСЯЦ} {год}/{дата}/{дата} №{номер} {организация}")})
 	})
 
 	uaID := w.newExportType(t, "Пропуск коллизия", true, true)
@@ -285,11 +280,9 @@ func archiveDirCollisionSection(t *testing.T, w archiveWorld) {
 // Закрытая заявка со сроком в прошлом замораживается: файл становится документом и
 // больше не следует за правками, а папка не переезжает.
 func archiveFreezeSection(t *testing.T, w archiveWorld) {
-	rec := testutil.PUT(t, w.e, "/file-archive/settings", `{"freeze_after_days":0}`, w.adminH)
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	testutil.SetArchiveSettings(t, w.db, models.UpdateArchiveSettingsRequest{FreezeAfterDays: testutil.Ptr(0)})
 	t.Cleanup(func() {
-		restore := testutil.PUT(t, w.e, "/file-archive/settings", `{"freeze_after_days":30}`, w.adminH)
-		require.Equal(t, http.StatusOK, restore.Code, restore.Body.String())
+		testutil.SetArchiveSettings(t, w.db, models.UpdateArchiveSettingsRequest{FreezeAfterDays: testutil.Ptr(30)})
 	})
 
 	uaID := w.newExportType(t, "Пропуск заморозка", true, true)
@@ -347,11 +340,9 @@ func archiveFreezeSection(t *testing.T, w archiveWorld) {
 // Выключенная выгрузка отвечает причиной, а не пустым результатом: администратор,
 // нажавший «пересоздать», должен понять, почему ничего не произошло.
 func archiveDisabledSection(t *testing.T, w archiveWorld) {
-	rec := testutil.PUT(t, w.e, "/file-archive/settings", `{"enabled":false}`, w.adminH)
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	testutil.SetArchiveSettings(t, w.db, models.UpdateArchiveSettingsRequest{Enabled: testutil.Ptr(false)})
 	t.Cleanup(func() {
-		restore := testutil.PUT(t, w.e, "/file-archive/settings", `{"enabled":true}`, w.adminH)
-		require.Equal(t, http.StatusOK, restore.Code, restore.Body.String())
+		testutil.SetArchiveSettings(t, w.db, models.UpdateArchiveSettingsRequest{Enabled: testutil.Ptr(true)})
 	})
 
 	uaID := w.newExportType(t, "Пропуск выключенный архив", true, true)
