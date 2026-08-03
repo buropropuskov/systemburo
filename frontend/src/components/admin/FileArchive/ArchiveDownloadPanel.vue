@@ -208,10 +208,26 @@ async function download() {
   margin: 0;
 }
 
+/* Тач-таргет поля периода привязан к брейкпоинту самого DateFilter (768): на
+   iPad-портрете его календарь уже открывается листом, значит и по полю попадают
+   пальцем. Высота поля зашита в 35px, min-height её перебивает. */
+@media (max-width: 768px) {
+  .adp__controls :deep(.date-field) {
+    min-height: 44px;
+  }
+}
+
 @media (max-width: 767.98px) {
   .adp__controls {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  /* Ширина у DateFilter зашита в 215px - в колоночной раскладке тянем поле на
+     всю строку. */
+  .adp__controls :deep(.date-filter),
+  .adp__controls :deep(.date-field) {
+    width: 100%;
   }
 
   .adp__controls .lk-button {
