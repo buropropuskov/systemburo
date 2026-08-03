@@ -81,14 +81,23 @@ func (h *AttachmentBlankHandler) Download(c echo.Context) error {
 // и вкладка "Доступные мне" (AccessibleAttachmentsView). Охранник заявку не видит вовсе, поэтому
 // одного CanAccessApplication мало - у него свой гейт по конкретному вложению.
 func (h *AttachmentBlankHandler) canDownload(c echo.Context, appID, attID int) (bool, error) {
+	return canDownloadBlank(c, h.access, h.resolver, appID, attID)
+}
+
+// canDownloadBlank - гейт доступа к заполненному бланку одного вложения, общий для
+// прямого скачивания (AttachmentBlankHandler.canDownload) и потокового ZIP заявки
+// из файлового архива (ArchiveDownloadHandler, #1615 B3): оба места обязаны видеть
+// один и тот же набор вложений, иначе серверный ZIP молча показал бы больше или
+// меньше, чем ручное скачивание файлов по одному.
+func canDownloadBlank(c echo.Context, access blankAccessService, resolver *services.PermissionResolver, appID, attID int) (bool, error) {
 	ctx := c.Request().Context()
 	if username, ok := c.Get("username").(string); ok && username != "" {
-		if h.access.CanAccessApplication(ctx, appID, username, IsSuperAdmin(c)) {
+		if access.CanAccessApplication(ctx, appID, username, IsSuperAdmin(c)) {
 			return true, nil
 		}
 	}
 
-	userID, unrestricted, err := securityScope(c, h.access, h.resolver)
+	userID, unrestricted, err := securityScope(c, access, resolver)
 	if err != nil {
 		var he *echo.HTTPError
 		if errors.As(err, &he) && he.Code == http.StatusForbidden {
@@ -97,5 +106,5 @@ func (h *AttachmentBlankHandler) canDownload(c echo.Context, appID, attID int) (
 		}
 		return false, err
 	}
-	return h.access.CanSecurityViewAttachment(ctx, userID, unrestricted, attID)
+	return access.CanSecurityViewAttachment(ctx, userID, unrestricted, attID)
 }

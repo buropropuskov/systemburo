@@ -30,6 +30,17 @@ var pdPaths = []string{
 	// запросы с сотрудниками в выдаче: middleware не разбирает тело ответа, а
 	// "запрос был, совпадений не нашлось" - тоже сведения о людях в системе.
 	"/api/search",
+	// Выгрузка из файлового архива (#1615): один ZIP за период уносит бланки сотен
+	// заявок, а в каждом бланке паспорта и патенты открытым текстом. Это самый
+	// массовый вынос персональных данных из системы, и он обязан быть в журнале.
+	// Префиксом закрыты все входы разом - и поштучный файл, и список, и оценка
+	// объёма, и выдача билета; сам поток байтов идёт мимо JWT по одноразовому
+	// билету (/api/file-archive/download), поэтому важно, что middleware смотрит
+	// на путь, а не на авторизацию.
+	"/api/file-archive/download",
+	"/api/file-archive/files",
+	"/api/file-archive/items",
+	"/api/file-archive/estimate",
 }
 
 // auditWriteTimeout - максимальное время на запись лога в БД. Если БД легла или
@@ -90,7 +101,15 @@ func isPDPath(path string) bool {
 			return true
 		}
 	}
-	return isBlankPath(path) || isAvailableAttachmentPath(path)
+	return isBlankPath(path) || isAvailableAttachmentPath(path) || isApplicationArchivePath(path)
+}
+
+// isApplicationArchivePath - ZIP сохранённых бланков одной заявки
+// (/api/applications/:id/archive). Внутри те же паспорта и патенты, что в бланке,
+// плюс машиночитаемый слепок заявки со всеми участниками - в журнале это обращение
+// обязано быть наравне с одиночным бланком.
+func isApplicationArchivePath(path string) bool {
+	return strings.HasPrefix(path, "/api/applications/") && strings.HasSuffix(path, "/archive")
 }
 
 func isBlankPath(path string) bool {
@@ -147,6 +166,8 @@ func pathToResource(path string) string {
 		return "attachment_blank"
 	case isAvailableAttachmentPath(path):
 		return "available_attachment"
+	case isApplicationArchivePath(path):
+		return "application_archive"
 	case strings.HasPrefix(path, "/api/unique-employees"):
 		return "unique_employee"
 	case strings.HasPrefix(path, "/api/employees"):
@@ -155,6 +176,10 @@ func pathToResource(path string) string {
 		return "attachment"
 	case strings.HasPrefix(path, "/api/settings/pd-consent/collection"):
 		return "pd_consent_collection"
+	case strings.HasPrefix(path, "/api/file-archive/"):
+		// Один вид ресурса на все входы выгрузки: разбирать в журнале «список» и
+		// «сам ZIP» незачем, отвечать по 152-ФЗ придётся за факт выноса бланков.
+		return "file_archive"
 	}
 	return "unknown"
 }

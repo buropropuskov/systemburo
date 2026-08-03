@@ -1,10 +1,13 @@
 // Package download - единая точка отдачи файлов (CMS-симметрия к internal/upload).
-// Доступ проверяется вызывающим хендлером ДО Serve (через сервис-слой, который и
-// резолвит сущность); Serve отвечает за заголовки, 404 при отсутствии файла и саму отдачу.
+// Доступ проверяется вызывающим хендлером ДО Serve/StreamZip (через сервис-слой,
+// который и резолвит сущность); пакет отвечает только за заголовки, 404 при
+// отсутствии файла и саму отдачу.
 package download
 
 import (
+	"archive/zip"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -54,4 +57,83 @@ func Serve(c echo.Context, f File) error {
 // чтобы оно не ломало заголовок Content-Disposition (header injection).
 func sanitizeName(s string) string {
 	return strings.NewReplacer("\r", "", "\n", "", `"`, `\"`).Replace(s)
+}
+
+// ZipEntry - один файл потокового ZIP-архива (#1615, B3). Доступ к нему уже
+// проверен вызывающим - StreamZip таких проверок не делает.
+type ZipEntry struct {
+	// Path - абсолютный путь файла на диске.
+	Path string
+	// Name - путь файла внутри архива. Разделитель "/" - вложенные каталоги
+	// (raw-строка, не filepath.Join): формат ZIP всегда использует прямой слэш
+	// независимо от ОС, на которой архив потом откроют.
+	Name string
+}
+
+// zipErrorSuffix - метка файла-заметки об ошибке внутри архива. С кириллицей,
+// чтобы отличаться от настоящих файлов оператора на глаз, не разбирая расширение.
+const zipErrorSuffix = "_ОШИБКА.txt"
+
+// StreamZip отдаёт набор файлов единым потоковым ZIP без буферизации в память -
+// на сервере 8 ГБ, и держать гигабайты выгрузки целиком в памяти нельзя.
+//
+// Метод Store (без сжатия): бланки уже сжаты как .xlsx, повторное сжатие тратит
+// CPU без выигрыша в размере. Заголовки уходят до первого байта тела; каждая
+// запись сбрасывается в сеть сразу после записи (Flush) - у потока нет заранее
+// известного Content-Length, и клиент должен видеть прогресс, а не ждать один
+// большой ответ разом.
+//
+// Файл, который не удалось открыть, не прерывает архив целиком: вместо него
+// кладётся текстовая заметка "<имя>_ОШИБКА.txt" с причиной - молчаливый пропуск
+// неотличим от "файла никогда не было", а администратор должен увидеть пробел.
+func StreamZip(c echo.Context, archiveName string, entries []ZipEntry) error {
+	res := c.Response()
+	res.Header().Set(echo.HeaderContentType, "application/zip")
+	res.Header().Set(echo.HeaderContentDisposition,
+		fmt.Sprintf(`attachment; filename="%s"`, sanitizeName(archiveName)))
+	res.WriteHeader(http.StatusOK)
+
+	zw := zip.NewWriter(res)
+	for _, entry := range entries {
+		if err := writeZipEntry(zw, entry); err != nil {
+			// Ошибка добавляется НОВОЙ записью, а не заменой: writeZipEntry падает
+			// до первого байта содержимого (открытие файла), поэтому исходная
+			// запись ещё не начата и дублирования имени в архиве не возникает.
+			writeZipErrorNote(zw, entry.Name, err)
+		}
+		res.Flush()
+	}
+	return zw.Close()
+}
+
+// writeZipEntry копирует один файл в архив. Ошибка возвращается ДО первого
+// байта содержимого записи (открытие файла) во всех штатных сценариях сбоя
+// (файл убрали с диска, нет прав на чтение) - только так вызывающий может
+// безопасно заменить запись на заметку об ошибке, не оставив в потоке половину
+// валидной, половину битой записи.
+func writeZipEntry(zw *zip.Writer, entry ZipEntry) error {
+	f, err := os.Open(entry.Path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	w, err := zw.CreateHeader(&zip.FileHeader{Name: entry.Name, Method: zip.Store})
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(w, f)
+	return err
+}
+
+// writeZipErrorNote кладёт в архив текстовую заметку вместо не открывшегося
+// файла. Best-effort: если и заметку создать не удалось, поток уже пошёл в
+// сеть и обрывать его из-за одной пропущенной строки хуже, чем отдать архив
+// без неё.
+func writeZipErrorNote(zw *zip.Writer, name string, cause error) {
+	w, err := zw.Create(name + zipErrorSuffix)
+	if err != nil {
+		return
+	}
+	fmt.Fprintf(w, "Файл %q не удалось включить в архив: %v\n", name, cause)
 }

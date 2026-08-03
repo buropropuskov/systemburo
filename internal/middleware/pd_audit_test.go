@@ -26,6 +26,18 @@ func TestIsPDPath(t *testing.T) {
 		// Сквозной поиск отдаёт ФИО сотрудников: вход другой, данные те же.
 		// Строка запроса сюда не доходит, isPDPath получает URL.Path.
 		{"/api/search", true},
+		// Выгрузка из файлового архива (#1615): ZIP за период уносит бланки сотен
+		// заявок с паспортами. Поток байтов идёт мимо JWT по одноразовому билету,
+		// поэтому единственный, кто видит это обращение, - журнал по пути.
+		{"/api/file-archive/download", true},
+		{"/api/file-archive/files/42", true},
+		{"/api/file-archive/items", true},
+		{"/api/file-archive/estimate", true},
+		// ZIP бланков одной заявки: те же паспорта плюс слепок со всеми участниками.
+		{"/api/applications/89/archive", true},
+		// Настройки раскладки и сводка места персональных данных не отдают.
+		{"/api/file-archive/settings", false},
+		{"/api/file-archive/stats", false},
 		// без префикса /api такого запроса не бывает: так выглядел старый перечень
 		{"/employees", false},
 		{"/attachments/5", false},
@@ -33,6 +45,7 @@ func TestIsPDPath(t *testing.T) {
 		{"/api/applications/89", false},
 		{"/api/applications/available-attachments", false},
 		{"/api/applications/89/attachments", false},
+		{"/api/applications/89/archived", false},
 		{"/api/cars", false},
 		{"/api/login", false},
 	}
