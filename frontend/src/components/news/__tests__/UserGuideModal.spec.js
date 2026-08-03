@@ -64,8 +64,9 @@ describe('UserGuideModal — раскладка «Вкладки»', () => {
   it('по умолчанию активна первая вкладка: её файл, мета и описание', () => {
     const wrapper = mountModal();
     expect(wrapper.find('.file-card__name').text()).toBe('Руководство пользователя.pdf');
-    // 2516582 байт -> 2,4 МБ (русский десятичный разделитель)
-    expect(wrapper.find('.file-card__meta').text()).toContain('2,4 МБ');
+    // Размер идёт через общий formatBytes (@/utils/download): 2516582 байта -> «2.4 МБ».
+    // Разделитель - точка, потому что те же числа печатает CLI server archive (humanBytes).
+    expect(wrapper.find('.file-card__meta').text()).toContain('2.4 МБ');
     expect(wrapper.find('.file-card__meta').text()).toContain('18.06.2026');
     expect(wrapper.find('.descr__lead').text()).toBe('Лид пользователя');
     expect(wrapper.findAll('.descr__list li')).toHaveLength(2);
