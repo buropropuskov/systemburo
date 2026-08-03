@@ -2,7 +2,6 @@ package handlers_test
 
 import (
 	"encoding/json"
-	"net/http"
 	"os"
 	"path"
 	"testing"
@@ -130,11 +129,9 @@ func archiveSnapshotSection(t *testing.T, w archiveWorld) {
 // бы без слепка навсегда - у него нет ни строки реестра, ни ретрая, и ручное
 // «пересоздать» упиралось бы в тот же признак заморозки.
 func archiveSnapshotFrozenSection(t *testing.T, w archiveWorld) {
-	rec := testutil.PUT(t, w.e, "/file-archive/settings", `{"freeze_after_days":0}`, w.adminH)
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	testutil.SetArchiveSettings(t, w.db, models.UpdateArchiveSettingsRequest{FreezeAfterDays: testutil.Ptr(0)})
 	t.Cleanup(func() {
-		restore := testutil.PUT(t, w.e, "/file-archive/settings", `{"freeze_after_days":30}`, w.adminH)
-		require.Equal(t, http.StatusOK, restore.Code, restore.Body.String())
+		testutil.SetArchiveSettings(t, w.db, models.UpdateArchiveSettingsRequest{FreezeAfterDays: testutil.Ptr(30)})
 	})
 
 	uaID := w.newExportType(t, "Пропуск слепок заморозка", true, true)
@@ -185,11 +182,9 @@ func archiveSnapshotFrozenSection(t *testing.T, w archiveWorld) {
 // он обязан замереть по сроку самой заявки: иначе единственный документ такой
 // заявки переписывался бы вечно, расходясь с уже увезённой копией.
 func archiveSnapshotFrozenWithoutBlanksSection(t *testing.T, w archiveWorld) {
-	rec := testutil.PUT(t, w.e, "/file-archive/settings", `{"freeze_after_days":0}`, w.adminH)
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	testutil.SetArchiveSettings(t, w.db, models.UpdateArchiveSettingsRequest{FreezeAfterDays: testutil.Ptr(0)})
 	t.Cleanup(func() {
-		restore := testutil.PUT(t, w.e, "/file-archive/settings", `{"freeze_after_days":30}`, w.adminH)
-		require.Equal(t, http.StatusOK, restore.Code, restore.Body.String())
+		testutil.SetArchiveSettings(t, w.db, models.UpdateArchiveSettingsRequest{FreezeAfterDays: testutil.Ptr(30)})
 	})
 
 	uaID := w.newExportType(t, "Тип без бланка со слепком", false, true)

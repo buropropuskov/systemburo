@@ -10,7 +10,7 @@ vi.mock('@/api/fileArchive', () => api)
 
 import FileArchiveManagement from '../FileArchiveManagement.vue'
 import ArchiveStatusPanel from '../ArchiveStatusPanel.vue'
-import ArchiveSettingsForm from '../ArchiveSettingsForm.vue'
+import ArchiveSettingsView from '../ArchiveSettingsView.vue'
 import ArchiveDownloadPanel from '../ArchiveDownloadPanel.vue'
 import ArchiveBackfillPanel from '../ArchiveBackfillPanel.vue'
 import ArchiveFailuresList from '../ArchiveFailuresList.vue'
@@ -35,13 +35,15 @@ function mountCmp() {
     global: {
       stubs: {
         RefreshButton: true,
-        ArchiveSettingsForm: true,
+        ArchiveSettingsView: true,
         // Скачивание/бэкфилл/ошибки (срез C4) - тяжёлые панели со своим API и
         // жизненным циклом, у каждой отдельный spec-файл; здесь проверяется
         // только каркас вкладок, поэтому глушим их до заглушек.
         ArchiveDownloadPanel: true,
         ArchiveBackfillPanel: true,
-        ArchiveFailuresList: true,
+        // Заглушка списка ошибок умеет refresh: каркас зовёт его у активной
+        // вкладки, и голая заглушка без метода уронила бы обработчик.
+        ArchiveFailuresList: { template: '<div />', methods: { refresh() {} } },
       },
     },
   })
@@ -80,34 +82,29 @@ describe('FileArchiveManagement', () => {
     return wrapper.element.style.display !== 'none'
   }
 
-  it('переключает вкладки Обзор/Настройки/Ошибки по клику', async () => {
+  it('оставляет две вкладки и держит наблюдение на «Обзоре»', async () => {
     api.getArchiveSettings.mockResolvedValue({ enabled: false })
     const w = mountCmp()
     await flushPromises()
 
+    // Вкладки «Настройки» больше нет: раскладку и пороги задаёт команда на сервере,
+    // а не форма в вебе (#1615). Показ действующих значений переехал на «Обзор».
     const tabs = w.findAll('.file-archive__tab')
-    expect(tabs).toHaveLength(3)
+    expect(tabs).toHaveLength(2)
+    expect(tabs.map(t => t.text())).toEqual(['Обзор', 'Ошибки'])
+
     expect(w.findComponent(ArchiveStatusPanel).exists()).toBe(true)
-    expect(w.findComponent(ArchiveSettingsForm).exists()).toBe(true)
-    // «Обзор» с C4 несёт ещё скачивание ZIP и бэкфилл - тоже смонтированы сразу.
     expect(w.findComponent(ArchiveDownloadPanel).exists()).toBe(true)
     expect(w.findComponent(ArchiveBackfillPanel).exists()).toBe(true)
-    // Все три секции смонтированы одновременно (v-show, не v-if) - несохранённые
-    // правки в ArchiveSettingsForm не теряются при переключении на «Обзор»/«Ошибки».
-    // Порядок в DOM фиксирован: 0-Обзор, 1-Настройки, 2-Ошибки.
+    expect(w.findComponent(ArchiveSettingsView).exists()).toBe(true)
+
     const panels = w.findAll('.file-archive__panel')
-    expect(panels).toHaveLength(3)
+    expect(panels).toHaveLength(2)
     expect(isShown(panels[0])).toBe(true)
     expect(isShown(panels[1])).toBe(false)
 
-    // «Настройки» с C3 - реальный ArchiveSettingsForm (заглушен), а не текст-плейсхолдер.
     await tabs[1].trigger('click')
     expect(isShown(panels[1])).toBe(true)
-    expect(w.findComponent(ArchiveSettingsForm).exists()).toBe(true)
-
-    // «Ошибки» с C4 - реальный ArchiveFailuresList (заглушен), а не текст-плейсхолдер.
-    await tabs[2].trigger('click')
-    expect(isShown(panels[2])).toBe(true)
     expect(w.findComponent(ArchiveFailuresList).exists()).toBe(true)
   })
 
@@ -145,15 +142,22 @@ describe('FileArchiveManagement', () => {
     expect(api.getArchiveStats).toHaveBeenCalledTimes(2)
   })
 
-  it('RefreshButton на другой вкладке не дёргает сводку архива (панель размонтирована)', async () => {
+  it('обновление работает на видимой вкладке, а не на скрытой', async () => {
+    // Обе секции смонтированы (v-show), но обновляется только та, что на экране:
+    // иначе кнопка обновления на «Ошибках» перезапрашивала бы ещё и сводку места.
     api.getArchiveSettings.mockResolvedValue({ enabled: false })
     const w = mountCmp()
     await flushPromises()
-    await w.findAll('.file-archive__tab')[1].trigger('click')
     expect(api.getArchiveStats).toHaveBeenCalledTimes(1)
 
+    await w.findAll('.file-archive__tab')[1].trigger('click')
     await w.findComponent(RefreshButton).vm.$emit('refresh')
     await flushPromises()
     expect(api.getArchiveStats).toHaveBeenCalledTimes(1)
+
+    await w.findAll('.file-archive__tab')[0].trigger('click')
+    await w.findComponent(RefreshButton).vm.$emit('refresh')
+    await flushPromises()
+    expect(api.getArchiveStats).toHaveBeenCalledTimes(2)
   })
 })

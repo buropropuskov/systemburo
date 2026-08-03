@@ -2,10 +2,8 @@ package handlers_test
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
-	"net/http"
 	"os"
 	"path"
 	"testing"
@@ -55,12 +53,12 @@ func (w archiveWorld) newWorkerExport(t *testing.T) *services.BlankExportService
 		services.NewArchivePathService(w.db, time.UTC), writer, settings, quota)
 }
 
-// putSettings правит настройки архива ручкой администратора - тем же путём, каким их
-// правят на самом деле, вместе с валидацией значений.
-func (w archiveWorld) putSettings(t *testing.T, body string) {
+// putSettings правит настройки архива тем же путём, каким их правят на самом деле -
+// сервисом, с той же проверкой значений. Через веб настройки больше не меняются:
+// раскладку и пороги задаёт команда server archive (#1615).
+func (w archiveWorld) putSettings(t *testing.T, req models.UpdateArchiveSettingsRequest) {
 	t.Helper()
-	rec := testutil.PUT(t, w.e, "/file-archive/settings", body, w.adminH)
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	testutil.SetArchiveSettings(t, w.db, req)
 }
 
 // filePath собирает путь на диске по строке реестра.
@@ -158,7 +156,7 @@ func archiveWorkerQuotaStopSection(t *testing.T, w archiveWorld) {
 
 	// Требование к свободному месту, которого не выполнит ни один реальный раздел
 	// (то же значение, что и в тестах самих порогов).
-	w.putSettings(t, fmt.Sprintf(`{"min_free_bytes":%d}`, quotaImpossibleFreeBytes))
+	w.putSettings(t, models.UpdateArchiveSettingsRequest{MinFreeBytes: testutil.Ptr(quotaImpossibleFreeBytes)})
 
 	processed, failed := svc.ProcessQueue(ctx)
 	assert.Zero(t, processed, "жёсткий порог обязан остановить разбор очереди")
@@ -170,7 +168,7 @@ func archiveWorkerQuotaStopSection(t *testing.T, w archiveWorld) {
 	assert.Zero(t, rows, "строки реестра нет: заявку даже не пробовали выгружать")
 
 	// Место вернулось - та же заявка обязана уехать в архив без повторной постановки.
-	w.putSettings(t, `{"min_free_bytes":0}`)
+	w.putSettings(t, models.UpdateArchiveSettingsRequest{MinFreeBytes: testutil.Ptr[int64](0)})
 	processed, failed = svc.ProcessQueue(ctx)
 	require.Zero(t, failed)
 	require.Equal(t, 1, processed, "очередь при нехватке места не вычерпывается, а ждёт")
@@ -282,8 +280,8 @@ func archiveWorkerRecheckWindowSection(t *testing.T, w archiveWorld) {
 	old := time.Now().AddDate(0, 0, -90)
 	require.NoError(t, w.db.Exec("UPDATE applications SET sending_datetime = ? WHERE id = ?", old, outWindow).Error)
 	require.NoError(t, w.db.Exec("UPDATE blank_exports SET bucket_date = ? WHERE application_id = ?", old, outWindow).Error)
-	w.putSettings(t, `{"recheck_days":1}`)
-	t.Cleanup(func() { w.putSettings(t, `{"recheck_days":30}`) })
+	w.putSettings(t, models.UpdateArchiveSettingsRequest{RecheckDays: testutil.Ptr(1)})
+	t.Cleanup(func() { w.putSettings(t, models.UpdateArchiveSettingsRequest{RecheckDays: testutil.Ptr(30)}) })
 
 	// Файлы обеих заявок пропали с диска (снесли руками, не доехала синхронизация).
 	require.NoError(t, os.Remove(inFile))
@@ -303,8 +301,8 @@ func archiveWorkerRecheckOrphanSection(t *testing.T, w archiveWorld) {
 	ctx := context.Background()
 	svc := w.newWorkerExport(t)
 	w.parkExistingApplications(t)
-	w.putSettings(t, `{"recheck_days":1}`)
-	t.Cleanup(func() { w.putSettings(t, `{"recheck_days":30}`) })
+	w.putSettings(t, models.UpdateArchiveSettingsRequest{RecheckDays: testutil.Ptr(1)})
+	t.Cleanup(func() { w.putSettings(t, models.UpdateArchiveSettingsRequest{RecheckDays: testutil.Ptr(30)}) })
 
 	uaID := w.newExportType(t, "Пропуск сирота", true, true)
 	appID, keptAtt := w.newExportApp(t, "20260801/010", uaID, "")

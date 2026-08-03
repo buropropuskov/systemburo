@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"systemburo/internal/database"
 	"systemburo/internal/handlers"
 	mw "systemburo/internal/middleware"
+	"systemburo/internal/models"
 	"systemburo/internal/realtime"
 	"systemburo/internal/router"
 	"systemburo/internal/services"
@@ -99,6 +101,37 @@ var tables = []string{
 	"auth_events", "refresh_tokens", "users",
 	"roles",
 	"companies", "organizations", "user_types",
+}
+
+// Ptr - указатель на значение: поля запроса настроек указательные, чтобы
+// отсутствующий ключ означал «не трогать».
+func Ptr[T any](v T) *T { return &v }
+
+// SetArchiveSettings задаёт настройки файлового архива в тесте. Раньше тесты
+// дёргали PUT /file-archive/settings, но правка настроек ушла из веба в консольную
+// команду (#1615): раскладку каталогов и пороги места задаёт тот, кто разворачивает
+// систему. Тестам нужен тот же путь, что у команды - сервис напрямую.
+func SetArchiveSettings(t *testing.T, db *gorm.DB, req models.UpdateArchiveSettingsRequest) {
+	t.Helper()
+	svc := services.NewSettingsService(db, &config.Config{PaginationMaxLimit: 100})
+	if _, err := svc.UpdateArchiveSettings(context.Background(), req); err != nil {
+		t.Fatalf("не удалось задать настройки архива: %v", err)
+	}
+}
+
+// TryArchiveSettings пробует сохранить настройки и возвращает ошибку проверки:
+// тестам границ значений нужен отказ, а не падение.
+func TryArchiveSettings(db *gorm.DB, req models.UpdateArchiveSettingsRequest) error {
+	svc := services.NewSettingsService(db, &config.Config{PaginationMaxLimit: 100})
+	_, err := svc.UpdateArchiveSettings(context.Background(), req)
+	return err
+}
+
+// ArchiveEnabled - короткая форма для самого частого случая: включить или выключить
+// выгрузку бланков.
+func ArchiveEnabled(t *testing.T, db *gorm.DB, on bool) {
+	t.Helper()
+	SetArchiveSettings(t, db, models.UpdateArchiveSettingsRequest{Enabled: &on})
 }
 
 // CleanupTables отдаёт перечень таблиц, которые чистятся между тестами. Нужен
@@ -295,11 +328,9 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	blankExportQuotaService := services.NewBlankExportQuotaService(
 		db, settingsService, notificationService, permissionResolver, auditRecorder,
 		archiveDir, uploadDir, "")
-	blankArchiveHandler := handlers.NewBlankArchiveHandler(
-		settingsService, archivePathService,
+	blankArchiveHandler := handlers.NewBlankArchiveHandler(settingsService,
 		services.NewBlankExportService(db, attachmentBlankService, archivePathService,
-			archiveWriter, settingsService, blankExportQuotaService),
-		auditRecorder)
+			archiveWriter, settingsService, blankExportQuotaService))
 	blankArchiveStatsHandler := handlers.NewBlankArchiveStatsHandler(blankExportQuotaService)
 	// Скачивание из файлового архива (#1615, срез B3) - тот же писатель и корень, что
 	// у сервиса выгрузки выше; access/resolver повторяют пару, которой пользуется
