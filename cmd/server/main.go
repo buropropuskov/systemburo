@@ -57,6 +57,8 @@ func main() {
 			os.Exit(runCleanup(os.Args[2:]))
 		case "storage":
 			os.Exit(runStorage(os.Args[2:]))
+		case "archive":
+			os.Exit(runArchive(os.Args[2:]))
 		}
 	}
 
@@ -335,8 +337,7 @@ func main() {
 	companyService.SetBlankExportEnqueuer(blankExportService)
 	carService.SetBlankExportEnqueuer(blankExportService)
 	employeeService.SetBlankExportEnqueuer(blankExportService)
-	blankArchiveHandler := handlers.NewBlankArchiveHandler(
-		settingsService, archivePathService, blankExportService, auditRecorder)
+	blankArchiveHandler := handlers.NewBlankArchiveHandler(settingsService, blankExportService)
 	blankArchiveStatsHandler := handlers.NewBlankArchiveStatsHandler(blankExportQuotaService)
 	// access/resolver - те же зависимости, что у AttachmentBlankHandler ниже: гейт
 	// скачивания одного бланка и ZIP заявки из архива обязаны совпадать (#1615, B3).

@@ -109,10 +109,9 @@ func TestFileArchiveDownload_Period(t *testing.T) {
 	})
 
 	t.Run("слишком большой период отказывает уже при выдаче билета", func(t *testing.T) {
-		limitRec := testutil.PUT(t, w.e, "/file-archive/settings", `{"zip_max_bytes":1}`, w.adminH)
-		require.Equal(t, http.StatusOK, limitRec.Code, limitRec.Body.String())
+		testutil.SetArchiveSettings(t, w.db, models.UpdateArchiveSettingsRequest{ZipMaxBytes: testutil.Ptr[int64](1)})
 		t.Cleanup(func() {
-			testutil.PUT(t, w.e, "/file-archive/settings", `{"zip_max_bytes":2147483648}`, w.adminH)
+			testutil.SetArchiveSettings(t, w.db, models.UpdateArchiveSettingsRequest{ZipMaxBytes: testutil.Ptr[int64](2147483648)})
 		})
 
 		estRec := testutil.POST(t, w.e, "/file-archive/estimate",
@@ -137,8 +136,7 @@ func TestFileArchiveDownload_Application(t *testing.T) {
 
 	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	adminH := testutil.AuthHeader(adminToken)
-	settingsRec := testutil.PUT(t, e, "/file-archive/settings", `{"enabled":true}`, adminH)
-	require.Equal(t, http.StatusOK, settingsRec.Code, settingsRec.Body.String())
+	testutil.SetArchiveSettings(t, db, models.UpdateArchiveSettingsRequest{Enabled: testutil.Ptr(true)})
 
 	userTypeID := secUserTypeIDByCode(t, db, "user")
 	senderToken := testutil.RegisterAndLogin(t, e, "archivedlappsender", archiveDownloadPassword, userTypeID, td.OrgID, td.CompanyID)

@@ -139,15 +139,6 @@ type UpdateArchiveSettingsRequest struct {
 	ZipMaxBytes     *int64  `json:"zip_max_bytes"`
 }
 
-// ArchivePreviewRequest - запрос живого превью шаблонов пути. Шаблоны приходят как
-// есть из редактора, до сохранения: конструктор показывает результат на каждый ввод.
-type ArchivePreviewRequest struct {
-	DirTemplate  string `json:"dir_template"`
-	FileTemplate string `json:"file_template"`
-	// ApplicationID - на какой заявке показывать. 0 означает «взять последнюю
-	// поданную», а если заявок нет вовсе - собрать пример из значений-образцов.
-	ApplicationID int `json:"application_id"`
-}
 
 // ArchivePreviewResponse - результат превью: разложенный путь и претензии к шаблонам.
 // Претензии отдаются отдельно от ошибки, чтобы конструктор подсвечивал конкретный

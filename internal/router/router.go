@@ -1005,9 +1005,13 @@ func Setup(e *echo.Echo, d Dependencies) {
 		manageFileArchive := mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionManageFileArchive)
 		faGroup := protected.Group("/file-archive", requireFileArchive)
 		faGroup.GET("/settings", blankArchive.GetSettings)
-		faGroup.PUT("/settings", blankArchive.UpdateSettings, manageFileArchive)
-		faGroup.GET("/tokens", blankArchive.GetTokens)
-		faGroup.POST("/preview", blankArchive.Preview, manageFileArchive)
+		// Записи настроек здесь нет намеренно (#1615): раскладку каталогов, пороги
+		// места и срок заморозки задаёт тот, кто разворачивает систему, командой
+		// server archive на сервере. Корень архива и так живёт в переменной
+		// окружения, а сменённый шаблон переносит дерево заявок целиком - держать
+		// такое за веб-сессией администратора бюро значит отдавать управление
+		// хранилищем персональных данных тому, чья работа - пропуска. В разделе
+		// остаётся показ текущих значений (GET выше) и наблюдение.
 		// Пересоздание файлов заявки переписывает диск - право то же, что на настройки.
 		faGroup.POST("/applications/:id/reexport", blankArchive.Reexport, manageFileArchive)
 		// Бэкфилл за период и пересборка типа после правки шаблона (#1615, B4) - тот же

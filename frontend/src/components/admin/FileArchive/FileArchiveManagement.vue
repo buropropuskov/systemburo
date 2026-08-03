@@ -39,9 +39,8 @@
         {{ loadError }}
       </p>
       <template v-else>
-        <!-- v-show, не v-if/else-if: переключение вкладок не должно уничтожать
-             несохранённые правки в ArchiveSettingsForm - секция остаётся
-             смонтированной, просто скрывается. -->
+        <!-- v-show, не v-if/else-if: переключение вкладок не должно сбрасывать
+             выбранный период и оценку выгрузки - секция остаётся смонтированной. -->
         <section
           v-show="activeTab === 'overview'"
           class="file-archive__panel file-archive__panel--overview"
@@ -51,12 +50,11 @@
           <ArchiveDownloadPanel />
           <hr class="file-archive__divider">
           <ArchiveBackfillPanel />
-        </section>
-        <section
-          v-show="activeTab === 'settings'"
-          class="file-archive__panel"
-        >
-          <ArchiveSettingsForm @saved="loadSettings" />
+          <hr class="file-archive__divider">
+          <ArchiveSettingsView
+            v-if="settings"
+            :settings="settings"
+          />
         </section>
         <section
           v-show="activeTab === 'errors'"
@@ -74,7 +72,7 @@ import { ref, computed, onMounted } from 'vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import ArchiveStatusPanel from './ArchiveStatusPanel.vue';
-import ArchiveSettingsForm from './ArchiveSettingsForm.vue';
+import ArchiveSettingsView from './ArchiveSettingsView.vue';
 import ArchiveDownloadPanel from './ArchiveDownloadPanel.vue';
 import ArchiveBackfillPanel from './ArchiveBackfillPanel.vue';
 import ArchiveFailuresList from './ArchiveFailuresList.vue';
@@ -82,15 +80,16 @@ import { getArchiveSettings } from '@/api/fileArchive';
 import { useDeletionsStore } from '@/stores/deletions';
 
 /**
- * Каркас раздела «Файловый архив» (#1615, срез C1) с телом вкладок: «Обзор»
- * (срез C2, плюс скачивание ZIP за период и бэкфилл из среза C4), «Настройки»
- * (срез C3) и «Ошибки» (срез C4). Здесь шапка с состоянием рубильника, вкладки
- * и загрузка текущих настроек, чтобы бейдж в шапке показывал реальный статус,
- * а не заглушку.
+ * Каркас раздела «Файловый архив» (#1615). Две вкладки: «Обзор» - состояние места,
+ * разбивка по периодам, выгрузка за период, донаполнение и справка о действующих
+ * настройках; «Ошибки» - строки реестра, которые не выгрузились.
+ *
+ * Вкладки правки настроек здесь нет: раскладку каталогов и пороги задаёт команда
+ * server archive на сервере. Текущие настройки всё равно загружаются - по ним
+ * бейдж в шапке показывает, идёт выгрузка или выключена.
  */
 const TABS = [
   { key: 'overview', label: 'Обзор' },
-  { key: 'settings', label: 'Настройки' },
   { key: 'errors', label: 'Ошибки' },
 ];
 

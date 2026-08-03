@@ -113,11 +113,9 @@ func archiveBackfillTypeSection(t *testing.T, w archiveWorld) {
 // Выключенная выгрузка отвечает причиной, а не пустым «queued: 0» - администратор,
 // нажавший «пересобрать период», должен понять, почему ничего не поставилось.
 func archiveBackfillDisabledSection(t *testing.T, w archiveWorld) {
-	rec := testutil.PUT(t, w.e, "/file-archive/settings", `{"enabled":false}`, w.adminH)
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	testutil.SetArchiveSettings(t, w.db, models.UpdateArchiveSettingsRequest{Enabled: testutil.Ptr(false)})
 	t.Cleanup(func() {
-		restore := testutil.PUT(t, w.e, "/file-archive/settings", `{"enabled":true}`, w.adminH)
-		require.Equal(t, http.StatusOK, restore.Code, restore.Body.String())
+		testutil.SetArchiveSettings(t, w.db, models.UpdateArchiveSettingsRequest{Enabled: testutil.Ptr(true)})
 	})
 
 	res := testutil.POST(t, w.e, "/file-archive/backfill",
