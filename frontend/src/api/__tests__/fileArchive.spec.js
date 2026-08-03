@@ -7,9 +7,6 @@ vi.mock('@/api/client', () => ({
 import { apiRequest, apiRequestRaw } from '@/api/client'
 import {
   getArchiveSettings,
-  updateArchiveSettings,
-  getArchiveTokens,
-  previewArchivePath,
   reexportApplication,
   getArchiveStats,
   estimateArchiveDownload,
@@ -43,60 +40,9 @@ describe('api/fileArchive', () => {
     })
   })
 
-  describe('updateArchiveSettings', () => {
-    it('шлёт только присланные поля в snake_case - остальные не трогает', async () => {
-      apiRequest.mockResolvedValue(okJson({ enabled: true }))
-      await updateArchiveSettings({ enabled: true, warnPercent: 80 })
-      expect(apiRequest).toHaveBeenCalledWith('/file-archive/settings', {
-        method: 'PUT',
-        body: JSON.stringify({ enabled: true, warn_percent: 80 }),
-      })
-    })
-
-    it('без аргументов шлёт пустое тело (не сбрасывает настройки)', async () => {
-      apiRequest.mockResolvedValue(okJson({}))
-      await updateArchiveSettings()
-      expect(apiRequest).toHaveBeenCalledWith('/file-archive/settings', {
-        method: 'PUT',
-        body: JSON.stringify({}),
-      })
-    })
-
-    it('бросает при ошибке сохранения', async () => {
-      apiRequest.mockResolvedValue(errJson('Нет прав', 403))
-      await expect(updateArchiveSettings({ enabled: true })).rejects.toThrow('Нет прав')
-    })
-  })
-
-  describe('getArchiveTokens', () => {
-    it('GET /file-archive/tokens', async () => {
-      apiRequest.mockResolvedValue(okJson([{ key: 'год', label: 'Год' }]))
-      const data = await getArchiveTokens()
-      expect(apiRequest).toHaveBeenCalledWith('/file-archive/tokens')
-      expect(data).toEqual([{ key: 'год', label: 'Год' }])
-    })
-  })
-
-  describe('previewArchivePath', () => {
-    it('POST /file-archive/preview с дефолтом application_id: 0', async () => {
-      apiRequest.mockResolvedValue(okJson({ rel_path: '2026/07' }))
-      await previewArchivePath({ dirTemplate: '{год}', fileTemplate: '{имя}.xlsx' })
-      expect(apiRequest).toHaveBeenCalledWith('/file-archive/preview', {
-        method: 'POST',
-        body: JSON.stringify({ dir_template: '{год}', file_template: '{имя}.xlsx', application_id: 0 }),
-      })
-    })
-
-    it('передаёт application_id при указании', async () => {
-      apiRequest.mockResolvedValue(okJson({ rel_path: '2026/07' }))
-      await previewArchivePath({ applicationId: 42 })
-      expect(apiRequest).toHaveBeenCalledWith('/file-archive/preview', {
-        method: 'POST',
-        body: JSON.stringify({ dir_template: '', file_template: '', application_id: 42 }),
-      })
-    })
-  })
-
+  
+  
+  
   describe('getArchiveStats', () => {
     it('GET /file-archive/stats', async () => {
       apiRequest.mockResolvedValue(okJson({ used_bytes: 100, file_count: 1 }))

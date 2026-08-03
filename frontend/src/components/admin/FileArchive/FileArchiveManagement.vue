@@ -39,9 +39,8 @@
         {{ loadError }}
       </p>
       <template v-else>
-        <!-- v-show, не v-if/else-if: переключение вкладок не должно уничтожать
-             несохранённые правки в ArchiveSettingsForm - секция остаётся
-             смонтированной, просто скрывается. -->
+        <!-- v-show, не v-if/else-if: переключение вкладок не должно сбрасывать
+             выбранный период и оценку выгрузки - секция остаётся смонтированной. -->
         <section
           v-show="activeTab === 'overview'"
           class="file-archive__panel file-archive__panel--overview"
@@ -51,12 +50,11 @@
           <ArchiveDownloadPanel />
           <hr class="file-archive__divider">
           <ArchiveBackfillPanel />
-        </section>
-        <section
-          v-show="activeTab === 'settings'"
-          class="file-archive__panel"
-        >
-          <ArchiveSettingsForm @saved="loadSettings" />
+          <hr class="file-archive__divider">
+          <ArchiveSettingsView
+            v-if="settings"
+            :settings="settings"
+          />
         </section>
         <section
           v-show="activeTab === 'errors'"
@@ -74,7 +72,7 @@ import { ref, computed, onMounted } from 'vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import ArchiveStatusPanel from './ArchiveStatusPanel.vue';
-import ArchiveSettingsForm from './ArchiveSettingsForm.vue';
+import ArchiveSettingsView from './ArchiveSettingsView.vue';
 import ArchiveDownloadPanel from './ArchiveDownloadPanel.vue';
 import ArchiveBackfillPanel from './ArchiveBackfillPanel.vue';
 import ArchiveFailuresList from './ArchiveFailuresList.vue';
@@ -90,7 +88,6 @@ import { useDeletionsStore } from '@/stores/deletions';
  */
 const TABS = [
   { key: 'overview', label: 'Обзор' },
-  { key: 'settings', label: 'Настройки' },
   { key: 'errors', label: 'Ошибки' },
 ];
 
