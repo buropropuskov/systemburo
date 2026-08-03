@@ -20,25 +20,15 @@
             </button>
           </div>
 
-          <div
+          <!-- Переключатель источника - общий FilterTabs, а не свои кнопки: он уже
+               держит вид вкладок в восьми разделах, и вторая реализация разъедется
+               с ними на первой же правке оформления. -->
+          <FilterTabs
             v-if="!isLoading && !error && eligibleAttachments.length"
+            v-model="source"
             class="dbm-source"
-          >
-            <button
-              class="dbm-source-btn"
-              :class="{ active: source === 'archive' }"
-              @click="source = 'archive'"
-            >
-              Сохранённый файл
-            </button>
-            <button
-              class="dbm-source-btn"
-              :class="{ active: source === 'live' }"
-              @click="source = 'live'"
-            >
-              Сформировать заново
-            </button>
-          </div>
+            :tabs="sourceTabs"
+          />
 
           <div
             v-if="isLoading"
@@ -88,7 +78,8 @@
               />
               <button
                 class="dbm-item-download"
-                :disabled="downloadingId === att.id"
+                :disabled="downloadingId === att.id || unavailableInArchive[att.id]"
+                :title="unavailableInArchive[att.id] ? 'Сохранённого файла пока нет - выберите «Сформировать заново»' : ''"
                 @click.prevent="downloadOne(att)"
               >
                 {{ downloadingId === att.id ? '...' : 'Скачать' }}
@@ -133,6 +124,7 @@ import { apiRequest } from '@/api/client';
 import { useDeletionsStore } from '@/stores/deletions';
 import { downloadBlank, downloadApplicationArchive, saveBlobAs } from '@/api/attachment-templates';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
+import FilterTabs from '@/components/ui/FilterTabs.vue';
 
 const TYPE_LABELS = {
   cars: 'Автомобили',
@@ -147,13 +139,15 @@ const TYPE_LABELS = {
 const ARCHIVE_BADGE_LABELS = {
   ok: 'В архиве',
   pending: 'В очереди',
-  blocked: 'В очереди',
+  // Остановка по нехватке места - не обычное ожидание: очередь стоит, пока
+  // администратор не освободит место, и слово об этом должно отличаться.
+  blocked: 'Нет места',
   failed: 'Ошибка',
 };
 
 export default {
   name: 'DownloadBlanksModal',
-  components: { StatusBadge },
+  components: { StatusBadge, FilterTabs },
   props: {
     show: { type: Boolean, default: false },
     applicationId: { type: Number, default: 0 },
@@ -176,6 +170,23 @@ export default {
   computed: {
     eligibleAttachments() {
       return this.attachments.filter(att => att.has_template);
+    },
+    sourceTabs() {
+      return [
+        { key: 'archive', label: 'Сохранённый файл' },
+        { key: 'live', label: 'Сформировать заново' },
+      ];
+    },
+    // Сохранённый файл есть не у каждого вложения: у вложения в очереди, с ошибкой
+    // или вовсе без строки реестра скачивать с диска нечего. Кнопку в этом случае
+    // гасим - иначе выбор источника превращает редкую ошибку сервера в частый
+    // отказ с невнятным текстом.
+    unavailableInArchive() {
+      const ids = {};
+      for (const att of this.eligibleAttachments) {
+        ids[att.id] = this.source === 'archive' && att.archive_status !== 'ok';
+      }
+      return ids;
     },
   },
   watch: {
@@ -350,30 +361,6 @@ export default {
   display: flex;
   gap: 6px;
   padding: 14px 24px 0;
-}
-
-.dbm-source-btn {
-  flex: 1;
-  padding: 7px 10px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--color-border);
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.dbm-source-btn:hover {
-  border-color: var(--accent);
-  color: var(--color-text);
-}
-
-.dbm-source-btn.active {
-  border-color: var(--accent);
-  background: var(--accent-tint);
-  color: var(--accent-text);
 }
 
 .dbm-archive-badge {
