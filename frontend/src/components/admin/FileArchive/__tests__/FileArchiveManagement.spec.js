@@ -11,6 +11,9 @@ vi.mock('@/api/fileArchive', () => api)
 import FileArchiveManagement from '../FileArchiveManagement.vue'
 import ArchiveStatusPanel from '../ArchiveStatusPanel.vue'
 import ArchiveSettingsForm from '../ArchiveSettingsForm.vue'
+import ArchiveDownloadPanel from '../ArchiveDownloadPanel.vue'
+import ArchiveBackfillPanel from '../ArchiveBackfillPanel.vue'
+import ArchiveFailuresList from '../ArchiveFailuresList.vue'
 import RefreshButton from '@/components/RefreshButton.vue'
 import { useDeletionsStore } from '@/stores/deletions'
 
@@ -29,7 +32,18 @@ const emptyStats = {
 
 function mountCmp() {
   return mount(FileArchiveManagement, {
-    global: { stubs: { RefreshButton: true, ArchiveSettingsForm: true } },
+    global: {
+      stubs: {
+        RefreshButton: true,
+        ArchiveSettingsForm: true,
+        // Скачивание/бэкфилл/ошибки (срез C4) - тяжёлые панели со своим API и
+        // жизненным циклом, у каждой отдельный spec-файл; здесь проверяется
+        // только каркас вкладок, поэтому глушим их до заглушек.
+        ArchiveDownloadPanel: true,
+        ArchiveBackfillPanel: true,
+        ArchiveFailuresList: true,
+      },
+    },
   })
 }
 
@@ -75,6 +89,9 @@ describe('FileArchiveManagement', () => {
     expect(tabs).toHaveLength(3)
     expect(w.findComponent(ArchiveStatusPanel).exists()).toBe(true)
     expect(w.findComponent(ArchiveSettingsForm).exists()).toBe(true)
+    // «Обзор» с C4 несёт ещё скачивание ZIP и бэкфилл - тоже смонтированы сразу.
+    expect(w.findComponent(ArchiveDownloadPanel).exists()).toBe(true)
+    expect(w.findComponent(ArchiveBackfillPanel).exists()).toBe(true)
     // Все три секции смонтированы одновременно (v-show, не v-if) - несохранённые
     // правки в ArchiveSettingsForm не теряются при переключении на «Обзор»/«Ошибки».
     // Порядок в DOM фиксирован: 0-Обзор, 1-Настройки, 2-Ошибки.
@@ -88,9 +105,10 @@ describe('FileArchiveManagement', () => {
     expect(isShown(panels[1])).toBe(true)
     expect(w.findComponent(ArchiveSettingsForm).exists()).toBe(true)
 
+    // «Ошибки» с C4 - реальный ArchiveFailuresList (заглушен), а не текст-плейсхолдер.
     await tabs[2].trigger('click')
     expect(isShown(panels[2])).toBe(true)
-    expect(panels[2].text()).toContain('Ошибки')
+    expect(w.findComponent(ArchiveFailuresList).exists()).toBe(true)
   })
 
   it('при ошибке загрузки показывает сообщение и уведомляет через notify', async () => {

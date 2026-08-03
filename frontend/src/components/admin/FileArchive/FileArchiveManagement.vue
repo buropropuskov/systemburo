@@ -41,13 +41,16 @@
       <template v-else>
         <!-- v-show, не v-if/else-if: переключение вкладок не должно уничтожать
              несохранённые правки в ArchiveSettingsForm - секция остаётся
-             смонтированной, просто скрывается. (KeepAlive здесь не годится: у него
-             все ветки обязаны быть компонентами, а «Ошибки» - пока плейсхолдер.) -->
+             смонтированной, просто скрывается. -->
         <section
           v-show="activeTab === 'overview'"
-          class="file-archive__panel"
+          class="file-archive__panel file-archive__panel--overview"
         >
           <ArchiveStatusPanel ref="overviewRef" />
+          <hr class="file-archive__divider">
+          <ArchiveDownloadPanel />
+          <hr class="file-archive__divider">
+          <ArchiveBackfillPanel />
         </section>
         <section
           v-show="activeTab === 'settings'"
@@ -55,14 +58,11 @@
         >
           <ArchiveSettingsForm @saved="loadSettings" />
         </section>
-        <!-- ArchiveFailuresList - срез C4 -->
         <section
           v-show="activeTab === 'errors'"
           class="file-archive__panel"
         >
-          <p class="file-archive__placeholder">
-            Раздел «Ошибки» появится в следующем срезе.
-          </p>
+          <ArchiveFailuresList ref="failuresRef" />
         </section>
       </template>
     </div>
@@ -75,14 +75,18 @@ import RefreshButton from '@/components/RefreshButton.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import ArchiveStatusPanel from './ArchiveStatusPanel.vue';
 import ArchiveSettingsForm from './ArchiveSettingsForm.vue';
+import ArchiveDownloadPanel from './ArchiveDownloadPanel.vue';
+import ArchiveBackfillPanel from './ArchiveBackfillPanel.vue';
+import ArchiveFailuresList from './ArchiveFailuresList.vue';
 import { getArchiveSettings } from '@/api/fileArchive';
 import { useDeletionsStore } from '@/stores/deletions';
 
 /**
- * Каркас раздела «Файловый архив» (#1615, срез C1) с телом вкладки «Обзор»
- * (срез C2). «Настройки» и «Ошибки» приезжают следующими срезами (C3, C4) -
- * здесь шапка с состоянием рубильника, вкладки и загрузка текущих настроек,
- * чтобы бейдж в шапке показывал реальный статус, а не заглушку.
+ * Каркас раздела «Файловый архив» (#1615, срез C1) с телом вкладок: «Обзор»
+ * (срез C2, плюс скачивание ZIP за период и бэкфилл из среза C4), «Настройки»
+ * (срез C3) и «Ошибки» (срез C4). Здесь шапка с состоянием рубильника, вкладки
+ * и загрузка текущих настроек, чтобы бейдж в шапке показывал реальный статус,
+ * а не заглушку.
  */
 const TABS = [
   { key: 'overview', label: 'Обзор' },
@@ -95,6 +99,7 @@ const loading = ref(false);
 const settings = ref(null);
 const loadError = ref('');
 const overviewRef = ref(null);
+const failuresRef = ref(null);
 
 const statusLabel = computed(() => (settings.value?.enabled ? 'Активен' : 'Неактивен'));
 
@@ -114,11 +119,12 @@ async function loadSettings() {
 onMounted(loadSettings);
 
 // Шапка обновляет рубильник всегда (бейдж статуса виден на любой вкладке) и
-// дополнительно данные активной вкладки - вкладки «Настройки»/«Ошибки» ещё не
-// реализованы (срезы C3/C4), их обновление добавится тем же способом.
+// дополнительно данные активной вкладки - «Настройки» перечитывает свои данные
+// сама при монтировании (не держит смонтированное состояние вне своей вкладки).
 function onRefresh() {
   loadSettings();
   if (activeTab.value === 'overview') overviewRef.value?.refresh();
+  if (activeTab.value === 'errors') failuresRef.value?.refresh();
 }
 
 defineExpose({ loadSettings });
@@ -215,9 +221,15 @@ defineExpose({ loadSettings });
   padding: 26px 28px 40px;
 }
 
-.file-archive__placeholder {
-  color: var(--text-muted);
-  font-size: 14px;
+.file-archive__panel--overview {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.file-archive__divider {
+  border: none;
+  border-top: 1px solid var(--border);
   margin: 0;
 }
 
