@@ -627,22 +627,27 @@ type ViewerWithUser struct {
 
 // AttachmentInfo информация о вложении заявки.
 type AttachmentInfo struct {
-	ID                          int                 `json:"id"`
-	AttachmentType              string              `json:"attachment_type"`
-	AttachmentName              string              `json:"attachment_name"`
-	AttachmentDisplayName       string              `json:"attachment_display_name"`
-	EntryDateFrom               *string             `json:"entry_date_from"`
-	EntryDateTo                 *string             `json:"entry_date_to"`
-	EntryTimeFrom               *string             `json:"entry_time_from"`
-	EntryTimeTo                 *string             `json:"entry_time_to"`
-	RoofAccess                  bool                `json:"roof_access"`
-	FreeParking                 bool                `json:"free_parking"`
-	CreatedAt                   *time.Time          `json:"created_at"`
-	UniqueAttachmentID          *int                `json:"unique_attachment_id"`
-	UniqueAttachmentTitle       *string             `json:"unique_attachment_title"`
-	UniqueAttachmentDisplayName *string             `json:"unique_attachment_display_name"`
-	HasTemplate                 bool                `json:"has_template"`
-	CustomValues                []CustomValueDetail `gorm:"-" json:"custom_values,omitempty"`
+	ID                          int        `json:"id"`
+	AttachmentType              string     `json:"attachment_type"`
+	AttachmentName              string     `json:"attachment_name"`
+	AttachmentDisplayName       string     `json:"attachment_display_name"`
+	EntryDateFrom               *string    `json:"entry_date_from"`
+	EntryDateTo                 *string    `json:"entry_date_to"`
+	EntryTimeFrom               *string    `json:"entry_time_from"`
+	EntryTimeTo                 *string    `json:"entry_time_to"`
+	RoofAccess                  bool       `json:"roof_access"`
+	FreeParking                 bool       `json:"free_parking"`
+	CreatedAt                   *time.Time `json:"created_at"`
+	UniqueAttachmentID          *int       `json:"unique_attachment_id"`
+	UniqueAttachmentTitle       *string    `json:"unique_attachment_title"`
+	UniqueAttachmentDisplayName *string    `json:"unique_attachment_display_name"`
+	HasTemplate                 bool       `json:"has_template"`
+	// ArchiveStatus - статус строки реестра файлового архива (blank_exports)
+	// для этого вложения (#1615, C6). Пусто, если строки нет вовсе: архив
+	// выключен, тумблер типа выключен, либо заявка ещё не выгружалась.
+	// DownloadBlanksModal показывает бейдж только на распознанных статусах.
+	ArchiveStatus string              `json:"archive_status"`
+	CustomValues  []CustomValueDetail `gorm:"-" json:"custom_values,omitempty"`
 }
 
 // CustomValueDetail значение кастомного поля для отображения.

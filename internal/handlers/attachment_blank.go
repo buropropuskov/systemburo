@@ -26,21 +26,26 @@ type AttachmentBlankHandler struct {
 	service  services.AttachmentBlankService
 	access   blankAccessService
 	resolver *services.PermissionResolver
+	// archive - источник "сохранённый файл" (?source=archive, #1615 C6). Может быть
+	// nil, если каталог архива не поднят - раздел скачивания в этом случае честно
+	// отвечает 503, а не тихо откатывается на генерацию заново.
+	archive *services.ArchiveDownloadService
 }
 
 // NewAttachmentBlankHandler создаёт handler.
-func NewAttachmentBlankHandler(s services.AttachmentBlankService, access blankAccessService, resolver *services.PermissionResolver) *AttachmentBlankHandler {
-	return &AttachmentBlankHandler{service: s, access: access, resolver: resolver}
+func NewAttachmentBlankHandler(s services.AttachmentBlankService, access blankAccessService, resolver *services.PermissionResolver, archive *services.ArchiveDownloadService) *AttachmentBlankHandler {
+	return &AttachmentBlankHandler{service: s, access: access, resolver: resolver, archive: archive}
 }
 
 // Download godoc
 // @Summary      Скачать заполненный бланк для одного вложения заявки
-// @Description  Доступ: участник заявки (как у детали заявки) либо охрана/носитель page.available по своему вложению (как у детали вкладки "Доступные мне"). Прочим - 403.
+// @Description  Доступ: участник заявки (как у детали заявки) либо охрана/носитель page.available по своему вложению (как у детали вкладки "Доступные мне"). Прочим - 403. source=archive отдаёт файл с диска по записи файлового архива вместо генерации заново (#1615, C6); нет строки или файл не сгенерирован - 404.
 // @Tags         attachment-blanks
 // @Produce      application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
 // @Security     BearerAuth
 // @Param        id path int true "ID заявки"
 // @Param        attachment_id query int true "ID Attachment"
+// @Param        source query string false "live (по умолчанию) или archive - сохранённый файл"
 // @Success      200
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
@@ -64,6 +69,10 @@ func (h *AttachmentBlankHandler) Download(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
+	if c.QueryParam("source") == "archive" {
+		return h.downloadArchived(c, appID, attID)
+	}
+
 	reader, filename, err := h.service.GenerateBlank(c.Request().Context(), appID, attID)
 	if err != nil {
 		return err
@@ -75,6 +84,29 @@ func (h *AttachmentBlankHandler) Download(c echo.Context) error {
 		`attachment; filename="blank.xlsx"; filename*=UTF-8''`+encoded)
 	return c.Stream(http.StatusOK,
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", reader)
+}
+
+// downloadArchived отдаёт файл с диска по записи реестра файлового архива - доступ
+// уже проверен в Download до вызова, отдельного права под источник "сохранённый
+// файл" нет (#1615, C6).
+func (h *AttachmentBlankHandler) downloadArchived(c echo.Context, appID, attID int) error {
+	if h.archive == nil {
+		return archiveUnavailable()
+	}
+	row, err := h.archive.GetByApplicationAttachment(c.Request().Context(), appID, attID)
+	if err != nil {
+		return err
+	}
+	path, err := h.archive.ResolveFile(row)
+	if err != nil {
+		return err
+	}
+	c.Response().Header().Set("Content-Type",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	encoded := url.PathEscape(row.FileName)
+	c.Response().Header().Set("Content-Disposition",
+		`attachment; filename="blank.xlsx"; filename*=UTF-8''`+encoded)
+	return c.File(path)
 }
 
 // canDownload повторяет обе точки, откуда бланк запрашивают: деталь заявки (DownloadBlanksModal)

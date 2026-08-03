@@ -224,16 +224,43 @@ export async function getTemplateFile(uniqueAttachmentID) {
 /**
  * Скачать заполненный бланк для одного вложения заявки.
  * Возвращает Blob, который нужно сохранить через createObjectURL + link.click().
+ * @param {number} applicationID
+ * @param {number} attachmentID
+ * @param {{source?: 'archive'|'live'}} [options] source: 'archive' - отдать
+ *   сохранённый на диске файл файлового архива вместо генерации заново
+ *   (#1615, C6); нет сохранённого файла - 404, а не тихий откат на live.
  */
-export async function downloadBlank(applicationID, attachmentID) {
+export async function downloadBlank(applicationID, attachmentID, { source } = {}) {
   const { apiRequestRaw } = await import('./client');
-  const res = await apiRequestRaw(`/applications/${applicationID}/blank?attachment_id=${attachmentID}`);
+  let url = `/applications/${applicationID}/blank?attachment_id=${attachmentID}`;
+  if (source === 'archive') url += '&source=archive';
+  const res = await apiRequestRaw(url);
   if (!res.ok) {
     throw new Error(`Failed to download blank: ${res.status}`);
   }
   const blob = await res.blob();
   const cd = res.headers.get('Content-Disposition') || '';
   const filename = parseContentDispositionFilename(cd, `blank_${applicationID}_${attachmentID}.xlsx`);
+  return { blob, filename };
+}
+
+/**
+ * Скачать все сохранённые бланки заявки единым ZIP с сервера (#1615, C6):
+ * архив собирается на бэке из файлов реестра файлового архива (status=ok),
+ * в отличие от клиентского JSZip в DownloadBlanksModal, который стягивает
+ * бланки по одному через downloadBlank.
+ * @param {number} applicationID
+ * @returns {Promise<{blob: Blob, filename: string}>}
+ */
+export async function downloadApplicationArchive(applicationID) {
+  const { apiRequestRaw } = await import('./client');
+  const res = await apiRequestRaw(`/applications/${applicationID}/archive`);
+  if (!res.ok) {
+    throw new Error(`Failed to download application archive: ${res.status}`);
+  }
+  const blob = await res.blob();
+  const cd = res.headers.get('Content-Disposition') || '';
+  const filename = parseContentDispositionFilename(cd, `application_${applicationID}.zip`);
   return { blob, filename };
 }
 
