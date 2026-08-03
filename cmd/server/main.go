@@ -315,12 +315,16 @@ func main() {
 	// настроек всё равно должен открываться, поэтому сервис выгрузки остаётся nil,
 	// а ручка пересоздания честно отвечает «архив недоступен».
 	var blankExportService *services.BlankExportService
+	var archiveDownloadService *services.ArchiveDownloadService
 	if archiveWriter, err := services.NewArchiveWriter(cfg.ArchivePath); err != nil {
 		slog.Error("файловый архив не поднят", "path", cfg.ArchivePath, "error", err)
 	} else {
 		blankExportService = services.NewBlankExportService(
 			db, attachmentBlankService, archivePathService, archiveWriter, settingsService,
 			blankExportQuotaService)
+		// Скачивание (#1615, B3) делит писателя с сервисом выгрузки - оба читают/пишут
+		// один и тот же корень архива, заводить второй экземпляр незачем.
+		archiveDownloadService = services.NewArchiveDownloadService(db, archiveWriter, settingsService)
 	}
 	// Точки изменения заявки ставят её в очередь на выгрузку (#1615, B1). Сеттеры,
 	// а не конструкторские опции: сервисы выше уже собраны, а blankExportService
@@ -334,6 +338,9 @@ func main() {
 	blankArchiveHandler := handlers.NewBlankArchiveHandler(
 		settingsService, archivePathService, blankExportService, auditRecorder)
 	blankArchiveStatsHandler := handlers.NewBlankArchiveStatsHandler(blankExportQuotaService)
+	// access/resolver - те же зависимости, что у AttachmentBlankHandler ниже: гейт
+	// скачивания одного бланка и ZIP заявки из архива обязаны совпадать (#1615, B3).
+	archiveDownloadHandler := handlers.NewArchiveDownloadHandler(archiveDownloadService, applicationService, permissionResolver)
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
 	maintenanceHandler := handlers.NewMaintenanceHandler(maintenanceService)
 	markHandler := handlers.NewMarkHandler(markService)
@@ -438,6 +445,7 @@ func main() {
 		Search:              searchHandler,
 		BlankArchive:        blankArchiveHandler,
 		BlankArchiveStats:   blankArchiveStatsHandler,
+		ArchiveDownload:     archiveDownloadHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		MaintenanceBlock:    maintenanceBlock,
