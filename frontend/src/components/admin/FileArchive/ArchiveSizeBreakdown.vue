@@ -33,22 +33,27 @@
             class="archive-breakdown__cell archive-breakdown__cell--period"
             data-label="Период"
           >
-            <svg
-              class="archive-breakdown__caret"
-              :class="{ 'archive-breakdown__caret--open': isExpanded(group.year, index) }"
-              viewBox="0 0 10 6"
-              fill="none"
-              aria-hidden="true"
-            >
-              <path
-                d="M1 1L5 5L9 1"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-            {{ group.year }}
+            <!-- Стрелка и год - одной группой: в карточке (мобилка) ячейка
+                 раскладывается space-between, и отдельными детьми стрелка
+                 уезжала бы в середину строки между подписью и годом. -->
+            <span class="archive-breakdown__year">
+              <svg
+                class="archive-breakdown__caret"
+                :class="{ 'archive-breakdown__caret--open': isExpanded(group.year, index) }"
+                viewBox="0 0 10 6"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M1 1L5 5L9 1"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              {{ group.year }}
+            </span>
           </span>
           <span
             class="archive-breakdown__cell archive-breakdown__cell--bytes"
@@ -222,6 +227,12 @@ function toggle(year, index) {
   font-variant-numeric: tabular-nums;
 }
 
+.archive-breakdown__year {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .archive-breakdown__caret {
   flex-shrink: 0;
   width: 10px;
@@ -271,6 +282,15 @@ function toggle(year, index) {
 @media (max-width: 767.98px) {
   .archive-breakdown__row--head {
     display: none;
+  }
+
+  /* В карточке строка становится колонкой, и flex-basis ячеек (120px и 90px)
+     превращается в ВЫСОТУ: карточка года раздувалась до 286px при вьюпорте 390
+     вместо 106. Ширину ячейки в карточке задаёт responsive-tables.css. */
+  .archive-breakdown__cell--period,
+  .archive-breakdown__cell--bytes,
+  .archive-breakdown__cell--files {
+    flex: 0 0 auto;
   }
 
   .archive-breakdown__row--month {

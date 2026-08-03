@@ -312,6 +312,14 @@ onBeforeUnmount(stopPolling);
   margin: 0;
 }
 
+/* Тач-таргет поля периода - по брейкпоинту DateFilter (768), как в панели
+   скачивания: на 768 его календарь уже лист, а поле осталось бы 35px. */
+@media (max-width: 768px) {
+  .abp__controls :deep(.date-field) {
+    min-height: 44px;
+  }
+}
+
 @media (max-width: 767.98px) {
   .abp__controls,
   .abp__progress {
@@ -319,12 +327,28 @@ onBeforeUnmount(stopPolling);
     align-items: stretch;
   }
 
+  /* Ширина поля периода зашита в 215px - в колонке тянем на всю строку. */
+  .abp__controls :deep(.date-filter),
+  .abp__controls :deep(.date-field) {
+    width: 100%;
+  }
+
   .abp__type-select {
     max-width: 100%;
   }
 
+  .abp__type-select :deep(.base-dropdown__button) {
+    min-height: 44px;
+  }
+
+  /* Тумблер кликается всей строкой с подписью - тач-таргет по её высоте. */
+  .abp :deep(.toggle-switch) {
+    min-height: 44px;
+  }
+
   .abp__actions .lk-button,
   .abp__progress .lk-button {
+    width: 100%;
     min-height: 44px;
   }
 }

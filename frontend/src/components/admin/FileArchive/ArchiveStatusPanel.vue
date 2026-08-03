@@ -64,7 +64,7 @@
           :class="diskBarClass"
         >
           <span
-            v-for="seg in diskSegments"
+            v-for="seg in barSegments"
             :key="seg.key"
             class="archive-status__disk-seg"
             :style="{ width: seg.percent + '%', background: seg.color }"
@@ -215,6 +215,12 @@ const diskSegments = computed(() => {
   ];
 });
 
+// В полосе рисуем только непустые доли: сегменту задан минимум ширины (иначе
+// доли в сотые доли процента схлопываются в невидимую нитку на узком экране), и
+// без этого фильтра нулевая доля получила бы ту же нитку и читалась как занятое
+// место. Подписи со значениями идут легендой под полосой - там пустые остаются.
+const barSegments = computed(() => diskSegments.value.filter((s) => s.bytes > 0));
+
 const freePercent = computed(() => {
   const disk = stats.value?.disk;
   if (!disk) return null;
@@ -324,6 +330,7 @@ const diskBarClass = computed(() => {
 
 .archive-status__disk-seg {
   height: 100%;
+  min-width: 3px;
 }
 
 .archive-status__disk-legend {
@@ -368,6 +375,19 @@ const diskBarClass = computed(() => {
 
   .archive-status__disk-select {
     width: 100%;
+  }
+
+  /* Тач-таргет даём самой кнопке дропдауна - у неё свой min-height 30px,
+     min-height обёртки её не растягивает (образец - AccessDenialsLog). */
+  .archive-status__disk-select :deep(.base-dropdown__button) {
+    min-height: 44px;
+  }
+
+  /* Легенда - единственная читаемая подпись долей на узком экране (в самой
+     полосе мелкие доли занимают 3px), поэтому она не жмётся: перенос по
+     строкам, подпись целиком, без сокращений. */
+  .archive-status__disk-legend {
+    gap: 6px 14px;
   }
 }
 </style>
