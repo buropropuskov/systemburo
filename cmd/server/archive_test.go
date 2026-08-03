@@ -1,9 +1,14 @@
 package main
 
 import (
+	"errors"
+	"fmt"
+	"net/http"
 	"testing"
 
 	"systemburo/internal/models"
+
+	"github.com/labstack/echo/v4"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,15 +73,17 @@ func TestArchiveConsoleDiff_NoChanges(t *testing.T) {
 	assert.Empty(t, archiveConsoleDiff(s, &same), "без изменений записывать нечего")
 }
 
-// Ошибка проверки настроек приходит из общего сервиса в виде ответа веб-интерфейса.
-// В консоли нужен сам текст, а не обёртка с кодом.
+// Ошибка проверки настроек приходит из общего сервиса ответом echo. В консоли нужен
+// сам текст, и берётся он по типу ошибки: разбор строки чужой библиотеки сломался бы
+// на первом же изменении её формата.
 func TestArchiveErrorText(t *testing.T) {
 	assert.Equal(t, "Шаблон папок: неизвестный плейсхолдер",
-		archiveErrorText(fakeHTTPError{"code=400, message=Шаблон папок: неизвестный плейсхолдер"}))
-	assert.Equal(t, "нет соединения с базой",
-		archiveErrorText(fakeHTTPError{"нет соединения с базой"}))
+		archiveErrorText(echo.NewHTTPError(http.StatusBadRequest, "Шаблон папок: неизвестный плейсхолдер")))
+
+	// Обычная ошибка отдаётся как есть.
+	assert.Equal(t, "нет соединения с базой", archiveErrorText(errors.New("нет соединения с базой")))
+
+	// Обёрнутая ошибка echo тоже разворачивается.
+	wrapped := fmt.Errorf("сохранение: %w", echo.NewHTTPError(http.StatusBadRequest, "Квота не может быть отрицательной"))
+	assert.Equal(t, "Квота не может быть отрицательной", archiveErrorText(wrapped))
 }
-
-type fakeHTTPError struct{ msg string }
-
-func (e fakeHTTPError) Error() string { return e.msg }

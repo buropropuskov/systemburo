@@ -15,6 +15,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
+	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
 
@@ -204,8 +205,11 @@ func archiveSet(args []string) int {
 	file := fs.String("file", "", "шаблон имени файла")
 	quota := fs.String("quota", "", "предельный объём архива")
 	minFree := fs.String("min-free", "", "наименьший остаток свободного места")
-	warn := fs.Int("warn", 0, "порог предупреждения, проценты")
-	recheck := fs.Int("recheck", 0, "окно ночной сверки, дни")
+	// -1 как «не задано» у всех числовых флагов: ноль у порогов невалиден, и
+	// молча принимать его за «флаг не передан» значит проглатывать опечатку
+	// оператора вместо внятного отказа.
+	warn := fs.Int("warn", -1, "порог предупреждения, проценты")
+	recheck := fs.Int("recheck", -1, "окно ночной сверки, дни")
 	freeze := fs.Int("freeze", -1, "срок заморозки, дни")
 	zipMax := fs.String("zip-max", "", "потолок одной выгрузки")
 	if err := fs.Parse(args); err != nil {
@@ -220,14 +224,14 @@ func archiveSet(args []string) int {
 	if *file != "" {
 		req.FileTemplate, touched = file, true
 	}
-	if *warn > 0 {
+	if *warn >= 0 {
 		req.WarnPercent, touched = warn, true
 	}
-	if *recheck > 0 {
+	if *recheck >= 0 {
 		req.RecheckDays, touched = recheck, true
 	}
-	// Ноль у срока заморозки - осмысленное значение «замораживать сразу», поэтому
-	// признаком «не задано» служит -1, а не ноль.
+	// Ноль у срока заморозки - осмысленное значение «замораживать сразу»; у порогов
+	// ноль невалиден, но отказ о нём должен прозвучать, а не потеряться.
 	if *freeze >= 0 {
 		req.FreezeAfterDays, touched = freeze, true
 	}
@@ -400,14 +404,17 @@ func parseSizeArg(raw string) (int64, error) {
 	return n * mult, nil
 }
 
-// archiveErrorText разворачивает ошибку проверки настроек в человеческий текст:
-// сервис отдаёт её в виде ответа веб-интерфейса, а в консоли нужен сам текст.
+// archiveErrorText разворачивает ошибку проверки настроек в человеческий текст.
+// Сервис общий с веб-обработчиками и отдаёт отказ ответом echo, поэтому берём
+// сообщение по типу, а не выкусываем из строки: формат чужой библиотеки может
+// поменяться на следующем обновлении, и тогда оператор увидит "code=400, message=..."
+// вместо причины.
 func archiveErrorText(err error) string {
-	type httpErr interface{ Error() string }
-	var he httpErr = err
-	msg := he.Error()
-	if idx := strings.Index(msg, "message="); idx >= 0 {
-		return strings.TrimSpace(msg[idx+len("message="):])
+	var he *echo.HTTPError
+	if errors.As(err, &he) {
+		if msg, ok := he.Message.(string); ok && msg != "" {
+			return msg
+		}
 	}
-	return msg
+	return err.Error()
 }

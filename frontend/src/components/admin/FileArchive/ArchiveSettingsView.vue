@@ -7,17 +7,7 @@
       <StatusBadge :status="settings.enabled ? 'Активен' : 'Неактивен'" />
     </header>
 
-    <p
-      v-if="error"
-      class="asv__error"
-    >
-      {{ error }}
-    </p>
-
-    <dl
-      v-else
-      class="asv__list"
-    >
+    <dl class="asv__list">
       <div
         v-for="row in rows"
         :key="row.label"
@@ -31,13 +21,6 @@
         </dd>
       </div>
     </dl>
-
-    <p
-      v-if="example"
-      class="asv__example"
-    >
-      Пример пути: <code>{{ example }}</code>
-    </p>
 
     <p class="asv__hint">
       Раскладка каталогов и пороги задаются на сервере командой
@@ -64,9 +47,6 @@ import { formatBytes } from '@/utils/download';
 
 const props = defineProps({
   settings: { type: Object, required: true },
-  /** Готовый путь по действующим шаблонам - показывается, когда его посчитал сервер. */
-  example: { type: String, default: '' },
-  error: { type: String, default: '' },
 });
 
 const rows = computed(() => {
@@ -89,10 +69,10 @@ const rows = computed(() => {
 
 <style scoped>
 .asv {
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 16px;
-  background: var(--bg-secondary);
+  background: var(--surface);
 }
 
 .asv__head {
@@ -106,7 +86,7 @@ const rows = computed(() => {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text);
 }
 
 .asv__list {
@@ -121,44 +101,31 @@ const rows = computed(() => {
   justify-content: space-between;
   gap: 12px;
   padding: 6px 0;
-  border-bottom: 1px solid var(--border-color-light, var(--border-color));
+  border-bottom: 1px solid var(--border);
 }
 
 .asv__label {
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-size: 13px;
 }
 
 .asv__value {
   margin: 0;
-  color: var(--text-primary);
+  color: var(--text);
   font-size: 13px;
   text-align: right;
   word-break: break-word;
 }
 
-.asv__example {
-  margin: 12px 0 0;
-  font-size: 13px;
-  color: var(--text-secondary);
-  word-break: break-all;
-}
-
 .asv__hint {
   margin: 12px 0 0;
   font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.asv__error {
-  margin: 0;
-  color: var(--danger-color, #c0392b);
-  font-size: 13px;
+  color: var(--text-muted);
 }
 
 code {
   font-family: inherit;
-  background: var(--bg-primary);
+  background: var(--surface-2);
   border-radius: 6px;
   padding: 1px 6px;
 }
