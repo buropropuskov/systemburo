@@ -143,10 +143,13 @@
                 v-for="(row, index) in visibleRows"
                 :key="row.id"
                 class="el-row rt-row"
-                :class="{
-                  'el-row--flagged': isFlagged(row),
-                  'el-row--clickable': isClickable
-                }"
+                :class="[
+                  supplementMarks[row.id] ? supplementMarks[row.id].rowClass : null,
+                  {
+                    'el-row--flagged': isFlagged(row),
+                    'el-row--clickable': isClickable
+                  }
+                ]"
                 data-testid="attachment-element-row"
                 @click="openRow(row)"
               >
@@ -158,7 +161,7 @@
                   v-for="col in columns"
                   :key="col.key"
                   class="el-cell"
-                  :class="col.cls"
+                  :class="[col.cls, { 'el-cell--key': col.type === 'key' }]"
                   :style="cellStyle(col)"
                   :data-label="col.label"
                 >
@@ -209,6 +212,21 @@
                       class="val-sub"
                     >{{ col.sub(row) || '—' }}</span>
                   </template>
+
+                  <!-- Метка дополнения (#1685) живёт в ключевой колонке: она есть у
+                       всех трёх типов вложения, а колонка действий - только у машин
+                       и сотрудников. -->
+                  <Badge
+                    v-if="col.type === 'key' && supplementMarks[row.id]"
+                    class="supplement-badge"
+                    :variant="supplementMarks[row.id].variant"
+                    size="sm"
+                    dot
+                    :data-hint="supplementMarks[row.id].hint"
+                    data-testid="attachment-supplement-badge"
+                  >
+                    {{ supplementMarks[row.id].text }}
+                  </Badge>
                 </div>
 
                 <div
@@ -324,6 +342,71 @@ const ASSIGN_BUTTON_SPACE = 34;
 
 /** Запас, чтобы значение не упиралось вплотную в край колонки. */
 const TEXT_SIDE_SPACE = 6;
+
+/**
+ * Статусы раунда дополнения (#1685), зеркало models.Supplement* на бэке. Строка состава
+ * несёт их в supplement_status; supplement_id === null - строка пришла с исходной подачей.
+ */
+const SUPPLEMENT_CLOSED_STATUSES = ['rejected', 'refused', 'cancelled'];
+
+/**
+ * Как выглядит строка в зависимости от судьбы принёсшего её раунда.
+ *
+ * Принятая добавка строку не красит: она уже работает наравне с исходным составом, и
+ * подсветка «нового» висела бы на ней вечно. Отклонённая, наоборот, остаётся в составе
+ * навсегда, поэтому её нужно отличать от рабочей - иначе автор будет ждать пропуска,
+ * которого не будет.
+ *
+ * @param {Object} row строка состава вложения
+ * @returns {{ state: string, variant: string, text: string, hint: string, rowClass: ?string }|null}
+ */
+function supplementRowMark(row) {
+    if (!row || row.supplement_id === null || row.supplement_id === undefined) return null;
+
+    const status = row.supplement_status || null;
+    const title = row.supplement_number ? `Дополнение №${row.supplement_number}` : 'Дополнение';
+    const shortTitle = row.supplement_number ? `Доп. №${row.supplement_number}` : 'Доп.';
+
+    if (SUPPLEMENT_CLOSED_STATUSES.includes(status)) {
+        return {
+            state: 'closed',
+            variant: 'neutral',
+            text: 'Дополнение отклонено',
+            hint: `${title} не состоялось: строка на проходную не попадёт.`,
+            rowClass: 'el-row--supplement-closed'
+        };
+    }
+
+    if (row.is_pending && status === 'pending') {
+        return {
+            state: 'pending',
+            variant: 'warning',
+            text: 'Новое, на согласовании',
+            hint: `${title} ждёт голосов согласующих. На проходную строка пока не допущена.`,
+            rowClass: 'el-row--supplement-pending'
+        };
+    }
+
+    if (row.is_pending && status === 'approved') {
+        return {
+            state: 'approved',
+            variant: 'info',
+            text: 'Согласовано, ждёт принятия',
+            hint: `${title} согласовано, ждёт решения принимающего. На проходную строка пока не допущена.`,
+            rowClass: 'el-row--supplement-approved'
+        };
+    }
+
+    // accepted - добавка принята; merged - влита в основной круг заявки. И там и там
+    // строка живёт по общим правилам, остаётся только пометка происхождения.
+    return {
+        state: status === 'accepted' ? 'accepted' : 'origin',
+        variant: 'neutral',
+        text: shortTitle,
+        hint: `Строка добавлена дополнением к поданной заявке (${title}).`,
+        rowClass: null
+    };
+}
 
 export default {
     name: 'ApplicationAttachmentDetail',
@@ -618,6 +701,16 @@ export default {
 
         flaggedCount() {
             return this.visibleRows.filter(row => this.isFlagged(row)).length;
+        },
+
+        /** Метки дополнения по id строки: считаем один раз, а не по три вызова на ячейку. */
+        supplementMarks() {
+            const marks = {};
+            for (const row of this.rows) {
+                const mark = supplementRowMark(row);
+                if (mark) marks[row.id] = mark;
+            }
+            return marks;
         }
     },
     watch: {
@@ -1223,6 +1316,53 @@ export default {
     background: var(--danger-bg);
 }
 
+/* Строки дополнения (#1685). Подложка + полоса слева - тот же приём, что у ЧС:
+   на мобилке строка разворачивается в карточку, и полоса остаётся единственным
+   признаком роли, поэтому она обязана нести цвет роли, а не оттенок фона.
+
+   :not(.el-row--flagged) обязателен: правила ЧС стоят выше в файле и при равной
+   специфичности проиграли бы этим - помеченная возможным обходом ЧС строка потеряла бы
+   красную подсветку, а это более критичный признак, чем «новая». Бейдж дополнения при
+   этом остаётся - он в другой колонке. */
+.el-row--supplement-pending:not(.el-row--flagged) {
+    background: var(--warning-bg);
+    box-shadow: inset 3px 0 0 var(--warning);
+}
+
+.el-row--supplement-pending:not(.el-row--flagged).el-row--clickable:hover {
+    background: var(--warning-bg);
+}
+
+.el-row--supplement-approved:not(.el-row--flagged) {
+    background: var(--info-bg);
+    box-shadow: inset 3px 0 0 var(--info);
+}
+
+.el-row--supplement-approved:not(.el-row--flagged).el-row--clickable:hover {
+    background: var(--info-bg);
+}
+
+/* Отклонённое дополнение остаётся в составе навсегда - приглушаем содержимое, чтобы
+   строка не читалась как рабочая. Гасим сами значения, а не строку целиком: opacity на
+   родителе утянула бы за собой и бейдж, который как раз объясняет, почему строка серая. */
+.el-row--supplement-closed:not(.el-row--flagged) {
+    box-shadow: inset 3px 0 0 var(--text-muted);
+}
+
+.el-row--supplement-closed .c-num,
+.el-row--supplement-closed .val,
+.el-row--supplement-closed .val-sub,
+.el-row--supplement-closed .chip,
+.el-row--supplement-closed .qty {
+    opacity: 0.55;
+}
+
+.supplement-badge {
+    display: inline-flex;
+    max-width: 100%;
+    margin-top: 3px;
+}
+
 @keyframes slideIn {
     from {
         opacity: 0;
@@ -1372,13 +1512,15 @@ export default {
 /* Подсказка проекта: тёмный пузырёк по data-hint, а не браузерный title. */
 .val[data-hint],
 .chip[data-hint],
-.blacklist-badge[data-hint] {
+.blacklist-badge[data-hint],
+.supplement-badge[data-hint] {
     position: relative;
 }
 
 .val[data-hint]::after,
 .chip[data-hint]::after,
-.blacklist-badge[data-hint]::after {
+.blacklist-badge[data-hint]::after,
+.supplement-badge[data-hint]::after {
     content: attr(data-hint);
     position: absolute;
     bottom: calc(100% + 9px);
@@ -1397,9 +1539,19 @@ export default {
     z-index: 5;
 }
 
+/* Подсказка дополнения - фраза, а не пара слов: nowrap увёл бы её на полэкрана. */
+.supplement-badge[data-hint]::after {
+    width: max-content;
+    max-width: 240px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.35;
+}
+
 .val[data-hint]::before,
 .chip[data-hint]::before,
-.blacklist-badge[data-hint]::before {
+.blacklist-badge[data-hint]::before,
+.supplement-badge[data-hint]::before {
     content: '';
     position: absolute;
     bottom: calc(100% + 3px);
@@ -1418,7 +1570,9 @@ export default {
 .chip[data-hint]:hover::after,
 .chip[data-hint]:hover::before,
 .blacklist-badge[data-hint]:hover::after,
-.blacklist-badge[data-hint]:hover::before {
+.blacklist-badge[data-hint]:hover::before,
+.supplement-badge[data-hint]:hover::after,
+.supplement-badge[data-hint]:hover::before {
     opacity: 1;
 }
 
@@ -1561,6 +1715,16 @@ export default {
     .val-sub {
         white-space: normal;
         text-align: right;
+    }
+
+    /* В карточке ячейка - ряд «подпись : значение». Метке дополнения даём свою строку
+       под значением, иначе она сжимает ФИО и гос. номер до многоточия. */
+    .el-row .el-cell--key {
+        flex-wrap: wrap;
+    }
+
+    .el-row .el-cell--key .supplement-badge {
+        margin-left: auto;
     }
 
     .blacklist-override-btn {

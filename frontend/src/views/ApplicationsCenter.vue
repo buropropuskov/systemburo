@@ -626,7 +626,7 @@
                   data-label="Теги"
                 >
                   <div
-                    v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking || application.sender_is_important || application.has_unseen_questions || pendingApprovalDays(application) !== null"
+                    v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking || application.sender_is_important || application.has_unseen_questions || application.has_open_supplement || pendingApprovalDays(application) !== null"
                     class="application-tags"
                     :class="{ 'application-tags--compact': tagsAreCompact(application) }"
                   >
@@ -743,6 +743,39 @@
                         class="rt-tag__q-dot"
                         aria-hidden="true"
                       />
+                    </Badge>
+                    <!-- Повторный круг по дополнению (#1685): статус заявки его не
+                         показывает, поэтому в списке о нём говорит отдельный тег. -->
+                    <Badge
+                      v-if="application.has_open_supplement"
+                      variant="info"
+                      size="sm"
+                      class="rt-tag rt-tag--supplement tag-hint"
+                      data-hint="Идёт согласование дополнения к заявке"
+                      :data-testid="`center-supplement-badge-${application.id}`"
+                    >
+                      <svg
+                        class="rt-tag__icon"
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      ><line
+                        x1="12"
+                        y1="5"
+                        x2="12"
+                        y2="19"
+                      /><line
+                        x1="5"
+                        y1="12"
+                        x2="19"
+                        y2="12"
+                      /></svg>
+                      <span class="rt-tag__text">Дополнение</span>
                     </Badge>
                   </div>
                 </div>
@@ -1019,6 +1052,7 @@ export default {
                 { value: 'roof', label: 'Крыша' },
                 { value: 'parking', label: 'Парковка' },
                 { value: 'important', label: 'Важный' },
+                { value: 'supplement', label: 'Дополнение' },
             ],
 
             archiveMode: 'active',
@@ -1163,6 +1197,7 @@ export default {
                             case 'roof': return app.has_roof_access;
                             case 'parking': return app.has_free_parking;
                             case 'important': return app.sender_is_important;
+                            case 'supplement': return !!app.has_open_supplement;
                             default: return false;
                         }
                     })
@@ -1787,7 +1822,8 @@ export default {
                 (application.has_roof_access ? 1 : 0) +
                 (application.has_free_parking ? 1 : 0) +
                 (application.sender_is_important ? 1 : 0) +
-                (application.has_unseen_questions ? 1 : 0);
+                (application.has_unseen_questions ? 1 : 0) +
+                (application.has_open_supplement ? 1 : 0);
             return count >= 2;
         },
 
@@ -1850,6 +1886,7 @@ export default {
                         updated.confirmation !== a.confirmation ||
                         updated.is_read !== a.is_read ||
                         updated.has_unseen_questions !== a.has_unseen_questions ||
+                        updated.has_open_supplement !== a.has_open_supplement ||
                         updated.has_status_update !== a.has_status_update
                     ) {
                         return { ...a, ...updated };
@@ -2957,7 +2994,8 @@ export default {
 .application-tags--compact .rt-tag--roof .rt-tag__text,
 .application-tags--compact .rt-tag--parking .rt-tag__text,
 .application-tags--compact .rt-tag--important .rt-tag__text,
-.application-tags--compact .rt-tag--questions .rt-tag__text {
+.application-tags--compact .rt-tag--questions .rt-tag__text,
+.application-tags--compact .rt-tag--supplement .rt-tag__text {
     max-width: 0;
     opacity: 0;
 }
@@ -2965,7 +3003,8 @@ export default {
 .application-tags--compact .rt-tag--roof .rt-tag__icon,
 .application-tags--compact .rt-tag--parking .rt-tag__icon,
 .application-tags--compact .rt-tag--important .rt-tag__icon,
-.application-tags--compact .rt-tag--questions .rt-tag__icon {
+.application-tags--compact .rt-tag--questions .rt-tag__icon,
+.application-tags--compact .rt-tag--supplement .rt-tag__icon {
     width: 13px;
     opacity: 1;
 }
@@ -2973,7 +3012,8 @@ export default {
 .application-tags--compact .rt-tag--roof.badge--sm,
 .application-tags--compact .rt-tag--parking.badge--sm,
 .application-tags--compact .rt-tag--important.badge--sm,
-.application-tags--compact .rt-tag--questions.badge--sm {
+.application-tags--compact .rt-tag--questions.badge--sm,
+.application-tags--compact .rt-tag--supplement.badge--sm {
     padding: 4px;
 }
 
@@ -3902,21 +3942,24 @@ export default {
     .application-tags--compact .rt-tag--roof .rt-tag__text,
     .application-tags--compact .rt-tag--parking .rt-tag__text,
     .application-tags--compact .rt-tag--important .rt-tag__text,
-    .application-tags--compact .rt-tag--questions .rt-tag__text {
+    .application-tags--compact .rt-tag--questions .rt-tag__text,
+    .application-tags--compact .rt-tag--supplement .rt-tag__text {
         max-width: 150px;
         opacity: 1;
     }
     .application-tags--compact .rt-tag--roof .rt-tag__icon,
     .application-tags--compact .rt-tag--parking .rt-tag__icon,
     .application-tags--compact .rt-tag--important .rt-tag__icon,
-    .application-tags--compact .rt-tag--questions .rt-tag__icon {
+    .application-tags--compact .rt-tag--questions .rt-tag__icon,
+    .application-tags--compact .rt-tag--supplement .rt-tag__icon {
         width: 0;
         opacity: 0;
     }
     .application-tags--compact .rt-tag--roof.badge--sm,
     .application-tags--compact .rt-tag--parking.badge--sm,
     .application-tags--compact .rt-tag--important.badge--sm,
-    .application-tags--compact .rt-tag--questions.badge--sm {
+    .application-tags--compact .rt-tag--questions.badge--sm,
+    .application-tags--compact .rt-tag--supplement.badge--sm {
         padding: 3px 8px;
     }
 
