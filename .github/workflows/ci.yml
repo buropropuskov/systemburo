@@ -240,6 +240,12 @@ jobs:
             docker compose -f docker-compose.base.yml -f docker-compose.staging.yml up -d --force-recreate
             docker system prune -f --filter 'until=24h' 2>/dev/null || true
             docker builder prune -f --filter 'until=168h' 2>/dev/null || true
+            # Прошлые теги фронта помечены SHA коммита, то есть не dangling, и
+            # docker system prune их не забирает: к августу на диске VPS осело
+            # 346 образов и больше четырёх гигабайт. Фильтр по возрасту здесь не
+            # годится - он считает возраст от сборки образа, и заодно снёс бы
+            # базовые golang/alpine/nginx, которые нужны для сборки на месте.
+            docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' | awk -v keep="$FRONTEND_IMAGE" '$1 ~ /systemburo-frontend/ && $1 != keep { print $2 }' | xargs -r docker rmi -f 2>/dev/null || true
             sleep 5
             wget -qO- http://localhost/health || exit 1
             echo "Staging deploy completed at $(date)"
