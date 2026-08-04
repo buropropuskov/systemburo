@@ -229,7 +229,8 @@ func (s *applicationService) fetchBlacklistFlags(ctx context.Context, elementTyp
 }
 
 // GetAttachmentCars возвращает автомобили вложения с привязанными местами разгрузки.
-func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID int) ([]CarWithPlaces, error) {
+// scope решает, попадают ли в выдачу машины ещё не принятого дополнения (#1685).
+func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID int, scope SupplementScope) ([]CarWithPlaces, error) {
 	type carRow struct {
 		ID             int
 		CarNumber      string  `gorm:"column:car_number"`
@@ -264,8 +265,8 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 		JOIN applications app ON a.application_id = app.id
 		LEFT JOIN organizations o ON app.organization_id = o.id
 		LEFT JOIN companies comp ON app.company_id = comp.id
-		WHERE c.attachment_id = ?
-	`, attachmentID).Scan(&cars).Error; err != nil {
+		WHERE c.attachment_id = ?`+supplementScopeWhere(scope, "c"),
+		attachmentID).Scan(&cars).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching cars")
 	}
 
@@ -318,8 +319,10 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 	return result, nil
 }
 
-// GetAttachmentEmployees возвращает сотрудников вложения с целевыми таблицами.
-func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachmentID int) ([]EmployeeWithTables, error) {
+// GetAttachmentEmployees возвращает сотрудников вложения с целевыми таблицами. scope
+// решает, попадают ли в выдачу сотрудники ещё не принятого дополнения (#1685); выборка
+// несёт серию и номер паспорта и номер патента, поэтому охране идёт только допущенное.
+func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachmentID int, scope SupplementScope) ([]EmployeeWithTables, error) {
 	type empRow struct {
 		ID                   int
 		LastName             string  `gorm:"column:last_name"`
@@ -363,8 +366,8 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 		LEFT JOIN applications app ON a.application_id = app.id
 		LEFT JOIN organizations o ON app.organization_id = o.id
 		LEFT JOIN companies comp ON app.company_id = comp.id
-		WHERE e.attachment_id = ?
-	`, attachmentID).Scan(&employees).Error; err != nil {
+		WHERE e.attachment_id = ?`+supplementScopeWhere(scope, "e"),
+		attachmentID).Scan(&employees).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employees")
 	}
 	for i := range employees {
@@ -415,13 +418,14 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 	return result, nil
 }
 
-// GetAttachmentItems возвращает ТМЦ вложения.
-func (s *applicationService) GetAttachmentItems(ctx context.Context, attachmentID int) ([]ItemInfo, error) {
+// GetAttachmentItems возвращает ТМЦ вложения. scope решает, попадают ли в выдачу позиции
+// ещё не принятого дополнения (#1685).
+func (s *applicationService) GetAttachmentItems(ctx context.Context, attachmentID int, scope SupplementScope) ([]ItemInfo, error) {
 	items := make([]ItemInfo, 0)
 	err := s.db.WithContext(ctx).Raw(`
-		SELECT id, name, count, date_created
-		FROM items WHERE attachment_id = ?
-		ORDER BY id
+		SELECT i.id, i.name, i.count, i.date_created
+		FROM items i WHERE i.attachment_id = ?`+supplementScopeWhere(scope, "i")+`
+		ORDER BY i.id
 	`, attachmentID).Scan(&items).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching items")
