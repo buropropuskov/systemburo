@@ -440,6 +440,7 @@
       :user-organization-id="userOrganizationId"
       :user-company-id="userCompanyId"
       :initial-selected-cars="selectedExistingCars"
+      :z-index="existingModalZIndex"
       @cars-selected="onExistingCarsSelected"
       @close="closeExistingCarsModal"
     />
@@ -512,6 +513,12 @@ export default {
         allowExistingSearch: {
             type: Boolean,
             default: true
+        },
+        // Слой окна «Добавить существующую(-ие)». Дефолт 1000 - подача заявки; форма,
+        // встроенная в окно поверх детали заявки, поднимает его (#1685).
+        existingModalZIndex: {
+            type: Number,
+            default: 1000
         },
         // Срок заявки текущего вложения (#1183 S5): { date_from, date_to, time_from,
         // time_to } в API-формате (YYYY-MM-DD + ЧЧ:ММ). Против него сверяется расписание

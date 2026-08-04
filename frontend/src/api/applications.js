@@ -172,6 +172,43 @@ export async function getApplicationAttachments(id) {
 }
 
 /**
+ * Дополнить поданную заявку (#1685): добавить людей, машины или ТМЦ в существующие
+ * вложения. Формы элементов - те же, что шлёт подача (VehicleInput/EmployeeInput/ItemInput).
+ *
+ * Код ответа кладём на ошибку: 409 («уже есть незакрытое дополнение», «заявку в статусе X
+ * дополнить нельзя») разводится в UI отдельной формулировкой, а по тексту это не отличить.
+ *
+ * @param {number} id ID заявки
+ * @param {{comment?: string|null, additions: Array<{attachment_id: number, vehicles?: object[], employees?: object[], items?: object[]}>}} data
+ * @returns {Promise<{supplement_id: number, number: number, status: string, counts: {vehicles: number, employees: number, items: number}}>}
+ */
+export async function createSupplement(id, data) {
+  const res = await apiRequest(`/applications/${id}/supplements`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    const error = new Error(body?.message || 'Не удалось отправить дополнение');
+    error.status = res.status;
+    throw error;
+  }
+  return body;
+}
+
+/**
+ * Раунды дополнения заявки (#1685), новые сверху. Доступны всем, кому видна заявка.
+ * @param {number} id ID заявки
+ * @returns {Promise<object[]>}
+ */
+export async function getApplicationSupplements(id) {
+  const res = await apiRequest(`/applications/${id}/supplements`);
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.message || 'Не удалось загрузить дополнения заявки');
+  return body;
+}
+
+/**
  * Список вложений, доступных охраннику/админу во вкладке "Доступные мне" (#706).
  * Пагинация лежит в envelope.meta рядом с data, а apiRequest снимает только data
  * и meta теряется - поэтому читаем сырой ответ через apiRequestRaw.

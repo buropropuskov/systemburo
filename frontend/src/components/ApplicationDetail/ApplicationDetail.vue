@@ -17,6 +17,18 @@
       @send="sendForwardRequest"
     />
 
+    <!-- Дополнение поданной заявки (#1685) -->
+    <SupplementModal
+      :show="showSupplementModal"
+      :application="applicationData"
+      :attachments="attachments"
+      :all-unloading-places="allUnloadingPlaces"
+      :license-plate-formats="licensePlateFormats"
+      :all-tables="allTables"
+      @close="showSupplementModal = false"
+      @submitted="onSupplementSubmitted"
+    />
+
     <div
       class="application-detail"
       :class="{ 'is-dragging': sheetDragging }"
@@ -127,6 +139,16 @@
             @comment-clear="clearCommentFromLocalStorage"
           >
             <template #user-actions>
+              <transition name="fade">
+                <button
+                  v-if="canSupplementApplication"
+                  class="supplement-btn"
+                  data-testid="app-detail-button-supplement"
+                  @click="showSupplementModal = true"
+                >
+                  Дополнить
+                </button>
+              </transition>
               <BaseDropdown
                 class="duplicate-dropdown"
                 :options="duplicatePresets"
@@ -589,6 +611,11 @@ import ApplicationOrgModeration from './ApplicationOrgModeration.vue'
 import eventStream from '@/services/eventStream'
 import { ref } from 'vue'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
+import SupplementModal from '../CreateApplication/SupplementModal.vue'
+
+// Статусы, в которых заявку ещё можно дополнить (#1685). Зеркало
+// services.supplementAllowedStatuses - остальные бэк отклоняет с 409.
+const SUPPLEMENT_ALLOWED_STATUSES = ['Непрочитано', 'В обработке', 'В работе']
 
 export default {
     name: 'ApplicationDetail',
@@ -607,7 +634,8 @@ export default {
         Badge,
         BaseDropdown,
         ApplicationMessageModal,
-        ApplicationOrgModeration
+        ApplicationOrgModeration,
+        SupplementModal
     },
     props: {
         application: {
@@ -678,6 +706,7 @@ export default {
                 { key: 'other', label: 'Другой срок' }
             ],
             isLeftColumnCollapsed: false,
+            showSupplementModal: false,
             showForwardModal: false,
             isForwarding: false,
             allUsers: [],
@@ -771,6 +800,23 @@ export default {
             const a = this.applicationData;
             if (!a || a.sender_user_id !== this.currentUserId) return false;
             return !['Завершено', 'Не согласовано', 'Отказано', 'Отозвана'].includes(a.status);
+        },
+
+        /**
+         * Дополнить заявку (#1685) может её автор, пока заявка не закрыта и по ней нет
+         * незакрытого раунда дополнения. Список статусов - БЕЛЫЙ и повторяет
+         * supplementAllowedStatuses бэка: чёрный перечень терминальных пропустил бы
+         * «Согласование»/«Не согласовано», на которых сервер отвечает 409.
+         *
+         * open_supplement приезжает отдельным срезом; пока поля в ответе нет, считаем,
+         * что открытого раунда нет - иначе кнопка не появилась бы вовсе.
+         */
+        canSupplementApplication() {
+            const a = this.applicationData;
+            if (!a || a.sender_user_id !== this.currentUserId) return false;
+            if (!this.can('action.supplement.application')) return false;
+            if (a.open_supplement) return false;
+            return SUPPLEMENT_ALLOWED_STATUSES.includes(a.status);
         },
 
         // Отменить подтверждение пропуска может ответственный по заявке ИЛИ принимающий -
@@ -956,6 +1002,20 @@ export default {
                 }
                 this.$emit('application-changed', this.applicationData);
             }
+        },
+
+        /**
+         * Дополнение принято (#1685): перечитываем карточку, чтобы новые строки появились
+         * в составе вложения, а признак открытого раунда (open_supplement) обновился и
+         * погасил кнопку. Ленту истории двигаем тем же заходом - раунд пишется в неё.
+         */
+        onSupplementSubmitted() {
+            this.showSupplementModal = false;
+            this.loadApplicationDetails(this.applicationData, { preserveSelection: true });
+            if (this.$refs.historyComponent && this.$refs.historyComponent.loadHistory) {
+                this.$refs.historyComponent.loadHistory();
+            }
+            this.$emit('application-changed', this.applicationData);
         },
 
         getStatusBadgeClass(status) {
@@ -2240,6 +2300,25 @@ export default {
     color: var(--accent-contrast);
 }
 
+/* "Дополнить" (#1685) стоит в ряду автора рядом с "Продублировать": то же тело пилюли,
+   но secondary-заливка - основное действие в ряду по-прежнему дублирование. */
+.supplement-btn {
+    padding: 6px 24px;
+    border: 1px solid var(--accent);
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    min-width: 140px;
+    background: var(--surface);
+    color: var(--accent-text);
+}
+
+.supplement-btn:hover {
+    background: var(--accent-tint);
+}
+
 .withdraw-btn {
     padding: 6px 24px;
     border: 1px solid var(--border);
@@ -2428,6 +2507,27 @@ export default {
         flex-wrap: wrap;
         justify-content: flex-start;
         row-gap: 8px;
+    }
+
+    /* Ряд автора вырос до трёх кнопок (#1685): "Дополнить" + "Продублировать" +
+       "Отозвать" в nowrap не влезают в 390 (378px против 366 доступных). Разрешаем
+       перенос именно этому ряду - nowrap в ActionBar ставился ради пары
+       "Согласовать"/"Отказать" и её не трогаем - и снимаем минимальные ширины,
+       чтобы пилюли шли по содержимому. */
+    .detail-header-right :deep(.view-buttons) {
+        flex-wrap: wrap;
+        row-gap: 8px;
+    }
+
+    .supplement-btn,
+    .withdraw-btn {
+        min-width: auto;
+        padding: 6px 14px;
+        white-space: nowrap;
+    }
+
+    .duplicate-dropdown {
+        min-width: auto;
     }
 
     /* Кнопки пересылки и скачивания на мобилке - единый outline-стиль: белый круг,
