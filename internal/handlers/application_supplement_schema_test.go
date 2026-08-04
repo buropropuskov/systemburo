@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"regexp"
 	"testing"
 
 	"systemburo/internal/models"
@@ -58,10 +59,21 @@ func TestSupplementSchema_IndexesCreated(t *testing.T) {
 		assert.Equal(t, int64(1), count, "индекс %s должен существовать", idx)
 	}
 
+	// Список статусов в частичном индексе - литерал (предикат индекса не умеет иначе) и
+	// дублирует models.OpenSupplementStatuses. Сверяем оба СОСТАВА, а не вхождение
+	// отдельных строк: CREATE INDEX IF NOT EXISTS не переделает уже созданный индекс,
+	// поэтому расширение Go-списка без отдельной миграции обязано валить тест здесь, а не
+	// проявляться тем, что новый открытый статус молча перестанет быть уникальным.
 	var def string
 	require.NoError(t, db.Raw(`SELECT indexdef FROM pg_indexes WHERE indexname = 'uidx_app_supplement_open'`).Scan(&def).Error)
-	assert.Contains(t, def, "pending", "индекс открытых раундов должен покрывать pending")
-	assert.Contains(t, def, "approved", "индекс открытых раундов должен покрывать approved")
+
+	literal := regexp.MustCompile(`'([a-z_]+)'`)
+	inIndex := make([]string, 0, len(models.OpenSupplementStatuses))
+	for _, m := range literal.FindAllStringSubmatch(def, -1) {
+		inIndex = append(inIndex, m[1])
+	}
+	assert.ElementsMatch(t, models.OpenSupplementStatuses, inIndex,
+		"состав открытых статусов в индексе и в models.OpenSupplementStatuses должен совпадать, indexdef: %s", def)
 }
 
 // TestSupplementSchema_SingleOpenPerApplication: пока раунд ждёт голосов или принятия,
