@@ -1,4 +1,4 @@
-.PHONY: up down build test logs restart lint swagger bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage backup staging-backup deploy-backup backup-status staging-backup-status deploy-backup-status backup-verify staging-backup-verify deploy-backup-verify deploy-restore restore staging-restore
+.PHONY: up down build test logs restart lint swagger bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage archive staging-archive deploy-archive backup staging-backup deploy-backup backup-status staging-backup-status deploy-backup-status backup-verify staging-backup-verify deploy-backup-verify deploy-restore restore staging-restore
 
 up:
 	docker compose up -d
@@ -131,6 +131,18 @@ staging-storage:
 
 deploy-storage:
 	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec backend ./server storage $(ARGS)
+
+# Настройка файлового архива бланков: раскладка каталогов, пороги места, заморозка.
+# Без ARGS печатает справку. Примеры: make archive ARGS="show"
+#                                     make deploy-archive ARGS="set -freeze 60 -min-free 4G"
+archive:
+	docker compose exec go-backend go run ./cmd/server archive $(ARGS)
+
+staging-archive:
+	docker compose -f docker-compose.base.yml -f docker-compose.staging.yml exec backend ./server archive $(ARGS)
+
+deploy-archive:
+	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec backend ./server archive $(ARGS)
 
 # Резервное копирование. Снимает выгрузку базы и архив загруженных файлов,
 # Метка в имени файла: make deploy-backup ARGS=pered-obnovleniem
