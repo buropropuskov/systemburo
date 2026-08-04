@@ -190,14 +190,15 @@ type ApplicationService interface {
 	// CanViewAttachment сообщает, доступно ли вложение просматривающему с учётом пересыла.
 	CanViewAttachment(ctx context.Context, applicationID, attachmentID, viewerUserID int) (bool, error)
 
-	// GetAttachmentCars возвращает автомобили вложения.
-	GetAttachmentCars(ctx context.Context, attachmentID int) ([]CarWithPlaces, error)
+	// GetAttachmentCars возвращает автомобили вложения. scope - см. SupplementScope:
+	// охране идёт только допущенное на КПП, автору заявки - весь состав.
+	GetAttachmentCars(ctx context.Context, attachmentID int, scope SupplementScope) ([]CarWithPlaces, error)
 
-	// GetAttachmentEmployees возвращает сотрудников вложения.
-	GetAttachmentEmployees(ctx context.Context, attachmentID int) ([]EmployeeWithTables, error)
+	// GetAttachmentEmployees возвращает сотрудников вложения. scope - см. SupplementScope.
+	GetAttachmentEmployees(ctx context.Context, attachmentID int, scope SupplementScope) ([]EmployeeWithTables, error)
 
-	// GetAttachmentItems возвращает ТМЦ вложения.
-	GetAttachmentItems(ctx context.Context, attachmentID int) ([]ItemInfo, error)
+	// GetAttachmentItems возвращает ТМЦ вложения. scope - см. SupplementScope.
+	GetAttachmentItems(ctx context.Context, attachmentID int, scope SupplementScope) ([]ItemInfo, error)
 
 	// AssignElementTables назначает или снимает посты проезда/прохода у машин и
 	// сотрудников заявки; доступно принимающему, пока заявка не закрыта (#1393).
