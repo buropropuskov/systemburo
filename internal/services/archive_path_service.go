@@ -120,14 +120,22 @@ func (s *ArchivePathService) Values(ctx context.Context, applicationID, attachme
 	return values, nil
 }
 
+// archiveAttachmentNameExpr - наименование вложения так, как оно попадает в имя
+// файла: сперва справочник (администратор видит именно его), затем копия имени,
+// осевшая на строке заявки в момент подачи. Вынесено в константу, потому что по
+// этой же формуле считается разбивка сводки по типам вложений: две копии
+// разъехались бы при первой правке, и раздел показывал бы одни названия, а диск
+// хранил другие. Требует алиасов `at` (attachments) и `ua` (unique_attachments).
+const archiveAttachmentNameExpr = `COALESCE(NULLIF(ua.display_name, ''), NULLIF(ua.title, ''),
+	                NULLIF(at.attachment_display_name, ''), NULLIF(at.attachment_name, ''), '')`
+
 // attachmentValues читает тип и срок вложения. Тип берётся с шаблона вложения, а не
 // с самого вложения: в имени файла нужно то же название, которое администратор видит
 // в справочнике, а на строке заявки лежит его копия времени подачи.
 func (s *ArchivePathService) attachmentValues(ctx context.Context, applicationID, attachmentID int) (archiveAttachmentRow, error) {
-	const sql = `
+	sql := `
 		SELECT at.id AS attachment_id,
-		       COALESCE(NULLIF(ua.display_name, ''), NULLIF(ua.title, ''),
-		                NULLIF(at.attachment_display_name, ''), NULLIF(at.attachment_name, ''), '') AS attachment_type,
+		       ` + archiveAttachmentNameExpr + ` AS attachment_type,
 		       COALESCE(at.entry_date_from, '') AS entry_date_from,
 		       COALESCE(at.entry_date_to, '') AS entry_date_to
 		FROM attachments at
