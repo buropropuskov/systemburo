@@ -82,7 +82,7 @@ var hasOpenSupplementPredicate = `EXISTS (SELECT 1 FROM application_supplements 
 //
 // Открытым раунд бывает максимум один (партиальный уникальный индекс
 // uidx_app_supplement_open), поэтому берётся первый по убыванию номера, а не список.
-func (s *applicationService) loadOpenSupplement(ctx context.Context, applicationID int) (*OpenSupplementInfo, error) {
+func (s *applicationService) loadOpenSupplement(ctx context.Context, applicationID int, masks map[int]string) (*OpenSupplementInfo, error) {
 	type openRow struct {
 		ID              int
 		Number          int
@@ -125,7 +125,7 @@ func (s *applicationService) loadOpenSupplement(ctx context.Context, application
 	r := rows[0]
 	// Маска принимающего и логин вместо ФИО у не давших согласия на обработку ПД - тот же
 	// слой, что в остальной детали заявки.
-	name := maskName(loadNameMasks(ctx, s.db), &r.CreatedByUserID, r.CreatedByName)
+	name := maskName(masks, &r.CreatedByUserID, r.CreatedByName)
 	return &OpenSupplementInfo{
 		ID:              r.ID,
 		Number:          r.Number,

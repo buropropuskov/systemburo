@@ -1266,7 +1266,8 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 
 	// Повторный круг по дополнению (#1685). Статус и согласование заявки он не двигает -
 	// без этих двух полей карточка не отличит идущий раунд от его отсутствия.
-	openSupplement, err := s.loadOpenSupplement(ctx, applicationID)
+	masks := loadNameMasks(ctx, s.db)
+	openSupplement, err := s.loadOpenSupplement(ctx, applicationID, masks)
 	if err != nil {
 		return nil, err
 	}
@@ -1293,8 +1294,8 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 	}
 
 	// Маскировка ФИО в детали: заданная маска принимающего и логин вместо ФИО у тех,
-	// кто не давал согласия на обработку персональных данных.
-	masks := loadNameMasks(ctx, s.db)
+	// кто не давал согласия на обработку персональных данных. masks загружены выше -
+	// их же получает автор открытого раунда, второй раз справочник не тянем.
 	responsibleName = maskName(masks, row.ResponsibleUserID, responsibleName)
 	responsibleFullName := maskNamePtr(masks, row.ResponsibleUserID, row.ResponsibleFullName)
 	senderName = maskName(masks, &row.SenderUserID, senderName)
