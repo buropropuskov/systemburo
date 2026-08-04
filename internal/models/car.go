@@ -4,9 +4,13 @@ import "time"
 
 type Car struct {
 	ID                 int        `json:"id"`
-	AttachmentID       int        `gorm:"index" json:"attachment_id"`
-	Attachment         Attachment `gorm:"constraint:OnDelete:CASCADE" json:"-"`
-	CarNumber          *string    `gorm:"size:50;index" json:"car_number"`
+	AttachmentID int        `gorm:"index" json:"attachment_id"`
+	Attachment   Attachment `gorm:"constraint:OnDelete:CASCADE" json:"-"`
+	// SupplementID - каким дополнением заявки добавлена машина (#1685). NULL - пришла с
+	// исходной подачей. По нему принятие дополнения активирует только его строки, а
+	// интерфейс выделяет новые. Без FK: дополнения не удаляются, отмена у них - статус.
+	SupplementID       *int    `gorm:"index" json:"supplement_id"`
+	CarNumber          *string `gorm:"size:50;index" json:"car_number"`
 	CarBrand           *string    `gorm:"size:100" json:"car_brand"` // deprecated: оставлен на N релизов, см. mark_name
 	MarkID             *int       `gorm:"index" json:"mark_id,omitempty"`
 	MarkName           *string    `gorm:"size:100" json:"mark_name,omitempty"` // snapshot имени марки на момент присвоения

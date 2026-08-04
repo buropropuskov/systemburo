@@ -69,6 +69,10 @@ func AllModels() []interface{} {
 		&models.ApplicationApprover{},
 		&models.ApplicationViewer{},
 
+		// Supplements (depends on Application, then on each other)
+		&models.ApplicationSupplement{},
+		&models.ApplicationSupplementApproval{},
+
 		// Unique records
 		&models.UniqueAttachment{},
 		&models.UniqueCar{},
@@ -238,6 +242,9 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 	if err := createBlankExportPathIndex(db); err != nil {
+		return err
+	}
+	if err := createSupplementOpenIndex(db); err != nil {
 		return err
 	}
 	slog.Info("AutoMigrate completed")
@@ -739,6 +746,23 @@ func createBlankExportPathIndex(db *gorm.DB) error {
 		CREATE UNIQUE INDEX IF NOT EXISTS idx_blank_exports_path
 			ON blank_exports (rel_dir, file_name)
 			WHERE rel_dir <> ''
+	`).Error
+}
+
+// createSupplementOpenIndex держит на заявке не больше одного незакрытого дополнения
+// (#1685): пока раунд ждёт голосов или принятия, второй подать нельзя. Иначе состав
+// вложения менялся бы скачками, а согласующий получал бы по одной заявке два
+// неразличимых запроса на согласование. Терминальные статусы (merged, accepted, rejected,
+// refused, cancelled) под условие не попадают, поэтому раунды идут друг за другом сколько угодно.
+//
+// GORM-тегом это не выражается (WHERE в уникальном индексе он не умеет), поэтому
+// сырым SQL по образцу createBlankExportPathIndex. Список статусов дублирует
+// models.OpenSupplementStatuses - в частичном индексе предикат обязан быть литералом.
+func createSupplementOpenIndex(db *gorm.DB) error {
+	return db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS uidx_app_supplement_open
+			ON application_supplements (application_id)
+			WHERE status IN ('pending', 'approved')
 	`).Error
 }
 

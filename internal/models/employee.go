@@ -10,8 +10,12 @@ import (
 
 type Employee struct {
 	ID                   int          `json:"id"`
-	AttachmentID         *int         `gorm:"index" json:"attachment_id"`
-	Attachment           *Attachment  `gorm:"constraint:OnDelete:CASCADE" json:"-"`
+	AttachmentID *int        `gorm:"index" json:"attachment_id"`
+	Attachment   *Attachment `gorm:"constraint:OnDelete:CASCADE" json:"-"`
+	// SupplementID - каким дополнением заявки добавлен сотрудник (#1685). NULL - пришёл с
+	// исходной подачей. По нему принятие дополнения активирует только его строки, а
+	// интерфейс выделяет новых. Без FK: дополнения не удаляются, отмена у них - статус.
+	SupplementID         *int         `gorm:"index" json:"supplement_id"`
 	LastName             *string      `gorm:"size:100" json:"last_name"`
 	FirstName            *string      `gorm:"size:100" json:"first_name"`
 	MiddleName           *string      `gorm:"size:100" json:"middle_name"`

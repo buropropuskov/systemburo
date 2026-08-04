@@ -20,9 +20,13 @@ const (
 // флаг это снимок момента подачи (matched_value/reason фиксируются), он должен пережить
 // изменение/удаление записи ЧС и не каскадиться при удалении элемента.
 type ApplicationBlacklistFlag struct {
-	ID            int    `json:"id"`
-	ApplicationID int    `gorm:"index" json:"application_id"`
-	ElementType   string `gorm:"size:20;index:idx_app_blacklist_flag_element,priority:1" json:"element_type"`
+	ID            int `json:"id"`
+	ApplicationID int `gorm:"index" json:"application_id"`
+	// SupplementID - флаг относится к сущностям этого дополнения (#1685), NULL - к исходному
+	// составу. Без разделения старый неперекрытый флаг блокировал бы согласование нового
+	// раунда, а новый - показывал бы давно согласованный состав как заблокированный.
+	SupplementID *int   `gorm:"index" json:"supplement_id"`
+	ElementType  string `gorm:"size:20;index:idx_app_blacklist_flag_element,priority:1" json:"element_type"`
 	ElementID     int    `gorm:"index:idx_app_blacklist_flag_element,priority:2" json:"element_id"`
 	// ElementNormalized - нормализованная форма самого элемента (normalize.Plate / normalize.Name),
 	// не записи ЧС. Стабильный ключ "этой машины/человека" между сабмитами (ElementID меняется,
