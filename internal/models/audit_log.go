@@ -131,6 +131,11 @@ const (
 	// AuditActionWithdraw - заявка отозвана инициатором (WithdrawApplication).
 	// Действие терминальное и доступно только отправителю заявки.
 	AuditActionWithdraw = "withdraw"
+	// AuditActionSupplementCancelled - открытое дополнение заявки снято системой (#1685):
+	// заявка закрылась раньше, чем дополнение прошло свой круг. Пишется на заявку
+	// (entity_type=application), а не на дополнение - в истории заявки его и ищут;
+	// details.comment называет номер снятого раунда.
+	AuditActionSupplementCancelled = "supplement_cancelled"
 )
 
 // AuditLogItem - запись аудита для API с разрезолвленным именем актора

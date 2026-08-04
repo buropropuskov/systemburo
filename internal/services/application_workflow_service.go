@@ -500,6 +500,11 @@ func (s *applicationService) CheckExpiredAttachments(ctx context.Context) error 
 			tx.Rollback()
 			return err
 		}
+
+		if err := s.cancelOpenSupplements(ctx, tx, id); err != nil {
+			tx.Rollback()
+			return err
+		}
 		completedAppIDs = append(completedAppIDs, id)
 		slog.Info("Заявка завершена", "application_id", id)
 	}

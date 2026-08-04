@@ -152,13 +152,17 @@ func (h *ApplicationHandler) GetAvailableAttachmentDetail(c echo.Context) error 
 	}
 
 	detail := AvailableAttachmentDetail{Attachment: *header}
+	// Охрана видит только допущенное на КПП: исходный состав подачи и принятые
+	// дополнения (#1685). Непринятое дополнение сюда не попадает - в people-вложении
+	// едут серия и номер паспорта и номер патента людей, которых ещё не согласовали.
+	// SupplementScopeAll в этой ветке - утечка персональных данных, не расширение выдачи.
 	switch header.AttachmentType {
 	case "cars":
-		detail.Cars, err = h.service.GetAttachmentCars(ctx, id)
+		detail.Cars, err = h.service.GetAttachmentCars(ctx, id, services.SupplementScopeAdmitted)
 	case "people":
-		detail.Employees, err = h.service.GetAttachmentEmployees(ctx, id)
+		detail.Employees, err = h.service.GetAttachmentEmployees(ctx, id, services.SupplementScopeAdmitted)
 	case "items":
-		detail.Items, err = h.service.GetAttachmentItems(ctx, id)
+		detail.Items, err = h.service.GetAttachmentItems(ctx, id, services.SupplementScopeAdmitted)
 	default:
 		return echo.NewHTTPError(http.StatusInternalServerError, "Unknown attachment type")
 	}

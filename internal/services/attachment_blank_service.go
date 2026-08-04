@@ -516,10 +516,12 @@ func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, at
 	// Согласовавшие заявку - для подписи «СОГЛАСОВАНО» в бланке.
 	bctx.Approvers = s.loadApprovers(ctx, appID)
 
-	// Cars / employees / items - только для этого attachment.
-	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Order("id").Find(&bctx.Cars)
-	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Order("id").Find(&bctx.Employees)
-	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Order("id").Find(&bctx.Items)
+	// Cars / employees / items - только для этого attachment и только допущенное на КПП:
+	// бланк печатают и несут на пост как документ допуска, поэтому строка непринятого
+	// дополнения в нём означала бы проход мимо согласования (#1685).
+	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Where(admittedSupplementCond("cars")).Order("id").Find(&bctx.Cars)
+	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Where(admittedSupplementCond("employees")).Order("id").Find(&bctx.Employees)
+	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Where(admittedSupplementCond("items")).Order("id").Find(&bctx.Items)
 
 	// Привязки машин: места разгрузки и посты «Проезд» - по одному запросу на список,
 	// иначе на каждой строке бланка был бы отдельный поход в базу.
@@ -639,7 +641,9 @@ func applyWrapIfMultiline(f *excelize.File, sheet, ref, value string) {
 }
 
 // loadApplicationItems собирает ТМЦ всех вложений заявки типа items. Ручные вложения
-// (application_id NULL) сюда не попадают - они не принадлежат заявке.
+// (application_id NULL) сюда не попадают - они не принадлежат заявке. Позиции непринятого
+// дополнения тоже: перечень печатается второй секцией того же бланка допуска, что и
+// собственный список вложения (#1685).
 // Поля приёмника перечислены плоско: у анонимно встроенной структуры gorm молча не
 // маппит поля, и весь перечень пришёл бы пустым.
 func loadApplicationItems(ctx context.Context, db *gorm.DB, appID int) []ApplicationItemRow {
@@ -655,6 +659,7 @@ func loadApplicationItems(ctx context.Context, db *gorm.DB, appID int) []Applica
 		FROM items i
 		JOIN attachments a ON i.attachment_id = a.id
 		WHERE a.application_id = ? AND a.attachment_type = 'items'
+		  AND `+admittedSupplementCond("i")+`
 		ORDER BY a.id, i.id
 	`, appID).Scan(&rows).Error
 	if err != nil {
