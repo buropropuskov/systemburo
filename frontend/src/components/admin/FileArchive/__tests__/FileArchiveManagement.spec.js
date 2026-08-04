@@ -91,7 +91,7 @@ describe('FileArchiveManagement', () => {
     // а не форма в вебе (#1615). Показ действующих значений переехал на «Обзор».
     const tabs = w.findAll('.file-archive__tab')
     expect(tabs).toHaveLength(2)
-    expect(tabs.map(t => t.text())).toEqual(['Обзор', 'Ошибки'])
+    expect(tabs.map(t => t.text())).toEqual(['Обзор', 'Лента'])
 
     expect(w.findComponent(ArchiveStatusPanel).exists()).toBe(true)
     expect(w.findComponent(ArchiveDownloadPanel).exists()).toBe(true)

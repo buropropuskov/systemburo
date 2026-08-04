@@ -28,12 +28,12 @@ describe('ArchiveFailuresList', () => {
     vi.clearAllMocks()
   })
 
-  it('при монтировании грузит статус failed первой страницей', async () => {
+  it('при монтировании грузит ленту целиком, без фильтра по состоянию', async () => {
     api.listArchiveItems.mockResolvedValue({ items: [ROW()], meta: { total: 1, page: 1, per_page: 20 } })
     const w = mountList()
     await flushPromises()
 
-    expect(api.listArchiveItems).toHaveBeenCalledWith({ status: 'failed', page: 1, perPage: 20 })
+    expect(api.listArchiveItems).toHaveBeenCalledWith({ status: '', page: 1, perPage: 20 })
     expect(w.text()).toContain('№10')
     expect(w.text()).toContain('диск переполнен')
   })
@@ -46,7 +46,9 @@ describe('ArchiveFailuresList', () => {
     await w.findComponent(BaseDropdown).vm.$emit('update:modelValue', 'no_template')
     await flushPromises()
 
-    expect(api.listArchiveItems).toHaveBeenLastCalledWith({ status: 'no_template', page: 1, perPage: 20 })
+    // Рядом с запросом страницы идёт запрос счётчика очереди, поэтому проверяем
+    // факт вызова, а не последний по счёту.
+    expect(api.listArchiveItems).toHaveBeenCalledWith({ status: 'no_template', page: 1, perPage: 20 })
   })
 
   it('пустой список показывает сообщение об отсутствии строк', async () => {
@@ -54,7 +56,7 @@ describe('ArchiveFailuresList', () => {
     const w = mountList()
     await flushPromises()
 
-    expect(w.text()).toContain('Строк с этим статусом нет')
+    expect(w.text()).toContain('В архиве пока нет ни одной записи')
   })
 
   it('ошибку загрузки показывает и уведомляет', async () => {
@@ -76,7 +78,9 @@ describe('ArchiveFailuresList', () => {
     await flushPromises()
 
     expect(api.reexportApplication).toHaveBeenCalledWith(10)
-    expect(api.listArchiveItems).toHaveBeenCalledTimes(2) // начальная загрузка + перезагрузка после повтора
+    // Начальная загрузка и перезагрузка после повтора, каждая со своим запросом
+    // счётчика очереди.
+    expect(api.listArchiveItems).toHaveBeenCalledTimes(4)
     expect(useDeletionsStore().notify).toHaveBeenCalledWith(
       expect.objectContaining({ bold: '№10' }),
     )
@@ -114,6 +118,84 @@ describe('ArchiveFailuresList', () => {
     )
   })
 
+  it('показывает счётчик очереди отдельным запросом', async () => {
+    api.listArchiveItems.mockImplementation(({ status }) => Promise.resolve(
+      status === 'pending'
+        ? { items: [], meta: { total: 7, page: 1, per_page: 1 } }
+        : { items: [ROW()], meta: { total: 1, page: 1, per_page: 20 } },
+    ))
+    const w = mountList()
+    await flushPromises()
+
+    expect(api.listArchiveItems).toHaveBeenCalledWith({ status: 'pending', page: 1, perPage: 1 })
+    expect(w.find('[data-testid="afl-queue-count"]').text()).toContain('7')
+  })
+
+  it('пустая очередь счётчик не показывает - нулю тут делать нечего', async () => {
+    api.listArchiveItems.mockImplementation(({ status }) => Promise.resolve(
+      status === 'pending'
+        ? { items: [], meta: { total: 0, page: 1, per_page: 1 } }
+        : { items: [ROW()], meta: { total: 1, page: 1, per_page: 20 } },
+    ))
+    const w = mountList()
+    await flushPromises()
+
+    expect(w.find('[data-testid="afl-queue-count"]').exists()).toBe(false)
+  })
+
+  it('записанной строке повтор не предлагается, а ждущей - показан срок попытки', async () => {
+    api.listArchiveItems.mockResolvedValue({
+      items: [
+        ROW({ id: 1, status: 'ok', last_error: '', file_name: 'Автозаявка.xlsx' }),
+        ROW({ id: 2, application_id: 11, status: 'failed', next_attempt_at: '2026-07-31T10:05:00Z' }),
+      ],
+      meta: { total: 2, page: 1, per_page: 20 },
+    })
+    const w = mountList()
+    await flushPromises()
+
+    // У записанной строки вместо ошибки показано имя файла, кнопки повтора нет.
+    const rows = w.findAll('.afl__row:not(.afl__row--head)')
+    expect(rows[0].text()).toContain('Автозаявка.xlsx')
+    expect(rows[0].find('[data-testid="afl-retry-row"]').exists()).toBe(false)
+
+    // У сорвавшейся - кнопка и подпись, когда её возьмут снова: пауза до повтора
+    // доходит до пяти минут, и без подписи строка выглядит зависшей.
+    expect(rows[1].find('[data-testid="afl-retry-row"]').exists()).toBe(true)
+    expect(rows[1].text()).toContain('Повтор в')
+  })
+
+  it('состояние без файла и без ошибки объясняется словами, а не прочерком', async () => {
+    api.listArchiveItems.mockResolvedValue({
+      items: [ROW({ id: 1, status: 'no_template', last_error: '', file_name: '' })],
+      meta: { total: 1, page: 1, per_page: 20 },
+    })
+    const w = mountList()
+    await flushPromises()
+
+    expect(w.text()).toContain('Для этого типа вложения не настроен бланк')
+    expect(w.text()).not.toContain('—')
+  })
+
+  it('«Повторить все» не трогает записанные строки на странице', async () => {
+    api.listArchiveItems.mockResolvedValue({
+      items: [
+        ROW({ id: 1, application_id: 10, status: 'ok', last_error: '' }),
+        ROW({ id: 2, application_id: 11, status: 'failed' }),
+      ],
+      meta: { total: 2, page: 1, per_page: 20 },
+    })
+    api.reexportApplication.mockResolvedValue({ items: [] })
+    const w = mountList()
+    await flushPromises()
+
+    await w.find('[data-testid="afl-retry-all"]').trigger('click')
+    await flushPromises()
+
+    expect(api.reexportApplication).toHaveBeenCalledTimes(1)
+    expect(api.reexportApplication).toHaveBeenCalledWith(11)
+  })
+
   it('переход по страницам передаёт номер страницы в запрос', async () => {
     api.listArchiveItems.mockResolvedValue({
       items: Array.from({ length: 20 }, (_, i) => ROW({ id: i + 1, application_id: i + 1 })),
@@ -125,6 +207,6 @@ describe('ArchiveFailuresList', () => {
     await w.findComponent({ name: 'UiPager' }).vm.$emit('update:page', 2)
     await flushPromises()
 
-    expect(api.listArchiveItems).toHaveBeenLastCalledWith({ status: 'failed', page: 2, perPage: 20 })
+    expect(api.listArchiveItems).toHaveBeenCalledWith({ status: '', page: 2, perPage: 20 })
   })
 })
