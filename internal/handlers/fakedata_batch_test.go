@@ -1,4 +1,4 @@
-package fakedata_test
+package handlers_test
 
 import (
 	"context"
@@ -12,12 +12,12 @@ import (
 	"gorm.io/gorm"
 )
 
-const testDSN = "postgres://postgres:postgres@db:5432/auto_registry_test?sslmode=disable"
+const fakeDataTestDSN = "postgres://postgres:postgres@db:5432/auto_registry_test?sslmode=disable"
 
-// setupDB поднимает тестовое приложение и чистит базу: партии и отметка экземпляра
+// setupFakeDataDB поднимает тестовое приложение и чистит базу: партии и отметка экземпляра
 // живут без внешних ключей, поэтому состояние соседнего теста иначе приезжает в
 // следующий.
-func setupDB(t *testing.T) *gorm.DB {
+func setupFakeDataDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	_, db, cleanup := testutil.SetupTestApp(t)
 	t.Cleanup(cleanup)
@@ -28,10 +28,10 @@ func setupDB(t *testing.T) *gorm.DB {
 // Экземпляр без отметки наливку не пускает, и отказ объясняет, что делать. Это
 // единственное, что стоит между командой и рабочим сервером.
 func TestEnsureStand_RefusesUnmarked(t *testing.T) {
-	db := setupDB(t)
+	db := setupFakeDataDB(t)
 	ctx := context.Background()
 
-	err := fakedata.EnsureStand(ctx, db, testDSN, fakedata.GuardOptions{})
+	err := fakedata.EnsureStand(ctx, db, fakeDataTestDSN, fakedata.GuardOptions{})
 
 	require.ErrorIs(t, err, fakedata.ErrNotMarked)
 	require.Contains(t, err.Error(), "-mark-stand", "отказ обязан подсказать команду отметки")
@@ -39,7 +39,7 @@ func TestEnsureStand_RefusesUnmarked(t *testing.T) {
 }
 
 func TestEnsureStand_PassesAfterMark(t *testing.T) {
-	db := setupDB(t)
+	db := setupFakeDataDB(t)
 	ctx := context.Background()
 
 	require.NoError(t, fakedata.MarkStand(ctx, db))
@@ -47,13 +47,13 @@ func TestEnsureStand_PassesAfterMark(t *testing.T) {
 	kind, err := fakedata.InstanceKind(ctx, db)
 	require.NoError(t, err)
 	require.Equal(t, fakedata.InstanceKindStand, kind)
-	require.NoError(t, fakedata.EnsureStand(ctx, db, testDSN, fakedata.GuardOptions{}))
+	require.NoError(t, fakedata.EnsureStand(ctx, db, fakeDataTestDSN, fakedata.GuardOptions{}))
 }
 
 // Повторная отметка не должна падать на уникальном ключе: команду запускают руками, и
 // второй запуск - обычное дело.
 func TestMarkStand_Repeatable(t *testing.T) {
-	db := setupDB(t)
+	db := setupFakeDataDB(t)
 	ctx := context.Background()
 
 	require.NoError(t, fakedata.MarkStand(ctx, db))
@@ -68,38 +68,38 @@ func TestMarkStand_Repeatable(t *testing.T) {
 // Отметку правят и руками через панель управления базой. Отказ из-за регистра толкал
 // бы к обходу там, где он не нужен.
 func TestEnsureStand_MarkIsCaseInsensitive(t *testing.T) {
-	db := setupDB(t)
+	db := setupFakeDataDB(t)
 	ctx := context.Background()
 
 	require.NoError(t, db.Create(&models.SystemSetting{
 		Key: fakedata.InstanceKindKey, Value: "Staging", Type: "string",
 	}).Error)
 
-	require.NoError(t, fakedata.EnsureStand(ctx, db, testDSN, fakedata.GuardOptions{}))
+	require.NoError(t, fakedata.EnsureStand(ctx, db, fakeDataTestDSN, fakedata.GuardOptions{}))
 }
 
 // Обход отметки требует ввести имя базы. Одного флага мало: его дописывают по
 // привычке, а имя базы приходится посмотреть.
 func TestEnsureStand_ForceRequiresMatchingDBName(t *testing.T) {
-	db := setupDB(t)
+	db := setupFakeDataDB(t)
 	ctx := context.Background()
 
-	err := fakedata.EnsureStand(ctx, db, testDSN, fakedata.GuardOptions{ForceUnmarked: true})
+	err := fakedata.EnsureStand(ctx, db, fakeDataTestDSN, fakedata.GuardOptions{ForceUnmarked: true})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "-confirm-db=auto_registry_test")
 
-	err = fakedata.EnsureStand(ctx, db, testDSN, fakedata.GuardOptions{
+	err = fakedata.EnsureStand(ctx, db, fakeDataTestDSN, fakedata.GuardOptions{
 		ForceUnmarked: true, ConfirmDB: "auto_registry",
 	})
 	require.Error(t, err, "чужое имя базы обход не открывает")
 
-	require.NoError(t, fakedata.EnsureStand(ctx, db, testDSN, fakedata.GuardOptions{
+	require.NoError(t, fakedata.EnsureStand(ctx, db, fakeDataTestDSN, fakedata.GuardOptions{
 		ForceUnmarked: true, ConfirmDB: "auto_registry_test",
 	}))
 }
 
 func TestBatch_RegistersCreatedRecords(t *testing.T) {
-	db := setupDB(t)
+	db := setupFakeDataDB(t)
 	ctx := context.Background()
 
 	batch, err := fakedata.OpenBatch(ctx, db, "test-batch", 42, "small")
@@ -128,7 +128,7 @@ func TestBatch_RegistersCreatedRecords(t *testing.T) {
 // Ноль в реестре превратил бы удаление партии в удаление всего, что попало под
 // entity_id = 0, поэтому такой идентификатор до базы не доходит.
 func TestBatch_RejectsNonPositiveID(t *testing.T) {
-	db := setupDB(t)
+	db := setupFakeDataDB(t)
 	ctx := context.Background()
 
 	batch, err := fakedata.OpenBatch(ctx, db, "test-batch-zero", 1, "small")
@@ -143,7 +143,7 @@ func TestBatch_RejectsNonPositiveID(t *testing.T) {
 }
 
 func TestListBatches_FreshFirst(t *testing.T) {
-	db := setupDB(t)
+	db := setupFakeDataDB(t)
 	ctx := context.Background()
 
 	_, err := fakedata.OpenBatch(ctx, db, "batch-one", 1, "small")
@@ -160,7 +160,7 @@ func TestListBatches_FreshFirst(t *testing.T) {
 // Пустой набор шагов не должен ронять запуск: каркас проверяется отдельно от
 // наполнения, которое подключается следующими срезами.
 func TestRun_ClosesBatchWithoutSteps(t *testing.T) {
-	db := setupDB(t)
+	db := setupFakeDataDB(t)
 	ctx := context.Background()
 
 	profile, err := fakedata.ProfileByName("small")
