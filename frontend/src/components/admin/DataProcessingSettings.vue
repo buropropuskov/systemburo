@@ -1062,7 +1062,6 @@ export default {
   background: var(--surface);
   border-radius: 50%;
   transition: transform 0.2s ease;
-  box-shadow: 0 1px 3px var(--shadow-drop);
 }
 
 .switch--on .switch__thumb {

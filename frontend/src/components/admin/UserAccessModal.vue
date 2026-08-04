@@ -967,7 +967,6 @@ export default {
   height: var(--d);
   border-radius: 50%;
   background: var(--surface);
-  box-shadow: 0 1px 3px var(--shadow-drop);
   transition: left 0.2s ease;
 }
 
