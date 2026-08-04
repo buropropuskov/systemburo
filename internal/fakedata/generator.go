@@ -3,6 +3,7 @@ package fakedata
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"gorm.io/gorm"
 )
@@ -57,14 +58,20 @@ type Env struct {
 // Пустой результат возможен только там, где учётные записи ещё не заведены (тесты до
 // сида): падать из-за истории не стоит, поэтому остаётся ноль.
 func resolveActor(ctx context.Context, db *gorm.DB) int {
-	var id int
-	db.WithContext(ctx).Raw(
-		`SELECT id FROM users WHERE is_super_admin = true AND is_active = true ORDER BY id LIMIT 1`,
-	).Scan(&id)
+	lookup := func(query string) int {
+		var id int
+		if err := db.WithContext(ctx).Raw(query).Scan(&id).Error; err != nil {
+			// Пустой результат ошибкой не считается, поэтому сюда попадает только
+			// настоящий сбой запроса. Он всё равно уронит первый же шаг наливки, но
+			// молча превратиться в «автора не нашли» не должен.
+			slog.Error("наливка: не удалось определить автора истории", "error", err)
+			return 0
+		}
+		return id
+	}
+	id := lookup(`SELECT id FROM users WHERE is_super_admin = true AND is_active = true ORDER BY id LIMIT 1`)
 	if id == 0 {
-		db.WithContext(ctx).Raw(
-			`SELECT id FROM users WHERE is_admin = true AND is_active = true ORDER BY id LIMIT 1`,
-		).Scan(&id)
+		id = lookup(`SELECT id FROM users WHERE is_admin = true AND is_active = true ORDER BY id LIMIT 1`)
 	}
 	return id
 }

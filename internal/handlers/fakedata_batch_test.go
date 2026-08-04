@@ -163,12 +163,9 @@ func TestListBatches_FreshFirst(t *testing.T) {
 // lookupsStep/postsStep (internal/fakedata/lookups.go, posts.go): на чистой базе
 // шаг добавляет их все, ни одно имя ещё не занято.
 //
-// "mark" из сводки намеренно не проверяется: таблица marks - единственная из
-// задействованных здесь, что стоит в testutil.CleanupExempt ("справочник,
-// наполняется Seed") и не чистится между прогонами тестового бинаря, поэтому
-// созданное этим шагом на предыдущем прогоне могло остаться в базе, и
-// "создано СЕЙЧАС" перестаёт быть 20 уже на второй запуск go test. Присутствие
-// марок в справочнике проверяется отдельно в TestFakeDictionaries_RunFillsRealDirectories.
+// Марки проверяются наравне с остальными: раньше таблица стояла в CleanupExempt и
+// копила строки между прогонами, поэтому «создано сейчас» переставало быть двадцатью
+// уже со второго запуска. Исключение снято тем же срезом, чистка марки теперь уносит.
 func TestRun_CreatesDictionariesAndClosesBatch(t *testing.T) {
 	db := setupFakeDataDB(t)
 	ctx := context.Background()
@@ -188,6 +185,7 @@ func TestRun_CreatesDictionariesAndClosesBatch(t *testing.T) {
 	require.Equal(t, profile.Organizations, counts[models.AuditEntityOrganization])
 	require.Equal(t, profile.Companies, counts[models.AuditEntityCompany])
 	require.Equal(t, 10, counts[models.AuditEntityUnloadPlace])
+	require.Equal(t, 20, counts[models.AuditEntityMark])
 	require.Equal(t, 10, counts[models.AuditEntityCitizenship])
 	require.Equal(t, 3, counts[models.AuditEntityLicensePlateFormat])
 	require.Equal(t, 4, counts[models.AuditEntitySystemTable])
