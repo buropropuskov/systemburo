@@ -31,6 +31,14 @@ from docx.oxml.ns import qn
 from docx.shared import Cm, Mm, Pt, RGBColor
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEBUG = bool(os.environ.get("DOCS_DEBUG"))
+
+
+def dbg(msg):
+    if DEBUG:
+        print(f"    [dbg] {msg}", flush=True)
+
+
 SYSTEM = "СИСТЕМА ЭЛЕКТРОННОЙ ПОДАЧИ ЗАЯВОК «БЮРО ПРОПУСКОВ»"
 # Лист регистрации изменений принадлежит документу, а не комплекту: заказчик
 # читает каждый документ отдельно, и записи о восстановлении базы в критериях
@@ -610,6 +618,39 @@ def cell_probe(text):
     return probe
 
 
+def table_probes(headers, rows):
+    """Пробы строк таблицы: по одной на ячейку, в порядке колонок.
+
+    Строка видна на странице, если нашлась хотя бы одна её проба. Одной первой
+    ячейки мало: длинный идентификатор вроде UPLOAD_ALLOWED_IMAGE_TYPES не
+    помещается в ширину колонки и в текстовом слое разорван переносом, отчего
+    строка выглядит непоместившейся.
+
+    Пробу, встречающуюся в таблице дважды, выбрасываем: типовые формулировки
+    соседних колонок («Как часто», «Разрешённые типы») совпадают у разных строк,
+    и строка засчитывалась найденной по тексту предыдущей. Совпадающие с шапкой
+    - туда же: шапка повторяется на каждой странице.
+    """
+    raw = [[cell_probe(c) for c in row] for row in rows]
+    times = {}
+    for row in raw:
+        for probe in row:
+            if probe:
+                times[probe] = times.get(probe, 0) + 1
+    head = {cell_probe(h) for h in headers}
+    return [[p for p in row if p and times[p] == 1 and p not in head] for row in raw]
+
+
+def find_probe(haystack, probe, cursor):
+    """Позиция за концом пробы или -1. Проба ищется целым словом.
+
+    Без границ слова короткое значение вроде «5m» находится внутри «15m»
+    соседней строки, и таблица выглядит уместившейся.
+    """
+    match = re.compile(rf"(?<!\w){re.escape(probe)}(?!\w)").search(haystack, cursor)
+    return match.end() if match else -1
+
+
 def split_rows(rows, breaks):
     """Разрезать строки таблицы в местах, где страница её разрывает."""
     if not breaks:
@@ -621,6 +662,14 @@ def split_rows(rows, breaks):
             start = point
     chunks.append(rows[start:])
     return [c for c in chunks if c]
+
+
+def rows_in_table(tables_meta, number):
+    """Сколько строк данных в таблице: точка разреза за этой границей ничего не режет."""
+    for meta in tables_meta:
+        if meta["number"] == number:
+            return len(meta["row_probes"])
+    return 0
 
 
 def find_first_unsplit_break(cfg, tables_meta, handled):
@@ -644,65 +693,98 @@ def find_first_unsplit_break(cfg, tables_meta, handled):
         number = meta["number"]
         if number in handled:
             continue
-        cells = [cell_probe(c) for c in meta["first_cells"]]
-        if len(cells) < 3:
+        probes = meta["row_probes"]
+        if len(probes) < 2:
+            dbg(f"таблица {number}: строк {len(probes)}, резать нечего")
             continue
 
         marker = f"Таблица {number} "
         start = next((i for i, pg in enumerate(flat) if marker in pg), None)
         if start is None:
+            dbg(f"таблица {number}: подпись не найдена в PDF")
             continue
 
-        pos, cursor, page = 0, flat[start].find(marker), start
-        while page < len(flat) and pos < len(cells):
-            matched = 0
-            while pos < len(cells):
-                cell = cells[pos]
-                if not cell:
-                    pos += 1
-                    matched += 1
-                    continue
-                at = flat[page].find(cell, cursor)
-                if at < 0:
+        page = flat[start]
+        cursor = page.find(marker) + len(marker)
+        # Шапка повторяет слова первой колонки: у таблицы разделения журналов
+        # и заголовок, и обе строки начинаются со слова «Журнал». Поиск строк
+        # данных начинаем за шапкой, иначе её слова засчитываются за строки и
+        # разорванная таблица выглядит уместившейся.
+        for probe in meta["head_probes"]:
+            at = find_probe(page, probe, cursor)
+            if at >= 0:
+                cursor = at
+
+        pos = 0
+        while pos < len(probes):
+            hit = -1
+            for probe in probes[pos]:
+                hit = find_probe(page, probe, cursor)
+                if hit >= 0:
                     break
-                cursor, pos, matched = at + len(cell), pos + 1, matched + 1
-            if pos >= len(cells):
+            if hit < 0 and probes[pos]:
                 break
-            if matched == 0:
-                break
+            cursor = hit if hit >= 0 else cursor
+            pos += 1
+
+        if pos == 0:
+            dbg(f"таблица {number}: на стр. {start + 1} не нашлась ни одна строка")
+            continue
+        if pos < len(probes):
             # таблица не поместилась: строка pos начинается уже на следующей странице
+            dbg(f"таблица {number}: разрыв на стр. {start + 1}, строк {len(probes)}, "
+                f"точка {pos} (первая ненайденная строка: {probes[pos]!r})")
             return number, [pos]
     return None, None
 
 
 
-def continuation_at_page_top(cfg, number):
-    """Проверить, что подпись «Продолжение таблицы» стоит в начале страницы.
+def split_verdict(cfg, number):
+    """Оценить разрез таблицы по готовому PDF и подсказать, куда двигать точку.
 
-    После разреза подпись занимает место, и остаток таблицы иногда перестаёт
-    выходить за лист. Разрыв исчезает, а подпись повисает в середине страницы -
-    такое разбиение надо откатить.
+    Подпись продолжения сама занимает строку, поэтому попадание с первого раза
+    не гарантировано, а оценка по текстовому слою и вовсе приблизительная.
+    Зато по вёрстке однозначно видно, в какую сторону ошиблись:
+
+    - подпись в начале страницы - разрез там, где страница и рвёт таблицу;
+    - подпись висит на странице, где таблица началась, - остаток уместился
+      целиком, разрез слишком ранний, резать надо ниже;
+    - подпись на следующей странице, но не сверху - первая часть сама не
+      поместилась, резать надо выше.
     """
     pages = subprocess.run(
         ["pdftotext", "-layout", doc_path(cfg, ".pdf"), "-"],
         capture_output=True, text=True, check=True,
     ).stdout.split("\f")
-    needle = f"Продолжение таблицы {number}"
-    for page in pages:
+
+    head = next((i for i, pg in enumerate(pages) if f"Таблица {number} " in pg), None)
+    for pageno, page in enumerate(pages):
         lines = [ln for ln in page.splitlines() if ln.strip()]
         for idx, line in enumerate(lines):
-            if needle in line:
-                return idx == 0
-    return False
+            if f"Продолжение таблицы {number}" in line:
+                dbg(f"подпись продолжения {number}: стр. {pageno + 1}, строка {idx}")
+                if idx == 0:
+                    return "ok"
+                return "early" if head is not None and pageno <= head else "late"
+    dbg(f"подпись продолжения {number}: в PDF не найдена")
+    return "none"
 
 
-def add_table(doc, headers, rows):
+def add_table(doc, headers, rows, widths=None):
+    """Таблица целиком либо её часть.
+
+    Части разрезанной таблицы получают общую сетку колонок: ширины считаются
+    по всем строкам сразу и передаются снаружи. Иначе продолжение вымеряется
+    по своему куску и выглядит другой таблицей - у разделения журналов первая
+    колонка на одной странице вдвое уже, чем на следующей.
+    """
     table = doc.add_table(rows=1, cols=len(headers))
     table.style = "Table Grid"
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
     table.autofit = False
     fixed_layout(table)
-    widths = column_widths(headers, rows)
+    if widths is None:
+        widths = column_widths(headers, rows)
 
     head_cells = table.rows[0].cells
     for i, title in enumerate(headers):
@@ -1046,7 +1128,9 @@ def render(doc, blocks, toc_titles, splitmap=None, tables_meta=None):
                 number = f"{prefix}.{counters['table']}"
                 if tables_meta is not None:
                     tables_meta.append({"number": number,
-                                        "first_cells": [r[0] if r else "" for r in rows]})
+                                        "head_probes": [cell_probe(h) for h in headers],
+                                        "row_probes": table_probes(headers, rows)})
+                widths = column_widths(headers, rows)
                 for idx, chunk in enumerate(split_rows(rows, splitmap.get(number))):
                     if idx == 0:
                         add_caption(doc, f"Таблица {number} \u2014 {cap[1]}")
@@ -1054,7 +1138,7 @@ def render(doc, blocks, toc_titles, splitmap=None, tables_meta=None):
                         # Принудительный разрыв не нужен: часть выше закончилась на
                         # границе листа, а подпись держится за своей таблицей.
                         add_caption(doc, f"Продолжение таблицы {number}")
-                    add_table(doc, headers, chunk)
+                    add_table(doc, headers, chunk, widths)
             else:
                 add_table(doc, headers, rows)
 
@@ -1209,15 +1293,27 @@ def report_silent_breaks(cfg):
         capture_output=True, text=True, check=True,
     ).stdout.split("\f")
 
-    silent = []
+    silent, hanging = [], []
     for number, page in enumerate(pages, 1):
         rows = [ln for ln in page.splitlines() if ln.strip()]
-        if not rows or "Продолжение таблицы" in rows[0]:
+        if not rows:
+            continue
+        # Подпись продолжения, оказавшаяся не в начале страницы: разрыв, ради
+        # которого таблицу разрезали, после пересборки исчез, и подпись висит
+        # посреди сплошной таблицы. Подбор проверяет это на своей вёрстке, но
+        # финальная сборка добавляет в оглавление номера страниц и способна
+        # сдвинуть строку - поэтому проверяем ещё раз по готовому документу.
+        for idx, line in enumerate(rows):
+            if "Продолжение таблицы" in line and idx != 0:
+                hanging.append(number)
+        if "Продолжение таблицы" in rows[0]:
             continue
         if re.sub(r"\s+", " ", rows[0]).strip() in heads:
             silent.append(number)
     if silent:
         print(f"  ВНИМАНИЕ: таблица разорвана без подписи продолжения, страницы: {silent}")
+    if hanging:
+        print(f"  ВНИМАНИЕ: подпись продолжения не в начале страницы: {hanging}")
     return silent
 
 
@@ -1238,29 +1334,30 @@ def build_one(key):
             break
         handled.add(number)
 
-        # Подпись продолжения сама занимает строку, поэтому остаток иногда
-        # перестаёт выходить за лист и подпись повисает в середине страницы.
-        # В таком случае режем на строку раньше.
-        # Диапазон сдвигов подобран по факту: на трёх шагах таблица подсистем
-        # и таблица диагностики не находили места и оставались разорванными
-        # без подписи - а это первое, что видно заказчику при листании.
-        # Диапазон подобран по факту: на трёх шагах назад таблица подсистем и
-        # таблица диагностики места не находили и оставались разорванными без
-        # подписи. Шаг вперёд нужен потому, что место разрыва определяется по
-        # первой строке, не найденной в текстовом слое, и на строке, которая
-        # уместилась частично, оценка сдвигается на единицу.
-        placed = False
-        for shift in (0, 1, 2, 3, 4, 5, -1, -2):
-            point = breaks[0] - shift
-            if point < 1:
+        # Оценка по текстовому слою приблизительная, поэтому от неё идём шагами
+        # в сторону, которую подсказывает вёрстка: подпись повисла на странице
+        # начала таблицы - режем ниже, уехала вглубь следующей - выше. Так
+        # таблица параметров загрузки доходит от седьмой строки до девятой, где
+        # страница её и рвёт; фиксированный набор сдвигов туда не дотягивался.
+        placed, point, tried = False, breaks[0], set()
+        for _ in range(10):
+            if point < 1 or point >= rows_in_table(tables_meta, number) or point in tried:
+                dbg(f"таблица {number}: точка {point} вне поиска, остановка")
                 break
+            tried.add(point)
             splitmap[number] = [point]
             entries, tables_meta = build(cfg, None, splitmap)
             to_pdf(cfg)
-            if continuation_at_page_top(cfg, number):
+            verdict = split_verdict(cfg, number)
+            dbg(f"таблица {number}: точка {point} -> {verdict}")
+            if verdict == "ok":
                 placed = True
                 break
+            if verdict == "none":
+                break
+            point += 1 if verdict == "early" else -1
         if not placed:
+            dbg(f"таблица {number}: место не найдено, откат")
             splitmap.pop(number, None)
             entries, tables_meta = build(cfg, None, splitmap)
             to_pdf(cfg)
