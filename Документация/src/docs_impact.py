@@ -55,7 +55,9 @@ MAP = [
      "10.1 разделение журналов, 13.6 сроки хранения"),
     (r"^internal/router/router\.go$", "Техописание",
      "11 программный интерфейс: число методов и публичные роуты"),
-    (r"^internal/services/permission_(catalog|keys|service|resolver)",
+    (r"^internal/services/permission_(catalog|keys|service|resolver)|"
+     r"^frontend/src/components/admin/(EffectivePermissionsTree|UserAccess"
+     r"|GroupPermissionsModal|RolePermissionsModal)",
      "Техописание", "4.2 разграничение доступа, приложение А категорий прав"),
     (r"^internal/middleware/(jwt|permission|ratelimit)", "Оба",
      "13 защита информации; 6.3 ограничения"),
@@ -65,8 +67,16 @@ MAP = [
      "13.5 защита персональных данных при хранении"),
     (r"^internal/models/pd|^internal/middleware/pd_|^internal/services/pd_|"
      r"^internal/handlers/(consent|settings_pd)|_mask|^internal/services/"
-     r"(approver_mask|audit_reader)|^frontend/src/utils/formatName\.js$", "Оба",
+     r"(approver_mask|audit_reader)|^frontend/src/utils/formatName\.js$|"
+     r"^frontend/src/components/admin/DataProcessingSettings\.vue$|"
+     r"^frontend/src/views/DataProcessingView\.vue$", "Оба",
      "13.6 и 13.7 персональные данные; критерии раздела 5"),
+    # Жизненный цикл заявки описан словами интерфейса: состав формы подачи и
+    # действия в списке заявок и есть то, что читает заказчик в разделе 5.1.
+    (r"^frontend/src/components/CreateApplication/|"
+     r"^frontend/src/views/ApplicationsCenter\.vue$|"
+     r"^internal/services/application_service\.go$", "Техописание",
+     "5.1 порядок обработки заявки, 5.3 прозрачность обработки"),
     (r"^cmd/server/main\.go$", "Техописание",
      "9.3 периодические задачи"),
     (r"^internal/services/(application_helpers|.*blacklist.*)\.go$",
@@ -94,7 +104,8 @@ MAP = [
      r"^internal/diskspace/|^internal/handlers/(file_archive|blank_archive)|"
      r"^internal/models/blank_export|^frontend/src/api/fileArchive\.js$|"
      r"^frontend/src/components/admin/TemplatePatternField\.vue$|"
-     r"^frontend/src/(components/admin/FileArchive/|views/admin/FileArchive)",
+     r"^frontend/src/(components/admin/FileArchive/|views/admin/FileArchive)|"
+     r"^cmd/server/archive\.go$",
      "Оба", "6.1 файловый архив бланков; руководство 9.6 и приложение Б"),
     (r"^internal/(services|handlers)/maintenance|"
      r"^frontend/src/views/(Maintenance\.vue|admin/SystemControl\.vue)$",
@@ -103,7 +114,8 @@ MAP = [
      "4.1 скорость обработки заявок"),
     (r"^\.github/workflows/", "Техописание",
      "13.9 контроль защищённости, 14.3 конвейер"),
-    (r"_test\.go$|\.spec\.(js|ts)$", "Техописание", TESTS_WHERE),
+    (r"_test\.go$|\.spec\.(js|ts)$|^internal/testutil/", "Техописание",
+     TESTS_WHERE),
 ]
 
 
@@ -121,10 +133,56 @@ def changed(rev_range):
 
 
 COMMENT_LINE = re.compile(r"^\s*(//|#|\*|/\*|\*/|<!--)")
+STYLE_OPEN = re.compile(r"<style\b", re.I)
+STYLE_CLOSE = re.compile(r"</style\s*>", re.I)
+HUNK = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 
 
 def _norm(line):
     return re.sub(r"\s+", "", line)
+
+
+def _revisions(rev_range):
+    """Пара ревизий «до» и «после»; None означает рабочее дерево."""
+    if not rev_range:
+        return "HEAD", None
+    if ".." in rev_range:
+        old, new = rev_range.split("..", 1)
+        return old or "HEAD", new or None
+    return rev_range, None
+
+
+def _file_lines(path, rev):
+    if rev is None:
+        full = os.path.join(REPO, path)
+        if not os.path.exists(full):
+            return []
+        with open(full, encoding="utf-8", errors="replace") as fh:
+            return fh.read().splitlines()
+    out = subprocess.run("git show %s:%s" % (rev, path), shell=True, cwd=REPO,
+                         capture_output=True, text=True)
+    return out.stdout.splitlines()
+
+
+def _style_lines(path, rev, cache):
+    """Номера строк файла, попадающие внутрь блока <style>.
+
+    Правка оформления компонента - цвет, тень, отступ - вида системы не
+    описывает ни один раздел документа, но файл она трогает так же, как
+    переписанное условие в скрипте. Снятая тень у восьми тумблеров поднимала
+    ту же тревогу, что новая проверка прав, и обесценивала её.
+    """
+    key = (path, rev)
+    if key in cache:
+        return cache[key]
+    inside, marks = False, set()
+    for num, line in enumerate(_file_lines(path, rev), 1):
+        opened = not inside and STYLE_OPEN.search(line)
+        if opened or inside:
+            marks.add(num)
+            inside = not STYLE_CLOSE.search(line)
+    cache[key] = marks
+    return marks
 
 
 def weights(rev_range):
@@ -138,10 +196,13 @@ def weights(rev_range):
     Строка считается значащей, если после снятия пробелов она не нашлась по
     другую сторону правки. Это отсеивает выравнивание gofmt, переупорядочение
     импортов и переносы, оставляя изменение смысла. Комментарии тоже не в счёт:
-    поведение системы от них не меняется.
+    поведение системы от них не меняется. Стилевые блоки компонентов - тоже,
+    см. _style_lines.
     """
     diff = sh("git diff --unified=0 %s" % rev_range) if rev_range \
         else sh("git diff --unified=0")
+    old_rev, new_rev = _revisions(rev_range)
+    styles, old_no, new_no = {}, 0, 0
     result, path, added, removed = {}, None, [], []
 
     def flush():
@@ -157,6 +218,10 @@ def weights(rev_range):
                 back.remove(line)
         result[path] = len(rest) + len(back)
 
+    def styled(rev, number):
+        """Строка лежит в стилевом блоке компонента."""
+        return path.endswith(".vue") and number in _style_lines(path, rev, styles)
+
     for line in diff.splitlines():
         if line.startswith("+++ b/"):
             flush()
@@ -164,14 +229,22 @@ def weights(rev_range):
         elif line.startswith("diff --git "):
             flush()
             path, added, removed = None, [], []
+        elif line.startswith("@@"):
+            found = HUNK.match(line)
+            if found:
+                old_no, new_no = int(found.group(1)), int(found.group(2))
         elif path and line.startswith("+") and not line.startswith("+++"):
             body = line[1:]
-            if body.strip() and not COMMENT_LINE.match(body):
+            if body.strip() and not COMMENT_LINE.match(body) \
+                    and not styled(new_rev, new_no):
                 added.append(_norm(body))
+            new_no += 1
         elif path and line.startswith("-") and not line.startswith("---"):
             body = line[1:]
-            if body.strip() and not COMMENT_LINE.match(body):
+            if body.strip() and not COMMENT_LINE.match(body) \
+                    and not styled(old_rev, old_no):
                 removed.append(_norm(body))
+            old_no += 1
     flush()
     return result
 
