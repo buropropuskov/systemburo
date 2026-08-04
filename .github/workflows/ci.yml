@@ -156,12 +156,20 @@ jobs:
       - name: Set lowercase repo for ghcr.io
         id: repo
         run: echo "lower=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+      # Backend, как и frontend ниже, уезжает в ghcr.io и деплоится через pull.
+      # Раньше готовый образ здесь выбрасывался, а VPS собирал его заново пять
+      # минут: go install swag, go mod download и компиляция двух бинарей на
+      # слабом CPU. Публикуем после проверки на non-root, а не одним шагом с
+      # ней - в реестр не должен попасть образ, который её не прошёл.
       - name: Build backend image (cached)
         uses: docker/build-push-action@v7
         with:
           context: .
           target: production
-          tags: systemburo:ci
+          tags: |
+            systemburo:ci
+            ghcr.io/${{ steps.repo.outputs.lower }}-backend:${{ github.sha }}
+            ghcr.io/${{ steps.repo.outputs.lower }}-backend:dev
           load: true
           cache-from: type=gha,scope=systemburo-backend
           cache-to: type=gha,mode=max,scope=systemburo-backend
@@ -184,6 +192,12 @@ jobs:
           cache-to: type=gha,mode=max,scope=systemburo-frontend
       - name: Verify backend image runs as non-root
         run: docker run --rm systemburo:ci id
+
+      - name: Push backend image to ghcr.io
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        run: |
+          docker push ghcr.io/${{ steps.repo.outputs.lower }}-backend:${{ github.sha }}
+          docker push ghcr.io/${{ steps.repo.outputs.lower }}-backend:dev
 
   deploy-staging:
     name: Deploy to Staging
@@ -231,13 +245,23 @@ jobs:
             test -f .env || bash scripts/init-env.sh staging ${{ secrets.STAGING_DOMAIN }}
             REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
             export FRONTEND_IMAGE="ghcr.io/${REPO_LOWER}-frontend:${{ github.sha }}"
+            export BACKEND_IMAGE="ghcr.io/${REPO_LOWER}-backend:${{ github.sha }}"
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            echo "Pulling pre-built frontend: $FRONTEND_IMAGE"
+            echo "Pulling pre-built images: $FRONTEND_IMAGE, $BACKEND_IMAGE"
             docker pull "$FRONTEND_IMAGE"
+            docker pull "$BACKEND_IMAGE"
             docker logout ghcr.io
-            # Backend и nginx собираем на VPS - они маленькие и быстро.
-            docker compose -f docker-compose.base.yml -f docker-compose.staging.yml build --pull backend nginx
+            # На VPS собирается только nginx: alpine плюс apk add openssl, секунды.
+            docker compose -f docker-compose.base.yml -f docker-compose.staging.yml build --pull nginx
             docker compose -f docker-compose.base.yml -f docker-compose.staging.yml up -d --force-recreate
+            # Образы из реестра тегированы по SHA и копятся по одному на деплой.
+            # Оставляем текущий и метку dev, остальные сносим: на диске VPS тесно.
+            # Уборка best-effort - занятый образ не удалится, и это не повод падать.
+            for image_repo in "${REPO_LOWER}-frontend" "${REPO_LOWER}-backend"; do
+              docker images "ghcr.io/${image_repo}" --format '{{.Repository}}:{{.Tag}}' \
+                | grep -v ':dev$' | grep -v ':${{ github.sha }}$' \
+                | xargs -r docker rmi 2>/dev/null || true
+            done
             docker system prune -f --filter 'until=24h' 2>/dev/null || true
             docker builder prune -f --filter 'until=168h' 2>/dev/null || true
             # Прошлые теги фронта помечены SHA коммита, то есть не dangling, и
