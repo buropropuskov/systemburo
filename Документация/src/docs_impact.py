@@ -75,7 +75,9 @@ MAP = [
      r"^internal/handlers/(consent|settings_pd)|_mask|^internal/services/"
      r"(approver_mask|audit_reader)|^frontend/src/utils/formatName\.js$|"
      r"^frontend/src/components/admin/DataProcessingSettings\.vue$|"
-     r"^frontend/src/views/DataProcessingView\.vue$", "Оба",
+     r"^frontend/src/views/DataProcessingView\.vue$|"
+     r"^internal/services/consent_service|^frontend/src/components/"
+     r"PDConsentOverlay\.vue$|^frontend/src/(stores|api)/pdConsent\.js$", "Оба",
      "13.6 и 13.7 персональные данные; критерии раздела 5"),
     # Жизненный цикл заявки описан словами интерфейса: состав формы подачи и
     # действия в списке заявок и есть то, что читает заказчик в разделе 5.1.
@@ -87,15 +89,16 @@ MAP = [
      "9.3 периодические задачи"),
     (r"^internal/services/(application_helpers|.*blacklist.*)\.go$",
      "Техописание", "5.2 чёрные списки, 7 поиск"),
-    (r"^internal/normalize/|^frontend/src/utils/searchVariants\.js$",
-     "Техописание", "7 поиск и приведение сведений к единому виду"),
+    (r"^internal/normalize/|^frontend/src/utils/searchVariants\.js$|"
+     r"^internal/services/directory_moderation", "Техописание",
+     "7.2 приведение сведений к единому виду, модерация справочников"),
     # Сквозной поиск: состав разделов выдачи и то, какие совпадения он распознаёт,
     # описаны в 7.1. Провайдер добавляют одним файлом, и без этой строки новый раздел
     # выдачи не двигал бы ни одного числа и прошёл бы мимо сверки.
     (r"^internal/services/search_|^internal/handlers/search\.go$|"
-     r"^frontend/src/components/GlobalSearchPalette\.vue$|"
+     r"^frontend/src/components/GlobalSearch(Palette|Panel)\.vue$|"
      r"^frontend/src/composables/useGlobalSearch\.js$|"
-     r"^frontend/src/constants/(searchTargets|navSections)\.js$",
+     r"^frontend/src/constants/(searchTargets|navSections|searchActions)\.js$",
      "Техописание", "7.1 сквозной поиск: состав разделов и распознаваемые совпадения"),
     (r"^internal/services/report_|^internal/services/processing_",
      "Критерии", "4 показатели: метрики и разрезы"),
@@ -110,6 +113,10 @@ MAP = [
     (r"^frontend/src/components/(GuideManagement|news/UserGuideModal|"
      r"DocumentsManagement)", "Техописание",
      "8.2 встроенное руководство, 6 разделы администрирования"),
+    # Подписи состояний общие для заявок и для выгрузки бланков: словарь один,
+    # а описаны они в двух разных разделах.
+    (r"^frontend/src/components/ui/StatusBadge\.vue$", "Техописание",
+     "5.1 состояния заявки, 6.1 состояния выгрузки бланка"),
     # Файловый архив описан с двух сторон: что он делает - в техописании,
     # как его готовят и обслуживают на сервере - в руководстве.
     (r"^internal/services/(blank_export|archive_path|settings_archive)|"
@@ -118,16 +125,33 @@ MAP = [
      r"^frontend/src/components/admin/TemplatePatternField\.vue$|"
      r"^frontend/src/(components/admin/FileArchive/|views/admin/FileArchive)|"
      r"^cmd/server/archive\.go$|^internal/services/application_attachment_service"
-     r"|^frontend/src/components/(AttachmentsManagement\.vue|ui/StatusBadge\.vue)$",
+     r"|^frontend/src/components/AttachmentsManagement\.vue$",
      "Оба", "6.1 файловый архив бланков; руководство 9.6 и приложение Б"),
+    # Уборка данных и сроки хранения: обещание о том, что и сколько живёт в базе,
+    # плюс две консольные команды из приложения В.
+    (r"^cmd/server/(cleanup|storage)\.go$|^internal/database/retention\.go$|"
+     r"^internal/services/(retention|trash_service)", "Оба",
+     "10.2 сохранность сведений; руководство 9 уборка, сроки хранения, "
+     "приложение В"),
+    (r"^internal/services/login_guard", "Оба",
+     "13.1 проверка подлинности: пороги и сроки блокировки; приложение Б"),
+    (r"^internal/blankpath/", "Оба",
+     "6.1 раскладка файлов архива; руководство 9.6 шаблоны и плейсхолдеры"),
     (r"^internal/(services|handlers)/maintenance|"
      r"^frontend/src/views/(Maintenance\.vue|admin/SystemControl\.vue)$",
      "Руководство", "9.5 режим технических работ"),
-    (r"^internal/services/(analytics|statistics)", "Критерии",
-     "4.1 скорость обработки заявок"),
+    (r"^internal/services/settings_service|^frontend/src/views/AdminSettings",
+     "Руководство", "9 настройки системы, задаваемые из интерфейса"),
+    (r"^frontend/src/components/UserControl\.vue$|"
+     r"^frontend/src/views/admin/UserControlView\.vue$", "Техописание",
+     "4.1 типы учётных записей, 6 раздел администрирования «Учётные записи»"),
+    (r"^internal/services/(analytics|statistics)|"
+     r"^frontend/src/utils/presence\.js$", "Критерии",
+     "4.1 скорость обработки заявок, показатели посещаемости"),
     (r"^\.github/workflows/", "Техописание",
      "13.9 контроль защищённости, 14.3 конвейер"),
-    (r"_test\.go$|\.spec\.(js|ts)$|^internal/testutil/", "Техописание",
+    (r"_test\.go$|\.spec\.(js|ts|cjs|mjs)$|^internal/testutil/|^frontend/e2e/",
+     "Техописание",
      TESTS_WHERE),
 ]
 
