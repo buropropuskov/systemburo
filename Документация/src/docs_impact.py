@@ -53,8 +53,14 @@ MAP = [
      "10 организация данных, 10.6 изменения схемы; число таблиц и индексов"),
     (r"^internal/database/partitions\.go$", "Техописание",
      "10.1 разделение журналов, 13.6 сроки хранения"),
-    (r"^internal/router/router\.go$", "Техописание",
-     "11 программный интерфейс: число методов и публичные роуты"),
+    (r"^internal/router/router\.go$|^docs/(docs\.go|swagger\.(json|yaml))$",
+     "Техописание", "11 программный интерфейс: число методов и публичные роуты"),
+    # Журнал запросов - обещание из раздела о защите информации, а пишет его
+    # одно middleware. Пока файл был вне карты, затирание билетов в журнале
+    # прошло мимо сверки и в документ не попало.
+    (r"^internal/middleware/request_logger|^internal/(handlers|services)/"
+     r"request_log", "Техописание",
+     "13.8 журналы и прослеживаемость: состав записи и затираемые параметры"),
     (r"^internal/services/permission_(catalog|keys|service|resolver)|"
      r"^frontend/src/components/admin/(EffectivePermissionsTree|UserAccess"
      r"|GroupPermissionsModal|RolePermissionsModal)",
@@ -96,8 +102,14 @@ MAP = [
     (r"^internal/realtime/|^internal/handlers/events\.go$", "Техописание",
      "12 обновление без перезагрузки"),
     (r"^internal/upload/", "Техописание", "13.4 загрузка файлов"),
-    (r"^internal/services/attachment_blank|^internal/services/attachment_template",
-     "Техописание", "6 вложения и бланки: формирование печатных форм"),
+    (r"^internal/services/attachment_blank|^internal/services/attachment_template"
+     r"|^internal/handlers/attachment_blank|^internal/download/|"
+     r"^frontend/src/components/applications/DownloadBlanksModal\.vue$|"
+     r"^frontend/src/api/attachment-templates\.js$", "Техописание",
+     "6 вложения и бланки: формирование и выдача печатных форм"),
+    (r"^frontend/src/components/(GuideManagement|news/UserGuideModal|"
+     r"DocumentsManagement)", "Техописание",
+     "8.2 встроенное руководство, 6 разделы администрирования"),
     # Файловый архив описан с двух сторон: что он делает - в техописании,
     # как его готовят и обслуживают на сервере - в руководстве.
     (r"^internal/services/(blank_export|archive_path|settings_archive)|"
@@ -105,7 +117,8 @@ MAP = [
      r"^internal/models/blank_export|^frontend/src/api/fileArchive\.js$|"
      r"^frontend/src/components/admin/TemplatePatternField\.vue$|"
      r"^frontend/src/(components/admin/FileArchive/|views/admin/FileArchive)|"
-     r"^cmd/server/archive\.go$",
+     r"^cmd/server/archive\.go$|^internal/services/application_attachment_service"
+     r"|^frontend/src/components/(AttachmentsManagement\.vue|ui/StatusBadge\.vue)$",
      "Оба", "6.1 файловый архив бланков; руководство 9.6 и приложение Б"),
     (r"^internal/(services|handlers)/maintenance|"
      r"^frontend/src/views/(Maintenance\.vue|admin/SystemControl\.vue)$",
