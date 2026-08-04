@@ -144,12 +144,10 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Дополнение без добавленных строк")
 	}
 
-	if err := s.checkNotArchived(ctx, applicationID); err != nil {
-		return nil, err
-	}
-	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
-		return nil, err
-	}
+	// Отдельных checkNotArchived/checkNotWithdrawn тут нет намеренно: статус заявки гейтит
+	// один allow-list supplementAllowedStatuses под тем же локом, что и остальные проверки,
+	// а архивные и отозванные в него не входят. Две параллельные модели «куда дополнять
+	// нельзя» разъехались бы при первом же новом статусе.
 
 	var app struct {
 		Status            *string
