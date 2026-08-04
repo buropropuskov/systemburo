@@ -16,9 +16,11 @@ func TestDatabaseName(t *testing.T) {
 	}{
 		{"url", "postgres://postgres:postgres@db:5432/auto_registry?sslmode=disable", "auto_registry"},
 		{"url без параметров", "postgresql://user@host/systemburo", "systemburo"},
-		{"набор ключей", "host=db user=postgres dbname=auto_registry sslmode=disable", "auto_registry"},
 		{"пусто", "", ""},
-		{"без имени базы", "host=db user=postgres", ""},
+		// Набор ключей со значениями до команды не доходит: config.Validate не пускает
+		// систему стартовать с таким DATABASE_URL. Пустое имя тут безопаснее выдумки --
+		// подтверждение с ним не совпадёт, и обход отметки не откроется.
+		{"набор ключей", "host=db user=postgres dbname=auto_registry", ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

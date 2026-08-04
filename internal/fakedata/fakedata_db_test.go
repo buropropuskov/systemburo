@@ -65,6 +65,19 @@ func TestMarkStand_Repeatable(t *testing.T) {
 	require.Equal(t, int64(1), count)
 }
 
+// Отметку правят и руками через панель управления базой. Отказ из-за регистра толкал
+// бы к обходу там, где он не нужен.
+func TestEnsureStand_MarkIsCaseInsensitive(t *testing.T) {
+	db := setupDB(t)
+	ctx := context.Background()
+
+	require.NoError(t, db.Create(&models.SystemSetting{
+		Key: fakedata.InstanceKindKey, Value: "Staging", Type: "string",
+	}).Error)
+
+	require.NoError(t, fakedata.EnsureStand(ctx, db, testDSN, fakedata.GuardOptions{}))
+}
+
 // Обход отметки требует ввести имя базы. Одного флага мало: его дописывают по
 // привычке, а имя базы приходится посмотреть.
 func TestEnsureStand_ForceRequiresMatchingDBName(t *testing.T) {

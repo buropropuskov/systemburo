@@ -72,7 +72,9 @@ func EnsureStand(ctx context.Context, db *gorm.DB, dsn string, opts GuardOptions
 	if err != nil {
 		return err
 	}
-	if kind == InstanceKindStand {
+	// Регистр не важен: значение правят и руками через панель управления базой, а отказ
+	// из-за «Staging» с большой буквы толкает к -force-unmarked там, где обход не нужен.
+	if strings.EqualFold(kind, InstanceKindStand) {
 		return nil
 	}
 
@@ -90,31 +92,26 @@ func EnsureStand(ctx context.Context, db *gorm.DB, dsn string, opts GuardOptions
 		return fmt.Errorf("обход отметки требует подтверждения имени базы: -confirm-db=%s", dbName)
 	}
 	if confirm != dbName {
-		return fmt.Errorf("имя базы не совпадает: указано %q, подключение к %q", confirm, dbName)
+		return fmt.Errorf("имя базы не совпадает: указано %q, подключение к %q.\n"+
+			"Повторите с -confirm-db=%s, если наливать надо именно сюда.", confirm, dbName, dbName)
 	}
 	return nil
 }
 
-// DatabaseName достаёт имя базы из строки подключения. Понимает оба формата, которые
-// принимает EnsureUTCTimezone: URL и набор ключей со значениями. Пустая строка --
-// разобрать не удалось; вызывающий печатает её в подсказке, поэтому паниковать не на чем.
+// DatabaseName достаёт имя базы из строки подключения. Разбирается только формат URL:
+// config.Validate не пускает систему стартовать с DATABASE_URL другого вида, поэтому
+// набор ключей со значениями сюда не доходит.
+//
+// Пустая строка -- разобрать не удалось. Вызывающий печатает её в подсказке, а сравнение
+// с подтверждением пустое имя не пропускает, поэтому падать здесь не на чем.
 func DatabaseName(dsn string) string {
 	dsn = strings.TrimSpace(dsn)
-	if dsn == "" {
+	if !strings.HasPrefix(dsn, "postgres://") && !strings.HasPrefix(dsn, "postgresql://") {
 		return ""
 	}
-	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
-		u, err := url.Parse(dsn)
-		if err != nil {
-			return ""
-		}
-		return strings.TrimPrefix(u.Path, "/")
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return ""
 	}
-	for _, field := range strings.Fields(dsn) {
-		key, value, found := strings.Cut(field, "=")
-		if found && strings.EqualFold(key, "dbname") {
-			return value
-		}
-	}
-	return ""
+	return strings.TrimPrefix(u.Path, "/")
 }
