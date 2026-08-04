@@ -1,5 +1,17 @@
 services:
+  # Backend, как и frontend, приезжает на стенд собранным в GitHub Actions.
+  # Сборка на VPS занимала около пяти минут (go install swag, go mod download,
+  # компиляция двух бинарей) и держала на диске базовый golang-образ со всеми
+  # промежуточными слоями. На runner'е тот же образ собирается за полторы минуты
+  # с общим кэшем, а серверу остаётся docker pull готового alpine.
+  # BACKEND_IMAGE подставляет deploy script с SHA коммита.
+  #
+  # build из базового файла намеренно НЕ сбрасывается, в отличие от frontend:
+  # руководство по развёртыванию поднимает стенд командой make staging-build, и
+  # она должна собирать серверную часть из исходников без доступа к реестру.
+  # Деплой из CI сборку не запускает - он pull'ит образ по тегу и поднимает.
   backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/buropropuskov/systemburo-backend:dev}
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-debug}
 
