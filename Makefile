@@ -1,4 +1,4 @@
-.PHONY: up down build test logs restart lint swagger bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage archive staging-archive deploy-archive backup staging-backup deploy-backup backup-status staging-backup-status deploy-backup-status backup-verify staging-backup-verify deploy-backup-verify deploy-restore restore staging-restore
+.PHONY: up down build test logs restart lint swagger bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage archive staging-archive deploy-archive fake staging-fake backup staging-backup deploy-backup backup-status staging-backup-status deploy-backup-status backup-verify staging-backup-verify deploy-backup-verify deploy-restore restore staging-restore
 
 up:
 	docker compose up -d
@@ -143,6 +143,17 @@ staging-archive:
 
 deploy-archive:
 	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec backend ./server archive $(ARGS)
+
+# Наполнение проверочного стенда вымышленными данными. Без ARGS показывает план и
+# ничего не создаёт. Справка: make fake ARGS=-help
+# Примеры: make staging-fake ARGS="-mark-stand"
+#          make staging-fake ARGS="-profile=large -apply"
+# Цели для рабочего сервера намеренно нет: вымышленные данные туда не наливают.
+fake:
+	docker compose exec go-backend go run ./cmd/server fake $(ARGS)
+
+staging-fake:
+	docker compose -f docker-compose.base.yml -f docker-compose.staging.yml exec backend ./server fake $(ARGS)
 
 # Резервное копирование. Снимает выгрузку базы и архив загруженных файлов,
 # Метка в имени файла: make deploy-backup ARGS=pered-obnovleniem
