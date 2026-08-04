@@ -931,6 +931,9 @@ var baseRoleGrants = []string{
 	"page.news",
 	"page.personal_cabinet",
 	"header.create_application",
+	// Дополнение заявки (#1685) - продолжение подачи: кто подаёт, тот и добавляет людей
+	// или машины в уже поданное. Владение заявкой проверяет сервис.
+	"action.supplement.application",
 	"entity.employees.read",
 	"entity.employees.write",
 	"entity.employees.delete",
