@@ -157,22 +157,74 @@ func TestListBatches_FreshFirst(t *testing.T) {
 	require.Equal(t, "batch-two", batches[0].Label)
 }
 
-// Пустой набор шагов не должен ронять запуск: каркас проверяется отдельно от
-// наполнения, которое подключается следующими срезами.
-func TestRun_ClosesBatchWithoutSteps(t *testing.T) {
+// Run прогоняет реальные шаги наполнения (#1682, том 2: организации, компании,
+// справочники, таблицы постов) на чистой базе и закрывает партию сводкой по
+// количеству созданного. Числа 10/10/3/4 -- размеры кандидатских списков
+// lookupsStep/postsStep (internal/fakedata/lookups.go, posts.go): на чистой базе
+// шаг добавляет их все, ни одно имя ещё не занято.
+//
+// "mark" из сводки намеренно не проверяется: таблица marks - единственная из
+// задействованных здесь, что стоит в testutil.CleanupExempt ("справочник,
+// наполняется Seed") и не чистится между прогонами тестового бинаря, поэтому
+// созданное этим шагом на предыдущем прогоне могло остаться в базе, и
+// "создано СЕЙЧАС" перестаёт быть 20 уже на второй запуск go test. Присутствие
+// марок в справочнике проверяется отдельно в TestFakeDictionaries_RunFillsRealDirectories.
+func TestRun_CreatesDictionariesAndClosesBatch(t *testing.T) {
 	db := setupFakeDataDB(t)
 	ctx := context.Background()
 
 	profile, err := fakedata.ProfileByName("small")
 	require.NoError(t, err)
-	batch, err := fakedata.OpenBatch(ctx, db, "test-empty-run", 7, profile.Name)
+	batch, err := fakedata.OpenBatch(ctx, db, "test-dictionaries-run", 7, profile.Name)
 	require.NoError(t, err)
 
 	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{
 		DB: db, Batch: batch, Profile: profile, Seed: 7,
 	}))
 
-	stored, err := fakedata.FindBatch(ctx, db, "test-empty-run")
+	stored, err := fakedata.FindBatch(ctx, db, "test-dictionaries-run")
 	require.NoError(t, err)
-	require.Equal(t, "{}", stored.Summary)
+	counts := fakedata.SummaryCounts(*stored)
+	require.Equal(t, profile.Organizations, counts[models.AuditEntityOrganization])
+	require.Equal(t, profile.Companies, counts[models.AuditEntityCompany])
+	require.Equal(t, 10, counts[models.AuditEntityUnloadPlace])
+	require.Equal(t, 10, counts[models.AuditEntityCitizenship])
+	require.Equal(t, 3, counts[models.AuditEntityLicensePlateFormat])
+	require.Equal(t, 4, counts[models.AuditEntitySystemTable])
+}
+
+// Повторный прогон на той же (уже наполненной) базе не должен падать на
+// уникальных индексах организаций/компаний/марок и не должен дублировать
+// справочники с фиксированными именами (места разгрузки, гражданства, форматы
+// номеров, таблицы постов) -- второй раз шаг видит их уже существующими и
+// пропускает. Организации/компании new -- имена случайные, поэтому второй
+// прогон добавляет ещё profile.Organizations/Companies штук, а не 0.
+func TestRun_RepeatedRunDoesNotFailOnUniqueIndexes(t *testing.T) {
+	db := setupFakeDataDB(t)
+	ctx := context.Background()
+
+	profile, err := fakedata.ProfileByName("small")
+	require.NoError(t, err)
+
+	firstBatch, err := fakedata.OpenBatch(ctx, db, "test-repeat-run-1", 101, profile.Name)
+	require.NoError(t, err)
+	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: firstBatch, Profile: profile, Seed: 101}))
+
+	secondBatch, err := fakedata.OpenBatch(ctx, db, "test-repeat-run-2", 202, profile.Name)
+	require.NoError(t, err)
+	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: secondBatch, Profile: profile, Seed: 202}))
+
+	stored, err := fakedata.FindBatch(ctx, db, "test-repeat-run-2")
+	require.NoError(t, err)
+	counts := fakedata.SummaryCounts(*stored)
+	// Второй прогон снова заводит свою порцию организаций/компаний (новые
+	// случайные имена), но справочники с фиксированными кандидатами уже заняты
+	// первым прогоном -- второй раз добавлять нечего.
+	require.Equal(t, profile.Organizations, counts[models.AuditEntityOrganization])
+	require.Equal(t, profile.Companies, counts[models.AuditEntityCompany])
+	require.Zero(t, counts[models.AuditEntityUnloadPlace])
+	require.Zero(t, counts[models.AuditEntityMark])
+	require.Zero(t, counts[models.AuditEntityCitizenship])
+	require.Zero(t, counts[models.AuditEntityLicensePlateFormat])
+	require.Zero(t, counts[models.AuditEntitySystemTable])
 }
