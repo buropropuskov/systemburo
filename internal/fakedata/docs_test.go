@@ -12,23 +12,28 @@ import (
 
 var passportRe = regexp.MustCompile(`^(\d{2})(\d{2}) (\d{6})$`)
 
-// Главная гарантия паспорта вымышленного сотрудника: старшие две цифры серии
-// обязаны быть из PassportReservedPrefixes, которых не существует ни у одного
-// субъекта РФ. От этого зависит, что документ не совпадёт с настоящим.
-func TestPassport_SeriesPrefixAlwaysReserved(t *testing.T) {
-	reserved := map[int]bool{}
-	for _, p := range fakedata.PassportReservedPrefixes {
-		reserved[p] = true
-	}
+// Главная гарантия паспорта вымышленного сотрудника: вторая пара цифр серии -- год
+// выпуска бланка, и он обязан быть из тех, что ещё не наступили. Бланков будущих лет
+// не существует, поэтому такая серия не может принадлежать настоящему паспорту.
+//
+// Тест сторожит и срок годности приёма: когда реальные бланки дойдут до 2030 года,
+// нижнюю границу диапазона придётся поднять, и падение этой проверки об этом скажет.
+func TestPassport_SeriesYearPartIsUnissued(t *testing.T) {
+	const firstUnissuedYear = 30
 
 	s := fakedata.NewStream(1, "docs")
 	for i := 0; i < 300; i++ {
 		doc := fakedata.Passport(s)
 		m := passportRe.FindStringSubmatch(doc)
 		require.Len(t, m, 4, "паспорт %q не соответствует формату 'серия номер'", doc)
-		prefix, err := strconv.Atoi(m[1])
+		year, err := strconv.Atoi(m[2])
 		require.NoError(t, err)
-		require.True(t, reserved[prefix], "префикс серии %d должен быть из зарезервированного диапазона", prefix)
+		require.GreaterOrEqual(t, year, firstUnissuedYear,
+			"год бланка %d уже наступил, серия могла бы совпасть с настоящим паспортом", year)
+
+		region, err := strconv.Atoi(m[1])
+		require.NoError(t, err)
+		require.Contains(t, fakedata.PassportRegionCodes, region, "код региона должен быть правдоподобным")
 	}
 }
 
@@ -42,20 +47,17 @@ func TestPassport_RepeatableBySeed(t *testing.T) {
 
 var patentRe = regexp.MustCompile(`^(\d{2}) \d{2} \d{7}$`)
 
-func TestPatent_SeriesPrefixAlwaysReserved(t *testing.T) {
-	reserved := map[int]bool{}
-	for _, p := range fakedata.PassportReservedPrefixes {
-		reserved[p] = true
-	}
-
+// У патента проверяемого признака «не выдавался» нет, поэтому сторожим только форму:
+// номер должен выглядеть как номер, а не как случайная строка в поле анкеты.
+func TestPatent_MatchesExpectedShape(t *testing.T) {
 	s := fakedata.NewStream(2, "docs")
 	for i := 0; i < 300; i++ {
 		doc := fakedata.Patent(s)
 		m := patentRe.FindStringSubmatch(doc)
 		require.Len(t, m, 2, "патент %q не соответствует ожидаемому формату", doc)
-		prefix, err := strconv.Atoi(m[1])
+		region, err := strconv.Atoi(m[1])
 		require.NoError(t, err)
-		require.True(t, reserved[prefix])
+		require.Contains(t, fakedata.PassportRegionCodes, region)
 	}
 }
 
