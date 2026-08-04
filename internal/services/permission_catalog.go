@@ -132,6 +132,7 @@ func staticCatalog() []CatalogNode {
 		{Key: KeyCenterArchive, DisplayName: "Раздел «Архив»", Category: CatCenter},
 		{Key: KeyCenterApplicationHistory, DisplayName: "Кнопка «История заявки»", Category: CatCenter},
 		{Key: KeyActionForwardApplication, DisplayName: "Переслать заявку", Category: CatCenter},
+		{Key: KeyActionSupplementApplication, DisplayName: "Дополнить заявку", Category: CatCenter},
 		{Key: KeyActionApproveApplication, DisplayName: "Согласовать заявку", Category: CatCenter},
 		{Key: KeyActionExportApplications, DisplayName: "Экспорт заявок", Category: CatCenter},
 		{Key: KeyApplicationOrganizationOverride, DisplayName: "Подача заявки от другой организации", Category: CatCenter},
