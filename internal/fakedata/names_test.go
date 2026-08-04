@@ -47,6 +47,11 @@ func TestFullNameForSex_LastNameMatchesSex(t *testing.T) {
 	for name := range maleLastNames {
 		require.False(t, hasSuffix(name, "а"), "мужская фамилия не должна оканчиваться на -а: %q", name)
 	}
+	// Проверка симметрична намеренно: односторонняя пропустила бы фамилию-исключение,
+	// у которой женская форма совпала с мужской, а словарь ещё будет расти.
+	for name := range femaleLastNames {
+		require.True(t, hasSuffix(name, "а"), "женская фамилия должна оканчиваться на -а: %q", name)
+	}
 }
 
 func TestRandomFullName_BothSexesAppear(t *testing.T) {

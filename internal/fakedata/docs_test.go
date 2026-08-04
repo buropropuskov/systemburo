@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strconv"
 	"testing"
+	"time"
 
 	"systemburo/internal/fakedata"
 
@@ -16,10 +17,12 @@ var passportRe = regexp.MustCompile(`^(\d{2})(\d{2}) (\d{6})$`)
 // выпуска бланка, и он обязан быть из тех, что ещё не наступили. Бланков будущих лет
 // не существует, поэтому такая серия не может принадлежать настоящему паспорту.
 //
-// Тест сторожит и срок годности приёма: когда реальные бланки дойдут до 2030 года,
-// нижнюю границу диапазона придётся поднять, и падение этой проверки об этом скажет.
+// Год сравнивается с календарём, а не с копией той же константы из docs.go: сторож,
+// сверяющий значение с самим собой, истинен по построению и промолчал бы ровно тогда,
+// когда приём перестанет работать. Проверка обязана краснеть от течения времени -- в
+// год, когда настоящие бланки дойдут до нижней границы диапазона.
 func TestPassport_SeriesYearPartIsUnissued(t *testing.T) {
-	const firstUnissuedYear = 30
+	currentTwoDigitYear := time.Now().Year() % 100
 
 	s := fakedata.NewStream(1, "docs")
 	for i := 0; i < 300; i++ {
@@ -28,8 +31,9 @@ func TestPassport_SeriesYearPartIsUnissued(t *testing.T) {
 		require.Len(t, m, 4, "паспорт %q не соответствует формату 'серия номер'", doc)
 		year, err := strconv.Atoi(m[2])
 		require.NoError(t, err)
-		require.GreaterOrEqual(t, year, firstUnissuedYear,
-			"год бланка %d уже наступил, серия могла бы совпасть с настоящим паспортом", year)
+		require.Greater(t, year, currentTwoDigitYear,
+			"год бланка %d уже наступил: серия может совпасть с настоящим паспортом, "+
+				"подними passportYearFrom в docs.go", year)
 
 		region, err := strconv.Atoi(m[1])
 		require.NoError(t, err)
