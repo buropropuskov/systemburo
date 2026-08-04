@@ -191,20 +191,102 @@ func (q *BlankExportQuotaService) computeStats(ctx context.Context) (*models.Arc
 		return nil, err
 	}
 
+	composition, lastWrittenAt, err := q.composition(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	attachmentTypes, err := q.attachmentTypeBreakdown(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	disk, err := q.diskUsage(ctx, agg.Bytes)
 	if err != nil {
 		return nil, err
 	}
 
 	return &models.ArchiveStats{
-		UsedBytes:   agg.Bytes,
-		FreeBytes:   disk.FreeBytes,
-		FileCount:   agg.Files,
-		Periods:     periods,
-		Statuses:    statuses,
-		Disk:        disk,
-		GeneratedAt: time.Now(),
+		UsedBytes:       agg.Bytes,
+		FreeBytes:       disk.FreeBytes,
+		FileCount:       agg.Files,
+		Periods:         periods,
+		Statuses:        statuses,
+		Composition:     composition,
+		AttachmentTypes: attachmentTypes,
+		LastWrittenAt:   lastWrittenAt,
+		Disk:            disk,
+		GeneratedAt:     time.Now(),
 	}, nil
+}
+
+// composition разбирает file_count на заявки, бланки и служебные слепки и заодно
+// отдаёт момент последней записи. Одним запросом, а не тремя: все четыре числа
+// снимаются с одной выборки status=ok, и разъехаться между собой они не должны -
+// «бланков больше, чем файлов» администратор прочитает как поломку.
+//
+// Слепок заявки живёт в реестре строкой с attachment_id = 0 (у него нет вложения),
+// бланк - строкой с настоящим идентификатором вложения.
+func (q *BlankExportQuotaService) composition(ctx context.Context) (models.ArchiveStatsComposition, *time.Time, error) {
+	var row struct {
+		Applications  int64
+		Blanks        int64
+		Snapshots     int64
+		LastWrittenAt *time.Time
+	}
+	err := q.db.WithContext(ctx).Model(&models.BlankExport{}).
+		Where("status = ?", models.BlankExportOK).
+		Select("COUNT(DISTINCT application_id) AS applications, " +
+			"COUNT(*) FILTER (WHERE attachment_id > 0) AS blanks, " +
+			"COUNT(*) FILTER (WHERE attachment_id = 0) AS snapshots, " +
+			"MAX(generated_at) AS last_written_at").
+		Scan(&row).Error
+	if err != nil {
+		return models.ArchiveStatsComposition{}, nil, fmt.Errorf("failed to aggregate archive composition: %w", err)
+	}
+
+	return models.ArchiveStatsComposition{
+		Applications: row.Applications,
+		Blanks:       row.Blanks,
+		Snapshots:    row.Snapshots,
+	}, row.LastWrittenAt, nil
+}
+
+// attachmentTypeBreakdown считает, сколько занимают бланки каждого типа вложения.
+//
+// LEFT JOIN, а не INNER: реестр намеренно живёт без внешних ключей, и строка
+// переживает удалённое вложение. INNER молча выбросил бы такие файлы, и сумма по
+// типам не сошлась бы с числом бланков - расхождение без объяснения хуже строки
+// «Вложение удалено», по которой видно, что файлы на диске есть, а сущности нет.
+func (q *BlankExportQuotaService) attachmentTypeBreakdown(ctx context.Context) ([]models.ArchiveStatsAttachmentType, error) {
+	sql := `
+		SELECT CASE
+		           WHEN at.id IS NULL THEN 'Вложение удалено'
+		           ELSE COALESCE(NULLIF(` + archiveAttachmentNameExpr + `, ''), 'Без наименования')
+		       END AS name,
+		       COALESCE(SUM(be.size_bytes), 0) AS bytes,
+		       COUNT(*) AS file_count
+		FROM blank_exports be
+		LEFT JOIN attachments at ON at.id = be.attachment_id
+		LEFT JOIN unique_attachments ua ON ua.id = at.unique_attachment_id
+		WHERE be.status = ? AND be.attachment_id > 0
+		GROUP BY 1
+		ORDER BY bytes DESC, name ASC`
+
+	var rows []struct {
+		Name      string
+		Bytes     int64
+		FileCount int64
+	}
+	if err := q.db.WithContext(ctx).Raw(sql, models.BlankExportOK).Scan(&rows).Error; err != nil {
+		return nil, fmt.Errorf("failed to aggregate archive attachment types: %w", err)
+	}
+
+	out := make([]models.ArchiveStatsAttachmentType, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, models.ArchiveStatsAttachmentType{Name: r.Name, Bytes: r.Bytes, FileCount: r.FileCount})
+	}
+	return out, nil
 }
 
 // diskUsage считает состав занятого места на разделе, которому принадлежит

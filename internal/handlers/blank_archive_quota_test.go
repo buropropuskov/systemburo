@@ -482,3 +482,142 @@ func TestFileArchiveStats_CountsWrittenRegistryOnly(t *testing.T) {
 	assert.EqualValues(t, 4000, cached.UsedBytes, "второй запрос отдаёт кэш, а не пересчитывает реестр")
 	assert.Equal(t, stats.GeneratedAt.UnixNano(), cached.GeneratedAt.UnixNano())
 }
+
+// Сводка разбирает число файлов на заявки, бланки и служебные слепки, называет типы
+// вложений теми же именами, под которыми файлы легли на диск, и отдаёт момент
+// последней записи. Одно число «файлов» отвечало на вопрос, которого администратор
+// не задавал: у одной заявки на диске лежит бланк на каждое вложение плюс слепок.
+func TestFileArchiveStats_CompositionAndAttachmentTypes(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	adminH := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+
+	july := time.Date(2026, 7, 15, 0, 0, 0, 0, time.UTC)
+	appID := statsSeedApplication(t, db, td.OrgID)
+
+	// Два вложения одной заявки: у первого имя живёт в справочнике, у второго
+	// справочника нет вовсе - остаётся копия имени на строке заявки.
+	autoID := statsSeedAttachment(t, db, appID, "Автозаявка", true)
+	importID := statsSeedAttachment(t, db, appID, "Заявка на ввоз", false)
+
+	blankAuto := quotaSeedRow(t, db, appID, autoID, models.BlankExportOK, 3000, july)
+	quotaSeedRow(t, db, appID, importID, models.BlankExportOK, 1000, july)
+	// Слепок заявки: строка реестра без вложения. Его нельзя считать бланком - на
+	// диске это заявка.json, а не выгруженный шаблон.
+	quotaSeedRow(t, db, appID, 0, models.BlankExportOK, 500, july)
+	// Бланк, переживший своё вложение: реестр намеренно без внешних ключей, и такой
+	// файл обязан остаться в разбивке видимой строкой, а не выпасть из суммы.
+	quotaSeedRow(t, db, 7601, 6601, models.BlankExportOK, 700, july)
+	// Строка без файла на диске: в состав не входит ни одним числом.
+	quotaSeedRow(t, db, 7602, 6602, models.BlankExportFailed, 9999, july)
+
+	written := time.Date(2026, 7, 15, 9, 30, 0, 0, time.UTC)
+	require.NoError(t, db.Model(&models.BlankExport{}).Where("status = ?", models.BlankExportOK).
+		Update("generated_at", written.Add(-time.Hour)).Error)
+	require.NoError(t, db.Model(&models.BlankExport{}).Where("id = ?", blankAuto.ID).
+		Update("generated_at", written).Error)
+
+	rec := testutil.GET(t, e, "/file-archive/stats", adminH)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	stats := testutil.ParseResponse[models.ArchiveStats](t, rec)
+
+	assert.EqualValues(t, 4, stats.FileCount, "файлов всего: три у заявки и один осиротевший")
+	assert.EqualValues(t, 2, stats.Composition.Applications, "заявок в архиве: своя и осиротевшая")
+	assert.EqualValues(t, 3, stats.Composition.Blanks)
+	assert.EqualValues(t, 1, stats.Composition.Snapshots)
+	assert.EqualValues(t, stats.FileCount, stats.Composition.Blanks+stats.Composition.Snapshots,
+		"состав обязан сходиться с числом файлов, иначе разбивка читается как поломка")
+
+	require.Len(t, stats.AttachmentTypes, 3, "три типа: два названных и осиротевший: %v", stats.AttachmentTypes)
+	assert.Equal(t, "Автозаявка", stats.AttachmentTypes[0].Name, "тяжёлый тип сверху")
+	assert.EqualValues(t, 3000, stats.AttachmentTypes[0].Bytes)
+	assert.EqualValues(t, 1, stats.AttachmentTypes[0].FileCount)
+	assert.Equal(t, "Заявка на ввоз", stats.AttachmentTypes[1].Name,
+		"имя берётся с копии на заявке, когда справочника у вложения нет")
+	assert.Equal(t, "Вложение удалено", stats.AttachmentTypes[2].Name)
+	assert.EqualValues(t, 700, stats.AttachmentTypes[2].Bytes)
+
+	var typeFiles int64
+	for _, at := range stats.AttachmentTypes {
+		typeFiles += at.FileCount
+	}
+	assert.EqualValues(t, stats.Composition.Blanks, typeFiles,
+		"разбивка по типам обязана покрывать все бланки, включая осиротевшие")
+
+	require.NotNil(t, stats.LastWrittenAt, "момент последней записи нужен точнее месяца")
+	assert.Equal(t, written.UTC(), stats.LastWrittenAt.UTC())
+}
+
+// Пустой архив отвечает нулями и отсутствием момента последней записи, а не
+// выдуманной датой: «ещё ничего не писали» и «писали давно» - разные сообщения.
+func TestFileArchiveStats_EmptyArchiveHasNoLastWrite(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	adminH := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+
+	quotaSeedRow(t, db, 7701, 6701, models.BlankExportPending, 4242,
+		time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC))
+
+	rec := testutil.GET(t, e, "/file-archive/stats", adminH)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	stats := testutil.ParseResponse[models.ArchiveStats](t, rec)
+
+	assert.Nil(t, stats.LastWrittenAt)
+	assert.Zero(t, stats.Composition.Applications)
+	assert.Zero(t, stats.Composition.Blanks)
+	assert.Zero(t, stats.Composition.Snapshots)
+	assert.Empty(t, stats.AttachmentTypes)
+}
+
+// statsSeedApplication - заявка, к которой цепляются вложения разбивки.
+func statsSeedApplication(t *testing.T, db *gorm.DB, orgID int) int {
+	t.Helper()
+	var senderID int
+	require.NoError(t, db.Raw(`SELECT id FROM users ORDER BY id LIMIT 1`).Scan(&senderID).Error)
+	require.NotZero(t, senderID, "нужен хотя бы один пользователь-отправитель")
+
+	number := fmt.Sprintf("STATS-%d", time.Now().UnixNano())
+	sent := time.Now()
+	status := "Завершено"
+	app := models.Application{
+		ApplicationNumber: &number,
+		SendingDatetime:   &sent,
+		OrganizationID:    orgID,
+		SenderUserID:      senderID,
+		Status:            &status,
+	}
+	require.NoError(t, db.Create(&app).Error)
+	return app.ID
+}
+
+// statsSeedAttachment создаёт вложение с наименованием. fromCatalog=false - случай,
+// когда справочник вложению не назначен и имя остаётся только копией на заявке.
+func statsSeedAttachment(t *testing.T, db *gorm.DB, appID int, name string, fromCatalog bool) int {
+	t.Helper()
+	attachment := models.Attachment{
+		ApplicationID:  &appID,
+		AttachmentType: "cars",
+		AttachmentName: &name,
+	}
+	if fromCatalog {
+		unique := models.UniqueAttachment{
+			AttachmentType: "cars",
+			Name:           &name,
+			DisplayName:    &name,
+			Title:          &name,
+			IsActive:       true,
+		}
+		require.NoError(t, db.Create(&unique).Error)
+		attachment.UniqueAttachmentID = &unique.ID
+		// Имя на строке заявки намеренно другое: если сводка возьмёт его вместо
+		// справочника, тест это увидит - на диске лежит имя из справочника.
+		stale := name + " (старое имя)"
+		attachment.AttachmentName = &stale
+	}
+	require.NoError(t, db.Create(&attachment).Error)
+	return attachment.ID
+}
