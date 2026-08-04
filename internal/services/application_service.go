@@ -41,7 +41,10 @@ const forwardAttachmentVisible = `(
 // applicationsListSelect - общий список столбцов для листингов заявок (Центр, пагинация,
 // заявки пользователя). Теги has_roof_access/has_free_parking учитывают видимость пересыла
 // (forwardAttachmentVisible). Плейсхолдеры (?) связываются через applicationsListSelectArgs.
-const applicationsListSelect = `
+//
+// var, а не const: has_open_supplement собирается из models.OpenSupplementStatuses - см.
+// hasOpenSupplementPredicate. Плейсхолдеров он не добавляет, порядок аргументов не трогает.
+var applicationsListSelect = `
 		a.*,
 		COALESCE(o.name, c.name) as organization_name,
 		c.name as company_name,
@@ -65,7 +68,8 @@ const applicationsListSelect = `
 				AND ans.author_user_id <> ?
 				AND ans.created_at > COALESCE((SELECT r.read_at FROM application_question_reads r WHERE r.question_id = ans.question_id AND r.user_id = ?), to_timestamp(0)))
 		) as has_unseen_questions,
-		` + hasStatusUpdatePredicate + ` as has_status_update
+		` + hasStatusUpdatePredicate + ` as has_status_update,
+		` + hasOpenSupplementPredicate + ` as has_open_supplement
 	`
 
 // applicationsListSelectArgs связывает плейсхолдеры applicationsListSelect: is_read (1)
@@ -545,6 +549,10 @@ type ApplicationWithDetails struct {
 	HasFreeParking               bool    `json:"has_free_parking"`
 	HasUnseenQuestions           bool    `json:"has_unseen_questions"`
 	HasStatusUpdate              bool    `json:"has_status_update"`
+	// HasOpenSupplement - по заявке идёт незакрытый раунд дополнения (#1685). Статус и
+	// согласование самой заявки при этом не откатываются, поэтому без отдельной метки
+	// повторный круг в списке ничем себя не выдаёт.
+	HasOpenSupplement bool `json:"has_open_supplement"`
 }
 
 // ApplicationCreateResponse ответ при создании заявки.
@@ -687,6 +695,8 @@ type CarWithPlaces struct {
 	// BlacklistSimilar - предупреждение о возможном обходе ЧС (#481): заполнено, если
 	// номер близок к активной записи ЧС (но не точное совпадение). nil - элемент чист.
 	BlacklistSimilar *BlacklistFlagInfo `json:"blacklist_similar,omitempty"`
+	// SupplementMark - каким раундом дополнения строка добавлена (#1685).
+	SupplementMark
 }
 
 // BlacklistFlagInfo - данные per-element предупреждения о возможном обходе ЧС (#481)
@@ -729,6 +739,8 @@ type EmployeeWithTables struct {
 	// BlacklistSimilar - предупреждение о возможном обходе ЧС (#481): заполнено, если
 	// ФИО близко к активной записи ЧС (но не точное совпадение). nil - элемент чист.
 	BlacklistSimilar *BlacklistFlagInfo `json:"blacklist_similar,omitempty"`
+	// SupplementMark - каким раундом дополнения строка добавлена (#1685).
+	SupplementMark
 }
 
 // TableInfoRef ссылка на системную таблицу.
@@ -744,6 +756,8 @@ type ItemInfo struct {
 	Name        string     `json:"name"`
 	Count       int        `json:"count"`
 	DateCreated *time.Time `json:"date_created"`
+	// SupplementMark - каким раундом дополнения позиция добавлена (#1685).
+	SupplementMark
 }
 
 // --- Реализация ---
@@ -1250,6 +1264,18 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 		return nil, err
 	}
 
+	// Повторный круг по дополнению (#1685). Статус и согласование заявки он не двигает -
+	// без этих двух полей карточка не отличит идущий раунд от его отсутствия.
+	masks := loadNameMasks(ctx, s.db)
+	openSupplement, err := s.loadOpenSupplement(ctx, applicationID, masks)
+	if err != nil {
+		return nil, err
+	}
+	supplementsCount, err := s.countSupplements(ctx, applicationID)
+	if err != nil {
+		return nil, err
+	}
+
 	orgName := ""
 	if row.OrganizationName != nil {
 		orgName = *row.OrganizationName
@@ -1268,8 +1294,8 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 	}
 
 	// Маскировка ФИО в детали: заданная маска принимающего и логин вместо ФИО у тех,
-	// кто не давал согласия на обработку персональных данных.
-	masks := loadNameMasks(ctx, s.db)
+	// кто не давал согласия на обработку персональных данных. masks загружены выше -
+	// их же получает автор открытого раунда, второй раз справочник не тянем.
 	responsibleName = maskName(masks, row.ResponsibleUserID, responsibleName)
 	responsibleFullName := maskNamePtr(masks, row.ResponsibleUserID, row.ResponsibleFullName)
 	senderName = maskName(masks, &row.SenderUserID, senderName)
@@ -1304,6 +1330,11 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 		"company_moderation_status":      row.CompanyModerationStatus,
 
 		"has_unoverridden_blacklist_flags": blacklistBlocked,
+
+		// Дополнение заявки (#1685): открытый раунд (null - идущего нет) и общее число
+		// раундов, включая закрытые.
+		"open_supplement":   openSupplement,
+		"supplements_count": supplementsCount,
 	}
 
 	return response, nil
