@@ -12,16 +12,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// dictionaryActorID -- актор audit_log для записей, которые справочные шаги пишут
-// через сервисный слой. Реального пользователя на этом этапе ещё нет: пользователи
-// наливаются отдельным срезом позже (#1682, следующая волна), а справочники обязаны
-// быть готовы раньше них. models.AuditLog хранит actor_user_id без внешнего ключа
-// нарочно, чтобы запись пережила удаление пользователя (см. комментарий над
-// models.AuditLog) -- 0 здесь безопасен: история останется без узнаваемого имени
-// актора (GetHistory отдаёт пустую строку через COALESCE), но не сломает ни запись,
-// ни последующее чтение.
-const dictionaryActorID = 0
-
 // createNameRetries -- сколько раз пробуем подобрать организацию/компанию со
 // свободным именем, прежде чем сдаться. Имя случайное (OrgNameGenerator), а
 // partial unique index organizations/companies смотрит на всю активную таблицу,
@@ -52,7 +42,7 @@ func (organizationsStep) Run(ctx context.Context, env *Env) error {
 	compTypes := NewStream(env.Seed, "company-types")
 
 	for i := 0; i < env.Profile.Organizations; i++ {
-		id, err := createUniqueOrganization(ctx, orgSvc, orgNames, orgTypes)
+		id, err := createUniqueOrganization(ctx, orgSvc, orgNames, orgTypes, env.ActorUserID)
 		if err != nil {
 			return fmt.Errorf("организация %d/%d: %w", i+1, env.Profile.Organizations, err)
 		}
@@ -65,7 +55,7 @@ func (organizationsStep) Run(ctx context.Context, env *Env) error {
 	}
 
 	for i := 0; i < env.Profile.Companies; i++ {
-		id, err := createUniqueCompany(ctx, compSvc, compNames, compTypes)
+		id, err := createUniqueCompany(ctx, compSvc, compNames, compTypes, env.ActorUserID)
 		if err != nil {
 			return fmt.Errorf("компания %d/%d: %w", i+1, env.Profile.Companies, err)
 		}
@@ -78,7 +68,7 @@ func (organizationsStep) Run(ctx context.Context, env *Env) error {
 
 // createUniqueOrganization создаёт организацию со случайным именем и типом,
 // повторяя попытку с новым именем при конфликте (см. createNameRetries).
-func createUniqueOrganization(ctx context.Context, svc services.OrganizationService, gen *OrgNameGenerator, types *Stream) (int, error) {
+func createUniqueOrganization(ctx context.Context, svc services.OrganizationService, gen *OrgNameGenerator, types *Stream, actorID int) (int, error) {
 	var lastErr error
 	for attempt := 0; attempt < createNameRetries; attempt++ {
 		name, err := gen.Next()
@@ -86,7 +76,7 @@ func createUniqueOrganization(ctx context.Context, svc services.OrganizationServ
 			return 0, err
 		}
 		typ := Pick(types, models.OrgTypeValues)
-		resp, err := svc.Create(ctx, dictionaryActorID, services.CreateOrganizationRequest{Name: name, Type: &typ})
+		resp, err := svc.Create(ctx, actorID, services.CreateOrganizationRequest{Name: name, Type: &typ})
 		if err == nil {
 			return resp.ID, nil
 		}
@@ -99,7 +89,7 @@ func createUniqueOrganization(ctx context.Context, svc services.OrganizationServ
 }
 
 // createUniqueCompany -- зеркало createUniqueOrganization для компаний.
-func createUniqueCompany(ctx context.Context, svc services.CompanyService, gen *OrgNameGenerator, types *Stream) (int, error) {
+func createUniqueCompany(ctx context.Context, svc services.CompanyService, gen *OrgNameGenerator, types *Stream, actorID int) (int, error) {
 	var lastErr error
 	for attempt := 0; attempt < createNameRetries; attempt++ {
 		name, err := gen.Next()
@@ -107,7 +97,7 @@ func createUniqueCompany(ctx context.Context, svc services.CompanyService, gen *
 			return 0, err
 		}
 		typ := Pick(types, models.OrgTypeValues)
-		company, err := svc.Create(ctx, dictionaryActorID, services.CreateCompanyRequest{Name: name, Type: &typ})
+		company, err := svc.Create(ctx, actorID, services.CreateCompanyRequest{Name: name, Type: &typ})
 		if err == nil {
 			return company.ID, nil
 		}

@@ -102,6 +102,11 @@ var tables = []string{
 	"system_table_warning_windows",
 	"system_table_time_slots", "system_table_photos", "system_tables",
 	"license_plate_format_cells", "license_plate_formats",
+	// marks удаляются после cars: у машины есть ссылка на марку. Прежде таблица стояла
+	// в CleanupExempt с причиной «наполняется Seed», но Seed марок не заводит - ни одна
+	// не появлялась, пока их не начал создавать наливщик стенда, и тогда они стали
+	// копиться между прогонами (#1682).
+	"marks",
 	"citizenships",
 	"companies_users", "organization_users",
 	"auth_events", "refresh_tokens", "users",
@@ -156,7 +161,6 @@ var CleanupExempt = map[string]string{
 	"security_user_unload_places":  "каскад от users",
 	"table_snapshots":              "каскад от system_tables",
 	"unload_place_warning_windows": "каскад от unload_places",
-	"marks":                        "справочник, наполняется Seed",
 	"role_permission_grants":       "выдачи прав ролям, наполняются Seed",
 }
 

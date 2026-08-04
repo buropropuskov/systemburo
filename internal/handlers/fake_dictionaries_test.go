@@ -126,3 +126,40 @@ func findTable(items []models.SystemTableWithDetails, name string) (models.Syste
 	}
 	return models.SystemTableWithDetails{}, false
 }
+
+// История наливки должна принадлежать администратору стенда, а не актору «0».
+// Колонка actor_user_id живёт без внешнего ключа, поэтому несуществующий актор
+// записался бы молча, и в истории справочника появился бы автор, которого нет.
+func TestFakeDictionaries_HistoryBelongsToAdmin(t *testing.T) {
+	_, db, _ := testutil.SetupTestApp(t)
+	ctx := context.Background()
+	testutil.CleanDB(t, db)
+
+	admin := models.User{
+		Username:     uniq("fake_admin"),
+		Password:     "x",
+		TypeID:       1,
+		IsSuperAdmin: true,
+		IsActive:     true,
+	}
+	require.NoError(t, db.Create(&admin).Error)
+
+	profile, err := fakedata.ProfileByName("small")
+	require.NoError(t, err)
+	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-actor"), 777, profile.Name)
+	require.NoError(t, err)
+	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 777}))
+
+	var orphaned int64
+	require.NoError(t, db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND (actor_user_id IS NULL OR actor_user_id NOT IN (SELECT id FROM users))",
+			models.AuditEntityOrganization).
+		Count(&orphaned).Error)
+	require.Zero(t, orphaned, "записи истории не должны ссылаться на несуществующего пользователя")
+
+	var byAdmin int64
+	require.NoError(t, db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND actor_user_id = ?", models.AuditEntityOrganization, admin.ID).
+		Count(&byAdmin).Error)
+	require.Positive(t, byAdmin, "организации должен был завести администратор стенда")
+}

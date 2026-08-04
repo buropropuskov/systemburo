@@ -41,6 +41,32 @@ type Env struct {
 	Seed int64
 	// UserPassword -- пароль создаваемых пользователей, печатается в итоговой сводке.
 	UserPassword string
+	// ActorUserID -- от чьего имени пишутся записи истории. Заполняется resolveActor
+	// перед прогоном шагов; ноль означает, что подходящей учётной записи не нашлось.
+	ActorUserID int
+}
+
+// resolveActor выбирает, от чьего имени наливка пишет историю: супер-администратор
+// стенда, а если его нет -- любой администратор.
+//
+// Ноль в actor_user_id -- это ссылка на несуществующего пользователя, а не «автор
+// неизвестен»: колонка хранится без внешнего ключа, поэтому запись пройдёт, но в
+// истории появится актор, которого нет. Цель наливки в том, чтобы данные не отличались
+// от заведённых руками, а на живом стенде справочники заводит именно администратор.
+//
+// Пустой результат возможен только там, где учётные записи ещё не заведены (тесты до
+// сида): падать из-за истории не стоит, поэтому остаётся ноль.
+func resolveActor(ctx context.Context, db *gorm.DB) int {
+	var id int
+	db.WithContext(ctx).Raw(
+		`SELECT id FROM users WHERE is_super_admin = true AND is_active = true ORDER BY id LIMIT 1`,
+	).Scan(&id)
+	if id == 0 {
+		db.WithContext(ctx).Raw(
+			`SELECT id FROM users WHERE is_admin = true AND is_active = true ORDER BY id LIMIT 1`,
+		).Scan(&id)
+	}
+	return id
 }
 
 // Steps перечисляет шаги наполнения в порядке зависимостей: справочники раньше
@@ -79,6 +105,9 @@ func PlanTotal(items []PlanItem) int {
 
 // Run прогоняет шаги наполнения и закрывает партию сводкой.
 func Run(ctx context.Context, env *Env) error {
+	if env.ActorUserID == 0 {
+		env.ActorUserID = resolveActor(ctx, env.DB)
+	}
 	for _, step := range Steps() {
 		if err := step.Run(ctx, env); err != nil {
 			// Партия остаётся с уже зарегистрированными записями и не откатывается:

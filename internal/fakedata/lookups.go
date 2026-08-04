@@ -75,7 +75,7 @@ func runUnloadPlaces(ctx context.Context, env *Env) error {
 		if existing[name] {
 			continue
 		}
-		id, err := svc.Create(ctx, dictionaryActorID, services.CreateUnloadPlaceRequest{Name: name})
+		id, err := svc.Create(ctx, env.ActorUserID, services.CreateUnloadPlaceRequest{Name: name})
 		if err != nil {
 			return fmt.Errorf("место разгрузки %q: %w", name, err)
 		}
@@ -109,7 +109,7 @@ func runMarks(ctx context.Context, env *Env) error {
 		if existing[name] {
 			continue
 		}
-		mark, err := svc.Create(ctx, models.CreateMarkRequest{Name: name}, dictionaryActorID)
+		mark, err := svc.Create(ctx, models.CreateMarkRequest{Name: name}, env.ActorUserID)
 		if err != nil {
 			return fmt.Errorf("марка %q: %w", name, err)
 		}
@@ -167,7 +167,7 @@ func runCitizenships(ctx context.Context, env *Env) error {
 		// того, что назначил администратор или предыдущая партия.
 		isDefault := !hasDefault && cand.Name == "Россия"
 		patentRequired := cand.PatentRequired
-		id, err := svc.Create(ctx, dictionaryActorID, models.CreateCitizenshipRequest{
+		id, err := svc.Create(ctx, env.ActorUserID, models.CreateCitizenshipRequest{
 			Name: cand.Name, IsDefault: &isDefault, PatentRequired: &patentRequired,
 		})
 		if err != nil {
@@ -243,7 +243,7 @@ func runPlateFormats(ctx context.Context, env *Env) error {
 			continue
 		}
 		isDefault := !hasDefault && cand.Name == "Россия"
-		id, err := svc.Create(ctx, dictionaryActorID, models.CreateLicensePlateFormatRequest{
+		id, err := svc.Create(ctx, env.ActorUserID, models.CreateLicensePlateFormatRequest{
 			Name: cand.Name, CountryCode: strPtr(cand.CountryCode), Icon: strPtr(cand.Icon),
 			IsDefault: &isDefault, Cells: cand.Cells,
 		})
