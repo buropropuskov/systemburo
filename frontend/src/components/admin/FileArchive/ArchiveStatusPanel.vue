@@ -67,17 +67,38 @@
           />
         </div>
 
-        <div
-          class="archive-status__disk-bar"
-          :class="diskBarClass"
-        >
-          <span
-            v-for="seg in barSegments"
-            :key="seg.key"
-            class="archive-status__disk-seg"
-            :style="{ width: seg.percent + '%', background: seg.color }"
-            :title="`${seg.label}: ${formatBytes(seg.bytes)}`"
-          />
+        <div class="archive-status__disk-barwrap">
+          <div
+            class="archive-status__disk-bar"
+            :class="diskBarClass"
+          >
+            <span
+              v-for="seg in barSegments"
+              :key="seg.key"
+              class="archive-status__disk-seg"
+              :class="{ 'archive-status__disk-seg--active': hoveredSegment?.key === seg.key }"
+              :style="{ width: seg.percent + '%', background: seg.color }"
+              :title="`${seg.label}: ${formatBytes(seg.bytes)}`"
+              tabindex="0"
+              @mouseenter="hoveredSegment = seg"
+              @mouseleave="hoveredSegment = null"
+              @focus="hoveredSegment = seg"
+              @blur="hoveredSegment = null"
+            />
+          </div>
+
+          <div
+            v-if="hoveredSegment"
+            class="archive-status__disk-tip"
+            :style="tipStyle"
+          >
+            <span
+              class="archive-status__disk-dot"
+              :style="{ background: hoveredSegment.color }"
+            />
+            {{ hoveredSegment.label }}: {{ formatBytes(hoveredSegment.bytes) }}
+            <span class="archive-status__disk-tip-share">{{ formatShare(hoveredSegment.percent) }}</span>
+          </div>
         </div>
 
         <ul class="archive-status__disk-legend">
@@ -270,6 +291,38 @@ const diskBarClass = computed(() => {
   if (p < FREE_WARN_PERCENT) return 'archive-status__disk-bar--warning';
   return '';
 });
+
+// Сегмент, на который сейчас наведено (или который получил фокус с клавиатуры).
+// Легенда под полосой отвечает на вопрос «что тут вообще есть», подсказка - на
+// вопрос «а вот эта конкретная полоска чья».
+const hoveredSegment = ref(null);
+
+// Положение подсказки считаем из накопленных долей, а не из геометрии узла:
+// проценты и так есть, а замер через getBoundingClientRect на этом проекте
+// требует поправки на масштаб корня и врёт во время анимаций.
+const tipStyle = computed(() => {
+  const seg = hoveredSegment.value;
+  if (!seg) return {};
+  let offset = 0;
+  for (const s of barSegments.value) {
+    if (s.key === seg.key) break;
+    offset += s.percent;
+  }
+  const center = offset + seg.percent / 2;
+  // У краёв подсказку прижимаем к соответствующей стороне: центрированная
+  // уехала бы за пределы карточки и обрезалась.
+  if (center < 12) return { left: '0%', transform: 'none' };
+  if (center > 88) return { left: '100%', transform: 'translateX(-100%)' };
+  return { left: `${center}%`, transform: 'translateX(-50%)' };
+});
+
+// Доля раздела: меньше десятой процента показываем как «<0.1 %», иначе на
+// мелких сегментах подсказка сообщала бы «0 %» рядом с ненулевым размером.
+function formatShare(percent) {
+  const value = Number(percent) || 0;
+  if (value > 0 && value < 0.1) return '<0.1 %';
+  return `${value.toFixed(1)} %`;
+}
 </script>
 
 <style scoped>
@@ -344,9 +397,16 @@ const diskBarClass = computed(() => {
   flex-shrink: 0;
 }
 
+/* Место над полосой зарезервировано под подсказку: без отступа она вставала бы
+   поверх заголовка «Занятость раздела диска» и перекрывала его текст. */
+.archive-status__disk-barwrap {
+  position: relative;
+  margin-top: 44px;
+}
+
 .archive-status__disk-bar {
   display: flex;
-  height: 14px;
+  height: 22px;
   border-radius: var(--radius-pill);
   overflow: hidden;
   background: var(--surface-2);
@@ -364,6 +424,50 @@ const diskBarClass = computed(() => {
 .archive-status__disk-seg {
   height: 100%;
   min-width: 3px;
+  cursor: default;
+  /* Только opacity - раскладка полосы от наведения не должна дрожать. */
+  transition: opacity 150ms ease;
+}
+
+.archive-status__disk-seg:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Активной остаётся выделенная доля, остальные приглушаются: подсветить саму
+   долю нечем - у сегментов свои цвета, и осветление ломало бы их узнавание. */
+.archive-status__disk-bar:hover .archive-status__disk-seg,
+.archive-status__disk-bar:focus-within .archive-status__disk-seg {
+  opacity: 0.45;
+}
+
+/* Специфичность обязана совпадать с правилом приглушения выше (:hover считается
+   за класс): при 0,2,0 против 0,3,0 активная доля гасла вместе с остальными. */
+.archive-status__disk-bar:hover .archive-status__disk-seg--active,
+.archive-status__disk-bar:focus-within .archive-status__disk-seg--active {
+  opacity: 1;
+}
+
+.archive-status__disk-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
+  font-size: 12px;
+  color: var(--text);
+  pointer-events: none;
+}
+
+.archive-status__disk-tip-share {
+  color: var(--text-muted);
 }
 
 .archive-status__disk-legend {
