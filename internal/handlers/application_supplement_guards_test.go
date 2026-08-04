@@ -69,6 +69,62 @@ func TestSupplementGuards(t *testing.T) {
 	t.Run("бланк собирается из допущенного состава", func(t *testing.T) { suppBlankSection(t, h) })
 	t.Run("активация обходит непринятое дополнение", func(t *testing.T) { suppActivationSection(t, h) })
 	t.Run("завершение по сроку снимает открытое дополнение", func(t *testing.T) { suppExpirySection(t, h) })
+	t.Run("непринятое дополнение не открывает вложение охране", func(t *testing.T) { suppVisibilityGateSection(t, h) })
+	t.Run("отзыв заявки снимает открытое дополнение", func(t *testing.T) { suppWithdrawSection(t, h) })
+}
+
+// Гейт видимости "Доступные мне" пускает people-вложение к охраннику по пересечению постов
+// его сотрудников с назначенными охраннику. Пост новой строке назначается сразу при подаче
+// дополнения, поэтому без фильтра по статусу раунда непринятый сотрудник открывал бы охране
+// вложение целиком - вместе с заголовком, организацией и сроками заявки, к посту которой ни
+// один ДОПУЩЕННЫЙ человек не относится. Фильтр в детали от этого не спасает: она отдаёт
+// пустой состав, но сам факт заявки уже раскрыт.
+func suppVisibilityGateSection(t *testing.T, h secHTTPWorld) {
+	w := h.w
+	table := w.newPeopleTable(t, "supp-gate-post")
+	w.assignTable(t, table)
+
+	appID := w.newApp(t, models.ConfirmationApproved)
+	attID := w.newAttachment(t, appID, "people")
+
+	// К посту охранника привязан ТОЛЬКО сотрудник непринятого раунда.
+	pendingSup := suppNewSupplement(t, w.db, appID, w.senderID, models.SupplementPending)
+	pendingID := suppNewEmployee(t, w.db, attID, "Скрытый", &pendingSup)
+	require.NoError(t, w.db.Create(&models.EmployeeTargetTable{EmployeeID: pendingID, TableID: table}).Error)
+
+	rec := testutil.GET(t, h.e, "/applications/available-attachments", testutil.AuthHeader(h.guardToken))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	for _, row := range testutil.ParseResponse[[]services.AvailableAttachment](t, rec) {
+		require.NotEqual(t, attID, row.AttachmentID,
+			"вложение, которое открывается только непринятым дополнением, охране не показывается")
+	}
+
+	// И прямой заход по идентификатору тоже закрыт - гейт доступа тот же предикат.
+	rec = testutil.GET(t, h.e, fmt.Sprintf("/applications/available-attachments/%d", attID), testutil.AuthHeader(h.guardToken))
+	require.Equal(t, http.StatusForbidden, rec.Code,
+		"деталь вложения по прямой ссылке тоже закрыта: %s", rec.Body.String())
+
+	// Как только раунд принят, вложение открывается штатно - фильтр держится на статусе,
+	// а не на самом факте принадлежности строки дополнению.
+	require.NoError(t, w.db.Model(&models.ApplicationSupplement{}).Where("id = ?", pendingSup).
+		Update("status", models.SupplementAccepted).Error)
+	require.ElementsMatch(t, []string{"Скрытый"}, suppEmployeeLastNames(secGetDetail(t, h, attID, h.guardToken).Employees),
+		"принятое дополнение открывает вложение охране")
+}
+
+// Отзыв заявки отправителем - терминальный переход без обратного пути. Открытому раунду
+// после него идти некуда: принимать его некому, а у согласующих он остался бы вечной задачей.
+func suppWithdrawSection(t *testing.T, h secHTTPWorld) {
+	w := h.w
+	appID := w.newAppWithStatus(t, models.ConfirmationApproved, models.StatusInWork)
+	supID := suppNewSupplement(t, w.db, appID, w.senderID, models.SupplementPending)
+
+	rec := testutil.POST(t, h.e, fmt.Sprintf("/applications/%d/withdraw", appID), "", testutil.AuthHeader(h.userToken))
+	require.Equal(t, http.StatusOK, rec.Code, "отзыв заявки автором: %s", rec.Body.String())
+
+	var sup models.ApplicationSupplement
+	require.NoError(t, w.db.First(&sup, supID).Error)
+	require.Equal(t, models.SupplementCancelled, sup.Status, "отзыв заявки снимает открытый раунд")
 }
 
 // Деталь "Доступные мне": сотрудники непринятого дополнения охране не видны, исходный

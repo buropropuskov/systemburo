@@ -117,6 +117,11 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 			tx.Rollback()
 			return err
 		}
+
+		if err := s.cancelOpenSupplements(ctx, tx, applicationID); err != nil {
+			tx.Rollback()
+			return err
+		}
 	}
 
 	if err := tx.Commit().Error; err != nil {
@@ -188,6 +193,13 @@ func (s *applicationService) RevokeApplicationFromWork(ctx context.Context, user
 		return err
 	}
 
+	// Тот же переход снимает и открытый раунд дополнения (#1685): строки заявки погашены,
+	// принимать раунду уже нечего. Иначе pending висел бы у согласующих вечной задачей.
+	if err := s.cancelOpenSupplements(ctx, tx, applicationID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
@@ -245,6 +257,13 @@ func (s *applicationService) RestoreApplicationToWork(ctx context.Context, usern
 	}
 
 	if err := s.activateApplicationItems(ctx, tx, applicationID, false, nil); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Тот же переход снимает и открытый раунд дополнения (#1685): строки заявки погашены,
+	// принимать раунду уже нечего. Иначе pending висел бы у согласующих вечной задачей.
+	if err := s.cancelOpenSupplements(ctx, tx, applicationID); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -320,6 +339,13 @@ func (s *applicationService) WithdrawApplication(ctx context.Context, username s
 
 	// Деактивируем машины и сотрудников вложений...
 	if err := s.activateApplicationItems(ctx, tx, applicationID, false, nil); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Тот же переход снимает и открытый раунд дополнения (#1685): строки заявки погашены,
+	// принимать раунду уже нечего. Иначе pending висел бы у согласующих вечной задачей.
+	if err := s.cancelOpenSupplements(ctx, tx, applicationID); err != nil {
 		tx.Rollback()
 		return err
 	}
