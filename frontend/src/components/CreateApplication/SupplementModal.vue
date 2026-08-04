@@ -269,6 +269,7 @@ import EmployeesList from '@/components/CreateApplication/EmployeesList.vue';
 import ItemsForm from '@/components/CreateApplication/ItemsForm.vue';
 import ItemsList from '@/components/CreateApplication/ItemsList.vue';
 import { createSupplement } from '@/api/applications';
+import { toAttachmentContent } from '@/utils/applicationEntityPayload';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
@@ -277,44 +278,12 @@ import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock
 // Окно открывается ПОВЕРХ детали заявки (10002) - см. лестницу z-index в
 // .claude/ui-etalon. Дочерние слои (поиск существующих, меню дропдауна) обязаны
 // лечь выше него, иначе уедут за собственного родителя.
+// Дополнять можно только вложения тех типов, под которые есть форма ввода.
+const SUPPORTED_ATTACHMENT_TYPES = ['cars', 'people', 'items'];
+
 const EXISTING_MODAL_Z_INDEX = 10012;
 const MENU_Z_INDEX = 10014;
 
-// Сборка строк под DTO подачи: SupplementAddition несёт те же VehicleInput/
-// EmployeeInput/ItemInput, что и submit-complete-application. Формы эмитят свои
-// camelCase-объекты - маппинг ОДИН на оба флоу, расходиться ему нельзя.
-const ROW_MAPPERS = {
-    cars: (rows) => ({
-        vehicles: rows.map((v) => ({
-            car_number: v.plateNumber,
-            car_brand: v.mark,
-            mark_id: v.markId || null,
-            unload_place: v.unloadingPlace,
-            unload_places: v.unloadPlaces || [],
-            passage_tables: v.passage_tables || [],
-        })),
-    }),
-    people: (rows) => ({
-        employees: rows.map((e) => ({
-            last_name: e.lastName,
-            first_name: e.firstName,
-            middle_name: e.middleName,
-            citizenship_id: e.citizenshipId,
-            position: e.position,
-            passport_series_number: e.passportSeriesNumber,
-            patent_number: e.patentNumber,
-            other_permission: e.otherPermission,
-            target_tables: e.targetTables || [],
-        })),
-    }),
-    items: (rows) => ({
-        items: rows.map((item, index) => ({
-            name: item.itemName,
-            count: item.quantity,
-            order_index: index + 1,
-        })),
-    }),
-};
 
 // Ключи сортировки, которые реально эмитят списки (`$emit('sort', key)`). Числовые
 // поля сортируем как числа, остальные - регистронезависимо строкой.
@@ -454,7 +423,7 @@ export default {
             const today = new Date();
             const localToday = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
             return this.attachments.filter((a) => {
-                if (!ROW_MAPPERS[a.attachment_type]) return false;
+                if (!SUPPORTED_ATTACHMENT_TYPES.includes(a.attachment_type)) return false;
                 const to = apiDate(a.entry_date_to);
                 return !to || to >= localToday;
             });
@@ -674,7 +643,7 @@ export default {
                 if (!rows.length) continue;
                 additions.push({
                     attachment_id: attachment.id,
-                    ...ROW_MAPPERS[attachment.attachment_type](rows),
+                    ...toAttachmentContent(attachment.attachment_type, rows),
                 });
             }
             return additions;
