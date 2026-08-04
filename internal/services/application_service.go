@@ -168,6 +168,13 @@ type ApplicationService interface {
 	// GetApplicationSupplements возвращает раунды дополнения заявки (новые сверху).
 	GetApplicationSupplements(ctx context.Context, applicationID int) ([]SupplementInfo, error)
 
+	// ApproveSupplement - голос согласующего по раунду дополнения (#1685). Пишет итог в
+	// application_supplements.status; confirmation и status самой заявки не двигает.
+	ApproveSupplement(ctx context.Context, username string, applicationID, supplementID int, req SupplementApprovalRequest) (*SupplementVoteResponse, error)
+
+	// RevokeSupplementApproval возвращает голос по раунду дополнения в pending (#1685).
+	RevokeSupplementApproval(ctx context.Context, username string, applicationID, supplementID int, req SupplementRevokeApprovalRequest) (*SupplementVoteResponse, error)
+
 	// GetApplicationResponsibleUsers возвращает ответственных пользователей заявки.
 	GetApplicationResponsibleUsers(ctx context.Context, applicationID int) ([]ResponsibleUserInfo, error)
 
