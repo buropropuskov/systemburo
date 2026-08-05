@@ -30,7 +30,10 @@
           <div class="archive-status__tile-label">
             {{ tile.label }}
           </div>
-          <div class="archive-status__tile-val">
+          <div
+            class="archive-status__tile-val"
+            :class="{ 'archive-status__tile-val--wide': tile.wide }"
+          >
             <AnimatedCounter
               v-if="tile.animated"
               :value="tile.value"
@@ -181,7 +184,15 @@ defineExpose({ refresh: load });
 // ли архив прямо сейчас, а не в каком месяце лежат файлы.
 const lastWrittenLabel = computed(() => {
   const written = stats.value?.last_written_at;
-  if (written) return formatDateTime(written);
+  // Год у записи этого года не показываем: полный момент «04.08.2026 18:49» не
+  // помещается в плитку и переносом растягивал весь ряд. Для прошлых лет год
+  // важнее минут - там показываем дату целиком, без времени.
+  if (written) {
+    const full = formatDateTime(written);
+    const [date, time] = full.split(' ');
+    const year = date?.slice(-4);
+    return year === String(new Date().getFullYear()) ? `${date.slice(0, 5)}, ${time}` : date;
+  }
   // Пустой архив и архив, у которого записи есть, но момент неизвестен, - разные
   // вещи: во втором случае месяц из разбивки всё же лучше прочерка.
   const first = stats.value?.periods?.[0];
@@ -210,7 +221,15 @@ const tiles = computed(() => {
       hint: 'Машиночитаемый заявка.json рядом с бланками - по одному на заявку',
     },
     { key: 'free', label: 'Свободно', display: formatBytes(s?.free_bytes ?? 0) },
-    { key: 'last', label: 'Последняя запись', display: lastWrittenLabel.value },
+    {
+      key: 'last',
+      label: 'Последняя запись',
+      display: lastWrittenLabel.value,
+      // Полный момент со всеми цифрами остаётся в подсказке: на экране он не
+      // помещается, но при разборе «когда именно» он и нужен.
+      hint: stats.value?.last_written_at ? formatDateTime(stats.value.last_written_at) : null,
+      wide: true,
+    },
     { key: 'errors', label: 'Ошибок', value: s?.statuses?.failed ?? 0, animated: true },
     { key: 'no_template', label: 'Без шаблона', value: s?.statuses?.no_template ?? 0, animated: true },
   ];
@@ -370,6 +389,14 @@ function formatShare(percent) {
   font-weight: 600;
   color: var(--text);
   font-variant-numeric: tabular-nums;
+}
+
+/* Значение из даты и времени длиннее числа в разы. Перенос на вторую строку
+   растягивал по высоте ВЕСЬ ряд - плитки в сетке равной высоты, - поэтому такому
+   значению даём свой кегль и запрещаем перенос. */
+.archive-status__tile-val--wide {
+  font-size: 17px;
+  white-space: nowrap;
 }
 
 /* ===== ПОЛОСА ДИСКА ===== */
