@@ -199,6 +199,9 @@ CHANGELOGS = {
                                "сроки повтора после устранения причины, признак "
                                "запрета доступа в ленте, предел длины пути при "
                                "выборе шаблона"),
+        ("1.29", "05.08.2026", "Состояния выгрузки названы так же, как в ленте "
+                               "архива; отмечено, что образы убираются при "
+                               "выпуске новой версии"),
     ],
     "pilot": [
         ("1.0", "28.07.2026", "Первая редакция"),
@@ -1295,7 +1298,7 @@ def pagemap_from_pdf(cfg, entries):
 
 
 
-def report_silent_breaks(cfg):
+def report_silent_breaks(cfg, quiet=False):
     """Предупредить о таблицах, которые страница рвёт без подписи продолжения.
 
     Итоговая проверка результата: подбор разбиения опирается на распознавание
@@ -1335,9 +1338,9 @@ def report_silent_breaks(cfg):
             continue
         if re.sub(r"\s+", " ", rows[0]).strip() in heads:
             silent.append(number)
-    if silent:
+    if silent and not quiet:
         print(f"  ВНИМАНИЕ: таблица разорвана без подписи продолжения, страницы: {silent}")
-    if hanging:
+    if hanging and not quiet:
         print(f"  ВНИМАНИЕ: подпись продолжения не в начале страницы: {hanging}")
     return silent
 
@@ -1396,8 +1399,40 @@ def build_one(key):
         print(f"  ВНИМАНИЕ: не найдено в PDF {len(missing)}: {missing[:3]}")
 
     print(f"[{name}] финальная сборка...")
-    build(cfg, pagemap, splitmap)
+    _, tables_meta = build(cfg, pagemap, splitmap)
     pdf = to_pdf(cfg)
+
+    # Подбор работал на вёрстке без номеров страниц в оглавлении, а финальная
+    # сборка их добавляет и сдвигает содержимое: таблица, помещавшаяся при
+    # подборе, разъезжается уже в готовом документе. Раньше об этом только
+    # печаталось предупреждение, и подпись продолжения так и не появлялась.
+    for _ in range(3):
+        if not report_silent_breaks(cfg, quiet=True):
+            break
+        number, breaks = find_first_unsplit_break(cfg, tables_meta, set())
+        if not number:
+            break
+        point, placed = breaks[0], False
+        for _ in range(6):
+            if point < 1 or point >= rows_in_table(tables_meta, number):
+                break
+            splitmap[number] = [point]
+            _, tables_meta = build(cfg, pagemap, splitmap)
+            to_pdf(cfg)
+            verdict = split_verdict(cfg, number)
+            dbg(f"таблица {number} (после финальной): точка {point} -> {verdict}")
+            if verdict == "ok":
+                placed = True
+                break
+            if verdict == "none":
+                break
+            point += 1 if verdict == "early" else -1
+        if not placed:
+            splitmap.pop(number, None)
+            _, tables_meta = build(cfg, pagemap, splitmap)
+            to_pdf(cfg)
+            break
+
     report_silent_breaks(cfg)
     pages = subprocess.run(["pdfinfo", pdf], capture_output=True, text=True).stdout
     total = re.search(r"Pages:\s+(\d+)", pages)
