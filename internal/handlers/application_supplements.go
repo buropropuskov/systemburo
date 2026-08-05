@@ -36,8 +36,8 @@ func (h *ApplicationHandler) CreateSupplement(c echo.Context) error {
 	}
 
 	var req services.CreateSupplementRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	username := c.Get("username").(string)
@@ -107,8 +107,8 @@ func (h *ApplicationHandler) ApproveSupplement(c echo.Context) error {
 	}
 
 	var req services.SupplementApprovalRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	username := c.Get("username").(string)
@@ -145,13 +145,94 @@ func (h *ApplicationHandler) RevokeSupplementApproval(c echo.Context) error {
 		return err
 	}
 
+	// Тело намеренно опциональное: отозвать голос можно и без объяснения причины.
 	var req services.SupplementRevokeApprovalRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	username := c.Get("username").(string)
 	resp, err := h.service.RevokeSupplementApproval(c.Request().Context(), username, id, sid, req)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, resp)
+}
+
+// DecideSupplement godoc
+// @Summary      Решение принимающего по дополнению заявки
+// @Description  Принятие или отказ по согласованному раунду дополнения (#1685). Принятие
+// @Description  активирует строки ЭТОГО раунда - с этого момента они видны на КПП; отказ
+// @Description  оставляет их неактивными навсегда. Согласование и статус самой заявки не
+// @Description  двигаются ни в одной ветке: от них производен допуск уже выданных пропусков.
+// @Description  Доступно только принимающему; раунд обязан быть согласован, а заявка - в работе.
+// @Tags         applications
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID заявки"
+// @Param        sid path int true "ID дополнения"
+// @Param        request body services.SupplementDecisionRequest true "Решение"
+// @Success      200 {object} services.SupplementDecisionResponse
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      409 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/supplements/{sid}/take-to-work [post]
+func (h *ApplicationHandler) DecideSupplement(c echo.Context) error {
+	id, sid, err := supplementPathIDs(c)
+	if err != nil {
+		return err
+	}
+
+	var req services.SupplementDecisionRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+
+	username := c.Get("username").(string)
+	resp, err := h.service.DecideSupplement(c.Request().Context(), username, id, sid, req)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, resp)
+}
+
+// CancelSupplement godoc
+// @Summary      Снять дополнение заявки
+// @Description  Автор заявки снимает собственный незакрытый раунд дополнения (#1685). Строки
+// @Description  раунда остаются неактивными; заявка и её допущенный состав не задеты.
+// @Tags         applications
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID заявки"
+// @Param        sid path int true "ID дополнения"
+// @Param        request body services.SupplementCancelRequest false "Причина снятия"
+// @Success      200 {object} services.SupplementDecisionResponse
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      409 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/supplements/{sid}/cancel [post]
+func (h *ApplicationHandler) CancelSupplement(c echo.Context) error {
+	id, sid, err := supplementPathIDs(c)
+	if err != nil {
+		return err
+	}
+
+	// Тело намеренно опциональное: снять раунд можно и без объяснения причины.
+	var req services.SupplementCancelRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+
+	username := c.Get("username").(string)
+	resp, err := h.service.CancelSupplement(c.Request().Context(), username, id, sid, IsSuperAdmin(c), req)
 	if err != nil {
 		return err
 	}

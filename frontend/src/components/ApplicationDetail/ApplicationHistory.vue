@@ -685,11 +685,15 @@ export default {
                 'revoke_from_work': 'dot-warning',
                 'restore_to_work': 'dot-info',
                 'completed': 'dot-success',
+                'supplement_created': 'dot-create',
                 'supplement_cancelled': 'dot-warning',
                 'supplement_approve': 'dot-approve',
                 'supplement_reject': 'dot-reject',
                 'supplement_revoke_approval': 'dot-revoke',
                 'supplement_confirmation_change': 'dot-system',
+                'supplement_accepted': 'dot-success',
+                'supplement_refused': 'dot-reject',
+                'supplement_cancelled_by_author': 'dot-warning',
                 'withdraw': 'dot-reject',
                 'assigned_responsible': 'dot-assign',
                 'assigned_viewer': 'dot-view',
@@ -743,11 +747,15 @@ export default {
                 'revoke_from_work': 'Отозвал(-а) из работы',
                 'restore_to_work': 'Вернул(-а) в работу',
                 'completed': 'Заявка завершена: срок действия истёк',
+                'supplement_created': 'Подал(-а) дополнение',
                 'supplement_cancelled': 'Дополнение снято: заявка закрыта',
                 'supplement_approve': 'Согласовал(-а) дополнение',
                 'supplement_reject': 'Не согласовал(-а) дополнение',
                 'supplement_revoke_approval': 'Отозвал(-а) согласование дополнения',
                 'supplement_confirmation_change': 'Статус согласования дополнения изменился',
+                'supplement_accepted': 'Принял(-а) дополнение',
+                'supplement_refused': 'Отклонил(-а) дополнение',
+                'supplement_cancelled_by_author': 'Снял(-а) своё дополнение',
                 'withdraw': 'Отозвал(-а) заявку',
                 'assigned_responsible': 'Назначен(-а) ответственным получателем',
                 'assigned_viewer': 'Получил(-а) доступ к просмотру заявки',
@@ -758,10 +766,37 @@ export default {
             };
             
             let text = texts[item.action_type] || item.action_type;
-            
-            
-            
+
+            // Номер раунда рядом с подписью (#1685): по одной заявке дополнений бывает
+            // несколько, и без номера события разных раундов в ленте не различить.
+            // Скобками, а не « №N» в хвосте - часть подписей кончается не словом
+            // «дополнение» («Статус согласования дополнения изменился»).
+            const supplementNumber = this.supplementNumber(item);
+            if (supplementNumber) {
+                text = `${text} (№${supplementNumber})`;
+            }
+
             return text;
+        },
+
+        /**
+         * Номер раунда дополнения из метаданных события (#1685), либо null.
+         *
+         * Бэк кладёт в metadata аудита ключ `number` (supplementAuditMetadata); имя
+         * `supplement_number` он же использует в payload уведомлений, поэтому принимаем
+         * оба - иначе подпись молча останется без номера, если ключи когда-нибудь сведут.
+         *
+         * @param {Object} item запись истории
+         * @returns {?number}
+         */
+        supplementNumber(item) {
+            if (!item || typeof item.action_type !== 'string') return null;
+            if (!item.action_type.startsWith('supplement_')) return null;
+
+            const meta = item.metadata || {};
+            const raw = meta.supplement_number != null ? meta.supplement_number : meta.number;
+            const number = Number(raw);
+            return Number.isFinite(number) && number > 0 ? number : null;
         },
 
         formatTime(dateTimeString) {

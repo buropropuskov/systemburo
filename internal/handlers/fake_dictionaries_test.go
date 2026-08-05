@@ -28,6 +28,8 @@ func TestFakeDictionaries_RunFillsRealDirectories(t *testing.T) {
 	_, db, _ := testutil.SetupTestApp(t)
 	ctx := context.Background()
 
+	seedFakeAdmin(t, db)
+
 	profile, err := fakedata.ProfileByName("small")
 	require.NoError(t, err)
 

@@ -25,7 +25,9 @@ type ApplicationSupplement struct {
 	// ConfirmationDatetime - момент выхода из pending (согласовано либо отклонено), по образцу
 	// applications.confirmation_datetime.
 	ConfirmationDatetime *time.Time `json:"confirmation_datetime"`
-	// DecidedBy/DecisionComment/DecidedAt - решение принимающего по дополнению.
+	// DecidedBy/DecisionComment/DecidedAt - кто и когда закрыл раунд решением: принимающий
+	// при принятии/отказе либо автор заявки при снятии. Терминальный статус говорит, какое
+	// именно это было решение, поэтому отдельной колонки под роль решившего не заведено.
 	DecidedByUserID *int       `json:"decided_by_user_id"`
 	DecisionComment *string    `gorm:"type:text" json:"decision_comment"`
 	DecidedAt       *time.Time `json:"decided_at"`

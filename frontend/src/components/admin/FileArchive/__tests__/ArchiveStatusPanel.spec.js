@@ -27,7 +27,7 @@ function baseStats(overrides = {}) {
       { name: 'Автозаявка', bytes: 1.5 * GB, file_count: 50 },
       { name: 'Заявка на ввоз', bytes: 0.5 * GB, file_count: 30 },
     ],
-    last_written_at: '2026-07-31T11:42:00Z',
+    last_written_at: `${new Date().getFullYear()}-07-31T11:42:00Z`,
     disk: {
       total_bytes: 10 * GB,
       free_bytes: 6 * GB,
@@ -66,9 +66,27 @@ describe('ArchiveStatusPanel', () => {
     // Момент, а не месяц: администратор смотрит сюда, чтобы понять, пишется ли
     // архив сейчас. Месяц «Июль 2026» ниже по странице живёт своей жизнью в
     // разбивке по периодам, поэтому проверяем саму плитку, а не текст панели.
+    // Год записи текущего года не показываем: полный момент не помещался в
+    // плитку и переносом растягивал весь ряд. Он остаётся в подсказке.
     const lastTile = w.findAll('.archive-status__tile').find((t) => t.text().includes('Последняя запись'))
-    expect(lastTile.text()).toMatch(/31\.07\.2026/)
+    expect(lastTile.text()).toMatch(/31\.07, \d{2}:\d{2}/)
     expect(lastTile.text()).not.toContain('Июль 2026')
+    expect(lastTile.attributes('title')).toMatch(/31\.07\.\d{4}/)
+  })
+
+  it('запись прошлых лет показывается с годом, а не со временем', async () => {
+    // Дата строится от текущего года, иначе тест переживёт ровно до Нового года.
+    const lastYear = new Date().getFullYear() - 1
+    api.getArchiveStats.mockResolvedValue(baseStats({
+      last_written_at: `${lastYear}-11-12T09:30:00Z`,
+    }))
+    const w = mount(ArchiveStatusPanel)
+    await flushPromises()
+
+    const lastTile = w.findAll('.archive-status__tile').find((t) => t.text().includes('Последняя запись'))
+    expect(lastTile.text()).toContain(`12.11.${lastYear}`)
+    // Минуты прошлогодней записи не нужны: важнее, что это было давно.
+    expect(lastTile.text()).not.toMatch(/\d{2}:\d{2}/)
   })
 
   it('файлы разложены по видам: заявки, бланки, описания', async () => {

@@ -340,6 +340,22 @@ func (s *applicationService) ensureRoundCanReopen(tx *gorm.DB, applicationID, su
 // доголосового расклада и разошлись бы в итоге.
 func (s *applicationService) lockSupplementRound(tx *gorm.DB, applicationID, supplementID int) (supplementRound, error) {
 	var round supplementRound
+
+	// Заявка блокируется ПЕРВОЙ и только потом раунд. Порядок именно такой, потому что
+	// встречный путь его уже занял: закрытие заявки (отзыв, вывод из работы, отказ, срок)
+	// сперва пишет в applications, а затем снимает открытые раунды через
+	// cancelOpenSupplements. Возьми мы раунд первым - получилась бы встречная пара
+	// «раунд -> заявка» против «заявка -> раунд», то есть дедлок: любой путь отсюда
+	// рано или поздно трогает саму заявку (хотя бы отметкой status_updated_at).
+	//
+	// Блокировка здесь, а не у вызывающих: точек входа четыре (голос, отзыв голоса,
+	// решение принимающего, снятие автором), и порядок, который можно забыть в одной из
+	// них, инвариантом не является.
+	if err := tx.Exec("SELECT id FROM applications WHERE id = ? FOR UPDATE", applicationID).Error; err != nil {
+		slog.Error("дополнение: не удалось заблокировать заявку", "application_id", applicationID, "error", err)
+		return round, echo.NewHTTPError(http.StatusInternalServerError, "Failed to lock application")
+	}
+
 	res := tx.Raw(`
 		SELECT id, application_id, number, status
 		FROM application_supplements

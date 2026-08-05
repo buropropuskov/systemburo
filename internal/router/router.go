@@ -776,6 +776,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// голосовать вправе только состав раунда, и это проверяет сервис.
 	apg.POST("/:id/supplements/:sid/approve", app.ApproveSupplement)
 	apg.POST("/:id/supplements/:sid/revoke-approval", app.RevokeSupplementApproval)
+	// Решение по раунду. Права тоже нет: принять/отклонить вправе только принимающий,
+	// снять - только автор заявки, и обе роли проверяет сервис.
+	apg.POST("/:id/supplements/:sid/take-to-work", app.DecideSupplement)
+	apg.POST("/:id/supplements/:sid/cancel", app.CancelSupplement)
 	apg.GET("/:id/history", app.GetApplicationHistory)
 	apg.POST("/:id/revoke-approval", app.RevokeApproval)
 	apg.POST("/history", app.AddHistoryEntry)

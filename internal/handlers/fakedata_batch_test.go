@@ -25,6 +25,22 @@ func setupFakeDataDB(t *testing.T) *gorm.DB {
 	return db
 }
 
+// seedFakeAdmin заводит администратора стенда: наливка пишет от него историю, а у
+// реестров сотрудников и машин владелец держится внешним ключом, поэтому без учётной
+// записи шаг честно падает. На живом стенде администратор есть всегда (make staging-seed).
+func seedFakeAdmin(t *testing.T, db *gorm.DB) models.User {
+	t.Helper()
+	admin := models.User{
+		Username:     uniq("fake_admin"),
+		Password:     "x",
+		TypeID:       1,
+		IsSuperAdmin: true,
+		IsActive:     true,
+	}
+	require.NoError(t, db.Create(&admin).Error)
+	return admin
+}
+
 // Экземпляр без отметки наливку не пускает, и отказ объясняет, что делать. Это
 // единственное, что стоит между командой и рабочим сервером.
 func TestEnsureStand_RefusesUnmarked(t *testing.T) {
@@ -170,6 +186,8 @@ func TestRun_CreatesDictionariesAndClosesBatch(t *testing.T) {
 	db := setupFakeDataDB(t)
 	ctx := context.Background()
 
+	seedFakeAdmin(t, db)
+
 	profile, err := fakedata.ProfileByName("small")
 	require.NoError(t, err)
 	batch, err := fakedata.OpenBatch(ctx, db, "test-dictionaries-run", 7, profile.Name)
@@ -200,6 +218,8 @@ func TestRun_CreatesDictionariesAndClosesBatch(t *testing.T) {
 func TestRun_RepeatedRunDoesNotFailOnUniqueIndexes(t *testing.T) {
 	db := setupFakeDataDB(t)
 	ctx := context.Background()
+
+	seedFakeAdmin(t, db)
 
 	profile, err := fakedata.ProfileByName("small")
 	require.NoError(t, err)

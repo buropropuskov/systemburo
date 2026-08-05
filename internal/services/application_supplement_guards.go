@@ -84,9 +84,16 @@ func (s *applicationService) cancelOpenSupplements(ctx context.Context, tx *gorm
 		Number int
 		Status string
 	}
+	// FOR UPDATE обязателен, а не для порядка: без него параллельное решение принимающего
+	// успевает закоммитить accepted (строки раунда уже активированы и стоят на КПП), после
+	// чего этот UPDATE безусловно перебивал бы его на cancelled. Раунд с cancelled и
+	// активными строками - худший из исходов: строки физически на посту, а все читатели
+	// состава считают их непринятыми и прячут, поэтому бланк расходится с реальным допуском.
+	// Под блокировкой SELECT перечитает строку после чужого коммита и такой раунд уже не
+	// выберет. Порядок захвата тот же, что у всех вызывающих: сначала заявка, потом раунд.
 	var open []openSupplement
 	if err := tx.Raw(
-		"SELECT id, number, status FROM application_supplements WHERE application_id = ? AND status IN ?",
+		"SELECT id, number, status FROM application_supplements WHERE application_id = ? AND status IN ? FOR UPDATE",
 		applicationID, models.OpenSupplementStatuses,
 	).Scan(&open).Error; err != nil {
 		slog.Error("Ошибка чтения открытых дополнений заявки", "application_id", applicationID, "error", err)
@@ -100,8 +107,10 @@ func (s *applicationService) cancelOpenSupplements(ctx context.Context, tx *gorm
 	for _, sup := range open {
 		ids = append(ids, sup.ID)
 	}
-	if err := tx.Exec("UPDATE application_supplements SET status = ? WHERE id IN ?",
-		models.SupplementCancelled, ids).Error; err != nil {
+	// Условие по статусу повторяется и здесь: строки уже под блокировкой, но лишний предикат
+	// стоит дёшево и не даёт снять раунд, который перестал быть открытым.
+	if err := tx.Exec("UPDATE application_supplements SET status = ? WHERE id IN ? AND status IN ?",
+		models.SupplementCancelled, ids, models.OpenSupplementStatuses).Error; err != nil {
 		slog.Error("Ошибка снятия открытых дополнений заявки", "application_id", applicationID, "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to cancel application supplements")
 	}
