@@ -52,10 +52,15 @@ const (
 // без AND и скобок вокруг вызова - подставляется в WHERE соседним предикатом.
 //
 // rel приходит только литералом из кода этого пакета, снаружи в него ничего не попадает.
+// Допущены строки трёх видов: исходный состав подачи (supplement_id пуст), принятый
+// отдельный раунд и раунд, влитый в основной круг. Последний - не поблажка: заявка тогда
+// ещё не была в работе, добавку согласовали вместе со всем составом, и своего принятия у
+// неё нет и не будет. Без него такая строка не активировалась бы никогда: приём заявки в
+// работу поднимает только допущенное, а перевести merged в accepted некому.
 func admittedSupplementCond(rel string) string {
 	return "(" + rel + ".supplement_id IS NULL OR EXISTS (" +
 		"SELECT 1 FROM application_supplements sup WHERE sup.id = " + rel + ".supplement_id" +
-		" AND sup.status = '" + models.SupplementAccepted + "'))"
+		" AND sup.status IN ('" + models.SupplementAccepted + "', '" + models.SupplementMerged + "')))"
 }
 
 // supplementScopeWhere - кусок WHERE для запроса, читающего состав вложения: пустая строка
