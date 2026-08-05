@@ -1,9 +1,11 @@
 package handlers_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -419,4 +421,59 @@ func TestSupplementDecision(t *testing.T) {
 		assert.Equal(t, models.SupplementApproved, suppVoteReadRoundByID(t, db, roundID).Status)
 		suppDecAssertApplicationIntact(t, db, appID)
 	})
+}
+
+// Гонка решения принимающего с закрытием заявки: принятие раунда и вывод заявки из работы
+// стартуют одновременно. Проверяем не «кто победил» (это выбор планировщика), а что исход
+// согласован: раунд не может остаться cancelled со строками, стоящими на КПП, - именно
+// такое расхождение прячет строки от всех читателей состава, оставляя их физически на посту.
+func TestSupplementDecision_RaceWithApplicationClose(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	authorID, _ := suppVoteUser(t, e, db, "race_author", td.OrgID, td.CompanyID)
+	acceptorID, acceptorToken := suppVoteUser(t, e, db, "race_acceptor", td.OrgID, td.CompanyID)
+	require.NoError(t, db.Create(&models.ApplicationApprover{UserID: acceptorID}).Error)
+
+	table := suppDecTable(t, db, "race-post")
+	appID := suppApp(t, db, td.OrgID, authorID, "DEC-RACE-1", models.ConfirmationApproved, models.StatusInWork)
+	attID := suppAttachment(t, db, appID, "people", "2030-01-01")
+
+	round := models.ApplicationSupplement{
+		ApplicationID: appID, Number: 1, Status: models.SupplementApproved, CreatedByUserID: authorID,
+	}
+	require.NoError(t, db.Create(&round).Error)
+	empID := suppDecEmployee(t, db, attID, table, "Гоночный", &round.ID, 0)
+
+	svc := services.NewApplicationService(db, nil, nil, nil, nil, services.NewAuditRecorder(db))
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		testutil.POST(t, e, fmt.Sprintf("/applications/%d/supplements/%d/take-to-work", appID, round.ID),
+			`{"action":"accept"}`, testutil.AuthHeader(acceptorToken))
+	}()
+	go func() {
+		defer wg.Done()
+		_ = svc.RevokeApplicationFromWork(context.Background(), "race_acceptor", appID,
+			services.RevokeFromWorkRequest{Comment: nil})
+	}()
+	wg.Wait()
+
+	var final models.ApplicationSupplement
+	require.NoError(t, db.First(&final, round.ID).Error)
+	status := suppDecEmployeeStatus(t, db, empID)
+
+	if final.Status == models.SupplementAccepted {
+		// Принятие успело раньше - вывод из работы обязан был погасить строку следом,
+		// раз он гасит весь состав заявки.
+		require.Equal(t, 0, status, "после вывода заявки из работы строка принятого раунда не может остаться на КПП")
+	} else {
+		require.Equal(t, models.SupplementCancelled, final.Status,
+			"раунд закрытой заявки либо принят, либо снят - других исходов нет")
+		require.Equal(t, 0, status, "строка снятого раунда на КПП не попадает")
+	}
 }
