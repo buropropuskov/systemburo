@@ -133,6 +133,7 @@
             :action-comment="actionComment"
             :has-unoverridden-blacklist-flags="!!applicationData.has_unoverridden_blacklist_flags"
             :ready="actionsReady"
+            :supplements="supplements"
             @action-completed="handleActionCompleted"
             @processing-change="processingApplication = $event"
             @updating-confirmation-change="updatingConfirmation = $event"
@@ -526,6 +527,17 @@
             />
           </div>
 
+          <!-- Раунды дополнения (#1685): показываем только когда они у заявки есть -
+               у подавляющего большинства заявок дополнений нет, и пустая карточка
+               в колонке была бы шумом. -->
+          <SupplementPanel
+            v-if="hasSupplements"
+            :supplements="supplements"
+            :current-user-id="currentUserId"
+            :loading="supplementsLoading"
+            :error="supplementsError"
+          />
+
           <div
             v-if="can('center.application_history')"
             class="history-button-section"
@@ -588,7 +600,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
-import { markAsRead } from '@/api/applications'
+import { markAsRead, getApplicationSupplements } from '@/api/applications'
 import { useDeletionsStore } from '@/stores/deletions'
 import { useUiStore } from '@/stores/ui'
 import { usePermissionsStore } from '@/stores/permissions'
@@ -612,6 +624,7 @@ import eventStream from '@/services/eventStream'
 import { ref } from 'vue'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 import SupplementModal from '../CreateApplication/SupplementModal.vue'
+import SupplementPanel from './SupplementPanel.vue'
 
 // Статусы, в которых заявку ещё можно дополнить (#1685). Зеркало
 // services.supplementAllowedStatuses - остальные бэк отклоняет с 409.
@@ -635,7 +648,8 @@ export default {
         BaseDropdown,
         ApplicationMessageModal,
         ApplicationOrgModeration,
-        SupplementModal
+        SupplementModal,
+        SupplementPanel
     },
     props: {
         application: {
@@ -707,6 +721,12 @@ export default {
             ],
             isLeftColumnCollapsed: false,
             showSupplementModal: false,
+            // Раунды дополнения заявки (#1685): свой список, свой seq-токен и своя
+            // ошибка - карточка заявки не должна падать из-за недоступности раундов.
+            supplements: [],
+            supplementsLoading: false,
+            supplementsError: '',
+            supplementsSeq: 0,
             showForwardModal: false,
             isForwarding: false,
             allUsers: [],
@@ -817,6 +837,18 @@ export default {
             if (!this.can('action.supplement.application')) return false;
             if (a.open_supplement) return false;
             return SUPPLEMENT_ALLOWED_STATUSES.includes(a.status);
+        },
+
+        /**
+         * Есть ли у заявки раунды дополнения (#1685). Признак берём из детали
+         * (supplements_count/open_supplement), а не из длины загруженного списка:
+         * пока список едет, панель обязана уже стоять со своим лоадером, иначе она
+         * выскочит рывком, а на ошибке загрузки не появится вовсе.
+         */
+        hasSupplements() {
+            const a = this.applicationData;
+            if (!a) return false;
+            return Number(a.supplements_count) > 0 || !!a.open_supplement || this.supplements.length > 0;
         },
 
         // Отменить подтверждение пропуска может ответственный по заявке ИЛИ принимающий -
@@ -996,11 +1028,50 @@ export default {
             const text = resolvedType === 'error' ? String(message ?? '').replace(/^Ошибка:\s*/, '') : message;
             useDeletionsStore().notify({ bold: text, type: resolvedType });
             if (success) {
+                // loadApplicationDetails тянет за собой и раунды дополнения: решение по
+                // раунду меняет и его статус, и состав вложения (#1685).
                 this.loadApplicationDetails(this.applicationData);
                 if (this.$refs.historyComponent) {
                     this.$refs.historyComponent.loadHistory();
                 }
                 this.$emit('application-changed', this.applicationData);
+            }
+        },
+
+        /**
+         * Раунды дополнения заявки (#1685). Зовётся из loadApplicationDetails, то есть
+         * на всех путях обновления карточки: открытие, собственное действие, тихий
+         * рефетч по application.updated (SSE) и подача нового дополнения - чужое решение
+         * долетает без F5.
+         *
+         * Свой seq-токен: SSE-сигнал и собственное действие могут идти подряд, и ответ
+         * более раннего запроса не должен затирать более свежий (#632/#840).
+         */
+        async loadSupplements() {
+            const a = this.applicationData;
+            if (!a || !a.id) return;
+            // Заявок без дополнений подавляющее большинство - лишний запрос на каждое
+            // открытие карточки не делаем.
+            if (!Number(a.supplements_count) && !a.open_supplement) {
+                this.supplements = [];
+                this.supplementsError = '';
+                return;
+            }
+
+            const seq = ++this.supplementsSeq;
+            this.supplementsLoading = true;
+            try {
+                const rounds = await getApplicationSupplements(a.id);
+                if (seq !== this.supplementsSeq) return;
+                this.supplements = Array.isArray(rounds) ? rounds : [];
+                this.supplementsError = '';
+            } catch (error) {
+                if (seq !== this.supplementsSeq) return;
+                // Текст ошибки показывает сама панель: тост на фоновом рефетче по SSE
+                // всплывал бы при каждом сигнале, а карточка заявки остаётся рабочей.
+                this.supplementsError = error.message || 'Не удалось загрузить дополнения заявки';
+            } finally {
+                if (seq === this.supplementsSeq) this.supplementsLoading = false;
             }
         },
 
@@ -1077,7 +1148,12 @@ export default {
                         ...this.applicationData,
                         ...appData
                     };
-                    
+
+                    // Раунды дополнения (#1685) - отдельной ручкой, признак их наличия
+                    // приезжает только что вместе с деталью. Без await: у панели свой
+                    // лоадер, а кнопки действий заявки её ждать не должны.
+                    this.loadSupplements();
+
                     if (appData.responsible_users) {
                         this.responsibleUsers = appData.responsible_users.map(user => ({
                             ...user,
