@@ -66,6 +66,18 @@ jobs:
             docker compose -f docker-compose.base.yml -f docker-compose.prod.yml build --pull --no-cache frontend
             docker compose -f docker-compose.base.yml -f docker-compose.prod.yml build --pull backend nginx
             docker compose -f docker-compose.base.yml -f docker-compose.prod.yml up -d --force-recreate
+            # Уборки здесь не было вовсе, а фронт собирается на месте без кеша:
+            # каждый выпуск оставляет полный набор слоёв прошлой сборки. На стенде
+            # такое накопление за четыре месяца заняло больше четырёх гигабайт и
+            # довело диск до 83 процентов; на рабочем сервере цена выше.
+            #
+            # Порядок команд от безопасного к жадному: висячие слои, затем кеш
+            # сборки старше недели (недельный запас держит быстрые пересборки),
+            # затем образы без единого контейнера, старше суток. Тома не трогаем
+            # ни одной из команд - в них база и загруженные файлы.
+            docker image prune -f 2>/dev/null || true
+            docker builder prune -f --filter 'until=168h' 2>/dev/null || true
+            docker image prune -af --filter 'until=24h' 2>/dev/null || true
             sleep 5
             docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec -T backend wget -qO- http://localhost:8080/health || exit 1
             echo "Production deploy completed at $(date)"
