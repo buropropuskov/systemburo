@@ -8,4 +8,8 @@ module.exports = {
   ...require('./EmployeesPage'),
   ...require('./CreateApplicationPage'),
   ...require('./TablesPage'),
+  ...require('./ApplicationDetailModal'),
+  ...require('./SupplementModal'),
+  ...require('./EmployeeFormSection'),
+  ...require('./PeopleTablePage'),
 };

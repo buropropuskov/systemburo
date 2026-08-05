@@ -50,6 +50,17 @@ async function loginAsAdmin(page) {
   await page.waitForURL(POST_LOGIN_URL);
 }
 
+/**
+ * Вход через форму под произвольной учёткой - для сценариев, где роли разведены по
+ * созданным тестом пользователям, а не по фиксированным сид-аккаунтам.
+ */
+async function loginAsUI(page, username, password) {
+  const loginPage = new LoginPage(page);
+  await loginPage.goto();
+  await loginPage.login(username, password);
+  await page.waitForURL(POST_LOGIN_URL);
+}
+
 async function loginAsUser(page) {
   const loginPage = new LoginPage(page);
   await loginPage.goto();
@@ -86,6 +97,7 @@ module.exports = {
   loginViaAPI,
   loginAsAdmin,
   loginAsUser,
+  loginAsUI,
   loginAsSuperAdminUI,
   setAuthTokens,
   SEED_ADMIN,
