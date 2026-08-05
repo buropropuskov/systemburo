@@ -12,42 +12,53 @@
         <h4 class="asv__block-title">
           Куда лягут файлы
         </h4>
-        <ol class="asv__levels">
-          <li
-            v-for="(level, index) in dirLevels"
+        <!-- Дерево вместо перечисления уровней: раскладка папок объясняется
+             самой раскладкой, а не описанием раскладки словами. -->
+        <div class="asv__tree">
+          <div
+            v-for="(node, index) in treeNodes"
             :key="index"
-            class="asv__level"
+            class="asv__tree-node"
+            :style="{ paddingLeft: index * 14 + 'px' }"
           >
-            {{ level }}
-          </li>
-        </ol>
-        <p class="asv__file-rule">
-          Имя файла: {{ fileRule }}
-        </p>
+            <span
+              v-if="index"
+              class="asv__tree-branch"
+              aria-hidden="true"
+            >└</span>
+            <span :class="node.file ? 'asv__tree-file' : 'asv__tree-dir'">{{ node.text }}</span>
+          </div>
+        </div>
         <p class="asv__example">
-          Например: <code>{{ pathExample }}</code>
+          Пример собран на образцах значений: у настоящей заявки здесь её
+          собственные дата, номер и организация.
         </p>
       </div>
 
       <div class="asv__block">
         <h4 class="asv__block-title">
-          Пороги и сроки
+          Что и когда делает система
         </h4>
         <dl class="asv__list">
           <div
             v-for="row in limitRows"
-            :key="row.label"
+            :key="row.when"
             class="asv__row"
           >
-            <dt class="asv__label">
-              {{ row.label }}
-              <span class="asv__value">{{ row.value }}</span>
+            <dt class="asv__when">
+              {{ row.when }}
             </dt>
-            <dd class="asv__meaning">
-              {{ row.meaning }}
+            <dd class="asv__then">
+              {{ row.then }}
             </dd>
           </div>
         </dl>
+        <p
+          v-if="!settings.quota_bytes"
+          class="asv__note"
+        >
+          Предельный объём архива не задан: запись остановит только нехватка места.
+        </p>
       </div>
     </div>
 
@@ -78,64 +89,63 @@
 import { computed } from 'vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import { formatBytes } from '@/utils/download';
-import { describeDirTemplate, describeTemplatePart, renderTemplateExample } from '@/utils/archiveTemplate';
+import { renderTemplateExample } from '@/utils/archiveTemplate';
 
 const props = defineProps({
   settings: { type: Object, required: true },
 });
 
-const dirLevels = computed(() => describeDirTemplate(props.settings?.dir_template));
-
-const pathExample = computed(() => {
+// Уровни дерева: каталоги из шаблона плюс имя файла последней строкой. Показываем
+// готовые имена, а не описания вроде «месяц двумя цифрами» - по образцу видно и
+// порядок вложенности, и вид каждого имени сразу.
+const treeNodes = computed(() => {
   const dir = renderTemplateExample(props.settings?.dir_template);
+  const levels = String(dir || '').split('/').map((p) => p.trim()).filter(Boolean);
   // Концевые точки и пробелы срезает сервер (Windows отбрасывает точку в конце
   // имени), поэтому «Иванов И.И.» + «.xlsx» на диске даёт одну точку, не две.
-  // Пример обязан совпадать с тем, что реально ляжет в каталог.
   const file = renderTemplateExample(props.settings?.file_template).replace(/[.\s]+$/, '');
-  return `${dir}/${file}.xlsx`;
+  const nodes = levels.map((text) => ({ text, file: false }));
+  if (file) nodes.push({ text: `${file}.xlsx`, file: true });
+  return nodes;
 });
 
-const fileRule = computed(() => describeTemplatePart(props.settings?.file_template) || 'не задано');
-
+// Каждая строка - пара «когда» и «что тогда»: администратор читает этот блок,
+// когда что-то встало, и ему нужно сопоставить наблюдаемое с настройкой, а не
+// прочесть абзац про каждую. Отсюда телеграфный слог и никаких предложений.
 const limitRows = computed(() => {
   const s = props.settings || {};
-  const quota = s.quota_bytes > 0 ? formatBytes(s.quota_bytes) : 'без ограничения';
   const minFree = formatBytes(s.min_free_bytes || 0);
-  const zipMax = formatBytes(s.zip_max_bytes || 0);
-  return [
+  const rows = [
     {
-      label: 'Предельный объём архива',
-      value: quota,
-      meaning: s.quota_bytes > 0
-        ? `Когда архив дорастёт до ${quota}, запись новых бланков остановится.`
-        : 'Объём не ограничен - запись остановит только нехватка места на диске.',
+      when: `Свободно меньше ${minFree}`,
+      then: 'запись встаёт, пойдёт сама, когда место освободится',
     },
     {
-      label: 'Наименьший остаток на диске',
-      value: minFree,
-      meaning: `Свободного места стало меньше ${minFree} - очередь встаёт. Освободите место, дальше она пойдёт сама.`,
+      when: `Раздел занят на ${s.warn_percent ?? 0} %`,
+      then: 'уведомление ответственным, запись продолжается',
     },
     {
-      label: 'Порог предупреждения',
-      value: `${s.warn_percent ?? 0} %`,
-      meaning: `При заполнении раздела на ${s.warn_percent ?? 0} % ответственным придёт уведомление, запись продолжится.`,
+      when: 'Каждую ночь',
+      then: `сверка с диском за последние ${s.recheck_days ?? 0} дн., пропавшее дописывается`,
     },
     {
-      label: 'Ночная сверка',
-      value: `${s.recheck_days ?? 0} дн.`,
-      meaning: `Каждую ночь система сверяет с диском заявки за последние ${s.recheck_days ?? 0} дн. и дописывает пропавшие файлы.`,
+      when: `Через ${s.freeze_after_days ?? 0} дн. после окончания заявки`,
+      then: 'файлы замораживаются и больше не переписываются',
     },
     {
-      label: 'Заморозка файлов',
-      value: `${s.freeze_after_days ?? 0} дн.`,
-      meaning: `Через ${s.freeze_after_days ?? 0} дн. после окончания заявки файлы считаются окончательными и больше не переписываются - в том числе кнопкой «Пересобрать».`,
-    },
-    {
-      label: 'Потолок одной выгрузки',
-      value: zipMax,
-      meaning: `За один раз скачивается не больше ${zipMax}; за больший период архив забирается частями.`,
+      when: 'Одна выгрузка',
+      then: `не больше ${formatBytes(s.zip_max_bytes || 0)}, дальше период сужают`,
     },
   ];
+  // Строку про объём показываем, только когда предел задан: «не ограничен» -
+  // это отсутствие правила, и в перечне правил оно лишнее.
+  if (s.quota_bytes > 0) {
+    rows.unshift({
+      when: `Архив дорос до ${formatBytes(s.quota_bytes)}`,
+      then: 'запись новых бланков останавливается',
+    });
+  }
+  return rows;
 });
 </script>
 
@@ -174,22 +184,38 @@ const limitRows = computed(() => {
   color: var(--text-muted);
 }
 
-/* Уровни каталогов пронумерованы: порядок здесь и есть содержание - он повторяет
-   вложенность папок на диске сверху вниз. */
-.asv__levels {
-  margin: 0;
-  padding-left: 20px;
+/* Дерево: вложенность показывается сдвигом, как в проводнике. */
+.asv__tree {
   display: flex;
   flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.asv__tree-node {
+  display: flex;
+  align-items: baseline;
   gap: 4px;
-  font-size: 14px;
+}
+
+/* Имена папок короткие и переносить их незачем, а вот имя файла из четырёх
+   склеенных значений длиннее колонки: пусть переносится, чем уезжает в скролл
+   или прячется под многоточием - в него и надо всмотреться. */
+.asv__tree-node > span:last-child {
+  overflow-wrap: anywhere;
+}
+
+.asv__tree-branch {
+  color: var(--text-muted);
+}
+
+.asv__tree-dir {
   color: var(--text);
 }
 
-.asv__file-rule {
-  margin: 12px 0 0;
-  font-size: 14px;
-  color: var(--text);
+/* Имя файла отличается от папок цветом: это конец пути, дальше вложенности нет. */
+.asv__tree-file {
+  color: var(--accent);
 }
 
 .asv__example {
@@ -203,7 +229,7 @@ const limitRows = computed(() => {
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .asv__row {
@@ -212,25 +238,22 @@ const limitRows = computed(() => {
   gap: 2px;
 }
 
-.asv__label {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
-  color: var(--text-muted);
-  font-size: 13px;
-}
-
-.asv__value {
+.asv__when {
   color: var(--text);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
 }
 
-.asv__meaning {
+.asv__then {
   margin: 0;
   color: var(--text-muted);
   font-size: 13px;
+}
+
+.asv__note {
+  margin: 12px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .asv__hint {

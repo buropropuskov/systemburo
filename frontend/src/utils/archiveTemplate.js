@@ -7,10 +7,10 @@
  * записан шаблон.
  *
  * Словарь повторяет реестр плейсхолдеров сервера (internal/blankpath/tokens.go).
- * Дублирование осознанное: ради подписей заводить отдельную ручку дороже, чем
- * держать здесь список из двух десятков строк. Неизвестный плейсхолдер не
- * прячется и не ломает разбор - показывается как есть, чтобы новая подстановка
- * на сервере была заметна, а не потерялась.
+ * Дублирование осознанное: ради образцов значений заводить отдельную ручку
+ * дороже, чем держать здесь список из двух десятков строк. Неизвестный
+ * плейсхолдер не прячется и не ломает разбор - остаётся в примере как есть,
+ * чтобы новая подстановка на сервере была заметна, а не потерялась.
  */
 
 const TOKENS = {
@@ -36,41 +36,6 @@ const TOKENS = {
 };
 
 const TOKEN_RE = /\{([^{}]+)\}/g;
-
-/**
- * Человеческое описание одного уровня шаблона: плейсхолдеры заменяются их
- * названиями, литералы остаются как есть.
- * @param {string} part кусок шаблона между разделителями каталогов
- * @returns {string} например «дата, номер заявки»
- */
-export function describeTemplatePart(part) {
-  const names = [];
-  let literal = '';
-  let lastIndex = 0;
-  for (const match of String(part || '').matchAll(TOKEN_RE)) {
-    literal += part.slice(lastIndex, match.index);
-    lastIndex = match.index + match[0].length;
-    const token = TOKENS[match[1]];
-    names.push(token ? token.label : match[0]);
-  }
-  literal += part.slice(lastIndex);
-  // Литералы вроде «№» в «№{номер}» в описание не тащим: они видны в примере
-  // пути, а в перечислении названий читались бы мусором.
-  return names.length ? names.join(', ') : literal.trim();
-}
-
-/**
- * Уровни каталогов шаблона, описанные словами.
- * @param {string} template шаблон каталогов
- * @returns {string[]} по строке на уровень
- */
-export function describeDirTemplate(template) {
-  return String(template || '')
-    .split('/')
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map(describeTemplatePart);
-}
 
 /**
  * Пример того, что получится по шаблону: плейсхолдеры заменяются образцами
