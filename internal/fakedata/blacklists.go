@@ -292,7 +292,8 @@ func buildVehicleBlacklistRequest(similar bool, candidates []carCandidate, marks
 		if !ok {
 			// Марка машины реестра не нашлась среди активных марок (архивирована между
 			// шагами внутри одного прогона не бывает, но без запасного варианта запись
-			// осталась бы вовсе без markID).
+			// осталась бы вовсе без markID). Пара при этом теряет соответствие по марке:
+			// похожим остаётся только номер, а он и есть то, по чему срабатывает детектор.
 			markID = Pick(s.markPick, marks).id
 		}
 		return models.CreateVehicleBlacklistRequest{CarNumber: number, MarkID: markID, Reason: reason}, nil

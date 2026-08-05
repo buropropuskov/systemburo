@@ -174,3 +174,48 @@ func TestFakeBlacklists_FailsWhenRegistriesEmpty(t *testing.T) {
 	require.Error(t, err, "наливка без записей реестра обязана сообщить об отказе, а не пропустить чёрные списки молча")
 	require.Contains(t, err.Error(), "реестр машин пуст")
 }
+
+// Запас до порога похожести тоньше всего на самых коротких ФИО словаря: триграммная
+// близость падает с длиной строки. Сторож перебирает короткий хвост словаря, поэтому
+// добавленная короткая фамилия сразу покажет, что «похожая» запись перестала ловиться
+// детектором и пары стали бесполезными.
+func TestFakeBlacklists_ShortestNameStillPassesThreshold(t *testing.T) {
+	_, db, _ := testutil.SetupTestApp(t)
+	ctx := context.Background()
+	testutil.CleanDB(t, db)
+	admin := seedFakeAdmin(t, db)
+
+	personSvc := services.NewPersonBlacklistService(db, services.NewAuditRecorder(db))
+
+	for _, name := range fakedata.ShortestFullNames(5) {
+		// Мутация повторяет то, что делает шаг: замена последней буквы фамилии. Звать
+		// приватную mutateLastRune через экспорт «для теста» не стоит -- проверяется
+		// порог похожести, а не сама подстановка символа.
+		runes := []rune(name.LastName)
+		replacement := 'н'
+		if runes[len(runes)-1] == replacement {
+			replacement = 'к'
+		}
+		runes[len(runes)-1] = replacement
+		mutated := string(runes)
+		require.NotEqual(t, name.LastName, mutated)
+
+		entry, err := personSvc.Create(ctx, models.CreatePersonBlacklistRequest{
+			LastName:   mutated,
+			FirstName:  name.FirstName,
+			MiddleName: name.MiddleName,
+			Reason:     "проверка порога похожести",
+		}, admin.ID)
+		require.NoError(t, err)
+
+		matches, err := personSvc.FindSimilar(ctx, name.LastName, name.FirstName, name.MiddleName)
+		require.NoError(t, err)
+		require.NotEmpty(t, matches,
+			"ФИО %q %q %q: похожая запись обязана находиться детектором, иначе пара бесполезна",
+			name.LastName, name.FirstName, name.MiddleName)
+
+		// Убираем запись из активных: следующая итерация проверяет свою пару, и чужая
+		// похожая запись сделала бы проверку неотличимой от «нашлось что-то другое».
+		require.NoError(t, personSvc.Archive(ctx, entry.ID, admin.ID))
+	}
+}
