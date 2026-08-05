@@ -81,54 +81,19 @@ func (s *applicationService) updateConfirmationBasedOnApprovals(tx *gorm.DB, app
 		return nil
 	}
 
-	var required, nonRequired []models.ApplicationResponsibleUser
+	votes := make([]approvalVote, 0, len(responsibles))
 	for _, r := range responsibles {
-		if r.RequiredApproval {
-			required = append(required, r)
-		} else {
-			nonRequired = append(nonRequired, r)
-		}
+		votes = append(votes, approvalVote{Required: r.RequiredApproval, Status: r.ApprovalStatus})
 	}
 
+	// Кворум считает общая с раундом дополнения функция (approval_tally.go); заявке
+	// остаётся перевести исход в свой словарь confirmation.
 	newConfirmation := models.ConfirmationPending
-
-	hasRequiredRejected := false
-	for _, r := range required {
-		if r.ApprovalStatus != nil && *r.ApprovalStatus == "rejected" {
-			hasRequiredRejected = true
-			break
-		}
-	}
-
-	if hasRequiredRejected {
+	switch tallyApprovals(votes) {
+	case voteStatusApproved:
+		newConfirmation = models.ConfirmationApproved
+	case voteStatusRejected:
 		newConfirmation = models.ConfirmationRejected
-	} else if len(required) > 0 {
-		allApproved := true
-		for _, r := range required {
-			if r.ApprovalStatus == nil || *r.ApprovalStatus != "approved" {
-				allApproved = false
-				break
-			}
-		}
-		if allApproved {
-			newConfirmation = models.ConfirmationApproved
-		}
-	} else if len(nonRequired) > 0 {
-		hasAnyApproved := false
-		hasAnyRejected := false
-		for _, r := range nonRequired {
-			if r.ApprovalStatus != nil && *r.ApprovalStatus == "approved" {
-				hasAnyApproved = true
-			}
-			if r.ApprovalStatus != nil && *r.ApprovalStatus == "rejected" {
-				hasAnyRejected = true
-			}
-		}
-		if hasAnyApproved && !hasAnyRejected {
-			newConfirmation = models.ConfirmationApproved
-		} else if hasAnyRejected {
-			newConfirmation = models.ConfirmationRejected
-		}
 	}
 
 	result := tx.Exec(`
@@ -223,16 +188,21 @@ func (s *applicationService) activateApplicationItems(ctx context.Context, tx *g
 		// перешёл в активный статус - им пишем историю попадания в таблицу. Уже активная строка
 		// историю не плодит; после деактивации и повторной активации пишется новое попадание.
 		// IS DISTINCT FROM 1 (а не <> 1) на случай NULL-статуса - иначе NULL молча не активируется.
+		//
+		// Строки непринятого дополнения оживлять нельзя (#1685): сюда приходят и принятие в
+		// работу после вывода из неё, и массовое /update-items-status, и ни один из этих путей
+		// про раунды согласования не знает - без фильтра они пустили бы на КПП людей, по
+		// которым решение ещё не принято.
 		var ids []int
 		switch att.AttachmentType {
 		case "cars":
-			if err := tx.Raw("UPDATE cars SET status = 1, updated_at = CURRENT_TIMESTAMP WHERE attachment_id = ? AND status IS DISTINCT FROM 1 RETURNING id", att.ID).Scan(&ids).Error; err != nil {
+			if err := tx.Raw("UPDATE cars SET status = 1, updated_at = CURRENT_TIMESTAMP WHERE attachment_id = ? AND status IS DISTINCT FROM 1 AND "+admittedSupplementCond("cars")+" RETURNING id", att.ID).Scan(&ids).Error; err != nil {
 				slog.Error("Ошибка активации машин", "attachment_id", att.ID, "error", err)
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error updating cars status")
 			}
 			s.recordEntitiesAddedToTable(ctx, tx, models.AuditEntityCar, ids, actorID)
 		case "people":
-			if err := tx.Raw("UPDATE employees SET status = 1, updated_at = CURRENT_TIMESTAMP WHERE attachment_id = ? AND status IS DISTINCT FROM 1 RETURNING id", att.ID).Scan(&ids).Error; err != nil {
+			if err := tx.Raw("UPDATE employees SET status = 1, updated_at = CURRENT_TIMESTAMP WHERE attachment_id = ? AND status IS DISTINCT FROM 1 AND "+admittedSupplementCond("employees")+" RETURNING id", att.ID).Scan(&ids).Error; err != nil {
 				slog.Error("Ошибка активации сотрудников", "attachment_id", att.ID, "error", err)
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error updating employees status")
 			}

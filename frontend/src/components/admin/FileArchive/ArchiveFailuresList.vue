@@ -10,11 +10,18 @@
         data-testid="afl-status-select"
         @update:model-value="onStatusChange"
       />
+      <span
+        v-if="pendingTotal > 0"
+        class="afl__queue"
+        data-testid="afl-queue-count"
+      >
+        В очереди: {{ pendingTotal }}
+      </span>
       <button
         type="button"
         class="lk-button lk-button--ghost"
         data-testid="afl-retry-all"
-        :disabled="items.length === 0 || retryingAll || retryingId !== null"
+        :disabled="retryableItems.length === 0 || retryingAll || retryingId !== null"
         @click="retryAll"
       >
         {{ retryingAll ? 'Повторяем...' : 'Повторить все на странице' }}
@@ -35,7 +42,7 @@
       <div class="afl__row afl__row--head rt-head-row">
         <span class="afl__cell afl__cell--app">Заявка</span>
         <span class="afl__cell afl__cell--status">Статус</span>
-        <span class="afl__cell afl__cell--error">Ошибка</span>
+        <span class="afl__cell afl__cell--error">Файл или причина</span>
         <span class="afl__cell afl__cell--updated">Обновлено</span>
         <span class="afl__cell afl__cell--actions" />
       </div>
@@ -57,14 +64,21 @@
         </span>
         <span
           class="afl__cell afl__cell--error"
-          data-label="Ошибка"
-        >{{ item.last_error || '—' }}</span>
+          data-label="Файл или причина"
+        >{{ reasonLabel(item) }}</span>
         <span
           class="afl__cell afl__cell--updated muted"
           data-label="Обновлено"
-        >{{ formatDateTime(item.updated_at) }}</span>
+        >
+          {{ formatDateTime(item.updated_at) }}
+          <span
+            v-if="nextAttemptLabel(item)"
+            class="afl__next-attempt"
+          >{{ nextAttemptLabel(item) }}</span>
+        </span>
         <span class="afl__cell afl__cell--actions">
           <button
+            v-if="canRetry(item)"
             type="button"
             class="lk-button lk-button--ghost afl__retry-btn"
             data-testid="afl-retry-row"
@@ -80,7 +94,7 @@
         v-if="!loading && items.length === 0"
         class="afl__empty"
       >
-        Строк с этим статусом нет.
+        {{ statusFilter ? 'Записей с этим состоянием нет.' : 'В архиве пока нет ни одной записи.' }}
       </p>
     </div>
 
@@ -98,14 +112,20 @@
 
 <script setup>
 /**
- * Вкладка «Ошибки» файлового архива (#1615, срез C4): реестр строк с проблемным
- * статусом (failed/no_template/blocked/orphan - pending/ok/skipped не считаются
- * ошибкой) с постраничным списком и ручным повтором. Повтор строки пересобирает
- * ВСЮ заявку (ExportApplication работает на заявку целиком, не на строку) -
- * повтор нескольких failed-строк одной заявки на странице избыточен, но не
- * ломает ничего: второй вызов просто повторяет ту же работу.
+ * Вкладка «Лента» файлового архива (#1615 C4, расширена в followup S5): все
+ * записи реестра с фильтром по состоянию, счётчиком очереди и ручным повтором.
+ *
+ * Раньше вкладка показывала только проблемные состояния и называлась «Ошибки».
+ * Из-за этого про очередь узнать было негде: строка, ждущая записи, не попадала
+ * ни в один список, и пустая вкладка одинаково означала и «всё хорошо», и «мы
+ * ничего не знаем». Лента отвечает на вопрос «что сейчас происходит», фильтр
+ * оставляет прежний разбор ошибок.
+ *
+ * Повтор строки пересобирает ВСЮ заявку (ExportApplication работает на заявку
+ * целиком, не на строку) - повтор нескольких строк одной заявки на странице
+ * избыточен, но не ломает ничего: второй вызов повторяет ту же работу.
  */
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import Pager from '@/components/ui/Pager.vue';
@@ -115,29 +135,75 @@ import { useDeletionsStore } from '@/stores/deletions';
 
 const PER_PAGE = 20;
 
+// Перечень повторяет статусы реестра целиком: вкладка показывает ленту всего, а
+// не только ошибки - иначе про очередь («уже пишется или ещё ждёт») узнать было
+// негде, и молчание вкладки читалось как «работы нет».
 const STATUS_OPTIONS = [
+  { value: '', label: 'Все записи' },
+  { value: 'pending', label: 'Ждёт очереди' },
+  { value: 'ok', label: 'Записан' },
   { value: 'failed', label: 'Ошибка выгрузки' },
   { value: 'no_template', label: 'Нет шаблона' },
-  { value: 'blocked', label: 'Заблокировано' },
+  { value: 'blocked', label: 'Остановлено местом' },
+  { value: 'skipped', label: 'Пропущено' },
   { value: 'orphan', label: 'Вложение удалено' },
 ];
-const STATUS_LABELS = Object.fromEntries(STATUS_OPTIONS.map((o) => [o.value, o.label]));
+const STATUS_LABELS = Object.fromEntries(
+  STATUS_OPTIONS.filter((o) => o.value).map((o) => [o.value, o.label]),
+);
+
+// Статусы, из которых строка сама уже не выберется: их и предлагаем повторить.
+// Для ждущих очереди кнопка была бы обманом - работа и так запланирована.
+const RETRYABLE = new Set(['failed', 'no_template', 'blocked', 'orphan']);
+
+// Пока в реестре есть незавершённые строки, лента обновляется сама: разбор
+// очереди идёт фоном, и без этого администратор смотрит на застывший список,
+// не понимая, движется ли что-то.
+const AUTO_REFRESH_MS = 15000;
 
 const deletions = useDeletionsStore();
 
-const statusFilter = ref('failed');
+const statusFilter = ref('');
 const items = ref([]);
 const total = ref(0);
+const pendingTotal = ref(0);
 const page = ref(1);
 const loading = ref(false);
 const error = ref('');
 const retryingId = ref(null);
 const retryingAll = ref(false);
+let refreshTimer = null;
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / PER_PAGE)));
 
+const canRetry = (item) => RETRYABLE.has(item.status);
+const retryableItems = computed(() => items.value.filter(canRetry));
+
 function statusLabel(status) {
   return STATUS_LABELS[status] || status;
+}
+
+// Почему строка выглядит именно так. У записанной это имя файла, у сорвавшейся -
+// текст ошибки, а у остальных состояний в реестре нет ни того, ни другого, и на
+// их месте стоял прочерк: состояние названо, а что оно означает - догадайся сам.
+const REASON_BY_STATUS = {
+  no_template: 'Для этого типа вложения не настроен бланк',
+  pending: 'Ждёт разбора очереди',
+  blocked: 'Запись остановлена нехваткой места',
+  skipped: 'Файл не изменился, перезапись не потребовалась',
+  orphan: 'Вложение удалено, файл остался на диске',
+};
+
+function reasonLabel(item) {
+  return item.last_error || item.file_name || REASON_BY_STATUS[item.status] || '—';
+}
+
+// Срок следующей попытки показываем только тем, кто её ждёт: пауза до повтора
+// доходит до пяти минут (подметатель очереди), и без этой подписи строка выглядит
+// зависшей.
+function nextAttemptLabel(item) {
+  if (!item.next_attempt_at || item.status === 'ok') return '';
+  return `Повтор в ${formatDateTime(item.next_attempt_at).slice(-5)}`;
 }
 
 async function load() {
@@ -149,12 +215,33 @@ async function load() {
     });
     items.value = rows;
     total.value = meta.total;
+    await loadPendingCount();
+    scheduleRefresh();
   } catch (e) {
     error.value = e?.message || 'Не удалось загрузить список файлового архива';
-    deletions.notify({ prefix: 'Не удалось загрузить ', bold: 'список ошибок архива', type: 'error' });
+    deletions.notify({ prefix: 'Не удалось загрузить ', bold: 'ленту файлового архива', type: 'error' });
   } finally {
     loading.value = false;
   }
+}
+
+// Счётчик очереди берём отдельным запросом на одну строку: он нужен независимо
+// от того, какой фильтр выбран, а тянуть ради числа всю страницу расточительно.
+async function loadPendingCount() {
+  try {
+    const { meta } = await listArchiveItems({ status: 'pending', page: 1, perPage: 1 });
+    pendingTotal.value = meta.total;
+  } catch {
+    // Счётчик - подсказка, а не содержание вкладки: его провал не должен
+    // подменять собой ленту сообщением об ошибке.
+    pendingTotal.value = 0;
+  }
+}
+
+function scheduleRefresh() {
+  clearTimeout(refreshTimer);
+  if (pendingTotal.value === 0) return;
+  refreshTimer = setTimeout(load, AUTO_REFRESH_MS);
 }
 
 function onStatusChange(value) {
@@ -185,9 +272,11 @@ async function retryOne(item) {
 }
 
 async function retryAll() {
-  if (retryingAll.value || items.value.length === 0) return;
+  if (retryingAll.value || retryableItems.value.length === 0) return;
   retryingAll.value = true;
-  const ids = [...new Set(items.value.map((i) => i.application_id))];
+  // Только те строки, которым повтор действительно нужен: на общей ленте рядом
+  // лежат записанные и ждущие очереди, и пересоздавать их скопом бессмысленно.
+  const ids = [...new Set(retryableItems.value.map((i) => i.application_id))];
   let ok = 0;
   let failed = 0;
   // Последовательно, не Promise.all: пересборка целых заявок не должна бить
@@ -212,6 +301,10 @@ async function retryAll() {
 }
 
 onMounted(load);
+
+// Таймер живёт дольше вкладки, если его не снять: уход со страницы оставил бы
+// фоновый опрос архива навсегда.
+onUnmounted(() => clearTimeout(refreshTimer));
 defineExpose({ refresh: load });
 </script>
 
@@ -228,6 +321,20 @@ defineExpose({ refresh: load });
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+/* Счётчик очереди прижат к фильтру, а не к кнопке: он про состояние архива,
+   а не про действие, которое кнопка выполняет. */
+.afl__queue {
+  margin-right: auto;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.afl__next-attempt {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .afl__status-select {

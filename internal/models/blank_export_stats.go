@@ -17,9 +17,43 @@ type ArchiveStats struct {
 	// известным статусам. Ради no_template: вложение без настроенного бланка -
 	// видимый пробел архива, и он обязан быть числом на экране, а не тишиной,
 	// иначе неполнота обнаружится в тот момент, когда заявка понадобится.
-	Statuses    map[string]int64 `json:"statuses"`
-	Disk        ArchiveDiskUsage `json:"disk"`
-	GeneratedAt time.Time        `json:"generated_at"`
+	Statuses map[string]int64 `json:"statuses"`
+	// Composition - из чего сложен FileCount. Одно число «файлов» отвечало на
+	// вопрос, которого никто не задавал: администратор считает заявки, а на
+	// диске у каждой лежит бланк на вложение плюс служебный слепок.
+	Composition ArchiveStatsComposition `json:"composition"`
+	// AttachmentTypes - сколько занимают бланки каждого типа вложения, тяжёлые
+	// сверху. Считается той же формулой имени, что и путь файла
+	// (archiveAttachmentNameExpr), иначе разбивка называла бы типы иначе, чем
+	// названы файлы на диске.
+	AttachmentTypes []ArchiveStatsAttachmentType `json:"attachment_types"`
+	// LastWrittenAt - момент последней успешной записи в архив. nil - архив пуст.
+	// Отдельно от Periods: те дают месяц последней записи, а администратору при
+	// разборе «пишется ли вообще» нужен момент с точностью до минуты.
+	LastWrittenAt *time.Time       `json:"last_written_at"`
+	Disk          ArchiveDiskUsage `json:"disk"`
+	GeneratedAt   time.Time        `json:"generated_at"`
+}
+
+// ArchiveStatsComposition - состав архива по видам файлов (status=ok).
+type ArchiveStatsComposition struct {
+	// Applications - сколько заявок представлено в архиве хотя бы одним файлом.
+	Applications int64 `json:"applications"`
+	// Blanks - Excel-бланки вложений (строки реестра с attachment_id > 0).
+	Blanks int64 `json:"blanks"`
+	// Snapshots - служебные заявка.json, по одному на заявку (attachment_id = 0).
+	Snapshots int64 `json:"snapshots"`
+}
+
+// ArchiveStatsAttachmentType - сколько места занял один тип вложения.
+type ArchiveStatsAttachmentType struct {
+	// Name - наименование из справочника вложений. Особые значения: «Вложение
+	// удалено» - строка реестра пережила своё вложение (реестр без FK намеренно);
+	// «Без наименования» - вложение есть, но имени у него нет ни в справочнике,
+	// ни в копии на заявке.
+	Name      string `json:"name"`
+	Bytes     int64  `json:"bytes"`
+	FileCount int64  `json:"file_count"`
 }
 
 // ArchiveStatsPeriod - один месяц раскладки архива.

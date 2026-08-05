@@ -59,6 +59,8 @@ func main() {
 			os.Exit(runStorage(os.Args[2:]))
 		case "archive":
 			os.Exit(runArchive(os.Args[2:]))
+		case "fake":
+			os.Exit(runFake(os.Args[2:]))
 		}
 	}
 

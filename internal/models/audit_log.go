@@ -131,6 +131,25 @@ const (
 	// AuditActionWithdraw - заявка отозвана инициатором (WithdrawApplication).
 	// Действие терминальное и доступно только отправителю заявки.
 	AuditActionWithdraw = "withdraw"
+	// AuditActionSupplementCancelled - открытое дополнение заявки снято системой (#1685):
+	// заявка закрылась раньше, чем дополнение прошло свой круг. Пишется на заявку
+	// (entity_type=application), а не на дополнение - в истории заявки его и ищут;
+	// details.comment называет номер снятого раунда.
+	AuditActionSupplementCancelled = "supplement_cancelled"
+	// AuditActionSupplementApprove / AuditActionSupplementReject - голос согласующего по
+	// раунду дополнения (#1685). Отдельные значения от голосов основного круга (approve /
+	// reject) намеренно: расклад голосов у кругов разный, а лента истории у заявки одна -
+	// без разделения «Согласовал(-а) заявку» встало бы рядом с согласованием добавки и
+	// читалось бы как повторное согласование самой заявки.
+	AuditActionSupplementApprove = "supplement_approve"
+	AuditActionSupplementReject  = "supplement_reject"
+	// AuditActionSupplementRevokeApproval - согласующий отозвал свой голос по раунду.
+	AuditActionSupplementRevokeApproval = "supplement_revoke_approval"
+	// AuditActionSupplementConfirmationChange - сменился ИТОГ раунда дополнения
+	// (application_supplements.status). Пишется на заявку, как и остальные события раунда;
+	// old_value/new_value - статусы раунда, не заявки: confirmation самой заявки дополнение
+	// не двигает ни при каком раскладе голосов.
+	AuditActionSupplementConfirmationChange = "supplement_confirmation_change"
 )
 
 // AuditLogItem - запись аудита для API с разрезолвленным именем актора

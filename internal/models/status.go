@@ -27,6 +27,32 @@ const (
 	ConfirmationRejected = "Не согласовано"
 )
 
+// Статусы дополнения заявки (#1685). Открытыми считаются pending и approved - на заявке
+// может быть только одно такое, это гарантирует партиальный уникальный индекс
+// uidx_app_supplement_open. Остальные терминальны и следующий раунд не блокируют.
+const (
+	// SupplementMerged - дополнение влито в текущий круг согласования. Заявка ещё не была
+	// принята в работу, её сущности не активированы, терять на КПП нечего: голоса основного
+	// круга сброшены, confirmation пересчитан штатно, отдельного раунда нет.
+	SupplementMerged = "merged"
+	// SupplementPending - отдельный раунд, ждёт голосов согласующих.
+	SupplementPending = "pending"
+	// SupplementApproved - согласован, ждёт решения принимающего.
+	SupplementApproved = "approved"
+	// SupplementRejected - обязательный согласующий отказал.
+	SupplementRejected = "rejected"
+	// SupplementAccepted - принят: сущности дополнения активированы и видны на КПП.
+	SupplementAccepted = "accepted"
+	// SupplementRefused - принимающий отказал.
+	SupplementRefused = "refused"
+	// SupplementCancelled - снят автором либо системой (отзыв заявки, вывод из работы,
+	// истечение срока вложений).
+	SupplementCancelled = "cancelled"
+)
+
+// OpenSupplementStatuses - состояния, в которых дополнение считается незакрытым.
+var OpenSupplementStatuses = []string{SupplementPending, SupplementApproved}
+
 // Feedback statuses
 const (
 	FeedbackOpen     = "Не решено"

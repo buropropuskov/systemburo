@@ -4,6 +4,7 @@
       <div
         v-if="visible"
         class="modal-overlay"
+        :style="{ zIndex }"
         @mousedown="onOverlayMousedown"
         @mouseup="onOverlayMouseup"
       >
@@ -213,6 +214,13 @@ export default {
         initialSelectedEmployees: {
             type: Array,
             default: () => []
+        },
+        // Слой оверлея. Дефолт 1000 - подача заявки, где поверх страницы больше ничего нет.
+        // Из окна, открытого над деталью заявки (лестница 10002+), поднимать пропом, иначе
+        // модалка уходит ЗА родителя - inline-стиль бьёт scoped-правило.
+        zIndex: {
+            type: Number,
+            default: 1000
         }
     },
     emits: ['employees-selected', 'close'],

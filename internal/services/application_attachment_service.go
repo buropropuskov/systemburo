@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"systemburo/internal/crypto"
 	"systemburo/internal/models"
@@ -229,7 +230,8 @@ func (s *applicationService) fetchBlacklistFlags(ctx context.Context, elementTyp
 }
 
 // GetAttachmentCars возвращает автомобили вложения с привязанными местами разгрузки.
-func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID int) ([]CarWithPlaces, error) {
+// scope решает, попадают ли в выдачу машины ещё не принятого дополнения (#1685).
+func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID int, scope SupplementScope) ([]CarWithPlaces, error) {
 	type carRow struct {
 		ID             int
 		CarNumber      string  `gorm:"column:car_number"`
@@ -243,6 +245,11 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 		OrganizationID *int    `gorm:"column:organization_id"`
 		Company        *string `gorm:"column:company"`
 		CompanyID      *int    `gorm:"column:company_id"`
+		// Раунд дополнения, принёсший строку (#1685). Номер и статус подтягиваются тем же
+		// запросом: отдельный поход за ними на каждую машину дал бы N+1.
+		SupplementID     *int    `gorm:"column:supplement_id"`
+		SupplementNumber *int    `gorm:"column:supplement_number"`
+		SupplementStatus *string `gorm:"column:supplement_status"`
 	}
 	cars := make([]carRow, 0)
 	if err := s.db.WithContext(ctx).Raw(`
@@ -258,14 +265,18 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 			o.name AS organization,
 			o.id   AS organization_id,
 			comp.name AS company,
-			comp.id   AS company_id
+			comp.id   AS company_id,
+			c.supplement_id,
+			sup.number AS supplement_number,
+			sup.status AS supplement_status
 		FROM cars c
 		JOIN attachments a ON c.attachment_id = a.id
 		JOIN applications app ON a.application_id = app.id
 		LEFT JOIN organizations o ON app.organization_id = o.id
 		LEFT JOIN companies comp ON app.company_id = comp.id
-		WHERE c.attachment_id = ?
-	`, attachmentID).Scan(&cars).Error; err != nil {
+		LEFT JOIN application_supplements sup ON sup.id = c.supplement_id
+		WHERE c.attachment_id = ?`+supplementScopeWhere(scope, "c"),
+		attachmentID).Scan(&cars).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching cars")
 	}
 
@@ -312,14 +323,17 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 			UnloadPlaces:     places,
 			TargetTables:     tables,
 			BlacklistSimilar: flags[car.ID],
+			SupplementMark:   supplementMark(car.SupplementID, car.SupplementNumber, car.SupplementStatus),
 		})
 	}
 
 	return result, nil
 }
 
-// GetAttachmentEmployees возвращает сотрудников вложения с целевыми таблицами.
-func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachmentID int) ([]EmployeeWithTables, error) {
+// GetAttachmentEmployees возвращает сотрудников вложения с целевыми таблицами. scope
+// решает, попадают ли в выдачу сотрудники ещё не принятого дополнения (#1685); выборка
+// несёт серию и номер паспорта и номер патента, поэтому охране идёт только допущенное.
+func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachmentID int, scope SupplementScope) ([]EmployeeWithTables, error) {
 	type empRow struct {
 		ID                   int
 		LastName             string  `gorm:"column:last_name"`
@@ -337,6 +351,10 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 		OrganizationID       *int    `gorm:"column:organization_id"`
 		Company              *string `gorm:"column:company"`
 		CompanyID            *int    `gorm:"column:company_id"`
+		// Раунд дополнения, принёсший строку (#1685), тем же запросом - см. carRow.
+		SupplementID     *int    `gorm:"column:supplement_id"`
+		SupplementNumber *int    `gorm:"column:supplement_number"`
+		SupplementStatus *string `gorm:"column:supplement_status"`
 	}
 	employees := make([]empRow, 0)
 	if err := s.db.WithContext(ctx).Raw(`
@@ -356,15 +374,19 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 			o.name AS organization,
 			o.id   AS organization_id,
 			comp.name AS company,
-			comp.id   AS company_id
+			comp.id   AS company_id,
+			e.supplement_id,
+			sup.number AS supplement_number,
+			sup.status AS supplement_status
 		FROM employees e
 		JOIN attachments a ON e.attachment_id = a.id
 		LEFT JOIN citizenships ci ON e.citizenship_id = ci.id
 		LEFT JOIN applications app ON a.application_id = app.id
 		LEFT JOIN organizations o ON app.organization_id = o.id
 		LEFT JOIN companies comp ON app.company_id = comp.id
-		WHERE e.attachment_id = ?
-	`, attachmentID).Scan(&employees).Error; err != nil {
+		LEFT JOIN application_supplements sup ON sup.id = e.supplement_id
+		WHERE e.attachment_id = ?`+supplementScopeWhere(scope, "e"),
+		attachmentID).Scan(&employees).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employees")
 	}
 	for i := range employees {
@@ -409,22 +431,51 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 			CompanyID:            emp.CompanyID,
 			TargetTables:         tables,
 			BlacklistSimilar:     flags[emp.ID],
+			SupplementMark:       supplementMark(emp.SupplementID, emp.SupplementNumber, emp.SupplementStatus),
 		})
 	}
 
 	return result, nil
 }
 
-// GetAttachmentItems возвращает ТМЦ вложения.
-func (s *applicationService) GetAttachmentItems(ctx context.Context, attachmentID int) ([]ItemInfo, error) {
-	items := make([]ItemInfo, 0)
+// GetAttachmentItems возвращает ТМЦ вложения. scope решает, попадают ли в выдачу позиции
+// ещё не принятого дополнения (#1685).
+func (s *applicationService) GetAttachmentItems(ctx context.Context, attachmentID int, scope SupplementScope) ([]ItemInfo, error) {
+	type itemRow struct {
+		ID          int
+		Name        string
+		Count       int
+		DateCreated *time.Time `gorm:"column:date_created"`
+		// Раунд дополнения, принёсший строку (#1685), тем же запросом - см. carRow.
+		SupplementID     *int    `gorm:"column:supplement_id"`
+		SupplementNumber *int    `gorm:"column:supplement_number"`
+		SupplementStatus *string `gorm:"column:supplement_status"`
+	}
+
+	rows := make([]itemRow, 0)
 	err := s.db.WithContext(ctx).Raw(`
-		SELECT id, name, count, date_created
-		FROM items WHERE attachment_id = ?
-		ORDER BY id
-	`, attachmentID).Scan(&items).Error
+		SELECT i.id, i.name, i.count, i.date_created,
+			i.supplement_id,
+			sup.number AS supplement_number,
+			sup.status AS supplement_status
+		FROM items i
+		LEFT JOIN application_supplements sup ON sup.id = i.supplement_id
+		WHERE i.attachment_id = ?`+supplementScopeWhere(scope, "i")+`
+		ORDER BY i.id
+	`, attachmentID).Scan(&rows).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching items")
+	}
+
+	items := make([]ItemInfo, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, ItemInfo{
+			ID:             r.ID,
+			Name:           r.Name,
+			Count:          r.Count,
+			DateCreated:    r.DateCreated,
+			SupplementMark: supplementMark(r.SupplementID, r.SupplementNumber, r.SupplementStatus),
+		})
 	}
 	return items, nil
 }

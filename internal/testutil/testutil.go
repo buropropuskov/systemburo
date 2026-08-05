@@ -50,6 +50,10 @@ var tables = []string{
 	// снимает: прошлый прогон оставлял заявку с тем же идентификатором уже
 	// выгруженной и замороженной, и следующий видел чужое состояние (#1615).
 	"blank_exports",
+	// Партии вымышленных данных стенда (#1682): внешних ключей у них нет намеренно -
+	// перечень созданного должен пережить удаление самих записей, иначе удалять партию
+	// будет не по чему. Значит и чистка соседних таблиц их не снимает.
+	"fake_batch_items", "fake_batches",
 	"daily_pass_reports",
 	"system_settings",
 	"user_online_peaks",
@@ -87,6 +91,7 @@ var tables = []string{
 	"unique_employees", "unique_cars", "unique_attachments",
 	"application_answers", "application_question_attachments", "application_question_views", "application_question_reads", "application_questions",
 	"application_status_views", "application_reads", "application_viewers", "application_approvers", "application_responsible_users",
+	"application_supplement_approvals", "application_supplements",
 	"application_status_history", "applications",
 	"bureau_time_slots",
 	"companies_unload_places", "organization_unload_places",
@@ -97,6 +102,11 @@ var tables = []string{
 	"system_table_warning_windows",
 	"system_table_time_slots", "system_table_photos", "system_tables",
 	"license_plate_format_cells", "license_plate_formats",
+	// marks удаляются после cars: у машины есть ссылка на марку. Прежде таблица стояла
+	// в CleanupExempt с причиной «наполняется Seed», но Seed марок не заводит - ни одна
+	// не появлялась, пока их не начал создавать наливщик стенда, и тогда они стали
+	// копиться между прогонами (#1682).
+	"marks",
 	"citizenships",
 	"companies_users", "organization_users",
 	"auth_events", "refresh_tokens", "users",
@@ -151,7 +161,6 @@ var CleanupExempt = map[string]string{
 	"security_user_unload_places":  "каскад от users",
 	"table_snapshots":              "каскад от system_tables",
 	"unload_place_warning_windows": "каскад от unload_places",
-	"marks":                        "справочник, наполняется Seed",
 	"role_permission_grants":       "выдачи прав ролям, наполняются Seed",
 }
 
@@ -575,7 +584,7 @@ func captureSeedSnapshot(db *gorm.DB) error {
 
 	// Какие из снятых таблиц чистка реально опустошает - выясняем пробой, а не
 	// рассуждением о внешних ключах: часть таблиц уходит каскадом от родителей, а
-	// часть (справочник марок) чистка не трогает вовсе, и вставка копии поверх
+	// часть чистка не трогает вовсе (см. CleanupExempt), и вставка копии поверх
 	// уцелевших строк ловит дубль по первичному ключу.
 	if err := db.Exec(cleanupSQL()).Error; err != nil {
 		return fmt.Errorf("probe cleanup: %w", err)

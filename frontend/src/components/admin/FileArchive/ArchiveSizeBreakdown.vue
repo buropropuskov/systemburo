@@ -26,6 +26,7 @@
         <button
           type="button"
           class="archive-breakdown__row archive-breakdown__row--year rt-row"
+          :class="{ 'archive-breakdown__row--year-open': isExpanded(group.year, index) }"
           :aria-expanded="isExpanded(group.year, index)"
           @click="toggle(group.year, index)"
         >
@@ -197,14 +198,31 @@ function toggle(year, index) {
   border-color: var(--accent);
 }
 
+/* Раскрытый год и список его месяцев - одна карточка, а не две. Пока у года
+   оставались нижние скругления, его рамка обрывалась на закруглениях, а рамка
+   списка начиналась прямыми углами - между ними получались хвосты боковых
+   линий, из-за которых список читался как оторванный от заголовка. Скругления
+   снимаем без перехода: анимируются только transform и opacity. */
+.archive-breakdown__row--year-open {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Рамку года наследует список: на стыке иначе стояли бы две линии подряд. */
+.archive-breakdown__row--year-open:hover + .archive-breakdown__months .archive-breakdown__months-inner {
+  border-color: var(--accent);
+}
+
 .archive-breakdown__row--month {
   padding: 10px 16px 10px 40px;
   color: var(--text-muted);
   font-size: 14px;
 }
 
+/* Сплошная тонкая линия вместо пунктирной: пунктир в списке из четырёх строк
+   читался как обрывки, а не как разделители. */
 .archive-breakdown__row--month + .archive-breakdown__row--month {
-  border-top: 1px dashed var(--border);
+  border-top: 1px solid var(--border);
 }
 
 .archive-breakdown__cell--period {
@@ -259,12 +277,18 @@ function toggle(year, index) {
   grid-template-rows: 1fr;
 }
 
+/* Рамка появляется только у раскрытого списка: схлопнутый блок иначе оставляет
+   под карточкой года полоску в один пиксель - собственные границы, которым
+   нечего обрамлять. */
 .archive-breakdown__months-inner {
   overflow: hidden;
   min-height: 0;
-  border: 1px solid var(--border);
-  border-top: none;
+  border: 0 solid var(--border);
   border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+.archive-breakdown__months--open .archive-breakdown__months-inner {
+  border-width: 0 1px 1px;
 }
 
 /* Соседние группы «год»: между строкой-годом одной группы и строкой-годом

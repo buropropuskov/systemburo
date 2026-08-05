@@ -57,7 +57,10 @@ const (
 	KeyActionExportApplications = "action.export.applications"
 	KeyActionApproveApplication = "action.approve.application"
 	KeyActionForwardApplication = "action.forward.application"
-	KeyActionBanUser            = "action.ban.user"
+	// KeyActionSupplementApplication - дополнить уже поданную заявку (#1685). Право не
+	// единственный гейт: сервис всё равно требует, чтобы дополняющий был автором заявки.
+	KeyActionSupplementApplication = "action.supplement.application"
+	KeyActionBanUser               = "action.ban.user"
 )
 
 // Audit-level keys (просмотр и управление журналами).
@@ -93,6 +96,7 @@ func AllStaticKeys() []string {
 		KeyActionExportApplications,
 		KeyActionApproveApplication,
 		KeyActionForwardApplication,
+		KeyActionSupplementApplication,
 		KeyActionBanUser,
 		KeyAuditRead,
 		KeyAuditManage,

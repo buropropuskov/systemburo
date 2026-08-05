@@ -25,6 +25,7 @@
           v-for="tile in tiles"
           :key="tile.key"
           class="archive-status__tile"
+          :title="tile.hint || null"
         >
           <div class="archive-status__tile-label">
             {{ tile.label }}
@@ -40,6 +41,13 @@
           </div>
         </div>
       </div>
+
+      <p
+        v-if="snapshotLabel"
+        class="archive-status__snapshot"
+      >
+        Данные на {{ snapshotLabel }}, пересчитываются не чаще раза в пять минут.
+      </p>
 
       <section
         v-if="stats"
@@ -59,17 +67,38 @@
           />
         </div>
 
-        <div
-          class="archive-status__disk-bar"
-          :class="diskBarClass"
-        >
-          <span
-            v-for="seg in barSegments"
-            :key="seg.key"
-            class="archive-status__disk-seg"
-            :style="{ width: seg.percent + '%', background: seg.color }"
-            :title="`${seg.label}: ${formatBytes(seg.bytes)}`"
-          />
+        <div class="archive-status__disk-barwrap">
+          <div
+            class="archive-status__disk-bar"
+            :class="diskBarClass"
+          >
+            <span
+              v-for="seg in barSegments"
+              :key="seg.key"
+              class="archive-status__disk-seg"
+              :class="{ 'archive-status__disk-seg--active': hoveredSegment?.key === seg.key }"
+              :style="{ width: seg.percent + '%', background: seg.color }"
+              :title="`${seg.label}: ${formatBytes(seg.bytes)}`"
+              tabindex="0"
+              @mouseenter="hoveredSegment = seg"
+              @mouseleave="hoveredSegment = null"
+              @focus="hoveredSegment = seg"
+              @blur="hoveredSegment = null"
+            />
+          </div>
+
+          <div
+            v-if="hoveredSegment"
+            class="archive-status__disk-tip"
+            :style="tipStyle"
+          >
+            <span
+              class="archive-status__disk-dot"
+              :style="{ background: hoveredSegment.color }"
+            />
+            {{ hoveredSegment.label }}: {{ formatBytes(hoveredSegment.bytes) }}
+            <span class="archive-status__disk-tip-share">{{ formatShare(hoveredSegment.percent) }}</span>
+          </div>
         </div>
 
         <ul class="archive-status__disk-legend">
@@ -95,6 +124,7 @@
       </section>
 
       <ArchiveSizeBreakdown :periods="stats?.periods || []" />
+      <ArchiveTypeBreakdown :types="stats?.attachment_types || []" />
     </template>
   </div>
 </template>
@@ -110,9 +140,10 @@ import { computed, onMounted, ref } from 'vue';
 import AnimatedCounter from '@/components/ui/AnimatedCounter.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import ArchiveSizeBreakdown from './ArchiveSizeBreakdown.vue';
+import ArchiveTypeBreakdown from './ArchiveTypeBreakdown.vue';
 import { getArchiveStats } from '@/api/fileArchive';
 import { formatBytes } from '@/utils/download';
-import { formatMonthRu } from '@/utils/datetime';
+import { formatDateTime, formatMonthRu } from '@/utils/datetime';
 import { useDeletionsStore } from '@/stores/deletions';
 
 // Пороги свободного места на полосе диска (руководство по развёртыванию,
@@ -145,18 +176,41 @@ async function load() {
 onMounted(load);
 defineExpose({ refresh: load });
 
-const latestPeriodLabel = computed(() => {
+// Момент последней записи показываем полностью - до минуты. Месяц («Август 2026»)
+// на этот вопрос не отвечает: администратор смотрит сюда, когда выясняет, пишется
+// ли архив прямо сейчас, а не в каком месяце лежат файлы.
+const lastWrittenLabel = computed(() => {
+  const written = stats.value?.last_written_at;
+  if (written) return formatDateTime(written);
+  // Пустой архив и архив, у которого записи есть, но момент неизвестен, - разные
+  // вещи: во втором случае месяц из разбивки всё же лучше прочерка.
   const first = stats.value?.periods?.[0];
   return first ? formatMonthRu(first.month) : '—';
 });
 
+// Сводка кэшируется на сервере 5 минут, поэтому свежая запись появляется здесь не
+// мгновенно. Без этой подписи задержка читается как «архив встал».
+const snapshotLabel = computed(() => {
+  const at = stats.value?.generated_at;
+  return at ? formatDateTime(at) : '';
+});
+
 const tiles = computed(() => {
   const s = stats.value;
+  const composition = s?.composition || {};
   return [
     { key: 'used', label: 'Занято', display: formatBytes(s?.used_bytes ?? 0) },
-    { key: 'files', label: 'Файлов', value: s?.file_count ?? 0, animated: true },
+    { key: 'applications', label: 'Заявок', value: composition.applications ?? 0, animated: true },
+    { key: 'blanks', label: 'Бланков', value: composition.blanks ?? 0, animated: true },
+    {
+      key: 'snapshots',
+      label: 'Описаний заявок',
+      value: composition.snapshots ?? 0,
+      animated: true,
+      hint: 'Машиночитаемый заявка.json рядом с бланками - по одному на заявку',
+    },
     { key: 'free', label: 'Свободно', display: formatBytes(s?.free_bytes ?? 0) },
-    { key: 'last', label: 'Последняя запись', display: latestPeriodLabel.value },
+    { key: 'last', label: 'Последняя запись', display: lastWrittenLabel.value },
     { key: 'errors', label: 'Ошибок', value: s?.statuses?.failed ?? 0, animated: true },
     { key: 'no_template', label: 'Без шаблона', value: s?.statuses?.no_template ?? 0, animated: true },
   ];
@@ -237,6 +291,38 @@ const diskBarClass = computed(() => {
   if (p < FREE_WARN_PERCENT) return 'archive-status__disk-bar--warning';
   return '';
 });
+
+// Сегмент, на который сейчас наведено (или который получил фокус с клавиатуры).
+// Легенда под полосой отвечает на вопрос «что тут вообще есть», подсказка - на
+// вопрос «а вот эта конкретная полоска чья».
+const hoveredSegment = ref(null);
+
+// Положение подсказки считаем из накопленных долей, а не из геометрии узла:
+// проценты и так есть, а замер через getBoundingClientRect на этом проекте
+// требует поправки на масштаб корня и врёт во время анимаций.
+const tipStyle = computed(() => {
+  const seg = hoveredSegment.value;
+  if (!seg) return {};
+  let offset = 0;
+  for (const s of barSegments.value) {
+    if (s.key === seg.key) break;
+    offset += s.percent;
+  }
+  const center = offset + seg.percent / 2;
+  // У краёв подсказку прижимаем к соответствующей стороне: центрированная
+  // уехала бы за пределы карточки и обрезалась.
+  if (center < 12) return { left: '0%', transform: 'none' };
+  if (center > 88) return { left: '100%', transform: 'translateX(-100%)' };
+  return { left: `${center}%`, transform: 'translateX(-50%)' };
+});
+
+// Доля раздела: меньше десятой процента показываем как «<0.1 %», иначе на
+// мелких сегментах подсказка сообщала бы «0 %» рядом с ненулевым размером.
+function formatShare(percent) {
+  const value = Number(percent) || 0;
+  if (value > 0 && value < 0.1) return '<0.1 %';
+  return `${value.toFixed(1)} %`;
+}
 </script>
 
 <style scoped>
@@ -311,9 +397,16 @@ const diskBarClass = computed(() => {
   flex-shrink: 0;
 }
 
+/* Место над полосой зарезервировано под подсказку: без отступа она вставала бы
+   поверх заголовка «Занятость раздела диска» и перекрывала его текст. */
+.archive-status__disk-barwrap {
+  position: relative;
+  margin-top: 44px;
+}
+
 .archive-status__disk-bar {
   display: flex;
-  height: 14px;
+  height: 22px;
   border-radius: var(--radius-pill);
   overflow: hidden;
   background: var(--surface-2);
@@ -331,6 +424,50 @@ const diskBarClass = computed(() => {
 .archive-status__disk-seg {
   height: 100%;
   min-width: 3px;
+  cursor: default;
+  /* Только opacity - раскладка полосы от наведения не должна дрожать. */
+  transition: opacity 150ms ease;
+}
+
+.archive-status__disk-seg:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Активной остаётся выделенная доля, остальные приглушаются: подсветить саму
+   долю нечем - у сегментов свои цвета, и осветление ломало бы их узнавание. */
+.archive-status__disk-bar:hover .archive-status__disk-seg,
+.archive-status__disk-bar:focus-within .archive-status__disk-seg {
+  opacity: 0.45;
+}
+
+/* Специфичность обязана совпадать с правилом приглушения выше (:hover считается
+   за класс): при 0,2,0 против 0,3,0 активная доля гасла вместе с остальными. */
+.archive-status__disk-bar:hover .archive-status__disk-seg--active,
+.archive-status__disk-bar:focus-within .archive-status__disk-seg--active {
+  opacity: 1;
+}
+
+.archive-status__disk-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
+  font-size: 12px;
+  color: var(--text);
+  pointer-events: none;
+}
+
+.archive-status__disk-tip-share {
+  color: var(--text-muted);
 }
 
 .archive-status__disk-legend {
@@ -359,6 +496,12 @@ const diskBarClass = computed(() => {
 
 .archive-status__disk-caption {
   margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.archive-status__snapshot {
+  margin: 10px 0 0;
   font-size: 12px;
   color: var(--text-muted);
 }

@@ -199,7 +199,11 @@ func (h *ApplicationHandler) GetAttachmentCars(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
-	cars, err := h.service.GetAttachmentCars(c.Request().Context(), id)
+	// Карточка заявки: сюда доходят автор, согласующие, принимающий и супер-админ
+	// (CanAccessApplication выше). Им состав нужен целиком, вместе с непринятым
+	// дополнением - иначе автор не увидит, что его добавка ушла на согласование,
+	// а согласующему нечего будет решать (#1685).
+	cars, err := h.service.GetAttachmentCars(c.Request().Context(), id, services.SupplementScopeAll)
 	if err != nil {
 		return err
 	}
@@ -247,7 +251,7 @@ func (h *ApplicationHandler) GetAttachmentEmployees(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
-	employees, err := h.service.GetAttachmentEmployees(c.Request().Context(), id)
+	employees, err := h.service.GetAttachmentEmployees(c.Request().Context(), id, services.SupplementScopeAll)
 	if err != nil {
 		return err
 	}
@@ -295,7 +299,7 @@ func (h *ApplicationHandler) GetAttachmentItems(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
-	items, err := h.service.GetAttachmentItems(c.Request().Context(), id)
+	items, err := h.service.GetAttachmentItems(c.Request().Context(), id, services.SupplementScopeAll)
 	if err != nil {
 		return err
 	}

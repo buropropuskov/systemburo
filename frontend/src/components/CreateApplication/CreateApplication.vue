@@ -367,6 +367,7 @@ import { apiRequest } from '@/api/client'
 import { mapWithConcurrency } from '@/utils/mapWithConcurrency'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionsStore } from '@/stores/permissions'
+import { toAttachmentContent } from '@/utils/applicationEntityPayload';
 import { useDeletionsStore } from '@/stores/deletions'
 import { formatRussianPhone, isValidRussianPhone } from '@/composables/useRussianPhoneMask'
 import BlankSelector from '../BlankSelector.vue';
@@ -2130,6 +2131,21 @@ export default {
             this.clearLocalStorageAfterSubmit();
         },
 
+        /**
+         * Строки вложения по его типу: формы хранят их в трёх раздельных словарях.
+         *
+         * @param {string} attachmentType cars | people | items
+         * @param {string|number} key ключ вложения (local_id либо id)
+         * @returns {Array<Object>}
+         */
+        rowsForAttachment(attachmentType, key) {
+            switch (attachmentType) {
+                case 'cars': return this.vehiclesByAttachment[key] || [];
+                case 'people': return this.employeesByAttachment[key] || [];
+                case 'items': return this.itemsByAttachment[key] || [];
+                default: return [];
+            }
+        },
         async sendCompleteApplication() {
             if (this.attachments.length === 0) {
                 useDeletionsStore().notify({ prefix: 'Добавьте вложения для отправки', type: 'error' });
@@ -2174,45 +2190,10 @@ export default {
                     data: {}
                 };
 
-                switch (attachment.attachment_type) {
-                    case 'cars': {
-                        const vehicles = this.vehiclesByAttachment[key] || [];
-                        attachmentData.data.vehicles = vehicles.map(vehicle => ({
-                            car_number: vehicle.plateNumber,
-                            car_brand: vehicle.mark,
-                            mark_id: vehicle.markId || null,
-                            mark_name: vehicle.markName || vehicle.mark || null,
-                            unload_place: vehicle.unloadingPlace,
-                            unload_places: vehicle.unloadPlaces || [],
-                            passage_tables: vehicle.passage_tables || []
-                        }));
-                        break;
-                    }
-                    case 'people': {
-                        const employees = this.employeesByAttachment[key] || [];
-                        attachmentData.data.employees = employees.map(employee => ({
-                            last_name: employee.lastName,
-                            first_name: employee.firstName,
-                            middle_name: employee.middleName,
-                            citizenship_id: employee.citizenshipId,
-                            position: employee.position,
-                            passport_series_number: employee.passportSeriesNumber,
-                            patent_number: employee.patentNumber,
-                            other_permission: employee.otherPermission,
-                            target_tables: employee.targetTables || []
-                        }));
-                        break;
-                    }
-                    case 'items': {
-                        const items = this.itemsByAttachment[key] || [];
-                        attachmentData.data.items = items.map((item, index) => ({
-                            name: item.itemName,
-                            count: item.quantity,
-                            order_index: index + 1
-                        }));
-                        break;
-                    }
-                }
+                Object.assign(
+                    attachmentData.data,
+                    toAttachmentContent(attachment.attachment_type, this.rowsForAttachment(attachment.attachment_type, key))
+                );
 
                 const customValues = this.customFieldsByAttachment[key] || {};
                 if (Object.keys(customValues).length > 0) {

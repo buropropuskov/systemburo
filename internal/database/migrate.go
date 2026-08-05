@@ -69,6 +69,10 @@ func AllModels() []interface{} {
 		&models.ApplicationApprover{},
 		&models.ApplicationViewer{},
 
+		// Supplements (depends on Application, then on each other)
+		&models.ApplicationSupplement{},
+		&models.ApplicationSupplementApproval{},
+
 		// Unique records
 		&models.UniqueAttachment{},
 		&models.UniqueCar{},
@@ -186,6 +190,12 @@ func AllModels() []interface{} {
 		// «какой файл где лежит». Без FK - строка переживает удаление вложения,
 		// иначе каскад оставил бы на диске файл, про который система забыла.
 		&models.BlankExport{},
+
+		// Партии вымышленных данных проверочного стенда (#1682): перечень созданного,
+		// по которому партия удаляется целиком. На рабочем сервере таблицы остаются
+		// пустыми - наливка туда не пускается отметкой экземпляра.
+		&models.FakeBatch{},
+		&models.FakeBatchItem{},
 	}
 }
 
@@ -238,6 +248,9 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 	if err := createBlankExportPathIndex(db); err != nil {
+		return err
+	}
+	if err := createSupplementOpenIndex(db); err != nil {
 		return err
 	}
 	slog.Info("AutoMigrate completed")
@@ -742,6 +755,23 @@ func createBlankExportPathIndex(db *gorm.DB) error {
 	`).Error
 }
 
+// createSupplementOpenIndex держит на заявке не больше одного незакрытого дополнения
+// (#1685): пока раунд ждёт голосов или принятия, второй подать нельзя. Иначе состав
+// вложения менялся бы скачками, а согласующий получал бы по одной заявке два
+// неразличимых запроса на согласование. Терминальные статусы (merged, accepted, rejected,
+// refused, cancelled) под условие не попадают, поэтому раунды идут друг за другом сколько угодно.
+//
+// GORM-тегом это не выражается (WHERE в уникальном индексе он не умеет), поэтому
+// сырым SQL по образцу createBlankExportPathIndex. Список статусов дублирует
+// models.OpenSupplementStatuses - в частичном индексе предикат обязан быть литералом.
+func createSupplementOpenIndex(db *gorm.DB) error {
+	return db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS uidx_app_supplement_open
+			ON application_supplements (application_id)
+			WHERE status IN ('pending', 'approved')
+	`).Error
+}
+
 // installSQLFunctions создаёт пользовательские SQL-функции, переиспользуемые
 // в запросах сервисов. CREATE OR REPLACE безопасен при каждом старте.
 func installSQLFunctions(db *gorm.DB) error {
@@ -901,6 +931,9 @@ var baseRoleGrants = []string{
 	"page.news",
 	"page.personal_cabinet",
 	"header.create_application",
+	// Дополнение заявки (#1685) - продолжение подачи: кто подаёт, тот и добавляет людей
+	// или машины в уже поданное. Владение заявкой проверяет сервис.
+	"action.supplement.application",
 	"entity.employees.read",
 	"entity.employees.write",
 	"entity.employees.delete",

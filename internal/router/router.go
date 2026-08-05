@@ -766,6 +766,16 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.POST("/:id/revoke-from-work", app.RevokeApplicationFromWork)
 	apg.POST("/:id/restore-to-work", app.RestoreApplicationToWork)
 	apg.POST("/:id/withdraw", app.WithdrawApplication)
+	// Дополнение поданной заявки (#1685). Право - продолжение подачи; владение заявкой
+	// право не покрывает, его проверяет сервис. Чтение раундов открыто всем, кому видна
+	// заявка (CanAccessApplication в handler) - согласующему раунд нужен так же, как автору.
+	apg.POST("/:id/supplements", app.CreateSupplement,
+		mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionSupplementApplication))
+	apg.GET("/:id/supplements", app.GetApplicationSupplements)
+	// Голосование по раунду дополнения. Право не требуется, как и у согласования заявки:
+	// голосовать вправе только состав раунда, и это проверяет сервис.
+	apg.POST("/:id/supplements/:sid/approve", app.ApproveSupplement)
+	apg.POST("/:id/supplements/:sid/revoke-approval", app.RevokeSupplementApproval)
 	apg.GET("/:id/history", app.GetApplicationHistory)
 	apg.POST("/:id/revoke-approval", app.RevokeApproval)
 	apg.POST("/history", app.AddHistoryEntry)

@@ -408,6 +408,7 @@
       :already-added-employees="existingEmployees"
       :user-organization-id="userOrganizationId"
       :initial-selected-employees="selectedExistingEmployees"
+      :z-index="existingModalZIndex"
       @employees-selected="onEmployeesSelected"
       @close="closeExistingEmployeesModal"
     />
@@ -474,6 +475,12 @@ export default {
         allowExistingSearch: {
             type: Boolean,
             default: true
+        },
+        // Слой окна «Добавить существующего(-их)». Дефолт 1000 - подача заявки; форма,
+        // встроенная в окно поверх детали заявки, поднимает его (#1685).
+        existingModalZIndex: {
+            type: Number,
+            default: 1000
         },
         // Срок заявки текущего вложения (#1183 S5): { date_from, date_to, time_from,
         // time_to } в API-формате. Против него сверяется расписание (time_slots) таблиц

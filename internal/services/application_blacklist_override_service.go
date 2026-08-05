@@ -250,16 +250,37 @@ func (s *applicationService) canManageBlacklistOverride(ctx context.Context, app
 }
 
 // hasUnoverriddenBlacklistFlags - есть ли у заявки помеченные элементы без override (#481).
-// Гейт согласования: пока true, голос "approved" запрещён. Принимает *gorm.DB, чтобы
-// вызываться и внутри транзакции согласования, и отдельно.
+// Гейт согласования основного круга: пока true, голос "approved" запрещён. Принимает
+// *gorm.DB, чтобы вызываться и внутри транзакции согласования, и отдельно.
+//
+// Считает по ВСЕЙ заявке, включая флаги дополнений (#1685), и это намеренно: дополнение
+// заявки, ещё не принятой в работу, вливается в текущий круг (статус раунда merged), то
+// есть основной круг согласует в том числе его строки. Сузить проверку до
+// supplement_id IS NULL значило бы пропускать похожие на ЧС строки влитой добавки мимо гейта.
 func hasUnoverriddenBlacklistFlags(ctx context.Context, db *gorm.DB, applicationID int) (bool, error) {
-	var cnt int64
-	err := db.WithContext(ctx).
+	return hasUnoverriddenFlags(ctx, db, applicationID, nil)
+}
+
+// hasUnoverriddenSupplementBlacklistFlags - тот же гейт для круга раунда дополнения (#1685):
+// считает только флаги ЭТОГО раунда. Старый неперекрытый флаг исходного состава согласованию
+// раунда не мешает - тот состав давно прошёл свой круг, и голосующий по добавке за него не
+// отвечает.
+func hasUnoverriddenSupplementBlacklistFlags(ctx context.Context, db *gorm.DB, applicationID, supplementID int) (bool, error) {
+	return hasUnoverriddenFlags(ctx, db, applicationID, &supplementID)
+}
+
+// hasUnoverriddenFlags - общий счёт неперекрытых предупреждений. supplementID nil - вся
+// заявка целиком, иначе только флаги указанного раунда.
+func hasUnoverriddenFlags(ctx context.Context, db *gorm.DB, applicationID int, supplementID *int) (bool, error) {
+	query := db.WithContext(ctx).
 		Table("application_blacklist_flags f").
 		Where("f.application_id = ?", applicationID).
-		Where("NOT EXISTS (SELECT 1 FROM application_blacklist_overrides o WHERE o.flag_id = f.id)").
-		Count(&cnt).Error
-	if err != nil {
+		Where("NOT EXISTS (SELECT 1 FROM application_blacklist_overrides o WHERE o.flag_id = f.id)")
+	if supplementID != nil {
+		query = query.Where("f.supplement_id = ?", *supplementID)
+	}
+	var cnt int64
+	if err := query.Count(&cnt).Error; err != nil {
 		return false, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки предупреждений ЧС")
 	}
 	return cnt > 0, nil

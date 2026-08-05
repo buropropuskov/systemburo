@@ -50,6 +50,20 @@ describe('ArchiveSizeBreakdown', () => {
     expect(years[0].attributes('aria-expanded')).toBe('false')
   })
 
+  it('раскрытый год и его месяцы смыкаются в одну карточку', async () => {
+    const w = mount(ArchiveSizeBreakdown, { props: { periods } })
+    const years = w.findAll('.archive-breakdown__row--year')
+
+    // Открытый год теряет нижние скругления: иначе его рамка обрывалась на
+    // закруглениях, а список месяцев начинался прямыми углами - и боковые линии
+    // выглядели оторванными.
+    expect(years[0].classes()).toContain('archive-breakdown__row--year-open')
+    expect(years[1].classes()).not.toContain('archive-breakdown__row--year-open')
+
+    await years[0].trigger('click')
+    expect(years[0].classes()).not.toContain('archive-breakdown__row--year-open')
+  })
+
   it('месяц внутри года подписан русским названием', () => {
     const w = mount(ArchiveSizeBreakdown, { props: { periods } })
     expect(w.text()).toContain('Июль 2026')

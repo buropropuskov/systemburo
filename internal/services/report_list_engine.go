@@ -73,7 +73,10 @@ var listExecRegistry = map[string]listExecSchema{
 				"ELSE COALESCE(att.entry_date_from, '') || ' - ' || COALESCE(att.entry_date_to, '') END"},
 			"work_time": {expr: "CASE WHEN COALESCE(att.entry_time_from, att.entry_time_to, '') = '' THEN '' " +
 				"ELSE COALESCE(att.entry_time_from, '') || ' - ' || COALESCE(att.entry_time_to, '') END"},
-			"people_count": {expr: "(SELECT COUNT(*) FROM employees emp WHERE emp.attachment_id = att.id AND emp.is_purged = false)"},
+			// Люди непринятого дополнения в счёт не идут (#1685): отчёт показывает, сколько
+			// человек по заявке реально работает, а решения по добавке ещё нет.
+			"people_count": {expr: "(SELECT COUNT(*) FROM employees emp WHERE emp.attachment_id = att.id AND emp.is_purged = false" +
+				" AND " + admittedSupplementCond("emp") + ")"},
 		},
 		filterExpr: map[string]string{
 			"organization": "org.name",
