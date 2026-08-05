@@ -54,7 +54,9 @@ services:
     restart: unless-stopped
 
   pgadmin:
-    image: dpage/pgadmin4:latest
+    # Та же версия, что на стенде: расхождение между машиной разработчика и
+    # стендом само по себе становится источником «у меня работает».
+    image: dpage/pgadmin4:9.14
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
