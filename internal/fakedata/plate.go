@@ -49,7 +49,16 @@ type PlateGenerator struct {
 // NewPlateGenerator заводит генератор номеров на отдельном потоке "plates",
 // независимом от остальных доменов партии.
 func NewPlateGenerator(seed int64) *PlateGenerator {
-	return &PlateGenerator{stream: NewStream(seed, "plates"), used: make(map[string]bool)}
+	return NewPlateGeneratorWithDomain(seed, "plates")
+}
+
+// NewPlateGeneratorWithDomain -- как NewPlateGenerator, но на своём домене потока. Нужен,
+// когда в одной партии требуется несколько независимых наборов номеров: например, номера
+// реестра машин (домен "plates", registries.go) и номера независимых записей чёрного
+// списка (#1682, том 4) должны идти разными потоками, иначе оба генератора с одним и тем
+// же -seed повторили бы одну и ту же последовательность номеров.
+func NewPlateGeneratorWithDomain(seed int64, domain string) *PlateGenerator {
+	return &PlateGenerator{stream: NewStream(seed, domain), used: make(map[string]bool)}
 }
 
 // Next выдаёт номер вида "А123ВС77", ранее в этой партии не выданный.

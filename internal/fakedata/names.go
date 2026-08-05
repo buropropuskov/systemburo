@@ -1,5 +1,10 @@
 package fakedata
 
+import (
+	"sort"
+	"unicode/utf8"
+)
+
 // Sex -- пол вымышленного сотрудника. От него зависит форма фамилии и отчества:
 // русские фамилии на -ов/-ев/-ин и отчества склоняются по полу, и смешивать формы
 // нельзя ("Иванова Мария Петрович" читается как опечатка, а не как вымышленные данные).
@@ -32,6 +37,11 @@ type surname struct {
 // surnames -- фамилии сотрудников. 60 пар в паре с 41 именем и производными от них
 // отчествами дают десятки тысяч сочетаний ФИО -- на профиле "large" (3000
 // сотрудников) сплошных повторов не будет.
+//
+// Короткие фамилии и имена добавлять с осторожностью: чёрные списки строят «похожую»
+// запись заменой последней буквы фамилии, а триграммная близость тем ниже, чем короче
+// ФИО. Худшая пара словаря даёт 0.75 при пороге 0.7, и укорачивание записей этот запас
+// съедает -- сторожит TestFakeBlacklists_ShortestNameStillPassesThreshold.
 var surnames = []surname{
 	{"Иванов", "Иванова"}, {"Смирнов", "Смирнова"}, {"Кузнецов", "Кузнецова"},
 	{"Попов", "Попова"}, {"Васильев", "Васильева"}, {"Петров", "Петрова"},
@@ -176,4 +186,38 @@ func FullNameForSex(s *Stream, sex Sex) FullName {
 // RandomPosition возвращает случайную должность из Positions.
 func RandomPosition(s *Stream) string {
 	return Pick(s, Positions)
+}
+
+// ShortestFullNames возвращает n самых коротких сочетаний ФИО словаря, короткие первыми.
+//
+// Нужна проверке порога похожести чёрных списков: триграммная близость падает с длиной
+// строки, поэтому запас до порога тоньше всего именно на коротких ФИО. Перебирать в
+// тесте весь словарь дорого (тысячи сочетаний, каждое -- запрос в базу), а короткая
+// выборка ловит то, ради чего сторож нужен: добавленная короткая фамилия сразу попадёт
+// в неё и покажет, что запаса больше нет.
+func ShortestFullNames(n int) []FullName {
+	all := make([]FullName, 0, len(surnames)*len(maleNames)*2)
+	for _, last := range surnames {
+		for _, father := range maleNames {
+			all = append(all, FullName{
+				LastName: last.Male, FirstName: father.Name, MiddleName: father.PatronymicMale, Sex: Male,
+			})
+			for _, first := range femaleNames {
+				all = append(all, FullName{
+					LastName: last.Female, FirstName: first, MiddleName: father.PatronymicFemale, Sex: Female,
+				})
+			}
+		}
+	}
+	sort.SliceStable(all, func(i, j int) bool {
+		return fullNameRunes(all[i]) < fullNameRunes(all[j])
+	})
+	if n > len(all) {
+		n = len(all)
+	}
+	return all[:n]
+}
+
+func fullNameRunes(n FullName) int {
+	return utf8.RuneCountInString(n.LastName) + utf8.RuneCountInString(n.FirstName) + utf8.RuneCountInString(n.MiddleName)
 }

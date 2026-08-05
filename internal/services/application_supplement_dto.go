@@ -42,7 +42,11 @@ func supplementMark(id *int, number *int, status *string) SupplementMark {
 		SupplementID:     id,
 		SupplementNumber: number,
 		SupplementStatus: status,
-		IsPending:        id != nil && (status == nil || *status != models.SupplementAccepted),
+		// Влитая в основной круг добавка (merged) ожидающей не считается: отдельного
+		// решения по ней не будет, она идёт вместе с составом заявки. Строгое отрицание
+		// допуска - иначе карточка пообещает решение, которого никто не примет.
+		IsPending: id != nil && (status == nil ||
+			(*status != models.SupplementAccepted && *status != models.SupplementMerged)),
 	}
 }
 
