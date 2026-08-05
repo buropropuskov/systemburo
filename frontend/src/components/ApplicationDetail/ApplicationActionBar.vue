@@ -778,6 +778,8 @@ export default {
         },
 
         // Снять раунд автор может, пока по нему не принято решение (pending/approved).
+        // Супер-админу сервер это тоже разрешает, но компонент про роли из стора не знает
+        // (права приходят снаружи, как и у соседних кнопок) - пробел общий для файла.
         canCancelSupplement() {
             return this.isSupplementAuthor
                 && !!this.actionableRound
@@ -887,6 +889,10 @@ export default {
                         : `В дополнении №${res.number} отказано, его строки на пост не встанут`,
                     type: action === 'accept' ? 'success' : 'error'
                 };
+            }
+            // Явная ветка, а не хвост: седьмое действие с опечаткой иначе молча снимало бы раунд.
+            if (action !== 'cancel') {
+                throw new Error(`Неизвестное действие по дополнению: ${action}`);
             }
             const res = await cancelSupplement(applicationId, supplementId, { comment });
             return { message: `Дополнение №${res.number} отозвано`, type: 'success' };
