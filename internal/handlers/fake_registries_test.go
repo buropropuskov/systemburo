@@ -135,3 +135,34 @@ func TestFakeRegistries_FailsWithoutAdmin(t *testing.T) {
 	require.Contains(t, err.Error(), "администратор")
 	require.Contains(t, err.Error(), "staging-seed", "в отказе должна быть команда, которой это чинится")
 }
+
+// Наливка обязана идти через модель, а не мимо неё: BeforeSave шифрует паспорт и
+// патент и считает HMAC для поиска. Массовая вставка в обход хука прошла бы молча и
+// разложила бы персональные данные открытым текстом.
+//
+// Признак -- заполненный HMAC, а не «в колонке не открытый текст»: в тестах ключ
+// шифрования в режиме passthrough, и сравнение с открытым текстом ничего не доказало бы.
+func TestFakeRegistries_PassportGoesThroughModelHook(t *testing.T) {
+	_, db, _ := testutil.SetupTestApp(t)
+	ctx := context.Background()
+	testutil.CleanDB(t, db)
+	seedFakeAdmin(t, db)
+
+	profile, err := fakedata.ProfileByName("small")
+	require.NoError(t, err)
+	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-hmac"), 2024, profile.Name)
+	require.NoError(t, err)
+	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 2024}))
+
+	var withPassport, withHMAC int64
+	require.NoError(t, db.Model(&models.UniqueEmployee{}).
+		Where("passport_series_number IS NOT NULL AND passport_series_number <> ''").
+		Count(&withPassport).Error)
+	require.Positive(t, withPassport, "реестр должен был получить сотрудников с паспортом")
+
+	require.NoError(t, db.Model(&models.UniqueEmployee{}).
+		Where("passport_series_number IS NOT NULL AND passport_series_number <> ''").
+		Where("passport_series_number_hmac IS NOT NULL AND passport_series_number_hmac <> ''").
+		Count(&withHMAC).Error)
+	require.Equal(t, withPassport, withHMAC, "у каждого паспорта обязан быть HMAC - иначе запись прошла мимо хука модели")
+}
