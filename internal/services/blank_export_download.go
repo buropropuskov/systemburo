@@ -265,7 +265,7 @@ func (s *ArchiveDownloadService) GetByApplicationAttachment(ctx context.Context,
 
 // ListItems листает реестр файлового архива с фильтрами по статусу и заявке -
 // вкладка «Ошибки» и просмотр раздела (#1615, B3).
-func (s *ArchiveDownloadService) ListItems(ctx context.Context, q ArchiveItemsQuery) ([]models.BlankExport, int64, error) {
+func (s *ArchiveDownloadService) ListItems(ctx context.Context, q ArchiveItemsQuery) ([]models.ArchiveItemView, int64, error) {
 	query := s.db.WithContext(ctx).Model(&models.BlankExport{})
 	if q.Status != "" {
 		query = query.Where("status = ?", q.Status)
@@ -287,9 +287,37 @@ func (s *ArchiveDownloadService) ListItems(ctx context.Context, q ArchiveItemsQu
 		perPage = 20
 	}
 
-	var rows []models.BlankExport
-	err := query.Order("updated_at DESC").Offset((page - 1) * perPage).Limit(perPage).Find(&rows).Error
-	if err != nil {
+	// Номер заявки и наименование вложения подтягиваются здесь же: без них лента
+	// показывает внутренние идентификаторы, по которым человек ничего не опознаёт.
+	// LEFT JOIN, потому что реестр живёт без внешних ключей и переживает удаление
+	// и заявки, и вложения - строка обязана остаться видимой.
+	//
+	// Имя вложения считается тем же выражением, что и имя файла на диске
+	// (archiveAttachmentNameExpr), иначе лента называла бы тип иначе, чем он
+	// подписан в самом файле.
+	sql := `
+		SELECT be.*,
+		       COALESCE(a.application_number, '') AS application_number,
+		       COALESCE(` + archiveAttachmentNameExpr + `, '') AS attachment_name
+		FROM blank_exports be
+		LEFT JOIN applications a ON a.id = be.application_id
+		LEFT JOIN attachments at ON at.id = be.attachment_id
+		LEFT JOIN unique_attachments ua ON ua.id = at.unique_attachment_id
+		WHERE 1 = 1`
+	args := []any{}
+	if q.Status != "" {
+		sql += ` AND be.status = ?`
+		args = append(args, q.Status)
+	}
+	if q.ApplicationID > 0 {
+		sql += ` AND be.application_id = ?`
+		args = append(args, q.ApplicationID)
+	}
+	sql += ` ORDER BY be.updated_at DESC LIMIT ? OFFSET ?`
+	args = append(args, perPage, (page-1)*perPage)
+
+	var rows []models.ArchiveItemView
+	if err := s.db.WithContext(ctx).Raw(sql, args...).Scan(&rows).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to load archive items: %w", err)
 	}
 	return rows, total, nil
