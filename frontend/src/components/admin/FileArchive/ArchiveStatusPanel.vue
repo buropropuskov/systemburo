@@ -99,8 +99,14 @@
               class="archive-status__disk-dot"
               :style="{ background: hoveredSegment.color }"
             />
-            {{ hoveredSegment.label }}: {{ formatBytes(hoveredSegment.bytes) }}
-            <span class="archive-status__disk-tip-share">{{ formatShare(hoveredSegment.percent) }}</span>
+            <span>
+              {{ hoveredSegment.label }}: {{ formatBytes(hoveredSegment.bytes) }}
+              <span class="archive-status__disk-tip-share">{{ formatShare(hoveredSegment.percent) }}</span>
+              <span
+                v-if="hoveredSegment.note"
+                class="archive-status__disk-tip-note"
+              >{{ hoveredSegment.note }}</span>
+            </span>
           </div>
         </div>
 
@@ -210,7 +216,10 @@ const tiles = computed(() => {
   const s = stats.value;
   const composition = s?.composition || {};
   return [
-    { key: 'used', label: 'Занято', display: formatBytes(s?.used_bytes ?? 0) },
+    // Занято и свободно - пара: одно без другого ничего не говорит, поэтому
+    // стоят рядом, а не по разным концам ряда.
+    { key: 'used', label: 'Занято архивом', display: formatBytes(s?.used_bytes ?? 0) },
+    { key: 'free', label: 'Свободно на диске', display: formatBytes(s?.free_bytes ?? 0) },
     { key: 'applications', label: 'Заявок', value: composition.applications ?? 0, animated: true },
     { key: 'blanks', label: 'Бланков', value: composition.blanks ?? 0, animated: true },
     {
@@ -218,9 +227,8 @@ const tiles = computed(() => {
       label: 'Описаний заявок',
       value: composition.snapshots ?? 0,
       animated: true,
-      hint: 'Машиночитаемый заявка.json рядом с бланками - по одному на заявку',
+      hint: 'Машиночитаемое описание заявки рядом с бланками - по одному на заявку',
     },
-    { key: 'free', label: 'Свободно', display: formatBytes(s?.free_bytes ?? 0) },
     {
       key: 'last',
       label: 'Последняя запись',
@@ -271,11 +279,29 @@ const diskSegments = computed(() => {
 
   if (isPrimaryPartition.value) {
     const raw = [
-      { key: 'archive', label: 'Архив', bytes: disk.archive_bytes || 0, color: 'var(--accent)' },
-      { key: 'uploads', label: 'Загрузки', bytes: disk.uploads_bytes || 0, color: '#7c8cf5' },
-      { key: 'database', label: 'База', bytes: disk.database_bytes || 0, color: 'var(--warning)' },
-      { key: 'logs', label: 'Логи', bytes: disk.logs_bytes || 0, color: '#9333ea' },
-      { key: 'other', label: 'Прочее', bytes: disk.other_bytes || 0, color: 'var(--text-muted)' },
+      { key: 'archive', label: 'Архив бланков', bytes: disk.archive_bytes || 0, color: 'var(--accent)' },
+      {
+        key: 'uploads',
+        label: 'Файлы из заявок',
+        bytes: disk.uploads_bytes || 0,
+        color: '#7c8cf5',
+        note: 'документы и фотографии, приложенные к заявкам',
+      },
+      {
+        key: 'database',
+        label: 'База данных',
+        bytes: disk.database_bytes || 0,
+        color: 'var(--warning)',
+        note: 'сами заявки, справочники, журналы',
+      },
+      { key: 'logs', label: 'Журналы работы', bytes: disk.logs_bytes || 0, color: '#9333ea' },
+      {
+        key: 'other',
+        label: 'Прочее',
+        bytes: disk.other_bytes || 0,
+        color: 'var(--text-muted)',
+        note: 'всё, что на диске не от системы: образы контейнеров, сама операционная система',
+      },
       { key: 'free', label: 'Свободно', bytes: free || 0, color: 'var(--border)' },
     ];
     return raw.map((s) => ({ ...s, percent: (s.bytes / total) * 100 }));
@@ -497,6 +523,14 @@ function formatShare(percent) {
 }
 
 .archive-status__disk-tip-share {
+  color: var(--text-muted);
+}
+
+/* Пояснение под названием доли: «Файлы из заявок» и «База данных» опознаются по
+   имени, а вот что именно туда входит - нет. */
+.archive-status__disk-tip-note {
+  display: block;
+  margin-top: 2px;
   color: var(--text-muted);
 }
 
