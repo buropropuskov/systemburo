@@ -10,6 +10,7 @@ import (
 
 	"systemburo/internal/config"
 	"systemburo/internal/fakedata"
+	"systemburo/internal/services"
 
 	"gorm.io/gorm"
 )
@@ -36,6 +37,8 @@ const fakeHelp = `Наполнение проверочного стенда в�
                Заявок
   -blacklists  Записей чёрных списков
   -days-back   На сколько суток назад растянуть даты заявок и проходов
+  -user-pass   Пароль создаваемых пользователей. По умолчанию -- пароль,
+               проходящий почти любую политику; печатается в сводке
   -seed        Источник случайности. Тот же seed даёт ту же партию
   -label       Метка партии. По умолчанию собирается из момента запуска
   -apply       Выполнить наливку. Без него команда только показывает план
@@ -79,6 +82,7 @@ func runFake(args []string) int {
 	applications := fs.Int("applications", 0, "заявок")
 	blacklists := fs.Int("blacklists", 0, "записей чёрных списков")
 	daysBack := fs.Int("days-back", 0, "на сколько суток назад растянуть даты")
+	userPass := fs.String("user-pass", fakedata.DefaultUserPassword, "пароль создаваемых пользователей")
 	seed := fs.Int64("seed", 0, "источник случайности")
 	label := fs.String("label", "", "метка партии")
 	apply := fs.Bool("apply", false, "выполнить наливку")
@@ -148,19 +152,34 @@ func runFake(args []string) int {
 	if *seed == 0 {
 		*seed = time.Now().UTC().UnixNano()
 	}
+
+	// Политика паролей стенда читается здесь, а не внутри fakedata: пакет наливки не
+	// тянет зависимость на internal/config, а SettingsService нужен свой *config.Config
+	// (см. NewSettingsService) -- то же второе чтение параметров, что и в openFakeDB.
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 1
+	}
+	passwordPolicy := services.NewSettingsService(db, cfg).GetPasswordPolicy()
+
 	batch, err := fakedata.OpenBatch(ctx, db, *label, *seed, profile.Name)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Ошибка:", err)
 		return 1
 	}
-	env := &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: *seed}
+	env := &fakedata.Env{
+		DB: db, Batch: batch, Profile: profile, Seed: *seed,
+		UserPassword:   *userPass,
+		PasswordPolicy: passwordPolicy,
+	}
 	if err := fakedata.Run(ctx, env); err != nil {
 		fmt.Fprintln(os.Stderr, "Ошибка:", err)
 		fmt.Fprintf(os.Stderr, "Созданное до сбоя осталось в партии %q.\n", batch.Label())
 		return 1
 	}
 
-	printFakeResult(batch, *seed)
+	printFakeResult(batch, *seed, *userPass)
 	return 0
 }
 
@@ -182,10 +201,11 @@ func printFakePlan(profile fakedata.Profile, plan []fakedata.PlanItem) {
 	fmt.Printf("Всего создастся: %d %s\n", total, pluralRecords(int64(total)))
 }
 
-func printFakeResult(batch *fakedata.Batch, seed int64) {
+func printFakeResult(batch *fakedata.Batch, seed int64, userPassword string) {
 	fmt.Println()
 	fmt.Printf("Партия %q создана.\n", batch.Label())
 	fmt.Printf("Источник случайности: %d. Повтор с -seed=%d даст ту же партию.\n", seed, seed)
+	fmt.Printf("Пароль созданных пользователей: %s\n", userPassword)
 	fmt.Println()
 	counts := batch.Counts()
 	if len(counts) == 0 {
