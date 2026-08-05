@@ -14,6 +14,7 @@ import { useDeletionsStore } from '@/stores/deletions'
 
 const ROW = (over = {}) => ({
   id: 1, application_id: 10, attachment_id: 1, status: 'failed',
+  application_number: '20260731-010', attachment_name: 'Автозаявка',
   last_error: 'диск переполнен', updated_at: '2026-07-31T10:00:00Z', ...over,
 })
 
@@ -34,7 +35,8 @@ describe('ArchiveFailuresList', () => {
     await flushPromises()
 
     expect(api.listArchiveItems).toHaveBeenCalledWith({ status: '', page: 1, perPage: 20 })
-    expect(w.text()).toContain('№10')
+    // Номер заявки, а не внутренний идентификатор: по «№10» её не найти.
+    expect(w.text()).toContain('№20260731-010')
     expect(w.text()).toContain('диск переполнен')
   })
 
@@ -146,7 +148,7 @@ describe('ArchiveFailuresList', () => {
   it('записанной строке повтор не предлагается, а ждущей - показан срок попытки', async () => {
     api.listArchiveItems.mockResolvedValue({
       items: [
-        ROW({ id: 1, status: 'ok', last_error: '', file_name: 'Автозаявка.xlsx' }),
+        ROW({ id: 1, status: 'ok', last_error: '', file_name: 'Автозаявка.xlsx', attachment_name: 'Автозаявка' }),
         ROW({ id: 2, application_id: 11, status: 'failed', next_attempt_at: '2026-07-31T10:05:00Z' }),
       ],
       meta: { total: 2, page: 1, per_page: 20 },
@@ -154,9 +156,9 @@ describe('ArchiveFailuresList', () => {
     const w = mountList()
     await flushPromises()
 
-    // У записанной строки вместо ошибки показано имя файла, кнопки повтора нет.
+    // У записанной строки показано наименование вложения, кнопки повтора нет.
     const rows = w.findAll('.afl__row:not(.afl__row--head)')
-    expect(rows[0].text()).toContain('Автозаявка.xlsx')
+    expect(rows[0].text()).toContain('Автозаявка')
     expect(rows[0].find('[data-testid="afl-retry-row"]').exists()).toBe(false)
 
     // У сорвавшейся - кнопка и подпись, когда её возьмут снова: пауза до повтора
@@ -167,14 +169,15 @@ describe('ArchiveFailuresList', () => {
 
   it('состояние без файла и без ошибки объясняется словами, а не прочерком', async () => {
     api.listArchiveItems.mockResolvedValue({
-      items: [ROW({ id: 1, status: 'no_template', last_error: '', file_name: '' })],
+      items: [ROW({ id: 1, status: 'no_template', last_error: '', file_name: '', attachment_name: 'Автозаявка' })],
       meta: { total: 1, page: 1, per_page: 20 },
     })
     const w = mountList()
     await flushPromises()
 
-    expect(w.text()).toContain('Для этого типа вложения не настроен бланк')
-    expect(w.text()).not.toContain('—')
+    // Видно и какого вложения не хватает бланка, и в чём дело.
+    expect(w.text()).toContain('Автозаявка')
+    expect(w.text()).toContain('бланк не настроен')
   })
 
   it('«Повторить все» не трогает записанные строки на странице', async () => {
@@ -194,6 +197,19 @@ describe('ArchiveFailuresList', () => {
 
     expect(api.reexportApplication).toHaveBeenCalledTimes(1)
     expect(api.reexportApplication).toHaveBeenCalledWith(11)
+  })
+
+  it('сервер ещё без новых полей - показываем идентификатор, а не «удалена»', async () => {
+    // Фронт выкатывается раньше бэкенда: пока поля нет, писать «Заявка удалена»
+    // про живую заявку нельзя. Отсутствие поля и пустое значение - разные вещи.
+    const legacy = { id: 1, application_id: 77, attachment_id: 5, status: 'ok', updated_at: '2026-07-31T10:00:00Z' }
+    api.listArchiveItems.mockResolvedValue({ items: [legacy], meta: { total: 1, page: 1, per_page: 20 } })
+    const w = mountList()
+    await flushPromises()
+
+    expect(w.text()).toContain('№77')
+    expect(w.text()).not.toContain('Заявка удалена')
+    expect(w.text()).not.toContain('Вложение удалено')
   })
 
   it('переход по страницам передаёт номер страницы в запрос', async () => {

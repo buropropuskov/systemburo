@@ -223,3 +223,20 @@ type BlankExportResult struct {
 	Items    []BlankExportItem         `json:"items"`
 	Snapshot BlankExportSnapshotResult `json:"snapshot"`
 }
+
+// ArchiveItemView - строка реестра для ленты раздела администрирования: сама
+// строка плюс то, чем её опознаёт человек.
+//
+// Голая строка реестра отвечает на вопросы системы, а не человека: в ней лежит
+// внутренний идентификатор заявки и имя файла на диске. Дежурный по этим двум
+// числам не поймёт ни какая это заявка, ни какого вложения не хватает шаблона,
+// поэтому номер заявки и наименование вложения приезжают рядом.
+type ArchiveItemView struct {
+	BlankExport
+	// ApplicationNumber - номер заявки в том виде, в каком его знает бюро
+	// («20260803-001»). Пустой у заявки, номер которой ещё не присвоен.
+	ApplicationNumber string `json:"application_number"`
+	// AttachmentName - наименование вложения из справочника. Пустое у служебного
+	// описания заявки: у него нет вложения вовсе.
+	AttachmentName string `json:"attachment_name"`
+}
