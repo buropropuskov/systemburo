@@ -492,6 +492,70 @@ func isDuplicateUsernameConflict(err error) bool {
 // (*bool): взять адрес литерала в Go без временной переменной нельзя.
 func boolPtr(b bool) *bool { return &b }
 
+// approverRow -- строка состава ответственных так, как она лежит в базе.
+//
+// Читается сырым запросом, а не через GetOrganizationUsers/GetUsers: те отдают состав
+// для интерфейса и отбрасывают архивных пользователей. Запись же (UpdateOrganizationUsers)
+// заменяет список целиком, поэтому состав, собранный без архивных, физически удалил бы
+// их строки при повторном прогоне -- вместе с историей того, кто был согласующим.
+type approverRow struct {
+	Username         string
+	IsPrimary        bool
+	RequiredApproval bool
+	// IsActive -- жив ли пользователь строки. Архивный согласующий заявку согласовать не
+	// может, поэтому «согласующий уже есть» считается только по активным, а в запись
+	// состава идут все строки, включая архивные.
+	IsActive bool
+}
+
+func loadOrganizationApproverRows(ctx context.Context, db *gorm.DB, orgID int) ([]approverRow, error) {
+	var rows []approverRow
+	err := db.WithContext(ctx).Raw(`
+		SELECT u.username, ou.is_primary, ou.required_approval, u.is_active
+		FROM organization_users ou
+		JOIN users u ON u.id = ou.user_id
+		WHERE ou.organization_id = ?
+		ORDER BY ou.id`, orgID).Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("состав ответственных организации %d: %w", orgID, err)
+	}
+	return rows, nil
+}
+
+func loadCompanyApproverRows(ctx context.Context, db *gorm.DB, companyID int) ([]approverRow, error) {
+	var rows []approverRow
+	err := db.WithContext(ctx).Raw(`
+		SELECT u.username, cu.is_primary, cu.required_approval, u.is_active
+		FROM companies_users cu
+		JOIN users u ON u.id = cu.user_id
+		WHERE cu.company_id = ?
+		ORDER BY cu.id`, companyID).Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("состав ответственных компании %d: %w", companyID, err)
+	}
+	return rows, nil
+}
+
+func hasRequiredApprovalRow(rows []approverRow) bool {
+	for _, r := range rows {
+		if r.RequiredApproval && r.IsActive {
+			return true
+		}
+	}
+	return false
+}
+
+// hasPrimaryRow смотрит на все строки, включая архивные: сервис отказывает, если в
+// присланном составе двое главных ответственных, и архивность его не интересует.
+func hasPrimaryRow(rows []approverRow) bool {
+	for _, r := range rows {
+		if r.IsPrimary {
+			return true
+		}
+	}
+	return false
+}
+
 // --- согласующие организаций ---
 
 // ensureOrganizationApprovers гарантирует каждой проверенной организации хотя бы одного
@@ -507,15 +571,15 @@ func ensureOrganizationApprovers(ctx context.Context, db *gorm.DB, orgIDs []int,
 	}
 	svc := services.NewOrganizationService(db)
 	for _, orgID := range orgIDs {
-		existing, err := svc.GetOrganizationUsers(ctx, orgID)
+		existing, err := loadOrganizationApproverRows(ctx, db, orgID)
 		if err != nil {
-			return fmt.Errorf("состав ответственных организации %d: %w", orgID, err)
+			return err
 		}
-		if hasRequiredApprovalOrg(existing) {
+		if hasRequiredApprovalRow(existing) {
 			continue
 		}
 		candidate := Pick(s.approverPick, pool)
-		req := mergeOrgApproverRequest(existing, candidate.username, !hasPrimaryOrg(existing))
+		req := mergeOrgApproverRequest(existing, candidate.username, !hasPrimaryRow(existing))
 		if err := svc.UpdateOrganizationUsers(ctx, actorID, orgID, req); err != nil {
 			return fmt.Errorf("назначение согласующего организации %d: %w", orgID, err)
 		}
@@ -523,33 +587,15 @@ func ensureOrganizationApprovers(ctx context.Context, db *gorm.DB, orgIDs []int,
 	return nil
 }
 
-func hasRequiredApprovalOrg(users []services.OrganizationUserResponse) bool {
-	for _, u := range users {
-		if u.RequiredApproval != nil && *u.RequiredApproval {
-			return true
-		}
-	}
-	return false
-}
-
-func hasPrimaryOrg(users []services.OrganizationUserResponse) bool {
-	for _, u := range users {
-		if u.IsPrimary != nil && *u.IsPrimary {
-			return true
-		}
-	}
-	return false
-}
-
 // mergeOrgApproverRequest сохраняет существующий состав ответственных и добавляет нового
 // согласующего -- UpdateOrganizationUsers заменяет весь список, а не дополняет его.
-func mergeOrgApproverRequest(existing []services.OrganizationUserResponse, newUsername string, makePrimary bool) services.UpdateOrganizationUsersRequest {
+func mergeOrgApproverRequest(existing []approverRow, newUsername string, makePrimary bool) services.UpdateOrganizationUsersRequest {
 	users := make([]services.OrganizationUserRequest, 0, len(existing)+1)
 	for _, u := range existing {
 		users = append(users, services.OrganizationUserRequest{
 			Username:         u.Username,
-			IsPrimary:        boolPtr(u.IsPrimary != nil && *u.IsPrimary),
-			RequiredApproval: boolPtr(u.RequiredApproval != nil && *u.RequiredApproval),
+			IsPrimary:        boolPtr(u.IsPrimary),
+			RequiredApproval: boolPtr(u.RequiredApproval),
 		})
 	}
 	users = append(users, services.OrganizationUserRequest{
@@ -568,15 +614,15 @@ func ensureCompanyApprovers(ctx context.Context, db *gorm.DB, companyIDs []int, 
 	}
 	svc := services.NewCompanyService(db)
 	for _, companyID := range companyIDs {
-		existing, err := svc.GetUsers(ctx, companyID)
+		existing, err := loadCompanyApproverRows(ctx, db, companyID)
 		if err != nil {
-			return fmt.Errorf("состав ответственных компании %d: %w", companyID, err)
+			return err
 		}
-		if hasRequiredApprovalCompany(existing) {
+		if hasRequiredApprovalRow(existing) {
 			continue
 		}
 		candidate := Pick(s.approverPick, pool)
-		req := mergeCompanyApproverRequest(existing, candidate.username, !hasPrimaryCompany(existing))
+		req := mergeCompanyApproverRequest(existing, candidate.username, !hasPrimaryRow(existing))
 		if err := svc.UpdateUsers(ctx, actorID, companyID, req); err != nil {
 			return fmt.Errorf("назначение согласующего компании %d: %w", companyID, err)
 		}
@@ -584,31 +630,13 @@ func ensureCompanyApprovers(ctx context.Context, db *gorm.DB, companyIDs []int, 
 	return nil
 }
 
-func hasRequiredApprovalCompany(users []services.CompanyUserResponse) bool {
-	for _, u := range users {
-		if u.RequiredApproval != nil && *u.RequiredApproval {
-			return true
-		}
-	}
-	return false
-}
-
-func hasPrimaryCompany(users []services.CompanyUserResponse) bool {
-	for _, u := range users {
-		if u.IsPrimary != nil && *u.IsPrimary {
-			return true
-		}
-	}
-	return false
-}
-
-func mergeCompanyApproverRequest(existing []services.CompanyUserResponse, newUsername string, makePrimary bool) services.UpdateCompanyUsersRequest {
+func mergeCompanyApproverRequest(existing []approverRow, newUsername string, makePrimary bool) services.UpdateCompanyUsersRequest {
 	users := make([]services.CompanyUserRequest, 0, len(existing)+1)
 	for _, u := range existing {
 		users = append(users, services.CompanyUserRequest{
 			Username:         u.Username,
-			IsPrimary:        boolPtr(u.IsPrimary != nil && *u.IsPrimary),
-			RequiredApproval: boolPtr(u.RequiredApproval != nil && *u.RequiredApproval),
+			IsPrimary:        boolPtr(u.IsPrimary),
+			RequiredApproval: boolPtr(u.RequiredApproval),
 		})
 	}
 	users = append(users, services.CompanyUserRequest{

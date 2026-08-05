@@ -19,6 +19,7 @@ import (
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestFakeUsers_RunCreatesUsersAndAssignsRoles(t *testing.T) {
@@ -183,4 +184,78 @@ func TestFakeUsers_FailsWhenNoOrganizationsOrCompanies(t *testing.T) {
 
 	require.Error(t, err, "наливка пользователей без организаций и компаний обязана сообщить об отказе")
 	require.Contains(t, err.Error(), "проверенной организации")
+}
+
+// Наливка не имеет права терять строку ответственного, чей пользователь заархивирован.
+//
+// Состав ответственных заменяется целиком, а сервис чтения отдаёт только активных: если
+// собрать список из него, архивный ответственный исчезнет из organization_users при
+// первом же повторном прогоне, вместе со сведениями о том, кто был согласующим.
+func TestFakeUsers_KeepsArchivedApproverRow(t *testing.T) {
+	e, db, _ := testutil.SetupTestApp(t)
+	ctx := context.Background()
+	testutil.CleanDB(t, db)
+	admin := seedFakeAdmin(t, db)
+	_ = e
+
+	orgSvc := services.NewOrganizationService(db)
+	orgType := models.OrgTypeValues[0]
+	org, err := orgSvc.Create(ctx, admin.ID, services.CreateOrganizationRequest{
+		Name: uniq("Архивная орг"), Type: &orgType,
+	})
+	require.NoError(t, err)
+
+	userSvc := services.NewUserService(db, services.NewNotificationService(db))
+	archivedName := uniq("fake_archived_appr")
+	require.NoError(t, userSvc.Create(ctx, admin.ID, models.RegisterRequest{
+		Username: archivedName, Password: fakedata.DefaultUserPassword, OrganizationID: org.ID,
+	}))
+	yes := true
+	require.NoError(t, orgSvc.UpdateOrganizationUsers(ctx, admin.ID, org.ID, services.UpdateOrganizationUsersRequest{
+		Users: []services.OrganizationUserRequest{{Username: archivedName, IsPrimary: &yes, RequiredApproval: &yes}},
+	}))
+	require.NoError(t, userSvc.Delete(ctx, admin.ID, archivedName))
+
+	rowsBefore := countOrgUserRows(t, db, org.ID)
+	require.Equal(t, int64(1), rowsBefore, "строка ответственного должна пережить архивацию пользователя")
+
+	profile, err := fakedata.ProfileByName("small")
+	require.NoError(t, err)
+	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-archived"), 424, profile.Name)
+	require.NoError(t, err)
+	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 424}))
+
+	require.Equal(t, rowsBefore+1, countOrgUserRows(t, db, org.ID),
+		"наливка должна была добавить согласующего, не удалив архивного")
+}
+
+func countOrgUserRows(t *testing.T, db *gorm.DB, orgID int) int64 {
+	t.Helper()
+	var n int64
+	require.NoError(t, db.Table("organization_users").Where("organization_id = ?", orgID).Count(&n).Error)
+	return n
+}
+
+// Наливка заводит пользователей одним общим паролем. Существующих учётных записей это
+// касаться не должно: совпадение логина обязано быть отказом на создание, а не тихой
+// сменой пароля живому человеку.
+func TestFakeUsers_DoesNotTouchExistingPassword(t *testing.T) {
+	_, db, _ := testutil.SetupTestApp(t)
+	ctx := context.Background()
+	testutil.CleanDB(t, db)
+	admin := seedFakeAdmin(t, db)
+
+	var before string
+	require.NoError(t, db.Raw(`SELECT password FROM users WHERE id = ?`, admin.ID).Scan(&before).Error)
+	require.NotEmpty(t, before)
+
+	profile, err := fakedata.ProfileByName("small")
+	require.NoError(t, err)
+	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-pass"), 909, profile.Name)
+	require.NoError(t, err)
+	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 909}))
+
+	var after string
+	require.NoError(t, db.Raw(`SELECT password FROM users WHERE id = ?`, admin.ID).Scan(&after).Error)
+	require.Equal(t, before, after, "пароль существующего пользователя наливка менять не должна")
 }
