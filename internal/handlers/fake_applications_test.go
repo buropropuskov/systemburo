@@ -254,3 +254,81 @@ func readApplicationSnapshots(t *testing.T, db *gorm.DB, ids []int) []applicatio
 		FROM applications WHERE id IN ?`, ids).Scan(&snaps).Error)
 	return snaps
 }
+
+// Заявка, перенесённая в прошлое, обязана быть непротиворечивой целиком: вложения,
+// машины, сотрудники, состав согласующих и записи истории не могут остаться с датой
+// прогона наливки, иначе июльская заявка показывает историю «создана сегодня».
+func TestFakeApplications_ChildRecordsShiftWithApplication(t *testing.T) {
+	_, db, _ := testutil.SetupTestApp(t)
+	ctx := context.Background()
+	testutil.CleanDB(t, db)
+	seedFakeAdmin(t, db)
+
+	profile, err := fakedata.ProfileByName("small")
+	require.NoError(t, err)
+	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-shift"), 606, profile.Name)
+	require.NoError(t, err)
+	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 606}))
+
+	type row struct {
+		Label string
+		Diff  int64
+	}
+	var rows []row
+	require.NoError(t, db.Raw(`
+		WITH mine AS (
+			SELECT a.id, a.sending_datetime
+			FROM applications a
+			JOIN fake_batch_items i ON i.entity = 'application' AND i.entity_id = a.id AND i.batch_id = ?
+		)
+		SELECT 'вложения' AS label, COUNT(*) AS diff FROM attachments t JOIN mine ON mine.id = t.application_id
+			WHERE DATE(t.created_at) <> DATE(mine.sending_datetime)
+		UNION ALL
+		SELECT 'машины', COUNT(*) FROM cars c JOIN attachments t ON t.id = c.attachment_id JOIN mine ON mine.id = t.application_id
+			WHERE DATE(c.created_at) <> DATE(mine.sending_datetime)
+		UNION ALL
+		SELECT 'сотрудники', COUNT(*) FROM employees e JOIN attachments t ON t.id = e.attachment_id JOIN mine ON mine.id = t.application_id
+			WHERE DATE(e.created_at) <> DATE(mine.sending_datetime)
+		UNION ALL
+		SELECT 'согласующие', COUNT(*) FROM application_responsible_users r JOIN mine ON mine.id = r.application_id
+			WHERE DATE(r.created_at) <> DATE(mine.sending_datetime)
+		UNION ALL
+		SELECT 'история', COUNT(*) FROM audit_log l JOIN mine ON mine.id = l.entity_id
+			WHERE l.entity_type = 'application' AND DATE(l.created_at) <> DATE(mine.sending_datetime)
+	`, batch.ID()).Scan(&rows).Error)
+
+	require.NotEmpty(t, rows)
+	for _, r := range rows {
+		require.Zero(t, r.Diff, "%s: %d записей остались с датой прогона вместо даты заявки", r.Label, r.Diff)
+	}
+}
+
+// Повторная наливка не должна выдать заявке номер, уже занятый прошлой партией: номер
+// пересчитывается при переносе даты, и если бы он считался только по своей партии,
+// вторая партия начала бы нумерацию тех же дней заново.
+func TestFakeApplications_RepeatedRunKeepsNumbersUnique(t *testing.T) {
+	_, db, _ := testutil.SetupTestApp(t)
+	ctx := context.Background()
+	testutil.CleanDB(t, db)
+	seedFakeAdmin(t, db)
+
+	profile, err := fakedata.ProfileByName("small")
+	require.NoError(t, err)
+
+	first, err := fakedata.OpenBatch(ctx, db, uniq("fake-num-1"), 11, profile.Name)
+	require.NoError(t, err)
+	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: first, Profile: profile, Seed: 11}))
+
+	second, err := fakedata.OpenBatch(ctx, db, uniq("fake-num-2"), 22, profile.Name)
+	require.NoError(t, err)
+	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: second, Profile: profile, Seed: 22}))
+
+	var duplicates int64
+	require.NoError(t, db.Raw(`
+		SELECT COUNT(*) FROM (
+			SELECT application_number FROM applications
+			WHERE application_number IS NOT NULL
+			GROUP BY application_number HAVING COUNT(*) > 1
+		) d`).Scan(&duplicates).Error)
+	require.Zero(t, duplicates, "номера заявок обязаны остаться уникальными после повторной наливки")
+}

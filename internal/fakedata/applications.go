@@ -103,6 +103,12 @@ type applicationsStep struct{}
 func (applicationsStep) Name() string { return "заявки с вложениями" }
 
 func (applicationsStep) Plan(p Profile) []PlanItem {
+	if p.Applications <= 0 {
+		// Шаг при нулевом профиле не создаёт ничего, включая шаблоны: предпоказ обязан
+		// говорить то же самое. Через флаги команды сюда не попасть (ноль означает
+		// «не задано»), но Profile собирают и напрямую.
+		return nil
+	}
 	return []PlanItem{
 		// Верхняя граница -- на чистой базе шаблонов ещё нет, шаг заведёт все три
 		// (см. ensureAttachmentTemplates); Plan по контракту пакета базу не читает.
@@ -253,7 +259,6 @@ func ensureAttachmentTemplates(ctx context.Context, env *Env) (map[string]int, e
 // принимает его, не id) и собственная организация/компания из профиля (drawAffiliation в
 // users.go гарантировал хотя бы одну ненулевой).
 type applicantRef struct {
-	ID             int
 	Username       string
 	OrganizationID *int
 	CompanyID      *int
@@ -267,7 +272,7 @@ type applicantRef struct {
 func loadApplicantPool(ctx context.Context, db *gorm.DB, batchID int) ([]applicantRef, error) {
 	var rows []applicantRef
 	err := db.WithContext(ctx).Raw(`
-		SELECT u.id, u.username, u.organization_id, u.company_id
+		SELECT u.username, u.organization_id, u.company_id
 		FROM users u
 		JOIN fake_batch_items fbi ON fbi.entity_id = u.id
 		WHERE fbi.batch_id = ? AND fbi.entity = ? AND u.is_active = true AND u.is_banned = false
@@ -708,6 +713,56 @@ func shiftApplicationDates(ctx context.Context, env *Env, apps []shiftedApplicat
 			app.sentAt, newNumber, app.id,
 		).Error; err != nil {
 			return fmt.Errorf("сдвиг даты заявки %d: %w", app.id, err)
+		}
+
+		if err := shiftApplicationChildren(ctx, env, app); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// shiftApplicationChildren переносит на дату заявки всё, что создано вместе с ней:
+// вложения, машины, сотрудников, имущество, состав согласующих и записи истории.
+//
+// Без этого заявка выглядит противоречиво: номер и дата отправки говорят «месяц назад»,
+// а модалка истории показывает «создана сегодня», и у машин в ней сегодняшняя дата
+// добавления. Дочерние строки время подачи не хранят -- они берут его из значения по
+// умолчанию или из time.Now() в момент вставки, поэтому переносить их приходится следом.
+func shiftApplicationChildren(ctx context.Context, env *Env, app shiftedApplication) error {
+	day := app.sentAt.Format("2006-01-02")
+	statements := []struct {
+		what  string
+		query string
+		args  []interface{}
+	}{
+		{"вложения", `UPDATE attachments SET created_at = ?, updated_at = ? WHERE application_id = ?`,
+			[]interface{}{app.sentAt, app.sentAt, app.id}},
+		{"машины", `UPDATE cars SET created_at = ?, updated_at = ?, date_added = ?
+			WHERE attachment_id IN (SELECT id FROM attachments WHERE application_id = ?)`,
+			[]interface{}{app.sentAt, app.sentAt, app.sentAt, app.id}},
+		{"сотрудников", `UPDATE employees SET created_at = ?, updated_at = ?, date_created = ?
+			WHERE attachment_id IN (SELECT id FROM attachments WHERE application_id = ?)`,
+			[]interface{}{app.sentAt, app.sentAt, app.sentAt, app.id}},
+		{"имущество", `UPDATE items SET created_at = ?, updated_at = ?, date_created = ?
+			WHERE attachment_id IN (SELECT id FROM attachments WHERE application_id = ?)`,
+			[]interface{}{app.sentAt, app.sentAt, day, app.id}},
+		{"состав согласующих", `UPDATE application_responsible_users SET created_at = ? WHERE application_id = ?`,
+			[]interface{}{app.sentAt, app.id}},
+		{"читателей заявки", `UPDATE application_viewers SET created_at = ? WHERE application_id = ?`,
+			[]interface{}{app.sentAt, app.id}},
+		{"историю заявки", `UPDATE audit_log SET created_at = ? WHERE entity_type = ? AND entity_id = ?`,
+			[]interface{}{app.sentAt, models.AuditEntityApplication, app.id}},
+		{"историю машин", `UPDATE audit_log SET created_at = ? WHERE entity_type = ? AND entity_id IN (
+			SELECT c.id FROM cars c JOIN attachments a ON a.id = c.attachment_id WHERE a.application_id = ?)`,
+			[]interface{}{app.sentAt, models.AuditEntityCar, app.id}},
+		{"историю сотрудников", `UPDATE audit_log SET created_at = ? WHERE entity_type = ? AND entity_id IN (
+			SELECT e.id FROM employees e JOIN attachments a ON a.id = e.attachment_id WHERE a.application_id = ?)`,
+			[]interface{}{app.sentAt, models.AuditEntityEmployee, app.id}},
+	}
+	for _, st := range statements {
+		if err := env.DB.WithContext(ctx).Exec(st.query, st.args...).Error; err != nil {
+			return fmt.Errorf("сдвиг даты (%s) заявки %d: %w", st.what, app.id, err)
 		}
 	}
 	return nil
