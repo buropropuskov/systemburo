@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"time"
@@ -148,6 +149,11 @@ func runFake(args []string) int {
 		printFakePlan(profile, plan)
 		return 0
 	}
+
+	// Наливка зовёт боевые сервисы, а те пишут в журнал каждую созданную запись. На
+	// профиле large это десятки тысяч строк INFO, в которых тонет собственная сводка
+	// команды. Оставляем только предупреждения и ошибки: их человек читать обязан.
+	slog.SetLogLoggerLevel(slog.LevelWarn)
 
 	if *seed == 0 {
 		*seed = time.Now().UTC().UnixNano()
