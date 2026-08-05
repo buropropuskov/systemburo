@@ -258,6 +258,12 @@ func readApplicationSnapshots(t *testing.T, db *gorm.DB, ids []int) []applicatio
 // Заявка, перенесённая в прошлое, обязана быть непротиворечивой целиком: вложения,
 // машины, сотрудники, состав согласующих и записи истории не могут остаться с датой
 // прогона наливки, иначе июльская заявка показывает историю «создана сегодня».
+//
+// Строка истории проверяется через "раньше даты подачи", а не "отличается от неё": с
+// #1682 тома 7 (стадии обработки, internal/fakedata/stages.go) у заявки легитимно
+// появляются записи ПОЗЖЕ дня подачи (принята в работу/согласована/отклонена и т.п.) --
+// это не регрессия, а сама суть стадий. Инвариант этого теста остаётся прежним: запись
+// не должна остаться датированной днём ПРОГОНА наливки, когда заявка сдвинута в прошлое.
 func TestFakeApplications_ChildRecordsShiftWithApplication(t *testing.T) {
 	_, db, _ := testutil.SetupTestApp(t)
 	ctx := context.Background()
@@ -294,7 +300,7 @@ func TestFakeApplications_ChildRecordsShiftWithApplication(t *testing.T) {
 			WHERE DATE(r.created_at) <> DATE(mine.sending_datetime)
 		UNION ALL
 		SELECT 'история', COUNT(*) FROM audit_log l JOIN mine ON mine.id = l.entity_id
-			WHERE l.entity_type = 'application' AND DATE(l.created_at) <> DATE(mine.sending_datetime)
+			WHERE l.entity_type = 'application' AND DATE(l.created_at) < DATE(mine.sending_datetime)
 	`, batch.ID()).Scan(&rows).Error)
 
 	require.NotEmpty(t, rows)
