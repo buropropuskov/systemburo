@@ -115,3 +115,23 @@ func TestFakeRegistries_RunFillsEmployeesAndCars(t *testing.T) {
 	require.Equal(t, profile.Employees, batch2.Counts()[models.AuditEntityUniqueEmployee])
 	require.Equal(t, profile.Cars, batch2.Counts()[models.AuditEntityUniqueCar])
 }
+
+// Без администратора наливка обязана упасть, а не пропустить реестры: люди и машины -
+// то, ради чего команду запускают, и «готово» при пустом реестре заметили бы только на
+// стенде, открыв личный кабинет.
+func TestFakeRegistries_FailsWithoutAdmin(t *testing.T) {
+	_, db, _ := testutil.SetupTestApp(t)
+	ctx := context.Background()
+	testutil.CleanDB(t, db)
+
+	profile, err := fakedata.ProfileByName("small")
+	require.NoError(t, err)
+	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-noadmin"), 31337, profile.Name)
+	require.NoError(t, err)
+
+	err = fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 31337})
+
+	require.Error(t, err, "наливка без администратора обязана сообщить об отказе")
+	require.Contains(t, err.Error(), "администратор")
+	require.Contains(t, err.Error(), "staging-seed", "в отказе должна быть команда, которой это чинится")
+}
