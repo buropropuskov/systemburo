@@ -9,12 +9,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Steps() перечисляет шесть готовых на сегодня срезов наполнения (#1682): организации/
+// Steps() перечисляет семь готовых на сегодня срезов наполнения (#1682): организации/
 // компании, справочники без профиля, таблицы постов, реестры сотрудников и машин, чёрные
-// списки, пользователи. Заявки и проходы -- следующие срезы, их здесь пока нет.
+// списки, пользователи, заявки. Проходы -- следующий срез, его здесь пока нет.
 func TestSteps_ReturnsRegisteredSteps(t *testing.T) {
 	steps := fakedata.Steps()
-	require.Len(t, steps, 6)
+	require.Len(t, steps, 7)
 	for _, s := range steps {
 		require.NotEmpty(t, s.Name(), "у каждого шага должно быть непустое имя для вывода и ошибок")
 	}
@@ -36,10 +36,11 @@ func TestPlan_OrganizationsAndCompaniesScaleWithProfile(t *testing.T) {
 	}
 }
 
-// Справочники без профиля (места разгрузки, марки, гражданства, форматы номеров)
-// и таблицы постов не масштабируются профилем -- один и тот же кандидатский
-// список показывается независимо от small/medium/large (см. lookupsStep.Plan,
-// postsStep.Plan в internal/fakedata/lookups.go, posts.go).
+// Справочники без профиля (места разгрузки, марки, гражданства, форматы номеров),
+// таблицы постов и шаблоны вложений не масштабируются профилем -- один и тот же
+// кандидатский список показывается независимо от small/medium/large (см.
+// lookupsStep.Plan, postsStep.Plan в internal/fakedata/lookups.go, posts.go, и
+// applicationsStep.Plan в applications.go).
 func TestPlan_DictionariesAndPostsAreFixedRegardlessOfProfile(t *testing.T) {
 	want := map[string]int{
 		models.AuditEntityUnloadPlace:        10,
@@ -47,6 +48,7 @@ func TestPlan_DictionariesAndPostsAreFixedRegardlessOfProfile(t *testing.T) {
 		models.AuditEntityCitizenship:        10,
 		models.AuditEntityLicensePlateFormat: 3,
 		models.AuditEntitySystemTable:        4,
+		models.AuditEntityUniqueAttachment:   3,
 	}
 
 	for _, name := range fakedata.ProfileNames() {
