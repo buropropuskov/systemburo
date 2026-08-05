@@ -175,6 +175,14 @@ type ApplicationService interface {
 	// RevokeSupplementApproval возвращает голос по раунду дополнения в pending (#1685).
 	RevokeSupplementApproval(ctx context.Context, username string, applicationID, supplementID int, req SupplementRevokeApprovalRequest) (*SupplementVoteResponse, error)
 
+	// DecideSupplement - решение принимающего по согласованному раунду (#1685): принятие
+	// поднимает на КПП строки ЭТОГО раунда, отказ оставляет их неактивными навсегда.
+	// confirmation и status самой заявки не двигает ни одна ветка.
+	DecideSupplement(ctx context.Context, username string, applicationID, supplementID int, req SupplementDecisionRequest) (*SupplementDecisionResponse, error)
+
+	// CancelSupplement снимает незакрытый раунд по воле автора заявки (#1685).
+	CancelSupplement(ctx context.Context, username string, applicationID, supplementID int, isSuperAdmin bool, req SupplementCancelRequest) (*SupplementDecisionResponse, error)
+
 	// GetApplicationResponsibleUsers возвращает ответственных пользователей заявки.
 	GetApplicationResponsibleUsers(ctx context.Context, applicationID int) ([]ResponsibleUserInfo, error)
 

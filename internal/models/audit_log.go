@@ -150,6 +150,17 @@ const (
 	// old_value/new_value - статусы раунда, не заявки: confirmation самой заявки дополнение
 	// не двигает ни при каком раскладе голосов.
 	AuditActionSupplementConfirmationChange = "supplement_confirmation_change"
+	// AuditActionSupplementAccepted - принимающий принял согласованный раунд (#1685): его
+	// строки активированы и с этого момента видны на КПП. Отдельно от take_to_work: та
+	// запись означает принятие ЗАЯВКИ и меняет её статус, эта не трогает заявку вовсе.
+	AuditActionSupplementAccepted = "supplement_accepted"
+	// AuditActionSupplementRefused - принимающий отказал согласованному раунду. Строки
+	// остаются неактивными навсегда; сама заявка и её допущенный состав не задеты.
+	AuditActionSupplementRefused = "supplement_refused"
+	// AuditActionSupplementCancelledByAuthor - автор снял собственный незакрытый раунд.
+	// Отдельно от AuditActionSupplementCancelled: там раунд снимает система при закрытии
+	// заявки (актор пустой, «Система»), здесь - человек своей волей.
+	AuditActionSupplementCancelledByAuthor = "supplement_cancelled_by_author"
 )
 
 // AuditLogItem - запись аудита для API с разрезолвленным именем актора
