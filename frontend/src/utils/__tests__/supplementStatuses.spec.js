@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  OPEN_SUPPLEMENT_STATUSES,
-  REVOCABLE_SUPPLEMENT_STATUSES,
+  SUPPLEMENT_OPEN_STATUSES,
+  SUPPLEMENT_REVOCABLE_STATUSES,
   supplementStatusText,
   supplementStatusClass,
   supplementCountsLabel,
@@ -10,8 +10,8 @@ import {
 
 describe('supplementStatuses - статусы раунда дополнения (#1685)', () => {
   it('перечни открытых и отзывных статусов повторяют бэк', () => {
-    expect(OPEN_SUPPLEMENT_STATUSES).toEqual(['pending', 'approved']);
-    expect(REVOCABLE_SUPPLEMENT_STATUSES).toEqual(['pending', 'approved', 'rejected']);
+    expect(SUPPLEMENT_OPEN_STATUSES).toEqual(['pending', 'approved']);
+    expect(SUPPLEMENT_REVOCABLE_STATUSES).toEqual(['pending', 'approved', 'rejected']);
     expect(isOpenSupplement('pending')).toBe(true);
     expect(isOpenSupplement('accepted')).toBe(false);
   });

@@ -519,8 +519,8 @@ import {
 import {
     SUPPLEMENT_PENDING,
     SUPPLEMENT_APPROVED,
-    OPEN_SUPPLEMENT_STATUSES,
-    REVOCABLE_SUPPLEMENT_STATUSES
+    SUPPLEMENT_OPEN_STATUSES,
+    SUPPLEMENT_REVOCABLE_STATUSES
 } from '@/utils/supplementStatuses'
 
 export default {
@@ -734,7 +734,7 @@ export default {
          * Раунды приходят по убыванию номера, поэтому берём первый подходящий.
          */
         actionableRound() {
-            return this.supplements.find(round => REVOCABLE_SUPPLEMENT_STATUSES.includes(round.status)) || null;
+            return this.supplements.find(round => SUPPLEMENT_REVOCABLE_STATUSES.includes(round.status)) || null;
         },
 
         // Голос текущего пользователя в раунде: null - он не в составе голосующих
@@ -781,7 +781,7 @@ export default {
         canCancelSupplement() {
             return this.isSupplementAuthor
                 && !!this.actionableRound
-                && OPEN_SUPPLEMENT_STATUSES.includes(this.actionableRound.status);
+                && SUPPLEMENT_OPEN_STATUSES.includes(this.actionableRound.status);
         },
 
         supplementVoteBadge() {

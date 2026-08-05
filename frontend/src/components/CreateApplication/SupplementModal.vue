@@ -270,6 +270,7 @@ import ItemsForm from '@/components/CreateApplication/ItemsForm.vue';
 import ItemsList from '@/components/CreateApplication/ItemsList.vue';
 import { createSupplement } from '@/api/applications';
 import { toAttachmentContent } from '@/utils/applicationEntityPayload';
+import { SUPPLEMENT_MERGED } from '@/utils/supplementStatuses';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
@@ -662,7 +663,7 @@ export default {
                     additions,
                 });
                 deletions.notify({
-                    prefix: result.status === 'merged'
+                    prefix: result.status === SUPPLEMENT_MERGED
                         ? 'Строки добавлены в заявку '
                         : 'Дополнение отправлено на согласование по заявке ',
                     bold: this.application.application_number,

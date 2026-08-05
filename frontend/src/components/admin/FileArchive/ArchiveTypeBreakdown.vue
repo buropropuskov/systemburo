@@ -137,13 +137,14 @@ const rows = computed(() => {
 }
 
 /* Полоса доли лежит подложкой под названием: отдельная колонка под неё съела бы
-   место у самого названия, а оно и есть главное в строке. */
+   место у самого названия, а оно и есть главное в строке. Полоса и текст
+   отступают от края одинаково - иначе буквы упираются в кромку заливки. */
 .archive-types__share {
   position: absolute;
   left: 0;
   top: 50%;
   transform: translateY(-50%);
-  height: 22px;
+  height: 26px;
   border-radius: var(--radius-sm, 8px);
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   pointer-events: none;
@@ -151,6 +152,7 @@ const rows = computed(() => {
 
 .archive-types__name {
   position: relative;
+  padding-left: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

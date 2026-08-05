@@ -1,32 +1,53 @@
 /**
- * Статусы раунда дополнения заявки (#1685) и их отображение. Зеркало
- * internal/models/status.go - сравнивать со строковыми литералами в компонентах нельзя,
- * иначе новый статус на бэке молча выпадет из части проверок.
+ * Статусы раунда дополнения заявки (#1685) - зеркало констант бэкенда
+ * (`internal/models/status.go`, `models.Supplement*`).
+ *
+ * Строки уже успели разъехаться по нескольким компонентам, каждый со своим литералом.
+ * Сравнение со строкой ошибается молча: опечатка или переименование на сервере не ломает
+ * сборку и не роняет тест, а просто перестаёт подсвечивать строки - причём в одном месте
+ * перестаёт, а в другом нет. Поэтому значения живут здесь одним списком.
  */
 
+/** Дополнение влито в текущий круг согласования: отдельного раунда у него нет. */
 export const SUPPLEMENT_MERGED = 'merged';
+/** Раунд ждёт голосов согласующих. */
 export const SUPPLEMENT_PENDING = 'pending';
+/** Раунд согласован и ждёт решения принимающего. */
 export const SUPPLEMENT_APPROVED = 'approved';
+/** Обязательный согласующий отказал. */
 export const SUPPLEMENT_REJECTED = 'rejected';
+/** Раунд принят: его строки активированы и видны на КПП. */
 export const SUPPLEMENT_ACCEPTED = 'accepted';
+/** Принимающий отказал. */
 export const SUPPLEMENT_REFUSED = 'refused';
+/** Раунд снят автором либо системой при закрытии заявки. */
 export const SUPPLEMENT_CANCELLED = 'cancelled';
 
 /**
- * Незакрытый раунд - зеркало models.OpenSupplementStatuses. Такой у заявки максимум один
- * (партиальный уникальный индекс), и именно он блокирует подачу следующего дополнения.
+ * Раунд закрыт отрицательным решением: строки так и не попали на КПП и уже не попадут.
+ * Отличается от `accepted` и `merged` - те тоже терминальны, но означают допуск.
  */
-export const OPEN_SUPPLEMENT_STATUSES = [SUPPLEMENT_PENDING, SUPPLEMENT_APPROVED];
+export const SUPPLEMENT_CLOSED_STATUSES = [
+    SUPPLEMENT_REJECTED,
+    SUPPLEMENT_REFUSED,
+    SUPPLEMENT_CANCELLED,
+];
 
 /**
- * Раунды, по которым голос ещё можно отозвать - зеркало supplementRevocableStatuses
- * бэка. Отклонённый раунд сюда входит: отзыв голоса открывает его заново.
+ * Раунд ещё не закрыт: идёт согласование либо ждём принимающего.
  */
-export const REVOCABLE_SUPPLEMENT_STATUSES = [
-  SUPPLEMENT_PENDING,
-  SUPPLEMENT_APPROVED,
-  SUPPLEMENT_REJECTED,
+export const SUPPLEMENT_OPEN_STATUSES = [SUPPLEMENT_PENDING, SUPPLEMENT_APPROVED];
+
+/**
+ * Раунды, по которым голос ещё можно отозвать. Отклонённый сюда входит намеренно:
+ * отзыв голоса открывает круг заново.
+ */
+export const SUPPLEMENT_REVOCABLE_STATUSES = [
+    SUPPLEMENT_PENDING,
+    SUPPLEMENT_APPROVED,
+    SUPPLEMENT_REJECTED,
 ];
+
 
 const STATUS_TEXT = {
   [SUPPLEMENT_MERGED]: 'Влито в заявку',
@@ -72,7 +93,7 @@ export function supplementStatusClass(status) {
  * @returns {boolean}
  */
 export function isOpenSupplement(status) {
-  return OPEN_SUPPLEMENT_STATUSES.includes(status);
+  return SUPPLEMENT_OPEN_STATUSES.includes(status);
 }
 
 const COUNT_NOUNS = {
