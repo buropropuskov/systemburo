@@ -42,7 +42,7 @@
       <div class="afl__row afl__row--head rt-head-row">
         <span class="afl__cell afl__cell--app">Заявка</span>
         <span class="afl__cell afl__cell--status">Статус</span>
-        <span class="afl__cell afl__cell--error">Файл или причина</span>
+        <span class="afl__cell afl__cell--error">Что записано</span>
         <span class="afl__cell afl__cell--updated">Обновлено</span>
         <span class="afl__cell afl__cell--actions" />
       </div>
@@ -55,7 +55,8 @@
         <span
           class="afl__cell afl__cell--app"
           data-label="Заявка"
-        >№{{ item.application_id }}</span>
+          :title="`Идентификатор в системе: ${item.application_id}`"
+        >{{ applicationLabel(item) }}</span>
         <span
           class="afl__cell afl__cell--status"
           data-label="Статус"
@@ -64,8 +65,14 @@
         </span>
         <span
           class="afl__cell afl__cell--error"
-          data-label="Файл или причина"
-        >{{ reasonLabel(item) }}</span>
+          data-label="Что записано"
+        >
+          <span class="afl__what">{{ whatLabel(item) }}</span>
+          <span
+            v-if="reasonLabel(item)"
+            class="afl__reason"
+          >{{ reasonLabel(item) }}</span>
+        </span>
         <span
           class="afl__cell afl__cell--updated muted"
           data-label="Обновлено"
@@ -183,19 +190,41 @@ function statusLabel(status) {
   return STATUS_LABELS[status] || status;
 }
 
-// Почему строка выглядит именно так. У записанной это имя файла, у сорвавшейся -
-// текст ошибки, а у остальных состояний в реестре нет ни того, ни другого, и на
-// их месте стоял прочерк: состояние названо, а что оно означает - догадайся сам.
+// Номер заявки в том виде, в каком его знает бюро. Внутренний идентификатор
+// человеку ничего не говорит, поэтому он ушёл в подсказку: там он нужен при
+// разборе с журналом сервера, но не на экране.
+//
+// Отсутствие поля и пустое значение - разные вещи, и путать их нельзя: поля нет
+// у сервера, который ещё не обновился (фронт выкатывается раньше), а пустое
+// значение означает, что заявки действительно не стало. Написать «Заявка
+// удалена» в первом случае значит соврать про живую заявку.
+function applicationLabel(item) {
+  if (item.application_number === undefined) return `№${item.application_id}`;
+  return item.application_number ? `№${item.application_number}` : 'Заявка удалена';
+}
+
+// Что за файл в строке. У бланка это наименование вложения из справочника, у
+// служебного описания - его назначение словами: имя «заявка.json» отвечает на
+// вопрос «как называется файл», а читающему нужно «что это такое».
+function whatLabel(item) {
+  if (!item.attachment_id) return 'Описание заявки';
+  if (item.attachment_name === undefined) return item.file_name || 'Бланк вложения';
+  return item.attachment_name || 'Вложение удалено';
+}
+
+// Почему строка выглядит именно так. У записанной причины нет вовсе - файл лежит
+// и вопросов не вызывает; у остальных состояний она и есть содержание строки.
 const REASON_BY_STATUS = {
-  no_template: 'Для этого типа вложения не настроен бланк',
-  pending: 'Ждёт разбора очереди',
-  blocked: 'Запись остановлена нехваткой места',
-  skipped: 'Файл не изменился, перезапись не потребовалась',
-  orphan: 'Вложение удалено, файл остался на диске',
+  no_template: 'бланк не настроен',
+  pending: 'ждёт разбора очереди',
+  blocked: 'запись остановлена нехваткой места',
+  skipped: 'файл не изменился, перезапись не потребовалась',
+  orphan: 'вложение удалено, файл остался на диске',
 };
 
 function reasonLabel(item) {
-  return item.last_error || item.file_name || REASON_BY_STATUS[item.status] || '—';
+  if (item.status === 'ok') return '';
+  return item.last_error || REASON_BY_STATUS[item.status] || '';
 }
 
 // Срок следующей попытки показываем только тем, кто её ждёт: пауза до повтора
@@ -332,6 +361,18 @@ defineExpose({ refresh: load });
 }
 
 .afl__next-attempt {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Название файла и причина - разные вопросы («что это» и «почему так»), поэтому
+   разными строками, а не одной склейкой через тире. */
+.afl__what {
+  display: block;
+}
+
+.afl__reason {
   display: block;
   font-size: 12px;
   color: var(--text-muted);
