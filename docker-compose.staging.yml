@@ -33,10 +33,17 @@ services:
     depends_on:
       - backend
       - frontend
-      - pgadmin
     restart: always
 
+  # pgAdmin поднимается по требованию: docker compose --profile tools up -d pgadmin.
+  # Образ весит 745 МБ - больше, чем все остальные образы стенда вместе, - а нужен
+  # эпизодически, «зайти посмотреть таблицу». Постоянно занятое место на диске в
+  # девять с половиной гигабайт стоит дороже, чем команда перед редким заходом.
+  #
+  # Из depends_on nginx он убран намеренно: с ним профиль не помогал бы, nginx тянул
+  # бы pgAdmin за собой при каждом подъёме стенда.
   pgadmin:
+    profiles: ["tools"]
     image: dpage/pgadmin4:latest
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
