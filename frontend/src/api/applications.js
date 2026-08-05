@@ -209,6 +209,84 @@ export async function getApplicationSupplements(id) {
 }
 
 /**
+ * Разбор ответа по раунду дополнения (#1685). Код держим на ошибке рядом с текстом:
+ * 409 («голосование закрыто», «заявка в статусе X») отличается от 403 только им.
+ * @param {Response} res
+ * @param {string} fallback
+ */
+async function unwrapSupplement(res, fallback) {
+  const body = await res.json();
+  if (!res.ok) {
+    const error = new Error(body?.message || fallback);
+    error.status = res.status;
+    throw error;
+  }
+  return body;
+}
+
+/**
+ * Голос согласующего по раунду дополнения (#1685).
+ * @param {number} id ID заявки
+ * @param {number} supplementId ID раунда
+ * @param {{status: 'approved'|'rejected', comment?: string|null}} data
+ * @returns {Promise<{supplement_id: number, number: number, status: string, my_status: string}>}
+ */
+export async function approveSupplement(id, supplementId, data) {
+  const res = await apiRequest(`/applications/${id}/supplements/${supplementId}/approve`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return unwrapSupplement(res, 'Не удалось отправить голос по дополнению');
+}
+
+/**
+ * Отзыв собственного голоса по раунду дополнения (#1685).
+ * @param {number} id ID заявки
+ * @param {number} supplementId ID раунда
+ * @param {{comment?: string|null}} [data]
+ * @returns {Promise<{supplement_id: number, number: number, status: string, my_status: string}>}
+ */
+export async function revokeSupplementApproval(id, supplementId, data = {}) {
+  const res = await apiRequest(`/applications/${id}/supplements/${supplementId}/revoke-approval`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return unwrapSupplement(res, 'Не удалось отозвать голос по дополнению');
+}
+
+/**
+ * Решение принимающего по согласованному раунду (#1685). activated в ответе - сколько
+ * строк реально встало на пост: оно меньше состава раунда, если часть успела уехать в
+ * корзину или в чёрный список.
+ * @param {number} id ID заявки
+ * @param {number} supplementId ID раунда
+ * @param {{action: 'accept'|'reject', comment?: string|null}} data
+ * @returns {Promise<{supplement_id: number, number: number, status: string, activated: number}>}
+ */
+export async function decideSupplement(id, supplementId, data) {
+  const res = await apiRequest(`/applications/${id}/supplements/${supplementId}/take-to-work`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return unwrapSupplement(res, 'Не удалось принять решение по дополнению');
+}
+
+/**
+ * Автор снимает собственный незакрытый раунд (#1685).
+ * @param {number} id ID заявки
+ * @param {number} supplementId ID раунда
+ * @param {{comment?: string|null}} [data]
+ * @returns {Promise<{supplement_id: number, number: number, status: string, activated: number}>}
+ */
+export async function cancelSupplement(id, supplementId, data = {}) {
+  const res = await apiRequest(`/applications/${id}/supplements/${supplementId}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return unwrapSupplement(res, 'Не удалось снять дополнение');
+}
+
+/**
  * Список вложений, доступных охраннику/админу во вкладке "Доступные мне" (#706).
  * Пагинация лежит в envelope.meta рядом с data, а apiRequest снимает только data
  * и meta теряется - поэтому читаем сырой ответ через apiRequestRaw.
