@@ -19,15 +19,16 @@ const SETTINGS = (over = {}) => ({
 })
 
 describe('ArchiveSettingsView', () => {
-  it('показывает раскладку словами и без фигурных скобок', () => {
+  it('показывает раскладку деревом готовых имён, без фигурных скобок', () => {
     const w = mount(ArchiveSettingsView, { props: { settings: SETTINGS() } })
 
-    const levels = w.findAll('.asv__level').map((l) => l.text())
-    expect(levels).toEqual([
-      'год',
-      'месяц двумя цифрами, месяц прописными, год',
-      'дата',
-      'дата, номер заявки',
+    const nodes = w.findAll('.asv__tree-node').map((n) => n.text().replace('└', '').trim())
+    expect(nodes).toEqual([
+      '2026',
+      '08 АВГУСТ 2026',
+      '03.08.2026',
+      '03.08.2026 №20260803-001',
+      'Автозаявка_Отдел контроля доступа_03.08.2026_Иванов И.И.xlsx',
     ])
     // Шаблон в исходном виде - язык того, кто настраивает систему на сервере;
     // на этом экране его быть не должно.
@@ -35,33 +36,36 @@ describe('ArchiveSettingsView', () => {
     expect(w.text()).not.toContain('{номер}')
   })
 
-  it('приводит пример пути с расширением файла', () => {
+  it('имя файла - последний узел дерева, точка не удваивается', () => {
     const w = mount(ArchiveSettingsView, { props: { settings: SETTINGS() } })
 
-    // Точка после инициалов не удваивается: сервер срезает концевую точку имени
-    // (Windows её всё равно отбрасывает), и пример обязан совпадать с диском.
-    expect(w.find('.asv__example').text()).toContain(
-      '2026/08 АВГУСТ 2026/03.08.2026/03.08.2026 №20260803-001/Автозаявка_Отдел контроля доступа_03.08.2026_Иванов И.И.xlsx',
-    )
-    expect(w.find('.asv__example').text()).not.toContain('И.И..xlsx')
+    // Сервер срезает концевую точку имени (Windows её всё равно отбрасывает),
+    // поэтому «Иванов И.И.» и расширение дают одну точку, а не две.
+    const file = w.find('.asv__tree-file')
+    expect(file.text()).toContain('Иванов И.И.xlsx')
+    expect(file.text()).not.toContain('И.И..xlsx')
   })
 
-  it('к каждому порогу объясняет, что произойдёт', () => {
+  it('каждое правило читается парой «когда - что тогда»', () => {
     const w = mount(ArchiveSettingsView, { props: { settings: SETTINGS() } })
-    const text = w.text()
 
-    expect(text).toContain('очередь встаёт')
-    expect(text).toContain('придёт уведомление')
-    expect(text).toContain('дописывает пропавшие файлы')
-    expect(text).toContain('больше не переписываются')
+    const rows = w.findAll('.asv__row').map((r) => r.text().replace(/\s+/g, ' '))
+    expect(rows.some((r) => r.includes('Свободно меньше 2.0 ГБ') && r.includes('запись встаёт'))).toBe(true)
+    expect(rows.some((r) => r.includes('Раздел занят на 80 %') && r.includes('уведомление'))).toBe(true)
+    expect(rows.some((r) => r.includes('Каждую ночь') && r.includes('пропавшее дописывается'))).toBe(true)
+    expect(rows.some((r) => r.includes('Через 30 дн.') && r.includes('замораживаются'))).toBe(true)
   })
 
-  it('без предельного объёма пишет, что остановит только диск', () => {
+  it('незаданный предел объёма не занимает строку в перечне правил', () => {
     const w = mount(ArchiveSettingsView, { props: { settings: SETTINGS({ quota_bytes: 0 }) } })
-    expect(w.text()).toContain('Объём не ограничен')
+    // Отсутствие правила - это не правило: оно уходит в сноску под перечень.
+    expect(w.findAll('.asv__row')).toHaveLength(5)
+    expect(w.find('.asv__note').text()).toContain('не задан')
 
     const limited = mount(ArchiveSettingsView, { props: { settings: SETTINGS({ quota_bytes: 5 * GB }) } })
-    expect(limited.text()).toContain('дорастёт до 5.0 ГБ')
+    expect(limited.findAll('.asv__row')).toHaveLength(6)
+    expect(limited.text()).toContain('Архив дорос до 5.0 ГБ')
+    expect(limited.find('.asv__note').exists()).toBe(false)
   })
 
   it('пустые шаблоны не роняют блок', () => {
@@ -69,7 +73,6 @@ describe('ArchiveSettingsView', () => {
       props: { settings: SETTINGS({ dir_template: '', file_template: '' }) },
     })
 
-    expect(w.findAll('.asv__level')).toHaveLength(0)
-    expect(w.find('.asv__file-rule').text()).toContain('не задано')
+    expect(w.findAll('.asv__tree-node')).toHaveLength(0)
   })
 })
