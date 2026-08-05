@@ -36,8 +36,8 @@ func (h *ApplicationHandler) CreateSupplement(c echo.Context) error {
 	}
 
 	var req services.CreateSupplementRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	username := c.Get("username").(string)
@@ -107,8 +107,8 @@ func (h *ApplicationHandler) ApproveSupplement(c echo.Context) error {
 	}
 
 	var req services.SupplementApprovalRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	username := c.Get("username").(string)
@@ -145,9 +145,10 @@ func (h *ApplicationHandler) RevokeSupplementApproval(c echo.Context) error {
 		return err
 	}
 
+	// Тело намеренно опциональное: отозвать голос можно и без объяснения причины.
 	var req services.SupplementRevokeApprovalRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	username := c.Get("username").(string)

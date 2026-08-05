@@ -2847,6 +2847,12 @@ definitions:
         type: boolean
       has_free_parking:
         type: boolean
+      has_open_supplement:
+        description: |-
+          HasOpenSupplement - по заявке идёт незакрытый раунд дополнения (#1685). Статус и
+          согласование самой заявки при этом не откатываются, поэтому без отдельной метки
+          повторный круг в списке ничем себя не выдаёт.
+        type: boolean
       has_roof_access:
         type: boolean
       has_status_update:
@@ -3412,10 +3418,25 @@ definitions:
         type: string
       id:
         type: integer
+      is_pending:
+        description: IsPending - строка ещё не допущена на КПП.
+        type: boolean
       organization:
         type: string
       organization_id:
         type: integer
+      supplement_id:
+        description: SupplementID - раунд, принёсший строку. nil - исходный состав
+          подачи.
+        type: integer
+      supplement_number:
+        description: SupplementNumber - номер раунда для подписи «Дополнение №2».
+          nil вместе с SupplementID.
+        type: integer
+      supplement_status:
+        description: SupplementStatus - статус раунда (models.Supplement*). nil вместе
+          с SupplementID.
+        type: string
       target_tables:
         description: |-
           TargetTables - таблицы «Проезд», выбранные для машины (#1036), зеркало
@@ -3682,6 +3703,28 @@ definitions:
     required:
     - subject
     - text
+    type: object
+  services.CreateSupplementRequest:
+    properties:
+      additions:
+        items:
+          $ref: '#/definitions/services.SupplementAddition'
+        type: array
+      comment:
+        description: Comment - зачем понадобилась добавка; виден согласующим в карточке
+          раунда.
+        type: string
+    type: object
+  services.CreateSupplementResponse:
+    properties:
+      counts:
+        $ref: '#/definitions/services.SupplementCounts'
+      number:
+        type: integer
+      status:
+        type: string
+      supplement_id:
+        type: integer
     type: object
   services.CreateTimeSlotRequest:
     properties:
@@ -3987,6 +4030,9 @@ definitions:
         type: string
       id:
         type: integer
+      is_pending:
+        description: IsPending - строка ещё не допущена на КПП.
+        type: boolean
       last_name:
         type: string
       middle_name:
@@ -4004,6 +4050,18 @@ definitions:
       patent_number:
         type: string
       position:
+        type: string
+      supplement_id:
+        description: SupplementID - раунд, принёсший строку. nil - исходный состав
+          подачи.
+        type: integer
+      supplement_number:
+        description: SupplementNumber - номер раунда для подписи «Дополнение №2».
+          nil вместе с SupplementID.
+        type: integer
+      supplement_status:
+        description: SupplementStatus - статус раунда (models.Supplement*). nil вместе
+          с SupplementID.
         type: string
       target_tables:
         items:
@@ -4077,7 +4135,22 @@ definitions:
         type: string
       id:
         type: integer
+      is_pending:
+        description: IsPending - строка ещё не допущена на КПП.
+        type: boolean
       name:
+        type: string
+      supplement_id:
+        description: SupplementID - раунд, принёсший строку. nil - исходный состав
+          подачи.
+        type: integer
+      supplement_number:
+        description: SupplementNumber - номер раунда для подписи «Дополнение №2».
+          nil вместе с SupplementID.
+        type: integer
+      supplement_status:
+        description: SupplementStatus - статус раунда (models.Supplement*). nil вместе
+          с SupplementID.
         type: string
     type: object
   services.ItemInput:
@@ -4557,6 +4630,141 @@ definitions:
       entity:
         type: string
       id:
+        type: integer
+    type: object
+  services.SupplementAddition:
+    properties:
+      attachment_id:
+        type: integer
+      employees:
+        items:
+          $ref: '#/definitions/services.EmployeeInput'
+        type: array
+      items:
+        items:
+          $ref: '#/definitions/services.ItemInput'
+        type: array
+      vehicles:
+        items:
+          $ref: '#/definitions/services.VehicleInput'
+        type: array
+    type: object
+  services.SupplementApprovalInfo:
+    properties:
+      approval_comment:
+        type: string
+      approval_datetime:
+        type: string
+      approval_status:
+        type: string
+      full_name:
+        type: string
+      required_approval:
+        type: boolean
+      user_id:
+        type: integer
+      username:
+        type: string
+    type: object
+  services.SupplementApprovalRequest:
+    properties:
+      comment:
+        type: string
+      status:
+        enum:
+        - approved
+        - rejected
+        type: string
+    required:
+    - status
+    type: object
+  services.SupplementCancelRequest:
+    properties:
+      comment:
+        type: string
+    type: object
+  services.SupplementCounts:
+    properties:
+      employees:
+        type: integer
+      items:
+        type: integer
+      vehicles:
+        type: integer
+    type: object
+  services.SupplementDecisionRequest:
+    properties:
+      action:
+        enum:
+        - accept
+        - reject
+        type: string
+      comment:
+        type: string
+    required:
+    - action
+    type: object
+  services.SupplementDecisionResponse:
+    properties:
+      activated:
+        type: integer
+      number:
+        type: integer
+      status:
+        type: string
+      supplement_id:
+        type: integer
+    type: object
+  services.SupplementInfo:
+    properties:
+      application_id:
+        type: integer
+      approvals:
+        items:
+          $ref: '#/definitions/services.SupplementApprovalInfo'
+        type: array
+      comment:
+        type: string
+      confirmation_datetime:
+        type: string
+      counts:
+        $ref: '#/definitions/services.SupplementCounts'
+      created_at:
+        type: string
+      created_by_name:
+        type: string
+      created_by_user_id:
+        type: integer
+      decided_at:
+        type: string
+      decided_by_user_id:
+        type: integer
+      decision_comment:
+        type: string
+      id:
+        type: integer
+      number:
+        type: integer
+      status:
+        type: string
+    type: object
+  services.SupplementRevokeApprovalRequest:
+    properties:
+      comment:
+        type: string
+    type: object
+  services.SupplementVoteResponse:
+    properties:
+      my_status:
+        description: 'MyStatus - голос вызывающего после операции: approved/rejected/pending.'
+        type: string
+      number:
+        type: integer
+      status:
+        description: Status - итог раунда (application_supplements.status) после пересчёта
+          кворума.
+        type: string
+      supplement_id:
         type: integer
     type: object
   services.SystemTableBinding:
@@ -6872,6 +7080,339 @@ paths:
       security:
       - BearerAuth: []
       summary: Отзыв заявки из работы
+      tags:
+      - applications
+  /applications/{id}/supplements:
+    get:
+      description: Возвращает раунды дополнения заявки (новые сверху) с составом голосующих.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.SupplementInfo'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Дополнения заявки
+      tags:
+      - applications
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Добавляет людей, машины или ТМЦ во вложения уже поданной заявки (#1685).
+        Пока заявка не принята в работу, добавка вливается в текущий круг согласования
+        (статус раунда merged); у заявки в работе заводится отдельный раунд (pending),
+        а согласование и статус самой заявки не откатываются - уже допущенные строки
+        остаются на КПП.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Состав дополнения
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.CreateSupplementRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.CreateSupplementResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Дополнить поданную заявку
+      tags:
+      - applications
+  /applications/{id}/supplements/{sid}/approve:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Согласование или отказ по раунду дополнения (#1685). Голосуют только
+        согласующие раунда - снимок ответственных заявки на момент подачи дополнения;
+        голосующий берётся из токена. Итог раунда пересчитывается по тому же кворуму,
+        что и согласование заявки, но пишется в статус дополнения: согласование и
+        статус самой заявки не откатываются.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: ID дополнения
+        in: path
+        name: sid
+        required: true
+        type: integer
+      - description: Голос
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.SupplementApprovalRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.SupplementVoteResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Голос по дополнению заявки
+      tags:
+      - applications
+  /applications/{id}/supplements/{sid}/cancel:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Автор заявки снимает собственный незакрытый раунд дополнения (#1685). Строки
+        раунда остаются неактивными; заявка и её допущенный состав не задеты.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: ID дополнения
+        in: path
+        name: sid
+        required: true
+        type: integer
+      - description: Причина снятия
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/services.SupplementCancelRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.SupplementDecisionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Снять дополнение заявки
+      tags:
+      - applications
+  /applications/{id}/supplements/{sid}/revoke-approval:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Возвращает собственный голос по раунду дополнения в pending и пересчитывает
+        итог раунда (#1685). Отозвать голос можно, пока по дополнению не принято
+        решение принимающим.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: ID дополнения
+        in: path
+        name: sid
+        required: true
+        type: integer
+      - description: Причина отзыва
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/services.SupplementRevokeApprovalRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.SupplementVoteResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Отзыв голоса по дополнению заявки
+      tags:
+      - applications
+  /applications/{id}/supplements/{sid}/take-to-work:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Принятие или отказ по согласованному раунду дополнения (#1685). Принятие
+        активирует строки ЭТОГО раунда - с этого момента они видны на КПП; отказ
+        оставляет их неактивными навсегда. Согласование и статус самой заявки не
+        двигаются ни в одной ветке: от них производен допуск уже выданных пропусков.
+        Доступно только принимающему; раунд обязан быть согласован, а заявка - в работе.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: ID дополнения
+        in: path
+        name: sid
+        required: true
+        type: integer
+      - description: Решение
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.SupplementDecisionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.SupplementDecisionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Решение принимающего по дополнению заявки
       tags:
       - applications
   /applications/{id}/take-to-work:

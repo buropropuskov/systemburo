@@ -2938,6 +2938,489 @@ const docTemplate = `{
                 }
             }
         },
+        "/applications/{id}/supplements": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает раунды дополнения заявки (новые сверху) с составом голосующих.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Дополнения заявки",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.SupplementInfo"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Добавляет людей, машины или ТМЦ во вложения уже поданной заявки (#1685).\nПока заявка не принята в работу, добавка вливается в текущий круг согласования\n(статус раунда merged); у заявки в работе заводится отдельный раунд (pending),\nа согласование и статус самой заявки не откатываются - уже допущенные строки\nостаются на КПП.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Дополнить поданную заявку",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Состав дополнения",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.CreateSupplementRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.CreateSupplementResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/{id}/supplements/{sid}/approve": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Согласование или отказ по раунду дополнения (#1685). Голосуют только\nсогласующие раунда - снимок ответственных заявки на момент подачи дополнения;\nголосующий берётся из токена. Итог раунда пересчитывается по тому же кворуму,\nчто и согласование заявки, но пишется в статус дополнения: согласование и\nстатус самой заявки не откатываются.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Голос по дополнению заявки",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID дополнения",
+                        "name": "sid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Голос",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.SupplementApprovalRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.SupplementVoteResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/{id}/supplements/{sid}/cancel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Автор заявки снимает собственный незакрытый раунд дополнения (#1685). Строки\nраунда остаются неактивными; заявка и её допущенный состав не задеты.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Снять дополнение заявки",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID дополнения",
+                        "name": "sid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Причина снятия",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/services.SupplementCancelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.SupplementDecisionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/{id}/supplements/{sid}/revoke-approval": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает собственный голос по раунду дополнения в pending и пересчитывает\nитог раунда (#1685). Отозвать голос можно, пока по дополнению не принято\nрешение принимающим.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Отзыв голоса по дополнению заявки",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID дополнения",
+                        "name": "sid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Причина отзыва",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/services.SupplementRevokeApprovalRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.SupplementVoteResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/{id}/supplements/{sid}/take-to-work": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Принятие или отказ по согласованному раунду дополнения (#1685). Принятие\nактивирует строки ЭТОГО раунда - с этого момента они видны на КПП; отказ\nоставляет их неактивными навсегда. Согласование и статус самой заявки не\nдвигаются ни в одной ветке: от них производен допуск уже выданных пропусков.\nДоступно только принимающему; раунд обязан быть согласован, а заявка - в работе.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Решение принимающего по дополнению заявки",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID дополнения",
+                        "name": "sid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Решение",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.SupplementDecisionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.SupplementDecisionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/applications/{id}/take-to-work": {
             "post": {
                 "security": [
@@ -25588,6 +26071,10 @@ const docTemplate = `{
                 "has_free_parking": {
                     "type": "boolean"
                 },
+                "has_open_supplement": {
+                    "description": "HasOpenSupplement - по заявке идёт незакрытый раунд дополнения (#1685). Статус и\nсогласование самой заявки при этом не откатываются, поэтому без отдельной метки\nповторный круг в списке ничем себя не выдаёт.",
+                    "type": "boolean"
+                },
                 "has_roof_access": {
                     "type": "boolean"
                 },
@@ -26425,11 +26912,27 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "is_pending": {
+                    "description": "IsPending - строка ещё не допущена на КПП.",
+                    "type": "boolean"
+                },
                 "organization": {
                     "type": "string"
                 },
                 "organization_id": {
                     "type": "integer"
+                },
+                "supplement_id": {
+                    "description": "SupplementID - раунд, принёсший строку. nil - исходный состав подачи.",
+                    "type": "integer"
+                },
+                "supplement_number": {
+                    "description": "SupplementNumber - номер раунда для подписи «Дополнение №2». nil вместе с SupplementID.",
+                    "type": "integer"
+                },
+                "supplement_status": {
+                    "description": "SupplementStatus - статус раунда (models.Supplement*). nil вместе с SupplementID.",
+                    "type": "string"
                 },
                 "target_tables": {
                     "description": "TargetTables - таблицы «Проезд», выбранные для машины (#1036), зеркало\nEmployeeWithTables.TargetTables у сотрудников.",
@@ -26809,6 +27312,38 @@ const docTemplate = `{
                 "text": {
                     "type": "string",
                     "maxLength": 5000
+                }
+            }
+        },
+        "services.CreateSupplementRequest": {
+            "type": "object",
+            "properties": {
+                "additions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.SupplementAddition"
+                    }
+                },
+                "comment": {
+                    "description": "Comment - зачем понадобилась добавка; виден согласующим в карточке раунда.",
+                    "type": "string"
+                }
+            }
+        },
+        "services.CreateSupplementResponse": {
+            "type": "object",
+            "properties": {
+                "counts": {
+                    "$ref": "#/definitions/services.SupplementCounts"
+                },
+                "number": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "supplement_id": {
+                    "type": "integer"
                 }
             }
         },
@@ -27271,6 +27806,10 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "is_pending": {
+                    "description": "IsPending - строка ещё не допущена на КПП.",
+                    "type": "boolean"
+                },
                 "last_name": {
                     "type": "string"
                 },
@@ -27296,6 +27835,18 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "position": {
+                    "type": "string"
+                },
+                "supplement_id": {
+                    "description": "SupplementID - раунд, принёсший строку. nil - исходный состав подачи.",
+                    "type": "integer"
+                },
+                "supplement_number": {
+                    "description": "SupplementNumber - номер раунда для подписи «Дополнение №2». nil вместе с SupplementID.",
+                    "type": "integer"
+                },
+                "supplement_status": {
+                    "description": "SupplementStatus - статус раунда (models.Supplement*). nil вместе с SupplementID.",
                     "type": "string"
                 },
                 "target_tables": {
@@ -27408,7 +27959,23 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "is_pending": {
+                    "description": "IsPending - строка ещё не допущена на КПП.",
+                    "type": "boolean"
+                },
                 "name": {
+                    "type": "string"
+                },
+                "supplement_id": {
+                    "description": "SupplementID - раунд, принёсший строку. nil - исходный состав подачи.",
+                    "type": "integer"
+                },
+                "supplement_number": {
+                    "description": "SupplementNumber - номер раунда для подписи «Дополнение №2». nil вместе с SupplementID.",
+                    "type": "integer"
+                },
+                "supplement_status": {
+                    "description": "SupplementStatus - статус раунда (models.Supplement*). nil вместе с SupplementID.",
                     "type": "string"
                 }
             }
@@ -28120,6 +28687,210 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.SupplementAddition": {
+            "type": "object",
+            "properties": {
+                "attachment_id": {
+                    "type": "integer"
+                },
+                "employees": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.EmployeeInput"
+                    }
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.ItemInput"
+                    }
+                },
+                "vehicles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.VehicleInput"
+                    }
+                }
+            }
+        },
+        "services.SupplementApprovalInfo": {
+            "type": "object",
+            "properties": {
+                "approval_comment": {
+                    "type": "string"
+                },
+                "approval_datetime": {
+                    "type": "string"
+                },
+                "approval_status": {
+                    "type": "string"
+                },
+                "full_name": {
+                    "type": "string"
+                },
+                "required_approval": {
+                    "type": "boolean"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.SupplementApprovalRequest": {
+            "type": "object",
+            "required": [
+                "status"
+            ],
+            "properties": {
+                "comment": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "approved",
+                        "rejected"
+                    ]
+                }
+            }
+        },
+        "services.SupplementCancelRequest": {
+            "type": "object",
+            "properties": {
+                "comment": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.SupplementCounts": {
+            "type": "object",
+            "properties": {
+                "employees": {
+                    "type": "integer"
+                },
+                "items": {
+                    "type": "integer"
+                },
+                "vehicles": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.SupplementDecisionRequest": {
+            "type": "object",
+            "required": [
+                "action"
+            ],
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "accept",
+                        "reject"
+                    ]
+                },
+                "comment": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.SupplementDecisionResponse": {
+            "type": "object",
+            "properties": {
+                "activated": {
+                    "type": "integer"
+                },
+                "number": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "supplement_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.SupplementInfo": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "integer"
+                },
+                "approvals": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.SupplementApprovalInfo"
+                    }
+                },
+                "comment": {
+                    "type": "string"
+                },
+                "confirmation_datetime": {
+                    "type": "string"
+                },
+                "counts": {
+                    "$ref": "#/definitions/services.SupplementCounts"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by_name": {
+                    "type": "string"
+                },
+                "created_by_user_id": {
+                    "type": "integer"
+                },
+                "decided_at": {
+                    "type": "string"
+                },
+                "decided_by_user_id": {
+                    "type": "integer"
+                },
+                "decision_comment": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "number": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.SupplementRevokeApprovalRequest": {
+            "type": "object",
+            "properties": {
+                "comment": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.SupplementVoteResponse": {
+            "type": "object",
+            "properties": {
+                "my_status": {
+                    "description": "MyStatus - голос вызывающего после операции: approved/rejected/pending.",
+                    "type": "string"
+                },
+                "number": {
+                    "type": "integer"
+                },
+                "status": {
+                    "description": "Status - итог раунда (application_supplements.status) после пересчёта кворума.",
+                    "type": "string"
+                },
+                "supplement_id": {
                     "type": "integer"
                 }
             }
