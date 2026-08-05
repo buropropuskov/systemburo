@@ -44,7 +44,10 @@ services:
   # бы pgAdmin за собой при каждом подъёме стенда.
   pgadmin:
     profiles: ["tools"]
-    image: dpage/pgadmin4:latest
+    # Версия прибита намеренно: с плавающей меткой образ подменялся при каждом
+    # обновлении на стороне разработчика pgAdmin, и стенд мог поехать не из-за
+    # наших правок. 9.14 - то, что и так стояло на сервере на 05.08.2026.
+    image: dpage/pgadmin4:9.14
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
