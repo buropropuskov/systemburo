@@ -121,6 +121,22 @@
           </div>
         </div>
         <div class="detail-header-right">
+          <!-- Второй бейдж: идёт повторный круг по дополнению (#1685). Рядом с бейджем
+               согласования, а не вместо него - статус заявки остаётся «Согласовано»,
+               потому что от него зависит допуск уже выданных пропусков. -->
+          <transition name="fade">
+            <Badge
+              v-if="openSupplementBadge"
+              class="supplement-round-badge"
+              :variant="openSupplementBadge.variant"
+              size="md"
+              dot
+              :title="openSupplementBadge.hint"
+              data-testid="app-detail-supplement-round-badge"
+            >
+              {{ openSupplementBadge.text }}
+            </Badge>
+          </transition>
           <ApplicationActionBar
             v-if="mode !== 'center' || can('action.approve.application')"
             :application="applicationData"
@@ -591,6 +607,7 @@ import { apiRequest } from '@/api/client'
 import { markAsRead } from '@/api/applications'
 import { useDeletionsStore } from '@/stores/deletions'
 import { useUiStore } from '@/stores/ui'
+import { SUPPLEMENT_APPROVED } from '@/utils/supplementStatuses'
 import { usePermissionsStore } from '@/stores/permissions'
 import ApplicationAttachments from './ApplicationAttachments.vue'
 import ApplicationConfirmation from './ApplicationConfirmation.vue'
@@ -817,6 +834,30 @@ export default {
             if (!this.can('action.supplement.application')) return false;
             if (a.open_supplement) return false;
             return SUPPLEMENT_ALLOWED_STATUSES.includes(a.status);
+        },
+
+        /**
+         * Плашка «идёт повторный круг» для шапки (#1685).
+         *
+         * Бейдж согласования остаётся на месте: заявка как была «Согласовано», так и
+         * остаётся - откат её статуса снял бы с проходной уже выданные пропуска. Про
+         * добавку сообщает вторая плашка, новых значений confirmation не заводим.
+         *
+         * @returns {{ variant: string, text: string, hint: string }|null}
+         */
+        openSupplementBadge() {
+            const open = this.applicationData && this.applicationData.open_supplement;
+            if (!open) return null;
+
+            const title = open.number ? `Дополнение №${open.number}` : 'Дополнение';
+            const awaitingAccept = open.status === SUPPLEMENT_APPROVED;
+            return {
+                variant: awaitingAccept ? 'info' : 'warning',
+                text: awaitingAccept ? `+ ${title} ждёт принятия` : `+ ${title} на согласовании`,
+                hint: awaitingAccept
+                    ? `${title} согласовано и ждёт решения принимающего. Статус самой заявки не менялся.`
+                    : `${title} ждёт голосов согласующих. Статус самой заявки не менялся.`
+            };
         },
 
         // Отменить подтверждение пропуска может ответственный по заявке ИЛИ принимающий -
@@ -1988,6 +2029,10 @@ export default {
     display: flex;
     align-items: center;
     gap: 15px;
+}
+
+.supplement-round-badge {
+    flex-shrink: 0;
 }
 
 .forward-btn:disabled {
