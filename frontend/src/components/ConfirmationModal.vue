@@ -14,6 +14,15 @@
           <div class="modal-message">
             {{ message }}
           </div>
+          <!-- Необязательная вставка между текстом и кнопками: поле комментария к
+               решению по дополнению (#1685). Без переданного содержимого не рисуется
+               ничего, поэтому остальные вызовы окна выглядят как раньше. -->
+          <div
+            v-if="$slots.default"
+            class="modal-extra"
+          >
+            <slot />
+          </div>
           <div class="modal-actions">
             <button
               class="cancel-btn"
@@ -140,6 +149,10 @@ export default {
     color: var(--text-muted);
     margin-bottom: 20px;
     line-height: 1.4;
+}
+
+.modal-extra {
+    margin-bottom: 16px;
 }
 
 .modal-actions {

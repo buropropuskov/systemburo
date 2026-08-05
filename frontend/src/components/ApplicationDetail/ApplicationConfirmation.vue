@@ -103,6 +103,7 @@
 <script>
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import { isAwaitingApproval, approverSilenceDays, approverSilenceLabel } from '@/utils/pendingApproval'
+import { useApprovalStatus } from '@/composables/useApprovalStatus'
 
 export default {
     name: 'ApplicationConfirmation',
@@ -124,6 +125,11 @@ export default {
             type: Boolean,
             default: false
         }
+    },
+    // Словарь голосов согласующих общий с панелью раундов дополнения (#1685) -
+    // getStatusText/getStatusClass приходят оттуда под теми же именами, что были методами.
+    setup() {
+        return useApprovalStatus();
     },
     computed: {
         sortedResponsibleUsers() {
@@ -165,24 +171,6 @@ export default {
         getUserDisplayName(user) {
             const names = [user.last_name, user.first_name, user.middle_name].filter(Boolean);
             return names.length > 0 ? names.join(' ') : user.username;
-        },
-        
-        getStatusText(status) {
-            const statusMap = {
-                'approved': 'Согласовано',
-                'rejected': 'Отказано',
-                'pending': 'Ожидание'
-            };
-            return statusMap[status] || 'Неизвестно';
-        },
-        
-        getStatusClass(status) {
-            const classes = {
-                'approved': 'status-approved',
-                'rejected': 'status-rejected',
-                'pending': 'status-pending'
-            };
-            return classes[status] || 'status-default';
         },
         
         formatDateTime(dateTimeString) {

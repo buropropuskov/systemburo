@@ -59,9 +59,9 @@ describe('ArchiveStatusPanel', () => {
     await flushPromises()
 
     expect(api.getArchiveStats).toHaveBeenCalledTimes(1)
-    expect(w.text()).toContain('Занято')
+    expect(w.text()).toContain('Занято архивом')
     expect(w.text()).toContain('2.0 ГБ')
-    expect(w.text()).toContain('Свободно')
+    expect(w.text()).toContain('Свободно на диске')
     expect(w.text()).toContain('6.0 ГБ')
     // Момент, а не месяц: администратор смотрит сюда, чтобы понять, пишется ли
     // архив сейчас. Месяц «Июль 2026» ниже по странице живёт своей жизнью в
@@ -151,8 +151,8 @@ describe('ArchiveStatusPanel', () => {
     await flushPromises()
 
     expect(w.findComponent(BaseDropdown).exists()).toBe(false)
-    expect(w.text()).toContain('Архив: 2.0 ГБ')
-    expect(w.text()).toContain('База: 512.0 МБ')
+    expect(w.text()).toContain('Архив бланков: 2.0 ГБ')
+    expect(w.text()).toContain('База данных: 512.0 МБ')
     expect(w.find('.archive-status__disk-caption').exists()).toBe(false)
   })
 
@@ -182,6 +182,8 @@ describe('ArchiveStatusPanel', () => {
 
     expect(w.text()).toContain('Занято: 3.0 ГБ') // 4 - 1 ГБ
     expect(w.text()).toContain('Свободно: 1.0 ГБ')
+    // Подписи разделов приходят с сервера как есть - переименование долей на
+    // фронте их не касается.
     expect(w.find('.archive-status__disk-caption').text()).toContain('Логи')
     expect(w.text()).not.toContain('Архив: ')
   })
@@ -216,7 +218,7 @@ describe('ArchiveStatusPanel', () => {
     expect(segment.attributes('tabindex')).toBe('0')
 
     await segment.trigger('focus')
-    expect(w.find('.archive-status__disk-tip').text()).toContain('Загрузки')
+    expect(w.find('.archive-status__disk-tip').text()).toContain('Файлы из заявок')
 
     await segment.trigger('blur')
     expect(w.find('.archive-status__disk-tip').exists()).toBe(false)
@@ -270,7 +272,7 @@ describe('ArchiveStatusPanel', () => {
     const logsSegment = w.findAll('.archive-status__disk-seg')[3]
     await logsSegment.trigger('mouseenter')
     const tip = w.find('.archive-status__disk-tip')
-    expect(tip.text()).toContain('Логи')
+    expect(tip.text()).toContain('Журналы работы')
     expect(tip.text()).toContain('<0.1 %')
   })
 
