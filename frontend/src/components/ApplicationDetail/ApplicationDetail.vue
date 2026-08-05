@@ -607,6 +607,7 @@ import { apiRequest } from '@/api/client'
 import { markAsRead } from '@/api/applications'
 import { useDeletionsStore } from '@/stores/deletions'
 import { useUiStore } from '@/stores/ui'
+import { SUPPLEMENT_APPROVED } from '@/utils/supplementStatuses'
 import { usePermissionsStore } from '@/stores/permissions'
 import ApplicationAttachments from './ApplicationAttachments.vue'
 import ApplicationConfirmation from './ApplicationConfirmation.vue'
@@ -849,7 +850,7 @@ export default {
             if (!open) return null;
 
             const title = open.number ? `Дополнение №${open.number}` : 'Дополнение';
-            const awaitingAccept = open.status === 'approved';
+            const awaitingAccept = open.status === SUPPLEMENT_APPROVED;
             return {
                 variant: awaitingAccept ? 'info' : 'warning',
                 text: awaitingAccept ? `+ ${title} ждёт принятия` : `+ ${title} на согласовании`,

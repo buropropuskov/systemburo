@@ -315,6 +315,12 @@ import SearchComponent from '@/components/SearchComponent.vue'
 import { assignElementTables, assignCarUnloadPlaces } from '@/api/applicationAssignments'
 import { useDeletionsStore } from '@/stores/deletions'
 import { matchesSearchFuzzy } from '@/utils/searchVariants'
+import {
+    SUPPLEMENT_ACCEPTED,
+    SUPPLEMENT_APPROVED,
+    SUPPLEMENT_PENDING,
+    SUPPLEMENT_CLOSED_STATUSES,
+} from '@/utils/supplementStatuses'
 
 /** Ширины служебных частей строки: порядковый номер, колонка действий, отступы. */
 const NUM_COLUMN_WIDTH = 22;
@@ -343,11 +349,8 @@ const ASSIGN_BUTTON_SPACE = 34;
 /** Запас, чтобы значение не упиралось вплотную в край колонки. */
 const TEXT_SIDE_SPACE = 6;
 
-/**
- * Статусы раунда дополнения (#1685), зеркало models.Supplement* на бэке. Строка состава
- * несёт их в supplement_status; supplement_id === null - строка пришла с исходной подачей.
- */
-const SUPPLEMENT_CLOSED_STATUSES = ['rejected', 'refused', 'cancelled'];
+// Строка состава несёт статус принёсшего её раунда в supplement_status;
+// supplement_id === null - строка пришла с исходной подачей (#1685).
 
 /**
  * Как выглядит строка в зависимости от судьбы принёсшего её раунда.
@@ -377,7 +380,7 @@ function supplementRowMark(row) {
         };
     }
 
-    if (row.is_pending && status === 'pending') {
+    if (row.is_pending && status === SUPPLEMENT_PENDING) {
         return {
             state: 'pending',
             variant: 'warning',
@@ -387,7 +390,7 @@ function supplementRowMark(row) {
         };
     }
 
-    if (row.is_pending && status === 'approved') {
+    if (row.is_pending && status === SUPPLEMENT_APPROVED) {
         return {
             state: 'approved',
             variant: 'info',
@@ -400,7 +403,7 @@ function supplementRowMark(row) {
     // accepted - добавка принята; merged - влита в основной круг заявки. И там и там
     // строка живёт по общим правилам, остаётся только пометка происхождения.
     return {
-        state: status === 'accepted' ? 'accepted' : 'origin',
+        state: status === SUPPLEMENT_ACCEPTED ? SUPPLEMENT_ACCEPTED : 'origin',
         variant: 'neutral',
         text: shortTitle,
         hint: `Строка добавлена дополнением к поданной заявке (${title}).`,
