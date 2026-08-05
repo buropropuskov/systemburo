@@ -299,8 +299,17 @@ func TestFakeApplications_ChildRecordsShiftWithApplication(t *testing.T) {
 		SELECT 'согласующие', COUNT(*) FROM application_responsible_users r JOIN mine ON mine.id = r.application_id
 			WHERE DATE(r.created_at) <> DATE(mine.sending_datetime)
 		UNION ALL
-		SELECT 'история', COUNT(*) FROM audit_log l JOIN mine ON mine.id = l.entity_id
-			WHERE l.entity_type = 'application' AND DATE(l.created_at) < DATE(mine.sending_datetime)
+		-- Запись о СОЗДАНИИ заявки обязана совпадать с датой подачи день в день: именно
+		-- она показывает, что история не осталась с датой прогона наливки. Переходы по
+		-- стадиям датируются позже, поэтому для них проверяется только, что они не
+		-- раньше подачи и не в будущем.
+		SELECT 'история создания', COUNT(*) FROM audit_log l JOIN mine ON mine.id = l.entity_id
+			WHERE l.entity_type = 'application' AND l.action = 'create'
+			  AND DATE(l.created_at) <> DATE(mine.sending_datetime)
+		UNION ALL
+		SELECT 'история переходов', COUNT(*) FROM audit_log l JOIN mine ON mine.id = l.entity_id
+			WHERE l.entity_type = 'application' AND l.action <> 'create'
+			  AND (l.created_at < mine.sending_datetime OR l.created_at > NOW())
 	`, batch.ID()).Scan(&rows).Error)
 
 	require.NotEmpty(t, rows)
