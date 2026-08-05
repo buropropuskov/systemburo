@@ -28,6 +28,25 @@ const STEP_TIMEOUT = 120_000;
 const APPLICANT_PHONE = '9990000001';
 const SUPPLEMENT_COMMENT = 'E2E: подрядчик прислал монтажника сверх списка';
 
+/** дд.мм.гггг - формат полей срока действия. */
+function formatDate(date) {
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  return `${dd}.${mm}.${date.getFullYear()}`;
+}
+
+/**
+ * Окно пропуска - сегодня и завтра. Таблица поста показывает только действующие
+ * сегодня пропуска, а прогон длится около полутора минут и может перешагнуть полночь:
+ * на однодневной заявке это дало бы красный при исправной фиче.
+ */
+function passWindow() {
+  const from = new Date();
+  const to = new Date();
+  to.setDate(from.getDate() + 1);
+  return { from: formatDate(from), to: formatDate(to) };
+}
+
 let fixture = null;
 let applicationNumber = '';
 let firstEmployee = null;
@@ -64,8 +83,8 @@ test.describe.serial('Дополнение поданной заявки (#1685)
 
     await createPage.addAttachment(fixture.attachmentTitle);
     await createPage.phoneInput.fill(APPLICANT_PHONE);
-    // Таблица проходной показывает только пропуска, действующие сегодня.
-    await createPage.pickQuickDate('Сегодня');
+    const { from, to } = passWindow();
+    await createPage.setDateRange(from, to);
     await createPage.setTimeRange('00:00', '23:59');
 
     await createPage.employeeForm.addEmployee({
