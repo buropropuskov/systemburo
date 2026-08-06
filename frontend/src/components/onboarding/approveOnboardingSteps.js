@@ -32,7 +32,7 @@ export const APPROVE_ONBOARDING_VERSION = 1;
  *
  * Поля шага и точки расширения - в JSDoc `onboardingSteps.js`.
  *
- * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, requires?: string, optional?: boolean, optionalSegment?: boolean, expandRail?: boolean, celebrate?: boolean, cta?: string, ctaRoute?: string, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: string } }>}
+ * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, demo?: string, requires?: string, optional?: boolean, optionalSegment?: boolean, expandRail?: boolean, celebrate?: boolean, cta?: string, ctaRoute?: string, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: string } }>}
  */
 export const approveOnboardingSteps = [
   // ── Сегмент /news: знакомство и дорога в Центр заявок ──

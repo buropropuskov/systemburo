@@ -3,7 +3,7 @@ import { watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { useUiStore } from '@/stores/ui';
-import { useOnboarding } from '@/composables/useOnboarding';
+import { useOnboarding, STEP_DEMO_FALLBACK } from '@/composables/useOnboarding';
 import { collectSegment, indexAfterRoute } from '@/components/onboarding/onboardingSteps';
 import { applyReveal, restoreReveal } from '@/components/onboarding/reveal';
 
@@ -95,8 +95,14 @@ function applyDemoAttachment(globalIndex) {
  * Опциональный шаг (`optional`, напр. доп.поля «при наличии»): если элемента
  * нет за короткий таймаут - возвращаем false, и onNextClick пропускает шаг.
  *
+ * Шаг с демо-скриншотом (`demo`) не пропускаем никогда: у нового пользователя
+ * система пуста (ни заявок, ни вложений), и молчаливый пропуск отнимал бы у него
+ * ровно то, ради чего тур и заведён. Вместо подсветки показываем скриншот - об
+ * этом и говорит STEP_DEMO_FALLBACK.
+ *
  * @param {number} globalIndex
- * @returns {Promise<boolean>} false = пропустить опциональный шаг (элемента нет)
+ * @returns {Promise<boolean|string>} false = пропустить шаг, STEP_DEMO_FALLBACK =
+ *   показать без подсветки со скриншотом, true = вести шаг как обычно
  */
 async function prepareStep(globalIndex) {
   const step = store.steps[globalIndex];
@@ -109,8 +115,9 @@ async function prepareStep(globalIndex) {
   // ждём дольше (данным/демо-форме нужно время появиться).
   const timeout = step.optional ? 700 : FIRST_TARGET_TIMEOUT;
   const el = await waitForElement(step.element, timeout);
-  if (!el && step.optional) return false;
-  return true;
+  if (el) return true;
+  if (step.demo) return STEP_DEMO_FALLBACK;
+  return step.optional ? false : true;
 }
 
 async function startSegment() {
@@ -138,7 +145,10 @@ async function startSegment() {
 
   // Целевой шаг: дожидаемся его элемента (устойчивого по размеру), иначе
   // деградируем в центр-модал, чтобы driver не падал на отсутствующей цели.
+  // Сам массив шагов не трогаем - он же служит источником, из которого движок
+  // пересобирает шаг, когда цель появляется или пропадает (setStepMode).
   const targetStep = segmentSteps[localTarget];
+  let targetMissing = false;
   if (targetStep.element) {
     waitController = new AbortController();
     const el = await waitForElement(targetStep.element, FIRST_TARGET_TIMEOUT, waitController.signal);
@@ -146,11 +156,12 @@ async function startSegment() {
     // Тур могли остановить или перезапустить (Esc/logout/новый сегмент) пока
     // ждали элемент - не поднимаем driver-зомби поверх неактивного/чужого тура.
     if (!store.isActive || myGen !== driverGen) return;
-    if (!el) segmentSteps[localTarget] = { ...targetStep, element: null };
+    targetMissing = !el;
   }
 
   driverObj = createDriver(segmentSteps, {
     startIndex: segmentStartIndex,
+    fallbackIndex: targetMissing ? localTarget : -1,
     onIndexChange: (globalIndex) => {
       store.setIndex(globalIndex);
       applyRail(globalIndex);

@@ -18,7 +18,7 @@ export const SECURITY_ONBOARDING_VERSION = 2;
  * идущие шаги с общим `route` в сегмент driver.js, смена `route` = cross-page
  * граница. collectSegment живёт в onboardingSteps.js и работает с любым массивом.
  *
- * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, requires?: string, expandRail?: boolean, optional?: boolean, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: string } }>}
+ * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, demo?: string, requires?: string, expandRail?: boolean, optional?: boolean, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: string } }>}
  */
 export const securityOnboardingSteps = [
   // ── Сегмент /news: знакомство, шапка, навигация охранника ──
