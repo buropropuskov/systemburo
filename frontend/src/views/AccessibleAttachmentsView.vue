@@ -319,6 +319,7 @@
                 <div
                   v-if="senderName(detail.attachment)"
                   class="application-block__row"
+                  data-testid="ob-aa-sender"
                 >
                   <span class="application-block__label">Отправитель</span>
                   <span class="application-block__value">{{ senderName(detail.attachment) }}</span>

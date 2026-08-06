@@ -2,6 +2,7 @@
   <div class="application-history">
     <button
       class="history-toggle"
+      data-testid="ob-detail-history"
       @click="openModal"
     >
       История заявки

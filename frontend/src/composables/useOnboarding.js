@@ -12,7 +12,7 @@ import { getDemo } from '@/components/onboarding/onboardingDemo';
  * а форма/таблицы - в одну колонку. Порог `<= 768` (не `< 768`): на ровно 768px
  * (iPad-портрет) CSS уже мобильный - reveal обязан срабатывать там же, иначе тур
  * подсветит переехавшую пустоту (класс бага «768 vs 767.98» из S8/S9). Модульная
- * функция (не часть фабрики useOnboarding) - её зовут и mobileReveal, и createDriver.
+ * функция (не часть фабрики useOnboarding) - её зовут и reveal, и createDriver.
  *
  * @returns {boolean}
  */

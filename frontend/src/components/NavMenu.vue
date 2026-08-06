@@ -513,7 +513,10 @@
           <span class="admin-count">{{ adminCountLabel }}</span>
         </div>
 
-        <div class="admin-search-row">
+        <div
+          class="admin-search-row"
+          data-testid="ob-admin-search"
+        >
           <span class="admin-search-ic">
             <NavIcon
               name="search"
@@ -529,7 +532,10 @@
           >
         </div>
 
-        <div class="admin-column__scroll">
+        <div
+          class="admin-column__scroll"
+          data-testid="ob-admin-groups"
+        >
           <div
             v-for="group in filteredAdminGroups"
             :key="group.title"
@@ -626,6 +632,7 @@ import { useSoundStore } from '@/stores/sound'
 import { usePermissionsStore } from '@/stores/permissions'
 import { ADMIN_GROUPS } from '@/constants/navSections';
 import { useThemeStore } from '@/stores/theme'
+import { useOnboardingStore } from '@/stores/onboarding'
 import { playPreset } from '@/utils/notificationSound'
 import eventStream from '@/services/eventStream'
 import NavIcon from '@/components/icons/NavIcon.vue'
@@ -650,7 +657,9 @@ export default {
     const soundStore = useSoundStore()
     const permissionsStore = usePermissionsStore()
     const themeStore = useThemeStore()
-    return { authStore, uiStore, soundStore, permissionsStore, themeStore }
+    // Онбординг-тур просит раскрыть колонку Админки на своих шагах (reveal.open).
+    const onboardingStore = useOnboardingStore()
+    return { authStore, uiStore, soundStore, permissionsStore, themeStore, onboardingStore }
   },
   data() {
     return {
@@ -694,6 +703,8 @@ export default {
       showFeedbackModal: false,
       isBanned: false,
       adminOpen: false,
+      // Колонку раскрыл тур (reveal), а не пользователь - только такую он и закроет.
+      adminOpenedByTour: false,
       adminSearch: '',
       // Разделы Админки по группам мокапа (#510). permission - ключ права на
       // раздел (совпадает с meta.permission роутов, #187 Фаза 2): пункт виден
@@ -818,6 +829,19 @@ export default {
     },
     'uiStore.sidebarExpanded': 'syncContentMargin',
     'uiStore.sidebarHidden': 'syncContentMargin',
+    // Онбординг просит показать колонку Админки. Закрываем только то, что открыли
+    // сами: колонку, уже открытую пользователем, тур схлопывать не должен.
+    'onboardingStore.revealOpen'(target) {
+      if (target === 'admin-column') {
+        if (!this.adminOpen) {
+          this.adminOpenedByTour = true;
+          this.toggleAdmin();
+        }
+      } else if (this.adminOpenedByTour) {
+        this.adminOpenedByTour = false;
+        this.closeAdmin();
+      }
+    },
   },
   async mounted() {
     document.body.classList.add('auth-active');
@@ -941,6 +965,8 @@ export default {
     closeAdmin() {
       this.adminOpen = false;
       this.adminSearch = '';
+      // Колонку закрыли (Esc, клик вне, смена раздела) - тур больше не «владелец».
+      this.adminOpenedByTour = false;
     },
     navigateToAdminPath(path) {
       this.$router.push(path);

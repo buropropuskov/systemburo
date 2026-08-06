@@ -5,7 +5,7 @@ import { isMobileViewport } from '../useOnboarding';
  * isMobileViewport - брейкпоинт (#1097 S11), по которому OnboardingTour решает,
  * раскрывать ли переехавшие цели (drawer NavMenu / overflow-меню шапки) перед
  * подсветкой шага, и createDriver - принудительно класть поповер снизу для
- * side:'left'/'right' шагов (см. onboardingSteps.js JSDoc `mobileReveal`).
+ * side:'left'/'right' шагов (см. onboardingSteps.js JSDoc `reveal`).
  */
 describe('isMobileViewport', () => {
   const originalWidth = window.innerWidth;

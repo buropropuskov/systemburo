@@ -31,6 +31,7 @@
 
     <div
       class="application-detail"
+      data-testid="ob-detail-card"
       :class="{ 'is-dragging': sheetDragging }"
       :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
       @touchstart="onSheetTouchStart"
@@ -179,6 +180,7 @@
                 <button
                   v-if="canWithdraw"
                   class="withdraw-btn"
+                  data-testid="ob-detail-revoke"
                   @click="withdrawApplication"
                 >
                   Отозвать
@@ -537,8 +539,13 @@
           </transition>
 
           <!-- Компонент согласования (без информации о принявшем). Обёртка нужна
-               для order на мобилке: держим согласование в блоке "комментарий/действие". -->
-          <div class="detail-order-confirmation">
+               для order на мобилке: держим согласование в блоке "комментарий/действие".
+               Она же - якорь тура: сама .detail-right-column на <768 уходит в
+               display:contents (нулевой box), подсветить её нельзя. -->
+          <div
+            class="detail-order-confirmation"
+            data-testid="ob-detail-status"
+          >
             <ApplicationConfirmation
               ref="confirmationComponent"
               :application="applicationData"

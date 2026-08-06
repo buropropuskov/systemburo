@@ -1,6 +1,9 @@
 <template>
   <AdminPageShell>
-    <div class="roles-container dashboard-card">
+    <div
+      class="roles-container dashboard-card"
+      data-testid="ob-admin-roles"
+    >
       <div class="management-header rt-header-inline">
         <h3 class="management-title">
           Роли пользователей

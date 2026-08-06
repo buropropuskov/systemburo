@@ -5,7 +5,7 @@ import { useOnboardingStore } from '@/stores/onboarding';
 import { useUiStore } from '@/stores/ui';
 import { useOnboarding } from '@/composables/useOnboarding';
 import { collectSegment, indexAfterRoute } from '@/components/onboarding/onboardingSteps';
-import { applyMobileReveal, restoreMobileReveal } from '@/components/onboarding/mobileReveal';
+import { applyReveal, restoreReveal } from '@/components/onboarding/reveal';
 
 const store = useOnboardingStore();
 const ui = useUiStore();
@@ -101,7 +101,7 @@ function applyDemoAttachment(globalIndex) {
 async function prepareStep(globalIndex) {
   const step = store.steps[globalIndex];
   applyDemoAttachment(globalIndex);
-  await applyMobileReveal(store.steps, globalIndex);
+  await applyReveal(store.steps, globalIndex);
   if (!step?.element) return true;
   // Опциональный шаг ждём коротко: к этому моменту форма и field-config уже
   // отрисованы на предыдущем шаге, так что отсутствие элемента (доп.полей нет)
@@ -134,7 +134,7 @@ async function startSegment() {
   // уже раскрытый рельс (актуально при «Назад» прямо на такой шаг).
   applyDemoAttachment(store.currentIndex);
   applyRail(store.currentIndex);
-  await applyMobileReveal(store.steps, store.currentIndex);
+  await applyReveal(store.steps, store.currentIndex);
 
   // Целевой шаг: дожидаемся его элемента (устойчивого по размеру), иначе
   // деградируем в центр-модал, чтобы driver не падал на отсутствующей цели.
@@ -157,11 +157,11 @@ async function startSegment() {
       // Backstop: синхронизируем демо-вложение с подсвеченным шагом (важно для
       // навигации «Назад» - prepareStep отрабатывает только на «Далее»).
       applyDemoAttachment(globalIndex);
-      // Держит панель текущего типа открытой, пока «Назад» ходит внутри группы
-      // одинакового mobileReveal (prepareStep этот путь не покрывает - он гейтит
-      // только «Далее»). Эксклюзивность внутри applyMobileReveal закрывает
-      // чужую панель. Не await - фоновый прогрев.
-      applyMobileReveal(store.steps, globalIndex);
+      // Держит раскрытый узел открытым, пока «Назад» ходит внутри группы шагов с
+      // одинаковым reveal (prepareStep этот путь не покрывает - он гейтит только
+      // «Далее»). Эксклюзивность внутри applyReveal закрывает чужой узел.
+      // Не await - фоновый прогрев.
+      applyReveal(store.steps, globalIndex);
     },
     onBeforeStep: prepareStep,
     onBoundaryNext: handleBoundaryNext,
@@ -218,7 +218,7 @@ function handleBoundaryNext(activeGlobalIndex) {
 function advanceToSegment(targetRoute) {
   store.advanceSegment();
   restoreRail();
-  restoreMobileReveal();
+  restoreReveal();
   // Старый driver уничтожаем; его отложенный onDestroyed обезврежен driverGen.
   if (driverObj) {
     driverObj.destroy();
@@ -254,7 +254,7 @@ function handleBoundaryPrev(segmentStartGlobal) {
 function retreatToSegment(targetIndex, targetRoute) {
   store.retreatSegment(targetIndex);
   restoreRail();
-  restoreMobileReveal();
+  restoreReveal();
   // Старый driver уничтожаем; его отложенный onDestroyed обезврежен driverGen.
   if (driverObj) {
     driverObj.destroy();
@@ -278,7 +278,7 @@ function finishTour() {
     fadeAndDestroy(d);
   } else {
     restoreRail();
-    restoreMobileReveal();
+    restoreReveal();
     markIfAuto();
     store.stop();
   }
@@ -299,7 +299,7 @@ function handleDestroyed(gen) {
   // Переход между страницами: тур продолжается, не останавливаем и рельс не трогаем.
   if (store.pendingSegment) return;
   restoreRail();
-  restoreMobileReveal();
+  restoreReveal();
   markIfAuto();
   store.stop();
 }
@@ -323,7 +323,7 @@ function teardown() {
   }
   store.clearPending();
   restoreRail();
-  restoreMobileReveal();
+  restoreReveal();
   // Тур окончен/прерван - снять демо-вложение (BlankSelector уберёт его из формы).
   store.setDemoAttachment(null);
 }
@@ -376,23 +376,33 @@ const removeAfterEach = router.afterEach((to) => {
 });
 
 /**
- * Автозапуск один раз для любого первого входа: на «Обзоре», если юзер
- * авторизован и тур ещё не пройден. Статус per-user тянется с бэкенда
- * (loadStatus) - на ошибке сети не автозапускаем (statusLoaded остаётся false).
- * Повторно не сработает: completedVersion ставится при любом завершении
- * авто-тура (см. markIfAuto), а на бэкенде - per-user, сброс только админом.
+ * Автозапуск один раз для любого первого входа: на «Обзоре», если юзер авторизован
+ * и профильный тур ещё не пройден. Запускается РОВНО ОДИН тур - самый приоритетный
+ * из доступных и непройденных (pickAutostartTour); остальные доступные человек
+ * берёт вручную из меню «Обучение», иначе первый вход превратился бы в очередь из
+ * пяти туров подряд.
+ *
+ * Статус per-user/per-tour тянется с бэкенда (loadStatus) - на ошибке сети не
+ * автозапускаем (statusLoaded остаётся false). Повторно не сработает: версия тура
+ * ставится при любом завершении авто-тура (см. markIfAuto), а на бэкенде статус
+ * per-user, сброс только админом.
  */
 async function maybeAutostart() {
   if (store.isActive) return;
   if (route.path !== '/news') return;
   if (!store.canShowTour) return;
-  if (!store.statusLoaded) await store.loadStatus();
+  // Права, тип пользователя и роль в согласовании гейтят туры и приезжают своими
+  // запросами - без ожидания автозапуск выбрал бы тур из неполного списка доступных.
+  const pending = [store.ensureGatingContext()];
+  if (!store.statusLoaded) pending.push(store.loadStatus());
+  await Promise.all(pending);
   // Перепроверяем после await: статус мог не загрузиться, юзер мог уйти/стартовать,
   // а гейт согласия - доехать ответом и закрыть показ тура (#1567).
   if (!store.statusLoaded || store.isActive || route.path !== '/news') return;
   if (!store.canShowTour) return;
-  if (store.hasCompleted()) return;
-  store.start({ manual: false });
+  const tour = store.pickAutostartTour();
+  if (!tour) return;
+  store.start({ tour: tour.key, manual: false });
 }
 
 watch(() => route.path, maybeAutostart);

@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   securityOnboardingSteps,
+  SECURITY_ONBOARDING_VERSION,
   resolveFactTableRoute,
   buildSecurityFactSteps,
   buildSecurityFinalStep,
 } from '../securityOnboardingSteps';
 import { collectSegment } from '../onboardingSteps';
+import { resolveReveal } from '../reveal';
+import { buildTourSteps } from '../tours';
 
 describe('securityOnboardingSteps', () => {
   it('каждый шаг имеет непустые id, title и строковый description', () => {
@@ -71,11 +74,30 @@ describe('securityOnboardingSteps - сегмент /news', () => {
     expect(seg.map((s) => s.id)).toEqual([
       'sec-start',
       'sec-header-notifications',
+      'sec-header-search',
       'sec-header-feedback',
       'sec-nav-rail',
       'sec-nav-accessible',
       'sec-nav-tables',
     ]);
+  });
+
+  it('сквозной поиск: своя кнопка шапки и раскрытие панели поиска', () => {
+    const step = securityOnboardingSteps.find((s) => s.id === 'sec-header-search');
+    expect(step.element).toBe('[data-testid="header-button-search"]');
+    expect(step.reveal).toEqual({ open: 'search-panel' });
+    // Кнопка поиска правами не гейтится (в шапке нет v-if по can) - requires не нужен.
+    expect(step.requires).toBeUndefined();
+    // Смысл шага для охраны: машину ищут и по марке, не только по госномеру.
+    expect(step.description).toMatch(/марке/);
+  });
+
+  it('шаг поиска не наследует раскрытие drawer от соседей (панель поверх шапки)', () => {
+    const index = securityOnboardingSteps.findIndex((s) => s.id === 'sec-header-search');
+    expect(resolveReveal(securityOnboardingSteps, index)).toEqual({
+      mobile: null,
+      open: 'search-panel',
+    });
   });
 
   it('подсвечивает nav «Доступные мне» и «Таблицы» по реальным testid', () => {
@@ -92,11 +114,11 @@ describe('securityOnboardingSteps - сегмент /news', () => {
   });
 });
 
-describe('mobileReveal (#1097 S11 - переехавшие на <768 цели)', () => {
-  it('значение только nav', () => {
+describe('reveal (#1097 S11 - переехавшие на <768 цели)', () => {
+  it('единственное значение оси mobile - nav', () => {
     for (const s of securityOnboardingSteps) {
-      if (s.mobileReveal !== undefined) {
-        expect(s.mobileReveal).toBe('nav');
+      if (s.reveal?.mobile !== undefined) {
+        expect(s.reveal.mobile).toBe('nav');
       }
     }
   });
@@ -104,15 +126,29 @@ describe('mobileReveal (#1097 S11 - переехавшие на <768 цели)',
   it('sec-header-feedback переехал в drawer (nav); колокольчик - в шапке (без reveal)', () => {
     const byId = (id) => securityOnboardingSteps.find((s) => s.id === id);
     // #1097 W3.3: «Сообщить о проблеме» вынесено из "⋯" в бургер-drawer.
-    expect(byId('sec-header-feedback').mobileReveal).toBe('nav');
+    expect(byId('sec-header-feedback').reveal).toEqual({ mobile: 'nav' });
     // #1097 W3.2: колокольчик вынесен из "⋯" в саму шапку - reveal не нужен.
-    expect(byId('sec-header-notifications').mobileReveal).toBeUndefined();
+    expect(byId('sec-header-notifications').reveal).toBeUndefined();
   });
 
   it('sec-nav-* просят раскрытие drawer (nav)', () => {
     for (const s of securityOnboardingSteps.filter((x) => x.id.startsWith('sec-nav-'))) {
-      expect(s.mobileReveal).toBe('nav');
+      expect(s.reveal).toEqual({ mobile: 'nav' });
     }
+  });
+});
+
+describe('requires (шаги, зависящие от прав)', () => {
+  it('«Сообщить о проблеме» гейтится тем же правом, что и в туре заявителя', () => {
+    const byId = (id) => securityOnboardingSteps.find((s) => s.id === id);
+    expect(byId('sec-header-feedback').requires).toBe('header.report_problem');
+  });
+
+  it('версия тура охраны своя и поднята под новый состав шагов', () => {
+    expect(Number.isInteger(SECURITY_ONBOARDING_VERSION)).toBe(true);
+    // 2 - поиск, объяснение скрытого ФИО, пропуск по факту и отчёт по проходам:
+    // без подъёма прошедшие тур охранники новых шагов не увидели бы.
+    expect(SECURITY_ONBOARDING_VERSION).toBeGreaterThanOrEqual(2);
   });
 });
 
@@ -126,8 +162,19 @@ describe('securityOnboardingSteps - сегмент /accessible-attachments', () 
       'sec-aa-filters',
       'sec-aa-card',
       'sec-aa-detail',
+      'sec-aa-sender',
       'sec-aa-preview',
     ]);
+  });
+
+  it('объясняет скрытое ФИО на строке «Отправитель» и не обещает пустое поле', () => {
+    const step = securityOnboardingSteps.find((s) => s.id === 'sec-aa-sender');
+    expect(step.element).toBe('[data-testid="ob-aa-sender"]');
+    // Строка есть только у выбранной карточки - без неё шаг пропускается.
+    expect(step.optional).toBe(true);
+    // Маскировка подставляет логин со знаком @, а не пустоту (pd_consent_mask.go).
+    expect(step.description).toMatch(/логин/);
+    expect(step.description).toMatch(/согласие на обработку/);
   });
 
   it('реюзит существующие aa-* testid страницы «Доступные мне»', () => {
@@ -139,7 +186,7 @@ describe('securityOnboardingSteps - сегмент /accessible-attachments', () 
   });
 
   it('карточка, деталь и предпросмотр опциональны (нет выбранной карточки - шаг пропускается)', () => {
-    for (const id of ['sec-aa-card', 'sec-aa-detail', 'sec-aa-preview']) {
+    for (const id of ['sec-aa-card', 'sec-aa-detail', 'sec-aa-sender', 'sec-aa-preview']) {
       expect(securityOnboardingSteps.find((s) => s.id === id).optional).toBe(true);
     }
   });
@@ -160,13 +207,21 @@ describe('securityOnboardingSteps - сегмент /accessible-attachments', () 
 });
 
 describe('resolveFactTableRoute', () => {
-  it('берёт первую активную фактовую таблицу машин (форма { table })', () => {
-    const tables = [
-      { table: { name: 'people_1', table_type: 'people', show_fact_table: true, is_active: true } },
-      { table: { name: 'kpp_1', table_type: 'cars', show_fact_table: true, is_active: true } },
-      { table: { name: 'kpp_2', table_type: 'cars', show_fact_table: true, is_active: true } },
-    ];
+  const table = (name, type, extra = {}) => ({
+    table: { name, table_type: type, show_fact_table: true, is_active: true, ...extra },
+  });
+
+  it('при обоих типах предпочитает машины, даже когда таблица людей идёт раньше', () => {
+    const tables = [table('people_1', 'people'), table('kpp_1', 'cars'), table('kpp_2', 'cars')];
     expect(resolveFactTableRoute(tables)).toBe('/table/kpp_1');
+  });
+
+  it('без машинной таблицы берёт таблицу людей (иначе сегмент отметки пропадал)', () => {
+    expect(resolveFactTableRoute([table('people_1', 'people')])).toBe('/table/people_1');
+  });
+
+  it('тип, которого нет в словаре, тоже годится - фактовая таблица есть фактовая таблица', () => {
+    expect(resolveFactTableRoute([table('misc_1', 'items')])).toBe('/table/misc_1');
   });
 
   it('поддерживает плоскую форму элемента (без вложенного table)', () => {
@@ -174,13 +229,26 @@ describe('resolveFactTableRoute', () => {
     expect(resolveFactTableRoute(tables)).toBe('/table/kpp_3');
   });
 
-  it('пропускает неактивные, не-фактовые и не-cars таблицы', () => {
+  it('пропускает неактивные, не-фактовые и безымянные таблицы', () => {
     const tables = [
-      { table: { name: 'a', table_type: 'cars', show_fact_table: true, is_active: false } },
-      { table: { name: 'b', table_type: 'cars', show_fact_table: false, is_active: true } },
-      { table: { name: 'c', table_type: 'people', show_fact_table: true, is_active: true } },
+      table('a', 'cars', { is_active: false }),
+      table('b', 'cars', { show_fact_table: false }),
+      table('c', 'people', { name: '' }),
     ];
     expect(resolveFactTableRoute(tables)).toBe(null);
+  });
+
+  it('canView отсеивает недоступные таблицы: машина без права уступает людям с правом', () => {
+    const tables = [table('kpp_1', 'cars'), table('people_1', 'people')];
+    expect(resolveFactTableRoute(tables, (name) => name !== 'kpp_1')).toBe('/table/people_1');
+  });
+
+  it('canView отвергает всё - null, сегмент отметки не добавляется', () => {
+    expect(resolveFactTableRoute([table('kpp_1', 'cars')], () => false)).toBe(null);
+  });
+
+  it('без предиката доступность не проверяется (права ещё не загружены)', () => {
+    expect(resolveFactTableRoute([table('kpp_1', 'cars')])).toBe('/table/kpp_1');
   });
 
   it('null на пустом списке и не-массиве', () => {
@@ -196,15 +264,43 @@ describe('buildSecurityFactSteps', () => {
     expect(buildSecurityFactSteps('')).toEqual([]);
   });
 
-  it('строит intro + строка + Въезд + Выезд на переданный route', () => {
+  it('строит intro + строка + Въезд + пропуск по факту + Выезд + отчёт на переданный route', () => {
     const steps = buildSecurityFactSteps('/table/kpp_1');
     expect(steps.map((s) => s.id)).toEqual([
       'sec-fact-intro',
       'sec-fact-row',
       'sec-fact-entry',
+      'sec-fact-pass',
       'sec-fact-exit',
+      'sec-fact-report',
     ]);
     expect(steps.every((s) => s.route === '/table/kpp_1')).toBe(true);
+  });
+
+  it('тексты нейтральны к типу таблицы: сегмент строится и для людей', () => {
+    const steps = buildSecurityFactSteps('/table/people_1');
+    // Прежние формулировки утверждали «Открыли таблицу "Автомобили по факту"» и
+    // «Каждая строка - автомобиль», хотя таблица может быть про людей.
+    expect(steps.find((s) => s.id === 'sec-fact-intro').description).toMatch(/Люди по факту/);
+    expect(steps.find((s) => s.id === 'sec-fact-row').description).toMatch(/у людей/);
+  });
+
+  it('пропуск по факту описывает окно с формата, номера и кнопки «Пропустить»', () => {
+    const step = buildSecurityFactSteps('/table/kpp_1').find((s) => s.id === 'sec-fact-pass');
+    // Окно открывается только по нажатию, подсвечивать нечего - висим на той же кнопке.
+    expect(step.element).toBe('[data-testid="ob-fact-entry"]');
+    expect(step.optional).toBe(true);
+    expect(step.description).toMatch(/Пропуск по факту/);
+    expect(step.description).toMatch(/Пропустить/);
+  });
+
+  it('отчёт по проходам берёт кнопку «Отчёт» и опционален (право у каждой таблицы своё)', () => {
+    const step = buildSecurityFactSteps('/table/kpp_1').find((s) => s.id === 'sec-fact-report');
+    expect(step.element).toBe('[data-testid="pass-report-button"]');
+    // Ключ права - table.<имя таблицы>.report, статическим requires не выражается.
+    expect(step.requires).toBeUndefined();
+    expect(step.optional).toBe(true);
+    expect(step.description).toMatch(/21:30/);
   });
 
   it('первый шаг - optionalSegment-центр-модал (граница для грациозной деградации)', () => {
@@ -218,6 +314,8 @@ describe('buildSecurityFactSteps', () => {
     expect(byId('sec-fact-row').element).toBe('[data-testid="ob-fact-row"]');
     expect(byId('sec-fact-entry').element).toBe('[data-testid="ob-fact-entry"]');
     expect(byId('sec-fact-exit').element).toBe('[data-testid="ob-fact-exit"]');
+    // На таблице людей кнопок «Въезд»/«Выезд» нет вовсе - без optional тур ждал бы
+    // цель, которой в разметке не будет.
     for (const id of ['sec-fact-row', 'sec-fact-entry', 'sec-fact-exit']) {
       expect(byId(id).optional).toBe(true);
     }
@@ -257,5 +355,14 @@ describe('buildSecurityFinalStep', () => {
 
   it('базовый массив не содержит финального шага (строится динамически)', () => {
     expect(securityOnboardingSteps.some((s) => s.id === 'sec-finish')).toBe(false);
+  });
+
+  it('без фактовой таблицы сегмент отметки не добавляется, а финал остаётся достижим', () => {
+    const steps = buildTourSteps('guard', { factTableRoute: null });
+    expect(steps.some((s) => s.id.startsWith('sec-fact-'))).toBe(false);
+    const last = steps[steps.length - 1];
+    expect(last.id).toBe('sec-finish');
+    // Финал живёт на «Доступных мне» - странице, достижимой охранником всегда.
+    expect(last.route).toBe('/accessible-attachments');
   });
 });

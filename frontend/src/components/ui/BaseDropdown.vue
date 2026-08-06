@@ -3,43 +3,52 @@
     ref="dropdown"
     class="base-dropdown"
   >
-    <button
-      type="button"
-      class="base-dropdown__button"
-      :class="{ 'base-dropdown__button--open': isOpen, 'base-dropdown__button--disabled': disabled }"
-      :disabled="disabled"
-      @click="toggle"
+    <!-- Слот триггера: по умолчанию - штатная кнопка-поле. Заменяется, когда
+         открывающий элемент уже существует в своём виде (кнопка «Обучение»
+         в шапке «Обзора»), чтобы не заводить ради него второй дропдаун. -->
+    <slot
+      name="trigger"
+      :toggle="toggle"
+      :is-open="isOpen"
     >
-      <span
-        class="base-dropdown__text"
-        :class="{ 'base-dropdown__text--placeholder': isEmptySelection }"
+      <button
+        type="button"
+        class="base-dropdown__button"
+        :class="{ 'base-dropdown__button--open': isOpen, 'base-dropdown__button--disabled': disabled }"
+        :disabled="disabled"
+        @click="toggle"
       >
-        <template v-if="multiple">{{ multipleText }}</template>
-        <slot
-          v-else-if="selectedOption"
-          name="selected"
-          :option="selectedOption"
+        <span
+          class="base-dropdown__text"
+          :class="{ 'base-dropdown__text--placeholder': isEmptySelection }"
         >
-          {{ selectedOption[labelKey] }}
-        </slot>
-        <template v-else>{{ placeholder }}</template>
-      </span>
-      <svg
-        class="base-dropdown__arrow"
-        :class="{ 'base-dropdown__arrow--open': isOpen }"
-        viewBox="0 0 10 6"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path
-          d="M1 1L5 5L9 1"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-      </svg>
-    </button>
+          <template v-if="multiple">{{ multipleText }}</template>
+          <slot
+            v-else-if="selectedOption"
+            name="selected"
+            :option="selectedOption"
+          >
+            {{ selectedOption[labelKey] }}
+          </slot>
+          <template v-else>{{ placeholder }}</template>
+        </span>
+        <svg
+          class="base-dropdown__arrow"
+          :class="{ 'base-dropdown__arrow--open': isOpen }"
+          viewBox="0 0 10 6"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M1 1L5 5L9 1"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+    </slot>
 
     <teleport
       to="body"
@@ -193,6 +202,14 @@ export default {
     menuZIndex: {
       type: Number,
       default: 2000,
+    },
+    // Минимальная ширина телепортнутого меню. По умолчанию меню повторяет ширину
+    // триггера; когда триггер узкий, а пункты содержательные (название + описание),
+    // ширину задаём отдельно - и тогда же прижимаем меню к правому краю экрана,
+    // чтобы уширение не вынесло его за вьюпорт.
+    menuMinWidth: {
+      type: Number,
+      default: 0,
     },
   },
   emits: ['update:modelValue'],
@@ -366,6 +383,7 @@ export default {
         width: raw.width / z,
       };
       const vh = window.innerHeight / z;
+      const vw = window.innerWidth / z;
       const gap = 5;
       const margin = 8; // не впритык к краю экрана
       const spaceBelow = vh - r.bottom - gap - margin;
@@ -374,10 +392,15 @@ export default {
       // (иначе высокое меню на низком вьюпорте/мобильном bottom-sheet уезжает за экран).
       const openUp = spaceBelow < 200 && spaceAbove > spaceBelow;
       const avail = Math.max(120, Math.floor(openUp ? spaceAbove : spaceBelow));
+      const width = Math.max(Math.round(r.width), this.menuMinWidth);
+      // Меню шире триггера уехало бы за правый край - сдвигаем влево ровно
+      // настолько, чтобы уместиться. При menuMinWidth=0 ширина равна триггеру,
+      // тот всегда на экране, и сдвиг не срабатывает.
+      const left = Math.min(Math.round(r.left), Math.max(margin, Math.round(vw - width - margin)));
       this.menuStyle = {
         position: 'fixed',
-        left: `${Math.round(r.left)}px`,
-        width: `${Math.round(r.width)}px`,
+        left: `${left}px`,
+        width: `${width}px`,
         // клампим по доступному пространству выбранной стороны, чтобы меню не выходило за экран
         maxHeight: `${Math.min(320, avail)}px`,
         // top:'auto' в ветке флипа обязателен - иначе базовый CSS

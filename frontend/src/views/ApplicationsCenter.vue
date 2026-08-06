@@ -1,6 +1,9 @@
 <template>
   <section ref="root" class="center">
-    <header class="center__header">
+    <header
+      class="center__header"
+      data-testid="ob-center-header"
+    >
       <div class="header-top">
         <h2 class="center__title">
           Центр заявок
@@ -11,6 +14,7 @@
         <div
           v-if="canViewArchive && !isMobileHeader"
           class="center__tabs"
+          data-testid="ob-center-archive"
         >
           <FilterTabs
             v-model="archiveMode"
@@ -309,6 +313,7 @@
         <div
           v-if="canViewArchive"
           class="center__tabs center__tabs--mobile"
+          data-testid="ob-center-archive"
         >
           <BaseDropdown
             :model-value="archiveMode"
@@ -517,6 +522,7 @@
             tag="div"
             name="app-row"
             class="applications-list"
+            data-testid="ob-center-list"
           >
             <template
               v-for="group in applicationGroups"
@@ -656,6 +662,7 @@
                       size="sm"
                       class="rt-tag rt-tag--chs blacklist-flag-badge tag-hint"
                       :data-hint="blacklistFlagTitle()"
+                      data-testid="ob-center-blacklist-tag"
                     >
                       <span class="rt-tag__text">{{ blacklistFlagLabel(application) }}</span>
                     </Badge>
@@ -932,6 +939,7 @@ import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/
 import { pendingApprovalDays, pendingApprovalLabel, pendingApprovalShort } from '@/utils/pendingApproval';
 import { stripHtml } from '@/utils/sanitize';
 import { useDeletionsStore } from '@/stores/deletions';
+import { useRevealFirstApplication } from '@/composables/useRevealFirstApplication';
 
 // Размер порции бесшовной подгрузки Центра (#1158, срез 1) - аналог PER_PAGE
 // в AccessibleAttachmentsView/TableVersionsView.
@@ -1378,6 +1386,17 @@ export default {
             if (val) this.openFromDeepLink();
         },
     },
+    // Онбординг просит показать карточку заявки (reveal.open) - туры согласующего и
+    // принимающего целиком идут по Центру, а деталь здесь модалка, а не роут.
+    // Контракт общий с личным кабинетом, живёт в композабле.
+    created() {
+        this._tourReveal = useRevealFirstApplication({
+            first: () => this.sortedApplications[0],
+            isOpen: () => !!this.selectedApplication,
+            open: (application) => this.openApplication(application),
+            close: () => this.closeDetail(),
+        });
+    },
     mounted() {
         this.startShakeAnimation();
 
@@ -1464,6 +1483,7 @@ export default {
     },
     beforeUnmount() {
         this.disconnectApplicationsSentinel();
+        this._tourReveal?.stop();
         window.removeEventListener('resize', this._applyHeight);
         if (this._headerObs) {
             this._headerObs.disconnect();
@@ -2270,6 +2290,8 @@ export default {
 
         closeDetail() {
             this.selectedApplication = null;
+            // Карточку закрыли (крестик, Esc, свайп) - тур больше не «владелец».
+            this._tourReveal?.release();
         },
 
         handleConfirmationUpdate(updatedData) {
