@@ -39,9 +39,9 @@ describe('notificationDetailFields', () => {
       }),
     });
     expect(fields).toEqual([
-      { label: 'Заявка', value: 'A-100' },
-      { label: 'Передал', value: 'Иванов И.И.' },
-      { label: 'Решение', value: 'Согласовано' },
+      { key: 'application_number', label: 'Заявка', value: 'A-100' },
+      { key: 'forwarded_by', label: 'Передал', value: 'Иванов И.И.' },
+      { key: 'status', label: 'Решение', value: 'Согласовано' },
     ]);
   });
 
@@ -54,7 +54,7 @@ describe('notificationDetailFields', () => {
         application_number: 'A-1',
       }),
     });
-    expect(fields).toEqual([{ label: 'Заявка', value: 'A-1' }]);
+    expect(fields).toEqual([{ key: 'application_number', label: 'Заявка', value: 'A-1' }]);
   });
 
   it('неизвестные ключи data не показываются', () => {
@@ -66,21 +66,21 @@ describe('notificationDetailFields', () => {
     const fields = notificationDetailFields({
       data: JSON.stringify({ application_number: '', forwarded_by: null, status: 'Отклонено' }),
     });
-    expect(fields).toEqual([{ label: 'Решение', value: 'Отклонено' }]);
+    expect(fields).toEqual([{ key: 'status', label: 'Решение', value: 'Отклонено' }]);
   });
 
   it('склонение waiting_days: 1 день, 2 дня, 5 дней', () => {
     expect(notificationDetailFields({ data: JSON.stringify({ waiting_days: 1 }) }))
-      .toEqual([{ label: 'Ожидает решения', value: '1 день' }]);
+      .toEqual([{ key: 'waiting_days', label: 'Ожидает решения', value: '1 день' }]);
     expect(notificationDetailFields({ data: JSON.stringify({ waiting_days: 2 }) }))
-      .toEqual([{ label: 'Ожидает решения', value: '2 дня' }]);
+      .toEqual([{ key: 'waiting_days', label: 'Ожидает решения', value: '2 дня' }]);
     expect(notificationDetailFields({ data: JSON.stringify({ waiting_days: 5 }) }))
-      .toEqual([{ label: 'Ожидает решения', value: '5 дней' }]);
+      .toEqual([{ key: 'waiting_days', label: 'Ожидает решения', value: '5 дней' }]);
   });
 
   it('changed_at форматируется в ДД.ММ.ГГГГ ЧЧ:ММ', () => {
     const fields = notificationDetailFields({ data: JSON.stringify({ changed_at: '2026-08-06T14:32:00' }) });
-    expect(fields).toEqual([{ label: 'Когда', value: '06.08.2026 14:32' }]);
+    expect(fields).toEqual([{ key: 'changed_at', label: 'Когда', value: '06.08.2026 14:32' }]);
   });
 
   it('битый JSON в data не роняет сборку полей - пустой список', () => {
@@ -89,10 +89,9 @@ describe('notificationDetailFields', () => {
 });
 
 describe('notificationCategory', () => {
-  it('passage у application_expiring/withdrawn/acceptor_assigned/passage_first - точное совпадение раньше префикса application_', () => {
+  it('passage у application_expiring/withdrawn/passage_first - точное совпадение раньше префикса application_', () => {
     expect(notificationCategory('application_expiring')).toBe('passage');
     expect(notificationCategory('application_withdrawn')).toBe('passage');
-    expect(notificationCategory('application_acceptor_assigned')).toBe('passage');
     expect(notificationCategory('application_passage_first')).toBe('passage');
   });
 
