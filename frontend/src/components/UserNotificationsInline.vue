@@ -33,15 +33,26 @@
           </button>
         </div>
       </div>
-      <button
-        v-if="notifications.length > 0"
-        type="button"
-        class="notifications__clear"
-        data-testid="cabinet-notifications-clear"
-        @click="clearAll"
-      >
-        Очистить
-      </button>
+      <div class="notifications__header-actions">
+        <button
+          type="button"
+          class="notifications__settings"
+          data-testid="cabinet-notifications-settings"
+          title="Настроить уведомления"
+          @click="openSettings"
+        >
+          Настроить
+        </button>
+        <button
+          v-if="notifications.length > 0"
+          type="button"
+          class="notifications__clear"
+          data-testid="cabinet-notifications-clear"
+          @click="clearAll"
+        >
+          Очистить
+        </button>
+      </div>
     </div>
 
     <div
@@ -314,6 +325,12 @@ export default {
       this.filter = value
     },
 
+    // Тонкая настройка типов уведомлений (#1748, S8) - отдельный экран,
+    // доступный любому авторизованному так же, как сам блок уведомлений.
+    openSettings() {
+      this.$router.push('/notification-settings').catch(() => {})
+    },
+
     formatDate(dateString) {
       if (!dateString) return ''
       const date = new Date(dateString)
@@ -415,6 +432,14 @@ export default {
   background: var(--surface-2);
 }
 
+.notifications__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.notifications__settings,
 .notifications__clear {
   background: none;
   border: none;
@@ -428,6 +453,7 @@ export default {
   font-family: inherit;
 }
 
+.notifications__settings:hover,
 .notifications__clear:hover {
   color: var(--color-text);
   background: var(--surface-2);
