@@ -320,64 +320,6 @@
             </transition>
           </div>
         </div>
-
-        <div
-          v-if="fieldVisible('patent') && effectivePatentRequired"
-          class="completion__files"
-        >
-          <div class="completion__files-header">
-            <label class="input__label">Фото, скан документа(-ов), подтверждающее иное разрешение на работы</label>
-          </div>
-          <div class="files__upload">
-            <input 
-              ref="fileInput" 
-              type="file"
-              multiple
-              accept="image/*,.pdf,.doc,.docx,.xlsx,.xls"
-              class="file-input"
-              :disabled="editingEmployee && editingEmployee.isExisting"
-              @change="handleFileUpload"
-            >
-            <button
-              class="upload-button"
-              :disabled="editingEmployee && editingEmployee.isExisting"
-              @click="triggerFileInput"
-            >
-              Загрузить
-            </button>
-          </div>
-          <div
-            v-if="uploadedFiles.length > 0"
-            class="uploaded-files"
-          >
-            <div
-              v-for="(file, index) in uploadedFiles"
-              :key="index"
-              class="uploaded-file"
-            >
-              <div class="file-preview">
-                <img
-                  v-if="file.type === 'image'"
-                  :src="file.preview"
-                  class="file-preview-image"
-                >
-                <img
-                  v-else
-                  :src="getFileIcon(file.extension)"
-                  class="file-icon"
-                >
-              </div>
-              <span class="file-name">{{ file.name }}</span>
-              <button
-                class="remove-file-btn"
-                :disabled="editingEmployee && editingEmployee.isExisting"
-                @click="removeFile(index)"
-              >
-                ×
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -598,7 +540,6 @@ export default {
                 'Творческие работники, учёные и педагоги, прибывшие по приглашению госучреждений культуры и искусства для участия в мероприятиях — до 30 календарных дней'
             ],
             
-            uploadedFiles: [],
             
             allPassageTables: [],
             attachedPassageTables: [],
@@ -1066,7 +1007,6 @@ export default {
             this.passportSeriesNumber = '';
             this.patentNumber = '';
             this.selectedPermission = '';
-            this.uploadedFiles = [];
         },
         
         clearEmployeeForm() {
@@ -1078,7 +1018,6 @@ export default {
             this.patentNumber = '';
             this.selectedPermission = '';
             this.selectedPassageTables = [];
-            this.uploadedFiles = [];
             this.errors.passageTables = '';
             this.selectedExistingEmployees = [];
             this.editingEmployee = null;
@@ -1377,52 +1316,6 @@ export default {
             }
         },
 
-        triggerFileInput() {
-            this.$refs.fileInput.click();
-        },
-
-        handleFileUpload(event) {
-            const files = Array.from(event.target.files);
-            files.forEach(file => {
-                const fileExtension = file.name.split('.').pop().toLowerCase();
-                const fileType = file.type.startsWith('image/') ? 'image' : 'document';
-                const fileData = {
-                    name: file.name,
-                    file: file,
-                    type: fileType,
-                    extension: fileExtension
-                };
-
-                if (fileType === 'image') {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        fileData.preview = e.target.result;
-                        this.uploadedFiles.push(fileData);
-                    };
-                    reader.readAsDataURL(file);
-                } else {
-                    this.uploadedFiles.push(fileData);
-                }
-            });
-            
-            event.target.value = '';
-        },
-
-        getFileIcon(extension) {
-            const icons = import.meta.glob('@/assets/icons/*.png', { eager: true, import: 'default' });
-            const iconMap = {
-                'pdf': icons['/src/assets/icons/pdf.png'],
-                'doc': icons['/src/assets/icons/doc.png'],
-                'docx': icons['/src/assets/icons/doc.png'],
-                'xlsx': icons['/src/assets/icons/xlsx.png'],
-                'xls': icons['/src/assets/icons/xlsx.png'],
-            };
-            return iconMap[extension] || icons['/src/assets/icons/document.png'];
-        },
-
-        removeFile(index) {
-            this.uploadedFiles.splice(index, 1);
-        }
     }
 }
 </script>
@@ -1687,8 +1580,7 @@ export default {
 .completion__position-header,
 .completion__passport-header,
 .completion__patent-header,
-.completion__permission-header,
-.completion__files-header {
+.completion__permission-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1852,109 +1744,6 @@ export default {
 }
 
 /* File upload styles */
-.completion__files {
-    margin-top: 10px;
-}
-
-.files__upload {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-
-.file-input {
-    display: none;
-}
-
-.upload-button {
-    background: var(--accent);
-    color: var(--accent-contrast);
-    border: none;
-    border-radius: 15px;
-    padding: 8px 15px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.upload-button:hover:not(:disabled) {
-    background: var(--accent-hover);
-}
-
-.upload-button:disabled {
-    background: var(--text-muted);
-    cursor: not-allowed;
-    opacity: 0.6;
-}
-
-.uploaded-files {
-    margin-top: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.uploaded-file {
-    display: flex;
-    align-items: center;
-    padding: 8px 10px;
-    background: var(--surface-2);
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    gap: 10px;
-}
-
-.file-preview {
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.file-preview-image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 4px;
-}
-
-.file-icon {
-    width: 20px;
-    height: 20px;
-}
-
-.file-name {
-    font-size: 12px;
-    color: var(--text);
-    flex: 1;
-}
-
-.remove-file-btn {
-    background: none;
-    border: none;
-    color: var(--danger-text);
-    cursor: pointer;
-    font-size: 16px;
-    padding: 0;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.remove-file-btn:hover:not(:disabled) {
-    background: var(--danger-bg);
-    border-radius: 50%;
-}
-
-.remove-file-btn:disabled {
-    cursor: not-allowed;
-    opacity: 0.6;
-}
 
 /* Passage tables styles */
 .completion__passage {
@@ -2062,7 +1851,6 @@ export default {
     opacity: 0.6;
 }
 
-
 .dropdown-enter-active,
 .dropdown-leave-active {
     transition: all 0.2s ease;
@@ -2129,7 +1917,6 @@ export default {
     .add-button:disabled {
         pointer-events: none;
     }
-
 
     /* Кнопка «Добавить» - внизу формы, куда пользователь приходит, заполнив поля.
        contents у двух обёрток выводит строку кнопок в прямые дети формы, флекс с
