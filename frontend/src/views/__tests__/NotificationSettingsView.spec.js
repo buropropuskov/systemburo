@@ -155,4 +155,17 @@ describe('NotificationSettingsView', () => {
     expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ bold: 'Настройки уведомлений' }))
     expect(wrapper.get('[data-testid="notif-settings-save"]').attributes('disabled')).toBeDefined()
   })
+
+  it('разворачивает ответ, сгруппированный по категориям', async () => {
+    const flat = fixture()
+    const grouped = [
+      { category: 'application', items: flat.filter((i) => i.category === 'application') },
+      { category: 'security', items: flat.filter((i) => i.category === 'security') },
+    ]
+    const wrapper = await mountView(grouped)
+
+    expect(wrapper.findAll('[data-testid^="item-toggle-"]')).toHaveLength(flat.length)
+    expect(wrapper.text()).toContain('Заявка отправлена')
+    expect(wrapper.text()).toContain('Учётная запись и безопасность')
+  })
 })

@@ -127,6 +127,20 @@ const loading = ref(true);
 const saving = ref(false);
 const error = ref(null);
 
+// Бэкенд отдаёт каталог секциями: [{category, items: [...]}]. Экран группирует
+// сам (порядок категорий свой, подписи русские), поэтому секции разворачиваются
+// в плоский список. Плоский ответ тоже принимается - на случай, если форма
+// когда-нибудь упростится, экран от этого не сломается.
+function flattenPreferences(payload) {
+  if (!Array.isArray(payload)) return [];
+  return payload.flatMap((entry) => {
+    if (entry && Array.isArray(entry.items)) {
+      return entry.items.map((item) => ({ category: entry.category, ...item }));
+    }
+    return entry ? [entry] : [];
+  });
+}
+
 const groups = computed(() => {
   const byCategory = new Map();
   for (const item of items.value) {
@@ -170,7 +184,7 @@ async function load() {
   error.value = null;
   try {
     const data = await getNotificationPreferences();
-    items.value = (data || []).map((item) => ({
+    items.value = flattenPreferences(data).map((item) => ({
       ...item,
       enabled: item.enabled ?? item.default_enabled,
     }));
