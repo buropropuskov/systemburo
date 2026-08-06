@@ -112,6 +112,7 @@ var tables = []string{
 	"marks",
 	"citizenships",
 	"companies_users", "organization_users",
+	"user_onboarding_progress",
 	"auth_events", "refresh_tokens", "users",
 	"roles",
 	"companies", "organizations", "user_types",

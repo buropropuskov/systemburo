@@ -93,10 +93,14 @@ test.describe.serial('Гейт согласия на обработку ПД (#1
       data: { username: TEST_USER.username, password: TEST_USER.password },
     });
     expect(login.ok(), await login.text()).toBeTruthy();
-    await request.post(`${API_BASE}/onboarding/complete`, {
-      headers: { Authorization: `Bearer ${unwrap(await login.json()).token}` },
-      data: { version: 99 },
-    });
+    const userToken = unwrap(await login.json()).token;
+    // Прогресс тура хранится по ключам, и непомеченный тур автозапустится (#1737).
+    for (const tour of ['user', 'guard', 'approve', 'accept', 'admin']) {
+      await request.post(`${API_BASE}/onboarding/complete`, {
+        headers: { Authorization: `Bearer ${userToken}` },
+        data: { tour, version: 99 },
+      });
+    }
 
     await setConsent(request, { text: LONG_TEXT, required: true });
   });
