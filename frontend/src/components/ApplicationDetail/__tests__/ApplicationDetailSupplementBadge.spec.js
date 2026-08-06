@@ -82,6 +82,23 @@ describe('ApplicationDetail — бейдж открытого дополнени
     expect(wrapper.vm.applicationData.confirmation).toBe('Согласовано');
   });
 
+  // Состояние, в котором фича живёт на самом деле: отдельный раунд заводится только у
+  // заявки, УЖЕ принятой в работу. Ряд бейджей в этот момент рисует «В работе» - до
+  // ветки «Согласовано» очередь не доходит, статус проверяется раньше согласования.
+  // Соседний тест берёт согласованную, но ещё не открытую заявку - тоже допустимое
+  // сочетание, просто не то, при котором появляется раунд.
+  it('заявка в работе: бейдж дополнения встаёт рядом со статусом, не подменяя его', async () => {
+    const wrapper = await mountDetail({
+      status: 'В работе',
+      open_supplement: { id: 9, number: 1, status: 'pending', counts: { vehicles: 0, employees: 2, items: 0 } },
+    });
+
+    expect(wrapper.find(SUPPLEMENT_BADGE).text()).toBe('+ Дополнение №1 на согласовании');
+    // Статус заявки не тронут: от него зависит допуск уже выданных пропусков.
+    expect(wrapper.vm.applicationData.status).toBe('В работе');
+    expect(wrapper.vm.applicationData.confirmation).toBe('Согласовано');
+  });
+
   it('раунд согласован: бейдж «+ Дополнение №N ждёт принятия»', async () => {
     const wrapper = await mountDetail({
       open_supplement: { id: 7, number: 3, status: 'approved' },
