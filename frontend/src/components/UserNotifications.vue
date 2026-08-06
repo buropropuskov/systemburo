@@ -109,17 +109,29 @@
       </div>
     </transition>
   </teleport>
+
+  <NotificationDetailModal
+    :show="showDetailModal"
+    :notification="detailNotification"
+    @close="showDetailModal = false"
+    @action="handleDetailAction"
+    @unread="handleDetailUnread"
+    @delete="handleDetailDelete"
+  />
 </template>
 
 <script>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { apiRequest } from '@/api/client'
-import { usePermissionsStore } from '@/stores/permissions'
 import eventStream from '@/services/eventStream'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
+import { useNotificationNavigation } from '@/composables/useNotificationNavigation'
+import { parseNotificationData } from '@/utils/notificationDetails'
+import NotificationDetailModal from '@/components/notifications/NotificationDetailModal.vue'
 
 export default {
   name: 'UserNotifications',
+  components: { NotificationDetailModal },
   props: {
     show: {
       type: Boolean,
@@ -148,6 +160,7 @@ export default {
       getScrollTop: () => sheetScroll.value?.scrollTop ?? 0,
       handleSelector: '.sheet-handle',
     });
+    const { resolveApplicationRoute } = useNotificationNavigation();
     return {
       sheetScroll,
       isSheet,
@@ -156,6 +169,7 @@ export default {
       onSheetTouchStart: swipe.onTouchStart,
       onSheetTouchMove: swipe.onTouchMove,
       onSheetTouchEnd: swipe.onTouchEnd,
+      resolveApplicationRoute,
     };
   },
   data() {
@@ -166,6 +180,8 @@ export default {
       eventStreamOff: null,
       eventStreamStatusOff: null,
       sseConnected: false,
+      showDetailModal: false,
+      detailNotification: null,
     }
   },
   computed: {
@@ -248,27 +264,45 @@ export default {
           // ignore
         }
       }
-      // Клик по уведомлению о заявке открывает её в Центре (#973).
-      const appId = this.notificationAppId(item)
-      if (appId) {
-        this.$emit('close')
-        // Заявитель без доступа к Центру заявок открывает заявку в личном кабинете (#973).
-        const path = usePermissionsStore().hasPermission('page.center') ? '/center' : '/personal-cabinet'
-        this.$router.push({ path, query: { open: appId } }).catch(() => {})
-      }
+      // Клик по карточке раскрывает подробности в модалке (#1748 S6) - переход
+      // к заявке теперь делает кнопка действия внутри неё, не сам клик.
+      this.detailNotification = item
+      this.showDetailModal = true
     },
 
+    // Кнопка действия модалки — то же, что раньше делал клик по карточке о заявке (#973).
     // application_id для навигации лежит в data (jsonb-строка) уведомлений о заявках.
-    notificationAppId(item) {
-      let data = item.data
-      if (typeof data === 'string') {
-        try {
-          data = JSON.parse(data)
-        } catch {
-          return null
+    handleDetailAction() {
+      const data = parseNotificationData(this.detailNotification)
+      const appId = data.application_id ? Number(data.application_id) : null
+      if (!appId) return
+      this.showDetailModal = false
+      this.$emit('close')
+      this.$router.push(this.resolveApplicationRoute(appId)).catch(() => {})
+    },
+
+    async handleDetailUnread() {
+      const item = this.detailNotification
+      if (!item) return
+      try {
+        const response = await apiRequest(`/notifications/${item.id}/read`, {
+          method: 'PUT',
+          body: JSON.stringify({ is_read: false }),
+        })
+        if (response.ok) {
+          item.is_read = false
         }
+      } catch {
+        // ignore
       }
-      return data && data.application_id ? Number(data.application_id) : null
+      this.showDetailModal = false
+    },
+
+    async handleDetailDelete() {
+      const item = this.detailNotification
+      if (!item) return
+      await this.deleteNotification(item.id)
+      this.showDetailModal = false
     },
 
     async deleteNotification(id) {

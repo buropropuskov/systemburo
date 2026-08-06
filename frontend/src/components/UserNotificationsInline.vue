@@ -118,6 +118,15 @@
         </div>
       </div>
     </div>
+
+    <NotificationDetailModal
+      :show="showDetailModal"
+      :notification="detailNotification"
+      @close="showDetailModal = false"
+      @action="handleDetailAction"
+      @unread="handleDetailUnread"
+      @delete="handleDetailDelete"
+    />
   </div>
 </template>
 
@@ -125,13 +134,20 @@
 import { apiRequest } from '@/api/client'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import { useUiStore } from '@/stores/ui'
-import { usePermissionsStore } from '@/stores/permissions'
 import eventStream from '@/services/eventStream'
+import { useNotificationNavigation } from '@/composables/useNotificationNavigation'
+import { parseNotificationData } from '@/utils/notificationDetails'
+import NotificationDetailModal from '@/components/notifications/NotificationDetailModal.vue'
 
 export default {
   name: 'UserNotificationsInline',
 
-  components: { LoaderSpinner },
+  components: { LoaderSpinner, NotificationDetailModal },
+
+  setup() {
+    const { resolveApplicationRoute } = useNotificationNavigation();
+    return { resolveApplicationRoute };
+  },
 
   data() {
     return {
@@ -142,6 +158,8 @@ export default {
       eventStreamOff: null,
       eventStreamStatusOff: null,
       sseConnected: false,
+      showDetailModal: false,
+      detailNotification: null,
     }
   },
 
@@ -222,26 +240,44 @@ export default {
           // ignore
         }
       }
-      // Клик по уведомлению о заявке открывает её в Центре (#973).
-      const appId = this.notificationAppId(notif)
-      if (appId) {
-        // Заявитель без доступа к Центру заявок открывает заявку в личном кабинете (#973).
-        const path = usePermissionsStore().hasPermission('page.center') ? '/center' : '/personal-cabinet'
-        this.$router.push({ path, query: { open: appId } }).catch(() => {})
-      }
+      // Клик по карточке раскрывает подробности в модалке (#1748 S6) - переход
+      // к заявке теперь делает кнопка действия внутри неё, не сам клик.
+      this.detailNotification = notif
+      this.showDetailModal = true
     },
 
+    // Кнопка действия модалки — то же, что раньше делал клик по карточке о заявке (#973).
     // application_id для навигации лежит в data (jsonb-строка) уведомлений о заявках.
-    notificationAppId(notif) {
-      let data = notif.data
-      if (typeof data === 'string') {
-        try {
-          data = JSON.parse(data)
-        } catch {
-          return null
+    handleDetailAction() {
+      const data = parseNotificationData(this.detailNotification)
+      const appId = data.application_id ? Number(data.application_id) : null
+      if (!appId) return
+      this.showDetailModal = false
+      this.$router.push(this.resolveApplicationRoute(appId)).catch(() => {})
+    },
+
+    async handleDetailUnread() {
+      const notif = this.detailNotification
+      if (!notif) return
+      try {
+        const response = await apiRequest(`/notifications/${notif.id}/read`, {
+          method: 'PUT',
+          body: JSON.stringify({ is_read: false }),
+        })
+        if (response.ok) {
+          notif.is_read = false
         }
+      } catch {
+        // ignore
       }
-      return data && data.application_id ? Number(data.application_id) : null
+      this.showDetailModal = false
+    },
+
+    async handleDetailDelete() {
+      const notif = this.detailNotification
+      if (!notif) return
+      await this.deleteNotification(notif.id)
+      this.showDetailModal = false
     },
 
     async deleteNotification(id) {
