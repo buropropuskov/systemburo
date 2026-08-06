@@ -97,6 +97,20 @@ func TestFakePassages_RunMarksEntryAndExit(t *testing.T) {
 	cars := readBatchCarPassages(t, db, batch.ID())
 	employees := readBatchEmployeePassages(t, db, batch.ID())
 	require.NotEmpty(t, cars, "должна найтись хотя бы одна отмеченная машина")
+
+	// Проходы обязаны быть разложены по прошлому вместе с заявками, а не собраться в
+	// день прогона. Проверка «не позже сейчас» этого не доказывает: время прогона ей
+	// удовлетворяет по определению, и сломанный перенос дат прошёл бы незамеченным.
+	var passagesInPast int64
+	require.NoError(t, db.Raw(`
+		SELECT COUNT(*) FROM cars c
+		JOIN attachments t ON t.id = c.attachment_id
+		JOIN applications a ON a.id = t.application_id
+		JOIN fake_batch_items i ON i.entity = 'application' AND i.entity_id = a.id AND i.batch_id = ?
+		WHERE c.territory_entry_time IS NOT NULL
+		  AND c.territory_entry_time < DATE_TRUNC('day', NOW())`, batch.ID()).Scan(&passagesInPast).Error)
+	require.Positive(t, passagesInPast,
+		"ни один проход не попал в прошлое: похоже, даты остались временем прогона наливки")
 	require.NotEmpty(t, employees, "должен найтись хотя бы один отмеченный сотрудник")
 
 	// --- у машин и у сотрудников по отдельности встречаются оба состояния:
