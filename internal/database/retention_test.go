@@ -115,6 +115,58 @@ func TestSweepRetention_NotificationsOnlyRead(t *testing.T) {
 	require.True(t, exists(readFresh), "свежее уведомление удалять рано")
 }
 
+// TestSweepRetention_UnreadNotificationsOwnThreshold проверяет вторую цель уборки
+// уведомлений (#1748, S9): непрочитанные удаляются по своему, более мягкому сроку,
+// а не по короткому сроку прочитанных - и наоборот, прочитанные не задерживаются
+// до мягкого срока непрочитанных.
+func TestSweepRetention_UnreadNotificationsOwnThreshold(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+
+	user := createRetentionUser(t, db, "retention-notif-unread")
+	now := time.Now().UTC()
+	// old старше срока прочитанных (30d по умолчанию), но моложе срока непрочитанных
+	// (90d по умолчанию) - именно на этом окне разница между целями видна.
+	old := now.AddDate(0, 0, -60)
+	veryOld := now.AddDate(0, 0, -120)
+
+	newNotification := func(title string, isRead bool, createdAt time.Time) int {
+		var id int
+		require.NoError(t, db.Raw(
+			`INSERT INTO notifications (user_id, title, is_read, created_at) VALUES (?,?,?,?) RETURNING id`,
+			user.ID, title, isRead, createdAt,
+		).Scan(&id).Error)
+		return id
+	}
+	unreadOld := newNotification("непрочитанное 60 дней", false, old)
+	unreadVeryOld := newNotification("непрочитанное 120 дней", false, veryOld)
+	unreadFresh := newNotification("непрочитанное свежее", false, now)
+	readOld := newNotification("прочитанное 60 дней", true, old)
+
+	exists := func(id int) bool {
+		var n int64
+		require.NoError(t, db.Raw(`SELECT count(*) FROM notifications WHERE id = ?`, id).Scan(&n).Error)
+		return n > 0
+	}
+
+	// Срок прочитанных (30d): "старое" непрочитанное (60d) под него формально
+	// попадает по возрасту, но условие "is_read" его исключает - должно остаться.
+	_, err := database.SweepRetention(context.Background(), db, database.TargetNotifications,
+		database.SweepOptions{Cutoff: now.AddDate(0, 0, -30), Apply: true})
+	require.NoError(t, err)
+	require.True(t, exists(unreadOld), "непрочитанное не должно уйти по сроку прочитанных")
+	require.False(t, exists(readOld), "прочитанное 60-дневной давности должно уйти по своему сроку")
+
+	// Срок непрочитанных (90d): 60-дневное остаётся, 120-дневное и свежее ведут себя
+	// как и положено - старое уходит, свежее остаётся.
+	_, err = database.SweepRetention(context.Background(), db, database.TargetUnreadNotifications,
+		database.SweepOptions{Cutoff: now.AddDate(0, 0, -90), Apply: true})
+	require.NoError(t, err)
+	require.True(t, exists(unreadOld), "непрочитанное младше своего срока трогать нельзя")
+	require.False(t, exists(unreadVeryOld), "непрочитанное старше своего срока должно быть удалено")
+	require.True(t, exists(unreadFresh), "свежее непрочитанное удалять рано")
+}
+
 // TestSweepRetention_AuditKeepsTrashAndLastPassage - главная защита уборки истории:
 // запись об удалении держит корзину таблицы поста, а последние entry/exit дают
 // «последний выезд» в карточке. Обе переживают любой срок хранения.
