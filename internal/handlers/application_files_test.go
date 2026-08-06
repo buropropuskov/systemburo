@@ -202,7 +202,7 @@ func TestApplicationFiles_SweepOrphansKeepsAttachedAndFresh(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	dir := t.TempDir()
-	svc := services.NewApplicationFileService(db, dir)
+	svc := services.NewApplicationFileService(db, dir, services.NewAuditRecorder(db))
 	require.NoError(t, os.MkdirAll(svc.Dir(), 0o755))
 	write := func(name string) string {
 		require.NoError(t, os.WriteFile(filepath.Join(svc.Dir(), name), []byte("payload"), 0o600))
@@ -371,4 +371,90 @@ func TestApplicationFiles_ImageShrunkAndExifDropped(t *testing.T) {
 	cfg, _, err := image.DecodeConfig(bytes.NewReader(dl.Body.Bytes()))
 	require.NoError(t, err)
 	require.Equal(t, 2000, cfg.Width, "длинная сторона ограничена")
+}
+
+// TestApplicationFiles_DeletedByApplicantUntilClosed: заявитель убирает свой файл из
+// открытой заявки, посторонний не может, а из закрытой не может и сам заявитель -
+// её состав уже стал основанием для выданного пропуска.
+func TestApplicationFiles_DeletedByApplicantUntilClosed(t *testing.T) {
+	e, db, uploadDir, cleanup := testutil.SetupTestAppWithUploads(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	ownerToken := testutil.RegisterAndLogin(t, e, "delattached", "pass123", 1, td.OrgID, td.CompanyID)
+	strangerToken := testutil.RegisterAndLogin(t, e, "delattachedbad", "pass123", 1, 0, 0)
+	file := uploadDraftFile(t, e, ownerToken, "лишний.png", realPNG(t))
+
+	rec := submitWithFiles(t, e, db, ownerToken, "delatt", []int{file.ID})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
+
+	path := fmt.Sprintf("/applications/%d/files/%d", appID, file.ID)
+
+	// Посторонний не видит заявку и не удаляет её файл.
+	r := testutil.DELETE(t, e, path, testutil.AuthHeader(strangerToken))
+	require.Equal(t, http.StatusForbidden, r.Code, r.Body.String())
+
+	// Закрытая заявка запирает состав даже для заявителя.
+	require.NoError(t, db.Exec("UPDATE applications SET status = ? WHERE id = ?", models.StatusCompleted, appID).Error)
+	r = testutil.DELETE(t, e, path, testutil.AuthHeader(ownerToken))
+	require.Equal(t, http.StatusBadRequest, r.Code, r.Body.String())
+
+	require.NoError(t, db.Exec("UPDATE applications SET status = ? WHERE id = ?", models.StatusProcessing, appID).Error)
+
+	var stored models.ApplicationFile
+	require.NoError(t, db.First(&stored, file.ID).Error)
+	onDisk := filepath.Join(uploadDir, "application_files", stored.StoredName)
+	require.FileExists(t, onDisk)
+
+	r = testutil.DELETE(t, e, path, testutil.AuthHeader(ownerToken))
+	require.Equal(t, http.StatusOK, r.Code, r.Body.String())
+
+	var left int64
+	require.NoError(t, db.Model(&models.ApplicationFile{}).Where("id = ?", file.ID).Count(&left).Error)
+	require.Zero(t, left)
+	require.NoFileExists(t, onDisk, "файл должен уходить и с диска, а не только из базы")
+
+	// Удаление документа попадает в журнал: снятый файл - это изменение состава
+	// заявки, по которому выдают пропуск.
+	var audits int64
+	require.NoError(t, db.Table("audit_log").
+		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityApplication, appID, "file_delete").
+		Count(&audits).Error)
+	require.EqualValues(t, 1, audits)
+}
+
+// TestApplicationFiles_DiskOrphanSwept: файл, потерявший строку (каскад от удалённой
+// заявки), убирается с диска; свежий файл и файл с записью остаются.
+func TestApplicationFiles_DiskOrphanSwept(t *testing.T) {
+	e, db, uploadDir, cleanup := testutil.SetupTestAppWithUploads(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "orphandisk", "pass123", 1, td.OrgID, td.CompanyID)
+	kept := uploadDraftFile(t, e, token, "живой.png", realPNG(t))
+
+	svc := services.NewApplicationFileService(db, uploadDir, services.NewAuditRecorder(db))
+	dir := svc.Dir()
+
+	orphan := filepath.Join(dir, "orphan.png")
+	require.NoError(t, os.WriteFile(orphan, []byte("payload"), 0o600))
+	old := time.Now().Add(-2 * time.Hour)
+	require.NoError(t, os.Chtimes(orphan, old, old))
+
+	fresh := filepath.Join(dir, "fresh-orphan.png")
+	require.NoError(t, os.WriteFile(fresh, []byte("payload"), 0o600))
+
+	removed, err := svc.SweepDiskOrphans(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, removed)
+
+	require.NoFileExists(t, orphan)
+	require.FileExists(t, fresh, "свежий файл может быть загрузкой в процессе")
+
+	var stored models.ApplicationFile
+	require.NoError(t, db.First(&stored, kept.ID).Error)
+	require.FileExists(t, filepath.Join(dir, stored.StoredName))
 }

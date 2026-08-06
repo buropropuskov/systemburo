@@ -745,6 +745,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 		apg.DELETE("/files/:id", d.ApplicationFiles.DeleteDraft)
 		apg.GET("/:id/files", d.ApplicationFiles.List)
 		apg.GET("/:id/files/:file_id", d.ApplicationFiles.Download)
+		apg.DELETE("/:id/files/:file_id", d.ApplicationFiles.DeleteAttached)
 	}
 	apg.GET("/user", app.GetUserApplications)
 	apg.GET("/user/status-updates-count", app.GetUserStatusUpdatesCount) // #1349 - счётчик чипа "Обновления" в ЛК

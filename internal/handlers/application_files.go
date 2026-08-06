@@ -184,6 +184,34 @@ func (h *ApplicationFileHandler) Download(c echo.Context) error {
 	})
 }
 
+// DeleteAttached godoc
+// @Summary      Удаление файла заявки
+// @Description  Убирает приложенный к заявке файл. Подавший заявку может снять свой документ, пока заявка не закрыта; супер-администратор - в любой момент.
+// @Tags         applications
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id      path int true "ID заявки"
+// @Param        file_id path int true "ID файла"
+// @Success      200 {object} map[string]string
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /applications/{id}/files/{file_id} [delete]
+func (h *ApplicationFileHandler) DeleteAttached(c echo.Context) error {
+	appID, err := h.accessibleApplicationID(c)
+	if err != nil {
+		return err
+	}
+	fileID, err := strconv.Atoi(c.Param("file_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid file ID")
+	}
+
+	if err := h.files.DeleteAttached(c.Request().Context(), GetUserID(c), IsSuperAdmin(c), appID, fileID); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Файл удалён")
+}
+
 // accessibleApplicationID разбирает id заявки из пути и проверяет доступ к ней.
 // Отдельного права у файлов нет намеренно: они видны ровно тем, кому видна заявка.
 func (h *ApplicationFileHandler) accessibleApplicationID(c echo.Context) (int, error) {
