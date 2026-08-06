@@ -133,6 +133,10 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 	// внутри хелпера: если принимающий = отправитель, себе не шлём.
 	if req.Action == "accept" {
 		s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, statusOutcomeAccepted)
+		// Принявший заявку становится её responsible_user_id ("Принял", #1040) - тот
+		// же вызов, что назначает принимающего (#1748, S4). Гейт self-assign внутри
+		// хелпера.
+		s.notifyAcceptorAssigned(ctx, applicationID, user.ID, user.ID)
 	} else if req.Action == "reject" {
 		s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, statusOutcomeRejected)
 	}
@@ -321,6 +325,10 @@ func (s *applicationService) WithdrawApplication(ctx context.Context, username s
 		return echo.NewHTTPError(http.StatusConflict, "Заявку в этом статусе отозвать нельзя")
 	}
 
+	// Кому уведомление об отзыве (#1748, S4): согласующие, чьё решение ещё не
+	// поступило. Собираем ДО смены статуса - предикат матчит только живую заявку.
+	pendingApproverIDs := s.pendingApproversBeforeWithdraw(ctx, tx, applicationID)
+
 	// withdrawn_at - точка отсчёта месяца до архива (вложения при отзыве гасятся,
 	// их сроки для архивации больше не показательны).
 	if err := tx.Exec("UPDATE applications SET status = ?, withdrawn_at = NOW() WHERE id = ?", models.StatusWithdrawn, applicationID).Error; err != nil {
@@ -360,6 +368,7 @@ func (s *applicationService) WithdrawApplication(ctx context.Context, username s
 	}
 
 	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
+	s.notifyWithdrawn(ctx, applicationID, formatFullName(user.LastName, user.FirstName, user.MiddleName), pendingApproverIDs)
 	return nil
 }
 
