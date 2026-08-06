@@ -9,6 +9,7 @@
       >
         <div
           class="notif-detail-dialog"
+          data-testid="notif-detail-dialog"
           :class="{ 'is-dragging': sheetDragging }"
           :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
           role="dialog"
@@ -31,7 +32,10 @@
                 :variant="categoryBadge.variant"
                 size="sm"
               />
-              <h3 class="notif-detail-dialog__title">
+              <h3
+                class="notif-detail-dialog__title"
+                data-testid="notif-detail-title"
+              >
                 {{ title }}
               </h3>
             </div>
@@ -51,6 +55,7 @@
             <p
               v-if="message"
               class="notif-detail-dialog__message"
+              data-testid="notif-detail-message"
             >
               {{ message }}
             </p>
@@ -78,8 +83,15 @@
                 v-for="f in fields"
                 :key="f.label"
               >
-                <dt>{{ f.label }}</dt>
-                <dd>{{ f.value }}</dd>
+                <dt :data-field="f.key">
+                  {{ f.label }}
+                </dt>
+                <dd
+                  :data-field="f.key"
+                  data-testid="notif-detail-field"
+                >
+                  {{ f.value }}
+                </dd>
               </template>
             </dl>
           </div>

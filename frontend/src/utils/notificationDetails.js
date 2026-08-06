@@ -55,7 +55,7 @@ export function parseNotificationData(notification) {
  * известному полю data, которое присутствует и непусто. Неизвестные поля и
  * технические идентификаторы (см. FIELD_LABELS) не попадают в результат.
  * @param {{data?: string|object|null}|null|undefined} notification
- * @returns {Array<{label: string, value: string}>}
+ * @returns {Array<{key: string, label: string, value: string}>}
  */
 export function notificationDetailFields(notification) {
   const data = parseNotificationData(notification);
@@ -77,7 +77,7 @@ export function notificationDetailFields(notification) {
     } else {
       value = String(raw);
     }
-    fields.push({ label, value });
+    fields.push({ key, label, value });
   }
   return fields;
 }
@@ -88,7 +88,6 @@ export function notificationDetailFields(notification) {
 const EXACT_CATEGORY = {
   application_expiring: 'passage',
   application_withdrawn: 'passage',
-  application_acceptor_assigned: 'passage',
   application_passage_first: 'passage',
   password_changed: 'security',
   user_banned: 'security',
@@ -109,7 +108,7 @@ const EXACT_CATEGORY = {
 /**
  * Категория уведомления по коду типа - для визуальной группировки/бейджа в
  * модалке. Точное совпадение проверяется РАНЬШЕ префикса "application_":
- * application_expiring/withdrawn/acceptor_assigned/passage_first по имени
+ * application_expiring/withdrawn/passage_first по имени
  * похожи на события заявки, но относятся к проезду (категория 'passage').
  * Любой не перечисленный код (включая настоящие application_* события
  * жизненного цикла заявки) - категория 'application'.
