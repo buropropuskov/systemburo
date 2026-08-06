@@ -9,15 +9,12 @@
         class="supplement-actions"
         data-testid="supplement-actions"
       >
-        <span class="supplement-actions__label">Дополнение №{{ actionableRound.number }}</span>
-
         <span
-          v-if="supplementVoteBadge"
-          class="vote-status-badge"
-          :class="supplementVoteBadge.class"
+          class="supplement-actions__label"
+          :class="supplementVoteBadge ? supplementVoteBadge.class : null"
           data-testid="supplement-my-vote"
         >
-          {{ supplementVoteBadge.text }}
+          Дополнение №{{ actionableRound.number }}<template v-if="supplementVoteBadge">, {{ supplementVoteBadge.text }}</template>
         </span>
 
         <template v-if="canVoteOnSupplement">
@@ -27,7 +24,7 @@
             :disabled="supplementBusy"
             @click="askSupplementAction('approve')"
           >
-            Согласовать дополнение
+            Согласовать
           </button>
           <button
             class="lk-button lk-button--danger"
@@ -35,7 +32,7 @@
             :disabled="supplementBusy"
             @click="askSupplementAction('reject')"
           >
-            Отказать в дополнении
+            Отказать
           </button>
         </template>
 
@@ -46,7 +43,7 @@
           :disabled="supplementBusy"
           @click="askSupplementAction('revoke')"
         >
-          Отозвать согласование дополнения
+          Отозвать голос
         </button>
 
         <template v-if="canDecideSupplement">
@@ -56,7 +53,7 @@
             :disabled="supplementBusy"
             @click="askSupplementAction('accept')"
           >
-            Принять дополнение
+            Принять
           </button>
           <button
             class="lk-button lk-button--danger"
@@ -75,7 +72,7 @@
           :disabled="supplementBusy"
           @click="askSupplementAction('cancel')"
         >
-          Отозвать дополнение
+          Снять дополнение
         </button>
       </div>
     </transition>
@@ -518,6 +515,7 @@ import {
 } from '@/api/applications'
 import {
     SUPPLEMENT_PENDING,
+    supplementCountsLabel,
     SUPPLEMENT_APPROVED,
     SUPPLEMENT_OPEN_STATUSES,
     SUPPLEMENT_REVOCABLE_STATUSES
@@ -737,6 +735,12 @@ export default {
             return this.supplements.find(round => SUPPLEMENT_REVOCABLE_STATUSES.includes(round.status)) || null;
         },
 
+        /** Состав раунда словами - «2 машины, 1 сотрудник». Решение принимают по нему. */
+        supplementCompositionText() {
+            const counts = this.actionableRound && this.actionableRound.counts;
+            return counts ? supplementCountsLabel(counts) : '';
+        },
+
         // Голос текущего пользователя в раунде: null - он не в составе голосующих
         // (снимок ответственных на момент подачи дополнения), а не «ещё не голосовал».
         mySupplementVote() {
@@ -788,10 +792,10 @@ export default {
 
         supplementVoteBadge() {
             if (this.mySupplementVoteStatus === 'approved') {
-                return { text: 'Вы согласовали дополнение', class: 'vote-approved' };
+                return { text: 'вы согласовали', class: 'vote-approved' };
             }
             if (this.mySupplementVoteStatus === 'rejected') {
-                return { text: 'Вы отказали в дополнении', class: 'vote-rejected' };
+                return { text: 'вы отказали', class: 'vote-rejected' };
             }
             return null;
         },
@@ -808,36 +812,40 @@ export default {
         // Тексты подтверждений по действиям над раундом. Отдельной таблицей, чтобы
         // разметка не обрастала ветвлением, а формулировки лежали рядом друг с другом.
         supplementPromptFor(action, number) {
+            const composition = this.supplementCompositionText;
+            const about = composition
+                ? `Дополнение №${number}: ${composition}.`
+                : `Дополнение №${number}.`;
             const prompts = {
                 approve: {
                     title: 'Согласовать дополнение?',
-                    message: `Дополнение №${number} будет согласовано. Добавленные строки встанут на пост после решения принимающего.`,
+                    message: `${about} Согласование записывается за вами; строки встанут на пост после решения принимающего.`,
                     confirmText: 'Согласовать'
                 },
                 reject: {
                     title: 'Отказать в дополнении?',
-                    message: `Дополнение №${number} будет отклонено, добавленные строки на пост не попадут.`,
+                    message: `${about} Отказ закрывает круг: добавленные строки на пост не попадут.`,
                     confirmText: 'Отказать'
                 },
                 revoke: {
-                    title: 'Отозвать согласование дополнения?',
-                    message: `Ваш голос по дополнению №${number} вернётся в ожидание.`,
+                    title: 'Отозвать свой голос?',
+                    message: `${about} Ваш голос вернётся в ожидание, круг по добавке откроется заново.`,
                     confirmText: 'Отозвать'
                 },
                 accept: {
                     title: 'Принять дополнение?',
-                    message: `Строки дополнения №${number} встанут на пост и станут видны охране.`,
+                    message: `${about} Строки встанут на пост сразу и станут видны охране.`,
                     confirmText: 'Принять'
                 },
                 refuse: {
                     title: 'Отказать в дополнении?',
-                    message: `Дополнение №${number} будет отклонено, его строки на пост не встанут.`,
+                    message: `${about} Строки останутся недопущенными, заявка и её пропуска не меняются.`,
                     confirmText: 'Отказать'
                 },
                 cancel: {
-                    title: 'Отозвать дополнение?',
-                    message: `Дополнение №${number} будет снято, добавленные строки на пост не попадут.`,
-                    confirmText: 'Отозвать'
+                    title: 'Снять дополнение?',
+                    message: `${about} Добавка снимается целиком, её строки на пост не попадут.`,
+                    confirmText: 'Снять'
                 }
             };
             return prompts[action] || null;
@@ -1154,6 +1162,13 @@ export default {
     justify-content: flex-end;
     gap: 8px;
     flex-wrap: wrap;
+    /* Отдельным блоком, а не продолжением шапки: рядом стоят статус заявки и её
+       собственные кнопки, и без границы всё это читалось одной кашей - особенно у того,
+       кто и согласующий, и принимающий сразу. Подложка нейтральная, смысл несёт метка. */
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
     /* Без ограничения ширины переносить ряду не от чего: родитель - колонка, и ряд
        просто растёт за её правый край. На узких экранах это скрыто (там свой блок
        ниже), на широких места хватает, а между ними, около 780, кнопка уезжала
@@ -1166,6 +1181,7 @@ export default {
     font-weight: 600;
     color: var(--accent-text);
     white-space: nowrap;
+    margin-right: 2px;
 }
 
 .supplement-comment {

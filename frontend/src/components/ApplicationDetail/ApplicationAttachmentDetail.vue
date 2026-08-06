@@ -374,7 +374,7 @@ function supplementRowMark(row) {
         return {
             state: 'closed',
             variant: 'neutral',
-            text: 'Дополнение отклонено',
+            text: 'Отклонено',
             hint: `${title} не состоялось: строка на проходную не попадёт.`,
             rowClass: 'el-row--supplement-closed'
         };
@@ -384,7 +384,7 @@ function supplementRowMark(row) {
         return {
             state: 'pending',
             variant: 'warning',
-            text: 'Новое, на согласовании',
+            text: 'На согласовании',
             hint: `${title} ждёт голосов согласующих. На проходную строка пока не допущена.`,
             rowClass: 'el-row--supplement-pending'
         };
@@ -394,7 +394,7 @@ function supplementRowMark(row) {
         return {
             state: 'approved',
             variant: 'info',
-            text: 'Согласовано, ждёт принятия',
+            text: 'Ждёт принятия',
             hint: `${title} согласовано, ждёт решения принимающего. На проходную строка пока не допущена.`,
             rowClass: 'el-row--supplement-approved'
         };
@@ -404,7 +404,7 @@ function supplementRowMark(row) {
     // строка живёт по общим правилам, остаётся только пометка происхождения.
     return {
         state: status === SUPPLEMENT_ACCEPTED ? SUPPLEMENT_ACCEPTED : 'origin',
-        variant: 'neutral',
+        variant: 'primary',
         text: shortTitle,
         hint: `Строка добавлена дополнением к поданной заявке (${title}).`,
         rowClass: null
@@ -1327,22 +1327,26 @@ export default {
    специфичности проиграли бы этим - помеченная возможным обходом ЧС строка потеряла бы
    красную подсветку, а это более критичный признак, чем «новая». Бейдж дополнения при
    этом остаётся - он в другой колонке. */
+/* Подложка у добавленных строк нейтральная, а цвет несут полоса слева и бейдж. Заливка
+   цветом по всей строке спорила с подсветкой чёрного списка и делала состав пёстрым:
+   на вложении с несколькими раундами половина таблицы оказывалась крашеной. Серый при
+   этом лёгкий - строка читается как обычная, просто помеченная. */
 .el-row--supplement-pending:not(.el-row--flagged) {
-    background: var(--warning-bg);
+    background: var(--surface-sunken);
     box-shadow: inset 3px 0 0 var(--warning);
 }
 
 .el-row--supplement-pending:not(.el-row--flagged).el-row--clickable:hover {
-    background: var(--warning-bg);
+    background: var(--surface-sunken);
 }
 
 .el-row--supplement-approved:not(.el-row--flagged) {
-    background: var(--info-bg);
+    background: var(--surface-sunken);
     box-shadow: inset 3px 0 0 var(--info);
 }
 
 .el-row--supplement-approved:not(.el-row--flagged).el-row--clickable:hover {
-    background: var(--info-bg);
+    background: var(--surface-sunken);
 }
 
 /* Отклонённое дополнение остаётся в составе навсегда - приглушаем содержимое, чтобы
@@ -1542,13 +1546,24 @@ export default {
     z-index: 5;
 }
 
-/* Подсказка дополнения - фраза, а не пара слов: nowrap увёл бы её на полэкрана. */
+/* Подсказка дополнения - фраза, а не пара слов: nowrap увёл бы её на полэкрана.
+   Прижата к левому краю бейджа, а не отцентрирована: метка стоит в первой колонке, и
+   центрированная подсказка уходила левее края карточки, где её срезал overflow контейнера
+   детали - хвост фразы просто пропадал. От левого края она разворачивается вправо, где
+   место есть. Стрелка сдвигается туда же, иначе указывала бы мимо. */
 .supplement-badge[data-hint]::after {
     width: max-content;
     max-width: 240px;
     white-space: normal;
-    text-align: center;
+    text-align: left;
     line-height: 1.35;
+    left: 0;
+    transform: none;
+}
+
+.supplement-badge[data-hint]::before {
+    left: 14px;
+    transform: none;
 }
 
 .val[data-hint]::before,

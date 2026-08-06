@@ -86,7 +86,7 @@ describe('ApplicationActionBar - кнопки раунда дополнения 
     expect(wrapper.find(APPROVE).exists()).toBe(false);
     expect(wrapper.find(REJECT).exists()).toBe(false);
     expect(wrapper.find(REVOKE).exists()).toBe(true);
-    expect(wrapper.find(MY_VOTE).text()).toBe('Вы согласовали дополнение');
+    expect(wrapper.find(MY_VOTE).text()).toContain('вы согласовали');
   });
 
   it('по отклонённому раунду отзыв голоса остаётся - он открывает круг заново', () => {
@@ -94,7 +94,7 @@ describe('ApplicationActionBar - кнопки раунда дополнения 
       supplements: [round({ status: 'rejected', approvals: [{ user_id: 1, approval_status: 'rejected' }] })],
     });
     expect(wrapper.find(REVOKE).exists()).toBe(true);
-    expect(wrapper.find(MY_VOTE).text()).toBe('Вы отказали в дополнении');
+    expect(wrapper.find(MY_VOTE).text()).toContain('вы отказали');
   });
 
   it('принимающий получает решение только по согласованному раунду', () => {
