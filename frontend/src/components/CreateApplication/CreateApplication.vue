@@ -56,12 +56,18 @@
       >
         <!-- 1 ряд: Письмо сопроводительное -->
         <div class="form__header">
-          <TextConstructor
-            v-model="message"
-            class="form__message-tc"
-            :rows="3"
-            placeholder="Введите сопроводительное письмо / сообщение"
-          />
+          <div class="form__message-column">
+            <TextConstructor
+              v-model="message"
+              class="form__message-tc"
+              :rows="3"
+              placeholder="Введите сопроводительное письмо / сообщение"
+            />
+            <ApplicationFilesUpload
+              ref="filesUpload"
+              v-model="applicationFileIds"
+            />
+          </div>
           <!-- Согласие и отправка — правая колонка шапки, рядом с полем сообщения -->
           <div class="form__submit-bar">
             <div class="consent-section">
@@ -371,6 +377,7 @@ import { toAttachmentContent } from '@/utils/applicationEntityPayload';
 import { useDeletionsStore } from '@/stores/deletions'
 import { formatRussianPhone, isValidRussianPhone } from '@/composables/useRussianPhoneMask'
 import BlankSelector from '../BlankSelector.vue';
+import ApplicationFilesUpload from './ApplicationFilesUpload.vue';
 import UserInfoRow from './UserInfoRow.vue';
 import DateRangeSection from './DateRangeSection.vue';
 import VehicleForm from './VehicleForm.vue';
@@ -402,6 +409,7 @@ const BIND_CONCURRENCY = 6;
 export default {
     name: 'CreateApplication',
     components: {
+        ApplicationFilesUpload,
         BlankSelector,
         SchedulePlaceWarningPanel,
         UserInfoRow,
@@ -423,6 +431,9 @@ export default {
     data() {
         return {
             message: '',
+            // Файлы, приложенные к заявке (#1721). Наверх приходят id уже
+            // загруженных черновиков: подача привязывает их к заявке.
+            applicationFileIds: [],
             // Прилип ли заголовок вложения к верху (для подложки и границы при скролле).
             blankStuck: false,
             // Конфликт дублирования (#952): на странице уже есть черновик, а из ЛК пришёл
@@ -2154,6 +2165,7 @@ export default {
 
             const applicationData = {
                 message: this.message || null,
+                file_ids: this.applicationFileIds,
                 // Контракт подачи #1437: id, когда поле связано с записью справочника
                 // (профиль или выбранная подсказка), наименование - когда введено руками.
                 // Заполнять оба не нужно: при заданном id наименование не смотрится.
@@ -2270,6 +2282,9 @@ export default {
 
                 if (response.ok) {
                     const result = await response.json();
+                    // Файлы уже привязаны к заявке - список в форме больше не нужен.
+                    this.applicationFileIds = [];
+                    this.$refs.filesUpload?.reset();
                     this.createdApplicationNumber = result.application_number;
                     this.createdAttachmentsData = this.attachments.map(att => {
                         const dateData = this.attachmentDatesByAttachment[this.attachmentKey(att)] || this.getDefaultDateData();
@@ -2789,6 +2804,13 @@ export default {
         display: flex;
         align-items: flex-start;
         gap: 16px;
+    }
+
+    .create__form .form__message-column {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-width: 0;
     }
 
     .create__form .form__message-tc {

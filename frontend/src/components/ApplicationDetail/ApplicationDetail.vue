@@ -276,6 +276,11 @@
             </div>
           </div>
 
+          <ApplicationFiles
+            :application-id="Number(applicationData.id)"
+            :can-remove="canRemoveFiles"
+          />
+
           <ApplicationMessageModal
             :show="showMessageModal"
             :message="applicationData.message || ''"
@@ -622,6 +627,7 @@ import { useUiStore } from '@/stores/ui'
 import { SUPPLEMENT_APPROVED } from '@/utils/supplementStatuses'
 import { usePermissionsStore } from '@/stores/permissions'
 import ApplicationAttachments from './ApplicationAttachments.vue'
+import ApplicationFiles from './ApplicationFiles.vue'
 import ApplicationConfirmation from './ApplicationConfirmation.vue'
 import ApplicationHistory from './ApplicationHistory.vue'
 import ForwardModal from './ForwardModal.vue'
@@ -651,6 +657,7 @@ export default {
     name: 'ApplicationDetail',
     components: {
         ApplicationAttachments,
+        ApplicationFiles,
         ApplicationConfirmation,
         ApplicationHistory,
         ForwardModal,
@@ -833,6 +840,17 @@ export default {
             if (!a) return false;
             return this.isResponsibleUser || this.isApprover || this.isViewer ||
                 a.sender_user_id === this.currentUserId;
+        },
+
+        /**
+         * Убрать приложенный файл (#1721) может подавший заявку, пока она не закрыта.
+         * Зеркалит BE-гейт DeleteAttached; супер-администратору сервер разрешает и
+         * дальше, но кнопку по этому признаку не показываем - у него другой путь.
+         */
+        canRemoveFiles() {
+            const a = this.applicationData;
+            if (!a || a.sender_user_id !== this.currentUserId) return false;
+            return !['Завершено', 'Не согласовано', 'Отказано', 'Отозвана'].includes(a.status);
         },
 
         // Отозвать свою заявку может только отправитель и только пока она не в
