@@ -6,7 +6,9 @@ import (
 	"strconv"
 
 	"systemburo/internal/apperr"
+	"systemburo/internal/crypto"
 	"systemburo/internal/download"
+	"systemburo/internal/imaging"
 	"systemburo/internal/services"
 	"systemburo/internal/upload"
 
@@ -15,12 +17,14 @@ import (
 
 // ApplicationFileHandler -- файлы, приложенные к заявке (#1721).
 type ApplicationFileHandler struct {
-	files       services.ApplicationFileService
-	apps        services.ApplicationService
-	maxFileSize int64
-	maxCount    int
-	maxTotal    int64
-	allowed     []string
+	files        services.ApplicationFileService
+	apps         services.ApplicationService
+	maxFileSize  int64
+	maxCount     int
+	maxTotal     int64
+	allowed      []string
+	imageMaxSide int
+	jpegQuality  int
 }
 
 // NewApplicationFileHandler создаёт обработчик файлов заявки.
@@ -28,10 +32,12 @@ func NewApplicationFileHandler(
 	files services.ApplicationFileService,
 	apps services.ApplicationService,
 	maxFileSize int64, maxCount int, maxTotal int64, allowed []string,
+	imageMaxSide, jpegQuality int,
 ) *ApplicationFileHandler {
 	return &ApplicationFileHandler{
 		files: files, apps: apps,
 		maxFileSize: maxFileSize, maxCount: maxCount, maxTotal: maxTotal, allowed: allowed,
+		imageMaxSide: imageMaxSide, jpegQuality: jpegQuality,
 	}
 }
 
@@ -61,6 +67,12 @@ func (h *ApplicationFileHandler) UploadDraft(c echo.Context) error {
 		URLPrefix:    "",
 		MaxFileSize:  h.maxFileSize,
 		AllowedTypes: h.allowed,
+		// Снимок с телефона ужимается и перекодируется, вместе с этим уходит
+		// EXIF с координатами съёмки. Документы проходят мимо нетронутыми.
+		Normalize: &imaging.Options{MaxSide: h.imageMaxSide, JPEGQuality: h.jpegQuality},
+		// Файл заявки ложится на диск зашифрованным: номер паспорта в базе
+		// защищён, и его снимок не может лежать рядом открытым.
+		EncryptionKey: crypto.GetGlobalKey(),
 	})
 	if err != nil {
 		return err
@@ -159,7 +171,17 @@ func (h *ApplicationFileHandler) Download(c echo.Context) error {
 	}
 	// Content-Type берётся из базы, куда записан тип по magic bytes: заголовок
 	// формы задаёт клиент, и text/html в нём сделал бы из вложения страницу.
-	return download.Serve(c, download.File{Path: path, Name: file.FileName, Mime: file.MimeType})
+	// Ключ передаётся только для файлов, записанных зашифрованными: до среза B
+	// они писались открытыми и читаются как есть.
+	var key []byte
+	if file.Encrypted {
+		key = crypto.GetGlobalKey()
+	}
+	return download.ServeEncrypted(c, download.Encrypted{
+		File: download.File{Path: path, Name: file.FileName, Mime: file.MimeType},
+		Key:  key,
+		Size: file.FileSize,
+	})
 }
 
 // accessibleApplicationID разбирает id заявки из пути и проверяет доступ к ней.

@@ -72,6 +72,7 @@ func (s *applicationFileService) SaveDrafts(ctx context.Context, userID int, sav
 			MimeType:   f.DetectedMime,
 			FileSize:   f.Size,
 			UploadedBy: userID,
+			Encrypted:  f.Encrypted,
 		})
 	}
 

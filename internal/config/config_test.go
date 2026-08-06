@@ -26,9 +26,11 @@ func validConfig() *Config {
 		ArchiveWorkerTick:    15 * time.Second,
 		ArchiveSweepInterval: 5 * time.Minute,
 		// Лимиты файлов заявки тоже проверяются на положительность (#1721).
-		ApplicationFileMaxCount: 10,
-		ApplicationFileMaxTotal: 31457280,
-		ApplicationFileDraftTTL: 24 * time.Hour,
+		ApplicationFileMaxCount:     10,
+		ApplicationFileMaxTotal:     31457280,
+		ApplicationFileDraftTTL:     24 * time.Hour,
+		ApplicationFileImageMaxSide: 2000,
+		ApplicationFileJPEGQuality:  82,
 	}
 }
 

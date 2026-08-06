@@ -10,7 +10,10 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
+
+	"systemburo/internal/crypto"
 
 	"github.com/labstack/echo/v4"
 )
@@ -26,6 +29,52 @@ type File struct {
 	Mime string
 	// Inline - просмотр в браузере (inline) вместо скачивания (attachment).
 	Inline bool
+}
+
+// Encrypted описывает зашифрованный на диске файл к отдаче.
+type Encrypted struct {
+	File
+	// Key - ключ расшифровки. nil отдаёт содержимое как есть.
+	Key []byte
+	// Size - размер исходного содержимого. Нужен для Content-Length: на диске
+	// лежит шифротекст, он длиннее, и его размер браузеру не годится.
+	Size int64
+}
+
+// ServeEncrypted расшифровывает файл на лету и отдаёт потоком. Целиком в память
+// он не читается: расшифровка идёт чанками, поэтому десяток одновременных
+// скачиваний не выносит процесс.
+func ServeEncrypted(c echo.Context, f Encrypted) error {
+	if f.Path == "" {
+		return echo.NewHTTPError(http.StatusNotFound, "файл не найден")
+	}
+	src, err := os.Open(f.Path)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "файл не найден")
+	}
+	defer src.Close()
+
+	reader, err := crypto.NewStreamReader(src, f.Key)
+	if err != nil {
+		return fmt.Errorf("open encrypted file: %w", err)
+	}
+
+	if f.Name != "" {
+		disposition := "attachment"
+		if f.Inline {
+			disposition = "inline"
+		}
+		c.Response().Header().Set(echo.HeaderContentDisposition,
+			fmt.Sprintf(`%s; filename="%s"`, disposition, sanitizeName(f.Name)))
+	}
+	if f.Size > 0 {
+		c.Response().Header().Set(echo.HeaderContentLength, strconv.FormatInt(f.Size, 10))
+	}
+	mime := f.Mime
+	if mime == "" {
+		mime = echo.MIMEOctetStream
+	}
+	return c.Stream(http.StatusOK, mime, reader)
 }
 
 // Serve отдаёт файл с корректными заголовками. Возвращает 404, если путь пуст

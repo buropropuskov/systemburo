@@ -19,7 +19,11 @@ type ApplicationFile struct {
 	MimeType      string       `gorm:"size:120" json:"mime_type"`
 	FileSize      int64        `json:"file_size"`
 	UploadedBy    int          `gorm:"index" json:"uploaded_by"`
-	CreatedAt     time.Time    `json:"created_at"`
+	// Encrypted -- файл на диске зашифрован ключом системы. Флаг, а не проба
+	// заголовка: файлы, записанные до появления шифрования, читаются как есть, и
+	// признак должен быть явным, а не выводиться из содержимого.
+	Encrypted bool      `gorm:"default:false" json:"-"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // ApplicationFileItem -- файл заявки в ответах API. Имя на диске наружу не

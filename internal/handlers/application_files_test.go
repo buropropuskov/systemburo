@@ -3,7 +3,12 @@ package handlers_test
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"fmt"
+	"image"
+	"image/color"
+	"image/jpeg"
+	"image/png"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"systemburo/internal/crypto"
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
@@ -22,7 +28,20 @@ import (
 	"gorm.io/gorm"
 )
 
-// pngBytes с PNG-сигнатурой объявлен в unload_place_photo_test.go того же пакета.
+// realPNG -- настоящий PNG. Заглушка из одной сигнатуры (pngBytes соседнего
+// теста) до диска не доедет: конвейер файлов заявки перекодирует изображения.
+func realPNG(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 8; x++ {
+			img.Set(x, y, color.RGBA{R: uint8(x * 30), G: uint8(y * 30), B: 120, A: 255})
+		}
+	}
+	var buf bytes.Buffer
+	require.NoError(t, png.Encode(&buf, img))
+	return buf.Bytes()
+}
 
 // uploadDraftFile загружает файл к будущей заявке и возвращает его id.
 func uploadDraftFile(t *testing.T, e *echo.Echo, token, name string, content []byte) models.ApplicationFileItem {
@@ -96,7 +115,7 @@ func TestApplicationFiles_AttachedAtSubmitAndServed(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "filesender", "pass123", 1, td.OrgID, td.CompanyID)
-	file := uploadDraftFile(t, e, token, "разрешение.png", pngBytes)
+	file := uploadDraftFile(t, e, token, "разрешение.png", realPNG(t))
 
 	rec := submitWithFiles(t, e, db, token, "ok", []int{file.ID})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -109,12 +128,17 @@ func TestApplicationFiles_AttachedAtSubmitAndServed(t *testing.T) {
 	require.Equal(t, "разрешение.png", items[0].FileName)
 	// Тип определён по magic bytes, а не взят из Content-Type формы.
 	require.Equal(t, "image/png", items[0].MimeType)
-	require.Equal(t, int64(len(pngBytes)), items[0].FileSize)
+	require.Positive(t, items[0].FileSize)
 
 	dlRec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/files/%d", appID, file.ID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, dlRec.Code)
-	require.Equal(t, pngBytes, dlRec.Body.Bytes())
 	require.Equal(t, "image/png", dlRec.Header().Get("Content-Type"))
+	// Побайтового равенства с исходником нет: изображение перекодировано, вместе с
+	// этим срезаются метаданные. Проверяем, что отдалась картинка тех же размеров.
+	cfg, format, err := image.DecodeConfig(bytes.NewReader(dlRec.Body.Bytes()))
+	require.NoError(t, err)
+	require.Equal(t, "png", format)
+	require.Equal(t, 8, cfg.Width)
 }
 
 // TestApplicationFiles_ForeignUserGetsNoAccess: у файлов нет своего права, доступ
@@ -126,7 +150,7 @@ func TestApplicationFiles_ForeignUserGetsNoAccess(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	ownerToken := testutil.RegisterAndLogin(t, e, "filesowner", "pass123", 1, td.OrgID, td.CompanyID)
-	file := uploadDraftFile(t, e, ownerToken, "скан.png", pngBytes)
+	file := uploadDraftFile(t, e, ownerToken, "скан.png", realPNG(t))
 	rec := submitWithFiles(t, e, db, ownerToken, "foreign", []int{file.ID})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
@@ -152,7 +176,7 @@ func TestApplicationFiles_ForeignDraftRejectsSubmit(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	ownerToken := testutil.RegisterAndLogin(t, e, "draftowner", "pass123", 1, td.OrgID, td.CompanyID)
-	file := uploadDraftFile(t, e, ownerToken, "чужой.png", pngBytes)
+	file := uploadDraftFile(t, e, ownerToken, "чужой.png", realPNG(t))
 
 	thiefToken := testutil.RegisterAndLogin(t, e, "draftthief", "pass123", 1, td.OrgID, td.CompanyID)
 	rec := submitWithFiles(t, e, db, thiefToken, "thief", []int{file.ID})
@@ -186,7 +210,7 @@ func TestApplicationFiles_SweepOrphansKeepsAttachedAndFresh(t *testing.T) {
 	}
 
 	ownerToken := testutil.RegisterAndLogin(t, e, "sweepowner", "pass123", 1, td.OrgID, td.CompanyID)
-	attached := uploadDraftFile(t, e, ownerToken, "приложенный.png", pngBytes)
+	attached := uploadDraftFile(t, e, ownerToken, "приложенный.png", realPNG(t))
 	rec := submitWithFiles(t, e, db, ownerToken, "sweep", []int{attached.ID})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
@@ -231,7 +255,7 @@ func TestApplicationFiles_StoresDetectedMimeNotFormHeader(t *testing.T) {
 	header.Set("Content-Type", "text/html")
 	part, err := writer.CreatePart(header)
 	require.NoError(t, err)
-	_, err = part.Write(pngBytes)
+	_, err = part.Write(realPNG(t))
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
@@ -257,7 +281,7 @@ func TestApplicationFiles_DraftDeletedByOwnerOnly(t *testing.T) {
 
 	ownerToken := testutil.RegisterAndLogin(t, e, "delowner", "pass123", 1, td.OrgID, td.CompanyID)
 	strangerToken := testutil.RegisterAndLogin(t, e, "delstranger", "pass123", 1, td.OrgID, td.CompanyID)
-	file := uploadDraftFile(t, e, ownerToken, "черновик.png", pngBytes)
+	file := uploadDraftFile(t, e, ownerToken, "черновик.png", realPNG(t))
 
 	rec := testutil.DELETE(t, e, fmt.Sprintf("/applications/files/%d", file.ID), testutil.AuthHeader(strangerToken))
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
@@ -268,4 +292,83 @@ func TestApplicationFiles_DraftDeletedByOwnerOnly(t *testing.T) {
 	var count int64
 	require.NoError(t, db.Model(&models.ApplicationFile{}).Where("id = ?", file.ID).Count(&count).Error)
 	require.Zero(t, count)
+}
+
+// TestApplicationFiles_StoredEncryptedAndServedDecrypted: на диске лежит шифротекст,
+// а скачивание отдаёт исходный документ. Смысл в резервных копиях: ключ в них
+// намеренно не попадает, поэтому украденная копия не должна выдавать вложения.
+func TestApplicationFiles_StoredEncryptedAndServedDecrypted(t *testing.T) {
+	e, db, uploadDir, cleanup := testutil.SetupTestAppWithUploads(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	key := make([]byte, 32)
+	_, err := rand.Read(key)
+	require.NoError(t, err)
+	crypto.SetGlobalKey(key)
+	defer crypto.SetGlobalKey(nil)
+
+	token := testutil.RegisterAndLogin(t, e, "cryptosender", "pass123", 1, td.OrgID, td.CompanyID)
+	pdf := append([]byte("%PDF-1.4\n"), []byte("паспортные данные внутри документа")...)
+	file := uploadDraftFile(t, e, token, "разрешение.pdf", pdf)
+
+	rec := submitWithFiles(t, e, db, token, "crypto", []int{file.ID})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
+
+	var stored models.ApplicationFile
+	require.NoError(t, db.First(&stored, file.ID).Error)
+	require.True(t, stored.Encrypted)
+
+	onDisk, err := os.ReadFile(filepath.Join(uploadDir, "application_files", stored.StoredName))
+	require.NoError(t, err)
+	require.NotContains(t, string(onDisk), "паспортные данные", "содержимое не должно лежать на диске открытым")
+
+	dl := testutil.GET(t, e, fmt.Sprintf("/applications/%d/files/%d", appID, file.ID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, dl.Code)
+	require.Equal(t, pdf, dl.Body.Bytes(), "скачивание отдаёт исходный документ")
+}
+
+// TestApplicationFiles_ImageShrunkAndExifDropped: снимок с телефона ужимается, а
+// EXIF с координатами съёмки до диска не доезжает.
+func TestApplicationFiles_ImageShrunkAndExifDropped(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "exifsender", "pass123", 1, td.OrgID, td.CompanyID)
+
+	big := image.NewRGBA(image.Rect(0, 0, 3000, 1500))
+	for y := 0; y < 1500; y++ {
+		for x := 0; x < 3000; x++ {
+			big.Set(x, y, color.RGBA{R: uint8(x % 251), G: uint8(y % 241), B: uint8((x * y) % 233), A: 255})
+		}
+	}
+	var raw bytes.Buffer
+	require.NoError(t, jpeg.Encode(&raw, big, &jpeg.Options{Quality: 95}))
+
+	marker := []byte("GPSLatitudeRef")
+	payload := append([]byte("Exif\x00\x00"), marker...)
+	segment := []byte{0xFF, 0xE1, byte((len(payload) + 2) >> 8), byte((len(payload) + 2) & 0xFF)}
+	withExif := append([]byte{}, raw.Bytes()[:2]...)
+	withExif = append(withExif, segment...)
+	withExif = append(withExif, payload...)
+	withExif = append(withExif, raw.Bytes()[2:]...)
+
+	file := uploadDraftFile(t, e, token, "снимок.jpg", withExif)
+	require.Less(t, file.FileSize, int64(len(withExif)), "ужатый снимок занимает меньше исходного")
+
+	rec := submitWithFiles(t, e, db, token, "exif", []int{file.ID})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
+
+	dl := testutil.GET(t, e, fmt.Sprintf("/applications/%d/files/%d", appID, file.ID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, dl.Code)
+	require.NotContains(t, dl.Body.String(), string(marker), "метаданные снимка не должны сохраняться")
+
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(dl.Body.Bytes()))
+	require.NoError(t, err)
+	require.Equal(t, 2000, cfg.Width, "длинная сторона ограничена")
 }
