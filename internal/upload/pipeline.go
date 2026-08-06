@@ -15,10 +15,15 @@ import (
 
 // SavedFile -- метаданные одного сохранённого на диск файла.
 type SavedFile struct {
-	URL      string // публичный URL, напр. /api/uploads/unload_places/<name>
-	FileName string // оригинальное имя файла из формы
-	Size     int64
-	MimeType string
+	URL        string // публичный URL, напр. /api/uploads/unload_places/<name>
+	StoredName string // имя файла на диске
+	FileName   string // оригинальное имя файла из формы
+	Size       int64
+	MimeType   string // Content-Type из формы: пришёл от клиента, доверять нельзя
+	// DetectedMime -- тип, определённый по magic bytes. Именно его следует
+	// сохранять и отдавать в Content-Type: заголовок формы задаёт клиент, и
+	// text/html в нём превращает скачивание картинки в исполняемую страницу.
+	DetectedMime string
 }
 
 // Options -- параметры сохранения загруженных файлов.
@@ -87,7 +92,7 @@ func saveOne(fh *multipart.FileHeader, opts Options) (SavedFile, error) {
 	if opts.NameSuffix != "" {
 		name += "_" + opts.NameSuffix
 	}
-	name += MimeToExt(detected)
+	name += MimeToExt(detected, fh.Filename)
 
 	dst, err := os.Create(filepath.Join(opts.Dir, name))
 	if err != nil {
@@ -105,9 +110,11 @@ func saveOne(fh *multipart.FileHeader, opts Options) (SavedFile, error) {
 	}
 
 	return SavedFile{
-		URL:      fmt.Sprintf("%s/%s", opts.URLPrefix, name),
-		FileName: fh.Filename,
-		Size:     fh.Size,
-		MimeType: mimeType,
+		URL:          fmt.Sprintf("%s/%s", opts.URLPrefix, name),
+		StoredName:   name,
+		FileName:     fh.Filename,
+		Size:         fh.Size,
+		MimeType:     mimeType,
+		DetectedMime: detected,
 	}, nil
 }

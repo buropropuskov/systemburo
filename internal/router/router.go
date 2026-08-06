@@ -36,6 +36,7 @@ type Dependencies struct {
 	UniqueEmployee      *handlers.UniqueEmployeeHandler
 	Feedback            *handlers.FeedbackHandler
 	Application         *handlers.ApplicationHandler
+	ApplicationFiles    *handlers.ApplicationFileHandler
 	Approver            *handlers.ApproverHandler
 	Permissions         *handlers.PermissionHandler
 	PermGroups          *handlers.PermissionGroupHandler
@@ -735,6 +736,16 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.GET("", app.GetApplications)
 	apg.POST("", app.CreateApplication)
 	apg.POST("/submit-complete-application", app.SubmitCompleteApplication)
+
+	// Файлы заявки (#1721). Черновики лежат до подачи, поэтому загрузка и удаление
+	// висят на группе заявок без :id. Отдельного права нет: файлы видны тем же,
+	// кому видна заявка, проверка доступа - внутри обработчиков.
+	if d.ApplicationFiles != nil {
+		apg.POST("/files", d.ApplicationFiles.UploadDraft)
+		apg.DELETE("/files/:id", d.ApplicationFiles.DeleteDraft)
+		apg.GET("/:id/files", d.ApplicationFiles.List)
+		apg.GET("/:id/files/:file_id", d.ApplicationFiles.Download)
+	}
 	apg.GET("/user", app.GetUserApplications)
 	apg.GET("/user/status-updates-count", app.GetUserStatusUpdatesCount) // #1349 - счётчик чипа "Обновления" в ЛК
 	apg.GET("/unread-count", app.GetUnreadCount)

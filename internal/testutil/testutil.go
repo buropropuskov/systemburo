@@ -92,6 +92,9 @@ var tables = []string{
 	"application_answers", "application_question_attachments", "application_question_views", "application_question_reads", "application_questions",
 	"application_status_views", "application_reads", "application_viewers", "application_approvers", "application_responsible_users",
 	"application_supplement_approvals", "application_supplements",
+	// application_files чистится явно, а не каскадом от applications: черновики
+	// лежат с application_id NULL и каскад их не достаёт.
+	"application_files",
 	"application_status_history", "applications",
 	"bureau_time_slots",
 	"companies_unload_places", "organization_unload_places",
@@ -275,7 +278,9 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	blacklistAuditRecorder := services.NewAuditRecorder(db)
 	vehicleBlacklistService := services.NewVehicleBlacklistService(db, blacklistAuditRecorder)
 	personBlacklistService := services.NewPersonBlacklistService(db, blacklistAuditRecorder)
-	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithApplicationPermissionResolver(permissionResolver))
+	uploadDir := t.TempDir()
+	applicationFileService := services.NewApplicationFileService(db, uploadDir)
+	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithApplicationPermissionResolver(permissionResolver), services.WithApplicationFiles(applicationFileService))
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, "./uploads")
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)
@@ -298,7 +303,6 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	usersHandler := handlers.NewUsersHandler(userService)
 	onboardingHandler := handlers.NewOnboardingHandler(onboardingService)
 	themeHandler := handlers.NewThemeHandler(themeService)
-	uploadDir := t.TempDir()
 	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService, 10*1024*1024, uploadDir)
 	bureauHandler := handlers.NewBureauHandler(bureauService)
 	workModesHandler := handlers.NewWorkModesHandler(workModesService)
@@ -316,6 +320,11 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	requestLogsHandler := handlers.NewRequestLogsHandler(requestLogsService)
 	employeesHistoryHandler := handlers.NewEmployeesHistoryHandler(employeesHistoryService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService, permissionResolver)
+	applicationFileHandler := handlers.NewApplicationFileHandler(
+		applicationFileService, applicationService,
+		10*1024*1024, 10, 30*1024*1024,
+		[]string{"image/jpeg", "image/png", "image/webp", "application/pdf"},
+	)
 	approverHandler := handlers.NewApproverHandler(approverService)
 	permissionHandler := handlers.NewPermissionHandler(permissionService, permissionResolver)
 	permissionGroupHandler := handlers.NewPermissionGroupHandler(permissionGroupService)
@@ -426,6 +435,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 		UniqueEmployee:      uniqueEmployeeHandler,
 		Feedback:            feedbackHandler,
 		Application:         applicationHandler,
+		ApplicationFiles:    applicationFileHandler,
 		Approver:            approverHandler,
 		Permissions:         permissionHandler,
 		PermGroups:          permissionGroupHandler,
