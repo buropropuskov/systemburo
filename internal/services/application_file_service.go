@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"systemburo/internal/apperr"
@@ -39,8 +40,15 @@ type ApplicationFileService interface {
 	ListByApplication(ctx context.Context, applicationID int) ([]models.ApplicationFileItem, error)
 	// Locate возвращает строку файла заявки и путь к нему на диске.
 	Locate(ctx context.Context, applicationID, fileID int) (models.ApplicationFile, string, error)
+	// DeleteAttached убирает приложенный к заявке файл. Заявитель вправе снять свой
+	// документ, пока заявка не закрыта; супер-администратор - в любой момент, это
+	// способ убрать то, что приложили вопреки подписи поля (скан паспорта).
+	DeleteAttached(ctx context.Context, userID int, isSuperAdmin bool, applicationID, fileID int) error
 	// SweepOrphans убирает черновики старше olderThan вместе с файлами на диске.
 	SweepOrphans(ctx context.Context, olderThan time.Duration) (int, error)
+	// SweepDiskOrphans убирает файлы на диске, которым не соответствует ни одна
+	// строка: удаление заявки уносит строки каскадом, а файлы остаются лежать.
+	SweepDiskOrphans(ctx context.Context) (int, error)
 	// DiscardStored убирает с диска файл, для которого строка так и не появилась
 	// (например, отказ по лимитам заявки уже после записи).
 	DiscardStored(storedName string)
@@ -49,13 +57,18 @@ type ApplicationFileService interface {
 }
 
 type applicationFileService struct {
-	db  *gorm.DB
-	dir string
+	db       *gorm.DB
+	dir      string
+	recorder AuditRecorder
 }
 
 // NewApplicationFileService создаёт сервис поверх каталога uploads/application_files.
-func NewApplicationFileService(db *gorm.DB, uploadPath string) ApplicationFileService {
-	return &applicationFileService{db: db, dir: filepath.Join(uploadPath, "application_files")}
+func NewApplicationFileService(db *gorm.DB, uploadPath string, recorder AuditRecorder) ApplicationFileService {
+	return &applicationFileService{
+		db:       db,
+		dir:      filepath.Join(uploadPath, "application_files"),
+		recorder: recorder,
+	}
 }
 
 func (s *applicationFileService) Dir() string { return s.dir }
@@ -176,6 +189,52 @@ func (s *applicationFileService) Locate(ctx context.Context, applicationID, file
 	return file, filepath.Join(s.dir, file.StoredName), nil
 }
 
+func (s *applicationFileService) DeleteAttached(ctx context.Context, userID int, isSuperAdmin bool, applicationID, fileID int) error {
+	var file models.ApplicationFile
+	err := s.db.WithContext(ctx).
+		Where("id = ? AND application_id = ?", fileID, applicationID).
+		First(&file).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return apperr.NotFound("Файл не найден")
+	}
+	if err != nil {
+		return apperr.Internal("Не удалось прочитать файл")
+	}
+
+	if !isSuperAdmin {
+		var app struct {
+			Status       *string
+			SenderUserID int
+		}
+		res := s.db.WithContext(ctx).
+			Raw("SELECT status, sender_user_id FROM applications WHERE id = ?", applicationID).Scan(&app)
+		if res.Error != nil {
+			return apperr.Internal("Не удалось прочитать заявку")
+		}
+		if res.RowsAffected == 0 {
+			return apperr.NotFound("Заявка не найдена")
+		}
+		if app.SenderUserID != userID {
+			return apperr.Forbidden("Убрать файл может подавший заявку")
+		}
+		// Из закрытой заявки документ не вынуть: она уже отработана, и её состав -
+		// то, на основании чего выдавали пропуск.
+		if app.Status != nil && slices.Contains(models.ArchivableStatuses, *app.Status) {
+			return apperr.Validation("Заявка закрыта, файлы менять нельзя")
+		}
+	}
+
+	if err := s.db.WithContext(ctx).Delete(&models.ApplicationFile{}, file.ID).Error; err != nil {
+		return apperr.Internal("Не удалось удалить файл")
+	}
+	if s.recorder != nil {
+		s.recorder.Log(ctx, nil, models.AuditEntityApplication, &applicationID, "file_delete", &userID,
+			map[string]any{"old_value": file.FileName})
+	}
+	s.removeFile(file.StoredName)
+	return nil
+}
+
 func (s *applicationFileService) SweepOrphans(ctx context.Context, olderThan time.Duration) (int, error) {
 	var rows []models.ApplicationFile
 	err := s.db.WithContext(ctx).
@@ -199,6 +258,48 @@ func (s *applicationFileService) SweepOrphans(ctx context.Context, olderThan tim
 		s.removeFile(r.StoredName)
 	}
 	return len(rows), nil
+}
+
+// SweepDiskOrphans сверяет каталог с базой. Нужен потому, что каскад от
+// applications уносит строки, но не файлы: заявку удаляют редко, а место такой
+// файл занимает вечно и никакому владельцу уже не принадлежит.
+func (s *applicationFileService) SweepDiskOrphans(ctx context.Context) (int, error) {
+	entries, err := os.ReadDir(s.dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("read application files dir: %w", err)
+	}
+
+	var known []string
+	if err := s.db.WithContext(ctx).Model(&models.ApplicationFile{}).
+		Pluck("stored_name", &known).Error; err != nil {
+		return 0, fmt.Errorf("select known application files: %w", err)
+	}
+	index := make(map[string]struct{}, len(known))
+	for _, name := range known {
+		index[name] = struct{}{}
+	}
+
+	removed := 0
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if _, ok := index[e.Name()]; ok {
+			continue
+		}
+		// Свежий файл не трогаем: между записью на диск и появлением строки есть
+		// зазор, и уборщик не должен унести файл прямо из-под загрузки.
+		info, err := e.Info()
+		if err != nil || time.Since(info.ModTime()) < time.Hour {
+			continue
+		}
+		s.removeFile(e.Name())
+		removed++
+	}
+	return removed, nil
 }
 
 func (s *applicationFileService) DiscardStored(storedName string) { s.removeFile(storedName) }
