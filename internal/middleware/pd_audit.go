@@ -101,7 +101,23 @@ func isPDPath(path string) bool {
 			return true
 		}
 	}
-	return isBlankPath(path) || isAvailableAttachmentPath(path) || isApplicationArchivePath(path)
+	return isBlankPath(path) || isAvailableAttachmentPath(path) || isApplicationArchivePath(path) ||
+		isApplicationFilePath(path)
+}
+
+// isApplicationFilePath - файлы, приложенные к заявке (#1721): /api/applications/{id}/files
+// и скачивание конкретного файла. Поле общее, «прикрепите документы», и что там
+// лежит, система заранее не знает: заявитель кладёт туда разрешение на работу, а
+// то и скан паспорта, хотя это запрещено подписью поля. Раз содержимое
+// непредсказуемо, обращения считаются просмотром персональных данных.
+func isApplicationFilePath(path string) bool {
+	const prefix = "/api/applications/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	rest := path[len(prefix):]
+	idx := strings.Index(rest, "/files")
+	return idx > 0
 }
 
 // isApplicationArchivePath - ZIP сохранённых бланков одной заявки
@@ -168,6 +184,8 @@ func pathToResource(path string) string {
 		return "available_attachment"
 	case isApplicationArchivePath(path):
 		return "application_archive"
+	case isApplicationFilePath(path):
+		return "application_file"
 	case strings.HasPrefix(path, "/api/unique-employees"):
 		return "unique_employee"
 	case strings.HasPrefix(path, "/api/employees"):

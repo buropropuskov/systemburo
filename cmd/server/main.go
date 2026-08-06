@@ -249,7 +249,7 @@ func main() {
 	blacklistAuditRecorder := services.NewAuditRecorder(db)
 	vehicleBlacklistService := services.NewVehicleBlacklistService(db, blacklistAuditRecorder)
 	personBlacklistService := services.NewPersonBlacklistService(db, blacklistAuditRecorder)
-	applicationFileService := services.NewApplicationFileService(db, cfg.UploadPath)
+	applicationFileService := services.NewApplicationFileService(db, cfg.UploadPath, auditRecorder)
 	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithRealtimePublisher(eventsHub), services.WithApplicationTablesProducer(tablesRefreshProducer), services.WithApplicationAvailableProducer(availableRefreshProducer), services.WithApplicationPermissionResolver(permissionResolver), services.WithApplicationFiles(applicationFileService))
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, cfg.UploadPath)
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
@@ -599,10 +599,17 @@ func startApplicationFileSweeper(ctx context.Context, svc services.ApplicationFi
 		removed, err := svc.SweepOrphans(ctx, ttl)
 		if err != nil {
 			slog.Error("не удалось убрать неприложенные файлы заявок", "error", err)
+		} else if removed > 0 {
+			slog.Info("убраны неприложенные файлы заявок", "count", removed)
+		}
+		// Второй проход - по диску: строки уносит каскад от заявки, файлы остаются.
+		orphans, err := svc.SweepDiskOrphans(ctx)
+		if err != nil {
+			slog.Error("не удалось убрать файлы заявок без записей", "error", err)
 			return
 		}
-		if removed > 0 {
-			slog.Info("убраны неприложенные файлы заявок", "count", removed)
+		if orphans > 0 {
+			slog.Info("убраны файлы заявок без записей", "count", orphans)
 		}
 	}
 	run()
