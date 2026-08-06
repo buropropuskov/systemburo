@@ -191,7 +191,7 @@ var notificationCatalog = map[string]NotificationMeta{
 	NotificationTypeRoleChanged: {
 		Code: NotificationTypeRoleChanged, Category: NotificationCategorySecurity,
 		Label:       "Изменились роль или права",
-		Description: "Администратор изменил вашу роль или права доступа. Отключить такие уведомления нельзя.",
+		Description: "Администратор назначил вам другую роль. Отключить такие уведомления нельзя.",
 		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh,
 	},
 
@@ -251,7 +251,7 @@ var notificationCatalog = map[string]NotificationMeta{
 	NotificationTypeTrashRestored: {
 		Code: NotificationTypeTrashRestored, Category: NotificationCategorySystem,
 		Label:       "Запись восстановлена из корзины",
-		Description: "Запись, которую вы удаляли, восстановили из корзины.",
+		Description: "Запись из вашей заявки вернули из корзины.",
 		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal,
 	},
 	NotificationTypeArchiveQuotaWarning: {

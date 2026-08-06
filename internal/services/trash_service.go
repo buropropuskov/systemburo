@@ -471,12 +471,18 @@ func (s *trashService) carAuthors(ctx context.Context, ids []int) map[int]int {
 		SenderUserID int
 	}
 	rows := make([]row, 0, len(ids))
-	s.db.WithContext(ctx).Table("cars c").
+	// Ошибку запроса нельзя проглатывать: пустой результат тут означает штатное
+	// "у записи нет автора", и сбой базы стал бы неотличим от него - уведомление
+	// молча не ушло бы никому.
+	if err := s.db.WithContext(ctx).Table("cars c").
 		Select("c.id AS id, app.sender_user_id AS sender_user_id").
 		Joins("JOIN attachments att ON att.id = c.attachment_id").
 		Joins("JOIN applications app ON app.id = att.application_id").
 		Where("c.id IN ?", ids).
-		Scan(&rows)
+		Scan(&rows).Error; err != nil {
+		slog.Warn("корзина: не удалось определить авторов машин для уведомления", "error", err)
+		return nil
+	}
 	out := make(map[int]int, len(rows))
 	for _, r := range rows {
 		out[r.ID] = r.SenderUserID
@@ -497,12 +503,16 @@ func (s *trashService) employeeAuthors(ctx context.Context, ids []int) map[int]i
 		SenderUserID int
 	}
 	rows := make([]row, 0, len(ids))
-	s.db.WithContext(ctx).Table("employees e").
+	// Ошибку не проглатываем - см. комментарий в carAuthors.
+	if err := s.db.WithContext(ctx).Table("employees e").
 		Select("e.id AS id, app.sender_user_id AS sender_user_id").
 		Joins("JOIN attachments att ON att.id = e.attachment_id").
 		Joins("JOIN applications app ON app.id = att.application_id").
 		Where("e.id IN ?", ids).
-		Scan(&rows)
+		Scan(&rows).Error; err != nil {
+		slog.Warn("корзина: не удалось определить авторов сотрудников для уведомления", "error", err)
+		return nil
+	}
 	out := make(map[int]int, len(rows))
 	for _, r := range rows {
 		out[r.ID] = r.SenderUserID
