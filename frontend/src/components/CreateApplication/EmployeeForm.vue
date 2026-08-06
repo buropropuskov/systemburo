@@ -97,7 +97,7 @@
               <img
                 src="@/assets/icons/arrow.png"
                 class="button__arrow"
-                :class="{ 'button__arrow--open': isCitizenshipDropdownOpen }"
+                :class="{ 'button__arrow--up': citizenshipArrowUp }"
               >
             </div>
           </button>
@@ -290,7 +290,7 @@
                 <img
                   src="@/assets/icons/arrow.png"
                   class="permission__button-arrow"
-                  :class="{ 'permission__button-arrow--open': isPermissionDropdownOpen }"
+                  :class="{ 'permission__button-arrow--up': permissionArrowUp }"
                 >
               </div>
             </button>
@@ -571,10 +571,14 @@ export default {
             selectedCitizenship: null,
             isCitizenshipDropdownOpen: false,
             citizenshipMenuStyle: null,
-            
+            citizenshipMenuUp: false,
+
             selectedPermission: '',
             isPermissionDropdownOpen: false,
             permissionMenuStyle: null,
+            permissionMenuUp: false,
+            // rAF-хендл пересчёта стороны раскрытия; null - пересчёт не запланирован.
+            dropDirectionFrame: null,
             availablePermissions: [
                 'Иностранцы с видом на жительство (ВНЖ) или разрешением на временное проживание (РВП)',
                 'Беженцы или получившие временное убежище в России',
@@ -627,6 +631,14 @@ export default {
         },
         isPatentRequired() {
             return this.selectedCitizenship ? this.selectedCitizenship.patent_required : false;
+        },
+        // Стрелка показывает, куда поедет меню: закрытая - в сторону раскрытия,
+        // открытая - в сторону сворачивания. Отсюда исключающее ИЛИ.
+        citizenshipArrowUp() {
+            return this.citizenshipMenuUp !== this.isCitizenshipDropdownOpen;
+        },
+        permissionArrowUp() {
+            return this.permissionMenuUp !== this.isPermissionDropdownOpen;
         },
         // patent трёхзначен: нет строки конфига -> условная логика по гражданству;
         // required=true -> всегда обязателен; required=false -> снова условная.
@@ -687,29 +699,27 @@ export default {
     },
     watch: {
         // Дропдаун гражданства закрывают из трёх мест (тоггл, выбор, клик вне),
-        // поэтому позиция и слушатели живут на одном вотчере, а не в каждом из них.
+        // поэтому позиция живёт на одном вотчере, а не в каждом из них.
+        // Скролл и ресайз слушает onDropViewportChange - он работает и с закрытым
+        // меню, потому что стрелка на кнопке заранее показывает сторону раскрытия.
         isCitizenshipDropdownOpen(open) {
-            if (open) {
-                this.citizenshipMenuStyle = this.buildCitizenshipMenuStyle();
-                window.addEventListener('scroll', this.repositionCitizenshipMenu, true);
-                window.addEventListener('resize', this.repositionCitizenshipMenu);
-            } else {
-                this.citizenshipMenuStyle = null;
-                this.stopCitizenshipReposition();
-            }
+            this.citizenshipMenuStyle = open ? this.buildCitizenshipMenuStyle() : null;
         },
         // То же для разрешений: закрывается из тоггла, выбора и клика вне.
+        // Стиль считаем после рендера меню - высота подгоняется по его пунктам.
         isPermissionDropdownOpen(open) {
             if (open) {
                 this.$nextTick(() => {
                     this.permissionMenuStyle = this.buildPermissionMenuStyle();
                 });
-                window.addEventListener('scroll', this.repositionPermissionMenu, true);
-                window.addEventListener('resize', this.repositionPermissionMenu);
             } else {
                 this.permissionMenuStyle = null;
-                this.stopPermissionReposition();
             }
+        },
+        // Блок разрешения появляется вместе с требованием патента - к этому моменту
+        // кнопки ещё не было, и сторону раскрытия никто не считал.
+        effectivePatentRequired(required) {
+            if (required) this.$nextTick(this.updateDropDirections);
         },
         lastName() { this.checkBlacklist(); },
         firstName() { this.checkBlacklist(); },
@@ -728,6 +738,11 @@ export default {
         }
     },
     async mounted() {
+        // До загрузки справочников: слушатель не зависит от данных, а до его
+        // навешивания стрелки не знают сторону раскрытия.
+        window.addEventListener('scroll', this.onDropViewportChange, true);
+        window.addEventListener('resize', this.onDropViewportChange);
+
         await Promise.all([
             this.loadCitizenships(),
             this.loadPassageTables()
@@ -735,11 +750,12 @@ export default {
 
         document.addEventListener('click', this.handleDocumentClick);
         this.warningTimer = setInterval(() => { this.warningNow = new Date(); }, 60000);
+
+        this.updateDropDirections();
     },
     beforeUnmount() {
         if (this.hintTimer) clearTimeout(this.hintTimer);
-        this.stopCitizenshipReposition();
-        this.stopPermissionReposition();
+        this.stopDropDirectionWatch();
         document.removeEventListener('click', this.handleDocumentClick);
         if (this.blacklistTimeout) {
             clearTimeout(this.blacklistTimeout);
@@ -1203,14 +1219,11 @@ export default {
         buildCitizenshipMenuStyle() {
             const btn = this.$refs.citizenshipButton;
             if (!btn || typeof window === 'undefined') return null;
-            const zoom = getViewportZoom() || 1;
-            const rect = btn.getBoundingClientRect();
-            const viewportHeight = window.innerHeight / zoom;
-            const spaceBelow = viewportHeight - rect.bottom / zoom;
-            const spaceAbove = rect.top / zoom;
-            const flipUp = spaceBelow < 200 && spaceAbove > spaceBelow;
-            const space = (flipUp ? spaceAbove : spaceBelow) - 16;
-            const maxHeight = Math.max(160, Math.min(300, space));
+            const space = this.measureDropSpace(btn);
+            if (!space) return null;
+            const flipUp = space.flipUp;
+            this.citizenshipMenuUp = flipUp;
+            const maxHeight = Math.max(160, Math.min(300, (flipUp ? space.above : space.below) - 16));
             if (!flipUp) {
                 return { maxHeight: maxHeight + 'px' };
             }
@@ -1225,17 +1238,6 @@ export default {
             };
         },
 
-        /** Пока меню открыто, положение пересчитываем: скролл и поворот экрана его смещают. */
-        repositionCitizenshipMenu() {
-            if (!this.isCitizenshipDropdownOpen) return;
-            this.citizenshipMenuStyle = this.buildCitizenshipMenuStyle();
-        },
-
-        stopCitizenshipReposition() {
-            window.removeEventListener('scroll', this.repositionCitizenshipMenu, true);
-            window.removeEventListener('resize', this.repositionCitizenshipMenu);
-        },
-        
         selectCitizenship(citizenship) {
             this.selectedCitizenship = citizenship;
             this.isCitizenshipDropdownOpen = false;
@@ -1259,14 +1261,12 @@ export default {
         buildPermissionMenuStyle() {
             const dropdown = this.$refs.permissionDropdown;
             if (!dropdown || typeof window === 'undefined') return null;
-            const zoom = getViewportZoom() || 1;
-            const rect = dropdown.getBoundingClientRect();
-            const bounds = this.permissionMenuBounds(dropdown);
-            const spaceBelow = (bounds.bottom - rect.bottom) / zoom;
-            const spaceAbove = (rect.top - bounds.top) / zoom;
-            const flipUp = spaceBelow < 200 && spaceAbove > spaceBelow;
-            const space = (flipUp ? spaceAbove : spaceBelow) - 16;
-            const maxHeight = this.fitPermissionMenuToItems(Math.max(160, Math.min(300, space)));
+            const space = this.measureDropSpace(dropdown);
+            if (!space) return null;
+            const flipUp = space.flipUp;
+            this.permissionMenuUp = flipUp;
+            const available = Math.max(160, Math.min(300, (flipUp ? space.above : space.below) - 16));
+            const maxHeight = this.fitPermissionMenuToItems(available);
             if (!flipUp) {
                 return { maxHeight: maxHeight + 'px' };
             }
@@ -1295,12 +1295,27 @@ export default {
             return fitted > 0 ? fitted + borders : limit;
         },
 
+        /**
+         * Свободное место над и под якорем в layout-px и сторона раскрытия.
+         * rect отдаёт device-px под корневым zoom, innerHeight - незумленную высоту,
+         * поэтому к layout-px приводятся ОБА (при zoom=1 деление ничего не меняет).
+         */
+        measureDropSpace(anchor) {
+            if (!anchor || typeof window === 'undefined') return null;
+            const zoom = getViewportZoom() || 1;
+            const rect = anchor.getBoundingClientRect();
+            const bounds = this.dropBounds(anchor);
+            const below = (bounds.bottom - rect.bottom) / zoom;
+            const above = (rect.top - bounds.top) / zoom;
+            return { below, above, flipUp: below < 200 && above > below };
+        },
+
         /** Границы, за которые меню выходить нельзя: экран и прокручиваемые предки. */
-        permissionMenuBounds(dropdown) {
+        dropBounds(anchor) {
             let top = 0;
             let bottom = window.innerHeight;
 
-            for (let el = dropdown.parentElement; el && el !== document.body; el = el.parentElement) {
+            for (let el = anchor.parentElement; el && el !== document.body; el = el.parentElement) {
                 const overflowY = getComputedStyle(el).overflowY;
                 if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden') {
                     const rect = el.getBoundingClientRect();
@@ -1312,14 +1327,40 @@ export default {
             return { top, bottom };
         },
 
-        repositionPermissionMenu() {
-            if (!this.isPermissionDropdownOpen) return;
-            this.permissionMenuStyle = this.buildPermissionMenuStyle();
+        /**
+         * Стрелка на закрытой кнопке показывает, куда меню раскроется, поэтому
+         * сторону надо знать и до открытия: скролл страницы меняет её на ходу.
+         * Через requestAnimationFrame - обход предков дорог для каждого события скролла.
+         */
+        onDropViewportChange() {
+            if (this.dropDirectionFrame) return;
+            this.dropDirectionFrame = requestAnimationFrame(() => {
+                this.dropDirectionFrame = null;
+                this.updateDropDirections();
+                if (this.isCitizenshipDropdownOpen) {
+                    this.citizenshipMenuStyle = this.buildCitizenshipMenuStyle();
+                }
+                if (this.isPermissionDropdownOpen) {
+                    this.permissionMenuStyle = this.buildPermissionMenuStyle();
+                }
+            });
         },
 
-        stopPermissionReposition() {
-            window.removeEventListener('scroll', this.repositionPermissionMenu, true);
-            window.removeEventListener('resize', this.repositionPermissionMenu);
+        updateDropDirections() {
+            const citizenship = this.measureDropSpace(this.$refs.citizenshipButton);
+            if (citizenship) this.citizenshipMenuUp = citizenship.flipUp;
+
+            const permission = this.measureDropSpace(this.$refs.permissionDropdown);
+            if (permission) this.permissionMenuUp = permission.flipUp;
+        },
+
+        stopDropDirectionWatch() {
+            window.removeEventListener('scroll', this.onDropViewportChange, true);
+            window.removeEventListener('resize', this.onDropViewportChange);
+            if (this.dropDirectionFrame) {
+                cancelAnimationFrame(this.dropDirectionFrame);
+                this.dropDirectionFrame = null;
+            }
         },
 
         selectPermission(permission) {
@@ -1550,16 +1591,19 @@ export default {
     display: block;
 }
 
+/* Иконка нарисована остриём вправо, отсюда базовые 90deg (вниз). Вверх - это 270deg,
+   а не -90deg: поворот идёт дальше по кругу, а не отматывается назад через исходное
+   положение иконки, где она на миг встаёт боком. */
 .button__arrow {
     width: 10px;
     height: 10px;
-    transition: transform 0.2s;
+    transition: transform 0.2s ease-out;
     transform: rotate(90deg);
     flex-shrink: 0;
 }
 
-.button__arrow--open {
-    transform: rotate(-90deg);
+.button__arrow--up {
+    transform: rotate(270deg);
 }
 
 .dropdown__menu {
@@ -1745,13 +1789,13 @@ export default {
 .permission__button-arrow {
     width: 10px;
     height: 10px;
-    transition: transform 0.2s;
+    transition: transform 0.2s ease-out;
     transform: rotate(90deg);
     flex-shrink: 0;
 }
 
-.permission__button-arrow--open {
-    transform: rotate(-90deg);
+.permission__button-arrow--up {
+    transform: rotate(270deg);
 }
 
 .permission__dropdown-menu {
