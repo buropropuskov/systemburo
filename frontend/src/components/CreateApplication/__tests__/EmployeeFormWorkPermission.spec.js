@@ -73,3 +73,32 @@ describe('EmployeeForm - иное разрешение на работы', () =>
     expect(w.find('.permission__dropdown-button').attributes('disabled')).toBeUndefined();
   });
 });
+
+describe('EmployeeForm - стрелка поля разрешения', () => {
+  const arrowUp = (w) => w.find('.permission__button-arrow').classes('permission__button-arrow--up');
+
+  it('закрытое поле показывает сторону раскрытия', async () => {
+    const w = mountForm();
+
+    await w.setData({ permissionMenuUp: false });
+    expect(arrowUp(w)).toBe(false);
+
+    await w.setData({ permissionMenuUp: true });
+    expect(arrowUp(w)).toBe(true);
+  });
+
+  it('открытое поле показывает сторону сворачивания', async () => {
+    const w = mountForm();
+
+    // сторону раскрытия задаём после открытия: на открытии её пересчитывает
+    // buildPermissionMenuStyle, а в jsdom у элементов нулевые размеры
+    await w.setData({ isPermissionDropdownOpen: true });
+    await w.vm.$nextTick();
+
+    await w.setData({ permissionMenuUp: true });
+    expect(arrowUp(w)).toBe(false);
+
+    await w.setData({ permissionMenuUp: false });
+    expect(arrowUp(w)).toBe(true);
+  });
+});
