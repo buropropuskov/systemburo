@@ -148,3 +148,21 @@ func (h *ApproverHandler) GetHistory(c echo.Context) error {
 	}
 	return RespondSuccess(c, history)
 }
+
+// IsApprover godoc
+// @Summary      Числится ли текущий пользователь принимающим
+// @Description  Возвращает только ответ про себя. Полный состав принимающих отдаёт
+// @Description  GET /application-approvers, он закрыт правом администратора.
+// @Tags         application-approvers
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} map[string]bool
+// @Router       /application-approvers/me [get]
+func (h *ApproverHandler) IsApprover(c echo.Context) error {
+	username := c.Get("username").(string)
+	isApprover, err := h.service.IsApprover(c.Request().Context(), username)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]bool{"is_approver": isApprover})
+}

@@ -748,6 +748,7 @@ export default {
             isForwarding: false,
             allUsers: [],
             approvers: [],
+            isApproverSelf: false,
             actionComment: '',
             lastUserComment: '',
             storageKey: '',
@@ -781,6 +782,9 @@ export default {
         },
 
         isApprover() {
+            if (this.isApproverSelf) return true;
+            // Состав приходит только администратору - для него это тот же ответ, просто
+            // из уже загруженных данных.
             if (!this.currentUserId || !this.approvers.length) return false;
             return this.approvers.some(approver => approver.user_id === this.currentUserId);
         },
@@ -1247,6 +1251,10 @@ export default {
                     await this.fetchApprovers();
                 }
 
+                // А вот ответ про себя нужен в любом режиме и любому пользователю:
+                // от него зависят кнопки принимающего, в том числе решение по дополнению.
+                await this.fetchIsApprover();
+
             } catch (error) {
                 console.error("Ошибка при загрузке деталей заявки:", error);
             } finally {
@@ -1269,6 +1277,9 @@ export default {
         },
 
         async fetchApprovers() {
+            // Полный состав принимающих нужен только окну пересылки (исключить их из
+            // адресатов) и доступен администратору. Обычный пользователь получает 403,
+            // и это нормально - на его собственные кнопки состав не влияет.
             try {
                 const response = await apiRequest("/application-approvers", { silent403: true });
                 if (response.ok) {
@@ -1276,6 +1287,26 @@ export default {
                 }
             } catch (error) {
                 console.error("Error fetching approvers:", error);
+            }
+        },
+
+        /**
+         * Ответ на вопрос «я принимающий?» - отдельным запросом про себя.
+         *
+         * Раньше это выводили из полного состава принимающих, но он под правом
+         * администратора: принимающий без этого права получал пустой список и не видел
+         * НИ ОДНОЙ своей кнопки - ни «Принять в работу», ни решения по дополнению.
+         * Ошибки при этом не было нигде, 403 гасится молча (#1685).
+         */
+        async fetchIsApprover() {
+            try {
+                const response = await apiRequest("/application-approvers/me");
+                if (response.ok) {
+                    const body = await response.json();
+                    this.isApproverSelf = !!(body && body.is_approver);
+                }
+            } catch (error) {
+                console.error("Error checking approver role:", error);
             }
         },
 

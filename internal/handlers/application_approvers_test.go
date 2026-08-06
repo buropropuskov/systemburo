@@ -337,3 +337,32 @@ func TestApprovers_History_OrderNewestFirst(t *testing.T) {
 		assert.NotEmpty(t, h["actor_name"])
 	}
 }
+
+// Принимающий узнаёт о своей роли САМ, без права администратора. Полный состав
+// принимающих закрыт админом, и пока карточка выводила роль из него, принимающий без
+// page.admin получал пустой список и не видел ни одной своей кнопки - ни приёма заявки
+// в работу, ни решения по дополнению. Ошибки при этом не было нигде: 403 гасится молча.
+func TestApprovers_Me_AvailableWithoutAdmin(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "plain_approver", "password123", 1, td.OrgID, td.CompanyID)
+
+	// Пока роли нет - честный false, а не отказ.
+	rec := testutil.GET(t, e, "/application-approvers/me", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, "ответ про себя доступен любому авторизованному: %s", rec.Body.String())
+	assert.False(t, testutil.ParseResponse[map[string]bool](t, rec)["is_approver"])
+
+	// Тот же пользователь, назначенный принимающим, видит себя принимающим.
+	makeApprover(t, db, "plain_approver")
+	rec = testutil.GET(t, e, "/application-approvers/me", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.True(t, testutil.ParseResponse[map[string]bool](t, rec)["is_approver"],
+		"принимающий обязан узнавать о своей роли без права администратора")
+
+	// А полный состав ему по-прежнему закрыт - это админская информация.
+	rec = testutil.GET(t, e, "/application-approvers", testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusForbidden, rec.Code, "состав принимающих остаётся под правом администратора")
+}
