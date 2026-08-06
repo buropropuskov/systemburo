@@ -1,6 +1,10 @@
 package services
 
-import "testing"
+import (
+	"encoding/json"
+	"os"
+	"testing"
+)
 
 func TestCatalogNoDuplicateKeys(t *testing.T) {
 	t.Parallel()
@@ -166,6 +170,85 @@ func TestManualAddKeysInCatalog(t *testing.T) {
 		}
 		if IsSuperOnly(key) {
 			t.Errorf("ключ %q не должен быть super-only (super/admin проходят через allowAll)", key)
+		}
+	}
+}
+
+// tourCoverageEntry -- решение по одному элементу системы: либо ссылка на шаг
+// онбординг-тура, либо мотивированный отказ.
+type tourCoverageEntry struct {
+	Tour string `json:"tour"`
+	Step string `json:"step"`
+	Skip string `json:"skip"`
+}
+
+type tourCoverageFile struct {
+	Permissions map[string]tourCoverageEntry `json:"permissions"`
+}
+
+// tourCoveragePath -- реестр покрытия туров живёт на фронтенде: его основной
+// потребитель -- vitest-замок по роутам и навигации, и держать две копии значило
+// бы получить расхождение. Кросс-язычная сверка в проекте уже применяется
+// (doc_facts.py читает Go ради сверки документации), так что направление обратное,
+// но приём тот же.
+const tourCoveragePath = "../../frontend/src/components/onboarding/tourCoverage.json"
+
+func loadTourCoverage(t *testing.T) tourCoverageFile {
+	t.Helper()
+	raw, err := os.ReadFile(tourCoveragePath)
+	if err != nil {
+		// Пропавший реестр -- не повод молча позеленеть: замок держит правило
+		// «завёл право -- реши про обучение», и без файла правила нет.
+		t.Fatalf("не прочитан реестр покрытия туров %s: %v", tourCoveragePath, err)
+	}
+	var file tourCoverageFile
+	if err := json.Unmarshal(raw, &file); err != nil {
+		t.Fatalf("реестр покрытия туров невалиден: %v", err)
+	}
+	if len(file.Permissions) == 0 {
+		t.Fatal("в реестре покрытия туров нет раздела permissions")
+	}
+	return file
+}
+
+// TestCatalogKeysCoveredByTourRegistry -- замок «завёл право, реши про обучение».
+// Каждый ключ статического каталога обязан иметь запись в реестре покрытия туров:
+// либо шаг, который его показывает, либо причину, по которой в тур он не идёт.
+// Отклонить -- нормальный исход, промолчать -- нет: именно молчание за год
+// оставило тур без сквозного поиска, вопросов к заявке и дополнения (эпик #1736).
+//
+// Существование самого шага проверяет vitest-замок (tourCoverage.spec.js): шаги
+// описаны в JS, и резолвить их отсюда пришлось бы вторым парсером.
+func TestCatalogKeysCoveredByTourRegistry(t *testing.T) {
+	t.Parallel()
+	coverage := loadTourCoverage(t)
+
+	for _, key := range AllCatalogKeys() {
+		entry, ok := coverage.Permissions[key]
+		if !ok {
+			t.Errorf("ключ каталога %q без записи в %s: добавьте {\"tour\":..., \"step\":...} либо {\"skip\":\"причина\"}",
+				key, tourCoveragePath)
+			continue
+		}
+		switch {
+		case entry.Tour != "" && entry.Step == "":
+			t.Errorf("ключ %q: указан тур %q без шага", key, entry.Tour)
+		case entry.Tour == "" && entry.Skip == "":
+			t.Errorf("ключ %q: пустая запись, нужен либо шаг тура, либо skip с причиной", key)
+		case entry.Tour != "" && entry.Skip != "":
+			t.Errorf("ключ %q: одновременно шаг тура и skip", key)
+		}
+	}
+}
+
+// TestTourRegistryHasNoStalePermissionKeys ловит обратную рассинхронизацию:
+// право переименовали или убрали, а запись о нём осталась и делает вид, что
+// элемент обучением покрыт.
+func TestTourRegistryHasNoStalePermissionKeys(t *testing.T) {
+	t.Parallel()
+	for key := range loadTourCoverage(t).Permissions {
+		if !IsCatalogKey(key) {
+			t.Errorf("запись %q в %s не соответствует ни одному ключу каталога", key, tourCoveragePath)
 		}
 	}
 }
