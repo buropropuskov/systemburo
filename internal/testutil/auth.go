@@ -120,12 +120,21 @@ func registerUserViaDB(t *testing.T, e *echo.Echo, username string, typeID, orgI
 // защищённого запроса юзера - resolver закэширует права при первом резолве.
 func GrantTableVerb(t *testing.T, userID int, tableName, verb string) {
 	t.Helper()
+	GrantPermission(t, userID, fmt.Sprintf("table.%s.%s", tableName, verb))
+}
+
+// GrantPermission выдаёт юзеру персональный override (allow) на произвольный ключ
+// каталога прав - для тестов, где нужно право вне таблиц (например page.admin.feedback).
+// Вызывать ДО первого защищённого запроса юзера - resolver закэширует права при
+// первом резолве.
+func GrantPermission(t *testing.T, userID int, key string) {
+	t.Helper()
 	err := cachedDB.Create(&models.UserPermissionOverride{
 		UserID:        userID,
-		PermissionKey: fmt.Sprintf("table.%s.%s", tableName, verb),
+		PermissionKey: key,
 		Value:         "allow",
 	}).Error
-	require.NoError(t, err, "failed to grant table.%s.%s to user %d", tableName, verb, userID)
+	require.NoError(t, err, "failed to grant %s to user %d", key, userID)
 	// Сбрасываем кэш прав юзера - grant мог быть сделан после первого резолва.
 	if cachedResolver != nil {
 		cachedResolver.Invalidate(userID)

@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -33,13 +35,28 @@ type TrashService interface {
 }
 
 type trashService struct {
-	db       *gorm.DB
-	recorder AuditRecorder
+	db                  *gorm.DB
+	recorder            AuditRecorder
+	notificationService NotificationService
+}
+
+// TrashServiceOption конфигурирует trashService при создании.
+type TrashServiceOption func(*trashService)
+
+// WithTrashNotifications включает уведомление trash_restored (#1748) автору записи
+// при восстановлении из корзины. Опционально: без неё уведомления не шлются
+// (тесты, offline).
+func WithTrashNotifications(ns NotificationService) TrashServiceOption {
+	return func(s *trashService) { s.notificationService = ns }
 }
 
 // NewTrashService создаёт сервис корзины.
-func NewTrashService(db *gorm.DB, recorder AuditRecorder) TrashService {
-	return &trashService{db: db, recorder: recorder}
+func NewTrashService(db *gorm.DB, recorder AuditRecorder, opts ...TrashServiceOption) TrashService {
+	s := &trashService{db: db, recorder: recorder}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // ListCarsTrash возвращает удалённые из этой таблицы машины. Скоуп определяется
@@ -254,7 +271,9 @@ func (s *trashService) RestoreCars(ctx context.Context, systemTableID int, ids [
 		}
 	}
 	if len(restoredIDs) >= 1 {
-		s.logTrashAction(ctx, systemTableID, models.TrashActionBulkRestored, len(restoredIDs), userID, s.carDetails(ctx, restoredIDs))
+		details := s.carDetails(ctx, restoredIDs)
+		s.logTrashAction(ctx, systemTableID, models.TrashActionBulkRestored, len(restoredIDs), userID, details)
+		s.notifyTrashRestored(ctx, "Машина", restoredIDs, s.carAuthors(ctx, restoredIDs), trashLabelMap(details), userID)
 	}
 	return len(restoredIDs), nil
 }
@@ -280,7 +299,9 @@ func (s *trashService) RestoreEmployees(ctx context.Context, systemTableID int, 
 		}
 	}
 	if len(restoredIDs) >= 1 {
-		s.logTrashAction(ctx, systemTableID, models.TrashActionBulkRestored, len(restoredIDs), userID, s.employeeDetails(ctx, restoredIDs))
+		details := s.employeeDetails(ctx, restoredIDs)
+		s.logTrashAction(ctx, systemTableID, models.TrashActionBulkRestored, len(restoredIDs), userID, details)
+		s.notifyTrashRestored(ctx, "Сотрудник", restoredIDs, s.employeeAuthors(ctx, restoredIDs), trashLabelMap(details), userID)
 	}
 	return len(restoredIDs), nil
 }
@@ -435,6 +456,94 @@ func (s *trashService) logTrashAction(ctx context.Context, systemTableID int, ac
 		Items:         items,
 	}
 	s.recorder.Log(ctx, nil, models.AuditEntitySystemTableTrash, &systemTableID, action, &uid, details)
+}
+
+// carAuthors возвращает car.id -> sender_user_id заявки, к которой прикреплена
+// машина. Ни Car, ни Employee не хранят собственного "автора" - в терминах
+// уведомления "восстановлено из корзины" им считается заявитель заявки, откуда
+// запись пришла (Car.AttachmentID -> Attachment.ApplicationID -> sender_user_id).
+func (s *trashService) carAuthors(ctx context.Context, ids []int) map[int]int {
+	if len(ids) == 0 {
+		return nil
+	}
+	type row struct {
+		ID           int
+		SenderUserID int
+	}
+	rows := make([]row, 0, len(ids))
+	s.db.WithContext(ctx).Table("cars c").
+		Select("c.id AS id, app.sender_user_id AS sender_user_id").
+		Joins("JOIN attachments att ON att.id = c.attachment_id").
+		Joins("JOIN applications app ON app.id = att.application_id").
+		Where("c.id IN ?", ids).
+		Scan(&rows)
+	out := make(map[int]int, len(rows))
+	for _, r := range rows {
+		out[r.ID] = r.SenderUserID
+	}
+	return out
+}
+
+// employeeAuthors - то же для сотрудников. Employee.AttachmentID nullable - у
+// записей без вложения (не должно случаться для того, что вообще попало в
+// корзину, но на всякий случай) автора просто не найдётся, и notifyTrashRestored
+// молча пропустит уведомление.
+func (s *trashService) employeeAuthors(ctx context.Context, ids []int) map[int]int {
+	if len(ids) == 0 {
+		return nil
+	}
+	type row struct {
+		ID           int
+		SenderUserID int
+	}
+	rows := make([]row, 0, len(ids))
+	s.db.WithContext(ctx).Table("employees e").
+		Select("e.id AS id, app.sender_user_id AS sender_user_id").
+		Joins("JOIN attachments att ON att.id = e.attachment_id").
+		Joins("JOIN applications app ON app.id = att.application_id").
+		Where("e.id IN ?", ids).
+		Scan(&rows)
+	out := make(map[int]int, len(rows))
+	for _, r := range rows {
+		out[r.ID] = r.SenderUserID
+	}
+	return out
+}
+
+// trashLabelMap превращает [{id,label}] в map для точечного поиска label по id -
+// notifyTrashRestored формирует текст уведомления на восстановленную запись.
+func trashLabelMap(details []models.TrashDetail) map[int]string {
+	out := make(map[int]string, len(details))
+	for _, d := range details {
+		out[d.ID] = d.Label
+	}
+	return out
+}
+
+// notifyTrashRestored сообщает автору восстановленной записи (заявителю, к чьей
+// заявке она относилась), что запись вернули из корзины. Само восстановление -
+// автору не шлём: он и так знает, что восстановил. Автора не нашлось (authors[id]
+// отсутствует) - тоже молча пропускаем, это не ошибка (запись без вложения/заявки).
+func (s *trashService) notifyTrashRestored(ctx context.Context, kind string, ids []int, authors map[int]int, labels map[int]string, actorUserID int) {
+	if s.notificationService == nil {
+		return
+	}
+	title := "Запись восстановлена из корзины"
+	for _, id := range ids {
+		authorID, ok := authors[id]
+		if !ok || authorID == actorUserID {
+			continue
+		}
+		label := labels[id]
+		if label == "" {
+			label = kind
+		}
+		body := fmt.Sprintf("%s «%s» восстановили из корзины.", kind, label)
+		if err := s.notificationService.CreateForUser(ctx, authorID, NotificationTypeTrashRestored, title, body, nil); err != nil {
+			slog.Warn("не удалось уведомить о восстановлении записи из корзины",
+				"entity", kind, "entity_id", id, "user_id", authorID, "error", err)
+		}
+	}
 }
 
 // carDetails возвращает [{id,label}] машин для лога корзины (номер + марка).

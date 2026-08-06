@@ -65,15 +65,31 @@ type maintenanceService struct {
 	cache    *MaintenanceStatus
 	cachedAt time.Time
 	cacheTTL time.Duration
+
+	notificationService NotificationService
+}
+
+// MaintenanceServiceOption конфигурирует maintenanceService при создании.
+type MaintenanceServiceOption func(*maintenanceService)
+
+// WithMaintenanceNotifications включает уведомление maintenance_scheduled (#1748)
+// при объявлении окна плановых работ. Опционально: без неё уведомления не шлются
+// (тесты, offline).
+func WithMaintenanceNotifications(ns NotificationService) MaintenanceServiceOption {
+	return func(s *maintenanceService) { s.notificationService = ns }
 }
 
 // NewMaintenanceService — конструктор. cacheTTL для in-memory кэша статуса
 // (10 сек в prod).
-func NewMaintenanceService(db *gorm.DB) MaintenanceService {
-	return &maintenanceService{
+func NewMaintenanceService(db *gorm.DB, opts ...MaintenanceServiceOption) MaintenanceService {
+	s := &maintenanceService{
 		db:       db,
 		cacheTTL: 10 * time.Second,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 const (
@@ -200,6 +216,66 @@ func upsertSetting(tx *gorm.DB, key, value string) error {
 	return tx.Save(&existing).Error
 }
 
+// notifyMaintenanceScheduled уведомляет активных пользователей об объявленном окне
+// плановых технических работ (#1748). Enable() в этом сервисе всегда включает режим
+// немедленно (keyMaintenanceEnabled='true' пишется в той же транзакции, отдельного
+// "запланировать на будущее без включения сейчас" пути нет) - поэтому шлём
+// уведомление в момент задания окна, а не отдельным флагом "запланировано". Без
+// окна (params.PlannedStart/PlannedEnd пусты) не шлём: пользователи и так упрутся
+// в заглушку техработ без объявленного срока, сообщать нечего. Суперадминов не
+// исключаем - только самого включившего (он и так знает).
+func (s *maintenanceService) notifyMaintenanceScheduled(ctx context.Context, adminUserID int, params MaintenanceParams) {
+	if s.notificationService == nil || params.PlannedStart == "" || params.PlannedEnd == "" {
+		return
+	}
+	start, err := time.Parse(time.RFC3339, params.PlannedStart)
+	if err != nil {
+		slog.Warn("техработы: некорректное начало окна, уведомление не отправлено", "err", err)
+		return
+	}
+	end, err := time.Parse(time.RFC3339, params.PlannedEnd)
+	if err != nil || !end.After(start) {
+		slog.Warn("техработы: некорректное окончание окна, уведомление не отправлено", "err", err)
+		return
+	}
+
+	title := "Плановые технические работы"
+	body := fmt.Sprintf("Технические работы начнутся %s (МСК) и продлятся %s.",
+		start.In(AnalyticsLocation()).Format("02.01.2006 15:04"), formatMaintenanceDuration(end.Sub(start)))
+
+	ids, err := activeUserIDs(ctx, s.db)
+	if err != nil {
+		slog.Warn("техработы: не удалось собрать аудиторию уведомления", "err", err)
+		return
+	}
+	for _, uid := range ids {
+		if uid == adminUserID {
+			continue
+		}
+		if err := s.notificationService.CreateForUser(ctx, uid, NotificationTypeMaintenanceScheduled, title, body, nil); err != nil {
+			slog.Warn("не удалось уведомить о плановых технических работах", "user_id", uid, "error", err)
+		}
+	}
+}
+
+// formatMaintenanceDuration форматирует длительность окна работ короткой русской
+// фразой без склонений ("2 ч 30 мин", "45 мин") - обходит согласование "час/часа/часов".
+func formatMaintenanceDuration(d time.Duration) string {
+	if d < time.Minute {
+		return "менее минуты"
+	}
+	hours := int(d.Hours())
+	minutes := int(d.Minutes()) % 60
+	switch {
+	case hours > 0 && minutes > 0:
+		return fmt.Sprintf("%d ч %d мин", hours, minutes)
+	case hours > 0:
+		return fmt.Sprintf("%d ч", hours)
+	default:
+		return fmt.Sprintf("%d мин", minutes)
+	}
+}
+
 // Enable — транзакция: UPSERT настроек режима + UPDATE refresh_tokens для
 // не-супер-админов + audit_event. Так же сбрасываем кэш чтобы middleware
 // увидел новый флаг сразу.
@@ -244,6 +320,7 @@ func (s *maintenanceService) Enable(ctx context.Context, adminUserID int, adminU
 		return echo.NewHTTPError(http.StatusInternalServerError, "не удалось включить режим обслуживания")
 	}
 	s.InvalidateCache()
+	s.notifyMaintenanceScheduled(ctx, adminUserID, params)
 	return nil
 }
 

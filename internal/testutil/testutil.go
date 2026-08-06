@@ -263,8 +263,15 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	workModesService := services.NewWorkModesService(unloadPlaceService, systemTableService, bureauService)
 	uniqueCarService := services.NewUniqueCarService(db)
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
-	feedbackService := services.NewFeedbackService(db)
-	newsService := services.NewNewsService(db)
+	// #1748: уведомления новостей/документов/обратной связи/техработ/корзины -
+	// notificationServiceEarly и permissionResolver уже подняты выше, значит и
+	// сервисам ниже есть чем реально слать (без wiring уведомления/тесты просто
+	// молчали бы, а не падали - но тогда TestFeedback_Notify_*/TestNews_Notify_*/
+	// TestTrash_Notify_* не смогли бы проверить реальное поведение).
+	feedbackService := services.NewFeedbackService(db,
+		services.WithFeedbackNotifications(notificationServiceEarly),
+		services.WithFeedbackPermissionResolver(permissionResolver))
+	newsService := services.NewNewsService(db, services.WithNewsNotifications(notificationServiceEarly))
 	notificationService := notificationServiceEarly
 	requestLogsService := services.NewRequestLogsService(db)
 	employeesHistoryService := services.NewEmployeesHistoryService(db)
@@ -283,7 +290,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	pdConsentStatsService := services.NewPDConsentStatsService(db, pdConsentGateService)
 
 	// Create maintenance service early so authHandler can get it.
-	maintenanceService := services.NewMaintenanceService(db)
+	maintenanceService := services.NewMaintenanceService(db, services.WithMaintenanceNotifications(notificationServiceEarly))
 	markService := services.NewMarkService(db)
 	blacklistAuditRecorder := services.NewAuditRecorder(db)
 	vehicleBlacklistService := services.NewVehicleBlacklistService(db, blacklistAuditRecorder)
@@ -294,12 +301,12 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, "./uploads")
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)
-	trashService := services.NewTrashService(db, auditRecorder)
+	trashService := services.NewTrashService(db, auditRecorder, services.WithTrashNotifications(notificationServiceEarly))
 	trashDBRef := services.NewTrashDBRef(db)
 	documentFileService := services.NewDocumentFileService("./uploads")
 	guideFileService := services.NewDocumentFileServiceIn("./uploads", "guide")
 	documentGroupService := services.NewDocumentGroupService(db)
-	documentService := services.NewDocumentService(db, documentFileService, settingsService)
+	documentService := services.NewDocumentService(db, documentFileService, settingsService, services.WithDocumentNotifications(notificationServiceEarly))
 	guideService := services.NewGuideService(db, permissionResolver)
 
 	// Create all handlers
