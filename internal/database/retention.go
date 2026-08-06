@@ -17,8 +17,9 @@ import (
 // pd_audit_logs) чистятся дропом партиций в MaintainLogPartitions - здесь всё
 // остальное, где удалять приходится строками.
 //
-// Две группы с разной политикой. Токены сессий и прочитанные уведомления
-// обесцениваются сами по себе, их сметает суточный воркер (SweepRoutine).
+// Две группы с разной политикой. Токены сессий, прочитанные и непрочитанные
+// уведомления (#1748, S9 - свой, более мягкий срок) обесцениваются сами по себе,
+// их сметает суточный воркер (SweepRoutine).
 // История сущностей, слепки таблиц и дневные агрегаты журнала запросов удаляются
 // только руками оператора через подкоманду cleanup: у них есть ценность, и решение
 // «этого больше не нужно» человеческое, а не автоматическое.
@@ -31,6 +32,11 @@ const (
 	TargetTokens RetentionTarget = "tokens"
 	// TargetNotifications - прочитанные уведомления.
 	TargetNotifications RetentionTarget = "notifications"
+	// TargetUnreadNotifications - непрочитанные уведомления (#1748, S9). Отдельная
+	// цель с заметно более мягким сроком: непрочитанное не бросали, его ещё не видели.
+	// Без второго порога такие уведомления копились у человека вечно, а лента их
+	// все грузила.
+	TargetUnreadNotifications RetentionTarget = "unread-notifications"
 	// TargetAudit - история сущностей. Чистится с оговорками, см. auditRetentionWhere.
 	TargetAudit RetentionTarget = "audit"
 	// TargetSnapshots - суточные слепки таблиц постов. Ручные снимки не трогаются:
@@ -44,7 +50,7 @@ const (
 // AllRetentionTargets - порядок вывода в отчёте: сначала мусор, потом то, что
 // удаляется осознанно.
 var AllRetentionTargets = []RetentionTarget{
-	TargetTokens, TargetNotifications, TargetAudit, TargetSnapshots, TargetRequestAggregates,
+	TargetTokens, TargetNotifications, TargetUnreadNotifications, TargetAudit, TargetSnapshots, TargetRequestAggregates,
 }
 
 // auditRetentionWhere - условие удаления истории сущностей. Два исключения не про
@@ -101,6 +107,19 @@ var retentionRules = map[RetentionTarget]retentionRule{
 		timeColumn:  "created_at",
 		defaultAge:  func(now time.Time) time.Time { return now.AddDate(0, 0, -30) },
 		description: "прочитанные уведомления",
+	},
+	TargetUnreadNotifications: {
+		table: "notifications",
+		// NOT is_read - обязательное исключение, а не украшение условия: без него
+		// строка попадала бы под ОБА условия сразу (это и TargetNotifications делят
+		// одну таблицу), и счётчик удалённого в логе задваивался бы. Прочитанные
+		// уходят по своему, более короткому сроку (TargetNotifications выше по файлу);
+		// здесь - только то, что человек ещё не видел.
+		where:       "NOT is_read AND created_at < ?",
+		cutoffArgs:  1,
+		timeColumn:  "created_at",
+		defaultAge:  func(now time.Time) time.Time { return now.AddDate(0, 0, -90) },
+		description: "непрочитанные уведомления",
 	},
 	TargetAudit: {
 		table:        "audit_log",
@@ -440,10 +459,11 @@ func measureRetentionTable(ctx context.Context, db *gorm.DB, table string, res *
 	return nil
 }
 
-// SweepRoutine - суточная уборка технического мусора: недействительные токены и
-// прочитанные уведомления. Ошибка одной группы не отменяет вторую: это обслуживание,
-// а не транзакция.
-func SweepRoutine(ctx context.Context, db *gorm.DB, tokenDays, notificationDays int) {
+// SweepRoutine - суточная уборка технического мусора: недействительные токены,
+// прочитанные уведомления и непрочитанные уведомления (по своему, более мягкому
+// сроку - unreadNotificationDays). Ошибка одной группы не отменяет остальные: это
+// обслуживание, а не транзакция.
+func SweepRoutine(ctx context.Context, db *gorm.DB, tokenDays, notificationDays, unreadNotificationDays int) {
 	now := time.Now().UTC()
 	plan := []struct {
 		target RetentionTarget
@@ -451,6 +471,7 @@ func SweepRoutine(ctx context.Context, db *gorm.DB, tokenDays, notificationDays 
 	}{
 		{TargetTokens, now.AddDate(0, 0, -tokenDays)},
 		{TargetNotifications, now.AddDate(0, 0, -notificationDays)},
+		{TargetUnreadNotifications, now.AddDate(0, 0, -unreadNotificationDays)},
 	}
 	for _, p := range plan {
 		res, err := SweepRetention(ctx, db, p.target, SweepOptions{Cutoff: p.cutoff, Apply: true})

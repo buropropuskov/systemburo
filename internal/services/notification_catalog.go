@@ -75,10 +75,9 @@ const (
 
 // Коды типов уведомлений раздела "passage" -- события вокруг прохода по заявке.
 const (
-	NotificationTypeApplicationExpiring         = "application_expiring"
-	NotificationTypeApplicationWithdrawn        = "application_withdrawn"
-	NotificationTypeApplicationAcceptorAssigned = "application_acceptor_assigned"
-	NotificationTypeApplicationPassageFirst     = "application_passage_first"
+	NotificationTypeApplicationExpiring     = "application_expiring"
+	NotificationTypeApplicationWithdrawn    = "application_withdrawn"
+	NotificationTypeApplicationPassageFirst = "application_passage_first"
 )
 
 // Коды типов уведомлений раздела "content" -- новости, документы, обратная связь.
@@ -158,7 +157,10 @@ var notificationCatalog = map[string]NotificationMeta{
 		Code: NotificationTypeApprovalReminder, Category: NotificationCategoryApplication,
 		Label:       "Напоминание о согласовании",
 		Description: "Заявка давно ждёт вашего решения как согласующего.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityNormal,
+		// Не схлопывается: у напоминаний собственный интервал повтора в днях
+		// (approval.reminder_repeat_days), и окно схлопывания в минутах для них не
+		// работает - зато прячет повтор, если он придёт вскоре после первого.
+		Mandatory: false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal,
 	},
 
 	// security -- отключить нельзя ни один из пяти.
@@ -204,12 +206,6 @@ var notificationCatalog = map[string]NotificationMeta{
 		Code: NotificationTypeApplicationWithdrawn, Category: NotificationCategoryPassage,
 		Label:       "Заявка отозвана",
 		Description: "Заявку отозвали до того, как по ней прошли на территорию.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal,
-	},
-	NotificationTypeApplicationAcceptorAssigned: {
-		Code: NotificationTypeApplicationAcceptorAssigned, Category: NotificationCategoryPassage,
-		Label:       "Назначен принимающий",
-		Description: "По заявке назначили принимающего, ответственного за проход.",
 		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal,
 	},
 	NotificationTypeApplicationPassageFirst: {

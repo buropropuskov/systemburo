@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"systemburo/internal/apperr"
-	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
 )
@@ -40,8 +39,10 @@ func RespondMessage(c echo.Context, msg string) error {
 	return c.JSON(http.StatusOK, Response{Success: true, Data: msg})
 }
 
-// RespondPaginated wraps data + pagination meta in a success envelope.
-func RespondPaginated(c echo.Context, data any, meta models.PaginationMeta) error {
+// RespondPaginated wraps data + pagination meta in a success envelope. meta is typically
+// models.PaginationMeta, but any is accepted so callers can embed it with extra fields
+// (e.g. models.NotificationListMeta adds unread_count, #1748).
+func RespondPaginated(c echo.Context, data any, meta any) error {
 	return c.JSON(http.StatusOK, Response{Success: true, Data: data, Meta: meta})
 }
 

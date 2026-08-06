@@ -329,6 +329,9 @@ type carService struct {
 	// хранит слепок заявки (заявка.json). Сеттер - тот же порядок инициализации,
 	// что у applicationService.SetBlankExportEnqueuer.
 	blankExports BlankExportEnqueuer
+	// notificationService - уведомление инициатора о первом проходе по заявке
+	// (#1748, S4). Опционально: без неё UpdateCarTerritoryStatus просто не шлёт.
+	notificationService NotificationService
 }
 
 // CarServiceOption конфигурирует carService при создании.
@@ -338,6 +341,12 @@ type CarServiceOption func(*carService)
 // машины (#840 V2.3): строка видна во всех cars-таблицах, обновляем их live.
 func WithCarTablesProducer(p *TablesRefreshPublisher) CarServiceOption {
 	return func(s *carService) { s.tablesProducer = p }
+}
+
+// WithCarNotifications включает уведомление инициатора заявки о первом проходе
+// по ней (#1748, S4) при въезде машины.
+func WithCarNotifications(n NotificationService) CarServiceOption {
+	return func(s *carService) { s.notificationService = n }
 }
 
 // SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1).

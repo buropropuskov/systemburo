@@ -123,6 +123,10 @@ type Config struct {
 	// трогает, для них есть подкоманда cleanup.
 	RefreshTokenRetentionDays     int `env:"REFRESH_TOKEN_RETENTION_DAYS" envDefault:"30"`
 	ReadNotificationRetentionDays int `env:"READ_NOTIFICATION_RETENTION_DAYS" envDefault:"30"`
+	// NotificationRetentionDays - срок непрочитанных уведомлений (#1748, S9). Дольше
+	// прочитанных нарочно: непрочитанное не обесценилось само по себе (человек его ещё
+	// не видел), поэтому порог заметно мягче, а не совпадает с ReadNotificationRetentionDays.
+	NotificationRetentionDays int `env:"NOTIFICATION_RETENTION_DAYS" envDefault:"90"`
 }
 
 func Load() (*Config, error) {

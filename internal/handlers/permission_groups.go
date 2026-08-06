@@ -12,11 +12,15 @@ import (
 // PermissionGroupHandler -- HTTP-обработчики для управления группами прав.
 type PermissionGroupHandler struct {
 	service *services.PermissionGroupService
+	// roleNotifier уведомляет владельца учётки при смене роли (#1748 S3). Отдельный
+	// параметр, потому что сама мутация (PermissionGroupService.SetUserRole)
+	// off-limits для этого среза, а обёртка не может жить внутри него.
+	roleNotifier *services.UserRoleNotifier
 }
 
 // NewPermissionGroupHandler конструирует handler.
-func NewPermissionGroupHandler(service *services.PermissionGroupService) *PermissionGroupHandler {
-	return &PermissionGroupHandler{service: service}
+func NewPermissionGroupHandler(service *services.PermissionGroupService, roleNotifier *services.UserRoleNotifier) *PermissionGroupHandler {
+	return &PermissionGroupHandler{service: service, roleNotifier: roleNotifier}
 }
 
 // List -- GET /permission-groups.
@@ -122,7 +126,7 @@ func (h *PermissionGroupHandler) SetUserRole(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid body: "+err.Error())
 	}
-	if err := h.service.SetUserRole(c.Request().Context(), userID, req.RoleID); err != nil {
+	if err := h.roleNotifier.SetUserRole(c.Request().Context(), userID, req.RoleID); err != nil {
 		return err
 	}
 	return RespondSuccess(c, map[string]any{"updated": true})

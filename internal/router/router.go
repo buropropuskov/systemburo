@@ -938,8 +938,13 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Уведомления. Свои - любому авторизованному; рассылка (Create) - админ
 	// (page.admin, Ф5: ранее handler-проверка type_id 5/6 manager/buropropuskov).
+	// Подписки (preferences) и «прочитать все» (read-all) - тоже любому авторизованному:
+	// это настройка и действие над собственной лентой, не рассылка (#1748).
 	notif := protected.Group("/notifications")
 	notif.GET("", notifications.GetNotifications)
+	notif.GET("/preferences", notifications.GetPreferences)
+	notif.PUT("/preferences", notifications.UpdatePreferences)
+	notif.PUT("/read-all", notifications.MarkAllRead)
 	notif.POST("", notifications.Create, requireAdmin)
 	notif.PUT("/:id/read", notifications.MarkRead)
 	notif.DELETE("/:id", notifications.Delete)
