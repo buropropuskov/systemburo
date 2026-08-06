@@ -218,6 +218,7 @@ describe('cross-page конфигурация (cabinet)', () => {
     expect(cabinetSeg.map((s) => s.id)).toEqual([
       'cabinet-profile',
       'cabinet-notifications',
+      'cabinet-notifications-settings',
       'cabinet-applications',
       'detail-status',
       'detail-questions',

@@ -4,7 +4,7 @@
  * переиграться при авто-запуске. Поднимать при добавлении/изменении шагов.
  * У каждого тура версия своя - подъём одной не сбрасывает остальные.
  */
-export const ONBOARDING_VERSION = 2;
+export const ONBOARDING_VERSION = 3;
 
 /**
  * Плоский упорядоченный массив шагов тура. Движок группирует ПОДРЯД идущие
@@ -188,6 +188,15 @@ export const onboardingSteps = [
     element: '[data-testid="cabinet-notifications"]',
     title: 'Ваши уведомления',
     description: 'Лента событий по вашим заявкам: согласование, одобрение, отказ. Так вы всегда в курсе, что происходит.',
+  },
+  {
+    id: 'cabinet-notifications-settings',
+    route: '/personal-cabinet',
+    element: '[data-testid="cabinet-notifications-settings"]',
+    title: 'Что вам будет приходить',
+    description:
+      'Кнопка «Настроить» открывает «Настройку уведомлений»: события собраны по разделам, у каждого свой переключатель. Лишнее можно выключить, чтобы лента не забивалась, - кроме обязательных, их отключить нельзя. После правки нажмите «Сохранить».',
+    optional: true,
   },
   {
     id: 'cabinet-applications',

@@ -129,6 +129,10 @@
       "tour": "user",
       "step": "news"
     },
+    "/notification-settings": {
+      "tour": "user",
+      "step": "cabinet-notifications-settings"
+    },
     "/personal-cabinet": {
       "tour": "user",
       "step": "cabinet-profile"
@@ -217,11 +221,17 @@
       "tour": "approve",
       "step": "apr-detail-vote"
     },
-    "action.export.applications": { "tour": "accept", "step": "acc-detail-download" },
+    "action.export.applications": {
+      "tour": "accept",
+      "step": "acc-detail-download"
+    },
     "application.organization.override": {
       "skip": "послабление в форме заявки для отдельных сотрудников: подать от чужой организации. Основной сценарий - своя организация из профиля, она и показана"
     },
-    "application.organization.moderate": { "tour": "accept", "step": "acc-detail-org-moderation" },
+    "application.organization.moderate": {
+      "tour": "accept",
+      "step": "acc-detail-org-moderation"
+    },
     "detail.full_history": {
       "skip": "кнопка внутри карточки автомобиля или сотрудника, деталь второго уровня"
     },
