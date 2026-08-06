@@ -46,6 +46,8 @@ const fakeHelp = `Наполнение проверочного стенда в�
   -label       Метка партии. По умолчанию собирается из момента запуска
   -apply       Выполнить наливку. Без него команда только показывает план
   -list        Показать созданные партии
+  -purge       Удалить партию целиком по её метке. Без -apply только показывает,
+               что удалится
   -mark-stand  Отметить экземпляр как проверочный стенд и выйти
   -force-unmarked
                Налить на экземпляр без отметки стенда. Требует -confirm-db
@@ -67,6 +69,8 @@ const fakeHelp = `Наполнение проверочного стенда в�
   server fake -applications=2000 -apply        переопределить число заявок
   server fake -seed=12345 -apply               повторить ранее созданную партию
   server fake -list                            показать созданные партии
+  server fake -purge=fake-20260806-101500      что удалится из партии
+  server fake -purge=fake-20260806-101500 -apply   удалить партию
 
 Что и сколько занимает места - server storage -help
 `
@@ -90,6 +94,7 @@ func runFake(args []string) int {
 	label := fs.String("label", "", "метка партии")
 	apply := fs.Bool("apply", false, "выполнить наливку")
 	list := fs.Bool("list", false, "показать созданные партии")
+	purge := fs.String("purge", "", "удалить партию по метке")
 	markStand := fs.Bool("mark-stand", false, "отметить экземпляр как стенд")
 	forceUnmarked := fs.Bool("force-unmarked", false, "налить на экземпляр без отметки")
 	confirmDB := fs.String("confirm-db", "", "имя базы для подтверждения")
@@ -136,6 +141,16 @@ func runFake(args []string) int {
 
 	if *list {
 		return printFakeBatches(ctx, db)
+	}
+
+	if *purge != "" {
+		res, err := fakedata.PurgeBatch(ctx, db, *purge, *apply)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Ошибка:", err)
+			return 1
+		}
+		printFakePurge(res, *apply)
+		return 0
 	}
 
 	if err := fakedata.EnsureStand(ctx, db, dsn, fakedata.GuardOptions{
@@ -270,4 +285,30 @@ func openFakeDB() (*gorm.DB, string, error) {
 		return nil, "", fmt.Errorf("параметры не загружены: %w", err)
 	}
 	return db, cfg.DatabaseURL, nil
+}
+
+func printFakePurge(res fakedata.PurgeResult, applied bool) {
+	fmt.Println()
+	if applied {
+		fmt.Printf("Партия %q удалена.\n", res.Label)
+	} else {
+		fmt.Printf("Ничего не удалено: это предварительный показ по партии %q. Повторите с флагом -apply.\n", res.Label)
+	}
+	fmt.Println()
+	lines := fakedata.SortedPurgeLines(res.Lines)
+	if len(lines) == 0 {
+		fmt.Println("Удалять нечего: перечень партии пуст.")
+		return
+	}
+	fmt.Println(padRight("Вид записей", 30), padLeft("Удалено", 10), padLeft("Оставлено", 12))
+	for _, l := range lines {
+		fmt.Println(padRight(l.Title, 30), padLeft(strconv.Itoa(l.Deleted), 10), padLeft(strconv.Itoa(l.Kept), 12))
+	}
+	fmt.Println()
+	total := res.TotalDeleted()
+	fmt.Printf("Всего удалено: %d %s\n", total, pluralRecords(int64(total)))
+	if kept := res.TotalKept(); kept > 0 {
+		fmt.Printf("Оставлено записей: %d -- на них ссылаются данные вне партии\n", kept)
+		fmt.Println("(общие справочники, посты и шаблоны вложений заводит первая партия, а пользуются ими все).")
+	}
 }
