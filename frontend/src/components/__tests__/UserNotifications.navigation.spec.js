@@ -4,6 +4,12 @@ import { setActivePinia, createPinia } from 'pinia';
 
 vi.mock('@/api/client', () => ({
   apiRequest: vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve([]) })),
+  // Список порциями (#1748 S7): apiRequestRaw возвращает envelope с data+meta,
+  // apiRequest не годится - не несёт meta.unread_count/total.
+  apiRequestRaw: vi.fn(() => Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve({ success: true, data: [], meta: { total: 0, unread_count: 0 } }),
+  })),
 }));
 // mounted() теперь поднимает real-time подписку (#840); без мока реальный
 // eventStream ушёл бы в fetchTicket -> reconnect с фоновым таймером на весь прогон.
@@ -54,7 +60,10 @@ describe('UserNotifications — подробности и навигация п�
     expect(push).not.toHaveBeenCalled();
     expect(wrapper.emitted('close')).toBeFalsy();
     expect(wrapper.vm.showDetailModal).toBe(true);
-    expect(wrapper.vm.detailNotification).toBe(wrapper.vm.notifications[0]);
+    // toEqual, не toBe: notifications - реактивный массив useInfiniteList, Vue разворачивает
+    // reactive-прокси в raw на записи и заново оборачивает на чтении - тот же объект
+    // содержательно, но не гарантированно та же ссылка (#1748 S7).
+    expect(wrapper.vm.detailNotification).toEqual(wrapper.vm.notifications[0]);
     expect(wrapper.vm.notifications[0].is_read).toBe(true);
   });
 

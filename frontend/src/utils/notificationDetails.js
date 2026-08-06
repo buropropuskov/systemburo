@@ -120,6 +120,24 @@ export function notificationCategory(type) {
   return (type && EXACT_CATEGORY[type]) || 'application';
 }
 
+const CATEGORY_LABELS = {
+  application: 'Заявка',
+  security: 'Безопасность',
+  passage: 'Проезд',
+  content: 'Публикации',
+  system: 'Система',
+};
+
+/**
+ * Русская подпись категории - единая точка для бейджа в модалке (#1748 S6) и
+ * цветовой метки в списке (#1748 S7), чтобы подписи не разъезжались по местам.
+ * @param {'application'|'security'|'passage'|'content'|'system'} category
+ * @returns {string}
+ */
+export function notificationCategoryLabel(category) {
+  return CATEGORY_LABELS[category] || CATEGORY_LABELS.application;
+}
+
 /**
  * Подпись кнопки действия модалки - переход к заявке, когда data несёт
  * application_id. Без application_id действия нет (кнопка не рисуется).
@@ -129,4 +147,54 @@ export function notificationCategory(type) {
 export function notificationActionLabel(notification) {
   const data = parseNotificationData(notification);
   return data.application_id ? 'Открыть заявку' : null;
+}
+
+function startOfDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+/**
+ * Разделитель дня для группировки уведомлений в списке: "Сегодня", "Вчера",
+ * иначе дата ДД.ММ.ГГГГ. Момент группировки - тот же, что момент сортировки
+ * ленты на бэке (последнее событие в схлопнутой группе). Поле называется
+ * last_event_at либо updated_at в зависимости от того, как назвал его бэк
+ * (см. #1748 S2/S7 - на момент написания ещё не смержен) - читаем оба имени,
+ * иначе созданное раньше created_at.
+ * @param {{created_at?: string, last_event_at?: string, updated_at?: string}|null|undefined} notification
+ * @returns {string}
+ */
+export function notificationDayLabel(notification) {
+  const value = notification?.last_event_at || notification?.updated_at || notification?.created_at;
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+
+  const diffDays = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86_400_000);
+  if (diffDays === 0) return 'Сегодня';
+  if (diffDays === 1) return 'Вчера';
+
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+}
+
+/**
+ * Группирует УЖЕ отсортированную свежими-сверху ленту уведомлений по дню
+ * (notificationDayLabel) для заголовков-разделителей "Сегодня"/"Вчера"/дата.
+ * Сегментирует последовательные записи с одинаковой меткой, порядок внутри
+ * дня и между днями не меняет - сортировку задаёт бэк (last_event_at).
+ * @param {object[]} notifications
+ * @returns {Array<{label: string, items: object[]}>}
+ */
+export function groupNotificationsByDay(notifications) {
+  const groups = [];
+  let current = null;
+  for (const n of notifications || []) {
+    const label = notificationDayLabel(n);
+    if (!current || current.label !== label) {
+      current = { label, items: [] };
+      groups.push(current);
+    }
+    current.items.push(n);
+  }
+  return groups;
 }
