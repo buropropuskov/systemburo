@@ -69,6 +69,7 @@ export const approveOnboardingSteps = [
   },
   {
     id: 'apr-center-list',
+    demo: 'centerList',
     route: '/center',
     element: '[data-testid="ob-center-list"]',
     optional: true,
@@ -90,6 +91,7 @@ export const approveOnboardingSteps = [
   },
   {
     id: 'apr-detail-approvers',
+    demo: 'approvers',
     route: '/center',
     element: '[data-testid="ob-detail-status"]',
     optional: true,
@@ -100,6 +102,7 @@ export const approveOnboardingSteps = [
   },
   {
     id: 'apr-detail-vote',
+    demo: 'vote',
     route: '/center',
     // Якорь - весь ряд действий, а не кнопка: состав кнопок зависит от того,
     // голосовали вы уже или нет, и шаг на «Согласовать» пропал бы у того, кто
