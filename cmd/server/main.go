@@ -226,10 +226,14 @@ func main() {
 	workModesService := services.NewWorkModesService(unloadPlaceService, systemTableService, bureauService)
 	uniqueCarService := services.NewUniqueCarService(db)
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
-	feedbackService := services.NewFeedbackService(db, services.WithFeedbackRealtimePublisher(eventsHub))
+	// #1748 S5: уведомления feedback_created/feedback_answered - аудитория первого
+	// считается резолвером прав (page.admin.feedback), поэтому сервису нужен и
+	// notificationServiceEarly, и permissionResolver (оба уже подняты выше).
+	feedbackService := services.NewFeedbackService(db, services.WithFeedbackRealtimePublisher(eventsHub), services.WithFeedbackNotifications(notificationServiceEarly), services.WithFeedbackPermissionResolver(permissionResolver))
 	// news.refresh (#840): та же аудитория, что и news/announcement-эндпоинты -
 	// все активные юзера (страница видна всем авторизованным, без гейта прав).
-	newsService := services.NewNewsService(db, services.WithNewsRealtimePublisher(eventsHub))
+	// news_published (#1748 S5) - та же логика, отдельным уведомлением.
+	newsService := services.NewNewsService(db, services.WithNewsRealtimePublisher(eventsHub), services.WithNewsNotifications(notificationServiceEarly))
 	notificationService := notificationServiceEarly
 	requestLogsService := services.NewRequestLogsService(db)
 	employeesHistoryService := services.NewEmployeesHistoryService(db)
@@ -249,7 +253,9 @@ func main() {
 	expiryNotifyService := services.NewExpiryNotifyService(db, notificationService)
 	telegramService := services.NewTelegramService(cfg.TelegramBotToken, cfg.TelegramChatID)
 	bugReportService := services.NewBugReportService(db, telegramService)
-	maintenanceService := services.NewMaintenanceService(db)
+	// maintenance_scheduled (#1748 S5): уведомление активным пользователям при
+	// задании окна плановых техработ.
+	maintenanceService := services.NewMaintenanceService(db, services.WithMaintenanceNotifications(notificationServiceEarly))
 	markService := services.NewMarkService(db)
 	blacklistAuditRecorder := services.NewAuditRecorder(db)
 	vehicleBlacklistService := services.NewVehicleBlacklistService(db, blacklistAuditRecorder)
@@ -259,12 +265,16 @@ func main() {
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, cfg.UploadPath)
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)
-	trashService := services.NewTrashService(db, auditRecorder)
+	// trash_restored (#1748 S5): уведомление автору записи (заявителю) при
+	// восстановлении машины/сотрудника из корзины.
+	trashService := services.NewTrashService(db, auditRecorder, services.WithTrashNotifications(notificationServiceEarly))
 	trashDBRef := services.NewTrashDBRef(db)
 	documentFileService := services.NewDocumentFileService(cfg.UploadPath)
 	guideFileService := services.NewDocumentFileServiceIn(cfg.UploadPath, "guide")
 	documentGroupService := services.NewDocumentGroupService(db)
-	documentService := services.NewDocumentService(db, documentFileService, settingsService)
+	// document_published (#1748 S5): уведомление активным пользователям при
+	// загрузке документа.
+	documentService := services.NewDocumentService(db, documentFileService, settingsService, services.WithDocumentNotifications(notificationServiceEarly))
 	guideService := services.NewGuideService(db, permissionResolver)
 	statisticsService := services.NewStatisticsService(db, time.Duration(cfg.AnalyticsCacheRefreshSec)*time.Second)
 
