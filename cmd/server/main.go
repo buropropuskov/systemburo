@@ -174,7 +174,6 @@ func main() {
 	e.Use(mw.RequestLogger(db))
 
 	// Services
-	authService := services.NewAuthService(db, cfg.JWTSecret, cfg.JWTRefreshSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
 	userTypeService := services.NewUserTypeService(db)
 	lpfService := services.NewLicensePlateFormatService(db)
 	attachmentService := services.NewAttachmentService(db)
@@ -184,6 +183,9 @@ func main() {
 	// должен существовать раньше. Конструктор Hub ни от чего не зависит.
 	eventsHub := realtime.NewHub()
 	notificationServiceEarly := services.NewNotificationService(db, services.WithNotificationRealtimePublisher(eventsHub))
+	// authService создаётся после notificationService (#1748 S3): уведомление о
+	// блокировке входа передаётся в конструктор опцией.
+	authService := services.NewAuthService(db, cfg.JWTSecret, cfg.JWTRefreshSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL, services.WithAuthNotifications(notificationServiceEarly))
 	// Справочники создаются после уведомлений (#1437): разбор записи «на проверке»
 	// сообщает инициатору наименования, чем он кончился.
 	organizationService := services.NewOrganizationService(db, services.WithOrganizationNotifications(notificationServiceEarly))
@@ -211,7 +213,7 @@ func main() {
 	accessDenialService := services.NewAccessDenialService(db)
 	banCheckService := services.NewBanCheckService(db, 30*time.Second)
 	userService.SetBanCache(banCheckService) // архив/restore мгновенно сбрасывают кэш блокировок
-	userBanService := services.NewUserBanService(db, permissionResolver, banCheckService, auditRecorder, services.WithBanRealtimePublisher(eventsHub))
+	userBanService := services.NewUserBanService(db, permissionResolver, banCheckService, auditRecorder, services.WithBanRealtimePublisher(eventsHub), services.WithBanNotifications(notificationServiceEarly))
 	systemTableService := services.NewSystemTableService(db, cfg.UploadPath, cfg.UploadMaxFileSize, permissionService, services.WithSystemTableRealtimePublisher(eventsHub))
 	if err := systemTableService.SeedMissingFields(context.Background()); err != nil {
 		slog.Error("не удалось досидить отсутствующие поля таблиц (#345)", "error", err)
@@ -301,7 +303,10 @@ func main() {
 	)
 	approverHandler := handlers.NewApproverHandler(approverService)
 	permissionHandler := handlers.NewPermissionHandler(permissionService, permissionResolver)
-	permissionGroupHandler := handlers.NewPermissionGroupHandler(permissionGroupService)
+	// roleNotifier уведомляет владельца учётки о смене роли (#1748 S3), оборачивая
+	// permissionGroupService.SetUserRole - его файл off-limits для этого среза.
+	userRoleNotifier := services.NewUserRoleNotifier(db, permissionGroupService, notificationService)
+	permissionGroupHandler := handlers.NewPermissionGroupHandler(permissionGroupService, userRoleNotifier)
 	roleHandler := handlers.NewRoleHandler(roleService)
 	accessDenialHandler := handlers.NewAccessDenialHandler(accessDenialService)
 	userBanHandler := handlers.NewUserBanHandler(userBanService)
