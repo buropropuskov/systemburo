@@ -4,9 +4,9 @@ const { EmployeeFormSection } = require('./EmployeeFormSection');
 /**
  * POM модалки дополнения заявки (SupplementModal.vue, #1685).
  *
- * Всё ищется от корня модалки: под ней открыта карточка заявки со своими полями, а
- * `data-testid="supplement-comment"` вообще занят дважды - здесь и в подтверждении
- * решения по раунду в ApplicationActionBar.
+ * Всё ищется от корня модалки: под ней открыта карточка заявки со своими полями.
+ * Комментарий к решению по раунду называется иначе (supplement-decision-comment) -
+ * раньше оба поля носили одно имя, и локатор указывал на два разных поля сразу.
  */
 class SupplementModal {
   constructor(page) {
