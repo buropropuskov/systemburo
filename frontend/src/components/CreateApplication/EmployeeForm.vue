@@ -273,14 +273,20 @@
           <div class="completion__permission-header">
             <label class="input__label">Иное разрешение на работы</label>
           </div>
-          <div class="permission__dropdown">
+          <div
+            ref="permissionDropdown"
+            class="permission__dropdown"
+          >
             <button
+              type="button"
               class="permission__dropdown-button"
+              :class="{ 'permission__dropdown-button--placeholder': !selectedPermission }"
               :disabled="!effectivePatentRequired || permissionFieldDisabled || (editingEmployee && editingEmployee.isExisting)"
+              :title="selectedPermission || null"
               @click="togglePermissionDropdown"
             >
               <div class="permission__button-content">
-                <span class="permission__button-text">{{ selectedPermission || (effectivePatentRequired ? 'Выберите разрешение' : 'Не требуется') }}</span>
+                <span class="permission__button-text">{{ selectedPermission || (effectivePatentRequired ? 'Не выбрано' : 'Не требуется') }}</span>
                 <img
                   src="@/assets/icons/arrow.png"
                   class="permission__button-arrow"
@@ -292,11 +298,20 @@
               <div
                 v-if="isPermissionDropdownOpen"
                 class="permission__dropdown-menu"
+                :style="permissionMenuStyle"
               >
+                <div
+                  class="permission__dropdown-item"
+                  :class="{ 'permission__dropdown-item--selected': !selectedPermission }"
+                  @click="selectPermission('')"
+                >
+                  <span class="permission__item-text permission__item-text--empty">Не выбрано</span>
+                </div>
                 <div
                   v-for="permission in availablePermissions"
                   :key="permission"
                   class="permission__dropdown-item"
+                  :class="{ 'permission__dropdown-item--selected': permission === selectedPermission }"
                   @click="selectPermission(permission)"
                 >
                   <span class="permission__item-text">{{ permission }}</span>
@@ -559,6 +574,7 @@ export default {
             
             selectedPermission: '',
             isPermissionDropdownOpen: false,
+            permissionMenuStyle: null,
             availablePermissions: [
                 'Иностранцы с видом на жительство (ВНЖ) или разрешением на временное проживание (РВП)',
                 'Беженцы или получившие временное убежище в России',
@@ -682,6 +698,19 @@ export default {
                 this.stopCitizenshipReposition();
             }
         },
+        // То же для разрешений: закрывается из тоггла, выбора и клика вне.
+        isPermissionDropdownOpen(open) {
+            if (open) {
+                this.$nextTick(() => {
+                    this.permissionMenuStyle = this.buildPermissionMenuStyle();
+                });
+                window.addEventListener('scroll', this.repositionPermissionMenu, true);
+                window.addEventListener('resize', this.repositionPermissionMenu);
+            } else {
+                this.permissionMenuStyle = null;
+                this.stopPermissionReposition();
+            }
+        },
         lastName() { this.checkBlacklist(); },
         firstName() { this.checkBlacklist(); },
         middleName() { this.checkBlacklist(); },
@@ -710,6 +739,7 @@ export default {
     beforeUnmount() {
         if (this.hintTimer) clearTimeout(this.hintTimer);
         this.stopCitizenshipReposition();
+        this.stopPermissionReposition();
         document.removeEventListener('click', this.handleDocumentClick);
         if (this.blacklistTimeout) {
             clearTimeout(this.blacklistTimeout);
@@ -1219,10 +1249,85 @@ export default {
             this.isPermissionDropdownOpen = !this.isPermissionDropdownOpen;
         },
         
+        /**
+         * Формула та же, что в buildCitizenshipMenuStyle, с двумя добавками.
+         * Высота режется по границе пункта: формулировки разрешений занимают
+         * две-три строки, и обрезанная посередине строка читается как баг вёрстки.
+         * Границы берутся по прокручиваемому предку: форму встраивают и в тело
+         * модалки ручного добавления, где меню обрезает её край, а не край экрана.
+         */
+        buildPermissionMenuStyle() {
+            const dropdown = this.$refs.permissionDropdown;
+            if (!dropdown || typeof window === 'undefined') return null;
+            const zoom = getViewportZoom() || 1;
+            const rect = dropdown.getBoundingClientRect();
+            const bounds = this.permissionMenuBounds(dropdown);
+            const spaceBelow = (bounds.bottom - rect.bottom) / zoom;
+            const spaceAbove = (rect.top - bounds.top) / zoom;
+            const flipUp = spaceBelow < 200 && spaceAbove > spaceBelow;
+            const space = (flipUp ? spaceAbove : spaceBelow) - 16;
+            const maxHeight = this.fitPermissionMenuToItems(Math.max(160, Math.min(300, space)));
+            if (!flipUp) {
+                return { maxHeight: maxHeight + 'px' };
+            }
+            // top:'auto' обязателен - иначе базовое .permission__dropdown-menu{top:100%}
+            // остаётся в силе и конфликтует с bottom.
+            return {
+                top: 'auto',
+                bottom: '100%',
+                marginTop: '0',
+                marginBottom: '5px',
+                maxHeight: maxHeight + 'px'
+            };
+        },
+
+        /** Наибольшая высота меню, при которой последний видимый пункт помещается целиком. */
+        fitPermissionMenuToItems(limit) {
+            const menu = this.$refs.permissionDropdown.querySelector('.permission__dropdown-menu');
+            if (!menu) return limit;
+            // offsetHeight, а не getBoundingClientRect: во время анимации открытия rect врёт.
+            const borders = 2;
+            let fitted = 0;
+            for (const item of menu.querySelectorAll('.permission__dropdown-item')) {
+                if (fitted + item.offsetHeight + borders > limit) break;
+                fitted += item.offsetHeight;
+            }
+            return fitted > 0 ? fitted + borders : limit;
+        },
+
+        /** Границы, за которые меню выходить нельзя: экран и прокручиваемые предки. */
+        permissionMenuBounds(dropdown) {
+            let top = 0;
+            let bottom = window.innerHeight;
+
+            for (let el = dropdown.parentElement; el && el !== document.body; el = el.parentElement) {
+                const overflowY = getComputedStyle(el).overflowY;
+                if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden') {
+                    const rect = el.getBoundingClientRect();
+                    top = Math.max(top, rect.top);
+                    bottom = Math.min(bottom, rect.bottom);
+                }
+            }
+
+            return { top, bottom };
+        },
+
+        repositionPermissionMenu() {
+            if (!this.isPermissionDropdownOpen) return;
+            this.permissionMenuStyle = this.buildPermissionMenuStyle();
+        },
+
+        stopPermissionReposition() {
+            window.removeEventListener('scroll', this.repositionPermissionMenu, true);
+            window.removeEventListener('resize', this.repositionPermissionMenu);
+        },
+
         selectPermission(permission) {
             this.selectedPermission = permission;
             this.isPermissionDropdownOpen = false;
-            this.patentNumber = '';
+            if (permission) {
+                this.patentNumber = '';
+            }
         },
 
         handlePatentInput() {
@@ -1584,19 +1689,19 @@ export default {
 
 .permission__dropdown {
     width: 100%;
-    height: 40px;
     position: relative;
 }
 
 .permission__dropdown-button {
     width: 100%;
-    height: 100%;
+    min-height: 40px;
     border: 1px solid var(--border);
     background-color: var(--surface);
     border-radius: 15px;
     outline: none;
     cursor: pointer;
-    padding: 0 15px;
+    padding: 8px 15px;
+    text-align: left;
     transition: border-color 0.2s;
 }
 
@@ -1614,18 +1719,27 @@ export default {
     display: flex;
     align-items: center;
     width: 100%;
-    height: 100%;
     justify-content: space-between;
+    gap: 10px;
 }
 
+/* Формулировка разрешения длинная: даём ей всю ширину поля и две строки,
+   дальше многоточие (полный текст - в title кнопки и в самом меню). */
 .permission__button-text {
+    flex: 1;
+    min-width: 0;
     font-size: 14px;
     color: var(--text);
-    white-space: nowrap;
+    line-height: 1.3;
+    text-align: left;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 150px;
-    display: block;
+}
+
+.permission__dropdown-button--placeholder .permission__button-text {
+    color: var(--text-muted);
 }
 
 .permission__button-arrow {
@@ -1651,20 +1765,30 @@ export default {
     margin-top: 5px;
     box-shadow: 0 3px 10px var(--shadow-drop);
     z-index: 1000;
-    max-height: 220px;
-    overflow: hidden;
+    /* Рабочий потолок ставит buildPermissionMenuStyle() по месту на экране,
+       здесь - запас на случай, если меню открыли до расчёта. */
+    max-height: 300px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .permission__dropdown-item {
-    padding: 8px 15px;
+    padding: 10px 15px;
     cursor: pointer;
     transition: background-color 0.2s;
     border-bottom: 1px solid var(--surface-2);
-    font-size: 12px;
 }
 
 .permission__dropdown-item:hover {
     background-color: var(--surface-2);
+}
+
+.permission__dropdown-item--selected {
+    background-color: var(--accent-tint);
+}
+
+.permission__dropdown-item--selected .permission__item-text {
+    color: var(--accent-text);
 }
 
 .permission__dropdown-item:last-child {
@@ -1672,11 +1796,15 @@ export default {
 }
 
 .permission__item-text {
-    font-size: 12px;
+    display: block;
+    font-size: 13px;
+    line-height: 1.35;
     color: var(--text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: break-word;
+}
+
+.permission__item-text--empty {
+    color: var(--text-muted);
 }
 
 /* File upload styles */
