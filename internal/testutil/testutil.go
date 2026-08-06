@@ -171,8 +171,17 @@ var CleanupExempt = map[string]string{
 // AutoMigrate runs once per test binary via sync.Once; each test still uses CleanDB for isolation.
 func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	t.Helper()
-	e, db, _, cleanup := setupTestApp(t, false)
+	e, db, _, cleanup := SetupTestAppWithUploads(t)
 	return e, db, cleanup
+}
+
+// SetupTestAppWithUploads -- то же приложение плюс каталог загрузок: тестам файлов
+// заявки нужно видеть, что именно легло на диск. Отдельной функцией по той же
+// причине, что и вариант с архивом, - чтобы не трогать три сотни чужих вызовов.
+func SetupTestAppWithUploads(t *testing.T) (*echo.Echo, *gorm.DB, string, func()) {
+	t.Helper()
+	e, db, _, uploadDir, cleanup := setupTestApp(t, false)
+	return e, db, uploadDir, cleanup
 }
 
 // SetupTestAppWithArchive - то же приложение плюс путь к корню файлового архива
@@ -181,7 +190,8 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 // чужих вызовов.
 func SetupTestAppWithArchive(t *testing.T) (*echo.Echo, *gorm.DB, string, func()) {
 	t.Helper()
-	return setupTestApp(t, false)
+	e, db, archiveDir, _, cleanup := setupTestApp(t, false)
+	return e, db, archiveDir, cleanup
 }
 
 // SetupTestAppWithConsentGate поднимает приложение с навешенным middleware гейта
@@ -192,11 +202,11 @@ func SetupTestAppWithArchive(t *testing.T) (*echo.Echo, *gorm.DB, string, func()
 // начали бы получать 403 вместо своих ответов.
 func SetupTestAppWithConsentGate(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	t.Helper()
-	e, db, _, cleanup := setupTestApp(t, true)
+	e, db, _, _, cleanup := setupTestApp(t, true)
 	return e, db, cleanup
 }
 
-func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, string, func()) {
+func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, string, string, func()) {
 	t.Helper()
 
 	crypto.SetGlobalKey(nil) // passthrough in tests
@@ -324,6 +334,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 		applicationFileService, applicationService,
 		10*1024*1024, 10, 30*1024*1024,
 		[]string{"image/jpeg", "image/png", "image/webp", "application/pdf"},
+		2000, 82,
 	)
 	approverHandler := handlers.NewApproverHandler(approverService)
 	permissionHandler := handlers.NewPermissionHandler(permissionService, permissionResolver)
@@ -480,7 +491,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	// No-op cleanup: shared DB stays open for the test binary lifetime.
 	cleanup := func() {}
 
-	return e, db, archiveDir, cleanup
+	return e, db, archiveDir, uploadDir, cleanup
 }
 
 // CleanDB deletes all test data and restores reference tables from the snapshot

@@ -47,6 +47,10 @@ type Config struct {
 	// ApplicationFileDraftTTL - сколько живёт загруженный, но так и не приложенный
 	// к заявке файл: заявитель выбрал файлы и закрыл форму, не отправив её.
 	ApplicationFileDraftTTL time.Duration `env:"APPLICATION_FILE_DRAFT_TTL" envDefault:"24h"`
+	// Приведение снимков к предсказуемому виду (#1721). Перекодирование заодно
+	// срезает EXIF: снимок с телефона несёт координаты съёмки и модель устройства.
+	ApplicationFileImageMaxSide int `env:"APPLICATION_FILE_IMAGE_MAX_SIDE" envDefault:"2000"`
+	ApplicationFileJPEGQuality  int `env:"APPLICATION_FILE_JPEG_QUALITY" envDefault:"82"`
 
 	DataEncryptionKey  string `env:"DATA_ENCRYPTION_KEY" envDefault:""`
 	RequireEncryption  bool   `env:"REQUIRE_ENCRYPTION" envDefault:"false"`
@@ -159,6 +163,12 @@ func (c *Config) Validate() error {
 	}
 	if c.ApplicationFileDraftTTL <= 0 {
 		return fmt.Errorf("APPLICATION_FILE_DRAFT_TTL must be positive (got %s)", c.ApplicationFileDraftTTL)
+	}
+	if c.ApplicationFileImageMaxSide <= 0 {
+		return fmt.Errorf("APPLICATION_FILE_IMAGE_MAX_SIDE must be positive (got %d)", c.ApplicationFileImageMaxSide)
+	}
+	if c.ApplicationFileJPEGQuality < 1 || c.ApplicationFileJPEGQuality > 100 {
+		return fmt.Errorf("APPLICATION_FILE_JPEG_QUALITY must be within 1..100 (got %d)", c.ApplicationFileJPEGQuality)
 	}
 	if c.RequireEncryption && c.DataEncryptionKey == "" {
 		return fmt.Errorf("REQUIRE_ENCRYPTION=true but DATA_ENCRYPTION_KEY is empty")

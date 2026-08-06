@@ -297,6 +297,7 @@ func main() {
 	applicationFileHandler := handlers.NewApplicationFileHandler(
 		applicationFileService, applicationService,
 		cfg.UploadMaxFileSize, cfg.ApplicationFileMaxCount, cfg.ApplicationFileMaxTotal, applicationFileTypes,
+		cfg.ApplicationFileImageMaxSide, cfg.ApplicationFileJPEGQuality,
 	)
 	approverHandler := handlers.NewApproverHandler(approverService)
 	permissionHandler := handlers.NewPermissionHandler(permissionService, permissionResolver)
