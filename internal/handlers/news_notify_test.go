@@ -24,7 +24,7 @@ func TestNews_Notify_PublishedNotifiesOthersNotAuthor(t *testing.T) {
 	otherToken := testutil.RegisterAndLogin(t, e, "newsnotify_other", "password123", 1, td.OrgID, td.CompanyID)
 
 	rec := testutil.POST(t, e, "/news", `{"title":"Открыт новый КПП"}`, testutil.AuthHeader(authorToken))
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 
 	rec = testutil.GET(t, e, "/notifications", testutil.AuthHeader(otherToken))
 	require.Equal(t, http.StatusOK, rec.Code)
