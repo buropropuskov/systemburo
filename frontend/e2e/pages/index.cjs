@@ -12,4 +12,6 @@ module.exports = {
   ...require('./SupplementModal'),
   ...require('./EmployeeFormSection'),
   ...require('./PeopleTablePage'),
+  ...require('./NotificationsDropdown'),
+  ...require('./NotificationDetailModal'),
 };
