@@ -279,3 +279,41 @@ func TestFakePassages_NoOpWhenNoApplications(t *testing.T) {
 	require.Empty(t, readBatchCarPassages(t, db, batch.ID()))
 	require.Empty(t, readBatchEmployeePassages(t, db, batch.ID()))
 }
+
+// Проход обязан укладываться в окно допуска вложения: пропуск выдают на недели, а
+// заявки на стенде разложены на месяцы назад, поэтому у большинства принятых заявок
+// окно давно закрыто. Въезд по просроченному пропуску охрана бы не пропустила, и на
+// стенде такого быть не должно.
+func TestFakePassages_StayWithinPermitWindow(t *testing.T) {
+	_, db, _ := testutil.SetupTestApp(t)
+	ctx := context.Background()
+	testutil.CleanDB(t, db)
+	seedFakeAdmin(t, db)
+
+	profile, err := fakedata.ProfileByName("small")
+	require.NoError(t, err)
+	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-window"), 2211, profile.Name)
+	require.NoError(t, err)
+	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 2211}))
+
+	var outsideWindow int64
+	require.NoError(t, db.Raw(`
+		SELECT COUNT(*) FROM cars c
+		JOIN attachments t ON t.id = c.attachment_id
+		JOIN applications a ON a.id = t.application_id
+		JOIN fake_batch_items i ON i.entity = 'application' AND i.entity_id = a.id AND i.batch_id = ?
+		WHERE c.territory_entry_time IS NOT NULL
+		  AND c.territory_entry_time::date > t.entry_date_to::date`, batch.ID()).Scan(&outsideWindow).Error)
+	require.Zero(t, outsideWindow, "машина въехала после окончания действия пропуска")
+
+	// На территории могут оставаться только те, чей пропуск ещё действует: иначе на
+	// посту висел бы человек с просроченным допуском.
+	var staleInside int64
+	require.NoError(t, db.Raw(`
+		SELECT COUNT(*) FROM cars c
+		JOIN attachments t ON t.id = c.attachment_id
+		JOIN applications a ON a.id = t.application_id
+		JOIN fake_batch_items i ON i.entity = 'application' AND i.entity_id = a.id AND i.batch_id = ?
+		WHERE c.territory_status = 1 AND t.entry_date_to::date < CURRENT_DATE`, batch.ID()).Scan(&staleInside).Error)
+	require.Zero(t, staleInside, "на территории осталась машина с истёкшим пропуском")
+}

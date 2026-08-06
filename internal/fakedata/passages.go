@@ -158,6 +158,41 @@ type passageCandidate struct {
 	ID         int       `gorm:"column:id"`
 	TableID    int       `gorm:"column:table_id"`
 	AcceptedAt time.Time `gorm:"column:accepted_at"`
+	// EntryDateTo -- последний день, когда пропуск действует. Проход обязан попасть в
+	// окно допуска: заявки разложены по прошлому на срок до года, а пропуск выдают на
+	// неделю-другую, поэтому у большинства принятых заявок окно давно закрыто, и
+	// сегодняшний въезд по такому пропуску охрана бы не пропустила.
+	EntryDateTo time.Time `gorm:"column:entry_date_to"`
+}
+
+// passageWindowEnd -- до какого момента можно поставить проход: конец последнего дня
+// действия пропуска, но не позже «сейчас».
+func passageWindowEnd(c passageCandidate, now time.Time) time.Time {
+	endOfDay := time.Date(c.EntryDateTo.Year(), c.EntryDateTo.Month(), c.EntryDateTo.Day(), 23, 59, 59, 0, c.EntryDateTo.Location())
+	if endOfDay.Before(now) {
+		return endOfDay
+	}
+	return now
+}
+
+// passableCandidates отбрасывает тех, чей пропуск закончился раньше, чем заявку взяли
+// в работу: пройти они не могли в принципе, и отметка была бы выдумкой. Так бывает у
+// старых заявок -- пропуск выдают на недели, а в работу заявку могли взять позже.
+func passableCandidates(all []passageCandidate, now time.Time) []passageCandidate {
+	out := make([]passageCandidate, 0, len(all))
+	for _, c := range all {
+		if passageWindowEnd(c, now).After(stageBase(c.AcceptedAt, now)) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// passageWindowOpen -- действует ли пропуск ещё сегодня. Остаться на территории может
+// только тот, у кого он не закончился: иначе на посту висел бы человек с просроченным
+// пропуском, которого там быть не может.
+func passageWindowOpen(c passageCandidate, now time.Time) bool {
+	return !c.EntryDateTo.Before(time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()))
 }
 
 // loadPassageCarCandidates читает машины СТРОГО этой партии (через fake_batch_items
@@ -169,7 +204,8 @@ type passageCandidate struct {
 func loadPassageCarCandidates(ctx context.Context, db *gorm.DB, batchID int) ([]passageCandidate, error) {
 	var rows []passageCandidate
 	err := db.WithContext(ctx).Raw(`
-		SELECT DISTINCT ON (c.id) c.id AS id, ctt.table_id AS table_id, app.accepted_at AS accepted_at
+		SELECT DISTINCT ON (c.id) c.id AS id, ctt.table_id AS table_id, app.accepted_at AS accepted_at,
+			att.entry_date_to::timestamp AS entry_date_to
 		FROM cars c
 		JOIN attachments att ON att.id = c.attachment_id
 		JOIN applications app ON app.id = att.application_id
@@ -188,7 +224,8 @@ func loadPassageCarCandidates(ctx context.Context, db *gorm.DB, batchID int) ([]
 func loadPassageEmployeeCandidates(ctx context.Context, db *gorm.DB, batchID int) ([]passageCandidate, error) {
 	var rows []passageCandidate
 	err := db.WithContext(ctx).Raw(`
-		SELECT DISTINCT ON (e.id) e.id AS id, ett.table_id AS table_id, app.accepted_at AS accepted_at
+		SELECT DISTINCT ON (e.id) e.id AS id, ett.table_id AS table_id, app.accepted_at AS accepted_at,
+			att.entry_date_to::timestamp AS entry_date_to
 		FROM employees e
 		JOIN attachments att ON att.id = e.attachment_id
 		JOIN applications app ON app.id = att.application_id
@@ -335,11 +372,13 @@ func shiftEmployeeExit(ctx context.Context, db *gorm.DB, employeeID int, at time
 // (passageStayExitCounts). Порядок кандидатов из SQL детерминирован (ORDER BY c.id),
 // поэтому одно и то же -seed даёт один и тот же состав "остался"/"выехал".
 func runCarPassages(ctx context.Context, svc services.CarService, db *gorm.DB, cars []passageCandidate, actors []int, s *passageStreams, now time.Time) error {
+	cars = passableCandidates(cars, now)
 	stay, _ := passageStayExitCounts(len(cars))
 	for i, c := range cars {
 		actorID := Pick(s.carActor, actors)
 		base := stageBase(c.AcceptedAt, now)
-		entryAt := passageMoment(s.carEntryGap, base, now)
+		windowEnd := passageWindowEnd(c, now)
+		entryAt := passageMoment(s.carEntryGap, base, windowEnd)
 
 		req := services.UpdateCarTerritoryStatusRequest{
 			UpdateTerritoryStatusRequest: services.UpdateTerritoryStatusRequest{
@@ -356,11 +395,11 @@ func runCarPassages(ctx context.Context, svc services.CarService, db *gorm.DB, c
 			return err
 		}
 
-		if i < stay {
+		if i < stay && passageWindowOpen(c, now) {
 			continue // остаётся на территории -- выезда не будет
 		}
 
-		exitAt := passageMoment(s.carExitGap, entryAt, now)
+		exitAt := passageMoment(s.carExitGap, entryAt, windowEnd)
 		exitReq := services.UpdateCarTerritoryStatusRequest{
 			UpdateTerritoryStatusRequest: services.UpdateTerritoryStatusRequest{
 				TerritoryStatus: 2, UserID: &actorID, TableID: &c.TableID,
@@ -381,11 +420,13 @@ func runCarPassages(ctx context.Context, svc services.CarService, db *gorm.DB, c
 
 // runEmployeePassages -- зеркало runCarPassages для сотрудников.
 func runEmployeePassages(ctx context.Context, svc services.EmployeeService, db *gorm.DB, employees []passageCandidate, actors []int, s *passageStreams, now time.Time) error {
+	employees = passableCandidates(employees, now)
 	stay, _ := passageStayExitCounts(len(employees))
 	for i, e := range employees {
 		actorID := Pick(s.empActor, actors)
 		base := stageBase(e.AcceptedAt, now)
-		entryAt := passageMoment(s.empEntryGap, base, now)
+		windowEnd := passageWindowEnd(e, now)
+		entryAt := passageMoment(s.empEntryGap, base, windowEnd)
 
 		req := services.UpdateTerritoryStatusRequest{TerritoryStatus: 1, UserID: &actorID, TableID: &e.TableID}
 		if err := svc.UpdateEmployeeTerritoryStatus(ctx, e.ID, req); err != nil {
@@ -398,11 +439,11 @@ func runEmployeePassages(ctx context.Context, svc services.EmployeeService, db *
 			return err
 		}
 
-		if i < stay {
+		if i < stay && passageWindowOpen(e, now) {
 			continue // остаётся на территории -- выхода не будет
 		}
 
-		exitAt := passageMoment(s.empExitGap, entryAt, now)
+		exitAt := passageMoment(s.empExitGap, entryAt, windowEnd)
 		exitReq := services.UpdateTerritoryStatusRequest{TerritoryStatus: 2, UserID: &actorID, TableID: &e.TableID}
 		if err := svc.UpdateEmployeeTerritoryStatus(ctx, e.ID, exitReq); err != nil {
 			return fmt.Errorf("выход сотрудника %d: %w", e.ID, err)
