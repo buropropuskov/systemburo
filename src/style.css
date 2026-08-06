@@ -1,0 +1,197 @@
+/* Печатная типографика учебных конспектов. Один акцентный цвет, остальное -
+   градации серого: конспект читают и с экрана, и распечатанным на ч/б принтере. */
+
+@page { size: A4; }
+
+:root {
+  --ink: #1a1a1a;
+  --ink-soft: #4a4a4a;
+  --ink-faint: #767676;
+  --rule: #dcdcdc;
+  --accent: #1f5fa9;
+  --accent-bg: #eef3fa;
+  --code-bg: #f5f5f4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: Inter, 'Noto Sans', sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.55;
+  color: var(--ink);
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- обложка -------------------------------------------------------------- */
+.cover {
+  page-break-after: always;
+  padding-top: 55mm;
+  border-top: 3px solid var(--accent);
+}
+.cover__kicker {
+  font-size: 9pt;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 600;
+  margin-bottom: 14mm;
+}
+.cover__title {
+  font-size: 30pt;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 8mm;
+}
+.cover__lead {
+  font-size: 12pt;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  max-width: 130mm;
+  margin: 0;
+}
+.cover__meta {
+  margin-top: 22mm;
+  font-size: 9pt;
+  color: var(--ink-faint);
+  border-top: 1px solid var(--rule);
+  padding-top: 4mm;
+}
+
+/* --- оглавление ----------------------------------------------------------- */
+.toc { page-break-after: always; }
+.toc-title {
+  font-size: 16pt;
+  font-weight: 700;
+  margin: 0 0 8mm;
+  padding-bottom: 3mm;
+  border-bottom: 2px solid var(--ink);
+}
+.toc ul { list-style: none; margin: 0; padding: 0; }
+.toc li { margin-bottom: 1.4mm; font-size: 10pt; }
+.toc a {
+  color: var(--ink);
+  text-decoration: none;
+  display: flex;
+  gap: 4mm;
+  align-items: baseline;
+}
+.toc-num {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  min-width: 12mm;
+}
+.toc-h3 { padding-left: 12mm; font-size: 9.5pt; }
+.toc-h3 .toc-num { color: var(--ink-faint); font-weight: 400; }
+.toc-h3 .toc-text { color: var(--ink-soft); }
+
+/* --- заголовки ------------------------------------------------------------ */
+h2 {
+  font-size: 17pt;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0 0 6mm;
+  padding-bottom: 2.5mm;
+  border-bottom: 2px solid var(--ink);
+  page-break-before: always;
+  page-break-after: avoid;
+}
+h3 {
+  font-size: 12.5pt;
+  font-weight: 650;
+  margin: 8mm 0 3mm;
+  page-break-after: avoid;
+}
+h4 {
+  font-size: 10.5pt;
+  font-weight: 650;
+  margin: 6mm 0 2mm;
+  color: var(--ink-soft);
+  page-break-after: avoid;
+}
+h2 .num { color: var(--accent); }
+h3 .num { color: var(--ink-faint); font-weight: 400; margin-right: 1mm; }
+
+/* --- текст ---------------------------------------------------------------- */
+p { margin: 0 0 3.5mm; orphans: 3; widows: 3; }
+strong { font-weight: 650; }
+a { color: var(--accent); text-decoration: none; }
+
+ul, ol { margin: 0 0 4mm; padding-left: 6mm; }
+li { margin-bottom: 1.6mm; }
+li > ul, li > ol { margin-top: 1.6mm; }
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: 7mm 0;
+}
+
+blockquote {
+  margin: 4mm 0;
+  padding: 3mm 5mm;
+  background: var(--accent-bg);
+  border-left: 3px solid var(--accent);
+  color: var(--ink-soft);
+  page-break-inside: avoid;
+}
+blockquote p:last-child { margin-bottom: 0; }
+
+/* --- код ------------------------------------------------------------------ */
+code {
+  font-family: 'Fira Code', 'Cascadia Code NF', monospace;
+  /* Лигатуры Fira Code рисуют >= как ≥, а * как ∗. В учебном тексте код
+     копируют и набирают руками, поэтому символы должны выглядеть как есть. */
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0, 'calt' 0;
+  font-size: 9pt;
+  background: var(--code-bg);
+  padding: 0.3mm 1.2mm;
+  border-radius: 2px;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 3.5mm 4mm;
+  margin: 0 0 4mm;
+  overflow-x: auto;
+}
+/* Целиком переносится только короткий листинг: длинный оставляет за собой
+   полупустую страницу, и лучше разорвать его, чем гнать вперёд. */
+pre.nobreak { page-break-inside: avoid; }
+pre code {
+  background: none;
+  padding: 0;
+  font-size: 8.5pt;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* --- таблицы -------------------------------------------------------------- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 5mm;
+  font-size: 9.5pt;
+  page-break-inside: auto;
+}
+thead { display: table-header-group; }
+tr { page-break-inside: avoid; }
+th {
+  text-align: left;
+  font-weight: 650;
+  padding: 2mm 3mm;
+  border-bottom: 1.5px solid var(--ink);
+  vertical-align: bottom;
+}
+td {
+  padding: 2mm 3mm;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+tbody tr:nth-child(even) { background: #fafafa; }
