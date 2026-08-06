@@ -29,6 +29,12 @@ type MarkNotificationReadRequest struct {
 	IsRead bool `json:"is_read"`
 }
 
+// MarkAllReadResponse -- ответ PUT /notifications/read-all: сколько уведомлений отметили
+// прочитанными (#1748).
+type MarkAllReadResponse struct {
+	Updated int64 `json:"updated"`
+}
+
 // CreateNotificationRequest -- тело запроса на создание уведомления (admin-only).
 type CreateNotificationRequest struct {
 	UserID  int     `json:"user_id" validate:"required,min=1"`
@@ -36,4 +42,58 @@ type CreateNotificationRequest struct {
 	Title   *string `json:"title" validate:"required,max=255"`
 	Message *string `json:"message"`
 	Data    *string `json:"data"`
+}
+
+// NotificationListMeta -- meta пагинированной ленты уведомлений (#1748): обычная
+// страница плюс unread_count, который считается по ВСЕМ уведомлениям пользователя, а не
+// только по текущей странице/фильтру -- бейдж колокольчика должен показывать общее
+// непрочитанное количество, а не то, что попало в текущую выборку.
+type NotificationListMeta struct {
+	PaginationMeta
+	UnreadCount int64 `json:"unread_count"`
+}
+
+// UserNotificationPreference -- персональное отклонение пользователя от дефолта каталога
+// уведомлений (#1748, notification_catalog.go). Хранит ТОЛЬКО отличия: нет строки для
+// (user_id, type_code) -> действует NotificationMeta.DefaultEnabled. Пара -- составной
+// первичный ключ, дубли исключены самой схемой.
+type UserNotificationPreference struct {
+	UserID    int       `gorm:"primaryKey;autoIncrement:false" json:"user_id"`
+	User      User      `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
+	TypeCode  string    `gorm:"primaryKey;size:64" json:"type_code"`
+	Enabled   bool      `json:"enabled"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (UserNotificationPreference) TableName() string { return "user_notification_preferences" }
+
+// NotificationPreferenceItem -- один тип уведомления на экране настроек: метаданные
+// каталога плюс эффективное состояние (учитывает персональный override и Mandatory).
+type NotificationPreferenceItem struct {
+	TypeCode       string `json:"type_code"`
+	Category       string `json:"category"`
+	Label          string `json:"label"`
+	Description    string `json:"description"`
+	Mandatory      bool   `json:"mandatory"`
+	DefaultEnabled bool   `json:"default_enabled"`
+	Enabled        bool   `json:"enabled"`
+}
+
+// NotificationPreferenceCategory -- группа типов уведомлений по категории каталога, для
+// рендера экрана настроек секциями.
+type NotificationPreferenceCategory struct {
+	Category string                       `json:"category"`
+	Items    []NotificationPreferenceItem `json:"items"`
+}
+
+// NotificationPreferenceItemUpdate -- одна строка батча PUT /notifications/preferences:
+// код типа + желаемое состояние переключателя.
+type NotificationPreferenceItemUpdate struct {
+	TypeCode string `json:"type_code" validate:"required"`
+	Enabled  bool   `json:"enabled"`
+}
+
+// UpdateNotificationPreferencesRequest -- тело PUT /notifications/preferences.
+type UpdateNotificationPreferencesRequest struct {
+	Items []NotificationPreferenceItemUpdate `json:"items" validate:"required,min=1,dive"`
 }

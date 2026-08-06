@@ -157,7 +157,10 @@ var notificationCatalog = map[string]NotificationMeta{
 		Code: NotificationTypeApprovalReminder, Category: NotificationCategoryApplication,
 		Label:       "Напоминание о согласовании",
 		Description: "Заявка давно ждёт вашего решения как согласующего.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityNormal,
+		// Не схлопывается: у напоминаний собственный интервал повтора в днях
+		// (approval.reminder_repeat_days), и окно схлопывания в минутах для них не
+		// работает - зато прячет повтор, если он придёт вскоре после первого.
+		Mandatory: false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal,
 	},
 
 	// security -- отключить нельзя ни один из пяти.

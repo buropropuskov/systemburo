@@ -71,7 +71,7 @@ var tables = []string{
 	// журнала его не касается: значение накапливалось от прогона к прогону, и
 	// TestLogPartitionMaintenance ждал единицу, а получал столько, сколько раз
 	// запускали тесты на этой базе.
-	"request_logs_daily", "request_log", "request_logs", "notifications", "news", "announcements",
+	"request_logs_daily", "request_log", "request_logs", "notifications", "user_notification_preferences", "news", "announcements",
 	// analytics_cache и user_ban_histories тоже живут без внешних ключей: кэш отдаёт
 	// тесту цифры прошлого прогона, история банов копится вечно.
 	"analytics_cache", "user_ban_histories",
