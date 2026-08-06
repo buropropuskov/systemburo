@@ -529,10 +529,11 @@ func main() {
 	// сворачивает партиции старше RequestLogDetailDays в агрегаты и дропает.
 	go startLogPartitionWorker(ctxSig, db, cfg.RequestLogDetailDays, cfg.RequestLogPartitionPrecreateDays, cfg.PdAuditRetentionMonths, 24*time.Hour)
 
-	// Суточная уборка технического мусора: недействительные токены сессий и
-	// прочитанные уведомления. Остальные журналы чистятся только вручную
-	// подкомандой cleanup - там решение за оператором.
-	go startRetentionWorker(ctxSig, db, cfg.RefreshTokenRetentionDays, cfg.ReadNotificationRetentionDays, 24*time.Hour)
+	// Суточная уборка технического мусора: недействительные токены сессий,
+	// прочитанные уведомления и непрочитанные уведомления (свой, более мягкий срок).
+	// Остальные журналы чистятся только вручную подкомандой cleanup - там решение
+	// за оператором.
+	go startRetentionWorker(ctxSig, db, cfg.RefreshTokenRetentionDays, cfg.ReadNotificationRetentionDays, cfg.NotificationRetentionDays, 24*time.Hour)
 
 	// Уборка файлов, загруженных к заявке, которую так и не отправили (#1721).
 	go startApplicationFileSweeper(ctxSig, applicationFileService, cfg.ApplicationFileDraftTTL, time.Hour)
@@ -587,10 +588,11 @@ func startLogPartitionWorker(ctx context.Context, db *gorm.DB, detailDays, precr
 }
 
 // startRetentionWorker раз в interval сметает данные, которые обесценились сами:
-// недействительные токены сессий и прочитанные уведомления. Первый прогон сразу -
-// после долгого простоя мусор копится, ждать сутки незачем.
-func startRetentionWorker(ctx context.Context, db *gorm.DB, tokenDays, notificationDays int, interval time.Duration) {
-	run := func() { database.SweepRoutine(ctx, db, tokenDays, notificationDays) }
+// недействительные токены сессий, прочитанные и непрочитанные уведомления (два
+// разных срока). Первый прогон сразу - после долгого простоя мусор копится, ждать
+// сутки незачем.
+func startRetentionWorker(ctx context.Context, db *gorm.DB, tokenDays, notificationDays, unreadNotificationDays int, interval time.Duration) {
+	run := func() { database.SweepRoutine(ctx, db, tokenDays, notificationDays, unreadNotificationDays) }
 	run()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
