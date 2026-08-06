@@ -48,9 +48,14 @@ func NewNotificationService(db *gorm.DB, opts ...NotificationServiceOption) Noti
 
 func (s *notificationService) GetByUserID(ctx context.Context, userID int) ([]models.Notification, error) {
 	notifications := make([]models.Notification, 0)
+	// COALESCE на last_event_at (#1748): у схлопнутого уведомления именно этот момент -
+	// момент последнего события в группе, и лента должна поднимать его наверх, как
+	// будто оно только что создано заново. У обычного, не схлопнутого уведомления
+	// last_event_at пуст, и сортировка падает обратно на created_at. id DESC вторым
+	// ключом - устойчивость при совпадении момента (например, массовая рассылка).
 	err := s.db.WithContext(ctx).
 		Where("user_id = ?", userID).
-		Order("created_at DESC").
+		Order("COALESCE(last_event_at, created_at) DESC, id DESC").
 		Find(&notifications).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching notifications")
