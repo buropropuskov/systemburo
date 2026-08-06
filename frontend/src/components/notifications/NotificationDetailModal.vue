@@ -64,6 +64,10 @@
                 v-if="exactTime"
                 class="notif-detail-dialog__time-exact"
               >{{ exactTime }}</span>
+              <span
+                v-if="eventsLabel"
+                class="notif-detail-dialog__time-events"
+              >{{ eventsLabel }}</span>
             </div>
 
             <dl
@@ -122,7 +126,12 @@ import { formatDateTime, formatTimeAgo } from '@/utils/datetime';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useEscapeClose } from '@/composables/useEscapeClose';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
-import { notificationDetailFields, notificationCategory, notificationActionLabel } from '@/utils/notificationDetails';
+import {
+  notificationDetailFields,
+  notificationCategory,
+  notificationCategoryLabel,
+  notificationActionLabel,
+} from '@/utils/notificationDetails';
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -157,14 +166,35 @@ const actionLabel = computed(() => notificationActionLabel(props.notification));
 const relativeTime = computed(() => formatTimeAgo(props.notification?.created_at));
 const exactTime = computed(() => formatDateTime(props.notification?.created_at));
 
-const CATEGORY_BADGES = {
-  application: { label: 'Заявка', variant: 'primary' },
-  security: { label: 'Безопасность', variant: 'danger' },
-  passage: { label: 'Проезд', variant: 'warning' },
-  content: { label: 'Публикации', variant: 'success' },
-  system: { label: 'Система', variant: 'neutral' },
+const CATEGORY_VARIANTS = {
+  application: 'primary',
+  security: 'danger',
+  passage: 'warning',
+  content: 'success',
+  system: 'neutral',
 };
-const categoryBadge = computed(() => CATEGORY_BADGES[notificationCategory(props.notification?.type)] || null);
+const categoryBadge = computed(() => {
+  const category = notificationCategory(props.notification?.type);
+  return { label: notificationCategoryLabel(category), variant: CATEGORY_VARIANTS[category] || 'neutral' };
+});
+
+/** Русское склонение: 1 событие, 2-4 события, 5-20 событий... */
+function eventWord(n) {
+  const mod100 = Math.abs(n) % 100;
+  if (mod100 >= 11 && mod100 <= 14) return 'событий';
+  const mod10 = Math.abs(n) % 10;
+  if (mod10 === 1) return 'событие';
+  if (mod10 >= 2 && mod10 <= 4) return 'события';
+  return 'событий';
+}
+
+// Схлопнутые повторы (#1748 S7): count>1 - несколько однотипных событий свёрнуты
+// в одну запись бэком, показываем это рядом со временем, а не как единичное событие.
+const eventsLabel = computed(() => {
+  const count = Number(props.notification?.count);
+  if (!Number.isFinite(count) || count <= 1) return '';
+  return `${count} ${eventWord(count)}`;
+});
 </script>
 
 <style scoped>
@@ -278,6 +308,18 @@ const categoryBadge = computed(() => CATEGORY_BADGES[notificationCategory(props.
 .notif-detail-dialog__time-exact::before {
   content: '\00b7';
   margin-right: 8px;
+}
+
+.notif-detail-dialog__time-events {
+  color: var(--accent-text);
+  font-weight: 500;
+}
+
+.notif-detail-dialog__time-events::before {
+  content: '\00b7';
+  margin-right: 8px;
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 .notif-detail-dialog__fields {

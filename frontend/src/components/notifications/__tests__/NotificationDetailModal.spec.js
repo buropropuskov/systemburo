@@ -89,4 +89,16 @@ describe('NotificationDetailModal', () => {
     expect(fieldsEl.text()).toContain('Решение');
     expect(fieldsEl.text()).toContain('Согласовано');
   });
+
+  it('count>1 (#1748 S7) показывает число событий рядом со временем со склонением', () => {
+    const wrapper = mountModal({ id: 1, title: 'x', message: 'y', created_at: '2026-08-06T10:00:00', data: null, count: 3 });
+    expect(wrapper.find('.notif-detail-dialog__time-events').text()).toBe('3 события');
+  });
+
+  it('count=1 или отсутствует - индикатора повторов нет', () => {
+    const single = mountModal({ id: 1, title: 'x', message: 'y', created_at: '2026-08-06T10:00:00', data: null, count: 1 });
+    expect(single.find('.notif-detail-dialog__time-events').exists()).toBe(false);
+    const noCount = mountModal({ id: 1, title: 'x', message: 'y', created_at: '2026-08-06T10:00:00', data: null });
+    expect(noCount.find('.notif-detail-dialog__time-events').exists()).toBe(false);
+  });
 });

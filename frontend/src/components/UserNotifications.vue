@@ -34,24 +34,40 @@
           aria-hidden="true"
         />
         <header class="notifications__header">
-          <h3 class="notifications__title">
-            Уведомления
-            <span
-              v-if="unreadCount > 0"
-              class="notifications__unread-count"
-            >({{ unreadCount }})</span>
-          </h3>
-          <button
-            v-if="notifications.length > 0"
-            class="notifications__clear-btn"
-            @click="clearAll"
-          >
-            Очистить
-          </button>
+          <div class="notifications__header-top">
+            <h3 class="notifications__title">
+              Уведомления
+              <span
+                v-if="unreadCount > 0"
+                class="notifications__unread-count"
+              >({{ unreadCount }})</span>
+            </h3>
+            <div class="notifications__header-actions">
+              <button
+                v-if="unreadCount > 0"
+                class="notifications__read-all-btn"
+                :disabled="markingAllRead"
+                @click="markAllRead"
+              >
+                Прочитать все
+              </button>
+              <button
+                v-if="notifications.length > 0"
+                class="notifications__clear-btn"
+                @click="clearAll"
+              >
+                Очистить
+              </button>
+            </div>
+          </div>
+          <NotificationFilterTabs
+            :model-value="filter"
+            @update:model-value="setFilter"
+          />
         </header>
 
         <div
-          v-if="loading && notifications.length === 0"
+          v-if="listLoading && notifications.length === 0"
           class="notifications__loading"
         >
           <div class="notifications__spinner" />
@@ -72,38 +88,85 @@
           class="notifications__list"
           role="list"
         >
-          <li
-            v-for="item in notifications"
-            :key="item.id"
-            class="notification-item"
-            :class="{ 'notification-item--unread': !item.is_read }"
-            role="listitem"
-            @click="markAsRead(item)"
+          <template
+            v-for="group in groupedNotifications"
+            :key="'day-' + group.label + '-' + group.items[0].id"
           >
-            <div class="notification-item__content">
-              <div class="notification-item__top">
-                <p
-                  v-if="item.title"
-                  class="notification-item__title"
-                >
-                  {{ item.title }}
-                </p>
-                <time class="notification-item__time">{{ timeAgo(item.created_at) }}</time>
-              </div>
-              <p
-                v-if="item.message"
-                class="notification-item__message"
-              >
-                {{ item.message }}
-              </p>
-            </div>
-            <button
-              class="notification-item__delete"
-              aria-label="Удалить уведомление"
-              @click.stop="deleteNotification(item.id)"
+            <li
+              class="notification-day-header"
+              role="presentation"
             >
-              &times;
-            </button>
+              {{ group.label }}
+            </li>
+            <li
+              v-for="item in group.items"
+              :key="item.id"
+              class="notification-item"
+              :class="{ 'notification-item--unread': !item.is_read }"
+              role="listitem"
+              @click="markAsRead(item)"
+            >
+              <NotificationCategoryDot
+                :type="item.type"
+                class="notification-item__category"
+              />
+              <div class="notification-item__content">
+                <div class="notification-item__top">
+                  <p
+                    v-if="item.title"
+                    class="notification-item__title"
+                  >
+                    {{ item.title }}
+                  </p>
+                  <span
+                    v-if="(item.count || 1) > 1"
+                    class="notification-item__count"
+                    :title="`Событий: ${item.count}`"
+                  >{{ item.count }}</span>
+                  <time class="notification-item__time">{{ relativeTime(item.created_at) }}</time>
+                </div>
+                <p
+                  v-if="item.message"
+                  class="notification-item__message"
+                >
+                  {{ item.message }}
+                </p>
+              </div>
+              <button
+                class="notification-item__delete"
+                aria-label="Удалить уведомление"
+                @click.stop="deleteNotification(item.id)"
+              >
+                &times;
+              </button>
+            </li>
+          </template>
+
+          <!-- Бесшовная подгрузка (#1748 S7): sentinel внизу списка, IntersectionObserver
+               триггерит loadMore без кнопки (зеркало Центра/реестров #1158/#1173). -->
+          <li
+            v-if="hasMoreNotifications"
+            :ref="setSentinelRef"
+            class="notifications__sentinel"
+          >
+            <div
+              v-if="listLoading"
+              class="notifications__spinner notifications__spinner--sm"
+            />
+            <div
+              v-else-if="listError"
+              class="sentinel-error"
+            >
+              <span>Не удалось загрузить ещё</span>
+              <button
+                type="button"
+                class="lk-button lk-button--secondary lk-button--sm"
+                :disabled="listLoading"
+                @click="retryNotificationsList"
+              >
+                Повторить
+              </button>
+            </div>
           </li>
         </ul>
       </div>
@@ -123,15 +186,26 @@
 <script>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { apiRequest } from '@/api/client'
+import { getNotificationsPaginated, markAllNotificationsRead } from '@/api/notifications'
+import { useDeletionsStore } from '@/stores/deletions'
 import eventStream from '@/services/eventStream'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 import { useNotificationNavigation } from '@/composables/useNotificationNavigation'
-import { parseNotificationData } from '@/utils/notificationDetails'
+import { useInfiniteList } from '@/composables/useInfiniteList'
+import { formatTimeAgo } from '@/utils/datetime'
+import { parseNotificationData, groupNotificationsByDay } from '@/utils/notificationDetails'
 import NotificationDetailModal from '@/components/notifications/NotificationDetailModal.vue'
+import NotificationFilterTabs from '@/components/notifications/NotificationFilterTabs.vue'
+import NotificationCategoryDot from '@/components/notifications/NotificationCategoryDot.vue'
+
+// Компактная панель (десктоп-дропдаун 360px/350px список, мобильный sheet) - страница
+// поменьше, чем у полноэкранных списков (Центр/реестры берут 30, #1158): карточка ниже
+// табличной строки, 20 закрывает 3-4 прокрутки панели до новой догрузки.
+const NOTIFICATIONS_PER_PAGE = 20
 
 export default {
   name: 'UserNotifications',
-  components: { NotificationDetailModal },
+  components: { NotificationDetailModal, NotificationFilterTabs, NotificationCategoryDot },
   props: {
     show: {
       type: Boolean,
@@ -161,6 +235,9 @@ export default {
       handleSelector: '.sheet-handle',
     });
     const { resolveApplicationRoute } = useNotificationNavigation();
+    // useInfiniteList (#1158): аккумуляция страниц, hasMore/canLoadMore, устойчивость
+    // к ошибкам бэка (#1173, circuit-breaker) - см. buildNotificationsPage/setSentinelRef.
+    const infiniteList = useInfiniteList({ perPage: NOTIFICATIONS_PER_PAGE });
     return {
       sheetScroll,
       isSheet,
@@ -170,12 +247,22 @@ export default {
       onSheetTouchMove: swipe.onTouchMove,
       onSheetTouchEnd: swipe.onTouchEnd,
       resolveApplicationRoute,
+      notifications: infiniteList.items,
+      hasMoreNotifications: infiniteList.hasMore,
+      listLoading: infiniteList.loading,
+      listError: infiniteList.error,
+      loadNotificationsList: infiniteList.load,
+      loadMoreNotificationsList: infiniteList.loadMore,
+      retryNotificationsList: infiniteList.retry,
+      observeNotificationsSentinel: infiniteList.observeSentinel,
+      disconnectNotificationsSentinel: infiniteList.disconnectObserver,
     };
   },
   data() {
     return {
-      notifications: [],
-      loading: false,
+      filter: 'all',
+      unreadCount: 0,
+      markingAllRead: false,
       pollTimer: null,
       eventStreamOff: null,
       eventStreamStatusOff: null,
@@ -185,8 +272,10 @@ export default {
     }
   },
   computed: {
-    unreadCount() {
-      return this.notifications.filter(n => !n.is_read).length
+    // Разделители "Сегодня"/"Вчера"/дата (#1748 S7) - сегментирует УЖЕ отсортированную
+    // бэком ленту, порядок не меняет (см. groupNotificationsByDay).
+    groupedNotifications() {
+      return groupNotificationsByDay(this.notifications)
     },
   },
   watch: {
@@ -223,6 +312,7 @@ export default {
     document.addEventListener('keydown', this.escHandler)
   },
   beforeUnmount() {
+    this.disconnectNotificationsSentinel()
     if (this.escHandler) document.removeEventListener('keydown', this.escHandler)
     this.stopPolling()
     if (this.eventStreamOff) {
@@ -236,17 +326,58 @@ export default {
     eventStream.disconnect()
   },
   methods: {
+    // fetchPage для useInfiniteList (#1748 S7): limit/offset + filter текущей вкладки.
+    // meta.unread_count независим от страницы/фильтра - обновляет счётчик в шапке
+    // на КАЖДОМ ответе (первичном и догрузке), не только на первой странице.
+    async buildNotificationsPage(page, perPage) {
+      const offset = (page - 1) * perPage
+      const { items, total, unreadCount } = await getNotificationsPaginated({
+        limit: perPage,
+        offset,
+        filter: this.filter,
+      })
+      this.unreadCount = unreadCount
+      return { items, total }
+    },
+
     async fetchNotifications() {
-      this.loading = true
       try {
-        const response = await apiRequest('/notifications')
-        if (response.ok) {
-          this.notifications = await response.json() || []
-        }
+        await this.loadNotificationsList(this.buildNotificationsPage, { reset: true })
       } catch {
-        // background poll — не показываем ошибку
+        // ошибка первичной загрузки уже отражена в listError (пустой список + сентинел
+        // не рисуется без hasMore) - background poll/real-time не должен кидать тост
+      }
+    },
+
+    setFilter(value) {
+      if (this.filter === value) return
+      this.filter = value
+      this.fetchNotifications()
+    },
+
+    // Автодогрузка следующей порции по пересечению sentinel со списком (#1158/#1748 S7).
+    // root - сам скроллящийся ul (.notifications__list), не документ: панель компактная,
+    // скроллит себя саму и на десктопе, и на мобильном sheet.
+    setSentinelRef(el) {
+      this.observeNotificationsSentinel(el, this.buildNotificationsPage, { root: this.sheetScroll || null })
+    },
+
+    async markAllRead() {
+      if (this.markingAllRead || this.unreadCount === 0) return
+      this.markingAllRead = true
+      try {
+        await markAllNotificationsRead()
+        this.notifications.forEach((n) => { n.is_read = true })
+        this.unreadCount = 0
+      } catch {
+        useDeletionsStore().notify({
+          prefix: 'Не удалось отметить ',
+          bold: 'уведомления',
+          suffix: ' прочитанными',
+          type: 'error',
+        })
       } finally {
-        this.loading = false
+        this.markingAllRead = false
       }
     },
 
@@ -259,6 +390,9 @@ export default {
           })
           if (response.ok) {
             item.is_read = true
+            // meta.unread_count независим от текущей страницы - держим его синхронным
+            // локально между рефетчами, иначе счётчик в шапке отстанет до следующего poll.
+            this.unreadCount = Math.max(0, this.unreadCount - 1)
           }
         } catch {
           // ignore
@@ -290,7 +424,9 @@ export default {
           body: JSON.stringify({ is_read: false }),
         })
         if (response.ok) {
+          const wasRead = item.is_read
           item.is_read = false
+          if (wasRead) this.unreadCount += 1
         }
       } catch {
         // ignore
@@ -311,7 +447,11 @@ export default {
           method: 'DELETE',
         })
         if (response.ok) {
+          const removed = this.notifications.find((n) => n.id === id)
           this.notifications = this.notifications.filter(n => n.id !== id)
+          if (removed && !removed.is_read) {
+            this.unreadCount = Math.max(0, this.unreadCount - 1)
+          }
         }
       } catch {
         // ignore
@@ -325,7 +465,7 @@ export default {
         })
         if (response.ok) {
           this.notifications = []
-          this.$emit('update:unread-count', 0)
+          this.unreadCount = 0
         }
       } catch {
         // ignore
@@ -349,17 +489,10 @@ export default {
       }
     },
 
-    timeAgo(dateStr) {
-      if (!dateStr) return ''
-      const diff = Date.now() - new Date(dateStr).getTime()
-      const mins = Math.floor(diff / 60000)
-      if (mins < 1) return 'только что'
-      if (mins < 60) return `${mins} мин назад`
-      const hours = Math.floor(mins / 60)
-      if (hours < 24) return `${hours} ч назад`
-      const days = Math.floor(hours / 24)
-      if (days === 1) return 'вчера'
-      return `${days} дн назад`
+    // Обёртка над общим форматтером (@/utils/datetime) - раньше здесь была своя копия
+    // логики "N назад" (#1748 S7 dедуп).
+    relativeTime(dateStr) {
+      return formatTimeAgo(dateStr)
     },
   },
 }
@@ -383,11 +516,24 @@ export default {
 
 .notifications__header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 8px;
   padding: 12px 16px;
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
+}
+
+.notifications__header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.notifications__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .notifications__title {
@@ -402,6 +548,7 @@ export default {
   color: var(--accent-text);
 }
 
+.notifications__read-all-btn,
 .notifications__clear-btn {
   background: none;
   border: none;
@@ -414,8 +561,32 @@ export default {
   padding: 0;
 }
 
+.notifications__read-all-btn {
+  color: var(--accent-text);
+}
+
+.notifications__read-all-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.notifications__read-all-btn:hover:not(:disabled) {
+  color: var(--accent-hover);
+}
+
 .notifications__clear-btn:hover {
   color: var(--color-text);
+}
+
+/* Разделитель дня (#1748 S7) - "Сегодня"/"Вчера"/дата. */
+.notification-day-header {
+  padding: 8px 16px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  background: var(--surface);
 }
 
 /* List */
@@ -466,6 +637,12 @@ export default {
   background: color-mix(in srgb, var(--accent) 18%, var(--surface));
 }
 
+.notification-item__category {
+  margin-top: 5px;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
 .notification-item__content {
   flex: 1;
   min-width: 0;
@@ -488,6 +665,22 @@ export default {
   text-overflow: ellipsis;
   flex: 1;
   min-width: 0;
+}
+
+/* Счётчик схлопнутых повторов (#1748 S7, count>1) - "3 события" в модалке, здесь
+   просто цифра рядом с заголовком: карточка читается как "событий было несколько". */
+.notification-item__count {
+  flex-shrink: 0;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
 }
 
 .notification-item__time {
@@ -548,8 +741,33 @@ export default {
   animation: spin 1s linear infinite;
 }
 
+.notifications__spinner--sm {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* Sentinel бесшовной подгрузки (#1748 S7, зеркало #1158/#1173) - невидимая полоса
+   внизу списка, пересечение которой триггерит loadMore. */
+.notifications__sentinel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 10px 0;
+  flex-shrink: 0;
+}
+
+.sentinel-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--danger-text);
+  font-size: 12px;
 }
 
 .notifications__empty {

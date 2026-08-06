@@ -1,9 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   parseNotificationData,
   notificationDetailFields,
   notificationCategory,
+  notificationCategoryLabel,
   notificationActionLabel,
+  notificationDayLabel,
+  groupNotificationsByDay,
 } from '../notificationDetails';
 
 describe('parseNotificationData', () => {
@@ -122,5 +125,60 @@ describe('notificationActionLabel', () => {
   it('null когда application_id отсутствует', () => {
     expect(notificationActionLabel({ data: JSON.stringify({ status: 'x' }) })).toBeNull();
     expect(notificationActionLabel({ data: null })).toBeNull();
+  });
+});
+
+describe('notificationCategoryLabel', () => {
+  it('русская подпись по категории, неизвестная категория -> подпись application', () => {
+    expect(notificationCategoryLabel('security')).toBe('Безопасность');
+    expect(notificationCategoryLabel('passage')).toBe('Проезд');
+    expect(notificationCategoryLabel('unknown')).toBe('Заявка');
+  });
+});
+
+describe('notificationDayLabel и groupNotificationsByDay', () => {
+  const NOW = new Date(2026, 7, 6, 15, 0, 0); // 06.08.2026 15:00 - опорный момент
+
+  afterEach(() => vi.useRealTimers());
+
+  it('Сегодня/Вчера/дата по last_event_at, если оно есть - created_at игнорируется', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+
+    expect(notificationDayLabel({ last_event_at: '2026-08-06T09:00:00', created_at: '2026-08-01T09:00:00' })).toBe('Сегодня');
+    expect(notificationDayLabel({ last_event_at: '2026-08-05T09:00:00' })).toBe('Вчера');
+    expect(notificationDayLabel({ last_event_at: '2026-08-01T09:00:00' })).toBe('01.08.2026');
+  });
+
+  it('без last_event_at группировка идёт по created_at', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    expect(notificationDayLabel({ created_at: '2026-08-06T09:00:00' })).toBe('Сегодня');
+  });
+
+  it('без дат вовсе - пустая строка', () => {
+    expect(notificationDayLabel({})).toBe('');
+    expect(notificationDayLabel(null)).toBe('');
+  });
+
+  it('groupNotificationsByDay сегментирует последовательные записи по метке, не меняя порядок', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const items = [
+      { id: 1, last_event_at: '2026-08-06T14:00:00' },
+      { id: 2, last_event_at: '2026-08-06T10:00:00' },
+      { id: 3, last_event_at: '2026-08-05T10:00:00' },
+      { id: 4, last_event_at: '2026-08-01T10:00:00' },
+    ];
+    expect(groupNotificationsByDay(items)).toEqual([
+      { label: 'Сегодня', items: [items[0], items[1]] },
+      { label: 'Вчера', items: [items[2]] },
+      { label: '01.08.2026', items: [items[3]] },
+    ]);
+  });
+
+  it('пустой список - пустой массив групп', () => {
+    expect(groupNotificationsByDay([])).toEqual([]);
+    expect(groupNotificationsByDay(undefined)).toEqual([]);
   });
 });
