@@ -78,6 +78,14 @@ const routes = [
     component: AccountComponent,
     meta: { requiresAuth: true }
   },
+  // Тонкая настройка уведомлений (#1748, S8) - своя, не админская: доступна
+  // любому авторизованному так же, как ЛК и Автомобили, без permission-гейта.
+  {
+    path: '/notification-settings',
+    name: 'NotificationSettings',
+    component: () => import('./views/NotificationSettingsView.vue'),
+    meta: { requiresAuth: true }
+  },
   {
     path: '/carsview',
     name: 'CarsView',
