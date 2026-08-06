@@ -561,46 +561,6 @@ func (s *applicationService) notifyWithdrawn(ctx context.Context, applicationID 
 	}
 }
 
-// notifyAcceptorAssigned уведомляет назначенного принимающего, что теперь он отвечает
-// по этой заявке (#1748, S4). Гейт actorUserID != assignedUserID: TakeApplicationToWork
-// назначает принимающим самого актора (self-assign по текущей логике - вызывающий
-// пользователь и есть новый responsible_user_id), уведомлять человека о его же
-// собственном действии незачем. Проверка защищает путь, если в будущем принимающего
-// сможет назначить кто-то другой (администратор, автораспределение).
-// Best-effort: ошибка логируется, принятие заявки уже закоммичено.
-func (s *applicationService) notifyAcceptorAssigned(ctx context.Context, applicationID, assignedUserID, actorUserID int) {
-	if s.notificationService == nil || assignedUserID == actorUserID {
-		return
-	}
-
-	var app struct{ ApplicationNumber string }
-	if err := s.db.WithContext(ctx).
-		Raw("SELECT COALESCE(application_number, '') AS application_number FROM applications WHERE id = ?", applicationID).
-		Scan(&app).Error; err != nil {
-		slog.Warn("не удалось получить номер заявки для уведомления о назначении принимающего", "application_id", applicationID, "error", err)
-		return
-	}
-	number := app.ApplicationNumber
-	if number == "" {
-		number = fmt.Sprintf("№ %d", applicationID)
-	}
-
-	title := "Назначен принимающий"
-	body := fmt.Sprintf("По заявке %s вы назначены принимающим, ответственным за проход.", number)
-
-	data := map[string]any{"application_id": applicationID, "application_number": number}
-	payload, err := json.Marshal(data)
-	if err != nil {
-		slog.Warn("не удалось сериализовать данные уведомления о назначении принимающего", "application_id", applicationID, "error", err)
-		return
-	}
-	payloadStr := string(payload)
-
-	if err := s.notificationService.CreateForUser(ctx, assignedUserID, NotificationTypeApplicationAcceptorAssigned, title, body, &payloadStr); err != nil {
-		slog.Warn("не удалось создать уведомление о назначении принимающего", "user_id", assignedUserID, "application_id", applicationID, "error", err)
-	}
-}
-
 // buildSearchVariants возвращает уникальный набор вариантов поискового запроса:
 // оригинал, альтернативная раскладка и нормализованный госномер (если запрос похож на номер).
 // Используется для покрытия ввода без переключения раскладки и номеров с омоглифами/нулями.

@@ -165,12 +165,11 @@ func TestWithdrawApplication_NotifiesOnlyPendingApprovers(t *testing.T) {
 
 // --- Item 3: назначен принимающий ---
 
-// TestTakeApplicationToWork_Accept_SelfAssign_NoAcceptorNotification фиксирует
-// текущее поведение: TakeApplicationToWork назначает принимающим самого актора
-// (self-assign), поэтому уведомление "назначен принимающий" не отправляется - гейт
-// actor==assigned внутри хелпера. Документирует находку из #1748 S4: у responsible_user_id
-// в этом продукте сейчас нет пути назначения ДРУГОГО человека, только self-accept.
-func TestTakeApplicationToWork_Accept_SelfAssign_NoAcceptorNotification(t *testing.T) {
+// TestTakeApplicationToWork_Accept_SetsResponsibleToActor фиксирует, почему уведомления
+// "назначен принимающий" в системе нет: принимающим становится сам актор (self-accept),
+// пути назначить принимающим ДРУГОГО человека у responsible_user_id сейчас не существует.
+// Появится такой путь - уведомление станет осмысленным, и этот тест покажет, что изменилось.
+func TestTakeApplicationToWork_Accept_SetsResponsibleToActor(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -192,10 +191,6 @@ func TestTakeApplicationToWork_Accept_SelfAssign_NoAcceptorNotification(t *testi
 	require.NotNil(t, responsibleID)
 	assert.Equal(t, approverID, *responsibleID, "принявший в работу становится responsible_user")
 
-	var count int64
-	require.NoError(t, db.Model(&models.Notification{}).
-		Where("user_id = ? AND type = ?", approverID, services.NotificationTypeApplicationAcceptorAssigned).Count(&count).Error)
-	assert.EqualValues(t, 0, count, "self-assign при принятии в работу не шлёт уведомление о назначении самому себе")
 }
 
 // --- Item 4: первый проход по заявке ---
