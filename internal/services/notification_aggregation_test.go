@@ -19,11 +19,12 @@ func TestAutoNotificationGroupKey_ApplicationAnswer_UsesQuestionKey(t *testing.T
 // правило: любой другой Aggregatable-тип с application_id в data группируется по заявке.
 func TestAutoNotificationGroupKey_GenericAggregatable_UsesApplicationKey(t *testing.T) {
 	t.Parallel()
+	// Напоминания о согласовании сюда не входят намеренно: у них свой интервал
+	// повтора в днях, схлопывание им выключено в каталоге.
 	cases := []string{
 		NotificationTypeApplicationApprovalRequired,
 		NotificationTypeApplicationForwarded,
 		NotificationTypeApplicationQuestion,
-		NotificationTypeApprovalReminder,
 		NotificationTypeDirectoryPending,
 	}
 	data := `{"application_id":7,"application_number":"№7"}`
