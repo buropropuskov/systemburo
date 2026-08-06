@@ -41,8 +41,11 @@ func TestStream_RoundTripAcrossChunkBoundaries(t *testing.T) {
 
 		sealed := sealStream(t, key, payload)
 		require.True(t, IsStreamEncrypted(sealed), "размер %d", size)
-		if size > 0 {
-			require.NotContains(t, string(sealed), string(payload[:min(size, 32)]), "размер %d: данные не должны лежать открытыми", size)
+		// Проверка «данные не лежат открытыми» осмысленна только на куске, который
+		// не мог совпасть случайно: один-два байта встречаются в шифротексте сами
+		// собой и делали бы тест плавающим.
+		if size >= 32 {
+			require.NotContains(t, string(sealed), string(payload[:32]), "размер %d: данные не должны лежать открытыми", size)
 		}
 
 		r, err := NewStreamReader(bytes.NewReader(sealed), key)
