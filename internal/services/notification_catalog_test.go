@@ -1,6 +1,11 @@
 package services
 
-import "testing"
+import (
+	"os"
+	"regexp"
+	"strings"
+	"testing"
+)
 
 func TestNotificationCatalogFieldsFilled(t *testing.T) {
 	t.Parallel()
@@ -73,33 +78,99 @@ func TestNotificationTypeMeta(t *testing.T) {
 	}
 }
 
-// notificationTypesTriggeredInServices -- коды, которые реально передаются в
-// CreateForUser по сервисам (internal/services/*.go). Список сверяется руками при
-// каждой правке триггера. Добавил новый тип уведомления в сервисах - добавь его
-// сюда И в notificationCatalog, иначе этот тест упадёт.
-var notificationTypesTriggeredInServices = []string{
-	NotificationTypeApplicationCreated,
-	NotificationTypeApplicationApprovalRequired,
-	NotificationTypeApplicationForwarded,
-	NotificationTypeApplicationStatusChanged,
-	NotificationTypeApplicationQuestion,
-	NotificationTypeApplicationAnswer,
-	NotificationTypeApplicationSupplementReady,
-	NotificationTypeApplicationSupplementDecided,
-	NotificationTypeApprovalReminder,
-	NotificationTypePasswordChanged,
-	NotificationTypeArchiveQuotaWarning,
-	NotificationTypeDirectoryPending,
-	NotificationTypeDirectoryResolved,
-}
-
-func TestNotificationCatalogCoversTriggeredTypes(t *testing.T) {
+// TestNotificationCatalogTypesHaveTriggers -- замок против типа-призрака: кода,
+// который лежит в каталоге, попадает переключателем на экран настроек, но не
+// создаётся ни одним сервисом. Прежняя версия сверяла рукописный список с самим
+// каталогом и поэтому не заметила ни одного из тринадцати типов, добавленных
+// параллельными срезами #1748: список просто не пополняли. Теперь имена констант
+// берутся из самого каталога, а наличие триггера проверяется по исходникам пакета.
+//
+// Обратное направление держит компилятор: код, переданный в CreateForUser мимо
+// каталога, - это необъявленная константа либо голый литерал, и второе ловит
+// TestNotificationCatalogNoStringLiterals ниже.
+func TestNotificationCatalogTypesHaveTriggers(t *testing.T) {
 	t.Parallel()
-	for _, code := range notificationTypesTriggeredInServices {
-		if _, ok := NotificationTypeMeta(code); !ok {
-			t.Errorf("тип уведомления %q передаётся в CreateForUser, но отсутствует в каталоге", code)
+	names := catalogConstNames(t)
+	if len(names) == 0 {
+		t.Fatal("не удалось прочитать имена констант из notification_catalog.go")
+	}
+
+	sources := packageSources(t, "notification_catalog.go")
+	for _, name := range names {
+		used := false
+		for _, src := range sources {
+			if strings.Contains(src, name) {
+				used = true
+				break
+			}
+		}
+		if !used {
+			t.Errorf("тип уведомления %s есть в каталоге, но его не создаёт ни один сервис: "+
+				"на экране настроек он станет переключателем, который ничего не делает", name)
 		}
 	}
+}
+
+// TestNotificationCatalogNoStringLiterals -- второй замок: код типа передаётся
+// константой каталога, а не строкой на месте вызова. Литерал компилируется молча
+// и обходит и каталог, и гейт подписок.
+func TestNotificationCatalogNoStringLiterals(t *testing.T) {
+	t.Parallel()
+	codes := make([]string, 0, len(notificationCatalog))
+	for code := range notificationCatalog {
+		codes = append(codes, code)
+	}
+	for name, src := range packageSources(t, "notification_catalog.go") {
+		for _, code := range codes {
+			if strings.Contains(src, `"`+code+`"`) {
+				t.Errorf("%s: код уведомления %q написан строкой - используй константу каталога", name, code)
+			}
+		}
+	}
+}
+
+// catalogConstNames вытаскивает имена констант вида NotificationTypeXxx = "code"
+// из самого каталога.
+func catalogConstNames(t *testing.T) []string {
+	t.Helper()
+	data, err := os.ReadFile("notification_catalog.go")
+	if err != nil {
+		t.Fatalf("не удалось прочитать каталог: %v", err)
+	}
+	re := regexp.MustCompile(`(NotificationType[A-Za-z]+)\s*=\s*"`)
+	matches := re.FindAllStringSubmatch(string(data), -1)
+	names := make([]string, 0, len(matches))
+	for _, m := range matches {
+		names = append(names, m[1])
+	}
+	return names
+}
+
+// packageSources читает исходники пакета (без тестов и без указанных файлов) -
+// по ним проверяется, что тип каталога где-то действительно создаётся.
+func packageSources(t *testing.T, exclude ...string) map[string]string {
+	t.Helper()
+	skip := make(map[string]bool, len(exclude))
+	for _, name := range exclude {
+		skip[name] = true
+	}
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("не удалось прочитать пакет: %v", err)
+	}
+	out := make(map[string]string, len(entries))
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") || skip[name] {
+			continue
+		}
+		data, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatalf("не удалось прочитать %s: %v", name, err)
+		}
+		out[name] = string(data)
+	}
+	return out
 }
 
 func TestNotificationCategoriesOrder(t *testing.T) {

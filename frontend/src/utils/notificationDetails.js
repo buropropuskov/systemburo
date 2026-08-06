@@ -55,7 +55,7 @@ export function parseNotificationData(notification) {
  * известному полю data, которое присутствует и непусто. Неизвестные поля и
  * технические идентификаторы (см. FIELD_LABELS) не попадают в результат.
  * @param {{data?: string|object|null}|null|undefined} notification
- * @returns {Array<{label: string, value: string}>}
+ * @returns {Array<{key: string, label: string, value: string}>}
  */
 export function notificationDetailFields(notification) {
   const data = parseNotificationData(notification);
@@ -77,7 +77,7 @@ export function notificationDetailFields(notification) {
     } else {
       value = String(raw);
     }
-    fields.push({ label, value });
+    fields.push({ key, label, value });
   }
   return fields;
 }
@@ -88,7 +88,6 @@ export function notificationDetailFields(notification) {
 const EXACT_CATEGORY = {
   application_expiring: 'passage',
   application_withdrawn: 'passage',
-  application_acceptor_assigned: 'passage',
   application_passage_first: 'passage',
   password_changed: 'security',
   user_banned: 'security',
@@ -109,7 +108,7 @@ const EXACT_CATEGORY = {
 /**
  * Категория уведомления по коду типа - для визуальной группировки/бейджа в
  * модалке. Точное совпадение проверяется РАНЬШЕ префикса "application_":
- * application_expiring/withdrawn/acceptor_assigned/passage_first по имени
+ * application_expiring/withdrawn/passage_first по имени
  * похожи на события заявки, но относятся к проезду (категория 'passage').
  * Любой не перечисленный код (включая настоящие application_* события
  * жизненного цикла заявки) - категория 'application'.
@@ -118,6 +117,24 @@ const EXACT_CATEGORY = {
  */
 export function notificationCategory(type) {
   return (type && EXACT_CATEGORY[type]) || 'application';
+}
+
+const CATEGORY_LABELS = {
+  application: 'Заявка',
+  security: 'Безопасность',
+  passage: 'Проезд',
+  content: 'Публикации',
+  system: 'Система',
+};
+
+/**
+ * Русская подпись категории - единая точка для бейджа в модалке (#1748 S6) и
+ * цветовой метки в списке (#1748 S7), чтобы подписи не разъезжались по местам.
+ * @param {'application'|'security'|'passage'|'content'|'system'} category
+ * @returns {string}
+ */
+export function notificationCategoryLabel(category) {
+  return CATEGORY_LABELS[category] || CATEGORY_LABELS.application;
 }
 
 /**
@@ -129,4 +146,54 @@ export function notificationCategory(type) {
 export function notificationActionLabel(notification) {
   const data = parseNotificationData(notification);
   return data.application_id ? 'Открыть заявку' : null;
+}
+
+function startOfDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+/**
+ * Разделитель дня для группировки уведомлений в списке: "Сегодня", "Вчера",
+ * иначе дата ДД.ММ.ГГГГ. Момент группировки - тот же, что момент сортировки
+ * ленты на бэке (последнее событие в схлопнутой группе). Поле называется
+ * last_event_at либо updated_at в зависимости от того, как назвал его бэк
+ * (см. #1748 S2/S7 - на момент написания ещё не смержен) - читаем оба имени,
+ * иначе созданное раньше created_at.
+ * @param {{created_at?: string, last_event_at?: string, updated_at?: string}|null|undefined} notification
+ * @returns {string}
+ */
+export function notificationDayLabel(notification) {
+  const value = notification?.last_event_at || notification?.updated_at || notification?.created_at;
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+
+  const diffDays = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86_400_000);
+  if (diffDays === 0) return 'Сегодня';
+  if (diffDays === 1) return 'Вчера';
+
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+}
+
+/**
+ * Группирует УЖЕ отсортированную свежими-сверху ленту уведомлений по дню
+ * (notificationDayLabel) для заголовков-разделителей "Сегодня"/"Вчера"/дата.
+ * Сегментирует последовательные записи с одинаковой меткой, порядок внутри
+ * дня и между днями не меняет - сортировку задаёт бэк (last_event_at).
+ * @param {object[]} notifications
+ * @returns {Array<{label: string, items: object[]}>}
+ */
+export function groupNotificationsByDay(notifications) {
+  const groups = [];
+  let current = null;
+  for (const n of notifications || []) {
+    const label = notificationDayLabel(n);
+    if (!current || current.label !== label) {
+      current = { label, items: [] };
+      groups.push(current);
+    }
+    current.items.push(n);
+  }
+  return groups;
 }
