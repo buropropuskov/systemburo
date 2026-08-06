@@ -38,6 +38,20 @@ type Config struct {
 	UploadAllowedImageTypes []string `env:"UPLOAD_ALLOWED_IMAGE_TYPES" envDefault:"image/jpeg,image/png,image/webp" envSeparator:","`
 	UploadAllowedDocTypes   []string `env:"UPLOAD_ALLOWED_DOC_TYPES" envDefault:"application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" envSeparator:","`
 
+	// Файлы, прикладываемые к заявке (#1721). Размер одного файла берётся из
+	// UPLOAD_MAX_FILE_SIZE, здесь - сколько их на заявку и сколько всего. Потолок
+	// суммы нужен отдельно от количества: десять файлов по десять мегабайт
+	// упрутся в client_max_body_size nginx и оборвутся уже на прокси.
+	ApplicationFileMaxCount int   `env:"APPLICATION_FILE_MAX_COUNT" envDefault:"10"`
+	ApplicationFileMaxTotal int64 `env:"APPLICATION_FILE_MAX_TOTAL_SIZE" envDefault:"31457280"`
+	// ApplicationFileDraftTTL - сколько живёт загруженный, но так и не приложенный
+	// к заявке файл: заявитель выбрал файлы и закрыл форму, не отправив её.
+	ApplicationFileDraftTTL time.Duration `env:"APPLICATION_FILE_DRAFT_TTL" envDefault:"24h"`
+	// Приведение снимков к предсказуемому виду (#1721). Перекодирование заодно
+	// срезает EXIF: снимок с телефона несёт координаты съёмки и модель устройства.
+	ApplicationFileImageMaxSide int `env:"APPLICATION_FILE_IMAGE_MAX_SIDE" envDefault:"2000"`
+	ApplicationFileJPEGQuality  int `env:"APPLICATION_FILE_JPEG_QUALITY" envDefault:"82"`
+
 	DataEncryptionKey  string `env:"DATA_ENCRYPTION_KEY" envDefault:""`
 	RequireEncryption  bool   `env:"REQUIRE_ENCRYPTION" envDefault:"false"`
 	RateLimitPerMinute int    `env:"RATE_LIMIT_PER_MINUTE" envDefault:"200"`
@@ -140,6 +154,21 @@ func (c *Config) Validate() error {
 	}
 	if c.UploadMaxFileSize <= 0 {
 		return fmt.Errorf("UPLOAD_MAX_FILE_SIZE must be positive (got %d)", c.UploadMaxFileSize)
+	}
+	if c.ApplicationFileMaxCount <= 0 {
+		return fmt.Errorf("APPLICATION_FILE_MAX_COUNT must be positive (got %d)", c.ApplicationFileMaxCount)
+	}
+	if c.ApplicationFileMaxTotal < c.UploadMaxFileSize {
+		return fmt.Errorf("APPLICATION_FILE_MAX_TOTAL_SIZE (%d) must not be less than UPLOAD_MAX_FILE_SIZE (%d): ни один файл нельзя было бы приложить", c.ApplicationFileMaxTotal, c.UploadMaxFileSize)
+	}
+	if c.ApplicationFileDraftTTL <= 0 {
+		return fmt.Errorf("APPLICATION_FILE_DRAFT_TTL must be positive (got %s)", c.ApplicationFileDraftTTL)
+	}
+	if c.ApplicationFileImageMaxSide <= 0 {
+		return fmt.Errorf("APPLICATION_FILE_IMAGE_MAX_SIDE must be positive (got %d)", c.ApplicationFileImageMaxSide)
+	}
+	if c.ApplicationFileJPEGQuality < 1 || c.ApplicationFileJPEGQuality > 100 {
+		return fmt.Errorf("APPLICATION_FILE_JPEG_QUALITY must be within 1..100 (got %d)", c.ApplicationFileJPEGQuality)
 	}
 	if c.RequireEncryption && c.DataEncryptionKey == "" {
 		return fmt.Errorf("REQUIRE_ENCRYPTION=true but DATA_ENCRYPTION_KEY is empty")

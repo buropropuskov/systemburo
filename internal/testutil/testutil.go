@@ -92,6 +92,9 @@ var tables = []string{
 	"application_answers", "application_question_attachments", "application_question_views", "application_question_reads", "application_questions",
 	"application_status_views", "application_reads", "application_viewers", "application_approvers", "application_responsible_users",
 	"application_supplement_approvals", "application_supplements",
+	// application_files чистится явно, а не каскадом от applications: черновики
+	// лежат с application_id NULL и каскад их не достаёт.
+	"application_files",
 	"application_status_history", "applications",
 	"bureau_time_slots",
 	"companies_unload_places", "organization_unload_places",
@@ -168,8 +171,17 @@ var CleanupExempt = map[string]string{
 // AutoMigrate runs once per test binary via sync.Once; each test still uses CleanDB for isolation.
 func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	t.Helper()
-	e, db, _, cleanup := setupTestApp(t, false)
+	e, db, _, cleanup := SetupTestAppWithUploads(t)
 	return e, db, cleanup
+}
+
+// SetupTestAppWithUploads -- то же приложение плюс каталог загрузок: тестам файлов
+// заявки нужно видеть, что именно легло на диск. Отдельной функцией по той же
+// причине, что и вариант с архивом, - чтобы не трогать три сотни чужих вызовов.
+func SetupTestAppWithUploads(t *testing.T) (*echo.Echo, *gorm.DB, string, func()) {
+	t.Helper()
+	e, db, _, uploadDir, cleanup := setupTestApp(t, false)
+	return e, db, uploadDir, cleanup
 }
 
 // SetupTestAppWithArchive - то же приложение плюс путь к корню файлового архива
@@ -178,7 +190,8 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 // чужих вызовов.
 func SetupTestAppWithArchive(t *testing.T) (*echo.Echo, *gorm.DB, string, func()) {
 	t.Helper()
-	return setupTestApp(t, false)
+	e, db, archiveDir, _, cleanup := setupTestApp(t, false)
+	return e, db, archiveDir, cleanup
 }
 
 // SetupTestAppWithConsentGate поднимает приложение с навешенным middleware гейта
@@ -189,11 +202,11 @@ func SetupTestAppWithArchive(t *testing.T) (*echo.Echo, *gorm.DB, string, func()
 // начали бы получать 403 вместо своих ответов.
 func SetupTestAppWithConsentGate(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	t.Helper()
-	e, db, _, cleanup := setupTestApp(t, true)
+	e, db, _, _, cleanup := setupTestApp(t, true)
 	return e, db, cleanup
 }
 
-func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, string, func()) {
+func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, string, string, func()) {
 	t.Helper()
 
 	crypto.SetGlobalKey(nil) // passthrough in tests
@@ -275,7 +288,9 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	blacklistAuditRecorder := services.NewAuditRecorder(db)
 	vehicleBlacklistService := services.NewVehicleBlacklistService(db, blacklistAuditRecorder)
 	personBlacklistService := services.NewPersonBlacklistService(db, blacklistAuditRecorder)
-	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithApplicationPermissionResolver(permissionResolver))
+	uploadDir := t.TempDir()
+	applicationFileService := services.NewApplicationFileService(db, uploadDir)
+	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithApplicationPermissionResolver(permissionResolver), services.WithApplicationFiles(applicationFileService))
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, "./uploads")
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)
@@ -298,7 +313,6 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	usersHandler := handlers.NewUsersHandler(userService)
 	onboardingHandler := handlers.NewOnboardingHandler(onboardingService)
 	themeHandler := handlers.NewThemeHandler(themeService)
-	uploadDir := t.TempDir()
 	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService, 10*1024*1024, uploadDir)
 	bureauHandler := handlers.NewBureauHandler(bureauService)
 	workModesHandler := handlers.NewWorkModesHandler(workModesService)
@@ -316,6 +330,12 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	requestLogsHandler := handlers.NewRequestLogsHandler(requestLogsService)
 	employeesHistoryHandler := handlers.NewEmployeesHistoryHandler(employeesHistoryService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService, permissionResolver)
+	applicationFileHandler := handlers.NewApplicationFileHandler(
+		applicationFileService, applicationService,
+		10*1024*1024, 10, 30*1024*1024,
+		[]string{"image/jpeg", "image/png", "image/webp", "application/pdf"},
+		2000, 82,
+	)
 	approverHandler := handlers.NewApproverHandler(approverService)
 	permissionHandler := handlers.NewPermissionHandler(permissionService, permissionResolver)
 	permissionGroupHandler := handlers.NewPermissionGroupHandler(permissionGroupService)
@@ -426,6 +446,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 		UniqueEmployee:      uniqueEmployeeHandler,
 		Feedback:            feedbackHandler,
 		Application:         applicationHandler,
+		ApplicationFiles:    applicationFileHandler,
 		Approver:            approverHandler,
 		Permissions:         permissionHandler,
 		PermGroups:          permissionGroupHandler,
@@ -470,7 +491,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	// No-op cleanup: shared DB stays open for the test binary lifetime.
 	cleanup := func() {}
 
-	return e, db, archiveDir, cleanup
+	return e, db, archiveDir, uploadDir, cleanup
 }
 
 // CleanDB deletes all test data and restores reference tables from the snapshot

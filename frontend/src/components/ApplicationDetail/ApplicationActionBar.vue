@@ -101,7 +101,7 @@
         <textarea
           v-model="supplementComment"
           class="lk-textarea supplement-comment__input"
-          data-testid="supplement-comment"
+          data-testid="supplement-decision-comment"
           rows="3"
         />
       </label>
