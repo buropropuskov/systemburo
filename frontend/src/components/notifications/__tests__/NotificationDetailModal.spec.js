@@ -41,9 +41,9 @@ describe('NotificationDetailModal', () => {
     expect(wrapper.emitted('action')).toBeTruthy();
   });
 
-  it('эмитит unread по клику «Вернуть в непрочитанные»', async () => {
+  it('эмитит unread по клику «В непрочитанные»', async () => {
     const wrapper = mountModal({ id: 1, title: 'x', message: 'y', created_at: '2026-08-06T10:00:00', data: null });
-    const buttons = wrapper.findAll('button').filter((b) => b.text() === 'Вернуть в непрочитанные');
+    const buttons = wrapper.findAll('button').filter((b) => b.text() === 'В непрочитанные');
     expect(buttons.length).toBe(1);
     await buttons[0].trigger('click');
     expect(wrapper.emitted('unread')).toBeTruthy();

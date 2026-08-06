@@ -2353,7 +2353,10 @@ func (s *applicationService) UpdateApplication(ctx context.Context, username str
 	// в финальное значение (Согласовано/Не согласовано) и оно реально сменилось (#1349).
 	if confirmationChanged {
 		if outcome := confirmationOutcome(req.Confirmation); outcome != "" {
-			s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, outcome)
+			s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, outcome, &statusChangeContext{
+				ActorName: formatFullName(user.LastName, user.FirstName, user.MiddleName),
+				Comment:   optionalString(req.ResponsibleComment),
+			})
 		}
 	}
 	// Прямое выставление "Согласовано" (admin-путь, минуя approve-флоу) делает

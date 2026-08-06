@@ -131,10 +131,14 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
 	// Инициатору - уведомление об исходе принятия/отказа (#1349). Гейт actor != sender
 	// внутри хелпера: если принимающий = отправитель, себе не шлём.
+	decision := &statusChangeContext{
+		ActorName: formatFullName(user.LastName, user.FirstName, user.MiddleName),
+		Comment:   optionalString(req.Comment),
+	}
 	if req.Action == "accept" {
-		s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, statusOutcomeAccepted)
+		s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, statusOutcomeAccepted, decision)
 	} else if req.Action == "reject" {
-		s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, statusOutcomeRejected)
+		s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, statusOutcomeRejected, decision)
 	}
 	return nil
 }
@@ -548,7 +552,7 @@ func (s *applicationService) CheckExpiredAttachments(ctx context.Context) error 
 	// Инициатору - уведомление "завершена" (actor=nil: завершил крон, шлём и отправителю).
 	for _, id := range completedAppIDs {
 		s.notifyApplicationUpdated(ctx, id, archiveDataChanged)
-		s.notifyInitiatorStatusChanged(ctx, id, nil, statusOutcomeCompleted)
+		s.notifyInitiatorStatusChanged(ctx, id, nil, statusOutcomeCompleted, nil)
 	}
 
 	slog.Info("Проверка истекших вложений завершена")

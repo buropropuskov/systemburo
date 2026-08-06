@@ -164,4 +164,24 @@ describe('UserNotifications — подробности и навигация п�
     expect(wrapper.vm.showDetailModal).toBe(true);
     expect(wrapper.findComponent({ name: 'NotificationDetailModal' }).props('show')).toBe(true);
   });
+
+  it('Escape при открытой модалке не закрывает панель уведомлений', async () => {
+    const wrapper = mount(UserNotifications, {
+      props: { show: true },
+      global: { stubs: { teleport: true }, mocks: { $router: { push: vi.fn() } } },
+    });
+    await flushPromises();
+    wrapper.vm.showDetailModal = true;
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await flushPromises();
+
+    expect(wrapper.emitted('close')).toBeFalsy();
+
+    wrapper.vm.showDetailModal = false;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await flushPromises();
+    expect(wrapper.emitted('close')).toBeTruthy();
+    wrapper.unmount();
+  });
 });

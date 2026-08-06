@@ -58,6 +58,34 @@
               >
                 Очистить
               </button>
+              <button
+                class="notifications__settings-btn"
+                type="button"
+                title="Настроить уведомления"
+                aria-label="Настроить уведомления"
+                data-testid="header-notifications-settings"
+                @click="openSettings"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  />
+                  <path
+                    d="M19.4 13a7.8 7.8 0 0 0 0-2l2-1.5-2-3.5-2.4 1a7.8 7.8 0 0 0-1.7-1L15 3H9l-.3 2.6a7.8 7.8 0 0 0-1.7 1l-2.4-1-2 3.5L4.6 11a7.8 7.8 0 0 0 0 2l-2 1.5 2 3.5 2.4-1c.5.4 1.1.8 1.7 1L9 21h6l.3-2.6c.6-.2 1.2-.6 1.7-1l2.4 1 2-3.5-2-1.5Z"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </button>
             </div>
           </div>
           <NotificationFilterTabs
@@ -306,8 +334,11 @@ export default {
     })
 
     // Escape закрывает панель (в т.ч. мобильный bottom-sheet - конвенция ui-modals).
+    // Escape при открытой модалке подробностей закрывает только её: панель
+    // уведомлений под ней остаётся, иначе одно нажатие схлопывает оба слоя и
+    // человек теряет место в списке (#1748).
     this.escHandler = (e) => {
-      if (e.key === 'Escape' && this.show) this.$emit('close')
+      if (e.key === 'Escape' && this.show && !this.showDetailModal) this.$emit('close')
     }
     document.addEventListener('keydown', this.escHandler)
   },
@@ -360,6 +391,13 @@ export default {
     // скроллит себя саму и на десктопе, и на мобильном sheet.
     setSentinelRef(el) {
       this.observeNotificationsSentinel(el, this.buildNotificationsPage, { root: this.sheetScroll || null })
+    },
+
+    // Вход в настройки прямо из колокольчика: раньше он был только ссылкой в
+    // блоке личного кабинета, и найти его оттуда никто не догадывался (#1748).
+    openSettings() {
+      this.$emit('close')
+      this.$router.push('/notification-settings').catch(() => {})
     },
 
     async markAllRead() {
@@ -549,6 +587,23 @@ export default {
 }
 
 .notifications__read-all-btn,
+.notifications__settings-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.notifications__settings-btn:hover {
+  color: var(--color-text);
+  transform: rotate(45deg);
+}
+
 .notifications__clear-btn {
   background: none;
   border: none;
