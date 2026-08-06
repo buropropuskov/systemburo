@@ -228,6 +228,7 @@ def inventories():
                 "startOnlinePeakSnapshotter": "Фиксация пика посещаемости",
                 "startLogPartitionWorker": "Обслуживание журнальных таблиц",
                 "startReminderScheduler": "Напоминания согласующим",
+                "startExpiryNotifyScheduler": "Предупреждение об истечении пропуска",
                 "startRetentionWorker": "Уборка технического мусора",
                 "startFileArchiveWorker": "Выгрузка бланков в файловый архив",
                 "startApplicationFileSweeper": "Уборка неотправленных файлов заявок",
