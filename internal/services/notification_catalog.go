@@ -75,10 +75,9 @@ const (
 
 // Коды типов уведомлений раздела "passage" -- события вокруг прохода по заявке.
 const (
-	NotificationTypeApplicationExpiring         = "application_expiring"
-	NotificationTypeApplicationWithdrawn        = "application_withdrawn"
-	NotificationTypeApplicationAcceptorAssigned = "application_acceptor_assigned"
-	NotificationTypeApplicationPassageFirst     = "application_passage_first"
+	NotificationTypeApplicationExpiring     = "application_expiring"
+	NotificationTypeApplicationWithdrawn    = "application_withdrawn"
+	NotificationTypeApplicationPassageFirst = "application_passage_first"
 )
 
 // Коды типов уведомлений раздела "content" -- новости, документы, обратная связь.
@@ -204,12 +203,6 @@ var notificationCatalog = map[string]NotificationMeta{
 		Code: NotificationTypeApplicationWithdrawn, Category: NotificationCategoryPassage,
 		Label:       "Заявка отозвана",
 		Description: "Заявку отозвали до того, как по ней прошли на территорию.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal,
-	},
-	NotificationTypeApplicationAcceptorAssigned: {
-		Code: NotificationTypeApplicationAcceptorAssigned, Category: NotificationCategoryPassage,
-		Label:       "Назначен принимающий",
-		Description: "По заявке назначили принимающего, ответственного за проход.",
 		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal,
 	},
 	NotificationTypeApplicationPassageFirst: {

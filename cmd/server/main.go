@@ -204,8 +204,8 @@ func main() {
 	// таблиц меняются (въезд/выезд, принятие заявки).
 	tablesRefreshProducer := services.NewTablesRefreshPublisher(db, permissionResolver, eventsHub)
 	availableRefreshProducer := services.NewAvailableRefreshPublisher(db, permissionResolver, eventsHub)
-	carService := services.NewCarService(db, auditRecorder, services.WithCarTablesProducer(tablesRefreshProducer))
-	employeeService := services.NewEmployeeService(db, auditRecorder, services.WithEmployeeTablesProducer(tablesRefreshProducer))
+	carService := services.NewCarService(db, auditRecorder, services.WithCarTablesProducer(tablesRefreshProducer), services.WithCarNotifications(notificationServiceEarly))
+	employeeService := services.NewEmployeeService(db, auditRecorder, services.WithEmployeeTablesProducer(tablesRefreshProducer), services.WithEmployeeNotifications(notificationServiceEarly))
 	manualAttachService := services.NewManualAttachService(db, auditRecorder, tablesRefreshProducer, availableRefreshProducer)
 	permissionService := services.NewPermissionService(db)
 	permissionGroupService := services.NewPermissionGroupService(db, permissionResolver)
@@ -244,6 +244,9 @@ func main() {
 	pdConsentStatsService := services.NewPDConsentStatsService(db, pdConsentGateService)
 	userService.SetPasswordPolicyProvider(settingsService) // политика паролей при создании/смене
 	reminderService := services.NewReminderService(db, notificationService, settingsService)
+	// Предупреждение об истекающем завтра пропуске (#1748, S4): раньше об этом
+	// узнавали постфактум, когда CheckExpiredAttachments уже деактивировал вложение.
+	expiryNotifyService := services.NewExpiryNotifyService(db, notificationService)
 	telegramService := services.NewTelegramService(cfg.TelegramBotToken, cfg.TelegramChatID)
 	bugReportService := services.NewBugReportService(db, telegramService)
 	maintenanceService := services.NewMaintenanceService(db)
@@ -494,6 +497,12 @@ func main() {
 	// application_responsible_users, молчащие дольше настроенного срока, и шлёт
 	// уведомление. См. ReminderService.SendPendingReminders.
 	go startReminderScheduler(ctxSig, reminderService, time.Hour)
+
+	// Предупреждение об истекающем завтра пропуске (#1748, S4): раз в сутки отбирает
+	// заявки с активным вложением на завтра и шлёт инициатору. См.
+	// ExpiryNotifyService.NotifyExpiringTomorrow. Дедупликация от повторных
+	// рестартов - внутри сервиса (по существующему уведомлению за последние сутки).
+	go startExpiryNotifyScheduler(ctxSig, expiryNotifyService, 24*time.Hour)
 
 	// Архив access_denials: 3 мес retention, цикл раз в сутки.
 	go startAccessDenialsArchiver(ctxSig, accessDenialService, 90*24*time.Hour, 24*time.Hour)
@@ -826,6 +835,29 @@ func startReminderScheduler(ctx context.Context, svc services.ReminderService, i
 		case <-ticker.C:
 			if err := svc.SendPendingReminders(ctx); err != nil {
 				slog.Error("reminder run failed", "error", err)
+			}
+		}
+	}
+}
+
+// startExpiryNotifyScheduler запускает периодический прогон предупреждений об
+// истекающем завтра пропуске (#1748, S4). Первый прогон — сразу при старте; далее —
+// каждый interval, пока ctx не отменён. Задача суточная, но при рестарте сервиса
+// может отработать чаще - от повторной рассылки защищает сам сервис.
+func startExpiryNotifyScheduler(ctx context.Context, svc services.ExpiryNotifyService, interval time.Duration) {
+	if err := svc.NotifyExpiringTomorrow(ctx); err != nil {
+		slog.Error("initial expiry notify run failed", "error", err)
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("expiry notify scheduler stopped")
+			return
+		case <-ticker.C:
+			if err := svc.NotifyExpiringTomorrow(ctx); err != nil {
+				slog.Error("expiry notify run failed", "error", err)
 			}
 		}
 	}

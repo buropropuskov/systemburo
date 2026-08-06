@@ -70,9 +70,9 @@ func (s *carService) UpdateCarTerritoryStatus(ctx context.Context, carID int, re
 		actionType = "exit"
 	}
 
+	var car models.Car
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var car models.Car
-		if err := tx.Select("id", "car_number", "car_brand", "territory_status").
+		if err := tx.Select("id", "car_number", "car_brand", "territory_status", "attachment_id").
 			First(&car, carID).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
 				return echo.NewHTTPError(http.StatusNotFound, "Car not found")
@@ -129,6 +129,12 @@ func (s *carService) UpdateCarTerritoryStatus(ctx context.Context, carID int, re
 	// Въезд/выезд изменил строку машины - сигналим аудитории её таблиц «Проезд»
 	// обновиться live (#840 V2.3, scoped #1036).
 	s.tablesProducer.NotifyCarsChanged(ctx, carID)
+
+	// Первый проход по заявке (#1748, S4) - только на въезд, только если машина
+	// вообще пришла из заявки (у ручного добавления в таблицу проходной её нет).
+	if actionType == "entry" {
+		notifyFirstPassage(ctx, s.db, s.notificationService, car.AttachmentID)
+	}
 	return nil
 }
 
