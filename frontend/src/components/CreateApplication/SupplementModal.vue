@@ -49,13 +49,41 @@
             class="supp-modal__body"
           >
             <p class="supp-modal__hint">
-              Новые строки попадут в выбранное вложение этой заявки. Организация, компания и
+              Выберите вложение заявки - в него попадут новые строки. Организация, компания и
               срок действия принадлежат вложению и не меняются. Если заявка уже в работе,
               добавка уйдёт на отдельный круг согласования, а выданные пропуска продолжат
               действовать.
             </p>
 
-            <div class="supp-modal__readonly">
+            <div class="supp-modal__field supp-modal__field--target">
+              <label class="supp-modal__label">
+                Вложение заявки <span class="supp-modal__req">*</span>
+              </label>
+              <BaseDropdown
+                :model-value="selectedAttachmentId"
+                :options="attachmentOptions"
+                label-key="label"
+                value-key="id"
+                :searchable="attachmentOptions.length > 5"
+                :teleport="true"
+                :menu-z-index="MENU_Z_INDEX"
+                placeholder="Выберите вложение"
+                data-testid="supplement-attachment"
+                @update:model-value="onAttachmentChange"
+              />
+              <p
+                v-if="!attachmentOptions.length"
+                class="supp-modal__note"
+                data-testid="supplement-no-attachments"
+              >
+                У заявки нет действующих вложений - дополнять нечего.
+              </p>
+            </div>
+
+            <div
+              v-if="selectedAttachment"
+              class="supp-modal__readonly"
+            >
               <div class="supp-modal__field">
                 <label
                   class="supp-modal__label"
@@ -96,31 +124,6 @@
                   :value="periodLabel"
                 >
               </div>
-            </div>
-
-            <div class="supp-modal__field supp-modal__field--target">
-              <label class="supp-modal__label">
-                Вложение заявки <span class="supp-modal__req">*</span>
-              </label>
-              <BaseDropdown
-                :model-value="selectedAttachmentId"
-                :options="attachmentOptions"
-                label-key="label"
-                value-key="id"
-                :searchable="attachmentOptions.length > 5"
-                :teleport="true"
-                :menu-z-index="MENU_Z_INDEX"
-                placeholder="Выберите вложение"
-                data-testid="supplement-attachment"
-                @update:model-value="onAttachmentChange"
-              />
-              <p
-                v-if="!attachmentOptions.length"
-                class="supp-modal__note"
-                data-testid="supplement-no-attachments"
-              >
-                У заявки нет действующих вложений - дополнять нечего.
-              </p>
             </div>
 
             <div

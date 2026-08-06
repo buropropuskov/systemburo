@@ -67,19 +67,19 @@ describe('ApplicationAttachmentDetail — метки дополнения (#1685
     expect(wrapper.find(ROW).classes().join(' ')).not.toContain('supplement');
   });
 
-  it('раунд ждёт согласующих: «Новое, на согласовании» и предупреждающий вид строки', () => {
+  it('раунд ждёт согласующих: «На согласовании» и предупреждающий вид строки', () => {
     const wrapper = mountAttachment('cars', [car(mark({ status: 'pending' }))]);
 
-    expect(wrapper.find(BADGE).text()).toBe('Новое, на согласовании');
+    expect(wrapper.find(BADGE).text()).toBe('На согласовании');
     expect(wrapper.find(BADGE).classes()).toContain('badge--warning');
     expect(wrapper.find(BADGE).attributes('data-hint')).toContain('Дополнение №2');
     expect(wrapper.find(ROW).classes()).toContain('el-row--supplement-pending');
   });
 
-  it('раунд согласован: «Согласовано, ждёт принятия» и информационный вид строки', () => {
+  it('раунд согласован: «Ждёт принятия» и информационный вид строки', () => {
     const wrapper = mountAttachment('cars', [car(mark({ status: 'approved' }))]);
 
-    expect(wrapper.find(BADGE).text()).toBe('Согласовано, ждёт принятия');
+    expect(wrapper.find(BADGE).text()).toBe('Ждёт принятия');
     expect(wrapper.find(BADGE).classes()).toContain('badge--info');
     expect(wrapper.find(ROW).classes()).toContain('el-row--supplement-approved');
   });
@@ -102,11 +102,11 @@ describe('ApplicationAttachmentDetail — метки дополнения (#1685
   });
 
   it.each(['rejected', 'refused', 'cancelled'])(
-    'раунд закрыт отказом (%s): «Дополнение отклонено» и приглушённая строка',
+    'раунд закрыт отказом (%s): «Отклонено» и приглушённая строка',
     (status) => {
       const wrapper = mountAttachment('cars', [car(mark({ status }))]);
 
-      expect(wrapper.find(BADGE).text()).toBe('Дополнение отклонено');
+      expect(wrapper.find(BADGE).text()).toBe('Отклонено');
       expect(wrapper.find(ROW).classes()).toContain('el-row--supplement-closed');
     }
   );
@@ -142,7 +142,7 @@ describe('ApplicationAttachmentDetail — метки дополнения (#1685
   it('сотрудники получают ту же метку', () => {
     const wrapper = mountAttachment('people', [employee(mark({ status: 'pending' }))]);
 
-    expect(wrapper.find(BADGE).text()).toBe('Новое, на согласовании');
+    expect(wrapper.find(BADGE).text()).toBe('На согласовании');
     expect(wrapper.find(ROW).classes()).toContain('el-row--supplement-pending');
   });
 
@@ -151,7 +151,7 @@ describe('ApplicationAttachmentDetail — метки дополнения (#1685
   it('ТМЦ получают ту же метку', () => {
     const wrapper = mountAttachment('items', [item(mark({ status: 'approved' }))]);
 
-    expect(wrapper.find(BADGE).text()).toBe('Согласовано, ждёт принятия');
+    expect(wrapper.find(BADGE).text()).toBe('Ждёт принятия');
     expect(wrapper.find(ROW).classes()).toContain('el-row--supplement-approved');
   });
 
@@ -166,7 +166,7 @@ describe('ApplicationAttachmentDetail — метки дополнения (#1685
     const classes = wrapper.find(ROW).classes();
     expect(classes).toContain('el-row--flagged');
     expect(classes).toContain('el-row--supplement-pending');
-    expect(wrapper.find(BADGE).text()).toBe('Новое, на согласовании');
+    expect(wrapper.find(BADGE).text()).toBe('На согласовании');
   });
 
   it('метку получает только помеченная строка списка', () => {
@@ -178,6 +178,6 @@ describe('ApplicationAttachmentDetail — метки дополнения (#1685
     const rows = wrapper.findAll(ROW);
     expect(rows).toHaveLength(2);
     expect(rows[0].find(BADGE).exists()).toBe(false);
-    expect(rows[1].find(BADGE).text()).toBe('Новое, на согласовании');
+    expect(rows[1].find(BADGE).text()).toBe('На согласовании');
   });
 });
