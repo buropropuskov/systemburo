@@ -139,6 +139,7 @@
                   :existing-vehicles="currentRows"
                   :entry-period="entryPeriod"
                   :existing-modal-z-index="EXISTING_MODAL_Z_INDEX"
+                  @notices-change="placeNotices = $event"
                   @vehicle-added="addRow"
                   @vehicles-added="addRows"
                   @vehicle-updated="updateRow"
@@ -167,6 +168,7 @@
                   :existing-employees="currentRows"
                   :entry-period="entryPeriod"
                   :existing-modal-z-index="EXISTING_MODAL_Z_INDEX"
+                  @notices-change="placeNotices = $event"
                   @employee-added="addRow"
                   @employees-added="addRows"
                   @employee-updated="updateRow"
@@ -255,7 +257,13 @@
           </div>
         </div>
       </div>
+
     </transition>
+
+    <!-- Предупреждения по выбранным местам и постам (#1183): формы считают их и здесь,
+         панель выводится поверх окна - под ним её просто не было бы видно. Вне
+         transition: тот допускает единственный корневой элемент. -->
+    <SchedulePlaceWarningPanel v-if="show" :groups="placeNotices" :z-index="NOTICES_Z_INDEX" />
   </Teleport>
 </template>
 
@@ -269,6 +277,7 @@ import EmployeesList from '@/components/CreateApplication/EmployeesList.vue';
 import ItemsForm from '@/components/CreateApplication/ItemsForm.vue';
 import ItemsList from '@/components/CreateApplication/ItemsList.vue';
 import { createSupplement } from '@/api/applications';
+import SchedulePlaceWarningPanel from './SchedulePlaceWarningPanel.vue';
 import { toAttachmentContent } from '@/utils/applicationEntityPayload';
 import { SUPPLEMENT_MERGED } from '@/utils/supplementStatuses';
 import { useDeletionsStore } from '@/stores/deletions';
@@ -284,6 +293,8 @@ const SUPPORTED_ATTACHMENT_TYPES = ['cars', 'people', 'items'];
 
 const EXISTING_MODAL_Z_INDEX = 10012;
 const MENU_Z_INDEX = 10014;
+// Панель предупреждений выше самого окна, но ниже его выпадающих меню.
+const NOTICES_Z_INDEX = 10013;
 
 
 // Ключи сортировки, которые реально эмитят списки (`$emit('sort', key)`). Числовые
@@ -341,6 +352,7 @@ function humanDate(value) {
 export default {
     name: 'SupplementModal',
     components: {
+        SchedulePlaceWarningPanel,
         BaseDropdown,
         VehicleForm,
         VehiclesList,
@@ -398,6 +410,7 @@ export default {
             onSheetTouchMove: swipe.onTouchMove,
             onSheetTouchEnd: swipe.onTouchEnd,
             EXISTING_MODAL_Z_INDEX,
+            NOTICES_Z_INDEX,
             MENU_Z_INDEX,
         };
     },
@@ -413,6 +426,7 @@ export default {
             fieldConfigByAttachment: {},
             loadingFieldConfig: false,
             fieldConfigSeq: 0,
+            placeNotices: [],
             sortField: null,
             sortDirection: null,
         };
@@ -560,6 +574,9 @@ export default {
             this.selectedAttachmentId = id;
             this.sortField = null;
             this.sortDirection = null;
+            // Гасим предупреждения прошлого вложения: новая форма пришлёт свои, а до
+            // пересчёта иначе мелькнут чужие - тот же приём, что и в форме подачи.
+            this.placeNotices = [];
             const uaId = this.selectedAttachment?.unique_attachment_id;
             if (uaId) this.loadFieldConfig(uaId);
         },

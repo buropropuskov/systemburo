@@ -805,6 +805,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	aag.GET("", approvers.GetAll, requireAdmin)
 	aag.GET("/available-users", approvers.GetAvailableUsers, requireAdmin)
 	aag.GET("/history", approvers.GetHistory)
+	// Ответ про себя доступен любому авторизованному: карточке заявки нужно знать,
+	// показывать ли кнопки принимающего, а весь состав ей не нужен и закрыт админом.
+	aag.GET("/me", approvers.IsApprover)
 	aag.POST("", approvers.Create, requireAdmin)
 	aag.PATCH("/:id", approvers.Update, requireAdmin)
 	aag.DELETE("/:id", approvers.Delete, requireAdmin)
