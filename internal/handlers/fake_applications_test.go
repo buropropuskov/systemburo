@@ -264,6 +264,14 @@ func readApplicationSnapshots(t *testing.T, db *gorm.DB, ids []int) []applicatio
 // появляются записи ПОЗЖЕ дня подачи (принята в работу/согласована/отклонена и т.п.) --
 // это не регрессия, а сама суть стадий. Инвариант этого теста остаётся прежним: запись
 // не должна остаться датированной днём ПРОГОНА наливки, когда заявка сдвинута в прошлое.
+//
+// "Отметка изменения" машин/сотрудников с #1682 тома 8 (проходы через посты,
+// internal/fakedata/passages.go) законно уходит ПОЗЖЕ последнего перехода самой
+// заявки: принятая в работу машина/сотрудник может ещё и въехать/выехать, а это
+// отдельная, более поздняя историческая отметка со своим действием (entry/exit) в
+// audit_log конкретной машины/сотрудника, а не заявки. Верхняя граница поэтому берёт
+// GREATEST из перехода заявки И собственной отметки прохода сущности -- иначе тест
+// проверял бы инвариант, переставший быть правдой с появлением проходов.
 func TestFakeApplications_ChildRecordsShiftWithApplication(t *testing.T) {
 	_, db, _ := testutil.SetupTestApp(t)
 	ctx := context.Background()
@@ -300,14 +308,24 @@ func TestFakeApplications_ChildRecordsShiftWithApplication(t *testing.T) {
 		SELECT 'отметка изменения машин', COUNT(*) FROM cars c
 			JOIN attachments t ON t.id = c.attachment_id
 			JOIN mine ON mine.id = t.application_id
-			WHERE c.updated_at > (SELECT MAX(l.created_at) FROM audit_log l
-				WHERE l.entity_type = 'application' AND l.entity_id = mine.id) + INTERVAL '1 second'
+			WHERE c.updated_at > GREATEST(
+				(SELECT MAX(l.created_at) FROM audit_log l
+					WHERE l.entity_type = 'application' AND l.entity_id = mine.id),
+				COALESCE((SELECT MAX(l2.created_at) FROM audit_log l2
+					WHERE l2.entity_type = 'car' AND l2.entity_id = c.id AND l2.action IN ('entry', 'exit')),
+					'-infinity'::timestamptz)
+			) + INTERVAL '1 second'
 		UNION ALL
 		SELECT 'отметка изменения сотрудников', COUNT(*) FROM employees e
 			JOIN attachments t ON t.id = e.attachment_id
 			JOIN mine ON mine.id = t.application_id
-			WHERE e.updated_at > (SELECT MAX(l.created_at) FROM audit_log l
-				WHERE l.entity_type = 'application' AND l.entity_id = mine.id) + INTERVAL '1 second' 
+			WHERE e.updated_at > GREATEST(
+				(SELECT MAX(l.created_at) FROM audit_log l
+					WHERE l.entity_type = 'application' AND l.entity_id = mine.id),
+				COALESCE((SELECT MAX(l2.created_at) FROM audit_log l2
+					WHERE l2.entity_type = 'employee' AND l2.entity_id = e.id AND l2.action IN ('entry', 'exit')),
+					'-infinity'::timestamptz)
+			) + INTERVAL '1 second'
 		UNION ALL
 		SELECT 'сотрудники', COUNT(*) FROM employees e JOIN attachments t ON t.id = e.attachment_id JOIN mine ON mine.id = t.application_id
 			WHERE DATE(e.created_at) <> DATE(mine.sending_datetime)
