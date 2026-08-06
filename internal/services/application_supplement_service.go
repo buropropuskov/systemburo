@@ -722,6 +722,14 @@ func (s *applicationService) notifySupplementApprovers(ctx context.Context, appl
 	if applicationNumber != nil {
 		number = *applicationNumber
 	}
+	// Без данных окно подробностей не даёт перейти к заявке (#1748).
+	payloadBytes, _ := json.Marshal(map[string]any{
+		"application_id":     applicationID,
+		"application_number": number,
+		"supplement_number":  supplement.Number,
+	})
+	payloadStr := string(payloadBytes)
+
 	message := fmt.Sprintf("В заявку %s добавлены новые строки - требуется согласование.", number)
 	if inWork {
 		message = fmt.Sprintf("По заявке %s подано дополнение №%d - требуется согласование.", number, supplement.Number)
@@ -732,7 +740,7 @@ func (s *applicationService) notifySupplementApprovers(ctx context.Context, appl
 			continue
 		}
 		if err := s.notificationService.CreateForUser(ctx, userID,
-			NotificationTypeApplicationApprovalRequired, "Требуется согласование", message, nil); err != nil {
+			NotificationTypeApplicationApprovalRequired, "Требуется согласование", message, &payloadStr); err != nil {
 			slog.Warn("дополнение: уведомление не создано", "user_id", userID, "application_id", applicationID, "err", err)
 		}
 	}

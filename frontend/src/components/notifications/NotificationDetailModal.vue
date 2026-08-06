@@ -6,6 +6,7 @@
         class="notif-detail-overlay"
         @mousedown="onOverlayMousedown"
         @mouseup="onOverlayMouseup"
+        @click.stop
       >
         <div
           class="notif-detail-dialog"
@@ -90,34 +91,46 @@
                   :data-field="f.key"
                   data-testid="notif-detail-field"
                 >
-                  {{ f.value }}
+                  <button
+                    v-if="f.action === 'application' && actionLabel"
+                    type="button"
+                    class="notif-detail-dialog__link"
+                    @click="emit('action')"
+                  >
+                    {{ f.value }}
+                  </button>
+                  <template v-else>
+                    {{ f.value }}
+                  </template>
                 </dd>
               </template>
             </dl>
           </div>
 
           <footer class="notif-detail-dialog__footer">
+            <div class="notif-detail-dialog__footer-side">
+              <button
+                type="button"
+                class="lk-button lk-button--ghost"
+                @click="emit('unread')"
+              >
+                В непрочитанные
+              </button>
+              <button
+                type="button"
+                class="lk-button lk-button--danger"
+                @click="emit('delete')"
+              >
+                Удалить
+              </button>
+            </div>
             <button
               v-if="actionLabel"
               type="button"
-              class="lk-button lk-button--primary"
+              class="lk-button lk-button--primary notif-detail-dialog__action"
               @click="emit('action')"
             >
               {{ actionLabel }}
-            </button>
-            <button
-              type="button"
-              class="lk-button lk-button--secondary"
-              @click="emit('unread')"
-            >
-              Вернуть в непрочитанные
-            </button>
-            <button
-              type="button"
-              class="lk-button lk-button--danger"
-              @click="emit('delete')"
-            >
-              Удалить
             </button>
           </footer>
         </div>
@@ -360,14 +373,57 @@ const eventsLabel = computed(() => {
   word-break: break-word;
 }
 
+.notif-detail-dialog__link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent-text, var(--primary));
+  cursor: pointer;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: opacity 0.15s ease;
+}
+
+.notif-detail-dialog__link:hover {
+  opacity: 0.75;
+}
+
 .notif-detail-dialog__footer {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
   gap: 10px;
   padding: 16px 24px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+/* Второстепенные действия слева, главное справа. При нехватке ширины строка
+   переносится целыми группами, а не рвёт подписи кнопок пополам. */
+.notif-detail-dialog__footer-side {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+@media (max-width: 480px) {
+  .notif-detail-dialog__footer {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .notif-detail-dialog__footer-side {
+    justify-content: space-between;
+  }
+
+  .notif-detail-dialog__footer-side .lk-button,
+  .notif-detail-dialog__action {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
 }
 
 .notif-detail-fade-enter-active,

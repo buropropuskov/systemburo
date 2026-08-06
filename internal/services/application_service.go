@@ -2178,6 +2178,15 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	// заявки и детерминированны для тестов; сабмит не hot-path, элементов в заявке мало.
 	s.detectBlacklistSimilarity(ctx, appID, nil, pendingVehicleFlags, pendingEmployeeFlags)
 
+	// Данные для подробностей уведомления: без них окно показывает один текст, а
+	// кнопка перехода к заявке не появляется вовсе - именно на этих двух типах
+	// согласующий и заявитель упирались в тупик (#1748).
+	submitPayloadBytes, _ := json.Marshal(map[string]any{
+		"application_id":     appID,
+		"application_number": applicationNumber,
+	})
+	submitPayload := string(submitPayloadBytes)
+
 	// Уведомление отправителю о создании заявки
 	if s.notificationService != nil {
 		if err := s.notificationService.CreateForUser(
@@ -2185,7 +2194,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 			NotificationTypeApplicationCreated,
 			"Заявка отправлена",
 			fmt.Sprintf("Ваша заявка %s отправлена и ожидает согласования.", applicationNumber),
-			nil,
+			&submitPayload,
 		); err != nil {
 			slog.Warn("notification create failed", "err", err, "user_id", user.ID, "app_id", appID)
 		}
@@ -2202,7 +2211,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 				NotificationTypeApplicationApprovalRequired,
 				"Требуется согласование",
 				fmt.Sprintf("Поступила новая заявка %s на согласование.", applicationNumber),
-				nil,
+				&submitPayload,
 			); err != nil {
 				slog.Warn("notification create failed", "err", err, "user_id", ru.UserID, "app_id", appID)
 			}
@@ -2353,7 +2362,10 @@ func (s *applicationService) UpdateApplication(ctx context.Context, username str
 	// в финальное значение (Согласовано/Не согласовано) и оно реально сменилось (#1349).
 	if confirmationChanged {
 		if outcome := confirmationOutcome(req.Confirmation); outcome != "" {
-			s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, outcome)
+			s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, outcome, &statusChangeContext{
+				ActorName: formatFullName(user.LastName, user.FirstName, user.MiddleName),
+				Comment:   optionalString(req.ResponsibleComment),
+			})
 		}
 	}
 	// Прямое выставление "Согласовано" (admin-путь, минуя approve-флоу) делает
