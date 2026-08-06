@@ -397,9 +397,9 @@ const (
 	statusOutcomeCompleted   = "completed"
 )
 
-// applicationStatusChangedType - тип уведомления инициатору об исходе заявки (#1349).
-// Навигация по data.application_id уже поддержана фронтом (UserNotifications.vue).
-const applicationStatusChangedType = "application_status_changed"
+// Тип уведомления -- NotificationTypeApplicationStatusChanged (каталог,
+// notification_catalog.go): инициатору об исходе заявки (#1349). Навигация по
+// data.application_id уже поддержана фронтом (UserNotifications.vue).
 
 // confirmationOutcome возвращает исход-уведомление для нового значения confirmation, если
 // это финальный исход согласования (Согласовано/Не согласовано). "" - промежуточное значение
@@ -478,7 +478,7 @@ func (s *applicationService) notifyInitiatorStatusChanged(ctx context.Context, a
 	}
 	payload, _ := json.Marshal(data)
 	payloadStr := string(payload)
-	if err := s.notificationService.CreateForUser(ctx, *app.SenderUserID, applicationStatusChangedType, title, body, &payloadStr); err != nil {
+	if err := s.notificationService.CreateForUser(ctx, *app.SenderUserID, NotificationTypeApplicationStatusChanged, title, body, &payloadStr); err != nil {
 		slog.Warn("не удалось создать уведомление инициатору об исходе заявки", "user_id", *app.SenderUserID, "error", err)
 	}
 }
