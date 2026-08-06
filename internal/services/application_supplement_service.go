@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"systemburo/internal/crypto"
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
@@ -186,6 +187,9 @@ func (s *applicationService) CreateSupplement(ctx context.Context, username stri
 			return nil, err
 		}
 		if err := validateNoSupplementDuplicates(t); err != nil {
+			return nil, err
+		}
+		if err := s.validateNotAlreadyInAttachment(ctx, t); err != nil {
 			return nil, err
 		}
 	}
@@ -459,6 +463,59 @@ func validateNoSupplementDuplicates(t supplementTarget) error {
 				return echo.NewHTTPError(http.StatusBadRequest,
 					fmt.Sprintf("Сотрудник %s добавлен в дополнение дважды", employeeTitle(employees[i])))
 			}
+		}
+	}
+	return nil
+}
+
+// validateNotAlreadyInAttachment отклоняет добавку строки, которая в этом вложении уже
+// есть. Дело не в аккуратности списка: таблица поста схлопывает сотрудников по паспорту
+// (ROW_NUMBER PARTITION BY passport_series_number_hmac), и при равных сроках побеждает
+// строка с большим идентификатором, то есть добавленная. Старая скрывается целиком, а
+// вместе с ней - её набор постов: человек молча оказывается на других проходных, чем был.
+//
+// Менять посты уже допущенному человеку надо не второй строкой, а назначением постов
+// (AssignElementTables) - оно для того и заведено. Машины дублировать тоже незачем: номер
+// во вложении один, вторая строка лишь плодит путаницу на посту.
+//
+// Строки в корзине и окончательно удалённые не в счёт: их на посту нет, и повторная
+// подача такого человека - обычное, а не ошибочное действие.
+func (s *applicationService) validateNotAlreadyInAttachment(ctx context.Context, t supplementTarget) error {
+	attID := t.attachment.ID
+
+	for _, v := range t.addition.Vehicles {
+		var exists int64
+		if err := s.db.WithContext(ctx).Raw(`
+			SELECT COUNT(*) FROM cars
+			WHERE attachment_id = ? AND date_removed IS NULL AND is_purged = false
+			  AND REPLACE(LOWER(car_number), ' ', '') = REPLACE(LOWER(?), ' ', '')
+		`, attID, v.CarNumber).Scan(&exists).Error; err != nil {
+			slog.Error("дополнение: не удалось проверить машину во вложении", "attachment_id", attID, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error checking attachment content")
+		}
+		if exists > 0 {
+			return echo.NewHTTPError(http.StatusConflict,
+				fmt.Sprintf("Машина %s уже есть в этом вложении", vehicleTitle(v)))
+		}
+	}
+
+	for _, e := range t.addition.Employees {
+		hmac := crypto.HMACOptional(&e.PassportSeriesNumber)
+		if hmac == nil || strings.TrimSpace(e.PassportSeriesNumber) == "" {
+			continue
+		}
+		var exists int64
+		if err := s.db.WithContext(ctx).Raw(`
+			SELECT COUNT(*) FROM employees
+			WHERE attachment_id = ? AND date_deleted IS NULL AND is_purged = false
+			  AND passport_series_number_hmac = ?
+		`, attID, *hmac).Scan(&exists).Error; err != nil {
+			slog.Error("дополнение: не удалось проверить сотрудника во вложении", "attachment_id", attID, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error checking attachment content")
+		}
+		if exists > 0 {
+			return echo.NewHTTPError(http.StatusConflict,
+				fmt.Sprintf("Сотрудник %s уже есть в этом вложении", employeeTitle(e)))
 		}
 	}
 	return nil

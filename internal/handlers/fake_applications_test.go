@@ -258,6 +258,20 @@ func readApplicationSnapshots(t *testing.T, db *gorm.DB, ids []int) []applicatio
 // Заявка, перенесённая в прошлое, обязана быть непротиворечивой целиком: вложения,
 // машины, сотрудники, состав согласующих и записи истории не могут остаться с датой
 // прогона наливки, иначе июльская заявка показывает историю «создана сегодня».
+//
+// Строка истории проверяется через "раньше даты подачи", а не "отличается от неё": с
+// #1682 тома 7 (стадии обработки, internal/fakedata/stages.go) у заявки легитимно
+// появляются записи ПОЗЖЕ дня подачи (принята в работу/согласована/отклонена и т.п.) --
+// это не регрессия, а сама суть стадий. Инвариант этого теста остаётся прежним: запись
+// не должна остаться датированной днём ПРОГОНА наливки, когда заявка сдвинута в прошлое.
+//
+// "Отметка изменения" машин/сотрудников с #1682 тома 8 (проходы через посты,
+// internal/fakedata/passages.go) законно уходит ПОЗЖЕ последнего перехода самой
+// заявки: принятая в работу машина/сотрудник может ещё и въехать/выехать, а это
+// отдельная, более поздняя историческая отметка со своим действием (entry/exit) в
+// audit_log конкретной машины/сотрудника, а не заявки. Верхняя граница поэтому берёт
+// GREATEST из перехода заявки И собственной отметки прохода сущности -- иначе тест
+// проверял бы инвариант, переставший быть правдой с появлением проходов.
 func TestFakeApplications_ChildRecordsShiftWithApplication(t *testing.T) {
 	_, db, _ := testutil.SetupTestApp(t)
 	ctx := context.Background()
@@ -287,14 +301,49 @@ func TestFakeApplications_ChildRecordsShiftWithApplication(t *testing.T) {
 		SELECT 'машины', COUNT(*) FROM cars c JOIN attachments t ON t.id = c.attachment_id JOIN mine ON mine.id = t.application_id
 			WHERE DATE(c.created_at) <> DATE(mine.sending_datetime)
 		UNION ALL
+		-- Отметку изменения переписывает принятие в работу и снятие с неё, поэтому она
+		-- сверяется с моментом последнего перехода этой заявки, а не с днём подачи.
+		-- Сравнение с «не позже сейчас» тут бесполезно: время прогона ему удовлетворяет,
+		-- и непереносенная отметка прошла бы незамеченной.
+		SELECT 'отметка изменения машин', COUNT(*) FROM cars c
+			JOIN attachments t ON t.id = c.attachment_id
+			JOIN mine ON mine.id = t.application_id
+			WHERE c.updated_at > GREATEST(
+				(SELECT MAX(l.created_at) FROM audit_log l
+					WHERE l.entity_type = 'application' AND l.entity_id = mine.id),
+				COALESCE((SELECT MAX(l2.created_at) FROM audit_log l2
+					WHERE l2.entity_type = 'car' AND l2.entity_id = c.id AND l2.action IN ('entry', 'exit')),
+					'-infinity'::timestamptz)
+			) + INTERVAL '1 second'
+		UNION ALL
+		SELECT 'отметка изменения сотрудников', COUNT(*) FROM employees e
+			JOIN attachments t ON t.id = e.attachment_id
+			JOIN mine ON mine.id = t.application_id
+			WHERE e.updated_at > GREATEST(
+				(SELECT MAX(l.created_at) FROM audit_log l
+					WHERE l.entity_type = 'application' AND l.entity_id = mine.id),
+				COALESCE((SELECT MAX(l2.created_at) FROM audit_log l2
+					WHERE l2.entity_type = 'employee' AND l2.entity_id = e.id AND l2.action IN ('entry', 'exit')),
+					'-infinity'::timestamptz)
+			) + INTERVAL '1 second'
+		UNION ALL
 		SELECT 'сотрудники', COUNT(*) FROM employees e JOIN attachments t ON t.id = e.attachment_id JOIN mine ON mine.id = t.application_id
 			WHERE DATE(e.created_at) <> DATE(mine.sending_datetime)
 		UNION ALL
 		SELECT 'согласующие', COUNT(*) FROM application_responsible_users r JOIN mine ON mine.id = r.application_id
 			WHERE DATE(r.created_at) <> DATE(mine.sending_datetime)
 		UNION ALL
-		SELECT 'история', COUNT(*) FROM audit_log l JOIN mine ON mine.id = l.entity_id
-			WHERE l.entity_type = 'application' AND DATE(l.created_at) <> DATE(mine.sending_datetime)
+		-- Запись о СОЗДАНИИ заявки обязана совпадать с датой подачи день в день: именно
+		-- она показывает, что история не осталась с датой прогона наливки. Переходы по
+		-- стадиям датируются позже, поэтому для них проверяется только, что они не
+		-- раньше подачи и не в будущем.
+		SELECT 'история создания', COUNT(*) FROM audit_log l JOIN mine ON mine.id = l.entity_id
+			WHERE l.entity_type = 'application' AND l.action = 'create'
+			  AND DATE(l.created_at) <> DATE(mine.sending_datetime)
+		UNION ALL
+		SELECT 'история переходов', COUNT(*) FROM audit_log l JOIN mine ON mine.id = l.entity_id
+			WHERE l.entity_type = 'application' AND l.action <> 'create'
+			  AND (l.created_at < mine.sending_datetime OR l.created_at > NOW())
 	`, batch.ID()).Scan(&rows).Error)
 
 	require.NotEmpty(t, rows)

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -22,6 +23,12 @@ type ApproverService interface {
 	Update(ctx context.Context, id int, displayName *string, actorUsername string) error
 	Delete(ctx context.Context, id int, actorUsername string) error
 	GetHistory(ctx context.Context) ([]models.ApplicationApproverHistoryItem, error)
+
+	// IsApprover сообщает, числится ли пользователь принимающим. Отдельно от GetAll:
+	// тот отдаёт весь состав с ФИО и организациями и потому закрыт правом администратора,
+	// а карточке заявки нужен только ответ про себя - без него кнопки принимающего не
+	// показывались бы никому, кроме администраторов (#1685).
+	IsApprover(ctx context.Context, username string) (bool, error)
 }
 
 type approverService struct {
@@ -249,4 +256,19 @@ func (s *approverService) resolveUserName(ctx context.Context, userID int) strin
 		Row().
 		Scan(&name)
 	return name
+}
+
+// IsApprover проверяет, числится ли пользователь принимающим заявки.
+func (s *approverService) IsApprover(ctx context.Context, username string) (bool, error) {
+	var count int64
+	err := s.db.WithContext(ctx).
+		Table("application_approvers aa").
+		Joins("JOIN users u ON u.id = aa.user_id").
+		Where("u.username = ?", username).
+		Count(&count).Error
+	if err != nil {
+		slog.Error("Ошибка проверки принимающего", "username", username, "error", err)
+		return false, echo.NewHTTPError(http.StatusInternalServerError, "Error checking approver")
+	}
+	return count > 0, nil
 }

@@ -68,6 +68,7 @@ func AllModels() []interface{} {
 		&models.ApplicationResponsibleUser{},
 		&models.ApplicationApprover{},
 		&models.ApplicationViewer{},
+		&models.ApplicationFile{},
 
 		// Supplements (depends on Application, then on each other)
 		&models.ApplicationSupplement{},

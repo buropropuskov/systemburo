@@ -28,7 +28,7 @@ const REFUSE = '[data-testid="supplement-button-refuse"]';
 const CANCEL = '[data-testid="supplement-button-cancel"]';
 const MY_VOTE = '[data-testid="supplement-my-vote"]';
 const CONFIRM = '[data-testid="confirmation-confirm"]';
-const COMMENT = '[data-testid="supplement-comment"]';
+const COMMENT = '[data-testid="supplement-decision-comment"]';
 
 // Роли: 1 - согласующий раунда, 2 - принимающий, 3 - автор заявки.
 const APPROVER_ROLE_ID = 2;

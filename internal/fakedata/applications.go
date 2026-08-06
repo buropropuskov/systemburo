@@ -517,6 +517,13 @@ func buildApplication(
 	second := IntRange(s.timeOfDay, 0, 59)
 	shiftedDay := now.AddDate(0, 0, -daysBack)
 	sentAt := time.Date(shiftedDay.Year(), shiftedDay.Month(), shiftedDay.Day(), hour, minute, second, 0, time.UTC)
+	// Заявка «сегодня» может выпасть на рабочий час, который ещё не наступил: наливку
+	// запускают и утром, и ночью. Дата подачи в будущем ломает всё, что считается от неё
+	// следом -- переходы по стадиям обязаны быть позже подачи и не позже «сейчас», а при
+	// подаче из будущего эти два условия несовместимы, и стадии датируются раньше подачи.
+	if sentAt.After(now) {
+		sentAt = now.Add(-time.Duration(IntRange(s.timeOfDay, 1, 90)) * time.Minute)
+	}
 
 	entryFrom := sentAt.Format("2006-01-02")
 	validity := IntRange(s.validityDays, appValidityMinDays, appValidityMaxDays)
