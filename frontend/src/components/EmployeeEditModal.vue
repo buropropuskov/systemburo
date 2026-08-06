@@ -194,50 +194,6 @@
                     </transition>
                   </div>
                 </div>
-
-                <!-- Загрузка файлов -->
-                <div
-                  v-if="isPatentRequired"
-                  class="completion__files"
-                >
-                  <div class="completion__files-header">
-                    <label class="input__label">Фото, скан документа(-ов), подтверждающее иное разрешение на работы</label>
-                  </div>
-                  <div class="files__upload">
-                    <input
-                      ref="fileInput"
-                      type="file"
-                      multiple
-                      accept="image/*,.pdf,.doc,.docx"
-                      class="file-input"
-                      @change="handleFileUpload"
-                    >
-                    <button
-                      class="upload-button"
-                      @click="triggerFileInput"
-                    >
-                      Загрузить
-                    </button>
-                  </div>
-                  <div
-                    v-if="uploadedFiles.length > 0"
-                    class="uploaded-files"
-                  >
-                    <div
-                      v-for="(file, index) in uploadedFiles"
-                      :key="index"
-                      class="uploaded-file"
-                    >
-                      <span class="file-name">{{ truncateText(file.name, 30) }}</span>
-                      <button
-                        class="remove-file-btn"
-                        @click="removeFile(index)"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </div>
-                </div>
               </div>
 
               <!-- Привязка -->
@@ -334,7 +290,6 @@ export default {
             ],
 
             // Файлы
-            uploadedFiles: [],
 
             // Привязка
             bindToOrganization: false,
@@ -410,7 +365,6 @@ export default {
             if (!newVal) {
                 this.patentNumber = '';
                 this.selectedPermission = 'Не выбрано';
-                this.uploadedFiles = [];
             }
         },
 
@@ -487,7 +441,6 @@ export default {
             this.passportSeriesNumber = '';
             this.patentNumber = '';
             this.selectedPermission = 'Не выбрано';
-            this.uploadedFiles = [];
             this.bindToOrganization = false;
             this.bindToCompany = false;
             this.originalEmployeeData = null;
@@ -501,7 +454,6 @@ export default {
             this.passportSeriesNumber = '';
             this.patentNumber = '';
             this.selectedPermission = 'Не выбрано';
-            this.uploadedFiles = [];
             if (!this.editingEmployee) {
                 this.bindToOrganization = false;
                 this.bindToCompany = false;
@@ -574,7 +526,6 @@ export default {
             if (!citizenship.patent_required) {
                 this.patentNumber = '';
                 this.selectedPermission = 'Не выбрано';
-                this.uploadedFiles = [];
             }
         },
 
@@ -588,33 +539,6 @@ export default {
             if (permission !== 'Не выбрано') {
                 this.patentNumber = '';
             }
-        },
-
-        triggerFileInput() {
-            this.$refs.fileInput.click();
-        },
-
-        handleFileUpload(event) {
-            const files = Array.from(event.target.files);
-            files.forEach(file => {
-                this.uploadedFiles.push({
-                    name: file.name,
-                    file: file,
-                    type: this.getFileType(file)
-                });
-            });
-            event.target.value = '';
-        },
-
-        getFileType(file) {
-            if (file.type.startsWith('image/')) return 'photo';
-            if (file.name.toLowerCase().includes('patent')) return 'patent';
-            if (file.type === 'application/pdf') return 'document';
-            return 'other';
-        },
-
-        removeFile(index) {
-            this.uploadedFiles.splice(index, 1);
         },
 
         async saveEmployee() {
@@ -661,10 +585,6 @@ export default {
                     const action = this.editingEmployee ? 'обновлён' : 'добавлен';
                     useDeletionsStore().notify({ prefix: 'Сотрудник ', bold: `${this.lastName} ${this.firstName}`.trim() || 'запись', suffix: ` ${action}`, type: 'success' });
 
-                    if (this.uploadedFiles.length > 0 && savedEmployee.id) {
-                        await this.uploadEmployeeFiles(savedEmployee.id);
-                    }
-
                     if (!this.editingEmployee) {
                         this.clearFormFields();
                     } else {
@@ -698,26 +618,6 @@ export default {
                 useDeletionsStore().notify({ prefix: 'Не удалось сохранить ', bold: 'сотрудника', type: 'error' });
             }
         },
-
-        async uploadEmployeeFiles(employeeId) {
-            try {
-                const formData = new FormData();
-                this.uploadedFiles.forEach(file => {
-                    formData.append('files', file.file);
-                    formData.append('file_types', file.type);
-                });
-                const response = await apiRequest(`/unique-employees/${employeeId}/files`, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {}
-                });
-                if (!response.ok) {
-                    console.error('Ошибка при загрузке файлов');
-                }
-            } catch (error) {
-                console.error('Ошибка при загрузке файлов:', error);
-            }
-        }
     }
 }
 </script>
@@ -953,12 +853,6 @@ export default {
 .completion__passport-header,
 .completion__patent-header,
 .completion__permission-header,
-.completion__files-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-bottom: 5px;
-}
 
 .name__input {
     width: 100%;
@@ -1079,80 +973,6 @@ export default {
 .permission__item-text {
     font-size: 14px;
     color: var(--text);
-}
-
-.completion__files {
-    margin-top: 10px;
-}
-
-.files__upload {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-
-.file-input {
-    display: none;
-}
-
-.upload-button {
-    background: var(--accent);
-    color: var(--accent-contrast);
-    border: none;
-    border-radius: 15px;
-    padding: 8px 15px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.upload-button:hover {
-    background: var(--accent-hover);
-}
-
-.uploaded-files {
-    margin-top: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.uploaded-file {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 5px 10px;
-    background: var(--surface-2);
-    border-radius: 8px;
-    border: 1px solid var(--border);
-}
-
-.file-name {
-    font-size: 12px;
-    color: var(--text);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 85%;
-}
-
-.remove-file-btn {
-    background: none;
-    border: none;
-    color: var(--danger-text);
-    cursor: pointer;
-    font-size: 16px;
-    padding: 0;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.remove-file-btn:hover {
-    background: var(--danger-bg);
-    border-radius: 50%;
 }
 
 .completion__binding {
