@@ -293,6 +293,22 @@ func TestFakeApplications_ChildRecordsShiftWithApplication(t *testing.T) {
 		SELECT 'машины', COUNT(*) FROM cars c JOIN attachments t ON t.id = c.attachment_id JOIN mine ON mine.id = t.application_id
 			WHERE DATE(c.created_at) <> DATE(mine.sending_datetime)
 		UNION ALL
+		-- Отметку изменения переписывает принятие в работу и снятие с неё, поэтому она
+		-- сверяется с моментом последнего перехода этой заявки, а не с днём подачи.
+		-- Сравнение с «не позже сейчас» тут бесполезно: время прогона ему удовлетворяет,
+		-- и непереносенная отметка прошла бы незамеченной.
+		SELECT 'отметка изменения машин', COUNT(*) FROM cars c
+			JOIN attachments t ON t.id = c.attachment_id
+			JOIN mine ON mine.id = t.application_id
+			WHERE c.updated_at > (SELECT MAX(l.created_at) FROM audit_log l
+				WHERE l.entity_type = 'application' AND l.entity_id = mine.id) + INTERVAL '1 second'
+		UNION ALL
+		SELECT 'отметка изменения сотрудников', COUNT(*) FROM employees e
+			JOIN attachments t ON t.id = e.attachment_id
+			JOIN mine ON mine.id = t.application_id
+			WHERE e.updated_at > (SELECT MAX(l.created_at) FROM audit_log l
+				WHERE l.entity_type = 'application' AND l.entity_id = mine.id) + INTERVAL '1 second' 
+		UNION ALL
 		SELECT 'сотрудники', COUNT(*) FROM employees e JOIN attachments t ON t.id = e.attachment_id JOIN mine ON mine.id = t.application_id
 			WHERE DATE(e.created_at) <> DATE(mine.sending_datetime)
 		UNION ALL

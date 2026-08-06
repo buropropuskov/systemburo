@@ -158,21 +158,20 @@ func stageBucketSizes(total int) (unread, approvedOnly, rejected, revoked, withd
 
 	minority := unread + approvedOnly + rejected + revoked + withdrawn
 	if minority > total {
-		// Ужимаем пропорционально -- symmetric приём с усечением banned/archived в
-		// usersStep.Run: без него на совсем маленьком -applications большинству
-		// ("принята в работу") ничего бы не осталось.
-		scale := func(n int) int {
-			v := n * total / minority
-			if v < 0 {
-				v = 0
+		// Заявок меньше, чем стадий-меньшинств: раздаём по одной, пока хватает, вместо
+		// пропорционального ужатия. Пропорция при total<5 давала ноль сразу всем пяти
+		// (целочисленное деление), и вся партия молча уходила в "принята в работу" --
+		// стадий на стенде не оставалось вовсе, а команда об этом не сообщала.
+		buckets := []*int{&unread, &approvedOnly, &rejected, &revoked, &withdrawn}
+		left := total
+		for _, b := range buckets {
+			if left <= 0 {
+				*b = 0
+				continue
 			}
-			return v
+			*b = 1
+			left--
 		}
-		unread = scale(unread)
-		approvedOnly = scale(approvedOnly)
-		rejected = scale(rejected)
-		revoked = scale(revoked)
-		withdrawn = scale(withdrawn)
 	}
 	return
 }
@@ -420,6 +419,30 @@ func shiftAttachmentItemsAuditLog(ctx context.Context, db *gorm.DB, appID int, a
 	return nil
 }
 
+// shiftAttachmentItemsTouched переносит на момент перехода отметку об изменении машин и
+// сотрудников заявки.
+//
+// Активация и снятие с работы (activateApplicationItems) пишут в updated_at время
+// прогона, и без этого переноса реестр показывал бы «обновлено сегодня» у машин из
+// заявки месячной давности. Поле отдаётся по API, то есть видно снаружи.
+func shiftAttachmentItemsTouched(ctx context.Context, db *gorm.DB, appID int, at time.Time) error {
+	statements := []struct {
+		what  string
+		query string
+	}{
+		{"машин", `UPDATE cars SET updated_at = ? WHERE attachment_id IN (
+			SELECT id FROM attachments WHERE application_id = ?)`},
+		{"сотрудников", `UPDATE employees SET updated_at = ? WHERE attachment_id IN (
+			SELECT id FROM attachments WHERE application_id = ?)`},
+	}
+	for _, st := range statements {
+		if err := db.WithContext(ctx).Exec(st.query, at, appID).Error; err != nil {
+			return fmt.Errorf("сдвиг отметки изменения (%s) заявки %d: %w", st.what, appID, err)
+		}
+	}
+	return nil
+}
+
 // --- переходы стадий: сервисный вызов + перенос дат сразу следом ---
 
 // stageRead открывает заявку от лица принимающего -- предпосылка для решения/принятия:
@@ -543,7 +566,10 @@ func acceptToWork(ctx context.Context, appSvc services.ApplicationService, db *g
 	if err := shiftApplicationAuditLog(ctx, db, appID, models.AuditActionTakeToWork, at); err != nil {
 		return err
 	}
-	return shiftAttachmentItemsAuditLog(ctx, db, appID, models.AuditActionAddedToTable, at)
+	if err := shiftAttachmentItemsAuditLog(ctx, db, appID, models.AuditActionAddedToTable, at); err != nil {
+		return err
+	}
+	return shiftAttachmentItemsTouched(ctx, db, appID, at)
 }
 
 // overridePendingBlacklistFlags снимает блокировку согласования по всем непокрытым
@@ -650,7 +676,10 @@ func runRevokedStage(ctx context.Context, appSvc services.ApplicationService, db
 	if err := shiftStatusUpdatedAt(ctx, db, app.ID, tRevoke); err != nil {
 		return err
 	}
-	return shiftApplicationAuditLog(ctx, db, app.ID, "revoke_from_work", tRevoke)
+	if err := shiftApplicationAuditLog(ctx, db, app.ID, "revoke_from_work", tRevoke); err != nil {
+		return err
+	}
+	return shiftAttachmentItemsTouched(ctx, db, app.ID, tRevoke)
 }
 
 // runWithdrawnStage -- заявитель отзывает собственную заявку (#951): status="Отозвана".
@@ -667,5 +696,15 @@ func runWithdrawnStage(ctx context.Context, appSvc services.ApplicationService, 
 	if err := shiftWithdrawnAt(ctx, db, app.ID, tWithdraw); err != nil {
 		return err
 	}
-	return shiftApplicationAuditLog(ctx, db, app.ID, models.AuditActionWithdraw, tWithdraw)
+	if err := shiftApplicationAuditLog(ctx, db, app.ID, models.AuditActionWithdraw, tWithdraw); err != nil {
+		return err
+	}
+	return shiftAttachmentItemsTouched(ctx, db, app.ID, tWithdraw)
+}
+
+// StageBucketSizesForTest открывает распределение стадий проверке: сама функция
+// приватная, а поведение на маленькой партии стоит сторожить -- пропорциональное ужатие
+// однажды уже обнуляло все меньшинства разом.
+func StageBucketSizesForTest(total int) (unread, approvedOnly, rejected, revoked, withdrawn int) {
+	return stageBucketSizes(total)
 }
