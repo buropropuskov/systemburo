@@ -249,7 +249,8 @@ func main() {
 	blacklistAuditRecorder := services.NewAuditRecorder(db)
 	vehicleBlacklistService := services.NewVehicleBlacklistService(db, blacklistAuditRecorder)
 	personBlacklistService := services.NewPersonBlacklistService(db, blacklistAuditRecorder)
-	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithRealtimePublisher(eventsHub), services.WithApplicationTablesProducer(tablesRefreshProducer), services.WithApplicationAvailableProducer(availableRefreshProducer), services.WithApplicationPermissionResolver(permissionResolver))
+	applicationFileService := services.NewApplicationFileService(db, cfg.UploadPath)
+	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithRealtimePublisher(eventsHub), services.WithApplicationTablesProducer(tablesRefreshProducer), services.WithApplicationAvailableProducer(availableRefreshProducer), services.WithApplicationPermissionResolver(permissionResolver), services.WithApplicationFiles(applicationFileService))
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, cfg.UploadPath)
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)
@@ -290,6 +291,13 @@ func main() {
 	requestLogsHandler := handlers.NewRequestLogsHandler(requestLogsService)
 	employeesHistoryHandler := handlers.NewEmployeesHistoryHandler(employeesHistoryService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService, permissionResolver)
+	// Типы файлов заявки: картинки и документы одним списком. Разделять их незачем -
+	// заявитель прикладывает и снимок, и pdf в одно поле.
+	applicationFileTypes := append(append([]string{}, cfg.UploadAllowedImageTypes...), cfg.UploadAllowedDocTypes...)
+	applicationFileHandler := handlers.NewApplicationFileHandler(
+		applicationFileService, applicationService,
+		cfg.UploadMaxFileSize, cfg.ApplicationFileMaxCount, cfg.ApplicationFileMaxTotal, applicationFileTypes,
+	)
 	approverHandler := handlers.NewApproverHandler(approverService)
 	permissionHandler := handlers.NewPermissionHandler(permissionService, permissionResolver)
 	permissionGroupHandler := handlers.NewPermissionGroupHandler(permissionGroupService)
@@ -414,6 +422,7 @@ func main() {
 		UniqueEmployee:      uniqueEmployeeHandler,
 		Feedback:            feedbackHandler,
 		Application:         applicationHandler,
+		ApplicationFiles:    applicationFileHandler,
 		Approver:            approverHandler,
 		Permissions:         permissionHandler,
 		PermGroups:          permissionGroupHandler,
@@ -510,6 +519,9 @@ func main() {
 	// подкомандой cleanup - там решение за оператором.
 	go startRetentionWorker(ctxSig, db, cfg.RefreshTokenRetentionDays, cfg.ReadNotificationRetentionDays, 24*time.Hour)
 
+	// Уборка файлов, загруженных к заявке, которую так и не отправили (#1721).
+	go startApplicationFileSweeper(ctxSig, applicationFileService, cfg.ApplicationFileDraftTTL, time.Hour)
+
 	// Файловый архив бланков (#1615, B1): разбор очереди enqueue, подметатель
 	// повторов и ежесуточная сверка реестра с диском в 03:00 по resetLoc. nil,
 	// если каталог архива не поднялся - startFileArchiveWorker сама это проверяет
@@ -571,6 +583,34 @@ func startRetentionWorker(ctx context.Context, db *gorm.DB, tokenDays, notificat
 		select {
 		case <-ctx.Done():
 			slog.Info("retention worker stopped")
+			return
+		case <-ticker.C:
+			run()
+		}
+	}
+}
+
+// startApplicationFileSweeper убирает файлы, загруженные к заявке, которую так и
+// не отправили (#1721): заявитель выбрал документы и закрыл форму. Ходит чаще
+// суток, потому что такие файлы занимают место, ни на что не влияя.
+func startApplicationFileSweeper(ctx context.Context, svc services.ApplicationFileService, ttl, interval time.Duration) {
+	run := func() {
+		removed, err := svc.SweepOrphans(ctx, ttl)
+		if err != nil {
+			slog.Error("не удалось убрать неприложенные файлы заявок", "error", err)
+			return
+		}
+		if removed > 0 {
+			slog.Info("убраны неприложенные файлы заявок", "count", removed)
+		}
+	}
+	run()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("application file sweeper stopped")
 			return
 		case <-ticker.C:
 			run()

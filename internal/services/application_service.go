@@ -378,6 +378,10 @@ type CompleteApplicationRequest struct {
 	// Readers - получатели-читатели заявки (#884): доступ только на просмотр.
 	// Кладутся в application_viewers (как форвард-флоу), без права согласования.
 	Readers *[]int `json:"readers"`
+	// FileIDs - файлы, загруженные до подачи (#1721). Привязываются к заявке в
+	// этой же транзакции: прикрепить файл после подачи нельзя, а неназванный в
+	// подаче черновик убирает уборщик.
+	FileIDs []int `json:"file_ids"`
 }
 
 // OrganizationTitle - введённое наименование организации: поле нового контракта, а при
@@ -792,6 +796,9 @@ type applicationService struct {
 	// (#1615, B1). Сеттер, а не конструкторская опция: BlankExportService поднимается
 	// позже applicationService в cmd/server/main.go (зависит от attachmentBlankService).
 	blankExports BlankExportEnqueuer
+	// files - файлы, приложенные при подаче (#1721). Опциональна: без неё file_ids
+	// в подаче не разбираются.
+	files ApplicationFileService
 }
 
 // SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1). nil
@@ -838,6 +845,12 @@ func WithApplicationAvailableProducer(p *AvailableRefreshPublisher) ApplicationS
 // «на проверке». Без него уведомление не уходит - разбор остаётся доступен через плашку.
 func WithApplicationPermissionResolver(r *PermissionResolver) ApplicationServiceOption {
 	return func(s *applicationService) { s.permissionResolver = r }
+}
+
+// WithApplicationFiles подключает файлы, прикладываемые при подаче (#1721). Без
+// неё поле file_ids в подаче игнорируется, и заявка создаётся без вложенных файлов.
+func WithApplicationFiles(f ApplicationFileService) ApplicationServiceOption {
+	return func(s *applicationService) { s.files = f }
 }
 
 // NewApplicationService создаёт экземпляр сервиса заявок.
@@ -1884,6 +1897,16 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		tx.Rollback()
 		slog.Error("Ошибка создания заявки", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating application")
+	}
+
+	// Файлы, приложенные при подаче (#1721). Внутри транзакции: не найденный
+	// среди своих черновиков файл откатывает подачу, вместо того чтобы создать
+	// заявку без документа, который заявитель считает приложенным.
+	if s.files != nil {
+		if err := s.files.Attach(tx, user.ID, appID, req.FileIDs); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
 	}
 
 	// Записываем создание в историю
