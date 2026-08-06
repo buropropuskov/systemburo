@@ -123,7 +123,8 @@ func (h *FeedbackHandler) UpdateStatus(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.UpdateStatus(c.Request().Context(), id, req); err != nil {
+	userID := GetUserID(c)
+	if err := h.service.UpdateStatus(c.Request().Context(), userID, id, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Статус обращения успешно обновлен")

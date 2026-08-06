@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"time"
@@ -35,8 +36,9 @@ type NewsService interface {
 }
 
 type newsService struct {
-	db                *gorm.DB
-	realtimePublisher realtime.Publisher
+	db                  *gorm.DB
+	realtimePublisher   realtime.Publisher
+	notificationService NotificationService
 }
 
 // NewsServiceOption конфигурирует newsService при создании.
@@ -48,6 +50,12 @@ type NewsServiceOption func(*newsService)
 // не шлются (тесты, offline).
 func WithNewsRealtimePublisher(p realtime.Publisher) NewsServiceOption {
 	return func(s *newsService) { s.realtimePublisher = p }
+}
+
+// WithNewsNotifications включает персональные уведомления news_published (#1748)
+// при публикации новости. Опционально: без неё уведомления не шлются (тесты, offline).
+func WithNewsNotifications(ns NotificationService) NewsServiceOption {
+	return func(s *newsService) { s.notificationService = ns }
 }
 
 // NewNewsService создаёт реализацию NewsService.
@@ -74,6 +82,33 @@ func (s *newsService) notifyNewsChanged(ctx context.Context) {
 		return
 	}
 	s.realtimePublisher.PublishMany(ids, realtime.Event{Type: "news.refresh", Scope: "news"})
+}
+
+// notifyNewsPublished шлёт NotificationTypeNewsPublished активным пользователям
+// при публикации новости (#1748). Активная новость (GetActiveNews) видна любому
+// авторизованному без гейта прав - разделу «Обзор и новости» не соответствует
+// отдельное view-право, поэтому аудитория, как и у notifyNewsChanged, = все
+// активные аккаунты. Автору новости не шлём - он и так знает, что опубликовал.
+func (s *newsService) notifyNewsPublished(ctx context.Context, newsID int, authorID int, title string) {
+	if s.notificationService == nil {
+		return
+	}
+	ids, err := activeUserIDs(ctx, s.db)
+	if err != nil {
+		slog.Warn("новость опубликована: не удалось собрать аудиторию уведомления", "news_id", newsID, "err", err)
+		return
+	}
+	payload, _ := json.Marshal(map[string]any{"news_id": newsID, "title": title})
+	payloadStr := string(payload)
+	notifTitle := "Опубликована новость"
+	for _, uid := range ids {
+		if uid == authorID {
+			continue
+		}
+		if err := s.notificationService.CreateForUser(ctx, uid, NotificationTypeNewsPublished, notifTitle, title, &payloadStr); err != nil {
+			slog.Warn("не удалось уведомить о публикации новости", "news_id", newsID, "user_id", uid, "error", err)
+		}
+	}
 }
 
 // --- News ---
@@ -170,6 +205,11 @@ func (s *newsService) CreateNews(ctx context.Context, userID int, req models.Cre
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching created news")
 	}
 	s.notifyNewsChanged(ctx)
+	// Уведомление о публикации - только для реально видимой новости (создание
+	// черновика, если фронт когда-нибудь его заведёт, тишины не нарушает).
+	if isActive {
+		s.notifyNewsPublished(ctx, news.ID, userID, news.Title)
+	}
 	return &result, nil
 }
 
