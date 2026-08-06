@@ -2182,7 +2182,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	if s.notificationService != nil {
 		if err := s.notificationService.CreateForUser(
 			ctx, user.ID,
-			"application_created",
+			NotificationTypeApplicationCreated,
 			"Заявка отправлена",
 			fmt.Sprintf("Ваша заявка %s отправлена и ожидает согласования.", applicationNumber),
 			nil,
@@ -2199,7 +2199,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 			}
 			if err := s.notificationService.CreateForUser(
 				ctx, ru.UserID,
-				"application_approval_required",
+				NotificationTypeApplicationApprovalRequired,
 				"Требуется согласование",
 				fmt.Sprintf("Поступила новая заявка %s на согласование.", applicationNumber),
 				nil,

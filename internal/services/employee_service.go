@@ -205,6 +205,9 @@ type employeeService struct {
 	// (#1615, B1): bulk-перенос сотрудника между таблицами меняет то, что хранит
 	// слепок заявки (заявка.json).
 	blankExports BlankExportEnqueuer
+	// notificationService - уведомление инициатора о первом проходе по заявке
+	// (#1748, S4). Опционально: без неё UpdateEmployeeTerritoryStatus просто не шлёт.
+	notificationService NotificationService
 }
 
 // EmployeeServiceOption конфигурирует employeeService при создании.
@@ -214,6 +217,12 @@ type EmployeeServiceOption func(*employeeService)
 // сотрудника (#840 V2.3): обновляем его целевые таблицы проходной live.
 func WithEmployeeTablesProducer(p *TablesRefreshPublisher) EmployeeServiceOption {
 	return func(s *employeeService) { s.tablesProducer = p }
+}
+
+// WithEmployeeNotifications включает уведомление инициатора заявки о первом
+// проходе по ней (#1748, S4) при входе сотрудника.
+func WithEmployeeNotifications(n NotificationService) EmployeeServiceOption {
+	return func(s *employeeService) { s.notificationService = n }
 }
 
 // SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1).
@@ -602,9 +611,9 @@ func (s *employeeService) UpdateEmployeeTerritoryStatus(ctx context.Context, emp
 		actionType = "exit"
 	}
 
+	var employee models.Employee
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var employee models.Employee
-		if err := tx.Select("id", "last_name", "first_name", "middle_name", "territory_status").
+		if err := tx.Select("id", "last_name", "first_name", "middle_name", "territory_status", "attachment_id").
 			First(&employee, employeeID).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
 				return echo.NewHTTPError(http.StatusNotFound, "Employee not found")
@@ -652,6 +661,12 @@ func (s *employeeService) UpdateEmployeeTerritoryStatus(ctx context.Context, emp
 	// Въезд/выезд изменил строку сотрудника - обновляем его целевые таблицы live
 	// (#840 V2.3).
 	s.tablesProducer.NotifyEmployeeChanged(ctx, employeeID)
+
+	// Первый проход по заявке (#1748, S4) - только на въезд, только если сотрудник
+	// вообще пришёл из заявки (у ручного добавления в таблицу проходной её нет).
+	if actionType == "entry" && employee.AttachmentID != nil {
+		notifyFirstPassage(ctx, s.db, s.notificationService, *employee.AttachmentID)
+	}
 	return nil
 }
 

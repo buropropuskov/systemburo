@@ -71,7 +71,7 @@ var tables = []string{
 	// журнала его не касается: значение накапливалось от прогона к прогону, и
 	// TestLogPartitionMaintenance ждал единицу, а получал столько, сколько раз
 	// запускали тесты на этой базе.
-	"request_logs_daily", "request_log", "request_logs", "notifications", "news", "announcements",
+	"request_logs_daily", "request_log", "request_logs", "notifications", "user_notification_preferences", "news", "announcements",
 	// analytics_cache и user_ban_histories тоже живут без внешних ключей: кэш отдаёт
 	// тесту цифры прошлого прогона, история банов копится вечно.
 	"analytics_cache", "user_ban_histories",
@@ -233,12 +233,12 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	db := cachedDB
 
 	// Create all services (same wiring as cmd/server/main.go)
-	authService := services.NewAuthService(db, TestJWTSecret, TestJWTRefreshSecret, 15*time.Minute, 168*time.Hour)
 	userTypeService := services.NewUserTypeService(db)
 	lpfService := services.NewLicensePlateFormatService(db)
 	attachmentService := services.NewAttachmentService(db)
 	citizenshipService := services.NewCitizenshipService(db)
 	notificationServiceEarly := services.NewNotificationService(db)
+	authService := services.NewAuthService(db, TestJWTSecret, TestJWTRefreshSecret, 15*time.Minute, 168*time.Hour, services.WithAuthNotifications(notificationServiceEarly))
 	// Справочники создаются после уведомлений (#1437): разбор записи «на проверке»
 	// сообщает инициатору наименования, чем он кончился.
 	organizationService := services.NewOrganizationService(db, services.WithOrganizationNotifications(notificationServiceEarly))
@@ -258,7 +258,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	permissionGroupService := services.NewPermissionGroupService(db, permissionResolver)
 	roleService := services.NewRoleService(db, permissionResolver)
 	accessDenialService := services.NewAccessDenialService(db)
-	userBanService := services.NewUserBanService(db, permissionResolver, nil, auditRecorder)
+	userBanService := services.NewUserBanService(db, permissionResolver, nil, auditRecorder, services.WithBanNotifications(notificationServiceEarly))
 	systemTableService := services.NewSystemTableService(db, "./uploads", 10*1024*1024, permissionService)
 	workModesService := services.NewWorkModesService(unloadPlaceService, systemTableService, bureauService)
 	uniqueCarService := services.NewUniqueCarService(db)
@@ -338,7 +338,8 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	)
 	approverHandler := handlers.NewApproverHandler(approverService)
 	permissionHandler := handlers.NewPermissionHandler(permissionService, permissionResolver)
-	permissionGroupHandler := handlers.NewPermissionGroupHandler(permissionGroupService)
+	userRoleNotifier := services.NewUserRoleNotifier(db, permissionGroupService, notificationService)
+	permissionGroupHandler := handlers.NewPermissionGroupHandler(permissionGroupService, userRoleNotifier)
 	roleHandler := handlers.NewRoleHandler(roleService)
 	accessDenialHandler := handlers.NewAccessDenialHandler(accessDenialService)
 	userBanHandler := handlers.NewUserBanHandler(userBanService)

@@ -427,7 +427,7 @@ func (s *userService) notifyPasswordChanged(ctx context.Context, target *models.
 
 	if err := s.notificationService.CreateForUser(
 		ctx, target.ID,
-		"password_changed",
+		NotificationTypePasswordChanged,
 		"Пароль изменён",
 		message,
 		&dataStr,

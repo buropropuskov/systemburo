@@ -732,7 +732,7 @@ func (s *applicationService) notifySupplementApprovers(ctx context.Context, appl
 			continue
 		}
 		if err := s.notificationService.CreateForUser(ctx, userID,
-			"application_approval_required", "Требуется согласование", message, nil); err != nil {
+			NotificationTypeApplicationApprovalRequired, "Требуется согласование", message, nil); err != nil {
 			slog.Warn("дополнение: уведомление не создано", "user_id", userID, "application_id", applicationID, "err", err)
 		}
 	}

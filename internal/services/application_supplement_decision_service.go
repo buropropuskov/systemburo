@@ -31,10 +31,10 @@ const (
 	supplementActionReject = "reject"
 )
 
-// supplementDecidedNotificationType - тип уведомления автору об исходе его дополнения.
-// Отдельно от applicationStatusChangedType: статус заявки при этом не меняется, и общий
+// Тип уведомления -- NotificationTypeApplicationSupplementDecided (каталог,
+// notification_catalog.go): автору об исходе его дополнения. Отдельно от
+// NotificationTypeApplicationStatusChanged: статус заявки при этом не меняется, и общий
 // текст «Ваша заявка ...» ввёл бы автора в заблуждение.
-const supplementDecidedNotificationType = "application_supplement_decided"
 
 // SupplementDecisionRequest - решение принимающего по согласованному раунду.
 type SupplementDecisionRequest struct {
@@ -379,7 +379,7 @@ func (s *applicationService) notifySupplementDecided(ctx context.Context, applic
 		"status":             status,
 	})
 	payloadStr := string(payload)
-	if err := s.notificationService.CreateForUser(ctx, *app.SenderUserID, supplementDecidedNotificationType,
+	if err := s.notificationService.CreateForUser(ctx, *app.SenderUserID, NotificationTypeApplicationSupplementDecided,
 		title, message, &payloadStr); err != nil {
 		slog.Warn("дополнение: уведомление автору не создано", "user_id", *app.SenderUserID,
 			"application_id", applicationID, "err", err)

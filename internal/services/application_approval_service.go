@@ -298,7 +298,7 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 			}
 			payload, _ := json.Marshal(data)
 			payloadStr := string(payload)
-			if err := s.notificationService.CreateForUser(ctx, resp.UserID, "application_approval_required",
+			if err := s.notificationService.CreateForUser(ctx, resp.UserID, NotificationTypeApplicationApprovalRequired,
 				"Заявка на согласование",
 				fmt.Sprintf("Вам передана заявка %s на согласование.", appNumberStr),
 				&payloadStr); err != nil {
@@ -314,7 +314,7 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 			}
 			payload, _ := json.Marshal(data)
 			payloadStr := string(payload)
-			if err := s.notificationService.CreateForUser(ctx, viewerID, "application_forwarded",
+			if err := s.notificationService.CreateForUser(ctx, viewerID, NotificationTypeApplicationForwarded,
 				"Заявка передана для просмотра",
 				fmt.Sprintf("Вам передана заявка %s для просмотра.", appNumberStr),
 				&payloadStr); err != nil {

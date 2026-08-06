@@ -397,9 +397,9 @@ const (
 	statusOutcomeCompleted   = "completed"
 )
 
-// applicationStatusChangedType - тип уведомления инициатору об исходе заявки (#1349).
-// Навигация по data.application_id уже поддержана фронтом (UserNotifications.vue).
-const applicationStatusChangedType = "application_status_changed"
+// Тип уведомления -- NotificationTypeApplicationStatusChanged (каталог,
+// notification_catalog.go): инициатору об исходе заявки (#1349). Навигация по
+// data.application_id уже поддержана фронтом (UserNotifications.vue).
 
 // confirmationOutcome возвращает исход-уведомление для нового значения confirmation, если
 // это финальный исход согласования (Согласовано/Не согласовано). "" - промежуточное значение
@@ -478,8 +478,86 @@ func (s *applicationService) notifyInitiatorStatusChanged(ctx context.Context, a
 	}
 	payload, _ := json.Marshal(data)
 	payloadStr := string(payload)
-	if err := s.notificationService.CreateForUser(ctx, *app.SenderUserID, applicationStatusChangedType, title, body, &payloadStr); err != nil {
+	if err := s.notificationService.CreateForUser(ctx, *app.SenderUserID, NotificationTypeApplicationStatusChanged, title, body, &payloadStr); err != nil {
 		slog.Warn("не удалось создать уведомление инициатору об исходе заявки", "user_id", *app.SenderUserID, "error", err)
+	}
+}
+
+// pendingApproversBeforeWithdraw возвращает id пользователей, чьё решение по заявке
+// ещё не поступило - ДО того как WithdrawApplication сменит статус на терминальный
+// (Отозвана). Предикат зеркалит pendingApproverBaseQuery (reminder_service.go) на
+// смысловом уровне: живая заявка ждёт согласования (confirmation="Согласование"),
+// строка ответственного ещё не проголосовала (approval_status пуст/pending), и голос
+// либо обязательный, либо обязательных вовсе нет. Отдельная копия, а не переиспользование
+// reminderService - applicationService его не получает как зависимость, а вызывающая
+// заявка уже проверена не-терминальной в этой же транзакции (FOR UPDATE), так что
+// activeApplicationCond из pendingApproverBaseQuery здесь избыточен.
+//
+// Читаем ИЗНУТРИ транзакции отзыва, ДО UPDATE статуса: как только applications.status
+// станет Отозвана (терминальный), тот же предикат перестанет матчить заявку, и список
+// ожидающих потеряется. Best-effort: ошибка логируется, отзыв не откатывается.
+func (s *applicationService) pendingApproversBeforeWithdraw(ctx context.Context, tx *gorm.DB, applicationID int) []int {
+	var ids []int
+	err := tx.WithContext(ctx).Raw(`
+		SELECT DISTINCT aru.user_id
+		FROM application_responsible_users aru
+		JOIN applications a ON a.id = aru.application_id
+		WHERE aru.application_id = ?
+		  AND a.confirmation = ?
+		  AND (aru.approval_status IS NULL OR aru.approval_status = 'pending')
+		  AND (
+		      aru.required_approval = true
+		      OR NOT EXISTS (
+		          SELECT 1 FROM application_responsible_users r2
+		          WHERE r2.application_id = aru.application_id AND r2.required_approval = true
+		      )
+		  )
+	`, applicationID, models.ConfirmationPending).Scan(&ids).Error
+	if err != nil {
+		slog.Warn("не удалось отобрать ожидающих согласующих перед отзывом заявки", "application_id", applicationID, "error", err)
+		return nil
+	}
+	return ids
+}
+
+// notifyWithdrawn уведомляет тех, чьего решения ждали по отозванной заявке (#1748,
+// S4): отзыв убирает предмет согласования из их очереди, и без явного сигнала заявка
+// просто пропадает из списка ожидающих. userIDs собраны ДО смены статуса
+// (pendingApproversBeforeWithdraw) - тем же предикатом, что и напоминания
+// согласующим. Инициатору не шлём: это его собственное действие. Best-effort: ошибка
+// логируется, WithdrawApplication уже закоммичен.
+func (s *applicationService) notifyWithdrawn(ctx context.Context, applicationID int, withdrawnByName string, userIDs []int) {
+	if s.notificationService == nil || len(userIDs) == 0 {
+		return
+	}
+
+	var app struct{ ApplicationNumber string }
+	if err := s.db.WithContext(ctx).
+		Raw("SELECT COALESCE(application_number, '') AS application_number FROM applications WHERE id = ?", applicationID).
+		Scan(&app).Error; err != nil {
+		slog.Warn("не удалось получить номер заявки для уведомления об отзыве", "application_id", applicationID, "error", err)
+		return
+	}
+	number := app.ApplicationNumber
+	if number == "" {
+		number = fmt.Sprintf("№ %d", applicationID)
+	}
+
+	title := "Заявка отозвана"
+	body := fmt.Sprintf("Заявку %s отозвал(а) %s - рассматривать её больше не нужно.", number, withdrawnByName)
+
+	data := map[string]any{"application_id": applicationID, "application_number": number}
+	payload, err := json.Marshal(data)
+	if err != nil {
+		slog.Warn("не удалось сериализовать данные уведомления об отзыве", "application_id", applicationID, "error", err)
+		return
+	}
+	payloadStr := string(payload)
+
+	for _, userID := range userIDs {
+		if err := s.notificationService.CreateForUser(ctx, userID, NotificationTypeApplicationWithdrawn, title, body, &payloadStr); err != nil {
+			slog.Warn("не удалось создать уведомление об отзыве заявки", "user_id", userID, "application_id", applicationID, "error", err)
+		}
 	}
 }
 

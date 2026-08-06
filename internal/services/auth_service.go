@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -57,19 +58,30 @@ type Claims struct {
 }
 
 type authService struct {
-	db               *gorm.DB
-	jwtSecret        []byte
-	jwtRefreshSecret []byte
-	accessTTL        time.Duration
-	refreshTTL       time.Duration
-	loginGuard       *loginGuard
+	db                  *gorm.DB
+	jwtSecret           []byte
+	jwtRefreshSecret    []byte
+	accessTTL           time.Duration
+	refreshTTL          time.Duration
+	loginGuard          *loginGuard
+	notificationService NotificationService
+}
+
+// AuthServiceOption конфигурирует authService при создании.
+type AuthServiceOption func(*authService)
+
+// WithAuthNotifications подключает уведомление владельца учётки о переходе в
+// блокировку входа (#1748 S3). Опционально, nil-safe: без неё уведомление просто
+// не создаётся (тесты, offline) - сама блокировка от этого не зависит.
+func WithAuthNotifications(ns NotificationService) AuthServiceOption {
+	return func(s *authService) { s.notificationService = ns }
 }
 
 // NewAuthService создаёт сервис аутентификации с JWT-секретами и TTL токенов.
 // accessTTL — время жизни access-токена (короткое, например 15m).
 // refreshTTL — время жизни refresh-токена (длинное, например 168h = 7d).
-func NewAuthService(db *gorm.DB, jwtSecret, jwtRefreshSecret string, accessTTL, refreshTTL time.Duration) AuthService {
-	return &authService{
+func NewAuthService(db *gorm.DB, jwtSecret, jwtRefreshSecret string, accessTTL, refreshTTL time.Duration, opts ...AuthServiceOption) AuthService {
+	s := &authService{
 		db:               db,
 		jwtSecret:        []byte(jwtSecret),
 		jwtRefreshSecret: []byte(jwtRefreshSecret),
@@ -79,6 +91,10 @@ func NewAuthService(db *gorm.DB, jwtSecret, jwtRefreshSecret string, accessTTL, 
 		// несуществующих логинов (счётчик показывается всегда, не палит существование).
 		loginGuard: newLoginGuard(maxFailedLoginsBeforeLock, loginFailureWindow, accountLockDuration),
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // intPtrOrNil возвращает указатель на v или nil если v <= 0.
@@ -644,7 +660,49 @@ func (s *authService) registerFailedLogin(ctx context.Context, user *models.User
 	s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventAccountLocked, false, nil,
 		fmt.Sprintf("locked for %s after %d failed attempts (step %d)", dur, maxFailedLoginsBeforeLock, level+1))
 	s.saveFailedLoginState(ctx, user, updates)
+	// Уведомление - РОВНО в момент перехода в блокировку, не на каждой неудачной
+	// попытке (иначе спам ровно там, где его боятся). user здесь всегда существующая
+	// запись из БД (registerFailedLogin зовётся Login() только после успешного поиска
+	// по username) - для выдуманного логина уведомлять некого и нечего.
+	s.notifyLoginBlocked(ctx, user, maxFailedLoginsBeforeLock, lockUntil)
 	return &lockUntil
+}
+
+// notifyLoginBlocked создаёт персистентное уведомление о блокировке входа.
+// Пользователь увидит его только после снятия блокировки (залогиниться и прочитать,
+// пока учётка заперта, он не может) - запись всё равно нужна, она объясняет, что
+// случилось и когда доступ вернётся. Best-effort: ошибка не должна ломать сам логин-флоу.
+func (s *authService) notifyLoginBlocked(ctx context.Context, user *models.User, attempts int, lockedUntil time.Time) {
+	if s.notificationService == nil {
+		return
+	}
+
+	untilMSK := lockedUntil.In(moscowWorkModeLoc).Format("02.01.2006 15:04")
+	message := fmt.Sprintf(
+		"Слишком много неудачных попыток входа (%d) в вашу учётную запись. Вход заблокирован до %s (МСК).",
+		attempts, untilMSK,
+	)
+
+	dataPayload := map[string]any{
+		"attempts":     attempts,
+		"locked_until": lockedUntil.UTC().Format(time.RFC3339),
+	}
+	dataBytes, err := json.Marshal(dataPayload)
+	if err != nil {
+		slog.Warn("не удалось сериализовать payload уведомления о блокировке входа", "error", err)
+		return
+	}
+	dataStr := string(dataBytes)
+
+	if err := s.notificationService.CreateForUser(
+		ctx, user.ID,
+		NotificationTypeLoginBlocked,
+		"Вход временно заблокирован",
+		message,
+		&dataStr,
+	); err != nil {
+		slog.Warn("не удалось создать уведомление о блокировке входа", "user_id", user.ID, "error", err)
+	}
 }
 
 // saveFailedLoginState пишет состояние счётчика/блокировки. Запрос не прерываем -

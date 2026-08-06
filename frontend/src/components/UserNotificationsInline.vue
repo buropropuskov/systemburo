@@ -19,6 +19,15 @@
       </div>
       <div class="notifications__header-actions">
         <button
+          type="button"
+          class="notifications__settings"
+          data-testid="cabinet-notifications-settings"
+          title="Настроить уведомления"
+          @click="openSettings"
+        >
+          Настроить
+        </button>
+        <button
           v-if="unreadCount > 0"
           type="button"
           class="notifications__read-all"
@@ -400,6 +409,10 @@ export default {
       }
     },
 
+    openSettings() {
+      this.$router.push('/notification-settings').catch(() => {})
+    },
+
     async clearAll() {
       const ok = await useUiStore().confirm({
         title: 'Очистить уведомления?',
@@ -490,6 +503,7 @@ export default {
   text-align: center;
 }
 
+.notifications__settings,
 .notifications__read-all,
 .notifications__clear {
   background: none;

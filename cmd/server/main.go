@@ -174,7 +174,6 @@ func main() {
 	e.Use(mw.RequestLogger(db))
 
 	// Services
-	authService := services.NewAuthService(db, cfg.JWTSecret, cfg.JWTRefreshSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
 	userTypeService := services.NewUserTypeService(db)
 	lpfService := services.NewLicensePlateFormatService(db)
 	attachmentService := services.NewAttachmentService(db)
@@ -184,6 +183,9 @@ func main() {
 	// должен существовать раньше. Конструктор Hub ни от чего не зависит.
 	eventsHub := realtime.NewHub()
 	notificationServiceEarly := services.NewNotificationService(db, services.WithNotificationRealtimePublisher(eventsHub))
+	// authService создаётся после notificationService (#1748 S3): уведомление о
+	// блокировке входа передаётся в конструктор опцией.
+	authService := services.NewAuthService(db, cfg.JWTSecret, cfg.JWTRefreshSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL, services.WithAuthNotifications(notificationServiceEarly))
 	// Справочники создаются после уведомлений (#1437): разбор записи «на проверке»
 	// сообщает инициатору наименования, чем он кончился.
 	organizationService := services.NewOrganizationService(db, services.WithOrganizationNotifications(notificationServiceEarly))
@@ -202,8 +204,8 @@ func main() {
 	// таблиц меняются (въезд/выезд, принятие заявки).
 	tablesRefreshProducer := services.NewTablesRefreshPublisher(db, permissionResolver, eventsHub)
 	availableRefreshProducer := services.NewAvailableRefreshPublisher(db, permissionResolver, eventsHub)
-	carService := services.NewCarService(db, auditRecorder, services.WithCarTablesProducer(tablesRefreshProducer))
-	employeeService := services.NewEmployeeService(db, auditRecorder, services.WithEmployeeTablesProducer(tablesRefreshProducer))
+	carService := services.NewCarService(db, auditRecorder, services.WithCarTablesProducer(tablesRefreshProducer), services.WithCarNotifications(notificationServiceEarly))
+	employeeService := services.NewEmployeeService(db, auditRecorder, services.WithEmployeeTablesProducer(tablesRefreshProducer), services.WithEmployeeNotifications(notificationServiceEarly))
 	manualAttachService := services.NewManualAttachService(db, auditRecorder, tablesRefreshProducer, availableRefreshProducer)
 	permissionService := services.NewPermissionService(db)
 	permissionGroupService := services.NewPermissionGroupService(db, permissionResolver)
@@ -211,7 +213,7 @@ func main() {
 	accessDenialService := services.NewAccessDenialService(db)
 	banCheckService := services.NewBanCheckService(db, 30*time.Second)
 	userService.SetBanCache(banCheckService) // архив/restore мгновенно сбрасывают кэш блокировок
-	userBanService := services.NewUserBanService(db, permissionResolver, banCheckService, auditRecorder, services.WithBanRealtimePublisher(eventsHub))
+	userBanService := services.NewUserBanService(db, permissionResolver, banCheckService, auditRecorder, services.WithBanRealtimePublisher(eventsHub), services.WithBanNotifications(notificationServiceEarly))
 	systemTableService := services.NewSystemTableService(db, cfg.UploadPath, cfg.UploadMaxFileSize, permissionService, services.WithSystemTableRealtimePublisher(eventsHub))
 	if err := systemTableService.SeedMissingFields(context.Background()); err != nil {
 		slog.Error("не удалось досидить отсутствующие поля таблиц (#345)", "error", err)
@@ -242,6 +244,9 @@ func main() {
 	pdConsentStatsService := services.NewPDConsentStatsService(db, pdConsentGateService)
 	userService.SetPasswordPolicyProvider(settingsService) // политика паролей при создании/смене
 	reminderService := services.NewReminderService(db, notificationService, settingsService)
+	// Предупреждение об истекающем завтра пропуске (#1748, S4): раньше об этом
+	// узнавали постфактум, когда CheckExpiredAttachments уже деактивировал вложение.
+	expiryNotifyService := services.NewExpiryNotifyService(db, notificationService)
 	telegramService := services.NewTelegramService(cfg.TelegramBotToken, cfg.TelegramChatID)
 	bugReportService := services.NewBugReportService(db, telegramService)
 	maintenanceService := services.NewMaintenanceService(db)
@@ -301,7 +306,10 @@ func main() {
 	)
 	approverHandler := handlers.NewApproverHandler(approverService)
 	permissionHandler := handlers.NewPermissionHandler(permissionService, permissionResolver)
-	permissionGroupHandler := handlers.NewPermissionGroupHandler(permissionGroupService)
+	// roleNotifier уведомляет владельца учётки о смене роли (#1748 S3), оборачивая
+	// permissionGroupService.SetUserRole - его файл off-limits для этого среза.
+	userRoleNotifier := services.NewUserRoleNotifier(db, permissionGroupService, notificationService)
+	permissionGroupHandler := handlers.NewPermissionGroupHandler(permissionGroupService, userRoleNotifier)
 	roleHandler := handlers.NewRoleHandler(roleService)
 	accessDenialHandler := handlers.NewAccessDenialHandler(accessDenialService)
 	userBanHandler := handlers.NewUserBanHandler(userBanService)
@@ -490,6 +498,12 @@ func main() {
 	// уведомление. См. ReminderService.SendPendingReminders.
 	go startReminderScheduler(ctxSig, reminderService, time.Hour)
 
+	// Предупреждение об истекающем завтра пропуске (#1748, S4): раз в сутки отбирает
+	// заявки с активным вложением на завтра и шлёт инициатору. См.
+	// ExpiryNotifyService.NotifyExpiringTomorrow. Дедупликация от повторных
+	// рестартов - внутри сервиса (по существующему уведомлению за последние сутки).
+	go startExpiryNotifyScheduler(ctxSig, expiryNotifyService, 24*time.Hour)
+
 	// Архив access_denials: 3 мес retention, цикл раз в сутки.
 	go startAccessDenialsArchiver(ctxSig, accessDenialService, 90*24*time.Hour, 24*time.Hour)
 
@@ -515,10 +529,11 @@ func main() {
 	// сворачивает партиции старше RequestLogDetailDays в агрегаты и дропает.
 	go startLogPartitionWorker(ctxSig, db, cfg.RequestLogDetailDays, cfg.RequestLogPartitionPrecreateDays, cfg.PdAuditRetentionMonths, 24*time.Hour)
 
-	// Суточная уборка технического мусора: недействительные токены сессий и
-	// прочитанные уведомления. Остальные журналы чистятся только вручную
-	// подкомандой cleanup - там решение за оператором.
-	go startRetentionWorker(ctxSig, db, cfg.RefreshTokenRetentionDays, cfg.ReadNotificationRetentionDays, 24*time.Hour)
+	// Суточная уборка технического мусора: недействительные токены сессий,
+	// прочитанные уведомления и непрочитанные уведомления (свой, более мягкий срок).
+	// Остальные журналы чистятся только вручную подкомандой cleanup - там решение
+	// за оператором.
+	go startRetentionWorker(ctxSig, db, cfg.RefreshTokenRetentionDays, cfg.ReadNotificationRetentionDays, cfg.NotificationRetentionDays, 24*time.Hour)
 
 	// Уборка файлов, загруженных к заявке, которую так и не отправили (#1721).
 	go startApplicationFileSweeper(ctxSig, applicationFileService, cfg.ApplicationFileDraftTTL, time.Hour)
@@ -573,10 +588,11 @@ func startLogPartitionWorker(ctx context.Context, db *gorm.DB, detailDays, precr
 }
 
 // startRetentionWorker раз в interval сметает данные, которые обесценились сами:
-// недействительные токены сессий и прочитанные уведомления. Первый прогон сразу -
-// после долгого простоя мусор копится, ждать сутки незачем.
-func startRetentionWorker(ctx context.Context, db *gorm.DB, tokenDays, notificationDays int, interval time.Duration) {
-	run := func() { database.SweepRoutine(ctx, db, tokenDays, notificationDays) }
+// недействительные токены сессий, прочитанные и непрочитанные уведомления (два
+// разных срока). Первый прогон сразу - после долгого простоя мусор копится, ждать
+// сутки незачем.
+func startRetentionWorker(ctx context.Context, db *gorm.DB, tokenDays, notificationDays, unreadNotificationDays int, interval time.Duration) {
+	run := func() { database.SweepRoutine(ctx, db, tokenDays, notificationDays, unreadNotificationDays) }
 	run()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -821,6 +837,29 @@ func startReminderScheduler(ctx context.Context, svc services.ReminderService, i
 		case <-ticker.C:
 			if err := svc.SendPendingReminders(ctx); err != nil {
 				slog.Error("reminder run failed", "error", err)
+			}
+		}
+	}
+}
+
+// startExpiryNotifyScheduler запускает периодический прогон предупреждений об
+// истекающем завтра пропуске (#1748, S4). Первый прогон — сразу при старте; далее —
+// каждый interval, пока ctx не отменён. Задача суточная, но при рестарте сервиса
+// может отработать чаще - от повторной рассылки защищает сам сервис.
+func startExpiryNotifyScheduler(ctx context.Context, svc services.ExpiryNotifyService, interval time.Duration) {
+	if err := svc.NotifyExpiringTomorrow(ctx); err != nil {
+		slog.Error("initial expiry notify run failed", "error", err)
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("expiry notify scheduler stopped")
+			return
+		case <-ticker.C:
+			if err := svc.NotifyExpiringTomorrow(ctx); err != nil {
+				slog.Error("expiry notify run failed", "error", err)
 			}
 		}
 	}

@@ -21,12 +21,9 @@ import (
 //
 // Всё здесь best-effort: сбой уведомления не должен рушить ни подачу заявки, ни разбор.
 
-const (
-	// NotificationTypeDirectoryPending - принимающему: подача завела запись справочника.
-	NotificationTypeDirectoryPending = "directory_entry_pending"
-	// NotificationTypeDirectoryResolved - инициатору: его наименование разобрали.
-	NotificationTypeDirectoryResolved = "directory_entry_resolved"
-)
+// Типы уведомлений -- NotificationTypeDirectoryPending (принимающему: подача завела
+// запись справочника) и NotificationTypeDirectoryResolved (инициатору: его наименование
+// разобрали), обе -- каталог, notification_catalog.go.
 
 // pendingDirectoryNotice - запись, заведённая подачей и ждущая разбора. label -
 // «Организация» либо «Компания»: оба слова женского рода, поэтому текст уведомления
