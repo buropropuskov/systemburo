@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -69,6 +70,9 @@ type BlankExportService struct {
 	// quota - пороги места (B2). Спрашивается перед каждой фоновой записью: узнать
 	// про нехватку места надо ДО записи, а не по факту сбоя.
 	quota ArchiveQuotaGuard
+	// files - хранилище файлов, приложенных к заявке (#1721). Опционально: без него
+	// в архив уезжают только бланки.
+	files ApplicationFileService
 }
 
 // NewBlankExportService собирает сервис выгрузки поверх готовых частей: генератор
@@ -99,6 +103,19 @@ func (s *BlankExportService) Wake() <-chan struct{} {
 
 // Writer отдаёт писателя архива - воркеру (cmd/server) он нужен для уборки
 // временного мусора (.tmp-*) на своём тике, отдельном от разбора очереди.
+// SetApplicationFiles подключает хранилище файлов заявки: без него приложенные
+// файлы в архив не уезжают, а бланки выкладываются как прежде.
+//
+// Проверка на nil обязательна: когда каталог архива не поднялся, сервис остаётся
+// типизированным nil - соседние Enqueue* на нём тоже no-op, и присваивание поля
+// уронило бы старт вместо тихого отказа от выгрузки.
+func (s *BlankExportService) SetApplicationFiles(f ApplicationFileService) {
+	if s == nil {
+		return
+	}
+	s.files = f
+}
+
 func (s *BlankExportService) Writer() *ArchiveWriter {
 	return s.writer
 }
@@ -116,6 +133,25 @@ type blankExportTarget struct {
 	AutoExport         bool   `gorm:"column:auto_export"`
 	TemplateID         *int   `gorm:"column:template_id"`
 	FileName           string `gorm:"-"`
+	// SourceFileID - файл, приложенный к заявке (#1721). Заполнен у целей, которые
+	// не генерируются из бланка, а копируются из хранилища загрузок. Такая цель
+	// живёт в реестре под отрицательным attachment_id: столбец без внешнего ключа,
+	// пары (заявка, отрицательный id) с настоящими вложениями не пересекаются.
+	SourceFileID *int `gorm:"-"`
+}
+
+// archiveAttachmentsDir - подпапка заявки, куда кладутся приложенные к ней файлы.
+// Отдельная от бланков: имена приносит заявитель, и совпадение с именем бланка
+// перезаписало бы документ.
+const archiveAttachmentsDir = "Приложения"
+
+// targetLevels отдаёт каталог цели: бланки лежат в папке заявки, приложенные к ней
+// файлы - в подпапке.
+func targetLevels(levels []string, target blankExportTarget) []string {
+	if target.SourceFileID == nil {
+		return levels
+	}
+	return append(append([]string{}, levels...), archiveAttachmentsDir)
 }
 
 // ExportApplication выгружает бланки заявки в архив и приводит реестр в соответствие
@@ -177,7 +213,7 @@ func (s *BlankExportService) ExportApplication(ctx context.Context, applicationI
 			applicationID: applicationID,
 			reason:        reason,
 			bucketDate:    appValues.Date,
-			levels:        levels,
+			levels:        targetLevels(levels, target),
 			target:        target,
 			row:           registry[target.AttachmentID],
 			frozenAt:      frozenAt,
@@ -280,8 +316,10 @@ func (s *BlankExportService) exportOne(ctx context.Context, req exportRequest) m
 
 	// Выключенный тумблер и отсутствующий бланк останавливают запись, но уже
 	// лежащий файл не удаляют: смена настройки не повод стирать документ, который
-	// мог уехать в корпоративную копию.
+	// мог уехать в корпоративную копию. К приложенным файлам это не относится:
+	// у них нет ни тумблера, ни шаблона.
 	switch {
+	case req.target.SourceFileID != nil:
 	case !req.target.AutoExport:
 		item.Status = models.BlankExportSkipped
 	case req.target.UniqueAttachmentID == nil || req.target.TemplateID == nil:
@@ -294,7 +332,7 @@ func (s *BlankExportService) exportOne(ctx context.Context, req exportRequest) m
 		return item
 	}
 
-	data, err := s.generate(ctx, req.applicationID, req.target.AttachmentID)
+	data, err := s.contentFor(ctx, req)
 	if err != nil {
 		item.Status, item.Error = classifyBlankExportError(err), err.Error()
 		// Не сложившаяся запись в реестр не должна подменять собой причину отказа:
@@ -327,6 +365,22 @@ func (s *BlankExportService) exportOne(ctx context.Context, req exportRequest) m
 		item.Status, item.Error = models.BlankExportFailed, err.Error()
 	}
 	return item
+}
+
+// contentFor отдаёт содержимое цели: сгенерированный бланк либо приложенный к
+// заявке файл.
+//
+// Файл читается через расшифровку: в хранилище загрузок он лежит закрытым, а в
+// архив должен уехать пригодным для чтения принимающей стороной - там его закроет
+// уже шифрование архива, ключами получателя.
+func (s *BlankExportService) contentFor(ctx context.Context, req exportRequest) ([]byte, error) {
+	if req.target.SourceFileID == nil {
+		return s.generate(ctx, req.applicationID, req.target.AttachmentID)
+	}
+	if s.files == nil {
+		return nil, fmt.Errorf("хранилище файлов заявки не подключено")
+	}
+	return s.files.ReadContent(ctx, *req.target.SourceFileID)
 }
 
 // placeFile кладёт файл на диск, если его содержимое или положение изменились.
@@ -450,6 +504,12 @@ func (s *BlankExportService) layout(
 ) ([]string, error) {
 	longest := ""
 	for i := range targets {
+		// У приложенного файла имя своё - его принёс заявитель, шаблон к нему не
+		// применяется. И вложения с таким идентификатором не существует, поэтому
+		// разбор его полей закончился бы отказом «вложение не найдено».
+		if targets[i].SourceFileID != nil {
+			continue
+		}
 		// Поля заявки уже загружены и для всех её вложений одинаковы - дочитываем
 		// только тип и срок вложения, а не повторяем тяжёлый разбор заявки.
 		att, err := s.paths.attachmentValues(ctx, applicationID, targets[i].AttachmentID)
@@ -659,7 +719,41 @@ func (s *BlankExportService) loadTargets(ctx context.Context, applicationID int)
 	if err := s.db.WithContext(ctx).Raw(sql, applicationID).Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("failed to load application attachments for export: %w", err)
 	}
-	return rows, nil
+
+	files, err := s.loadFileTargets(ctx, applicationID)
+	if err != nil {
+		return nil, err
+	}
+	return append(rows, files...), nil
+}
+
+// loadFileTargets собирает цели по файлам, приложенным к заявке (#1721).
+//
+// Отрицательный attachment_id - способ уложить их в тот же реестр, что и бланки:
+// пара (заявка, вложение) остаётся уникальной, а весь остальной механизм
+// (заморозка, сверка с диском, пометка сирот, переезд каталога) начинает работать
+// для них даром. Настоящих вложений с отрицательным id не бывает.
+func (s *BlankExportService) loadFileTargets(ctx context.Context, applicationID int) ([]blankExportTarget, error) {
+	var files []models.ApplicationFile
+	if err := s.db.WithContext(ctx).
+		Where("application_id = ?", applicationID).
+		Order("id").Find(&files).Error; err != nil {
+		return nil, fmt.Errorf("failed to load application files for export: %w", err)
+	}
+
+	targets := make([]blankExportTarget, 0, len(files))
+	for i := range files {
+		id := files[i].ID
+		targets = append(targets, blankExportTarget{
+			AttachmentID: -id,
+			// Приложенные файлы выкладываются всегда: тумблер auto_export
+			// настраивает типы вложений, а к ним эти файлы не относятся.
+			AutoExport:   true,
+			FileName:     blankpath.FileName(strings.TrimSuffix(files[i].FileName, filepath.Ext(files[i].FileName)), filepath.Ext(files[i].FileName)),
+			SourceFileID: &id,
+		})
+	}
+	return targets, nil
 }
 
 // loadRegistry читает строки реестра заявки по attachment_id.

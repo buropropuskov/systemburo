@@ -382,6 +382,8 @@ func main() {
 	// а не конструкторские опции: сервисы выше уже собраны, а blankExportService
 	// поднят только сейчас (зависит от attachmentBlankService/archivePathService).
 	// blankExportService типизированный nil безопасен - Enqueue* на нём no-op.
+	// Приложенные к заявке файлы уезжают в архив тем же путём, что и бланки.
+	blankExportService.SetApplicationFiles(applicationFileService)
 	applicationService.SetBlankExportEnqueuer(blankExportService)
 	organizationService.SetBlankExportEnqueuer(blankExportService)
 	companyService.SetBlankExportEnqueuer(blankExportService)

@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
 
 	"systemburo/internal/apperr"
+	"systemburo/internal/crypto"
 	"systemburo/internal/models"
 	"systemburo/internal/upload"
 
@@ -53,6 +55,9 @@ type ApplicationFileService interface {
 	// DiscardStored убирает с диска файл, для которого строка так и не появилась
 	// (например, отказ по лимитам заявки уже после записи).
 	DiscardStored(storedName string)
+	// ReadContent отдаёт расшифрованное содержимое файла. Нужен выгрузке в архив:
+	// там файл закрывается заново, уже ключами получателя.
+	ReadContent(ctx context.Context, fileID int) ([]byte, error)
 	// Dir -- каталог хранения файлов заявок.
 	Dir() string
 }
@@ -292,6 +297,37 @@ func (s *applicationFileService) SweepDiskOrphans(ctx context.Context) (int, err
 		removed++
 	}
 	return removed, nil
+}
+
+func (s *applicationFileService) ReadContent(ctx context.Context, fileID int) ([]byte, error) {
+	var file models.ApplicationFile
+	err := s.db.WithContext(ctx).First(&file, fileID).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, apperr.NotFound("Файл не найден")
+	}
+	if err != nil {
+		return nil, apperr.Internal("Не удалось прочитать файл")
+	}
+
+	f, err := os.Open(filepath.Join(s.dir, file.StoredName))
+	if err != nil {
+		return nil, fmt.Errorf("open application file %d: %w", fileID, err)
+	}
+	defer f.Close()
+
+	var key []byte
+	if file.Encrypted {
+		key = crypto.GetGlobalKey()
+	}
+	reader, err := crypto.NewStreamReader(f, key)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt application file %d: %w", fileID, err)
+	}
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, fmt.Errorf("read application file %d: %w", fileID, err)
+	}
+	return data, nil
 }
 
 func (s *applicationFileService) DiscardStored(storedName string) { s.removeFile(storedName) }
