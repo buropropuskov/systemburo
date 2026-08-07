@@ -403,8 +403,7 @@ export default {
   display: flex;
   align-items: flex-start;
   gap: 20px;
-  /* Сверху поле меньше: воздух отдан нижнему краю, где стоит ряд контактов. */
-  padding: 12px 45px 20px;
+  padding: 10px 45px 10px;
   border-radius: 30px;
   /* Карточка на фоне страницы: без своего фона она темнее соседней карточки уведомлений. */
   background: var(--surface);
@@ -460,7 +459,7 @@ export default {
 }
 
 .main-info {
-  padding-bottom: 2px;
+  padding-bottom: 12px;
   /* Разделитель - цветом рамки, а не тени: --shadow-drop в тёмных темах почти
      чёрный, и линия под именем читалась чёрной полосой. */
   border-bottom: 1px solid var(--border);
@@ -470,7 +469,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 20px;
-  margin-bottom: 2px;
+  margin-bottom: 6px;
   flex-wrap: wrap;
 }
 
@@ -491,7 +490,7 @@ export default {
 .org-company-block {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 5px;
 }
 
 .user-organization,
