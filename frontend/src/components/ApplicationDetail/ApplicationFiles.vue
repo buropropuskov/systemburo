@@ -151,8 +151,11 @@ watch(() => props.applicationId, load);
     align-items: center;
     justify-content: center;
     border-radius: 8px;
-    font-size: 10px;
-    font-weight: 600;
+    /* Четыре буквы (xlsx, docx, pptx) должны помещаться в плашку целиком:
+       при 10px они не влезали и обрезались. */
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
     text-transform: uppercase;
     color: #fff;
     background: var(--text-muted);

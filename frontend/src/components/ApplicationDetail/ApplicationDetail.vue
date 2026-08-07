@@ -634,7 +634,6 @@ import { SUPPLEMENT_APPROVED } from '@/utils/supplementStatuses'
 import { usePermissionsStore } from '@/stores/permissions'
 import ApplicationAttachments from './ApplicationAttachments.vue'
 import ApplicationFiles from './ApplicationFiles.vue'
-import { useAuthStore } from '@/stores/auth'
 import ApplicationConfirmation from './ApplicationConfirmation.vue'
 import ApplicationHistory from './ApplicationHistory.vue'
 import ForwardModal from './ForwardModal.vue'
@@ -850,12 +849,14 @@ export default {
         },
 
         /**
-         * Убрать приложенный файл (#1721) может только администратор: состав заявки
-         * после подачи неизменен, а удаление нужно, чтобы вычистить приложенное
-         * вопреки подписи поля. Зеркалит BE-гейт DeleteAttached.
+         * Убрать приложенный файл (#1721) может носитель права администрирования:
+         * состав заявки после подачи неизменен, а удаление нужно, чтобы вычистить
+         * приложенное вопреки подписи поля. Зеркалит гейт роута (page.admin) - по
+         * одному лишь признаку супер-администратора крестик не видел обычный
+         * администратор, у которого это право есть.
          */
         canRemoveFiles() {
-            return useAuthStore().isSuperAdmin;
+            return this.can('page.admin');
         },
 
         // Отозвать свою заявку может только отправитель и только пока она не в
