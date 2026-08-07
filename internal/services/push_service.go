@@ -3,9 +3,12 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"systemburo/internal/models"
@@ -31,6 +34,14 @@ const pushSubscriptionFailureLimit = 10
 // обрезаем с запасом, а не пытаемся угадать точный лимит после шифрования.
 const pushPayloadMaxMessageLen = 500
 
+// pushPayloadMaxTitleLen -- предел длины заголовка, в рунах, отдельно от message.
+// Заголовки уведомлений в каталоге - короткие человеческие подписи ("Заявка на
+// согласование", "Изменился статус заявки"), обычно до полусотни символов, поэтому 100
+// - щедрый запас. Обрезаем ЯВНО здесь, а не полагаемся на то, что notifications.title
+// в БД varchar(255): это ограничение схемы для ленты уведомлений в интерфейсе, а не
+// договорённость с push-сервисом - удобный побочный эффект, а не гарантия.
+const pushPayloadMaxTitleLen = 100
+
 // PushSendTimeout -- таймаут одной отправки в push-сервис. Рассылка идёт вне основного
 // пути (см. Send), но не должна виснуть вечно, если сервис не отвечает.
 const PushSendTimeout = 10 * time.Second
@@ -40,6 +51,23 @@ const PushSendTimeout = 10 * time.Second
 // событии заявки актуально в пределах рабочего дня-двух, более старое лучше не
 // показывать вовсе, чем доставить с большим опозданием и без контекста.
 const pushMessageTTLSeconds = 24 * 60 * 60
+
+// pushMaxConcurrentDeliveries -- общий на весь pushService потолок ОДНОВРЕМЕННЫХ
+// исходящих запросов к push-сервисам (не на пользователя и не на одну рассылку).
+// Без предела уведомление о новости на пару сотен активных пользователей открыло бы
+// столько же одновременных HTTPS-соединений разом (разбор #974): каждый Send()
+// сегодня - отдельная горутина без какого-либо троттлинга. 30 - компромисс между
+// "не открывать сотни сокетов одновременно" и скоростью рассылки: даже в худшем
+// случае, когда каждая отправка тратит весь PushSendTimeout=10с, пара сотен подписок
+// разъедутся из очереди за десятки секунд, а не за минуты; запас от типичных
+// системных лимитов дескрипторов (обычно 1024) остаётся большим.
+const pushMaxConcurrentDeliveries = 30
+
+// PushShutdownGrace -- сколько main.go ждёт завершения уже запущенных отправок при
+// остановке сервера, ПОСЛЕ e.Shutdown (см. Shutdown). Короче общего 10-секундного
+// окна остановки HTTP-сервера: push - канал поверх основной функциональности, не
+// более важный, чем не тянуть время процесса.
+const PushShutdownGrace = 5 * time.Second
 
 // PushPayload -- полезная нагрузка push-уведомления: компактная копия того, что уже
 // легло в notifications, под предел размера push-сервисов. ApplicationID опционален --
@@ -81,6 +109,11 @@ type PushService interface {
 	// GetSummary -- сводка использования Web Push для админского раздела статистики
 	// (#974, реализация в push_summary.go): не личная настройка, гейтится page.statistics.
 	GetSummary(ctx context.Context) (*models.PushSummary, error)
+	// Shutdown ждёт завершения уже запущенных фоновых отправок, но не дольше срока,
+	// отведённого ctx. main.go зовёт её ПОСЛЕ e.Shutdown, перед тем как процесс
+	// завершится: без этого рантайм Go убивает недоделанные отправки молча вместе со
+	// всем процессом. Взводит признак остановки - новые Send() после вызова no-op'ятся.
+	Shutdown(ctx context.Context)
 }
 
 type pushService struct {
@@ -94,6 +127,17 @@ type pushService struct {
 	// подписки, счётчик неудач) сразу после вызова, без гонки с фоновой горутиной. В
 	// проде остаётся false -- см. WithPushSyncSend.
 	sync bool
+
+	// wg отслеживает все запущенные фоновые отправки (#974): Shutdown ждёт её
+	// опустошения вместо того, чтобы дать рантайму молча убить их вместе с процессом.
+	wg sync.WaitGroup
+	// deliverySem -- общий на сервис семафор одновременных отправок, см.
+	// pushMaxConcurrentDeliveries.
+	deliverySem chan struct{}
+	// shuttingDown взводится в начале Shutdown: Send(), вызванный после этого момента,
+	// не встаёт в очередь - сервер уже останавливается, новая отправка не успеет уйти
+	// за отведённый Shutdown срок, а только продлит ожидание.
+	shuttingDown atomic.Bool
 }
 
 // PushServiceOption конфигурирует pushService при создании.
@@ -114,7 +158,10 @@ func WithPushHTTPClient(c webpush.HTTPClient) PushServiceOption {
 // "push выключен": Subscribe/Unsubscribe/ListDevices работают как обычно (подписка на
 // экране настроек сохраняется), а Send молча ничего не отправляет.
 func NewPushService(db *gorm.DB, publicKey, privateKey, subscriber string, opts ...PushServiceOption) PushService {
-	s := &pushService{db: db, publicKey: publicKey, privateKey: privateKey, subscriber: subscriber}
+	s := &pushService{
+		db: db, publicKey: publicKey, privateKey: privateKey, subscriber: subscriber,
+		deliverySem: make(chan struct{}, pushMaxConcurrentDeliveries),
+	}
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -201,14 +248,49 @@ func (s *pushService) Send(ctx context.Context, userID int, payload PushPayload)
 		s.sendNow(ctx, userID, payload)
 		return
 	}
-	// Своя горутина и свой контекст с таймаутом (не ctx запроса): рассылка не должна
-	// ни тормозить, ни обрываться вместе с HTTP-запросом, который уже успел ответить
-	// клиенту к моменту, когда push реально уходит.
+	if s.shuttingDown.Load() {
+		return
+	}
+	// Своя горутина и свой контекст с таймаутом (не ctx запроса): вызывающая сторона
+	// (например, рассылка новости всем активным пользователям, notifyNewsPublished)
+	// не должна ждать НИ приобретения слота в пуле, ни самой отправки - Send()
+	// обязан вернуться мгновенно. Ограничение конкурентности (deliverySem) применяется
+	// ВНУТРИ этой уже отсоединённой горутины, а не здесь.
+	s.wg.Add(1)
 	go func() {
+		defer s.wg.Done()
+
+		// Ждём место в общем пуле НЕ по ctx запроса: тот отменится, как только
+		// Echo отправит ответ клиенту, а очередь на отправку может быть длиннее
+		// одного запроса (рассылка новости на сотни пользователей). Ограничена
+		// только явным Shutdown снаружи - при остановке горутина, застрявшая тут,
+		// просто не успеет за отведённый срок и умрёт вместе с процессом,
+		// не зависнув никого другого.
+		s.deliverySem <- struct{}{}
+		defer func() { <-s.deliverySem }()
+
 		sendCtx, cancel := context.WithTimeout(context.Background(), PushSendTimeout)
 		defer cancel()
 		s.sendNow(sendCtx, userID, payload)
 	}()
+}
+
+// Shutdown -- см. PushService.Shutdown.
+func (s *pushService) Shutdown(ctx context.Context) {
+	s.shuttingDown.Store(true)
+
+	done := make(chan struct{})
+	go func() {
+		s.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		slog.Info("push: все отправки завершены до остановки сервера")
+	case <-ctx.Done():
+		slog.Warn("push: остановка не дождалась части отправок - истёк отведённый срок, часть доставок и отметок об успехе может быть потеряна")
+	}
 }
 
 func (s *pushService) sendNow(ctx context.Context, userID int, payload PushPayload) {
@@ -238,6 +320,19 @@ func (s *pushService) deliver(ctx context.Context, sub models.PushSubscription, 
 		VAPIDPrivateKey: s.privateKey,
 	})
 	if err != nil {
+		if errors.Is(err, webpush.ErrMaxPadExceeded) {
+			// Payload не влез в бюджет push-сервиса ДО сетевого запроса (webpush-go
+			// считает размер локально, см. buildPushMessage). Это наш баг кодирования,
+			// а не проблема подписки - счётчик неудач нарочно не трогаем: он копится,
+			// когда подписка "виновата" (сеть, таймаут, 5xx), и после
+			// pushSubscriptionFailureLimit подряд таких случаев подписку удаляет
+			// recordFailure. Наказывать ни в чём не повинное устройство за нашу
+			// ошибку было бы неправильно - логируем громко и переходим к следующей
+			// подписке.
+			slog.Error("push: payload превысил предел размера push-сервиса - подписка тут ни при чём",
+				"subscription_id", sub.ID, "user_id", sub.UserID, "error", err)
+			return
+		}
 		s.recordFailure(ctx, sub, err.Error())
 		return
 	}
@@ -294,8 +389,11 @@ func (s *pushService) recordFailure(ctx context.Context, sub models.PushSubscrip
 }
 
 // buildPushMessage сериализует payload в JSON для webpush.SendNotificationWithContext,
-// обрезая длинный текст под предел размера push-сообщений (pushPayloadMaxMessageLen).
+// обрезая длинный текст под предел размера push-сообщений (pushPayloadMaxMessageLen,
+// pushPayloadMaxTitleLen) - явно для обоих полей, не полагаясь на побочные ограничения
+// схемы БД.
 func buildPushMessage(payload PushPayload) []byte {
+	payload.Title = truncatePushText(payload.Title, pushPayloadMaxTitleLen)
 	payload.Message = truncatePushText(payload.Message, pushPayloadMaxMessageLen)
 	body, err := json.Marshal(payload)
 	if err != nil {

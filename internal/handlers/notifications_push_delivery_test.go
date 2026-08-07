@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -238,6 +240,142 @@ func TestPushService_Send_NoSubscriptions_NoOp(t *testing.T) {
 	var count int64
 	require.NoError(t, db.Model(&models.PushSubscription{}).Where("user_id = ?", userID).Count(&count).Error)
 	assert.Equal(t, int64(0), count)
+}
+
+// pushMaxConcurrentDeliveries дублирует одноимённую неэкспортированную константу
+// push_service.go (пул одновременных отправок #974, разбор team-lead пункт 2) - тест
+// живёт в другом пакете и не может сослаться на неё напрямую.
+const pushMaxConcurrentDeliveries = 30
+
+// TestPushService_Send_RespectsConcurrencyLimit защищает общий пул отправок (#974,
+// разбор team-lead пункт 2): рассылка на много пользователей не должна открывать
+// больше pushMaxConcurrentDeliveries одновременных запросов к push-сервису разом,
+// сколько бы получателей ни было. Использует НАСТОЯЩИЙ асинхронный путь Send()
+// (без WithPushSyncSend) - именно там раньше не было никакого ограничения.
+func TestPushService_Send_RespectsConcurrencyLimit(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	const totalUsers = pushMaxConcurrentDeliveries + 20 // заведомо больше пула - иначе тест не застанет насыщение
+
+	var (
+		current int32
+		mu      sync.Mutex
+		peak    int32
+	)
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&current, 1)
+		mu.Lock()
+		if n > peak {
+			peak = n
+		}
+		mu.Unlock()
+		<-release // держим соединение открытым до сигнала теста - так пул успевает насытиться
+		atomic.AddInt32(&current, -1)
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer srv.Close()
+
+	priv, pub, err := webpush.GenerateVAPIDKeys()
+	require.NoError(t, err)
+	svc := services.NewPushService(db, pub, priv, "mailto:test@example.com") // без WithPushSyncSend - боевой асинхронный путь
+
+	for i := 0; i < totalUsers; i++ {
+		uid := seedPushUser(t, db, td, fmt.Sprintf("push_concurrency_%d", i))
+		seedSubscription(t, db, uid, srv.URL)
+		svc.Send(context.Background(), uid, services.PushPayload{Title: "T", Message: "M", Type: "application_created", NotificationID: 1})
+	}
+
+	require.Eventually(t, func() bool {
+		return atomic.LoadInt32(&current) >= pushMaxConcurrentDeliveries
+	}, 5*time.Second, 10*time.Millisecond, "пул должен насытиться под нагрузкой в pushMaxConcurrentDeliveries запросов")
+
+	close(release)
+
+	require.Eventually(t, func() bool {
+		return atomic.LoadInt32(&current) == 0
+	}, 5*time.Second, 10*time.Millisecond, "все отправки должны завершиться после освобождения")
+
+	mu.Lock()
+	gotPeak := peak
+	mu.Unlock()
+	assert.LessOrEqual(t, gotPeak, int32(pushMaxConcurrentDeliveries), "пик одновременных запросов не должен превышать пул")
+}
+
+// TestPushService_Shutdown_WaitsForInFlightSend защищает drain при остановке сервера
+// (#974, разбор team-lead пункт 1): Shutdown обязан дождаться уже запущенной отправки, а
+// не бросить её на середине - иначе отметка об успешной доставке в БД теряется молча.
+func TestPushService_Shutdown_WaitsForInFlightSend(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(200 * time.Millisecond) // отправка "в процессе" на момент старта Shutdown
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer srv.Close()
+
+	priv, pub, err := webpush.GenerateVAPIDKeys()
+	require.NoError(t, err)
+	svc := services.NewPushService(db, pub, priv, "mailto:test@example.com")
+
+	userID := seedPushUser(t, db, td, "push_shutdown_wait")
+	seedSubscription(t, db, userID, srv.URL)
+	svc.Send(context.Background(), userID, services.PushPayload{Title: "T", Message: "M", Type: "application_created", NotificationID: 1})
+
+	// Достаточный запас на срок остановки - подтверждает, что Shutdown реально
+	// дожидается, а не просто мгновенно возвращается, не дав отправке уйти.
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	svc.Shutdown(shutdownCtx)
+
+	var sub models.PushSubscription
+	require.NoError(t, db.Where("user_id = ?", userID).First(&sub).Error)
+	assert.NotNil(t, sub.LastSuccessAt, "Shutdown должен был дождаться завершения отправки и записи успеха")
+}
+
+// TestPushService_Shutdown_GivesUpAfterGracePeriod: если отправка виснет дольше
+// отведённого срока (зависший push-сервис), Shutdown не ждёт вечно - возвращается по
+// истечении ctx, как и предупреждал team-lead ("иначе это будет хуже потерянной
+// доставки"). Канал block закрывается ДО srv.Close() (порядок defer важен): иначе
+// httptest.Server.Close(), ожидающий завершения висящего обработчика, сам зависнет.
+func TestPushService_Shutdown_GivesUpAfterGracePeriod(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done() // виснет, пока клиент (наш PushSendTimeout) сам не оборвёт запрос
+	}))
+	// CloseClientConnections ДО Close: иначе Close ждёт завершения зависшего
+	// обработчика до 10с (PushSendTimeout клиента) на каждый прогон теста.
+	defer func() {
+		srv.CloseClientConnections()
+		srv.Close()
+	}()
+
+	priv, pub, err := webpush.GenerateVAPIDKeys()
+	require.NoError(t, err)
+	svc := services.NewPushService(db, pub, priv, "mailto:test@example.com")
+
+	userID := seedPushUser(t, db, td, "push_shutdown_giveup")
+	seedSubscription(t, db, userID, srv.URL)
+	svc.Send(context.Background(), userID, services.PushPayload{Title: "T", Message: "M", Type: "application_created", NotificationID: 1})
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	started := time.Now()
+	svc.Shutdown(shutdownCtx)
+	elapsed := time.Since(started)
+
+	assert.Less(t, elapsed, 2*time.Second, "Shutdown обязан вернуться по истечении ctx, а не ждать зависший push-сервис")
 }
 
 // TestPushService_ListDevices_ScopedToUser проверяет ListDevices напрямую (без HTTP) -

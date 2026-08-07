@@ -577,6 +577,13 @@ func main() {
 		if err := e.Shutdown(ctx); err != nil {
 			slog.Error("server shutdown error", "error", err)
 		}
+		// Push-рассылка (#974): HTTP-сервер уже остановлен и новых запросов не
+		// примет, но фоновые push-горутины, запущенные ДО остановки, могли ещё не
+		// закончить отправку. Даём им отдельный, короткий срок - иначе рантайм Go
+		// убьёт их вместе с процессом молча, без единой строки в логе.
+		pushCtx, pushCancel := context.WithTimeout(context.Background(), services.PushShutdownGrace)
+		defer pushCancel()
+		pushService.Shutdown(pushCtx)
 	}()
 
 	// Start server
