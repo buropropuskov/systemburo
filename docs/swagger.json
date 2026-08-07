@@ -593,6 +593,34 @@
                 }
             }
         },
+        "/application-approvers/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает только ответ про себя: is_approver - принимающий,\nis_reviewer - согласующий хоть в одной организации или компании.\nПолный состав принимающих отдаёт GET /application-approvers, он\nзакрыт правом администратора.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "application-approvers"
+                ],
+                "summary": "Роли текущего пользователя в согласовании заявок",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "boolean"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/application-approvers/{id}": {
             "delete": {
                 "security": [
@@ -1072,6 +1100,101 @@
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/files": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Принимает файлы поля files и держит их черновиками до подачи заявки. Полученные id передаются в подаче полем file_ids; непривязанные файлы убирает суточный уборщик.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Загрузка файла к будущей заявке",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Файлы",
+                        "name": "files",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.ApplicationFileItem"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/files/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Убирает файл, загруженный до подачи заявки. Приложенный к заявке файл этим методом не удаляется.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Удаление ещё не приложенного файла",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID файла",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -2088,6 +2211,156 @@
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/{id}/files": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает список файлов, приложенных к заявке. Доступен тем же, кому доступна сама заявка.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Файлы заявки",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.ApplicationFileItem"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/{id}/files/{file_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Отдаёт файл заявки. Доступен тем же, кому доступна сама заявка.",
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Скачивание файла заявки",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID файла",
+                        "name": "file_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Убирает приложенный к заявке файл. Подавший заявку может снять свой документ, пока заявка не закрыта; супер-администратор - в любой момент.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Удаление файла заявки",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID файла",
+                        "name": "file_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -11390,6 +11663,7 @@
                         "BearerAuth": []
                     }
                 ],
+                "description": "Без limit - полный массив без пагинации (legacy, обратная совместимость).\nС limit - страница (+offset, +filter=all|unread), meta несёт total и\nunread_count по всем уведомлениям пользователя (#1748).",
                 "produces": [
                     "application/json"
                 ],
@@ -11397,6 +11671,26 @@
                     "notifications"
                 ],
                 "summary": "Получение уведомлений текущего пользователя",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Размер страницы (\u003c=100); наличие включает пагинацию",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Смещение страницы",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "all|unread, по умолчанию all",
+                        "name": "filter",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -11405,6 +11699,12 @@
                             "items": {
                                 "$ref": "#/definitions/models.Notification"
                             }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
                         }
                     },
                     "401": {
@@ -11487,6 +11787,251 @@
                         "description": "Все уведомления удалены",
                         "schema": {
                             "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications/preferences": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Каталог целиком, сгруппированный по категориям, с эффективным\nсостоянием переключателя для текущего пользователя (#1748).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notifications"
+                ],
+                "summary": "Настройки подписки на типы уведомлений",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.NotificationPreferenceCategory"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notifications"
+                ],
+                "summary": "Батч-правка подписки на типы уведомлений",
+                "parameters": [
+                    {
+                        "description": "Список изменений",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.UpdateNotificationPreferencesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Настройки уведомлений сохранены",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications/push/status": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Публичный VAPID-ключ для PushManager.subscribe, признак \"push настроен\nна сервере\" (пустые VAPID-ключи в параметрах = выключен) и список\nподписок текущего пользователя (#974).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notifications"
+                ],
+                "summary": "Статус Web Push и список подписанных устройств",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.PushStatusResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications/push/subscribe": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Endpoint и ключи из PushSubscription.toJSON() браузера. Повторная\nподписка с тем же endpoint переносит её на текущего пользователя (общий\nкомпьютер, сменившийся вход), без дублей (#974).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notifications"
+                ],
+                "summary": "Подписка браузера на Web Push",
+                "parameters": [
+                    {
+                        "description": "Подписка браузера",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.PushSubscribeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Подписка сохранена",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Endpoint в query (?endpoint=...) либо в теле запроса. Снимает только\nподписку текущего пользователя (#974).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notifications"
+                ],
+                "summary": "Отписка браузера от Web Push",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Endpoint подписки",
+                        "name": "endpoint",
+                        "in": "query"
+                    },
+                    {
+                        "description": "Endpoint подписки, если не передан в query",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/models.PushUnsubscribeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Подписка снята",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications/read-all": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notifications"
+                ],
+                "summary": "Отметить все уведомления прочитанными",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.MarkAllReadResponse"
                         }
                     },
                     "401": {
@@ -11625,17 +12170,17 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Возвращает версию тура, которую прошёл пользователь. null — не проходил.",
+                "description": "Возвращает версию по каждому туру. Ключи присутствуют все, null — тур не пройден.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "onboarding"
                 ],
-                "summary": "Статус онбординг-тура текущего пользователя",
+                "summary": "Прогресс онбординг-туров текущего пользователя",
                 "responses": {
                     "200": {
-                        "description": "completed_version: int|null",
+                        "description": "completed: {tour: int|null}, finished: [tour]",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -11663,7 +12208,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Сохраняет версию тура, которую прошёл текущий пользователь.",
+                "description": "Сохраняет версию тура, которую прошёл текущий пользователь. Версия только растёт.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11676,7 +12221,7 @@
                 "summary": "Отметить прохождение онбординг-тура",
                 "parameters": [
                     {
-                        "description": "Версия пройденного тура (\u003e=1)",
+                        "description": "Ключ тура и версия (\u003e=1)",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -20855,7 +21400,10 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Обнуляет статус прохождения тура у пользователя по username - при\nследующем входе у него снова сработает автозапуск. Только для админов.",
+                "description": "Снимает прохождение тура у пользователя по username - при следующем входе\nу него снова сработает автозапуск. Без ключа tour сбрасывает все туры.\nТолько для админов.",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -20870,6 +21418,14 @@
                         "name": "username",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Ключ тура; пустое тело сбрасывает все",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.resetRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -20878,6 +21434,12 @@
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
                         }
                     },
                     "401": {
@@ -21940,10 +22502,28 @@
         },
         "handlers.markCompleteRequest": {
             "type": "object",
+            "required": [
+                "tour"
+            ],
             "properties": {
+                "finished": {
+                    "description": "Finished - тур доведён до финального шага. false = закрыли на середине:\nавтозапуск гасим, но «Пройден» в меню обучения не показываем.",
+                    "type": "boolean"
+                },
+                "tour": {
+                    "type": "string"
+                },
                 "version": {
                     "type": "integer",
                     "minimum": 1
+                }
+            }
+        },
+        "handlers.resetRequest": {
+            "type": "object",
+            "properties": {
+                "tour": {
+                    "type": "string"
                 }
             }
         },
@@ -22082,6 +22662,26 @@
                     "type": "integer"
                 },
                 "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ApplicationFileItem": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "file_name": {
+                    "type": "string"
+                },
+                "file_size": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "mime_type": {
                     "type": "string"
                 }
             }
@@ -23539,6 +24139,14 @@
                 }
             }
         },
+        "models.MarkAllReadResponse": {
+            "type": "object",
+            "properties": {
+                "updated": {
+                    "type": "integer"
+                }
+            }
+        },
         "models.MarkHistoryItem": {
             "type": "object",
             "properties": {
@@ -23674,10 +24282,18 @@
         "models.Notification": {
             "type": "object",
             "properties": {
+                "count": {
+                    "description": "Count -- сколько событий схлопнуто в эту запись. 1 для обычного, не схлопнутого\nуведомления.",
+                    "type": "integer"
+                },
                 "created_at": {
                     "type": "string"
                 },
                 "data": {
+                    "type": "string"
+                },
+                "group_key": {
+                    "description": "GroupKey -- ключ схлопывания повторов одного типа в одну запись (#1748).\nЗаполняется агрегацией в следующем срезе; пустой -- уведомление не схлопывается.",
                     "type": "string"
                 },
                 "id": {
@@ -23685,6 +24301,10 @@
                 },
                 "is_read": {
                     "type": "boolean"
+                },
+                "last_event_at": {
+                    "description": "LastEventAt -- момент последнего схлопнутого события. Намеренно НЕ UpdatedAt:\ngorm трогает UpdatedAt на любой Update (в т.ч. отметку \"прочитано\"), и уведомление\nвсплывало бы наверх ленты от простого прочтения, а не от нового события.",
+                    "type": "string"
                 },
                 "message": {
                     "type": "string"
@@ -23697,6 +24317,60 @@
                 },
                 "user_id": {
                     "type": "integer"
+                }
+            }
+        },
+        "models.NotificationPreferenceCategory": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.NotificationPreferenceItem"
+                    }
+                }
+            }
+        },
+        "models.NotificationPreferenceItem": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "default_enabled": {
+                    "type": "boolean"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "mandatory": {
+                    "type": "boolean"
+                },
+                "type_code": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.NotificationPreferenceItemUpdate": {
+            "type": "object",
+            "required": [
+                "type_code"
+            ],
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "type_code": {
+                    "type": "string"
                 }
             }
         },
@@ -23930,6 +24604,75 @@
                 },
                 "sort_order": {
                     "type": "integer"
+                }
+            }
+        },
+        "models.PushDevice": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "last_success_at": {
+                    "type": "string"
+                },
+                "user_agent": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.PushStatusResponse": {
+            "type": "object",
+            "properties": {
+                "devices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.PushDevice"
+                    }
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "public_key": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.PushSubscribeRequest": {
+            "type": "object",
+            "required": [
+                "endpoint",
+                "keys"
+            ],
+            "properties": {
+                "endpoint": {
+                    "type": "string"
+                },
+                "keys": {
+                    "type": "object",
+                    "required": [
+                        "auth",
+                        "p256dh"
+                    ],
+                    "properties": {
+                        "auth": {
+                            "type": "string"
+                        },
+                        "p256dh": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "models.PushUnsubscribeRequest": {
+            "type": "object",
+            "properties": {
+                "endpoint": {
+                    "type": "string"
                 }
             }
         },
@@ -25255,6 +25998,21 @@
                 }
             }
         },
+        "models.UpdateNotificationPreferencesRequest": {
+            "type": "object",
+            "required": [
+                "items"
+            ],
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/models.NotificationPreferenceItemUpdate"
+                    }
+                }
+            }
+        },
         "models.UpdatePasswordRequest": {
             "type": "object",
             "required": [
@@ -26060,6 +26818,10 @@
                     "type": "boolean"
                 },
                 "has_blank_template": {
+                    "type": "boolean"
+                },
+                "has_files": {
+                    "description": "HasFiles - к заявке приложены файлы (#1721). В списке Центра рисуется скрепкой:\nпризнак, а не количество - в строке списка важно «есть или нет», состав виден в карточке.",
                     "type": "boolean"
                 },
                 "has_free_parking": {
@@ -27132,6 +27894,13 @@
                 },
                 "data_approval": {
                     "type": "boolean"
+                },
+                "file_ids": {
+                    "description": "FileIDs - файлы, загруженные до подачи (#1721). Привязываются к заявке в\nэтой же транзакции: прикрепить файл после подачи нельзя, а неназванный в\nподаче черновик убирает уборщик.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 },
                 "message": {
                     "type": "string"
