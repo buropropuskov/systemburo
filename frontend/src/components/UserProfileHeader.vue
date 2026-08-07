@@ -459,7 +459,7 @@ export default {
 }
 
 .main-info {
-  padding-bottom: 12px;
+  padding-bottom: 6px;
   /* Разделитель - цветом рамки, а не тени: --shadow-drop в тёмных темах почти
      чёрный, и линия под именем читалась чёрной полосой. */
   border-bottom: 1px solid var(--border);
@@ -469,7 +469,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 20px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   flex-wrap: wrap;
 }
 
@@ -530,7 +530,10 @@ export default {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding-top: 12px;
+  /* Отступы ряда сведены к минимуму: вертикаль карточки выкраивается под ряд
+     согласия над именем, а сам зазор от разделителя дают поля бейджей. */
+  padding-top: 2px;
+  padding-bottom: 0;
   /* П.43: контактные бейджи прижаты к нижней части блока */
   margin-top: auto;
 }
@@ -551,7 +554,7 @@ export default {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   opacity: 0;
   transform: translateY(5px);
   animation: fadeInUp 0.3s ease-out 0.25s forwards;
@@ -562,6 +565,10 @@ export default {
 .consent-badge {
   font-family: inherit;
   line-height: inherit;
+  /* Ниже контактных бейджей: над именем он служебный, а высоту карточки
+     делит с ними в пределах 200px. */
+  padding-top: 2px;
+  padding-bottom: 2px;
 }
 
 .consent-badge:disabled {
