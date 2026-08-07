@@ -38,9 +38,16 @@
         :key="file.id"
         class="app-files__item"
         data-testid="app-files-item"
+        :title="`${file.file_name} — ${formatBytes(file.file_size)}`"
       >
-        <span class="app-files__name">{{ file.file_name }}</span>
-        <span class="app-files__size">{{ formatBytes(file.file_size) }}</span>
+        <span
+          class="app-files__ext"
+          :class="`app-files__ext--${kind(file)}`"
+        >{{ ext(file) }}</span>
+        <span class="app-files__meta">
+          <span class="app-files__name">{{ file.file_name }}</span>
+          <span class="app-files__size">{{ formatBytes(file.file_size) }}</span>
+        </span>
         <button
           type="button"
           class="app-files__remove"
@@ -119,6 +126,21 @@ async function remove(file) {
   }
 }
 
+/** Расширение для плашки: без точки и не длиннее четырёх букв, иначе плитка распухает. */
+function ext(file) {
+  const raw = (file.file_name.split('.').pop() || '').toLowerCase();
+  return raw.length > 4 || raw === file.file_name.toLowerCase() ? 'файл' : raw;
+}
+
+/** Семейство формата - для цвета плашки, как у вложений в почте. */
+function kind(file) {
+  if ((file.mime_type || '').startsWith('image/')) return 'image';
+  if (file.mime_type === 'application/pdf') return 'pdf';
+  if (/sheet|excel/.test(file.mime_type || '')) return 'sheet';
+  if (/word|document/.test(file.mime_type || '')) return 'doc';
+  return 'other';
+}
+
 function syncModel() {
   model.value = files.value.map((f) => f.id);
 }
@@ -173,31 +195,57 @@ defineExpose({ reset });
 
 .app-files__list {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .app-files__item {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 6px 12px;
+    gap: 8px;
+    max-width: 220px;
+    padding: 6px 10px 6px 6px;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--surface);
 }
 
+.app-files__ext {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #fff;
+    background: var(--text-muted);
+}
+
+.app-files__ext--pdf { background: #c0392b; }
+.app-files__ext--image { background: #2e86c1; }
+.app-files__ext--sheet { background: #1e8449; }
+.app-files__ext--doc { background: #2874a6; }
+
+.app-files__meta {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
 .app-files__name {
-    flex: 1;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 13px;
+    font-size: 12px;
 }
 
 .app-files__size {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-muted);
     white-space: nowrap;
 }

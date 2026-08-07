@@ -56,20 +56,18 @@
       >
         <!-- 1 ряд: Письмо сопроводительное -->
         <div class="form__header">
-          <div class="form__message-column">
-            <TextConstructor
-              v-model="message"
-              class="form__message-tc"
-              :rows="3"
-              placeholder="Введите сопроводительное письмо / сообщение"
-            />
+          <TextConstructor
+            v-model="message"
+            class="form__message-tc"
+            :rows="3"
+            placeholder="Введите сопроводительное письмо / сообщение"
+          />
+          <!-- Согласие и отправка — правая колонка шапки, рядом с полем сообщения -->
+          <div class="form__submit-bar">
             <ApplicationFilesUpload
               ref="filesUpload"
               v-model="applicationFileIds"
             />
-          </div>
-          <!-- Согласие и отправка — правая колонка шапки, рядом с полем сообщения -->
-          <div class="form__submit-bar">
             <div class="consent-section">
               <div class="consent-checkbox">
                 <input
@@ -2804,13 +2802,6 @@ export default {
         display: flex;
         align-items: flex-start;
         gap: 16px;
-    }
-
-    .create__form .form__message-column {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        min-width: 0;
     }
 
     .create__form .form__message-tc {

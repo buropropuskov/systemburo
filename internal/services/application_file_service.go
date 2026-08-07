@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"slices"
 	"time"
 
 	"systemburo/internal/apperr"
@@ -40,9 +39,10 @@ type ApplicationFileService interface {
 	ListByApplication(ctx context.Context, applicationID int) ([]models.ApplicationFileItem, error)
 	// Locate возвращает строку файла заявки и путь к нему на диске.
 	Locate(ctx context.Context, applicationID, fileID int) (models.ApplicationFile, string, error)
-	// DeleteAttached убирает приложенный к заявке файл. Заявитель вправе снять свой
-	// документ, пока заявка не закрыта; супер-администратор - в любой момент, это
-	// способ убрать то, что приложили вопреки подписи поля (скан паспорта).
+	// DeleteAttached убирает приложенный к заявке файл. Право только у
+	// супер-администратора: состав заявки после подачи неизменен, а удаление нужно
+	// как способ вычистить приложенное вопреки подписи поля (скан паспорта). Решение
+	// владельца - заявителю после отправки состав не менять.
 	DeleteAttached(ctx context.Context, userID int, isSuperAdmin bool, applicationID, fileID int) error
 	// SweepOrphans убирает черновики старше olderThan вместе с файлами на диске.
 	SweepOrphans(ctx context.Context, olderThan time.Duration) (int, error)
@@ -202,26 +202,7 @@ func (s *applicationFileService) DeleteAttached(ctx context.Context, userID int,
 	}
 
 	if !isSuperAdmin {
-		var app struct {
-			Status       *string
-			SenderUserID int
-		}
-		res := s.db.WithContext(ctx).
-			Raw("SELECT status, sender_user_id FROM applications WHERE id = ?", applicationID).Scan(&app)
-		if res.Error != nil {
-			return apperr.Internal("Не удалось прочитать заявку")
-		}
-		if res.RowsAffected == 0 {
-			return apperr.NotFound("Заявка не найдена")
-		}
-		if app.SenderUserID != userID {
-			return apperr.Forbidden("Убрать файл может подавший заявку")
-		}
-		// Из закрытой заявки документ не вынуть: она уже отработана, и её состав -
-		// то, на основании чего выдавали пропуск.
-		if app.Status != nil && slices.Contains(models.ArchivableStatuses, *app.Status) {
-			return apperr.Validation("Заявка закрыта, файлы менять нельзя")
-		}
+		return apperr.Forbidden("Убрать приложенный файл может администратор")
 	}
 
 	if err := s.db.WithContext(ctx).Delete(&models.ApplicationFile{}, file.ID).Error; err != nil {
