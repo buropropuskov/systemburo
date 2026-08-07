@@ -467,6 +467,7 @@ func (s *BlankExportService) layout(
 		}
 	}
 	resolveNameCollisions(targets, registry)
+	s.applyArchiveEncryptionSuffix(targets)
 
 	levels := blankpath.FitRelPath(blankpath.RenderPath(settings.DirTemplate, appValues), longest, archiveRelPathMaxBytes)
 	return s.resolveDirCollision(ctx, applicationID, levels)
@@ -506,6 +507,18 @@ func resolveNameCollisions(targets []blankExportTarget, registry map[int]*models
 		}
 		base := strings.TrimSuffix(targets[i].FileName, blankFileExt)
 		targets[i].FileName = blankpath.FileName(fmt.Sprintf("%s (№%d)", base, targets[i].AttachmentID), blankFileExt)
+	}
+}
+
+// applyArchiveEncryptionSuffix дописывает имени признак шифрования. Делается
+// последним шагом, после разведения одинаковых имён: суффикс попадает и в реестр,
+// и на диск, иначе сверка каталога с реестром считала бы файлы пропавшими.
+func (s *BlankExportService) applyArchiveEncryptionSuffix(targets []blankExportTarget) {
+	if s.writer == nil || !s.writer.Crypto().Enabled() {
+		return
+	}
+	for i := range targets {
+		targets[i].FileName = s.writer.Crypto().FileName(targets[i].FileName)
 	}
 }
 
