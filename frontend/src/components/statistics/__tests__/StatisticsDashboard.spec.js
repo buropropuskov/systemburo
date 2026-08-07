@@ -27,7 +27,15 @@ import OnlineUsersModal from '../OnlineUsersModal.vue';
 
 const mountDashboard = () => mount(StatisticsDashboard, {
   props: { from: '2026-06-01', to: '2026-06-07' },
-  global: { stubs: { AnalyticsAreaChart: true, AnalyticsBarChart: true, AnalyticsDonutChart: true, RefreshButton: true, OnlineUsersModal: true } },
+  global: {
+    // PushAdoptionSummary (#974) стоит рядом с остальными тяжёлыми детьми -
+    // как и они, стабится: своя загрузка (api/webPush) не замокана в этом
+    // файле, тестируется отдельно в PushAdoptionSummary.spec.js.
+    stubs: {
+      AnalyticsAreaChart: true, AnalyticsBarChart: true, AnalyticsDonutChart: true,
+      RefreshButton: true, OnlineUsersModal: true, PushAdoptionSummary: true,
+    },
+  },
 });
 
 const tileByText = (wrapper, label) =>

@@ -4,7 +4,7 @@ vi.mock('@/api/client', () => ({
   apiRequest: vi.fn(),
 }))
 import { apiRequest } from '@/api/client'
-import { getWebPushStatus, subscribeWebPush, unsubscribeWebPush } from '../webPush'
+import { getWebPushStatus, subscribeWebPush, unsubscribeWebPush, getPushSummary } from '../webPush'
 
 function okJson(payload) {
   return { ok: true, status: 200, json: vi.fn().mockResolvedValue(payload) }
@@ -61,6 +61,27 @@ describe('api/webPush', () => {
     it('бросает при ошибке отписки', async () => {
       apiRequest.mockResolvedValue(errJson('Подписка не найдена', 404))
       await expect(unsubscribeWebPush('e')).rejects.toThrow('Подписка не найдена')
+    })
+  })
+
+  describe('getPushSummary', () => {
+    it('GET /notifications/push/summary возвращает сводку', async () => {
+      const payload = {
+        active_users_total: 40,
+        users_with_push: 12,
+        users_without_push: 28,
+        subscriptions_by_platform: { ios: 8, android: 4, desktop: 0, unknown: 0 },
+        users_by_last_login_platform: { ios: 25, android: 10, desktop: 5, unknown: 0 },
+      }
+      apiRequest.mockResolvedValue(okJson(payload))
+      const data = await getPushSummary()
+      expect(apiRequest).toHaveBeenCalledWith('/notifications/push/summary')
+      expect(data).toEqual(payload)
+    })
+
+    it('бросает при ошибке загрузки', async () => {
+      apiRequest.mockResolvedValue(errJson('Сервер недоступен', 500))
+      await expect(getPushSummary()).rejects.toThrow('Сервер недоступен')
     })
   })
 })

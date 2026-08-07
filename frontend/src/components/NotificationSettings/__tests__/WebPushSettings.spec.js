@@ -62,12 +62,16 @@ describe('WebPushSettings', () => {
     expect(wrapper.find('[data-testid="webpush-enable"]').exists()).toBe(false)
   })
 
-  it('iOS вне экрана "Домой" - подсказка про установку приоритетнее фичедетекта', async () => {
+  it('iOS вне экрана "Домой" - пошаговая инструкция приоритетнее фичедетекта, формулировка без "только iPhone"', async () => {
     needsIosHomeScreenInstall.mockReturnValue(true)
     const wrapper = mountBlock()
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="webpush-ios-hint"]').text()).toContain('экран «Домой»')
+    const hint = wrapper.find('[data-testid="webpush-ios-hint"]')
+    expect(hint.text()).toContain('iOS (iPhone и iPad)')
+    expect(hint.text()).toContain('экран «Домой»')
+    expect(hint.findAll('.webpush__steps li')).toHaveLength(4)
+    expect(hint.text()).toContain('Поделиться')
     expect(wrapper.find('[data-testid="webpush-enable"]').exists()).toBe(false)
   })
 

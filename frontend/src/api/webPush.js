@@ -45,3 +45,18 @@ export async function unsubscribeWebPush(endpoint) {
   });
   return unwrap(res, 'Не удалось отключить push-уведомления');
 }
+
+/**
+ * Сводка внедрения push для админского раздела статистики (#974). Форма -
+ * `models.PushSummary` (internal/models/push_subscription.go):
+ * {
+ *   active_users_total, users_with_push, users_without_push,
+ *   subscriptions_by_platform: {ios, android, desktop, unknown},   // разрез ПОДПИСОК (устройств)
+ *   users_by_last_login_platform: {ios, android, desktop, unknown}, // разрез ПОЛЬЗОВАТЕЛЕЙ по платформе последнего входа, включая тех, кто push не подключал
+ * }
+ * "ios" покрывает и iPhone, и iPad - у Apple одно ограничение на оба устройства.
+ */
+export async function getPushSummary() {
+  const res = await apiRequest('/notifications/push/summary');
+  return unwrap(res, 'Не удалось загрузить сводку push-уведомлений');
+}
