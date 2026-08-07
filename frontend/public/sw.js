@@ -6,6 +6,14 @@
 // Регистрирует этот файл фронт при включении push в настройках уведомлений
 // (frontend/src/utils/webPushSubscription.js) - не на каждом входе.
 
+// Обновлённый обработчик не должен ждать, пока человек закроет все вкладки:
+// без этой пары новая версия висит в waiting, а клики продолжает обрабатывать
+// старая. claim() к тому же забирает под управление уже открытые страницы -
+// от этого зависит navigate() ниже. Кэша тут нет (обработчика fetch тоже),
+// поэтому захват открытых страниц им ничем не грозит.
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+
 // Форма пейлоада - PushPayload (internal/services/push_service.go): title,
 // message, type, notification_id, application_id (опционален). Явного url
 // пейлоад не несёт, и адрес заявки СПЕЦИАЛЬНО не строится здесь: у Центра
@@ -49,6 +57,30 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
+// Сколько ждём ответа вкладки, прежде чем считать её глухой. Вкладка отвечает
+// синхронно в обработчике сообщения, так что задержка тут - не про скорость
+// роутера, а про «слушателя нет вовсе»: бандл, загруженный до выката, о
+// сообщении не знает и не ответит никогда.
+const APP_NAVIGATE_TIMEOUT_MS = 700;
+
+/**
+ * Просит открытую вкладку сменить маршрут своими силами. Основной путь: переход
+ * внутри приложения без перезагрузки, и работает он даже когда вкладка этому
+ * worker'у не подчиняется. Ответ - признак того, что слушатель на той стороне
+ * есть; молчание означает «переходи сам».
+ */
+function askAppToNavigate(client, url) {
+  return new Promise((resolve) => {
+    const channel = new MessageChannel();
+    const timer = setTimeout(() => resolve(false), APP_NAVIGATE_TIMEOUT_MS);
+    channel.port1.onmessage = (event) => {
+      clearTimeout(timer);
+      resolve(event.data?.ok === true);
+    };
+    client.postMessage({ type: 'push-navigate', url }, [channel.port2]);
+  });
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const targetUrl = event.notification.data?.url || '/';
@@ -57,10 +89,27 @@ self.addEventListener('notificationclick', (event) => {
     (async () => {
       const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       const existing = windows.find((client) => 'focus' in client);
-      if (existing) {
-        await existing.focus();
-        if ('navigate' in existing) await existing.navigate(targetUrl);
+      if (!existing) {
+        await self.clients.openWindow(targetUrl);
         return;
+      }
+
+      await existing.focus();
+      if (await askAppToNavigate(existing, targetUrl)) return;
+
+      // Вкладка не ответила. navigate() перезагружает страницу целиком и
+      // разрешён только для клиента под управлением этого worker'а: на стенде
+      // вкладка, открытая до включения push, получала здесь отказ - окно
+      // всплывало сфокусированным, но оставалось на прежней странице, и
+      // человек не понимал, куда делась заявка. Отказ не тупик: открываем
+      // адрес новым окном.
+      try {
+        if ('navigate' in existing) {
+          await existing.navigate(targetUrl);
+          return;
+        }
+      } catch (err) {
+        console.warn('[sw] переход в открытой вкладке отклонён, открываю новым окном:', err);
       }
       await self.clients.openWindow(targetUrl);
     })(),
