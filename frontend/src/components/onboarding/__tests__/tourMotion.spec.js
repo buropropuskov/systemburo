@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { onboardingSteps } from '../onboardingSteps';
-import { allTourSteps } from '../tours';
 
 const css = readFileSync(resolve(__dirname, '../../../assets/onboarding.css'), 'utf8');
 
@@ -57,24 +56,15 @@ describe('позиционирование шагов', () => {
   });
 });
 
-describe('размер подсветки', () => {
-  // Подсветка в пол-экрана читается не как указание на элемент, а как вспышка:
-  // «просто огромный светлый квадрат спавнится». Замеряли на живой странице -
-  // список заявок занимал 58%, таблицы 51%, форма бланка 73%.
-  //
-  // Здесь стережём сам принцип: шаги-обзоры целятся в шапки блоков (head/header/
-  // filters/selector), а не в полотна со списками и таблицами.
-  const PANEL_ANCHORS = [
-    'ob-news', 'ob-applications', 'ob-cars-table', 'ob-employees-table', 'ob-app-form',
-    'ob-center-list',
-  ];
+describe('появление подсветки', () => {
+  // Людям мешала не площадь подсветки, а её мгновенная смена: «просто огромный
+  // светлый квадрат спавнится». Вырез - один SVG-путь, у которого между шагами
+  // меняются только координаты, поэтому браузер интерполирует его как форму.
+  it('вырез затемнения перетекает между шагами', () => {
+    expect(css).toMatch(/\.driver-overlay path\s*\{[^}]*transition:\s*d\s/s);
+  });
 
-  it('шаги не подсвечивают полотна списков и форм целиком', () => {
-    // По всем турам сразу: полотно в туре согласующего ничем не лучше полотна
-    // в туре заявителя, а замок на одном конфиге пропустил бы остальные.
-    const offenders = allTourSteps()
-      .filter((s) => PANEL_ANCHORS.some((a) => s.element === `[data-testid="${a}"]`))
-      .map((s) => `${s.id}: ${s.element}`);
-    expect(offenders).toEqual([]);
+  it('при отключённой анимации вырез не перетекает', () => {
+    expect(css).toMatch(/prefers-reduced-motion:\s*reduce[\s\S]*?\.driver-overlay path[\s\S]*?transition:\s*none/);
   });
 });

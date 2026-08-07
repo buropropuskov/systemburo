@@ -375,7 +375,7 @@ describe('сегмент карточки заявки (#1740)', () => {
         <div data-testid="cabinet-page">
           <div data-testid="ob-profile"></div>
           <div data-testid="cabinet-notifications"></div>
-          <div data-testid="ob-applications-head"></div>
+          <div data-testid="ob-applications"></div>
           <div data-testid="ob-cabinet-search"></div>
         </div>`;
     }
