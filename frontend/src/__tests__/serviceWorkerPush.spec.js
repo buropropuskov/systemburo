@@ -10,18 +10,51 @@ import { resolve } from 'node:path';
  * повторного оповещения. Здесь файл читается с диска и выполняется в песочнице
  * с подставным self - так проверяется ровно то, что уедет на стенд.
  */
-function loadServiceWorker() {
+function loadServiceWorker({ windows = [] } = {}) {
   const source = readFileSync(resolve(__dirname, '../../public/sw.js'), 'utf8');
   const listeners = {};
   const showNotification = vi.fn().mockResolvedValue(undefined);
+  const openWindow = vi.fn().mockResolvedValue(undefined);
+  const claim = vi.fn().mockResolvedValue(undefined);
+  const skipWaiting = vi.fn();
   const self = {
     addEventListener: (name, handler) => { listeners[name] = handler; },
+    skipWaiting,
     registration: { showNotification },
-    clients: { matchAll: vi.fn().mockResolvedValue([]), openWindow: vi.fn().mockResolvedValue(undefined) },
+    clients: {
+      matchAll: vi.fn().mockResolvedValue(windows),
+      openWindow,
+      claim,
+    },
   };
-  // eslint-disable-next-line no-new-func
   new Function('self', source)(self);
-  return { listeners, showNotification };
+  return { listeners, showNotification, openWindow, claim, skipWaiting };
+}
+
+/**
+ * Вкладка приложения. `answers: false` - бандл, загруженный до выката: слушателя
+ * сообщения у него нет, и на просьбу перейти он молчит.
+ */
+function windowClient({ answers = true, navigateFails = false } = {}) {
+  return {
+    focus: vi.fn().mockResolvedValue(undefined),
+    navigate: navigateFails
+      ? vi.fn().mockRejectedValue(new TypeError('client not controlled'))
+      : vi.fn().mockResolvedValue(undefined),
+    postMessage: vi.fn((message, transfer) => {
+      if (!answers) return;
+      transfer?.[0]?.postMessage({ ok: true });
+    }),
+  };
+}
+
+function clickEvent(url) {
+  const waits = [];
+  const event = {
+    notification: { close: vi.fn(), data: url === undefined ? undefined : { url } },
+    waitUntil: (p) => { waits.push(p); return p; },
+  };
+  return { event, done: () => Promise.all(waits) };
 }
 
 function pushEvent(payload) {
@@ -92,6 +125,14 @@ describe('service worker: показ push-уведомления', () => {
     expect(options.data.url).not.toContain('personal-cabinet');
   });
 
+  it('worker забирает управление сразу, не дожидаясь закрытия вкладок', async () => {
+    sw.listeners.install({});
+    await sw.listeners.activate({ waitUntil: (p) => p });
+
+    expect(sw.skipWaiting).toHaveBeenCalled();
+    expect(sw.claim).toHaveBeenCalled();
+  });
+
   it('битое тело не роняет обработчик - уведомление всё равно показывается', () => {
     sw.listeners.push({
       data: { json: () => { throw new Error('не JSON'); }, text: () => 'просто текст' },
@@ -102,5 +143,73 @@ describe('service worker: показ push-уведомления', () => {
     const [title, options] = sw.showNotification.mock.calls[0];
     expect(title).toBe('Бюро пропусков');
     expect(options.body).toBe('просто текст');
+  });
+});
+
+/**
+ * Проверка на стенде: уведомление о заявке всплывало, по нажатию окно
+ * приходило в фокус - и оставалось на прежней странице. Причина в том, что
+ * navigate() запрещён для вкладки, которая этому worker'у не подчиняется
+ * (открыта до включения push), а другого пути к заявке у обработчика не было.
+ */
+describe('service worker: переход по нажатию на уведомление', () => {
+  it('открытую вкладку просит перейти саму, без перезагрузки', async () => {
+    const client = windowClient();
+    const sw = loadServiceWorker({ windows: [client] });
+    const { event, done } = clickEvent('/?open_application=121');
+
+    sw.listeners.notificationclick(event);
+    await done();
+
+    expect(client.focus).toHaveBeenCalled();
+    expect(client.postMessage).toHaveBeenCalledWith(
+      { type: 'push-navigate', url: '/?open_application=121' },
+      expect.any(Array),
+    );
+    expect(client.navigate).not.toHaveBeenCalled();
+    expect(sw.openWindow).not.toHaveBeenCalled();
+  });
+
+  it('вкладка со старым бандлом молчит - переход идёт перезагрузкой', async () => {
+    const client = windowClient({ answers: false });
+    const sw = loadServiceWorker({ windows: [client] });
+    const { event, done } = clickEvent('/?open_application=121');
+
+    sw.listeners.notificationclick(event);
+    await done();
+
+    expect(client.navigate).toHaveBeenCalledWith('/?open_application=121');
+    expect(sw.openWindow).not.toHaveBeenCalled();
+  });
+
+  it('отказ navigate не оставляет человека на прежней странице - открывается новое окно', async () => {
+    const client = windowClient({ answers: false, navigateFails: true });
+    const sw = loadServiceWorker({ windows: [client] });
+    const { event, done } = clickEvent('/?open_application=121');
+
+    sw.listeners.notificationclick(event);
+    await done();
+
+    expect(sw.openWindow).toHaveBeenCalledWith('/?open_application=121');
+  });
+
+  it('открытых вкладок нет - адрес открывается новым окном', async () => {
+    const sw = loadServiceWorker({ windows: [] });
+    const { event, done } = clickEvent('/?open_application=121');
+
+    sw.listeners.notificationclick(event);
+    await done();
+
+    expect(sw.openWindow).toHaveBeenCalledWith('/?open_application=121');
+  });
+
+  it('уведомление без адреса ведёт на корень, а не в никуда', async () => {
+    const sw = loadServiceWorker({ windows: [] });
+    const { event, done } = clickEvent(undefined);
+
+    sw.listeners.notificationclick(event);
+    await done();
+
+    expect(sw.openWindow).toHaveBeenCalledWith('/');
   });
 });
