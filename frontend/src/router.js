@@ -5,6 +5,7 @@ import { shouldRedirectToMaintenance } from '@/utils/maintenanceAccess';
 import { useAuthStore } from '@/stores/auth';
 import { useMaintenanceStore } from '@/stores/maintenance';
 import { usePDConsentStore } from '@/stores/pdConsent';
+import { buildLoginRedirect } from '@/utils/postLoginRedirect';
 import LoginComponent from './components/LoginComponent.vue';
 import TablesComponent from './components/TablesComponent.vue';
 import AccountComponent from './components/AccountComponent.vue';
@@ -356,7 +357,10 @@ router.beforeEach(async (to, from, next) => {
   }
 
   if (to.meta.requiresAuth && !isAuthenticated) {
-    next('/');
+    // #974: сохраняем адрес, на который метил переход, в query - push-уведомление
+    // приводит человека спустя дни, когда сессия давно протухла, и без этого
+    // логин всегда высаживал на дефолтную ленту вместо заявки из уведомления.
+    next(buildLoginRedirect(to.fullPath));
     return;
   }
 
@@ -392,6 +396,30 @@ router.beforeEach(async (to, from, next) => {
       return;
     }
   }
+  // Push-уведомление (#974): service worker не знает прав пользователя (живёт
+  // вне вкладки, вне Pinia) и потому не может сам решить Центр vs личный
+  // кабинет - ведёт на нейтральный /?open_application=<id>, а маршрут выбирает
+  // ЭТОТ гард, тем же кодом, что и клик по карточке уведомления
+  // (useNotificationNavigation.resolveApplicationRoute). Гость уходит на вход
+  // через уже существующий #974 механизм (query.redirect) - после логина
+  // снова попадёт на этот же адрес, но авторизованным.
+  if (to.path === '/' && to.query.open_application) {
+    if (!isAuthenticated) {
+      next(buildLoginRedirect(to.fullPath));
+      return;
+    }
+    // Права на старте подгружаются асинхронно (#187e) - без ожидания носитель
+    // page.center иногда попадал бы в личный кабинет (isStale -> hasPermission
+    // на пустом кэше false), баг ловится только на холодном заходе и нестабильно.
+    const { usePermissionsStore } = await import('@/stores/permissions');
+    const permStore = usePermissionsStore();
+    if (permStore.isStale) await permStore.fetchPermissions();
+    const { useNotificationNavigation } = await import('@/composables/useNotificationNavigation');
+    const { resolveApplicationRoute } = useNotificationNavigation();
+    next(resolveApplicationRoute(to.query.open_application));
+    return;
+  }
+
   if (to.path === '/' && isAuthenticated) {
     next('/news');
     return;

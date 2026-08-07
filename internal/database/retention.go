@@ -45,12 +45,18 @@ const (
 	// TargetRequestAggregates - дневные агрегаты журнала запросов. Сами детальные
 	// записи дропаются партициями за REQUEST_LOG_DETAIL_DAYS, а свёртка копилась вечно.
 	TargetRequestAggregates RetentionTarget = "request-aggregates"
+	// TargetPushSubscriptions - подписки Web Push (#974), у которых давно не было ни
+	// одной успешной доставки: явно мёртвый endpoint без 404/410 (сеть, таймаут, 5xx -
+	// счётчик неудач в push_service.go ещё не дошёл до своего порога) либо просто
+	// забытое устройство, которое отвечает 2xx, но человек им давно не пользуется.
+	// Обесценивается сама по себе - в автоматической уборке рядом с уведомлениями.
+	TargetPushSubscriptions RetentionTarget = "push-subscriptions"
 )
 
 // AllRetentionTargets - порядок вывода в отчёте: сначала мусор, потом то, что
 // удаляется осознанно.
 var AllRetentionTargets = []RetentionTarget{
-	TargetTokens, TargetNotifications, TargetUnreadNotifications, TargetAudit, TargetSnapshots, TargetRequestAggregates,
+	TargetTokens, TargetNotifications, TargetUnreadNotifications, TargetPushSubscriptions, TargetAudit, TargetSnapshots, TargetRequestAggregates,
 }
 
 // auditRetentionWhere - условие удаления истории сущностей. Два исключения не про
@@ -120,6 +126,17 @@ var retentionRules = map[RetentionTarget]retentionRule{
 		timeColumn:  "created_at",
 		defaultAge:  func(now time.Time) time.Time { return now.AddDate(0, 0, -90) },
 		description: "непрочитанные уведомления",
+	},
+	TargetPushSubscriptions: {
+		table: "push_subscriptions",
+		// COALESCE на last_success_at, как и у ленты уведомлений (COALESCE(last_event_at,
+		// created_at)) выше: подписка, которая ещё ни разу не доставилась, отсчитывается
+		// от момента подписки, а не улетает в "никогда не обесценится".
+		where:       "COALESCE(last_success_at, created_at) < ?",
+		cutoffArgs:  1,
+		timeColumn:  "created_at",
+		defaultAge:  func(now time.Time) time.Time { return now.AddDate(0, 0, -180) },
+		description: "подписки Web Push без успешной доставки за срок",
 	},
 	TargetAudit: {
 		table:        "audit_log",
@@ -460,10 +477,10 @@ func measureRetentionTable(ctx context.Context, db *gorm.DB, table string, res *
 }
 
 // SweepRoutine - суточная уборка технического мусора: недействительные токены,
-// прочитанные уведомления и непрочитанные уведомления (по своему, более мягкому
-// сроку - unreadNotificationDays). Ошибка одной группы не отменяет остальные: это
-// обслуживание, а не транзакция.
-func SweepRoutine(ctx context.Context, db *gorm.DB, tokenDays, notificationDays, unreadNotificationDays int) {
+// прочитанные уведомления, непрочитанные уведомления (по своему, более мягкому сроку -
+// unreadNotificationDays) и подписки Web Push без единой успешной доставки (#974). Ошибка
+// одной группы не отменяет остальные: это обслуживание, а не транзакция.
+func SweepRoutine(ctx context.Context, db *gorm.DB, tokenDays, notificationDays, unreadNotificationDays, pushSubscriptionDays int) {
 	now := time.Now().UTC()
 	plan := []struct {
 		target RetentionTarget
@@ -472,6 +489,7 @@ func SweepRoutine(ctx context.Context, db *gorm.DB, tokenDays, notificationDays,
 		{TargetTokens, now.AddDate(0, 0, -tokenDays)},
 		{TargetNotifications, now.AddDate(0, 0, -notificationDays)},
 		{TargetUnreadNotifications, now.AddDate(0, 0, -unreadNotificationDays)},
+		{TargetPushSubscriptions, now.AddDate(0, 0, -pushSubscriptionDays)},
 	}
 	for _, p := range plan {
 		res, err := SweepRetention(ctx, db, p.target, SweepOptions{Cutoff: p.cutoff, Apply: true})

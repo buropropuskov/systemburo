@@ -31,6 +31,8 @@ func validConfig() *Config {
 		ApplicationFileDraftTTL:     24 * time.Hour,
 		ApplicationFileImageMaxSide: 2000,
 		ApplicationFileJPEGQuality:  82,
+		// Срок хранения подписок Web Push тоже проверяется на положительность (#974).
+		PushSubscriptionRetentionDays: 180,
 	}
 }
 
@@ -475,4 +477,47 @@ func TestValidate_EmptyPathsSkipCheck(t *testing.T) {
 			assert.NoError(t, cfg.Validate())
 		})
 	}
+}
+
+// TestValidate_PushSubscriptionRetentionDaysMustBePositive (#974) - зеркалит
+// TestValidate_ArchiveIntervalsMustBePositive: срок хранения подписок Web Push нулём
+// или отрицательным быть не может, иначе уборка удалила бы всё при первом же прогоне.
+func TestValidate_PushSubscriptionRetentionDaysMustBePositive(t *testing.T) {
+	cfg := validConfig()
+	cfg.PushSubscriptionRetentionDays = 0
+	require.ErrorContains(t, cfg.Validate(), "PUSH_SUBSCRIPTION_RETENTION_DAYS")
+}
+
+// TestValidate_VAPIDKeysMustComeInPair (#974) - заданный только один из двух
+// VAPID-ключей означает опечатку в конфигурации (забыли скопировать вторую строку),
+// а не осознанное "push выключен" (оба пустые). Такую конфигурацию нельзя пропускать
+// молча: push выглядел бы включённым, но реально не отправлял бы ни одного сообщения.
+func TestValidate_VAPIDKeysMustComeInPair(t *testing.T) {
+	t.Run("оба пустые - push выключен, ошибки нет", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.VAPIDPublicKey = ""
+		cfg.VAPIDPrivateKey = ""
+		assert.NoError(t, cfg.Validate())
+	})
+
+	t.Run("только публичный - ошибка", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.VAPIDPublicKey = "pub"
+		cfg.VAPIDPrivateKey = ""
+		require.ErrorContains(t, cfg.Validate(), "VAPID_PUBLIC_KEY")
+	})
+
+	t.Run("только приватный - ошибка", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.VAPIDPublicKey = ""
+		cfg.VAPIDPrivateKey = "priv"
+		require.ErrorContains(t, cfg.Validate(), "VAPID_PUBLIC_KEY")
+	})
+
+	t.Run("оба заданы - ошибки нет", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.VAPIDPublicKey = "pub"
+		cfg.VAPIDPrivateKey = "priv"
+		assert.NoError(t, cfg.Validate())
+	})
 }

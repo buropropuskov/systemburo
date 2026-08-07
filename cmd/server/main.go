@@ -61,6 +61,8 @@ func main() {
 			os.Exit(runArchive(os.Args[2:]))
 		case "fake":
 			os.Exit(runFake(os.Args[2:]))
+		case "vapid":
+			os.Exit(runVAPID(os.Args[2:]))
 		}
 	}
 
@@ -186,9 +188,15 @@ func main() {
 	// которых человек не получит по правам, и резолвер нужен сервису при создании.
 	permissionResolver := services.NewPermissionResolver(db)
 	permissionResolver.SetRealtimePublisher(eventsHub) // #840: смена роли/группы/override -> user.permissions
+	// pushService создаётся до notificationService (#974): рассылка Web Push
+	// подключается опцией конструктора, как и real-time паблишер. Пустые
+	// VAPID-ключи в параметрах не мешают подняться - Send() тогда молча ничего не
+	// отправляет (push выключен).
+	pushService := services.NewPushService(db, cfg.VAPIDPublicKey, cfg.VAPIDPrivateKey, cfg.VAPIDSubject)
 	notificationServiceEarly := services.NewNotificationService(db,
 		services.WithNotificationRealtimePublisher(eventsHub),
-		services.WithNotificationPermissionResolver(permissionResolver))
+		services.WithNotificationPermissionResolver(permissionResolver),
+		services.WithNotificationPushSender(pushService))
 	// authService создаётся после notificationService (#1748 S3): уведомление о
 	// блокировке входа передаётся в конструктор опцией.
 	authService := services.NewAuthService(db, cfg.JWTSecret, cfg.JWTRefreshSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL, services.WithAuthNotifications(notificationServiceEarly))
@@ -307,6 +315,7 @@ func main() {
 	feedbackHandler := handlers.NewFeedbackHandler(feedbackService)
 	newsHandler := handlers.NewNewsHandler(newsService)
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
+	pushHandler := handlers.NewPushHandler(pushService)
 	requestLogsHandler := handlers.NewRequestLogsHandler(requestLogsService)
 	employeesHistoryHandler := handlers.NewEmployeesHistoryHandler(employeesHistoryService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService, permissionResolver)
@@ -457,6 +466,7 @@ func main() {
 		Settings:            settingsHandler,
 		News:                newsHandler,
 		Notifications:       notificationHandler,
+		Push:                pushHandler,
 		RequestLogs:         requestLogsHandler,
 		EmployeesHistory:    employeesHistoryHandler,
 		BugReport:           bugReportHandler,
@@ -544,10 +554,10 @@ func main() {
 	go startLogPartitionWorker(ctxSig, db, cfg.RequestLogDetailDays, cfg.RequestLogPartitionPrecreateDays, cfg.PdAuditRetentionMonths, 24*time.Hour)
 
 	// Суточная уборка технического мусора: недействительные токены сессий,
-	// прочитанные уведомления и непрочитанные уведомления (свой, более мягкий срок).
-	// Остальные журналы чистятся только вручную подкомандой cleanup - там решение
-	// за оператором.
-	go startRetentionWorker(ctxSig, db, cfg.RefreshTokenRetentionDays, cfg.ReadNotificationRetentionDays, cfg.NotificationRetentionDays, 24*time.Hour)
+	// прочитанные уведомления, непрочитанные уведомления (свой, более мягкий срок) и
+	// подписки Web Push без единой успешной доставки (#974). Остальные журналы
+	// чистятся только вручную подкомандой cleanup - там решение за оператором.
+	go startRetentionWorker(ctxSig, db, cfg.RefreshTokenRetentionDays, cfg.ReadNotificationRetentionDays, cfg.NotificationRetentionDays, cfg.PushSubscriptionRetentionDays, 24*time.Hour)
 
 	// Уборка файлов, загруженных к заявке, которую так и не отправили (#1721).
 	go startApplicationFileSweeper(ctxSig, applicationFileService, cfg.ApplicationFileDraftTTL, time.Hour)
@@ -567,6 +577,13 @@ func main() {
 		if err := e.Shutdown(ctx); err != nil {
 			slog.Error("server shutdown error", "error", err)
 		}
+		// Push-рассылка (#974): HTTP-сервер уже остановлен и новых запросов не
+		// примет, но фоновые push-горутины, запущенные ДО остановки, могли ещё не
+		// закончить отправку. Даём им отдельный, короткий срок - иначе рантайм Go
+		// убьёт их вместе с процессом молча, без единой строки в логе.
+		pushCtx, pushCancel := context.WithTimeout(context.Background(), services.PushShutdownGrace)
+		defer pushCancel()
+		pushService.Shutdown(pushCtx)
 	}()
 
 	// Start server
@@ -603,10 +620,12 @@ func startLogPartitionWorker(ctx context.Context, db *gorm.DB, detailDays, precr
 
 // startRetentionWorker раз в interval сметает данные, которые обесценились сами:
 // недействительные токены сессий, прочитанные и непрочитанные уведомления (два
-// разных срока). Первый прогон сразу - после долгого простоя мусор копится, ждать
-// сутки незачем.
-func startRetentionWorker(ctx context.Context, db *gorm.DB, tokenDays, notificationDays, unreadNotificationDays int, interval time.Duration) {
-	run := func() { database.SweepRoutine(ctx, db, tokenDays, notificationDays, unreadNotificationDays) }
+// разных срока) и подписки Web Push без единой успешной доставки (#974). Первый
+// прогон сразу - после долгого простоя мусор копится, ждать сутки незачем.
+func startRetentionWorker(ctx context.Context, db *gorm.DB, tokenDays, notificationDays, unreadNotificationDays, pushSubscriptionDays int, interval time.Duration) {
+	run := func() {
+		database.SweepRoutine(ctx, db, tokenDays, notificationDays, unreadNotificationDays, pushSubscriptionDays)
+	}
 	run()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
