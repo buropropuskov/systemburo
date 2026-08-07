@@ -113,6 +113,10 @@ func sanitizeName(s string) string {
 type ZipEntry struct {
 	// Path - абсолютный путь файла на диске.
 	Path string
+	// Open - как получить содержимое, если файл нельзя просто открыть. Нужен для
+	// зашифрованного архива: на диске лежит шифротекст, а в ZIP должен уехать
+	// читаемый документ. nil означает обычное открытие по Path.
+	Open func() (io.ReadCloser, error)
 	// Name - путь файла внутри архива. Разделитель "/" - вложенные каталоги
 	// (raw-строка, не filepath.Join): формат ZIP всегда использует прямой слэш
 	// независимо от ОС, на которой архив потом откроют.
@@ -161,7 +165,11 @@ func StreamZip(c echo.Context, archiveName string, entries []ZipEntry) error {
 // безопасно заменить запись на заметку об ошибке, не оставив в потоке половину
 // валидной, половину битой записи.
 func writeZipEntry(zw *zip.Writer, entry ZipEntry) error {
-	f, err := os.Open(entry.Path)
+	open := entry.Open
+	if open == nil {
+		open = func() (io.ReadCloser, error) { return os.Open(entry.Path) }
+	}
+	f, err := open()
 	if err != nil {
 		return err
 	}

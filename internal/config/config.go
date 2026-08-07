@@ -82,6 +82,13 @@ type Config struct {
 	ArchivePath string `env:"ARCHIVE_PATH" envDefault:"./archive"`
 
 	// ArchiveWorkerTick - как часто фоновый воркер разбирает очередь выгрузки.
+	// Шифрование файлового архива. Бланки читает внешняя сторона, поэтому они
+	// шифруются на её публичный ключ (ARCHIVE_AGE_RECIPIENT), а вторым получателем
+	// идёт сама система (ARCHIVE_AGE_IDENTITY) - иначе она не отдаст ZIP по кнопке
+	// в карточке заявки. Пустая пара оставляет прежний режим без шифрования.
+	ArchiveAgeRecipient string `env:"ARCHIVE_AGE_RECIPIENT" envDefault:""`
+	ArchiveAgeIdentity  string `env:"ARCHIVE_AGE_IDENTITY" envDefault:""`
+
 	ArchiveWorkerTick time.Duration `env:"ARCHIVE_WORKER_TICK" envDefault:"15s"`
 
 	// ArchiveSweepInterval - как часто подметаются заявки, для которых очередь

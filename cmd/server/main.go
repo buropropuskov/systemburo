@@ -360,9 +360,17 @@ func main() {
 	// а ручка пересоздания честно отвечает «архив недоступен».
 	var blankExportService *services.BlankExportService
 	var archiveDownloadService *services.ArchiveDownloadService
+	// Шифрование архива разбирается до писателя: неверная пара ключей должна
+	// останавливать старт, а не всплывать при первой выгрузке.
+	archiveCrypto, err := services.NewArchiveCrypto(cfg.ArchiveAgeRecipient, cfg.ArchiveAgeIdentity)
+	if err != nil {
+		slog.Error("не удалось включить шифрование файлового архива", "error", err)
+		os.Exit(1)
+	}
 	if archiveWriter, err := services.NewArchiveWriter(cfg.ArchivePath); err != nil {
 		slog.Error("файловый архив не поднят", "path", cfg.ArchivePath, "error", err)
 	} else {
+		archiveWriter.SetCrypto(archiveCrypto)
 		blankExportService = services.NewBlankExportService(
 			db, attachmentBlankService, archivePathService, archiveWriter, settingsService,
 			blankExportQuotaService)
