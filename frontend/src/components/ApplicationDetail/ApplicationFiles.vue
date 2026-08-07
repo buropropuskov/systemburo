@@ -68,8 +68,23 @@ function ext(file) {
   return raw.length > 4 || raw === file.file_name.toLowerCase() ? 'файл' : raw;
 }
 
-/** Семейство формата - для цвета плашки, как у иконок почтовых вложений. */
+/**
+ * Семейство формата - для цвета плитки и плашки.
+ *
+ * Расширение имени старше типа: docx, xlsx и pptx неразличимы по сигнатуре, и у
+ * файлов, загруженных до уточнения типа, в базе лежит docx независимо от того,
+ * что это было. Имя же заявитель принёс своё, и оно не врёт.
+ */
 function kind(file) {
+  const byName = {
+    xlsx: 'sheet', xls: 'sheet', csv: 'sheet',
+    docx: 'doc', doc: 'doc',
+    pdf: 'pdf',
+    png: 'image', jpg: 'image', jpeg: 'image', webp: 'image', gif: 'image',
+    pptx: 'slides', ppt: 'slides',
+  }[(file.file_name.split('.').pop() || '').toLowerCase()];
+  if (byName) return byName;
+
   if ((file.mime_type || '').startsWith('image/')) return 'image';
   if (file.mime_type === 'application/pdf') return 'pdf';
   if (/sheet|excel/.test(file.mime_type || '')) return 'sheet';
@@ -131,11 +146,14 @@ watch(() => props.applicationId, load);
     background: var(--surface);
     cursor: pointer;
     text-align: left;
-    transition: transform 150ms ease, opacity 150ms ease;
+    transition: border-color 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
 }
 
+/* Подсветка вместо подъёма: плитки стоят в ряд над письмом, и сдвиг одной из них
+   дёргает взгляд по всей строке. */
 .app-files-strip__tile:hover:not(:disabled) {
-    transform: translateY(-1px);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(var(--primary-rgb, 79, 124, 255), 0.15);
 }
 
 .app-files-strip__tile:disabled {
@@ -165,6 +183,7 @@ watch(() => props.applicationId, load);
 .app-files-strip__ext--image { background: #2e86c1; }
 .app-files-strip__ext--sheet { background: #1e8449; }
 .app-files-strip__ext--doc { background: #2874a6; }
+.app-files-strip__ext--slides { background: #d35400; }
 
 /* Плитка окрашена в тон своего формата: прозрачная заливка поверх поверхности
    держит контраст и в светлой, и в тёмной теме, в отличие от сплошного цвета. */
@@ -186,6 +205,11 @@ watch(() => props.applicationId, load);
 .app-files-strip__tile--doc {
     border-color: rgba(40, 116, 166, 0.45);
     background: rgba(40, 116, 166, 0.10);
+}
+
+.app-files-strip__tile--slides {
+    border-color: rgba(211, 84, 0, 0.45);
+    background: rgba(211, 84, 0, 0.10);
 }
 
 .app-files-strip__meta {

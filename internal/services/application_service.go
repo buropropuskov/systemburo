@@ -801,8 +801,10 @@ type applicationService struct {
 	// позже applicationService в cmd/server/main.go (зависит от attachmentBlankService).
 	blankExports BlankExportEnqueuer
 	// files - файлы, приложенные при подаче (#1721). Опциональна: без неё file_ids
-	// в подаче не разбираются.
-	files ApplicationFileService
+	// в подаче не разбираются. Пределы заявки проверяются в момент привязки.
+	files        ApplicationFileService
+	fileMaxCount int
+	fileMaxTotal int64
 }
 
 // SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1). nil
@@ -853,8 +855,12 @@ func WithApplicationPermissionResolver(r *PermissionResolver) ApplicationService
 
 // WithApplicationFiles подключает файлы, прикладываемые при подаче (#1721). Без
 // неё поле file_ids в подаче игнорируется, и заявка создаётся без вложенных файлов.
-func WithApplicationFiles(f ApplicationFileService) ApplicationServiceOption {
-	return func(s *applicationService) { s.files = f }
+func WithApplicationFiles(f ApplicationFileService, maxCount int, maxTotal int64) ApplicationServiceOption {
+	return func(s *applicationService) {
+		s.files = f
+		s.fileMaxCount = maxCount
+		s.fileMaxTotal = maxTotal
+	}
 }
 
 // NewApplicationService создаёт экземпляр сервиса заявок.
@@ -1907,7 +1913,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	// среди своих черновиков файл откатывает подачу, вместо того чтобы создать
 	// заявку без документа, который заявитель считает приложенным.
 	if s.files != nil {
-		if err := s.files.Attach(tx, user.ID, appID, req.FileIDs); err != nil {
+		if err := s.files.Attach(tx, user.ID, appID, req.FileIDs, s.fileMaxCount, s.fileMaxTotal); err != nil {
 			tx.Rollback()
 			return nil, err
 		}

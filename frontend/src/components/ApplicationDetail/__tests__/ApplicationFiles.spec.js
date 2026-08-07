@@ -130,3 +130,34 @@ describe('ApplicationFiles: цвет по типу', () => {
         expect(tiles[1].classes()).toContain('app-files-strip__tile--sheet');
     });
 });
+
+// Формат определяется по расширению имени, а не по типу из базы: docx, xlsx и pptx
+// неразличимы по сигнатуре, и у файлов, загруженных до уточнения типа, в базе
+// лежит docx независимо от того, чем файл был на самом деле.
+describe('ApplicationFiles: формат по имени', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it('таблица со старым типом docx всё равно зелёная', async () => {
+        fetchMock.mockResolvedValue([{
+            id: 5,
+            file_name: 'смета.xlsx',
+            file_size: 100,
+            mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        }]);
+        const wrapper = mount(ApplicationFiles, { props: { applicationId: 42 } });
+        await flushPromises();
+
+        expect(wrapper.find('[data-testid="application-file-item"]').classes())
+            .toContain('app-files-strip__tile--sheet');
+        expect(wrapper.find('.app-files-strip__ext').text()).toBe('xlsx');
+    });
+
+    it('презентация получает свой цвет', async () => {
+        fetchMock.mockResolvedValue([{ id: 6, file_name: 'доклад.pptx', file_size: 100, mime_type: 'application/octet-stream' }]);
+        const wrapper = mount(ApplicationFiles, { props: { applicationId: 42 } });
+        await flushPromises();
+
+        expect(wrapper.find('[data-testid="application-file-item"]').classes())
+            .toContain('app-files-strip__tile--slides');
+    });
+});
