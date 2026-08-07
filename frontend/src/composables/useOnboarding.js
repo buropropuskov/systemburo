@@ -255,10 +255,15 @@ export function useOnboarding() {
       }
       if (!changed) return;
       applyingZoomFix = true;
+      // Коррекция масштаба - не переезд к новому шагу, а поправка той же позиции.
+      // С анимацией она читалась бы как «поповер доезжает» после каждого шага,
+      // поэтому на время правки переход выключаем.
+      wrapper.classList.add('ob-popover--instant');
       for (const prop of Object.keys(next)) {
         wrapper.style[prop] = next[prop];
         zoomFixLast[prop] = next[prop];
       }
+      requestAnimationFrame(() => wrapper.classList.remove('ob-popover--instant'));
       applyingZoomFix = false;
     }
 
@@ -411,6 +416,13 @@ export function useOnboarding() {
         driverObj.movePrevious();
       },
       onPopoverRender(popover) {
+        // Первый показ поповера в сегменте - без анимации переезда: иначе он
+        // приезжал бы из левого верхнего угла, куда его ставит driver.js до
+        // первого позиционирования. Дальше внутри сегмента переезды плавные.
+        popover.wrapper.classList.add('ob-popover--instant');
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => popover.wrapper.classList.remove('ob-popover--instant'));
+        });
         const localIndex = driverObj.getActiveIndex() ?? 0;
         const currentGlobal = startIndex + localIndex;
         const step = stepsForSegment[localIndex];
@@ -483,6 +495,23 @@ export function useOnboarding() {
         onDestroyed?.();
       },
     });
+
+    /**
+     * Переприцелить шаг на заново отрисованный узел и перерисовать его.
+     *
+     * Нужно после смены демо-бланка: форма пересоздаётся, driver продолжает
+     * держаться за прежнюю цель, и подсветка пропадает (шаг «Форма Автомобили»
+     * при возврате «Назад» с «Сотрудников»). setStepMode пересобирает конфиг
+     * шага, moveTo заставляет driver перечитать его.
+     *
+     * @param {number} globalIndex глобальный индекс шага
+     */
+    driverObj.obRetarget = (globalIndex) => {
+      const localIndex = globalIndex - startIndex;
+      if (localIndex < 0 || localIndex >= stepsForSegment.length) return;
+      setStepMode(localIndex, false);
+      driverObj.moveTo(localIndex);
+    };
 
     return driverObj;
   }
