@@ -58,6 +58,34 @@
               >
                 Очистить
               </button>
+              <button
+                class="notifications__settings-btn"
+                type="button"
+                title="Настроить уведомления"
+                aria-label="Настроить уведомления"
+                data-testid="header-notifications-settings"
+                @click="openSettings"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  />
+                  <path
+                    d="M19.4 13a7.8 7.8 0 0 0 0-2l2-1.5-2-3.5-2.4 1a7.8 7.8 0 0 0-1.7-1L15 3H9l-.3 2.6a7.8 7.8 0 0 0-1.7 1l-2.4-1-2 3.5L4.6 11a7.8 7.8 0 0 0 0 2l-2 1.5 2 3.5 2.4-1c.5.4 1.1.8 1.7 1L9 21h6l.3-2.6c.6-.2 1.2-.6 1.7-1l2.4 1 2-3.5-2-1.5Z"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </button>
             </div>
           </div>
           <NotificationFilterTabs
@@ -306,14 +334,22 @@ export default {
     })
 
     // Escape закрывает панель (в т.ч. мобильный bottom-sheet - конвенция ui-modals).
+    // Escape при открытой модалке подробностей закрывает только её: панель под
+    // ней остаётся, иначе одно нажатие схлопывает оба слоя и человек теряет
+    // место в списке (#1748).
+    //
+    // Слушаем в фазе перехвата НАМЕРЕННО: модалка - дочерний компонент, её
+    // обработчик навешивается раньше нашего и на том же document, поэтому в
+    // обычной фазе он успевает закрыть окно и сбросить showDetailModal до того,
+    // как мы его прочитаем. Перехват отдаёт нам событие первыми.
     this.escHandler = (e) => {
-      if (e.key === 'Escape' && this.show) this.$emit('close')
+      if (e.key === 'Escape' && this.show && !this.showDetailModal) this.$emit('close')
     }
-    document.addEventListener('keydown', this.escHandler)
+    document.addEventListener('keydown', this.escHandler, true)
   },
   beforeUnmount() {
     this.disconnectNotificationsSentinel()
-    if (this.escHandler) document.removeEventListener('keydown', this.escHandler)
+    if (this.escHandler) document.removeEventListener('keydown', this.escHandler, true)
     this.stopPolling()
     if (this.eventStreamOff) {
       this.eventStreamOff()
@@ -360,6 +396,17 @@ export default {
     // скроллит себя саму и на десктопе, и на мобильном sheet.
     setSentinelRef(el) {
       this.observeNotificationsSentinel(el, this.buildNotificationsPage, { root: this.sheetScroll || null })
+    },
+
+    // Вход в настройки прямо из колокольчика: раньше он был только ссылкой в
+    // блоке личного кабинета, и найти его оттуда никто не догадывался (#1748).
+    openSettings() {
+      // Навигация ПЕРЕД закрытием панели: emit('close') снимает v-if родителя и
+      // размонтирует этот компонент, а router.push, вызванный из уже снятого
+      // компонента, доводит адрес в строке, но не рисует страницу (#1748).
+      this.$router.push('/notification-settings')
+        .then(() => this.$emit('close'))
+        .catch(() => this.$emit('close'))
     },
 
     async markAllRead() {
@@ -530,15 +577,20 @@ export default {
   gap: 8px;
 }
 
+/* Панель узкая (360px), а в шапке заголовок и три действия. Без nowrap и
+   компактного шага подписи переносились по слогам и шапка ехала в две строки. */
 .notifications__header-actions {
   display: flex;
+  flex-shrink: 0;
+  white-space: nowrap;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .notifications__title {
   margin: 0;
   font-size: 14px;
+  white-space: nowrap;
   font-weight: 600;
   color: var(--color-text);
 }
@@ -549,11 +601,28 @@ export default {
 }
 
 .notifications__read-all-btn,
+.notifications__settings-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.notifications__settings-btn:hover {
+  color: var(--color-text);
+  transform: rotate(45deg);
+}
+
 .notifications__clear-btn {
   background: none;
   border: none;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   transition: color 0.2s;
@@ -562,6 +631,7 @@ export default {
 }
 
 .notifications__read-all-btn {
+  white-space: nowrap;
   color: var(--accent-text);
 }
 

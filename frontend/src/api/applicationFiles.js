@@ -24,11 +24,13 @@ export async function uploadApplicationFiles(files) {
     body: formData,
     headers: {},
   });
+  // client.js разворачивает конверт {success, data}: json() отдаёт уже сами
+  // данные, а при отказе - {message}. Читать payload.data поверх этого нельзя.
   const payload = await response.json();
   if (!response.ok) {
-    throw new Error(payload?.error || 'Не удалось загрузить файлы');
+    throw new Error(payload?.message || 'Не удалось загрузить файлы');
   }
-  return payload?.data ?? [];
+  return payload ?? [];
 }
 
 /**
@@ -39,7 +41,7 @@ export async function deleteApplicationDraftFile(id) {
   const response = await apiRequest(`/applications/files/${id}`, { method: 'DELETE' });
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
-    throw new Error(payload?.error || 'Не удалось убрать файл');
+    throw new Error(payload?.message || 'Не удалось убрать файл');
   }
 }
 
@@ -52,9 +54,9 @@ export async function fetchApplicationFiles(applicationId) {
   const response = await apiRequest(`/applications/${applicationId}/files`);
   const payload = await response.json();
   if (!response.ok) {
-    throw new Error(payload?.error || 'Не удалось получить файлы заявки');
+    throw new Error(payload?.message || 'Не удалось получить файлы заявки');
   }
-  return payload?.data ?? [];
+  return payload ?? [];
 }
 
 /**
@@ -68,7 +70,7 @@ export async function deleteApplicationFile(applicationId, fileId) {
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
-    throw new Error(payload?.error || 'Не удалось убрать файл');
+    throw new Error(payload?.message || 'Не удалось убрать файл');
   }
 }
 

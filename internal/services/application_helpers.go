@@ -423,7 +423,16 @@ func confirmationOutcome(newConfirmation *string) string {
 // actorUserID != sender - актору собственный исход не шлём (крон передаёт nil и уведомляет
 // всегда). Звать ПОСЛЕ commit: ошибки логируются, бизнес-операцию не откатывают. data:
 // {application_id, application_number}.
-func (s *applicationService) notifyInitiatorStatusChanged(ctx context.Context, applicationID int, actorUserID *int, outcome string) {
+// statusChangeContext -- кто и с каким комментарием принял решение по заявке.
+// Показывается в подробностях уведомления: инициатору важно не только «отклонена»,
+// но и кем, и почему (#1748). Пустые поля просто не попадают в payload; у решений
+// крона (истечение срока) контекста нет вовсе.
+type statusChangeContext struct {
+	ActorName string
+	Comment   string
+}
+
+func (s *applicationService) notifyInitiatorStatusChanged(ctx context.Context, applicationID int, actorUserID *int, outcome string, decision *statusChangeContext) {
 	if s.notificationService == nil {
 		return
 	}
@@ -475,6 +484,14 @@ func (s *applicationService) notifyInitiatorStatusChanged(ctx context.Context, a
 	data := map[string]any{
 		"application_id":     applicationID,
 		"application_number": number,
+	}
+	if decision != nil {
+		if decision.ActorName != "" {
+			data["actor_name"] = decision.ActorName
+		}
+		if decision.Comment != "" {
+			data["decision_comment"] = decision.Comment
+		}
 	}
 	payload, _ := json.Marshal(data)
 	payloadStr := string(payload)
@@ -953,6 +970,15 @@ func (s *applicationService) GetApplicationIDByAttachment(ctx context.Context, a
 }
 
 func ptrString(s string) *string { return &s }
+
+// optionalString разыменовывает необязательную строку запроса: пустая строка
+// означает «поля не было», и в payload уведомления она не попадает.
+func optionalString(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return *v
+}
 
 func safeDerefInt(p *int) int {
 	if p != nil {

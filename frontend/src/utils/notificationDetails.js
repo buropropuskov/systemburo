@@ -23,11 +23,27 @@ function dayWord(n) {
 // действия, а не в список полей.
 const FIELD_LABELS = {
   application_number: 'Заявка',
+  actor_name: 'Решение принял',
+  decision_comment: 'Комментарий',
   forwarded_by: 'Передал',
   waiting_days: 'Ожидает решения',
   supplement_number: 'Дополнение',
   status: 'Решение',
+  attempts: 'Неудачных попыток',
+  locked_until: 'Вход открыт с',
+  reason: 'Причина',
+  role_name: 'Новая роль',
+  news_title: 'Заголовок',
+  document_name: 'Документ',
   changed_at: 'Когда',
+  banned_at: 'Когда',
+};
+
+// Поля, значение которых открывает связанную сущность по клику. Пока такая
+// сущность одна - заявка: номер ведёт туда же, куда кнопка действия, но кликнуть
+// по самому номеру привычнее, чем искать кнопку внизу окна.
+const FIELD_ACTIONS = {
+  application_number: 'application',
 };
 
 /**
@@ -55,7 +71,7 @@ export function parseNotificationData(notification) {
  * известному полю data, которое присутствует и непусто. Неизвестные поля и
  * технические идентификаторы (см. FIELD_LABELS) не попадают в результат.
  * @param {{data?: string|object|null}|null|undefined} notification
- * @returns {Array<{key: string, label: string, value: string}>}
+ * @returns {Array<{key: string, label: string, value: string, action: string|null}>}
  */
 export function notificationDetailFields(notification) {
   const data = parseNotificationData(notification);
@@ -70,14 +86,14 @@ export function notificationDetailFields(notification) {
       const n = Number(raw);
       if (!Number.isFinite(n)) continue;
       value = `${n} ${dayWord(n)}`;
-    } else if (key === 'changed_at') {
+    } else if (key === 'changed_at' || key === 'banned_at' || key === 'locked_until') {
       const formatted = formatDateTime(raw);
       if (!formatted) continue;
       value = formatted;
     } else {
       value = String(raw);
     }
-    fields.push({ key, label, value });
+    fields.push({ key, label, value, action: FIELD_ACTIONS[key] || null });
   }
   return fields;
 }

@@ -330,7 +330,9 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 	// сменился в Согласовано/Не согласовано - уведомляем инициатора об исходе.
 	if confirmationChanged {
 		if outcome := confirmationOutcome(newConfirmation); outcome != "" {
-			s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, outcome)
+			s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, outcome, &statusChangeContext{
+				ActorName: formatFullName(user.LastName, user.FirstName, user.MiddleName),
+			})
 		}
 	}
 	return nil
@@ -468,7 +470,10 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 	// финальное значение Согласовано/Не согласовано (#1349).
 	if confirmationChanged {
 		if outcome := confirmationOutcome(newConfirmation); outcome != "" {
-			s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, outcome)
+			s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, outcome, &statusChangeContext{
+				ActorName: formatFullName(user.LastName, user.FirstName, user.MiddleName),
+				Comment:   optionalString(req.Comment),
+			})
 		}
 	}
 	return nil

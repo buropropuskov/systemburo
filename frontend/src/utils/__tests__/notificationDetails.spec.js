@@ -39,9 +39,9 @@ describe('notificationDetailFields', () => {
       }),
     });
     expect(fields).toEqual([
-      { key: 'application_number', label: 'Заявка', value: 'A-100' },
-      { key: 'forwarded_by', label: 'Передал', value: 'Иванов И.И.' },
-      { key: 'status', label: 'Решение', value: 'Согласовано' },
+      { key: 'application_number', label: 'Заявка', value: 'A-100', action: 'application' },
+      { key: 'forwarded_by', label: 'Передал', value: 'Иванов И.И.', action: null },
+      { key: 'status', label: 'Решение', value: 'Согласовано', action: null },
     ]);
   });
 
@@ -54,7 +54,23 @@ describe('notificationDetailFields', () => {
         application_number: 'A-1',
       }),
     });
-    expect(fields).toEqual([{ key: 'application_number', label: 'Заявка', value: 'A-1' }]);
+    expect(fields).toEqual([{ key: 'application_number', label: 'Заявка', value: 'A-1', action: 'application' }]);
+  });
+
+  it('показывает, кто принял решение и с каким комментарием', () => {
+    const fields = notificationDetailFields({
+      data: JSON.stringify({
+        application_id: 7,
+        application_number: 'A-7',
+        actor_name: 'Петров П.П.',
+        decision_comment: 'Нет пропуска на въезд',
+      }),
+    });
+    expect(fields).toEqual([
+      { key: 'application_number', label: 'Заявка', value: 'A-7', action: 'application' },
+      { key: 'actor_name', label: 'Решение принял', value: 'Петров П.П.', action: null },
+      { key: 'decision_comment', label: 'Комментарий', value: 'Нет пропуска на въезд', action: null },
+    ]);
   });
 
   it('неизвестные ключи data не показываются', () => {
@@ -66,21 +82,21 @@ describe('notificationDetailFields', () => {
     const fields = notificationDetailFields({
       data: JSON.stringify({ application_number: '', forwarded_by: null, status: 'Отклонено' }),
     });
-    expect(fields).toEqual([{ key: 'status', label: 'Решение', value: 'Отклонено' }]);
+    expect(fields).toEqual([{ key: 'status', label: 'Решение', value: 'Отклонено', action: null }]);
   });
 
   it('склонение waiting_days: 1 день, 2 дня, 5 дней', () => {
     expect(notificationDetailFields({ data: JSON.stringify({ waiting_days: 1 }) }))
-      .toEqual([{ key: 'waiting_days', label: 'Ожидает решения', value: '1 день' }]);
+      .toEqual([{ key: 'waiting_days', label: 'Ожидает решения', value: '1 день', action: null }]);
     expect(notificationDetailFields({ data: JSON.stringify({ waiting_days: 2 }) }))
-      .toEqual([{ key: 'waiting_days', label: 'Ожидает решения', value: '2 дня' }]);
+      .toEqual([{ key: 'waiting_days', label: 'Ожидает решения', value: '2 дня', action: null }]);
     expect(notificationDetailFields({ data: JSON.stringify({ waiting_days: 5 }) }))
-      .toEqual([{ key: 'waiting_days', label: 'Ожидает решения', value: '5 дней' }]);
+      .toEqual([{ key: 'waiting_days', label: 'Ожидает решения', value: '5 дней', action: null }]);
   });
 
   it('changed_at форматируется в ДД.ММ.ГГГГ ЧЧ:ММ', () => {
     const fields = notificationDetailFields({ data: JSON.stringify({ changed_at: '2026-08-06T14:32:00' }) });
-    expect(fields).toEqual([{ key: 'changed_at', label: 'Когда', value: '06.08.2026 14:32' }]);
+    expect(fields).toEqual([{ key: 'changed_at', label: 'Когда', value: '06.08.2026 14:32', action: null }]);
   });
 
   it('битый JSON в data не роняет сборку полей - пустой список', () => {
