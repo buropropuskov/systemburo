@@ -47,7 +47,9 @@ describe('ApplicationFilesUpload', () => {
         expect(uploadMock).toHaveBeenCalledTimes(1);
         expect(wrapper.emitted('update:modelValue').at(-1)).toEqual([[7]]);
         expect(wrapper.text()).toContain('разрешение.png');
-        expect(wrapper.text()).toContain('1 из 10');
+        // Счётчик уехал в подсказку кнопки: полоса живёт внутри письма и лишних
+        // подписей не несёт.
+        expect(wrapper.find('[data-testid="app-files-add"]').attributes('title')).toContain('1 из 10');
     });
 
     it('не отправляет файлы сверх лимита и объясняет отказ', async () => {
