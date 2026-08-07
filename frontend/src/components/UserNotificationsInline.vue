@@ -418,8 +418,8 @@ export default {
 <style scoped>
 .notifications {
   flex: 1;
-  min-height: 200px;
-  max-height: 200px;
+  min-height: var(--cabinet-card-height, 200px);
+  max-height: var(--cabinet-card-height, 200px);
   background-color: var(--surface);
   border-radius: 30px;
   border: 1px solid var(--border);
