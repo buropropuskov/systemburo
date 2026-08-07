@@ -20,7 +20,7 @@
         data-testid="app-files-add"
         @click="$refs.fileInput.click()"
       >
-        {{ uploading ? 'Загрузка...' : 'Прикрепить файл' }}
+        {{ uploading ? 'Загрузка...' : 'Прикрепить' }}
       </button>
       <span class="app-files__counter">{{ files.length }} из {{ maxCount }}</span>
     </div>
@@ -177,10 +177,15 @@ defineExpose({ reset });
 /* Кнопка компактная: она лишь открывает выбор файла и не должна спорить по весу
    с «Отправить заявку» в той же колонке. */
 .app-files__add {
-    padding: 4px 12px;
+    padding: 4px 10px;
     font-size: 12px;
     line-height: 18px;
     min-height: 26px;
+    /* По содержимому, а не во всю ширину столбца: общий стиль кнопок формы
+       растягивает их, и рядом с «Отправить заявку» выходили две кнопки одного веса. */
+    width: fit-content;
+    align-self: flex-start;
+    flex: 0 0 auto;
 }
 
 .app-files__input {
