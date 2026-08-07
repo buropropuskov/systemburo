@@ -227,6 +227,16 @@ func (c *Config) Validate() error {
 	if (c.VAPIDPublicKey == "") != (c.VAPIDPrivateKey == "") {
 		return fmt.Errorf("VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be set together (both empty disables push)")
 	}
+	// Контакт отправителя обязателен, когда доставка вне системы включена: службы
+	// push (в первую очередь Google) отвергают уведомления с пустым полем sub, и
+	// без этой проверки конфигурация выглядела бы рабочей, а уведомления молча не
+	// доходили бы ни до кого.
+	if c.VAPIDPublicKey != "" && c.VAPIDSubject == "" {
+		return fmt.Errorf("VAPID_SUBJECT is required when push is enabled (mailto: address or https:// site)")
+	}
+	if c.VAPIDSubject != "" && !strings.HasPrefix(c.VAPIDSubject, "mailto:") && !strings.HasPrefix(c.VAPIDSubject, "https://") {
+		return fmt.Errorf("VAPID_SUBJECT must start with mailto: or https:// (got %q)", c.VAPIDSubject)
+	}
 	if c.PushSubscriptionRetentionDays <= 0 {
 		return fmt.Errorf("PUSH_SUBSCRIPTION_RETENTION_DAYS must be positive (got %d)", c.PushSubscriptionRetentionDays)
 	}
