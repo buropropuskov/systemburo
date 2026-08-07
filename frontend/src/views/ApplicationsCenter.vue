@@ -1,6 +1,9 @@
 <template>
   <section ref="root" class="center">
-    <header class="center__header">
+    <header
+      class="center__header"
+      data-testid="ob-center-header"
+    >
       <div class="header-top">
         <h2 class="center__title">
           Центр заявок
@@ -11,6 +14,7 @@
         <div
           v-if="canViewArchive && !isMobileHeader"
           class="center__tabs"
+          data-testid="ob-center-archive"
         >
           <FilterTabs
             v-model="archiveMode"
@@ -309,6 +313,7 @@
         <div
           v-if="canViewArchive"
           class="center__tabs center__tabs--mobile"
+          data-testid="ob-center-archive"
         >
           <BaseDropdown
             :model-value="archiveMode"
@@ -517,6 +522,7 @@
             tag="div"
             name="app-row"
             class="applications-list"
+            data-testid="ob-center-list"
           >
             <template
               v-for="group in applicationGroups"
@@ -626,7 +632,7 @@
                   data-label="Теги"
                 >
                   <div
-                    v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking || application.sender_is_important || application.has_unseen_questions || application.has_open_supplement || pendingApprovalDays(application) !== null"
+                    v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking || application.sender_is_important || application.has_unseen_questions || application.has_open_supplement || application.has_files || pendingApprovalDays(application) !== null"
                     class="application-tags"
                     :class="{ 'application-tags--compact': tagsAreCompact(application) }"
                   >
@@ -656,6 +662,7 @@
                       size="sm"
                       class="rt-tag rt-tag--chs blacklist-flag-badge tag-hint"
                       :data-hint="blacklistFlagTitle()"
+                      data-testid="ob-center-blacklist-tag"
                     >
                       <span class="rt-tag__text">{{ blacklistFlagLabel(application) }}</span>
                     </Badge>
@@ -718,6 +725,26 @@
                         stroke-linejoin="round"
                       ><polygon points="12 2 15 8.6 22 9.3 16.8 14 18.3 21 12 17.3 5.7 21 7.2 14 2 9.3 9 8.6" /></svg>
                       <span class="rt-tag__text">Важный</span>
+                    </Badge>
+                    <Badge
+                      v-if="application.has_files"
+                      variant="secondary"
+                      size="sm"
+                      class="rt-tag rt-tag--files tag-hint"
+                      data-hint="К заявке приложены файлы"
+                      :data-testid="`center-files-badge-${application.id}`"
+                    >
+                      <svg
+                        class="rt-tag__icon rt-tag__icon--fixed"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      ><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
                     </Badge>
                     <Badge
                       v-if="application.has_unseen_questions"
@@ -932,6 +959,7 @@ import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/
 import { pendingApprovalDays, pendingApprovalLabel, pendingApprovalShort } from '@/utils/pendingApproval';
 import { stripHtml } from '@/utils/sanitize';
 import { useDeletionsStore } from '@/stores/deletions';
+import { useRevealFirstApplication } from '@/composables/useRevealFirstApplication';
 
 // Размер порции бесшовной подгрузки Центра (#1158, срез 1) - аналог PER_PAGE
 // в AccessibleAttachmentsView/TableVersionsView.
@@ -1378,6 +1406,17 @@ export default {
             if (val) this.openFromDeepLink();
         },
     },
+    // Онбординг просит показать карточку заявки (reveal.open) - туры согласующего и
+    // принимающего целиком идут по Центру, а деталь здесь модалка, а не роут.
+    // Контракт общий с личным кабинетом, живёт в композабле.
+    created() {
+        this._tourReveal = useRevealFirstApplication({
+            first: () => this.sortedApplications[0],
+            isOpen: () => !!this.selectedApplication,
+            open: (application) => this.openApplication(application),
+            close: () => this.closeDetail(),
+        });
+    },
     mounted() {
         this.startShakeAnimation();
 
@@ -1464,6 +1503,7 @@ export default {
     },
     beforeUnmount() {
         this.disconnectApplicationsSentinel();
+        this._tourReveal?.stop();
         window.removeEventListener('resize', this._applyHeight);
         if (this._headerObs) {
             this._headerObs.disconnect();
@@ -1823,6 +1863,7 @@ export default {
                 (application.has_free_parking ? 1 : 0) +
                 (application.sender_is_important ? 1 : 0) +
                 (application.has_unseen_questions ? 1 : 0) +
+                (application.has_files ? 1 : 0) +
                 (application.has_open_supplement ? 1 : 0);
             return count >= 2;
         },
@@ -2270,6 +2311,8 @@ export default {
 
         closeDetail() {
             this.selectedApplication = null;
+            // Карточку закрыли (крестик, Esc, свайп) - тур больше не «владелец».
+            this._tourReveal?.release();
         },
 
         handleConfirmationUpdate(updatedData) {
@@ -3020,6 +3063,29 @@ export default {
 /* Маркер вопросов: красная точка-индикатор поверх бейджа (видна всегда, #973). */
 .rt-tag--questions {
     position: relative;
+}
+
+/* Файлы - серая скрепка без подписи: признак справочный, внимания к себе не
+   требует, в отличие от чёрного списка и новых вопросов. Подпись убрана - иконка
+   читается сама, а строка списка и без того плотная. */
+/* Круглый, как прочие теги-иконки в свёрнутом виде: содержимое одно - скрепка,
+   поэтому форма задаётся размером и половинным скруглением, а не отступами. */
+.rt-tag--files {
+    color: var(--text-muted);
+    border-color: var(--border);
+    background: var(--surface);
+    width: 23px;
+    height: 23px;
+    padding: 0;
+    border-radius: 50%;
+    justify-content: center;
+}
+
+/* Скрепка - единственное содержимое тега, поэтому отступа справа под подпись нет.
+   Класс --fixed обязателен: обычные иконки тегов свёрнуты (width: 0) и
+   раскрываются только по наведению. */
+.rt-tag--files .rt-tag__icon--fixed {
+    margin-right: 0;
 }
 
 .rt-tag__q-dot {

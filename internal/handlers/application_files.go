@@ -1,11 +1,9 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 
-	"systemburo/internal/apperr"
 	"systemburo/internal/crypto"
 	"systemburo/internal/download"
 	"systemburo/internal/imaging"
@@ -57,11 +55,6 @@ func (h *ApplicationFileHandler) UploadDraft(c echo.Context) error {
 	userID := GetUserID(c)
 	ctx := c.Request().Context()
 
-	count, total, err := h.files.DraftUsage(ctx, userID)
-	if err != nil {
-		return err
-	}
-
 	saved, err := upload.SaveMultipart(c, "files", upload.Options{
 		Dir:          h.files.Dir(),
 		URLPrefix:    "",
@@ -78,21 +71,9 @@ func (h *ApplicationFileHandler) UploadDraft(c echo.Context) error {
 		return err
 	}
 
-	var addedSize int64
-	for _, f := range saved {
-		addedSize += f.Size
-	}
-	// Лимиты проверяются после записи на диск: до чтения формы размер файлов
-	// неизвестен, а лишнее сразу убирается вместе с отказом.
-	if int(count)+len(saved) > h.maxCount {
-		h.discard(saved)
-		return apperr.Validation(fmt.Sprintf("К заявке можно приложить не больше %d файлов", h.maxCount))
-	}
-	if total+addedSize > h.maxTotal {
-		h.discard(saved)
-		return apperr.Validation(fmt.Sprintf("Общий размер файлов заявки не больше %d МБ", h.maxTotal/1024/1024))
-	}
-
+	// Лимит на количество и объём проверяется при привязке к заявке, а не здесь:
+	// черновики копятся у пользователя от всех незавершённых подач, и общий счёт
+	// упирался в предел уже на первом файле новой заявки.
 	items, err := h.files.SaveDrafts(ctx, userID, saved)
 	if err != nil {
 		return err
@@ -186,7 +167,7 @@ func (h *ApplicationFileHandler) Download(c echo.Context) error {
 
 // DeleteAttached godoc
 // @Summary      Удаление файла заявки
-// @Description  Убирает приложенный к заявке файл. Подавший заявку может снять свой документ, пока заявка не закрыта; супер-администратор - в любой момент.
+// @Description  Убирает приложенный к заявке файл. Доступно носителям права администрирования: состав заявки после подачи неизменен.
 // @Tags         applications
 // @Produce      json
 // @Security     BearerAuth
@@ -206,7 +187,7 @@ func (h *ApplicationFileHandler) DeleteAttached(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid file ID")
 	}
 
-	if err := h.files.DeleteAttached(c.Request().Context(), GetUserID(c), IsSuperAdmin(c), appID, fileID); err != nil {
+	if err := h.files.DeleteAttached(c.Request().Context(), GetUserID(c), appID, fileID); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Файл удалён")

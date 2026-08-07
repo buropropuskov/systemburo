@@ -29,6 +29,12 @@ type ApproverService interface {
 	// а карточке заявки нужен только ответ про себя - без него кнопки принимающего не
 	// показывались бы никому, кроме администраторов (#1685).
 	IsApprover(ctx context.Context, username string) (bool, error)
+
+	// IsReviewer сообщает, назначен ли пользователь согласующим хоть где-нибудь.
+	// Согласующий живёт per-application (application_responsible_users), поэтому
+	// глобального признака у него не было; здесь он выводится из назначений в
+	// организациях и компаниях - именно оттуда согласующие попадают в заявку (#1737).
+	IsReviewer(ctx context.Context, username string) (bool, error)
 }
 
 type approverService struct {
@@ -271,4 +277,24 @@ func (s *approverService) IsApprover(ctx context.Context, username string) (bool
 		return false, echo.NewHTTPError(http.StatusInternalServerError, "Error checking approver")
 	}
 	return count > 0, nil
+}
+
+// IsReviewer проверяет, назначен ли пользователь согласующим в организации или компании.
+func (s *approverService) IsReviewer(ctx context.Context, username string) (bool, error) {
+	const q = `
+		SELECT EXISTS (
+			SELECT 1 FROM organization_users ou
+			JOIN users u ON u.id = ou.user_id
+			WHERE u.username = ? AND ou.required_approval = true
+		) OR EXISTS (
+			SELECT 1 FROM companies_users cu
+			JOIN users u ON u.id = cu.user_id
+			WHERE u.username = ? AND cu.required_approval = true
+		)`
+	var isReviewer bool
+	if err := s.db.WithContext(ctx).Raw(q, username, username).Scan(&isReviewer).Error; err != nil {
+		slog.Error("Ошибка проверки согласующего", "username", username, "error", err)
+		return false, echo.NewHTTPError(http.StatusInternalServerError, "Error checking reviewer")
+	}
+	return isReviewer, nil
 }

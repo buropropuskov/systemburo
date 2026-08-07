@@ -20,6 +20,9 @@ const PASSWORD = 'SuppE2E-pass-2718';
  */
 const ONBOARDING_DONE_VERSION = 1000;
 
+/** Прогресс тура хранится по ключам, и непомеченный тур автозапустится (#1737). */
+const ONBOARDING_TOURS = ['user', 'guard', 'approve', 'accept', 'admin'];
+
 /**
  * Права, которых базовой роли не хватает для работы в Центре заявок. Ключ таблицы
  * КПП добавляется отдельно - он существует только после создания самой таблицы.
@@ -51,14 +54,19 @@ async function createUser(request, token, { username, organizationId, lastName }
   return { id: created.id, username, password: PASSWORD, lastName };
 }
 
-/** Тур помечается пройденным от лица самого пользователя - /onboarding/complete self-эндпоинт. */
+/** Туры помечаются пройденными от лица самого пользователя - /onboarding/complete self-эндпоинт. */
 async function markOnboardingDone(request, user) {
   const res = await request.post(`${API_BASE}/login`, {
     data: { username: user.username, password: user.password },
   });
   if (!res.ok()) throw new Error(`login ${user.username} failed: ${res.status()}`);
   const token = (await res.json()).data.token;
-  await apiPost(request, token, '/onboarding/complete', { version: ONBOARDING_DONE_VERSION });
+  for (const tour of ONBOARDING_TOURS) {
+    await apiPost(request, token, '/onboarding/complete', {
+      tour,
+      version: ONBOARDING_DONE_VERSION,
+    });
+  }
 }
 
 /**

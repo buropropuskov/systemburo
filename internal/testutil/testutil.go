@@ -112,6 +112,7 @@ var tables = []string{
 	"marks",
 	"citizenships",
 	"companies_users", "organization_users",
+	"user_onboarding_progress",
 	"auth_events", "refresh_tokens", "users",
 	"roles",
 	"companies", "organizations", "user_types",
@@ -237,7 +238,9 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	lpfService := services.NewLicensePlateFormatService(db)
 	attachmentService := services.NewAttachmentService(db)
 	citizenshipService := services.NewCitizenshipService(db)
-	notificationServiceEarly := services.NewNotificationService(db)
+	permissionResolver := services.NewPermissionResolver(db)
+	notificationServiceEarly := services.NewNotificationService(db,
+		services.WithNotificationPermissionResolver(permissionResolver))
 	authService := services.NewAuthService(db, TestJWTSecret, TestJWTRefreshSecret, 15*time.Minute, 168*time.Hour, services.WithAuthNotifications(notificationServiceEarly))
 	// Справочники создаются после уведомлений (#1437): разбор записи «на проверке»
 	// сообщает инициатору наименования, чем он кончился.
@@ -253,7 +256,6 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	employeeService := services.NewEmployeeService(db, auditRecorder)
 	manualAttachService := services.NewManualAttachService(db, auditRecorder, nil, nil)
 	permissionService := services.NewPermissionService(db)
-	permissionResolver := services.NewPermissionResolver(db)
 	cachedResolver = permissionResolver
 	permissionGroupService := services.NewPermissionGroupService(db, permissionResolver)
 	roleService := services.NewRoleService(db, permissionResolver)
@@ -297,7 +299,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	personBlacklistService := services.NewPersonBlacklistService(db, blacklistAuditRecorder)
 	uploadDir := t.TempDir()
 	applicationFileService := services.NewApplicationFileService(db, uploadDir, auditRecorder)
-	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithApplicationPermissionResolver(permissionResolver), services.WithApplicationFiles(applicationFileService))
+	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithApplicationPermissionResolver(permissionResolver), services.WithApplicationFiles(applicationFileService, 30, 100*1024*1024))
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, "./uploads")
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)

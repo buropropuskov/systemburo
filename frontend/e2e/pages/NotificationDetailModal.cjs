@@ -18,7 +18,7 @@ class NotificationDetailModal {
     this.fields = this.dialog.locator('.notif-detail-dialog__fields');
     this.closeButton = this.dialog.getByRole('button', { name: 'Закрыть' });
     this.actionButton = this.dialog.getByRole('button', { name: 'Открыть заявку' });
-    this.unreadButton = this.dialog.getByRole('button', { name: 'Вернуть в непрочитанные' });
+    this.unreadButton = this.dialog.getByRole('button', { name: 'В непрочитанные' });
     this.deleteButton = this.dialog.getByRole('button', { name: 'Удалить' });
   }
 

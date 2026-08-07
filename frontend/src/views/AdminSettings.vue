@@ -11,6 +11,7 @@
         class="admin-settings__sidebar"
         role="navigation"
         aria-label="Разделы настроек"
+        data-testid="ob-admin-settings"
       >
         <div
           v-for="section in sections"

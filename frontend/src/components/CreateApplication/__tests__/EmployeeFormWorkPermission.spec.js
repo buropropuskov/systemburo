@@ -102,3 +102,70 @@ describe('EmployeeForm - стрелка поля разрешения', () => {
     expect(arrowUp(w)).toBe(true);
   });
 });
+
+describe('EmployeeForm - поиск по разрешениям', () => {
+  const openMenu = async (w) => {
+    await w.find('.permission__dropdown-button').trigger('click');
+    return w.find('.permission__search-input');
+  };
+  const itemTexts = (w) => w.findAll('.permission__dropdown-item').map((i) => i.text());
+
+  it('фильтрует список по подстроке, "Не выбрано" остаётся доступным', async () => {
+    const w = mountForm();
+    const search = await openMenu(w);
+
+    await search.setValue('студент');
+
+    const texts = itemTexts(w);
+    expect(texts[0]).toBe('Не выбрано');
+    expect(texts.length).toBeGreaterThan(1);
+    expect(texts.slice(1).every((t) => t.toLowerCase().includes('студент'))).toBe(true);
+    expect(w.find('.permission__dropdown-empty').exists()).toBe(false);
+  });
+
+  it('терпит неверную раскладку клавиатуры', async () => {
+    const w = mountForm();
+    const search = await openMenu(w);
+
+    // "cnelty" на QWERTY - это "студен" на ЙЦУКЕН
+    await search.setValue('cnelty');
+
+    expect(w.vm.filteredPermissions.length).toBeGreaterThan(0);
+    expect(w.vm.filteredPermissions.every((p) => p.toLowerCase().includes('студен'))).toBe(true);
+  });
+
+  it('без совпадений показывает "Ничего не найдено"', async () => {
+    const w = mountForm();
+    const search = await openMenu(w);
+
+    await search.setValue('чебурашка');
+
+    expect(w.vm.filteredPermissions).toHaveLength(0);
+    expect(w.find('.permission__dropdown-empty').text()).toBe('Ничего не найдено');
+    // сброс выбора остаётся под рукой даже с пустой выдачей
+    expect(itemTexts(w)).toEqual(['Не выбрано']);
+  });
+
+  it('Enter выбирает вариант, когда он остался один', async () => {
+    const w = mountForm();
+    const search = await openMenu(w);
+
+    await search.setValue('журналист');
+    expect(w.vm.filteredPermissions).toHaveLength(1);
+
+    await search.trigger('keydown.enter');
+    expect(w.vm.selectedPermission).toBe('Аккредитованные журналисты');
+    expect(w.vm.isPermissionDropdownOpen).toBe(false);
+  });
+
+  it('закрытие меню сбрасывает запрос', async () => {
+    const w = mountForm();
+    const search = await openMenu(w);
+
+    await search.setValue('посольств');
+    expect(w.vm.permissionQuery).toBe('посольств');
+
+    await w.setData({ isPermissionDropdownOpen: false });
+    expect(w.vm.permissionQuery).toBe('');
+  });
+});

@@ -186,9 +186,12 @@ func TestLoad_UploadAllowedDocTypes_Default(t *testing.T) {
 
 	cfg, err := Load()
 	require.NoError(t, err)
+	// Таблицы в списке с #1721: docx и xlsx неразличимы по сигнатуре (оба zip), и
+	// без явного разрешения xlsx проходил только за счёт совпадения с docx.
 	assert.Equal(t, []string{
 		"application/pdf",
 		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 	}, cfg.UploadAllowedDocTypes)
 }
 

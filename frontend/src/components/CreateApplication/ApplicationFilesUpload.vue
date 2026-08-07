@@ -1,12 +1,5 @@
 <template>
   <div class="app-files">
-    <div class="app-files__head">
-      <span class="app-files__label">Файлы к заявке</span>
-      <span class="app-files__hint">
-        Не прикрепляйте копии паспортов: номер уже указан в карточке человека
-      </span>
-    </div>
-
     <div class="app-files__controls">
       <input
         ref="fileInput"
@@ -18,14 +11,25 @@
       >
       <button
         type="button"
-        class="lk-button lk-button--secondary app-files__add"
+        class="app-files__add"
         :disabled="uploading || files.length >= maxCount"
         data-testid="app-files-add"
+        :title="`Прикрепить файл (${files.length} из ${maxCount})`"
         @click="$refs.fileInput.click()"
       >
-        {{ uploading ? 'Загрузка...' : 'Прикрепить файл' }}
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        ><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
+        <span>{{ uploading ? 'Загрузка...' : 'Прикрепить' }}</span>
       </button>
-      <span class="app-files__counter">{{ files.length }} из {{ maxCount }}</span>
     </div>
 
     <TransitionGroup
@@ -38,9 +42,16 @@
         :key="file.id"
         class="app-files__item"
         data-testid="app-files-item"
+        :title="`${file.file_name} — ${formatBytes(file.file_size)}`"
       >
-        <span class="app-files__name">{{ file.file_name }}</span>
-        <span class="app-files__size">{{ formatBytes(file.file_size) }}</span>
+        <span
+          class="app-files__ext"
+          :class="`app-files__ext--${kind(file)}`"
+        >{{ ext(file) }}</span>
+        <span class="app-files__meta">
+          <span class="app-files__name">{{ file.file_name }}</span>
+          <span class="app-files__size">{{ formatBytes(file.file_size) }}</span>
+        </span>
         <button
           type="button"
           class="app-files__remove"
@@ -119,6 +130,29 @@ async function remove(file) {
   }
 }
 
+/** Расширение для плашки: без точки и не длиннее четырёх букв, иначе плитка распухает. */
+function ext(file) {
+  const raw = (file.file_name.split('.').pop() || '').toLowerCase();
+  return raw.length > 4 || raw === file.file_name.toLowerCase() ? 'файл' : raw;
+}
+
+/** Семейство формата по расширению имени: офисные типы по сигнатуре неразличимы. */
+function kind(file) {
+  const byName = {
+    xlsx: 'sheet', xls: 'sheet', csv: 'sheet',
+    docx: 'doc', doc: 'doc',
+    pdf: 'pdf',
+    png: 'image', jpg: 'image', jpeg: 'image', webp: 'image', gif: 'image',
+    pptx: 'slides', ppt: 'slides',
+  }[(file.file_name.split('.').pop() || '').toLowerCase()];
+  if (byName) return byName;
+
+  if ((file.mime_type || '').startsWith('image/')) return 'image';
+  if (file.mime_type === 'application/pdf') return 'pdf';
+  if (/sheet|excel/.test(file.mime_type || '')) return 'sheet';
+  return 'other';
+}
+
 function syncModel() {
   model.value = files.value.map((f) => f.id);
 }
@@ -135,69 +169,104 @@ defineExpose({ reset });
 <style scoped>
 .app-files {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
 }
 
-.app-files__head {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
 
-.app-files__label {
-    font-size: 13px;
-    color: var(--text-muted);
-}
-
-.app-files__hint {
-    font-size: 12px;
-    color: var(--text-muted);
-    opacity: 0.8;
-}
 
 .app-files__controls {
     display: flex;
     align-items: center;
-    gap: 10px;
+}
+
+/* Кнопка компактная: она лишь открывает выбор файла и не должна спорить по весу
+   с «Отправить заявку» в той же колонке. */
+.app-files__add {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 16px;
+    cursor: pointer;
+}
+
+.app-files__add:hover:not(:disabled) {
+    color: var(--text);
+    border-color: var(--text-muted);
+}
+
+.app-files__add:disabled {
+    opacity: 0.5;
+    cursor: default;
 }
 
 .app-files__input {
     display: none;
 }
 
-.app-files__counter {
-    font-size: 12px;
-    color: var(--text-muted);
-}
 
 .app-files__list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+    display: contents;
 }
 
 .app-files__item {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 6px 12px;
+    gap: 6px;
+    max-width: 190px;
+    padding: 3px 8px 3px 4px;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--surface);
 }
 
+.app-files__ext {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    /* Четыре буквы (xlsx, docx, pptx) должны помещаться в плашку целиком:
+       при 10px они не влезали и обрезались. */
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+    text-transform: uppercase;
+    color: #fff;
+    background: var(--text-muted);
+}
+
+.app-files__ext--pdf { background: #c0392b; }
+.app-files__ext--image { background: #2e86c1; }
+.app-files__ext--sheet { background: #1e8449; }
+.app-files__ext--doc { background: #2874a6; }
+.app-files__ext--slides { background: #d35400; }
+
+.app-files__meta {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
 .app-files__name {
-    flex: 1;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 13px;
+    font-size: 12px;
 }
 
 .app-files__size {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-muted);
     white-space: nowrap;
 }

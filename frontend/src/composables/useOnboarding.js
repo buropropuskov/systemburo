@@ -12,12 +12,43 @@ import { getDemo } from '@/components/onboarding/onboardingDemo';
  * а форма/таблицы - в одну колонку. Порог `<= 768` (не `< 768`): на ровно 768px
  * (iPad-портрет) CSS уже мобильный - reveal обязан срабатывать там же, иначе тур
  * подсветит переехавшую пустоту (класс бага «768 vs 767.98» из S8/S9). Модульная
- * функция (не часть фабрики useOnboarding) - её зовут и mobileReveal, и createDriver.
+ * функция (не часть фабрики useOnboarding) - её зовут и reveal, и createDriver.
  *
  * @returns {boolean}
  */
 export function isMobileViewport() {
   return typeof window !== 'undefined' && window.innerWidth <= 768;
+}
+
+/**
+ * Ответ `onBeforeStep`, когда цели шага на экране нет, но у шага есть демо-скриншот:
+ * шаг не пропускаем, а показываем центр-модалом с картинкой вместо подсветки.
+ */
+export const STEP_DEMO_FALLBACK = 'demo-fallback';
+
+/**
+ * Показывать ли на шаге демо-скриншот. Картинка заменяет ЖИВОЙ экран, поэтому
+ * рисуется только у шага без цели (движок уже снял `element` - подсвечивать
+ * нечего). Рядом с подсвеченным реальным элементом она была бы дублем.
+ *
+ * @param {{ demo?: string, element?: string|null }} step
+ * @returns {boolean}
+ */
+export function showsDemo(step) {
+  return Boolean(step?.demo) && !step?.element;
+}
+
+/**
+ * Может ли шаг вовсе исчезнуть из тура. Опциональный шаг («при наличии») без цели
+ * выбрасывается и в нумерации «Шаг N из M» не участвует - иначе в номерах была бы
+ * дырка. Опциональный шаг С демо-скриншотом не исчезает никогда: без цели он
+ * показывается центр-модалом с картинкой, поэтому считается наравне с обычными.
+ *
+ * @param {{ optional?: boolean, demo?: string }} step
+ * @returns {boolean}
+ */
+export function isSkippableStep(step) {
+  return Boolean(step?.optional) && !step?.demo;
 }
 
 /**
@@ -101,16 +132,16 @@ export function useOnboarding() {
   }
 
   /**
-   * Тело поповера: текст шага + опциональный демо-скриншот (`step.demo`).
-   * Весь HTML прогоняется через sanitizeHtml (src/alt/caption - наши статичные
-   * значения, санитайз страхует от случайной разметки в тексте).
+   * Тело поповера: текст шага + демо-скриншот, если шаг показывается без живой
+   * цели (см. showsDemo). Весь HTML прогоняется через sanitizeHtml (src/alt/caption -
+   * наши статичные значения, санитайз страхует от случайной разметки в тексте).
    *
-   * @param {{ description: string, demo?: string }} step
+   * @param {{ description: string, demo?: string, element?: string|null }} step
    * @returns {string}
    */
   function buildPopoverHtml(step) {
     let html = step.description || '';
-    const demo = step.demo ? getDemo(step.demo) : null;
+    const demo = showsDemo(step) ? getDemo(step.demo) : null;
     if (demo) {
       const caption = demo.caption
         ? `<figcaption class="ob-popover__demo-caption">${demo.caption}</figcaption>`
@@ -184,10 +215,10 @@ export function useOnboarding() {
    * с общим route).
    *
    * @param {Array<object>} stepsForSegment
-   * @param {{ startIndex?: number, onIndexChange?: (globalIndex: number) => void, onDestroyed?: () => void, onBoundaryNext?: () => void, onBoundaryPrev?: (segmentStartGlobal: number) => void, onCtaClick?: (ctaRoute?: string) => void, onCloseRequest?: () => void }} [options]
+   * @param {{ startIndex?: number, fallbackIndex?: number, onIndexChange?: (globalIndex: number) => void, onDestroyed?: () => void, onBoundaryNext?: () => void, onBoundaryPrev?: (segmentStartGlobal: number) => void, onCtaClick?: (ctaRoute?: string) => void, onCloseRequest?: () => void }} [options]
    * @returns {import('driver.js').Driver}
    */
-  function createDriver(stepsForSegment, { startIndex = 0, onIndexChange, onDestroyed, onBoundaryNext, onBoundaryPrev, onCtaClick, onCloseRequest, onBeforeStep } = {}) {
+  function createDriver(stepsForSegment, { startIndex = 0, fallbackIndex = -1, onIndexChange, onDestroyed, onBoundaryNext, onBoundaryPrev, onCtaClick, onCloseRequest, onBeforeStep } = {}) {
     const store = useOnboardingStore();
     const lastLocal = stepsForSegment.length - 1;
 
@@ -250,6 +281,65 @@ export function useOnboarding() {
       for (const prop of INSETS) delete zoomFixLast[prop];
     }
 
+    /**
+     * Шаг в формате driver.js. Пересобирается, когда шаг переключается между
+     * подсветкой цели и видом без неё (setStepMode), поэтому сборка одна на оба
+     * случая - иначе два вида разъехались бы по оформлению.
+     *
+     * @param {object} s шаг тура в том виде, в котором показываем (element уже снят, если цели нет)
+     * @param {number} li локальный индекс внутри сегмента
+     * @returns {import('driver.js').DriveStep}
+     */
+    function buildDriverStep(s, li) {
+      const popover = {
+        title: s.title,
+        description: buildPopoverHtml(s),
+      };
+      // Сторона/выравнивание поповера от шага - чтобы карточка не наезжала на
+      // выделенный элемент (напр. элементы шапки вверху -> поповер вниз). На
+      // мобилке (<768) раскладка стековая (одна колонка) - side:'left'/'right'
+      // (рассчитан на десктопный split селектор/форма или карточка/детали)
+      // толкал бы поповер за край узкого экрана; принудительно кладём вниз (#1097).
+      const narrow = isMobileViewport();
+      if (s.side) {
+        popover.side = narrow && (s.side === 'left' || s.side === 'right') ? 'bottom' : s.side;
+      }
+      if (s.align) popover.align = s.align;
+      // Шаги с демо-скриншотом шире - чтобы реальная таблица читалась. Ширину даём
+      // только когда картинка реально рисуется: без неё пустая широкая карточка.
+      if (showsDemo(s)) popover.popoverClass = 'ob-popover ob-popover--wide';
+      // Последний шаг сегмента, но впереди есть шаги на другой странице -
+      // ТОЛЬКО подпись кнопки: "Далее" вместо "Готово", чтобы юзер видел, что
+      // тур продолжится. Само поведение перехода диктует onNextClick ниже.
+      if (li === lastLocal && store.steps[startIndex + li + 1]) {
+        popover.nextBtnText = 'Далее';
+      }
+      return { element: s.element || undefined, popover };
+    }
+
+    const driverSteps = stepsForSegment.map((s, li) => buildDriverStep(s, li));
+
+    /**
+     * Переключить шаг между подсветкой реальной цели и показом без неё (центр-модал,
+     * со скриншотом у шагов с `demo`). driver читает config.steps на каждом переходе,
+     * поэтому правка на месте действует и вперёд, и назад, и на повторном проходе.
+     *
+     * @param {number} localIndex
+     * @param {boolean} withoutTarget цели на экране нет
+     */
+    function setStepMode(localIndex, withoutTarget) {
+      const source = stepsForSegment[localIndex];
+      if (!source) return;
+      driverSteps[localIndex] = buildDriverStep(
+        withoutTarget ? { ...source, element: null } : source,
+        localIndex,
+      );
+    }
+
+    // Цель первого показываемого шага не появилась (хост ждал её до таймаута) -
+    // поднимаем сегмент сразу в виде без подсветки.
+    if (fallbackIndex >= 0) setStepMode(fallbackIndex, true);
+
     const driverObj = driver({
       showProgress: false,
       animate: !prefersReducedMotion(),
@@ -264,31 +354,7 @@ export function useOnboarding() {
       nextBtnText: 'Далее',
       prevBtnText: 'Назад',
       doneBtnText: 'Готово',
-      steps: stepsForSegment.map((s, li) => {
-        const popover = {
-          title: s.title,
-          description: buildPopoverHtml(s),
-        };
-        // Сторона/выравнивание поповера от шага - чтобы карточка не наезжала на
-        // выделенный элемент (напр. элементы шапки вверху -> поповер вниз). На
-        // мобилке (<768) раскладка стековая (одна колонка) - side:'left'/'right'
-        // (рассчитан на десктопный split селектор/форма или карточка/детали)
-        // толкал бы поповер за край узкого экрана; принудительно кладём вниз (#1097).
-        const narrow = isMobileViewport();
-        if (s.side) {
-          popover.side = narrow && (s.side === 'left' || s.side === 'right') ? 'bottom' : s.side;
-        }
-        if (s.align) popover.align = s.align;
-        // Шаги с демо-скриншотом шире - чтобы реальная таблица читалась.
-        if (s.demo) popover.popoverClass = 'ob-popover ob-popover--wide';
-        // Последний шаг сегмента, но впереди есть шаги на другой странице -
-        // ТОЛЬКО подпись кнопки: "Далее" вместо "Готово", чтобы юзер видел, что
-        // тур продолжится. Само поведение перехода диктует onNextClick ниже.
-        if (li === lastLocal && store.steps[startIndex + li + 1]) {
-          popover.nextBtnText = 'Далее';
-        }
-        return { element: s.element || undefined, popover };
-      }),
+      steps: driverSteps,
       // Перехватываем "Далее" (кнопка И стрелка вправо идут сюда): на границе
       // сегмента отдаём решение хосту (перейти на след. страницу / завершить),
       // иначе обычный moveNext.
@@ -303,11 +369,17 @@ export function useOnboarding() {
         // Готовим целевой шаг ДО перехода: onBeforeStep ставит демо-вложение и
         // ДОЖИДАЕТСЯ появления элемента (иначе driver подсветит пустоту, если
         // данные ещё грузятся). Опциональный шаг без элемента (напр. доп.поля
-        // "при наличии") пропускаем к следующему.
+        // "при наличии") пропускаем к следующему; шаг со скриншотом вместо
+        // пропуска показываем без подсветки (STEP_DEMO_FALLBACK).
         let target = localIndex + 1;
         while (target <= lastLocal) {
           const ready = onBeforeStep ? await onBeforeStep(startIndex + target) : true;
-          if (ready !== false) break;
+          if (ready !== false) {
+            // Вид шага пересобираем на каждом проходе: цель могла как пропасть,
+            // так и появиться (данные подъехали, «Назад» и снова «Далее»).
+            setStepMode(target, ready === STEP_DEMO_FALLBACK);
+            break;
+          }
           target += 1;
         }
         if (target > lastLocal) {
@@ -325,25 +397,35 @@ export function useOnboarding() {
         const localIndex = driverObj.getActiveIndex() ?? 0;
         if (localIndex <= 0 && startIndex > 0 && onBoundaryPrev) {
           onBoundaryPrev(startIndex);
-        } else {
-          driverObj.movePrevious();
+          return;
         }
+        // «Назад» через onBeforeStep не проходит (тот гейтит только «Далее»), а вид
+        // шага со скриншотом зависит от наличия цели прямо сейчас - пересобираем
+        // его сами, иначе шаг вернулся бы в том виде, в каком его собрали на старте
+        // сегмента. Страницу мы уже видели, поэтому проверка синхронная - ждать
+        // отрисовки нечего, и «Назад» не подвисает.
+        const prev = stepsForSegment[localIndex - 1];
+        if (prev?.demo) {
+          setStepMode(localIndex - 1, !prev.element || !document.querySelector(prev.element));
+        }
+        driverObj.movePrevious();
       },
       onPopoverRender(popover) {
         const localIndex = driverObj.getActiveIndex() ?? 0;
         const currentGlobal = startIndex + localIndex;
         const step = stepsForSegment[localIndex];
-        // Нумерация без опциональных шагов: доп.поля «при наличии» появляются не
+        // Нумерация без пропускаемых шагов: доп.поля «при наличии» появляются не
         // всегда, поэтому в счёт «Шаг N из M» их не берём - иначе при пропуске
-        // получается дырка в номерах (22 -> 24).
-        const total = store.steps.filter((s) => !s.optional).length;
-        const globalIndex = store.steps.slice(0, currentGlobal + 1).filter((s) => !s.optional).length;
+        // получается дырка в номерах (22 -> 24). Шаг со скриншотом считается: он
+        // остаётся в туре и на пустом экране (см. isSkippableStep).
+        const total = store.steps.filter((s) => !isSkippableStep(s)).length;
+        const globalIndex = store.steps.slice(0, currentGlobal + 1).filter((s) => !isSkippableStep(s)).length;
         // Подсказка "Далее" сквозная (вкл. шаг со след. страницы). Пропускаем
-        // опциональные шаги, элемента которых сейчас нет в DOM (будут скипнуты) -
+        // шаги, элемента которых сейчас нет в DOM и которые движок выбросит -
         // иначе хинт обещает шаг, на который тур не перейдёт.
         let nextIdx = currentGlobal + 1;
         let nextStep = store.steps[nextIdx];
-        while (nextStep && nextStep.optional && nextStep.element && !document.querySelector(nextStep.element)) {
+        while (nextStep && isSkippableStep(nextStep) && nextStep.element && !document.querySelector(nextStep.element)) {
           nextIdx += 1;
           nextStep = store.steps[nextIdx];
         }

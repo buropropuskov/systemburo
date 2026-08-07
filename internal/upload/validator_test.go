@@ -44,3 +44,30 @@ func TestValidateFileSize_Exceeds(t *testing.T) {
 	err := ValidateFileSize(20*1024*1024, 10*1024*1024)
 	assert.Error(t, err)
 }
+
+// Офисные форматы неразличимы по сигнатуре: docx, xlsx и pptx - это zip, и
+// определение возвращает первый допустимый офисный тип. Без уточнения по имени
+// таблица уезжала в базу как текстовый документ, а интерфейс красил её не тем
+// цветом и подписывал не тем значком.
+func TestOfficeMimeByName(t *testing.T) {
+	const docx = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	const xlsx = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	const pptx = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+
+	cases := []struct{ detected, name, want string }{
+		{docx, "смета.xlsx", xlsx},
+		{docx, "презентация.pptx", pptx},
+		{docx, "письмо.docx", docx},
+		// Имя без расширения ничего не уточняет - остаётся определённый тип.
+		{docx, "документ", docx},
+		// Не офисный тип не трогаем: у картинки и pdf сигнатура однозначна.
+		{"image/png", "снимок.xlsx", "image/png"},
+		{"application/pdf", "акт.xlsx", "application/pdf"},
+	}
+
+	for _, c := range cases {
+		if got := OfficeMimeByName(c.detected, c.name); got != c.want {
+			t.Errorf("OfficeMimeByName(%q, %q) = %q, ожидалось %q", c.detected, c.name, got, c.want)
+		}
+	}
+}

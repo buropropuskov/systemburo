@@ -31,6 +31,7 @@
 
     <div
       class="application-detail"
+      data-testid="ob-detail-card"
       :class="{ 'is-dragging': sheetDragging }"
       :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
       @touchstart="onSheetTouchStart"
@@ -43,7 +44,10 @@
         aria-hidden="true"
       />
       <!-- Заголовок и кнопки -->
-      <div class="detail-header">
+      <div
+        class="detail-header"
+        data-testid="ob-detail-header"
+      >
         <div class="detail-header-left">
           <div class="detail-title-row">
             <h3 class="detail-title">
@@ -179,6 +183,7 @@
                 <button
                   v-if="canWithdraw"
                   class="withdraw-btn"
+                  data-testid="ob-detail-revoke"
                   @click="withdrawApplication"
                 >
                   Отозвать
@@ -224,6 +229,10 @@
             <div class="message-section-header">
               <h4>Сообщение к заявке {{ applicationData.application_number }}</h4>
             </div>
+            <ApplicationFiles
+              :application-id="Number(applicationData.id)"
+              :can-remove="canRemoveFiles"
+            />
             <template v-if="hasMessage">
               <!-- Тап по превью открывает полное сообщение в окне (кнопка "Открыть в
                    окне" убрана, W3.10); аффорданс - хинт-строка под превью. -->
@@ -275,11 +284,6 @@
               Сообщение отсутствует
             </div>
           </div>
-
-          <ApplicationFiles
-            :application-id="Number(applicationData.id)"
-            :can-remove="canRemoveFiles"
-          />
 
           <ApplicationMessageModal
             :show="showMessageModal"
@@ -537,8 +541,13 @@
           </transition>
 
           <!-- Компонент согласования (без информации о принявшем). Обёртка нужна
-               для order на мобилке: держим согласование в блоке "комментарий/действие". -->
-          <div class="detail-order-confirmation">
+               для order на мобилке: держим согласование в блоке "комментарий/действие".
+               Она же - якорь тура: сама .detail-right-column на <768 уходит в
+               display:contents (нулевой box), подсветить её нельзя. -->
+          <div
+            class="detail-order-confirmation"
+            data-testid="ob-detail-status"
+          >
             <ApplicationConfirmation
               ref="confirmationComponent"
               :application="applicationData"
@@ -843,14 +852,14 @@ export default {
         },
 
         /**
-         * Убрать приложенный файл (#1721) может подавший заявку, пока она не закрыта.
-         * Зеркалит BE-гейт DeleteAttached; супер-администратору сервер разрешает и
-         * дальше, но кнопку по этому признаку не показываем - у него другой путь.
+         * Убрать приложенный файл (#1721) может носитель права администрирования:
+         * состав заявки после подачи неизменен, а удаление нужно, чтобы вычистить
+         * приложенное вопреки подписи поля. Зеркалит гейт роута (page.admin) - по
+         * одному лишь признаку супер-администратора крестик не видел обычный
+         * администратор, у которого это право есть.
          */
         canRemoveFiles() {
-            const a = this.applicationData;
-            if (!a || a.sender_user_id !== this.currentUserId) return false;
-            return !['Завершено', 'Не согласовано', 'Отказано', 'Отозвана'].includes(a.status);
+            return this.can('page.admin');
         },
 
         // Отозвать свою заявку может только отправитель и только пока она не в

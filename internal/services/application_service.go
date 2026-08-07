@@ -68,6 +68,7 @@ var applicationsListSelect = `
 				AND ans.author_user_id <> ?
 				AND ans.created_at > COALESCE((SELECT r.read_at FROM application_question_reads r WHERE r.question_id = ans.question_id AND r.user_id = ?), to_timestamp(0)))
 		) as has_unseen_questions,
+		EXISTS (SELECT 1 FROM application_files af WHERE af.application_id = a.id) as has_files,
 		` + hasStatusUpdatePredicate + ` as has_status_update,
 		` + hasOpenSupplementPredicate + ` as has_open_supplement
 	`
@@ -567,6 +568,9 @@ type ApplicationWithDetails struct {
 	HasRoofAccess                bool    `json:"has_roof_access"`
 	HasFreeParking               bool    `json:"has_free_parking"`
 	HasUnseenQuestions           bool    `json:"has_unseen_questions"`
+	// HasFiles - к заявке приложены файлы (#1721). В списке Центра рисуется скрепкой:
+	// признак, а не количество - в строке списка важно «есть или нет», состав виден в карточке.
+	HasFiles                     bool    `json:"has_files"`
 	HasStatusUpdate              bool    `json:"has_status_update"`
 	// HasOpenSupplement - по заявке идёт незакрытый раунд дополнения (#1685). Статус и
 	// согласование самой заявки при этом не откатываются, поэтому без отдельной метки
@@ -797,8 +801,10 @@ type applicationService struct {
 	// позже applicationService в cmd/server/main.go (зависит от attachmentBlankService).
 	blankExports BlankExportEnqueuer
 	// files - файлы, приложенные при подаче (#1721). Опциональна: без неё file_ids
-	// в подаче не разбираются.
-	files ApplicationFileService
+	// в подаче не разбираются. Пределы заявки проверяются в момент привязки.
+	files        ApplicationFileService
+	fileMaxCount int
+	fileMaxTotal int64
 }
 
 // SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1). nil
@@ -849,8 +855,12 @@ func WithApplicationPermissionResolver(r *PermissionResolver) ApplicationService
 
 // WithApplicationFiles подключает файлы, прикладываемые при подаче (#1721). Без
 // неё поле file_ids в подаче игнорируется, и заявка создаётся без вложенных файлов.
-func WithApplicationFiles(f ApplicationFileService) ApplicationServiceOption {
-	return func(s *applicationService) { s.files = f }
+func WithApplicationFiles(f ApplicationFileService, maxCount int, maxTotal int64) ApplicationServiceOption {
+	return func(s *applicationService) {
+		s.files = f
+		s.fileMaxCount = maxCount
+		s.fileMaxTotal = maxTotal
+	}
 }
 
 // NewApplicationService создаёт экземпляр сервиса заявок.
@@ -1903,7 +1913,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	// среди своих черновиков файл откатывает подачу, вместо того чтобы создать
 	// заявку без документа, который заявитель считает приложенным.
 	if s.files != nil {
-		if err := s.files.Attach(tx, user.ID, appID, req.FileIDs); err != nil {
+		if err := s.files.Attach(tx, user.ID, appID, req.FileIDs, s.fileMaxCount, s.fileMaxTotal); err != nil {
 			tx.Rollback()
 			return nil, err
 		}

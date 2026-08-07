@@ -130,11 +130,6 @@ func (s *carService) UpdateCarTerritoryStatus(ctx context.Context, carID int, re
 	// обновиться live (#840 V2.3, scoped #1036).
 	s.tablesProducer.NotifyCarsChanged(ctx, carID)
 
-	// Первый проход по заявке (#1748, S4) - только на въезд, только если машина
-	// вообще пришла из заявки (у ручного добавления в таблицу проходной её нет).
-	if actionType == "entry" {
-		notifyFirstPassage(ctx, s.db, s.notificationService, car.AttachmentID)
-	}
 	return nil
 }
 

@@ -45,6 +45,19 @@ type NotificationMeta struct {
 	// в models.Notification).
 	Aggregatable bool
 	Priority     string
+	// Order -- место типа на экране настроек внутри своей категории: чем меньше,
+	// тем выше. Порядок задан вручную по важности и частоте, а не по алфавиту:
+	// человек ищет глазами то, что случается каждый день, а не то, что начинается
+	// на нужную букву.
+	Order int
+	// Permission -- ключ права, без которого тип на экране настроек не показывается.
+	// Пусто = видят все. Незачем предлагать заявителю настраивать уведомления о
+	// заполнении файлового архива: он их всё равно никогда не получит.
+	Permission string
+	// HiddenInSettings -- тип не выводится на экран настроек вообще. Уведомления
+	// безопасности приходят всегда и отключению не подлежат, поэтому показывать их
+	// списком переключателей, которые нельзя тронуть, - лишний шум.
+	HiddenInSettings bool
 }
 
 // Коды типов уведомлений раздела "application" -- события по заявке от подачи
@@ -75,9 +88,8 @@ const (
 
 // Коды типов уведомлений раздела "passage" -- события вокруг прохода по заявке.
 const (
-	NotificationTypeApplicationExpiring     = "application_expiring"
-	NotificationTypeApplicationWithdrawn    = "application_withdrawn"
-	NotificationTypeApplicationPassageFirst = "application_passage_first"
+	NotificationTypeApplicationExpiring  = "application_expiring"
+	NotificationTypeApplicationWithdrawn = "application_withdrawn"
 )
 
 // Коды типов уведомлений раздела "content" -- новости, документы, обратная связь.
@@ -109,49 +121,49 @@ var notificationCatalog = map[string]NotificationMeta{
 		Code: NotificationTypeApplicationCreated, Category: NotificationCategoryApplication,
 		Label:       "Заявка отправлена",
 		Description: "Ваша заявка принята системой и ожидает согласования.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal,
+		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal, Order: 90,
 	},
 	NotificationTypeApplicationApprovalRequired: {
 		Code: NotificationTypeApplicationApprovalRequired, Category: NotificationCategoryApplication,
 		Label:       "Требуется согласование",
 		Description: "Поступила заявка, которая ждёт вашего решения как согласующего.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityHigh,
+		Mandatory:   true, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityHigh, Order: 10,
 	},
 	NotificationTypeApplicationForwarded: {
 		Code: NotificationTypeApplicationForwarded, Category: NotificationCategoryApplication,
 		Label:       "Заявка передана для просмотра",
 		Description: "Вам открыли доступ к заявке для ознакомления.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityNormal,
+		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityNormal, Order: 80,
 	},
 	NotificationTypeApplicationStatusChanged: {
 		Code: NotificationTypeApplicationStatusChanged, Category: NotificationCategoryApplication,
 		Label:       "Изменился статус заявки",
 		Description: "Ваша заявка перешла в новый статус (принята, отклонена, согласована, завершена).",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh,
+		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 30,
 	},
 	NotificationTypeApplicationQuestion: {
 		Code: NotificationTypeApplicationQuestion, Category: NotificationCategoryApplication,
 		Label:       "Новый вопрос по заявке",
 		Description: "Согласующий задал вопрос по вашей заявке.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityNormal,
+		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityNormal, Order: 40,
 	},
 	NotificationTypeApplicationAnswer: {
 		Code: NotificationTypeApplicationAnswer, Category: NotificationCategoryApplication,
 		Label:       "Новый ответ на вопрос",
 		Description: "На вопрос по заявке, в котором вы участвуете, пришёл ответ.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityNormal,
+		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityNormal, Order: 50,
 	},
 	NotificationTypeApplicationSupplementReady: {
 		Code: NotificationTypeApplicationSupplementReady, Category: NotificationCategoryApplication,
 		Label:       "Дополнение согласовано",
 		Description: "Дополнение к заявке прошло согласование и ждёт принятия.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh,
+		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 60,
 	},
 	NotificationTypeApplicationSupplementDecided: {
 		Code: NotificationTypeApplicationSupplementDecided, Category: NotificationCategoryApplication,
 		Label:       "Решение по дополнению",
 		Description: "Принимающий вынес решение по вашему дополнению к заявке.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh,
+		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 70,
 	},
 	NotificationTypeApprovalReminder: {
 		Code: NotificationTypeApprovalReminder, Category: NotificationCategoryApplication,
@@ -160,7 +172,7 @@ var notificationCatalog = map[string]NotificationMeta{
 		// Не схлопывается: у напоминаний собственный интервал повтора в днях
 		// (approval.reminder_repeat_days), и окно схлопывания в минутах для них не
 		// работает - зато прячет повтор, если он придёт вскоре после первого.
-		Mandatory: false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal,
+		Mandatory: true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal, Order: 20,
 	},
 
 	// security -- отключить нельзя ни один из пяти.
@@ -168,31 +180,31 @@ var notificationCatalog = map[string]NotificationMeta{
 		Code: NotificationTypePasswordChanged, Category: NotificationCategorySecurity,
 		Label:       "Пароль изменён",
 		Description: "Пароль вашей учётной записи был изменён. Отключить такие уведомления нельзя.",
-		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh,
+		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 10, HiddenInSettings: true,
 	},
 	NotificationTypeUserBanned: {
 		Code: NotificationTypeUserBanned, Category: NotificationCategorySecurity,
 		Label:       "Учётная запись заблокирована",
 		Description: "Вашу учётную запись заблокировал администратор. Отключить такие уведомления нельзя.",
-		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh,
+		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 20, HiddenInSettings: true,
 	},
 	NotificationTypeUserUnbanned: {
 		Code: NotificationTypeUserUnbanned, Category: NotificationCategorySecurity,
 		Label:       "Учётная запись разблокирована",
 		Description: "Блокировку вашей учётной записи сняли. Отключить такие уведомления нельзя.",
-		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh,
+		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 30, HiddenInSettings: true,
 	},
 	NotificationTypeLoginBlocked: {
 		Code: NotificationTypeLoginBlocked, Category: NotificationCategorySecurity,
 		Label:       "Вход временно заблокирован",
 		Description: "Слишком много неудачных попыток входа в вашу учётную запись. Отключить такие уведомления нельзя.",
-		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh,
+		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 40, HiddenInSettings: true,
 	},
 	NotificationTypeRoleChanged: {
 		Code: NotificationTypeRoleChanged, Category: NotificationCategorySecurity,
 		Label:       "Изменились роль или права",
 		Description: "Администратор назначил вам другую роль. Отключить такие уведомления нельзя.",
-		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh,
+		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 50, HiddenInSettings: true,
 	},
 
 	// passage
@@ -200,19 +212,13 @@ var notificationCatalog = map[string]NotificationMeta{
 		Code: NotificationTypeApplicationExpiring, Category: NotificationCategoryPassage,
 		Label:       "Срок действия пропуска истекает",
 		Description: "Срок действия пропуска по заявке скоро истечёт.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh,
+		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 10,
 	},
 	NotificationTypeApplicationWithdrawn: {
 		Code: NotificationTypeApplicationWithdrawn, Category: NotificationCategoryPassage,
 		Label:       "Заявка отозвана",
 		Description: "Заявку отозвали до того, как по ней прошли на территорию.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal,
-	},
-	NotificationTypeApplicationPassageFirst: {
-		Code: NotificationTypeApplicationPassageFirst, Category: NotificationCategoryPassage,
-		Label:       "Первый проход по заявке",
-		Description: "По заявке впервые прошли на территорию.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityNormal,
+		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal, Order: 20,
 	},
 
 	// content
@@ -220,25 +226,25 @@ var notificationCatalog = map[string]NotificationMeta{
 		Code: NotificationTypeNewsPublished, Category: NotificationCategoryContent,
 		Label:       "Опубликована новость",
 		Description: "На сайте бюро вышла новая новость.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityNormal,
+		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityNormal, Order: 10,
 	},
 	NotificationTypeDocumentPublished: {
 		Code: NotificationTypeDocumentPublished, Category: NotificationCategoryContent,
 		Label:       "Опубликован документ",
 		Description: "В разделе документов появился новый или обновлённый документ.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityNormal,
+		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityNormal, Order: 20,
 	},
 	NotificationTypeFeedbackCreated: {
 		Code: NotificationTypeFeedbackCreated, Category: NotificationCategoryContent,
 		Label:       "Новое обращение обратной связи",
 		Description: "Пришло новое обращение через форму обратной связи.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityNormal,
+		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityNormal, Order: 40, Permission: KeyPageAdminFeedback,
 	},
 	NotificationTypeFeedbackAnswered: {
 		Code: NotificationTypeFeedbackAnswered, Category: NotificationCategoryContent,
 		Label:       "Ответ по обращению",
 		Description: "На ваше обращение обратной связи пришёл ответ.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal,
+		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal, Order: 30,
 	},
 
 	// system
@@ -246,31 +252,31 @@ var notificationCatalog = map[string]NotificationMeta{
 		Code: NotificationTypeMaintenanceScheduled, Category: NotificationCategorySystem,
 		Label:       "Плановые технические работы",
 		Description: "Назначено окно плановых технических работ в системе.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh,
+		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 10,
 	},
 	NotificationTypeTrashRestored: {
 		Code: NotificationTypeTrashRestored, Category: NotificationCategorySystem,
 		Label:       "Запись восстановлена из корзины",
 		Description: "Запись из вашей заявки вернули из корзины.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal,
+		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal, Order: 40,
 	},
 	NotificationTypeArchiveQuotaWarning: {
 		Code: NotificationTypeArchiveQuotaWarning, Category: NotificationCategorySystem,
 		Label:       "Файловый архив заполняется",
 		Description: "Файловый архив приближается к границе выделенного места на диске.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh,
+		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 50, Permission: KeyActionManageFileArchive,
 	},
 	NotificationTypeDirectoryPending: {
 		Code: NotificationTypeDirectoryPending, Category: NotificationCategorySystem,
 		Label:       "Запись справочника на проверке",
 		Description: "Подача заявки завела в справочнике организацию или компанию, которую нужно разобрать.",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityNormal,
+		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityNormal, Order: 20, Permission: KeyApplicationOrganizationModerate,
 	},
 	NotificationTypeDirectoryResolved: {
 		Code: NotificationTypeDirectoryResolved, Category: NotificationCategorySystem,
 		Label:       "Запись справочника разобрана",
 		Description: "Запись справочника, которую вы завели, разобрали (подтвердили, исправили или связали с другой).",
-		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal,
+		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal, Order: 30,
 	},
 }
 
@@ -306,6 +312,13 @@ func NotificationCatalog() []NotificationMeta {
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Category != out[j].Category {
 			return rank[out[i].Category] < rank[out[j].Category]
+		}
+		// Внутри категории - по заданному вручную порядку важности и частоты
+		// (Order), а не по алфавиту: на экране настроек сверху должно лежать то,
+		// что происходит каждый день. Код сравнивается только при равных Order,
+		// чтобы порядок оставался устойчивым.
+		if out[i].Order != out[j].Order {
+			return out[i].Order < out[j].Order
 		}
 		return out[i].Code < out[j].Code
 	})

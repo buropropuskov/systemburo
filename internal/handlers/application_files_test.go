@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
@@ -373,10 +374,10 @@ func TestApplicationFiles_ImageShrunkAndExifDropped(t *testing.T) {
 	require.Equal(t, 2000, cfg.Width, "длинная сторона ограничена")
 }
 
-// TestApplicationFiles_DeletedByApplicantUntilClosed: заявитель убирает свой файл из
-// открытой заявки, посторонний не может, а из закрытой не может и сам заявитель -
-// её состав уже стал основанием для выданного пропуска.
-func TestApplicationFiles_DeletedByApplicantUntilClosed(t *testing.T) {
+// TestApplicationFiles_DeletedByAdminOnly: состав заявки после подачи неизменен -
+// приложенный файл не убирает даже её автор. Удаление оставлено администратору как
+// способ вычистить приложенное вопреки подписи поля (скан паспорта).
+func TestApplicationFiles_DeletedByAdminOnly(t *testing.T) {
 	e, db, uploadDir, cleanup := testutil.SetupTestAppWithUploads(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -392,23 +393,21 @@ func TestApplicationFiles_DeletedByApplicantUntilClosed(t *testing.T) {
 
 	path := fmt.Sprintf("/applications/%d/files/%d", appID, file.ID)
 
-	// Посторонний не видит заявку и не удаляет её файл.
+	// Посторонний не видит заявку - отказ ещё на доступе к ней.
 	r := testutil.DELETE(t, e, path, testutil.AuthHeader(strangerToken))
 	require.Equal(t, http.StatusForbidden, r.Code, r.Body.String())
 
-	// Закрытая заявка запирает состав даже для заявителя.
-	require.NoError(t, db.Exec("UPDATE applications SET status = ? WHERE id = ?", models.StatusCompleted, appID).Error)
+	// Автор заявку видит, но состав менять не вправе: права администрирования у него нет.
 	r = testutil.DELETE(t, e, path, testutil.AuthHeader(ownerToken))
-	require.Equal(t, http.StatusBadRequest, r.Code, r.Body.String())
-
-	require.NoError(t, db.Exec("UPDATE applications SET status = ? WHERE id = ?", models.StatusProcessing, appID).Error)
+	require.Equal(t, http.StatusForbidden, r.Code, r.Body.String())
 
 	var stored models.ApplicationFile
 	require.NoError(t, db.First(&stored, file.ID).Error)
 	onDisk := filepath.Join(uploadDir, "application_files", stored.StoredName)
 	require.FileExists(t, onDisk)
 
-	r = testutil.DELETE(t, e, path, testutil.AuthHeader(ownerToken))
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	r = testutil.DELETE(t, e, path, testutil.AuthHeader(adminToken))
 	require.Equal(t, http.StatusOK, r.Code, r.Body.String())
 
 	var left int64
@@ -457,4 +456,43 @@ func TestApplicationFiles_DiskOrphanSwept(t *testing.T) {
 	var stored models.ApplicationFile
 	require.NoError(t, db.First(&stored, kept.ID).Error)
 	require.FileExists(t, filepath.Join(dir, stored.StoredName))
+}
+
+// TestApplicationFiles_ListingFlagsApplicationWithFiles: в списке Центра заявка с
+// приложенными файлами помечается признаком - по нему рисуется скрепка в строке.
+// Заявка без файлов признак не получает, иначе скрепка висела бы у всех.
+func TestApplicationFiles_ListingFlagsApplicationWithFiles(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "listflag", "pass123", 1, td.OrgID, td.CompanyID)
+
+	withFile := uploadDraftFile(t, e, token, "разрешение.png", realPNG(t))
+	rec := submitWithFiles(t, e, db, token, "flagged", []int{withFile.ID})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	flaggedID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
+
+	rec = submitWithFiles(t, e, db, token, "plain", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	plainID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
+
+	listRec := testutil.GET(t, e, "/applications?limit=50", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, listRec.Code, listRec.Body.String())
+
+	var payload struct {
+		Data []struct {
+			ID       int  `json:"id"`
+			HasFiles bool `json:"has_files"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(listRec.Body.Bytes(), &payload))
+
+	flags := map[int]bool{}
+	for _, row := range payload.Data {
+		flags[row.ID] = row.HasFiles
+	}
+	require.True(t, flags[flaggedID], "заявка с файлом должна быть помечена")
+	require.False(t, flags[plainID], "заявка без файлов пометки не получает")
 }

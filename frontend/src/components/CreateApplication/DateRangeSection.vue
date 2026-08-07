@@ -565,18 +565,21 @@ export default {
             const btn = this.$refs.qdTrigger;
             if (!btn) return;
             // Меню телепортится в body внутри зазумленного <html> - rect (device-px)
-            // приводим к layout-px делением на zoom; width/клэмп - константы в layout-px,
-            // их НЕ делим.
+            // приводим к layout-px делением на zoom; отступ от края - константа в
+            // layout-px, её НЕ делим.
             const z = getViewportZoom();
             const r = btn.getBoundingClientRect();
-            const width = 230;
-            const left = Math.max(8, r.right / z - width);
+            const gutter = 8;
+            const viewportWidth = window.innerWidth / z;
+            // Крепим меню правым краем к правому краю триггера: ширина у меню по
+            // содержимому (строка длиннее у длинных месяцев), заранее её не знаем.
+            const right = Math.max(gutter, viewportWidth - r.right / z);
             this.qdMenuStyle = {
                 position: 'fixed',
                 top: `${Math.round(r.bottom / z + 6)}px`,
-                left: `${Math.round(left)}px`,
-                right: 'auto',
-                width: `${width}px`,
+                left: 'auto',
+                right: `${Math.round(right)}px`,
+                maxWidth: `${Math.round(viewportWidth - right - gutter)}px`,
                 zIndex: 12000
             };
             this.showQuickMenu = true;
@@ -1184,7 +1187,11 @@ export default {
     top: calc(100% + 6px);
     right: 0;
     z-index: 1001;
-    width: 230px;
+    /* Ширина по содержимому: "На сентябрь 01.09.2026 - 30.09.2026" в фиксированные
+       230px не влезала и вылезала за границу меню. min-width держит форму на
+       коротких месяцах ("На май"), max-width задаётся из JS по месту до края экрана. */
+    width: max-content;
+    min-width: 230px;
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -1214,16 +1221,22 @@ export default {
     background: var(--accent-tint);
 }
 
+/* Если места до края экрана не хватило - режем многоточием название периода,
+   дату оставляем целой: ради неё пункт и читают. */
 .qd-item__label {
     font-size: 13px;
     color: var(--text);
     white-space: nowrap;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .qd-item__date {
     font-size: 11px;
     color: var(--text-muted);
     white-space: nowrap;
+    flex: none;
 }
 
 .qd-sep {

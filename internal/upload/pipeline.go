@@ -106,7 +106,9 @@ func saveOne(fh *multipart.FileHeader, opts Options) (SavedFile, error) {
 	// уходит в jpeg, потому что кодера webp нет.
 	var content io.Reader = src
 	size := fh.Size
-	stored := detected
+	// Офисные форматы неразличимы по сигнатуре (все они zip), поэтому тип
+	// уточняется по имени: иначе таблица сохраняется как текстовый документ.
+	stored := OfficeMimeByName(detected, fh.Filename)
 	if opts.Normalize != nil && imaging.Normalizable(detected) {
 		data, outMime, err := imaging.Normalize(src, detected, *opts.Normalize)
 		if err != nil {

@@ -182,7 +182,13 @@ func main() {
 	// сигнала "notification.new" передаётся в конструктор опцией, поэтому хаб
 	// должен существовать раньше. Конструктор Hub ни от чего не зависит.
 	eventsHub := realtime.NewHub()
-	notificationServiceEarly := services.NewNotificationService(db, services.WithNotificationRealtimePublisher(eventsHub))
+	// Резолвер прав поднимается до уведомлений (#1748): экран настроек прячет типы,
+	// которых человек не получит по правам, и резолвер нужен сервису при создании.
+	permissionResolver := services.NewPermissionResolver(db)
+	permissionResolver.SetRealtimePublisher(eventsHub) // #840: смена роли/группы/override -> user.permissions
+	notificationServiceEarly := services.NewNotificationService(db,
+		services.WithNotificationRealtimePublisher(eventsHub),
+		services.WithNotificationPermissionResolver(permissionResolver))
 	// authService создаётся после notificationService (#1748 S3): уведомление о
 	// блокировке входа передаётся в конструктор опцией.
 	authService := services.NewAuthService(db, cfg.JWTSecret, cfg.JWTRefreshSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL, services.WithAuthNotifications(notificationServiceEarly))
@@ -196,8 +202,6 @@ func main() {
 	unloadPlaceService := services.NewUnloadPlaceService(db)
 	bureauService := services.NewBureauService(db)
 	auditRecorder := services.NewAuditRecorder(db)
-	permissionResolver := services.NewPermissionResolver(db)
-	permissionResolver.SetRealtimePublisher(eventsHub) // #840: смена роли/группы/override -> user.permissions
 	// Продюсер real-time сигналов обновления таблиц проходной (#840 V2.2/V2.3):
 	// аудитория считается по праву table.<name>.view (нужен резолвер), сигнал шлётся
 	// через хаб. Инжектится в car/employee/application-сервисы - точки, где строки
@@ -261,7 +265,7 @@ func main() {
 	vehicleBlacklistService := services.NewVehicleBlacklistService(db, blacklistAuditRecorder)
 	personBlacklistService := services.NewPersonBlacklistService(db, blacklistAuditRecorder)
 	applicationFileService := services.NewApplicationFileService(db, cfg.UploadPath, auditRecorder)
-	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithRealtimePublisher(eventsHub), services.WithApplicationTablesProducer(tablesRefreshProducer), services.WithApplicationAvailableProducer(availableRefreshProducer), services.WithApplicationPermissionResolver(permissionResolver), services.WithApplicationFiles(applicationFileService))
+	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithRealtimePublisher(eventsHub), services.WithApplicationTablesProducer(tablesRefreshProducer), services.WithApplicationAvailableProducer(availableRefreshProducer), services.WithApplicationPermissionResolver(permissionResolver), services.WithApplicationFiles(applicationFileService, cfg.ApplicationFileMaxCount, cfg.ApplicationFileMaxTotal))
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, cfg.UploadPath)
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)

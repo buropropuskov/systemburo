@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"slices"
 	"time"
 
 	"systemburo/internal/apperr"
@@ -34,16 +33,18 @@ type ApplicationFileService interface {
 	DraftUsage(ctx context.Context, userID int) (count int64, totalSize int64, err error)
 	// Attach привязывает черновики пользователя к созданной заявке. Вызывается
 	// внутри транзакции подачи: файл, не найденный среди черновиков автора,
-	// откатывает подачу целиком.
-	Attach(tx *gorm.DB, userID, applicationID int, fileIDs []int) error
+	// откатывает подачу целиком. Здесь же проверяются пределы заявки - считать их
+	// при загрузке нельзя, черновики копятся от всех незавершённых подач.
+	Attach(tx *gorm.DB, userID, applicationID int, fileIDs []int, maxCount int, maxTotal int64) error
 	// ListByApplication возвращает файлы заявки. Доступ проверяет вызывающий.
 	ListByApplication(ctx context.Context, applicationID int) ([]models.ApplicationFileItem, error)
 	// Locate возвращает строку файла заявки и путь к нему на диске.
 	Locate(ctx context.Context, applicationID, fileID int) (models.ApplicationFile, string, error)
-	// DeleteAttached убирает приложенный к заявке файл. Заявитель вправе снять свой
-	// документ, пока заявка не закрыта; супер-администратор - в любой момент, это
-	// способ убрать то, что приложили вопреки подписи поля (скан паспорта).
-	DeleteAttached(ctx context.Context, userID int, isSuperAdmin bool, applicationID, fileID int) error
+	// DeleteAttached убирает приложенный к заявке файл. Право проверяет роутер
+	// (page.admin): состав заявки после подачи неизменен, а удаление нужно как
+	// способ вычистить приложенное вопреки подписи поля (скан паспорта). Решение
+	// владельца - заявителю после отправки состав не менять.
+	DeleteAttached(ctx context.Context, userID int, applicationID, fileID int) error
 	// SweepOrphans убирает черновики старше olderThan вместе с файлами на диске.
 	SweepOrphans(ctx context.Context, olderThan time.Duration) (int, error)
 	// SweepDiskOrphans убирает файлы на диске, которым не соответствует ни одна
@@ -139,9 +140,23 @@ func (s *applicationFileService) DraftUsage(ctx context.Context, userID int) (in
 	return row.Count, row.Total, nil
 }
 
-func (s *applicationFileService) Attach(tx *gorm.DB, userID, applicationID int, fileIDs []int) error {
+func (s *applicationFileService) Attach(tx *gorm.DB, userID, applicationID int, fileIDs []int, maxCount int, maxTotal int64) error {
 	if len(fileIDs) == 0 {
 		return nil
+	}
+	if maxCount > 0 && len(fileIDs) > maxCount {
+		return apperr.Validation(fmt.Sprintf("К заявке можно приложить не больше %d файлов", maxCount))
+	}
+	if maxTotal > 0 {
+		var total int64
+		if err := tx.Model(&models.ApplicationFile{}).
+			Where("id IN ? AND uploaded_by = ?", fileIDs, userID).
+			Select("COALESCE(SUM(file_size), 0)").Scan(&total).Error; err != nil {
+			return apperr.Internal("Не удалось посчитать размер файлов")
+		}
+		if total > maxTotal {
+			return apperr.Validation(fmt.Sprintf("Общий размер файлов заявки не больше %d МБ", maxTotal/1024/1024))
+		}
 	}
 
 	res := tx.Model(&models.ApplicationFile{}).
@@ -189,7 +204,7 @@ func (s *applicationFileService) Locate(ctx context.Context, applicationID, file
 	return file, filepath.Join(s.dir, file.StoredName), nil
 }
 
-func (s *applicationFileService) DeleteAttached(ctx context.Context, userID int, isSuperAdmin bool, applicationID, fileID int) error {
+func (s *applicationFileService) DeleteAttached(ctx context.Context, userID int, applicationID, fileID int) error {
 	var file models.ApplicationFile
 	err := s.db.WithContext(ctx).
 		Where("id = ? AND application_id = ?", fileID, applicationID).
@@ -199,29 +214,6 @@ func (s *applicationFileService) DeleteAttached(ctx context.Context, userID int,
 	}
 	if err != nil {
 		return apperr.Internal("Не удалось прочитать файл")
-	}
-
-	if !isSuperAdmin {
-		var app struct {
-			Status       *string
-			SenderUserID int
-		}
-		res := s.db.WithContext(ctx).
-			Raw("SELECT status, sender_user_id FROM applications WHERE id = ?", applicationID).Scan(&app)
-		if res.Error != nil {
-			return apperr.Internal("Не удалось прочитать заявку")
-		}
-		if res.RowsAffected == 0 {
-			return apperr.NotFound("Заявка не найдена")
-		}
-		if app.SenderUserID != userID {
-			return apperr.Forbidden("Убрать файл может подавший заявку")
-		}
-		// Из закрытой заявки документ не вынуть: она уже отработана, и её состав -
-		// то, на основании чего выдавали пропуск.
-		if app.Status != nil && slices.Contains(models.ArchivableStatuses, *app.Status) {
-			return apperr.Validation("Заявка закрыта, файлы менять нельзя")
-		}
 	}
 
 	if err := s.db.WithContext(ctx).Delete(&models.ApplicationFile{}, file.ID).Error; err != nil {

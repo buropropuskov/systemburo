@@ -662,11 +662,6 @@ func (s *employeeService) UpdateEmployeeTerritoryStatus(ctx context.Context, emp
 	// (#840 V2.3).
 	s.tablesProducer.NotifyEmployeeChanged(ctx, employeeID)
 
-	// Первый проход по заявке (#1748, S4) - только на въезд, только если сотрудник
-	// вообще пришёл из заявки (у ручного добавления в таблицу проходной её нет).
-	if actionType == "entry" && employee.AttachmentID != nil {
-		notifyFirstPassage(ctx, s.db, s.notificationService, *employee.AttachmentID)
-	}
 	return nil
 }
 

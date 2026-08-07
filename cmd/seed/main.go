@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"systemburo/internal/database"
+	"systemburo/internal/models"
 	"systemburo/internal/normalize"
 
 	"golang.org/x/crypto/argon2"
@@ -181,5 +182,28 @@ func seedE2EUsers(db *gorm.DB, orgID, compID, buroTypeID int) {
 		log.Fatalf("Failed to mark buropropuskov onboarding done: %v", res.Error)
 	}
 
+	markAllToursCompleted(db, onboardingDoneVersion, "e2e_admin", "e2e_user", "buropropuskov")
+
 	fmt.Printf("E2E users seeded: e2e_admin (type_id=%d), e2e_user (type_id=%d), password=%s\n", buroTypeID, userTypeID, e2ePassword)
+}
+
+// markAllToursCompleted помечает пройденными ВСЕ туры перечисленных учёток. Туров
+// стало пять и прогресс у каждого свой (#1737): пометить один - значит оставить
+// остальные непройденными, а любой автозапуск перекрывает интерфейс оверлеем и валит
+// клики чужих E2E-тестов (#657). Идемпотентно, версию только поднимает.
+func markAllToursCompleted(db *gorm.DB, version int, usernames ...string) {
+	const q = `
+		INSERT INTO user_onboarding_progress (user_id, tour_key, completed_version, completed_at)
+		SELECT id, ?, ?, NOW() FROM users WHERE username = ?
+		ON CONFLICT (user_id, tour_key) DO UPDATE
+		SET completed_version = EXCLUDED.completed_version,
+		    completed_at = EXCLUDED.completed_at
+		WHERE user_onboarding_progress.completed_version < EXCLUDED.completed_version`
+	for _, username := range usernames {
+		for _, tour := range models.TourKeys {
+			if res := db.Exec(q, tour, version, username); res.Error != nil {
+				log.Fatalf("Failed to mark onboarding tour %q done for %s: %v", tour, username, res.Error)
+			}
+		}
+	}
 }

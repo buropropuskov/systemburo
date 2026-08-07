@@ -51,8 +51,9 @@ type NotificationService interface {
 }
 
 type notificationService struct {
-	db                *gorm.DB
-	realtimePublisher realtime.Publisher
+	db                 *gorm.DB
+	realtimePublisher  realtime.Publisher
+	permissionResolver *PermissionResolver
 }
 
 // NotificationServiceOption конфигурирует notificationService при создании.
@@ -64,6 +65,13 @@ type NotificationServiceOption func(*notificationService)
 // шлются (тесты, offline).
 func WithNotificationRealtimePublisher(p realtime.Publisher) NotificationServiceOption {
 	return func(s *notificationService) { s.realtimePublisher = p }
+}
+
+// WithNotificationPermissionResolver подключает резолвер прав: по нему экран
+// настроек прячет типы, которых человек всё равно не получит (#1748). Опционально,
+// nil-safe: без резолвера показываются все ненулевые типы.
+func WithNotificationPermissionResolver(r *PermissionResolver) NotificationServiceOption {
+	return func(s *notificationService) { s.permissionResolver = r }
 }
 
 // NewNotificationService создаёт реализацию NotificationService.
@@ -395,8 +403,30 @@ func (s *notificationService) GetPreferences(ctx context.Context, userID int) ([
 		overrides[p.TypeCode] = p.Enabled
 	}
 
+	// Гейт по правам: тип, для которого у человека нет права, на экран не попадает.
+	// Заявителю незачем настраивать уведомления о заполнении файлового архива или о
+	// новых обращениях обратной связи - он их всё равно не получит, а переключатель
+	// создаёт впечатление, что получит. Резолвер не подключён (тесты, offline) -
+	// показываем всё, кроме скрытых: лучше лишний переключатель, чем пустой экран.
+	var granted PermissionSet
+	haveGranted := false
+	if s.permissionResolver != nil {
+		set, err := s.permissionResolver.Resolve(ctx, userID)
+		if err != nil {
+			slog.Warn("настройки уведомлений: не удалось резолвить права", "user_id", userID, "error", err)
+		} else {
+			granted, haveGranted = set, true
+		}
+	}
+
 	byCategory := make(map[NotificationCategory][]models.NotificationPreferenceItem)
 	for _, meta := range NotificationCatalog() {
+		if meta.HiddenInSettings {
+			continue
+		}
+		if meta.Permission != "" && haveGranted && !granted.Has(meta.Permission) {
+			continue
+		}
 		enabled := meta.DefaultEnabled
 		if v, ok := overrides[meta.Code]; ok {
 			enabled = v
@@ -417,6 +447,11 @@ func (s *notificationService) GetPreferences(ctx context.Context, userID int) ([
 
 	out := make([]models.NotificationPreferenceCategory, 0, len(notificationCategoryOrder))
 	for _, cat := range NotificationCategories() {
+		// Категория, из которой права и скрытие вымели все типы, на экран не идёт -
+		// иначе останется пустой заголовок без единой строки.
+		if len(byCategory[cat]) == 0 {
+			continue
+		}
 		out = append(out, models.NotificationPreferenceCategory{
 			Category: string(cat),
 			Items:    byCategory[cat],
