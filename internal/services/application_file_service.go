@@ -33,8 +33,9 @@ type ApplicationFileService interface {
 	DraftUsage(ctx context.Context, userID int) (count int64, totalSize int64, err error)
 	// Attach привязывает черновики пользователя к созданной заявке. Вызывается
 	// внутри транзакции подачи: файл, не найденный среди черновиков автора,
-	// откатывает подачу целиком.
-	Attach(tx *gorm.DB, userID, applicationID int, fileIDs []int) error
+	// откатывает подачу целиком. Здесь же проверяются пределы заявки - считать их
+	// при загрузке нельзя, черновики копятся от всех незавершённых подач.
+	Attach(tx *gorm.DB, userID, applicationID int, fileIDs []int, maxCount int, maxTotal int64) error
 	// ListByApplication возвращает файлы заявки. Доступ проверяет вызывающий.
 	ListByApplication(ctx context.Context, applicationID int) ([]models.ApplicationFileItem, error)
 	// Locate возвращает строку файла заявки и путь к нему на диске.
@@ -139,9 +140,23 @@ func (s *applicationFileService) DraftUsage(ctx context.Context, userID int) (in
 	return row.Count, row.Total, nil
 }
 
-func (s *applicationFileService) Attach(tx *gorm.DB, userID, applicationID int, fileIDs []int) error {
+func (s *applicationFileService) Attach(tx *gorm.DB, userID, applicationID int, fileIDs []int, maxCount int, maxTotal int64) error {
 	if len(fileIDs) == 0 {
 		return nil
+	}
+	if maxCount > 0 && len(fileIDs) > maxCount {
+		return apperr.Validation(fmt.Sprintf("К заявке можно приложить не больше %d файлов", maxCount))
+	}
+	if maxTotal > 0 {
+		var total int64
+		if err := tx.Model(&models.ApplicationFile{}).
+			Where("id IN ? AND uploaded_by = ?", fileIDs, userID).
+			Select("COALESCE(SUM(file_size), 0)").Scan(&total).Error; err != nil {
+			return apperr.Internal("Не удалось посчитать размер файлов")
+		}
+		if total > maxTotal {
+			return apperr.Validation(fmt.Sprintf("Общий размер файлов заявки не больше %d МБ", maxTotal/1024/1024))
+		}
 	}
 
 	res := tx.Model(&models.ApplicationFile{}).

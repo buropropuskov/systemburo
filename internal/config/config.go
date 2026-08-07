@@ -42,8 +42,8 @@ type Config struct {
 	// UPLOAD_MAX_FILE_SIZE, здесь - сколько их на заявку и сколько всего. Потолок
 	// суммы нужен отдельно от количества: десять файлов по десять мегабайт
 	// упрутся в client_max_body_size nginx и оборвутся уже на прокси.
-	ApplicationFileMaxCount int   `env:"APPLICATION_FILE_MAX_COUNT" envDefault:"10"`
-	ApplicationFileMaxTotal int64 `env:"APPLICATION_FILE_MAX_TOTAL_SIZE" envDefault:"31457280"`
+	ApplicationFileMaxCount int   `env:"APPLICATION_FILE_MAX_COUNT" envDefault:"30"`
+	ApplicationFileMaxTotal int64 `env:"APPLICATION_FILE_MAX_TOTAL_SIZE" envDefault:"104857600"`
 	// ApplicationFileDraftTTL - сколько живёт загруженный, но так и не приложенный
 	// к заявке файл: заявитель выбрал файлы и закрыл форму, не отправив её.
 	ApplicationFileDraftTTL time.Duration `env:"APPLICATION_FILE_DRAFT_TTL" envDefault:"24h"`

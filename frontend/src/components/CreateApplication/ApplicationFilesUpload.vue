@@ -136,12 +136,20 @@ function ext(file) {
   return raw.length > 4 || raw === file.file_name.toLowerCase() ? 'файл' : raw;
 }
 
-/** Семейство формата - для цвета плашки, как у вложений в почте. */
+/** Семейство формата по расширению имени: офисные типы по сигнатуре неразличимы. */
 function kind(file) {
+  const byName = {
+    xlsx: 'sheet', xls: 'sheet', csv: 'sheet',
+    docx: 'doc', doc: 'doc',
+    pdf: 'pdf',
+    png: 'image', jpg: 'image', jpeg: 'image', webp: 'image', gif: 'image',
+    pptx: 'slides', ppt: 'slides',
+  }[(file.file_name.split('.').pop() || '').toLowerCase()];
+  if (byName) return byName;
+
   if ((file.mime_type || '').startsWith('image/')) return 'image';
   if (file.mime_type === 'application/pdf') return 'pdf';
   if (/sheet|excel/.test(file.mime_type || '')) return 'sheet';
-  if (/word|document/.test(file.mime_type || '')) return 'doc';
   return 'other';
 }
 
@@ -241,6 +249,7 @@ defineExpose({ reset });
 .app-files__ext--image { background: #2e86c1; }
 .app-files__ext--sheet { background: #1e8449; }
 .app-files__ext--doc { background: #2874a6; }
+.app-files__ext--slides { background: #d35400; }
 
 .app-files__meta {
     display: flex;
