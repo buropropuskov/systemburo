@@ -52,6 +52,15 @@ const PushSendTimeout = 10 * time.Second
 // показывать вовсе, чем доставить с большим опозданием и без контекста.
 const pushMessageTTLSeconds = 24 * 60 * 60
 
+// pushMessageUrgency -- заголовок Urgency (RFC 8030): при какой степени экономии
+// заряда push-служба всё ещё будит устройство. Без заголовка сообщение считается
+// "normal" и на телефоне с низким зарядом придерживается до следующего пробуждения,
+// а уведомление о заявке нужно человеку тогда же, когда оно случилось - в этом весь
+// смысл доставки наружу. На вид уведомления (всплывающий баннер) заголовок не влияет
+// никак: всплытие решает система по важности своего канала уведомлений, сайту она
+// не подчиняется - проверено на Samsung в двух браузерах, см. #974.
+const pushMessageUrgency = webpush.UrgencyHigh
+
 // pushMaxConcurrentDeliveries -- общий на весь pushService потолок ОДНОВРЕМЕННЫХ
 // исходящих запросов к push-сервисам (не на пользователя и не на одну рассылку).
 // Без предела уведомление о новости на пару сотен активных пользователей открыло бы
@@ -316,6 +325,7 @@ func (s *pushService) deliver(ctx context.Context, sub models.PushSubscription, 
 		HTTPClient:      s.httpClient,
 		Subscriber:      s.subscriber,
 		TTL:             pushMessageTTLSeconds,
+		Urgency:         pushMessageUrgency,
 		VAPIDPublicKey:  s.publicKey,
 		VAPIDPrivateKey: s.privateKey,
 	})
