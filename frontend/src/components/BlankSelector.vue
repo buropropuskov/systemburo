@@ -74,12 +74,14 @@
           name="attachment"
           tag="div"
           class="attachments-list"
+          data-testid="ob-blank-list"
         >
           <div
             v-for="attachment in getCategoryAttachments(category)"
             :key="getAttachmentKey(attachment)"
             class="attachment"
             :class="{ selected: isSelected(attachment), editing: isEditing(attachment) }"
+
             @click="selectAttachment(attachment, $event)"
             @mouseenter="handleMouseEnter(attachment, $event)"
             @mouseleave="handleMouseLeave"
