@@ -61,13 +61,16 @@
             class="form__message-tc"
             :rows="3"
             placeholder="Введите сопроводительное письмо / сообщение"
-          />
+          >
+            <template #attachments>
+              <ApplicationFilesUpload
+                ref="filesUpload"
+                v-model="applicationFileIds"
+              />
+            </template>
+          </TextConstructor>
           <!-- Согласие и отправка — правая колонка шапки, рядом с полем сообщения -->
           <div class="form__submit-bar">
-            <ApplicationFilesUpload
-              ref="filesUpload"
-              v-model="applicationFileIds"
-            />
             <div class="consent-section">
               <div class="consent-checkbox">
                 <input

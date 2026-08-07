@@ -9,6 +9,7 @@
       :key="file.id"
       type="button"
       class="app-files-strip__tile"
+      :class="`app-files-strip__tile--${kind(file)}`"
       data-testid="application-file-item"
       :title="`${file.file_name} — ${formatBytes(file.file_size)}`"
       :disabled="downloadingId === file.id"
@@ -161,6 +162,28 @@ watch(() => props.applicationId, load);
 .app-files-strip__ext--image { background: #2e86c1; }
 .app-files-strip__ext--sheet { background: #1e8449; }
 .app-files-strip__ext--doc { background: #2874a6; }
+
+/* Плитка окрашена в тон своего формата: прозрачная заливка поверх поверхности
+   держит контраст и в светлой, и в тёмной теме, в отличие от сплошного цвета. */
+.app-files-strip__tile--pdf {
+    border-color: rgba(192, 57, 43, 0.45);
+    background: rgba(192, 57, 43, 0.10);
+}
+
+.app-files-strip__tile--image {
+    border-color: rgba(46, 134, 193, 0.45);
+    background: rgba(46, 134, 193, 0.10);
+}
+
+.app-files-strip__tile--sheet {
+    border-color: rgba(30, 132, 73, 0.45);
+    background: rgba(30, 132, 73, 0.10);
+}
+
+.app-files-strip__tile--doc {
+    border-color: rgba(40, 116, 166, 0.45);
+    background: rgba(40, 116, 166, 0.10);
+}
 
 .app-files-strip__meta {
     display: flex;

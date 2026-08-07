@@ -745,7 +745,6 @@
                         stroke-linecap="round"
                         stroke-linejoin="round"
                       ><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
-                      <span class="rt-tag__text">Файлы</span>
                     </Badge>
                     <Badge
                       v-if="application.has_unseen_questions"
@@ -3066,12 +3065,19 @@ export default {
     position: relative;
 }
 
-/* Файлы - серый тег: признак справочный, внимания к себе не требует, в отличие
-   от чёрного списка и новых вопросов. */
+/* Файлы - серая скрепка без подписи: признак справочный, внимания к себе не
+   требует, в отличие от чёрного списка и новых вопросов. Подпись убрана - иконка
+   читается сама, а строка списка и без того плотная. */
 .rt-tag--files {
     color: var(--text-muted);
     border-color: var(--border);
     background: var(--surface);
+    padding-left: 6px;
+    padding-right: 6px;
+}
+
+.rt-tag--files .rt-tag__icon {
+    margin: 0;
 }
 
 .rt-tag__q-dot {

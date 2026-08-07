@@ -103,3 +103,30 @@ describe('ApplicationFiles: вид плитки', () => {
         expect(wrapper.find('.app-files-strip__ext').classes()).toContain('app-files-strip__ext--image');
     });
 });
+
+// Плитка красится в тон своего формата - взгляд отличает pdf от снимка, не читая имя.
+describe('ApplicationFiles: цвет по типу', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it('плитка pdf получает класс своего формата', async () => {
+        fetchMock.mockResolvedValue([file]);
+        const wrapper = mount(ApplicationFiles, { props: { applicationId: 42 } });
+        await flushPromises();
+
+        expect(wrapper.find('[data-testid="application-file-item"]').classes())
+            .toContain('app-files-strip__tile--pdf');
+    });
+
+    it('снимок и таблица красятся по-разному', async () => {
+        fetchMock.mockResolvedValue([
+            { id: 1, file_name: 'скан.png', file_size: 10, mime_type: 'image/png' },
+            { id: 2, file_name: 'смета.xlsx', file_size: 20, mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+        ]);
+        const wrapper = mount(ApplicationFiles, { props: { applicationId: 42 } });
+        await flushPromises();
+
+        const tiles = wrapper.findAll('[data-testid="application-file-item"]');
+        expect(tiles[0].classes()).toContain('app-files-strip__tile--image');
+        expect(tiles[1].classes()).toContain('app-files-strip__tile--sheet');
+    });
+});

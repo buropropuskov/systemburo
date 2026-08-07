@@ -1,9 +1,5 @@
 <template>
   <div class="app-files">
-    <div class="app-files__head">
-      <span class="app-files__label">Файлы к заявке</span>
-    </div>
-
     <div class="app-files__controls">
       <input
         ref="fileInput"
@@ -15,14 +11,25 @@
       >
       <button
         type="button"
-        class="lk-button lk-button--secondary app-files__add"
+        class="app-files__add"
         :disabled="uploading || files.length >= maxCount"
         data-testid="app-files-add"
+        :title="`Прикрепить файл (${files.length} из ${maxCount})`"
         @click="$refs.fileInput.click()"
       >
-        {{ uploading ? 'Загрузка...' : 'Прикрепить' }}
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        ><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
+        <span>{{ uploading ? 'Загрузка...' : 'Прикрепить' }}</span>
       </button>
-      <span class="app-files__counter">{{ files.length }} из {{ maxCount }}</span>
     </div>
 
     <TransitionGroup
@@ -154,61 +161,59 @@ defineExpose({ reset });
 <style scoped>
 .app-files {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.app-files__head {
-    display: flex;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
 }
 
-.app-files__label {
-    font-size: 13px;
-    color: var(--text-muted);
-}
+
 
 .app-files__controls {
     display: flex;
     align-items: center;
-    gap: 8px;
 }
 
 /* Кнопка компактная: она лишь открывает выбор файла и не должна спорить по весу
    с «Отправить заявку» в той же колонке. */
 .app-files__add {
-    padding: 4px 10px;
-    font-size: 12px;
-    line-height: 18px;
-    min-height: 26px;
-    /* По содержимому, а не во всю ширину столбца: общий стиль кнопок формы
-       растягивает их, и рядом с «Отправить заявку» выходили две кнопки одного веса. */
-    width: fit-content;
-    align-self: flex-start;
-    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 16px;
+    cursor: pointer;
+}
+
+.app-files__add:hover:not(:disabled) {
+    color: var(--text);
+    border-color: var(--text-muted);
+}
+
+.app-files__add:disabled {
+    opacity: 0.5;
+    cursor: default;
 }
 
 .app-files__input {
     display: none;
 }
 
-.app-files__counter {
-    font-size: 12px;
-    color: var(--text-muted);
-}
 
 .app-files__list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    display: contents;
 }
 
 .app-files__item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    max-width: 220px;
-    padding: 6px 10px 6px 6px;
+    gap: 6px;
+    max-width: 190px;
+    padding: 3px 8px 3px 4px;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--surface);
@@ -216,8 +221,8 @@ defineExpose({ reset });
 
 .app-files__ext {
     flex-shrink: 0;
-    width: 32px;
-    height: 32px;
+    width: 24px;
+    height: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
