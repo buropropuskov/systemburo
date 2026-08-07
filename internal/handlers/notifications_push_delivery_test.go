@@ -266,6 +266,15 @@ func TestPushService_Send_RespectsConcurrencyLimit(t *testing.T) {
 		peak    int32
 	)
 	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseHandlers := func() { releaseOnce.Do(func() { close(release) }) }
+	// defer СРАЗУ после создания канала, а не только явный close() ниже по телу теста:
+	// если require.Eventually упадёт по таймауту (FailNow), явный close() ниже так и
+	// не выполнится, обработчики останутся висеть на <-release навсегда, а
+	// httptest.Server.Close() (тоже defer) будет ждать их вечно и повесит весь пакет
+	// (найдено ревью team-lead на предыдущей версии теста).
+	defer releaseHandlers()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n := atomic.AddInt32(&current, 1)
 		mu.Lock()
@@ -285,7 +294,12 @@ func TestPushService_Send_RespectsConcurrencyLimit(t *testing.T) {
 
 	for i := 0; i < totalUsers; i++ {
 		uid := seedPushUser(t, db, td, fmt.Sprintf("push_concurrency_%d", i))
-		seedSubscription(t, db, uid, srv.URL)
+		// Endpoint ОБЯЗАН быть уникальным на пользователя: одинаковый srv.URL у всех
+		// схлопнул бы полсотни подписок в одну строку через ON CONFLICT (endpoint) в
+		// Subscribe (намеренное поведение "endpoint переезжает на нового владельца",
+		// см. push_service.go) - тест тогда проверял бы одну одновременную доставку
+		// вместо пятидесяти (найдено ревью team-lead).
+		seedSubscription(t, db, uid, fmt.Sprintf("%s/ep-%d", srv.URL, i))
 		svc.Send(context.Background(), uid, services.PushPayload{Title: "T", Message: "M", Type: "application_created", NotificationID: 1})
 	}
 
@@ -293,7 +307,7 @@ func TestPushService_Send_RespectsConcurrencyLimit(t *testing.T) {
 		return atomic.LoadInt32(&current) >= pushMaxConcurrentDeliveries
 	}, 5*time.Second, 10*time.Millisecond, "пул должен насытиться под нагрузкой в pushMaxConcurrentDeliveries запросов")
 
-	close(release)
+	releaseHandlers()
 
 	require.Eventually(t, func() bool {
 		return atomic.LoadInt32(&current) == 0
@@ -342,23 +356,32 @@ func TestPushService_Shutdown_WaitsForInFlightSend(t *testing.T) {
 // TestPushService_Shutdown_GivesUpAfterGracePeriod: если отправка виснет дольше
 // отведённого срока (зависший push-сервис), Shutdown не ждёт вечно - возвращается по
 // истечении ctx, как и предупреждал team-lead ("иначе это будет хуже потерянной
-// доставки"). Канал block закрывается ДО srv.Close() (порядок defer важен): иначе
-// httptest.Server.Close(), ожидающий завершения висящего обработчика, сам зависнет.
+// доставки").
+//
+// Обработчик освобождается СВОИМ каналом stop, а не только через r.Context().Done():
+// первая версия теста полагалась на srv.CloseClientConnections() перед Close(), но
+// httptest не гарантирует, что отмена соединения со стороны сервера мгновенно отменяет
+// контекст УЖЕ ПРИНЯТОГО запроса - на практике обработчик иногда оставался висеть, и
+// httptest.Server.Close() (тоже defer) ждал его вечно, вешая пакет целиком (поймано
+// ревью team-lead: "httptest.Server blocked in Close after 5 seconds"). defer close(stop)
+// зарегистрирован ПОСЛЕ defer srv.Close() - выполняется первым (LIFO) и гарантированно
+// освобождает обработчик до того, как Close начнёт его ждать, независимо от таймингов
+// HTTP-слоя.
 func TestPushService_Shutdown_GivesUpAfterGracePeriod(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 
+	stop := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		<-r.Context().Done() // виснет, пока клиент (наш PushSendTimeout) сам не оборвёт запрос
+		select {
+		case <-stop:
+		case <-r.Context().Done():
+		}
 	}))
-	// CloseClientConnections ДО Close: иначе Close ждёт завершения зависшего
-	// обработчика до 10с (PushSendTimeout клиента) на каждый прогон теста.
-	defer func() {
-		srv.CloseClientConnections()
-		srv.Close()
-	}()
+	defer srv.Close()
+	defer close(stop)
 
 	priv, pub, err := webpush.GenerateVAPIDKeys()
 	require.NoError(t, err)
