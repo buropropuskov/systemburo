@@ -24,13 +24,22 @@ func TestNotificationCatalogFieldsFilled(t *testing.T) {
 	}
 }
 
-func TestNotificationCatalogMandatoryOnlySecurity(t *testing.T) {
+// TestNotificationCatalogMandatorySet -- обязательные типы перечислены поимённо.
+// Это вся категория безопасности (о блокировке своей учётки человек должен узнать
+// в любом случае) плюс два уведомления согласования: пропущенное решение
+// останавливает чужую заявку, поэтому отключать их нельзя.
+func TestNotificationCatalogMandatorySet(t *testing.T) {
 	t.Parallel()
+	allowed := map[string]bool{
+		NotificationTypeApplicationApprovalRequired: true,
+		NotificationTypeApprovalReminder:            true,
+	}
 	for _, meta := range NotificationCatalog() {
 		isSecurity := meta.Category == NotificationCategorySecurity
-		if meta.Mandatory != isSecurity {
-			t.Errorf("%s: Mandatory=%v при категории %s (обязательными должны быть ровно security-типы)",
-				meta.Code, meta.Mandatory, meta.Category)
+		wantMandatory := isSecurity || allowed[meta.Code]
+		if meta.Mandatory != wantMandatory {
+			t.Errorf("%s: Mandatory=%v, ожидалось %v (категория %s)",
+				meta.Code, meta.Mandatory, wantMandatory, meta.Category)
 		}
 	}
 }
@@ -47,8 +56,8 @@ func TestNotificationCatalogStableOrder(t *testing.T) {
 			t.Fatalf("порядок каталога нестабилен на позиции %d: %s != %s", i, first[i].Code, second[i].Code)
 		}
 	}
-	// В пределах категории коды идут по возрастанию, категории - в порядке
-	// notificationCategoryOrder.
+	// Категории идут в порядке notificationCategoryOrder, внутри категории -
+	// по заданному вручную Order (важность и частота), а не по алфавиту.
 	rank := make(map[NotificationCategory]int, len(notificationCategoryOrder))
 	for i, cat := range notificationCategoryOrder {
 		rank[cat] = i
@@ -58,8 +67,9 @@ func TestNotificationCatalogStableOrder(t *testing.T) {
 		if rank[prev.Category] > rank[cur.Category] {
 			t.Errorf("категория уехала не по порядку: %s (%s) после %s (%s)", cur.Code, cur.Category, prev.Code, prev.Category)
 		}
-		if prev.Category == cur.Category && prev.Code >= cur.Code {
-			t.Errorf("коды внутри категории %s не по возрастанию: %s перед %s", cur.Category, prev.Code, cur.Code)
+		if prev.Category == cur.Category && prev.Order > cur.Order {
+			t.Errorf("порядок внутри категории %s нарушен: %s (%d) перед %s (%d)",
+				cur.Category, prev.Code, prev.Order, cur.Code, cur.Order)
 		}
 	}
 }
@@ -189,6 +199,79 @@ func TestNotificationCategoriesOrder(t *testing.T) {
 	for i, cat := range want {
 		if cats[i] != cat {
 			t.Errorf("категория на позиции %d: %s, ожидалось %s", i, cats[i], cat)
+		}
+	}
+}
+
+// TestNotificationCatalogOrderWithinCategory -- на экране настроек сверху лежит то,
+// что случается каждый день: согласование раньше пересылки, а «Заявка отправлена»
+// (уведомление о собственном действии) - последней в своей категории.
+func TestNotificationCatalogOrderWithinCategory(t *testing.T) {
+	t.Parallel()
+	var app []string
+	for _, m := range NotificationCatalog() {
+		if m.Category == NotificationCategoryApplication {
+			app = append(app, m.Code)
+		}
+	}
+	if len(app) < 2 {
+		t.Fatal("в категории заявок должно быть больше одного типа")
+	}
+	if app[0] != NotificationTypeApplicationApprovalRequired {
+		t.Errorf("первым в заявках ожидалось требование согласования, получено %q", app[0])
+	}
+	if app[len(app)-1] != NotificationTypeApplicationCreated {
+		t.Errorf("последним в заявках ожидалось уведомление о собственной подаче, получено %q", app[len(app)-1])
+	}
+}
+
+// TestNotificationCatalogApprovalAlwaysOn -- согласование пропустить нельзя: и
+// требование решения, и напоминание о нём приходят независимо от настроек.
+func TestNotificationCatalogApprovalAlwaysOn(t *testing.T) {
+	t.Parallel()
+	for _, code := range []string{NotificationTypeApplicationApprovalRequired, NotificationTypeApprovalReminder} {
+		meta, ok := NotificationTypeMeta(code)
+		if !ok {
+			t.Fatalf("тип %q пропал из каталога", code)
+		}
+		if !meta.Mandatory {
+			t.Errorf("тип %q должен быть обязательным: пропущенное согласование останавливает заявку", code)
+		}
+	}
+}
+
+// TestNotificationCatalogSecurityHidden -- уведомления безопасности приходят всегда,
+// поэтому на экране настроек их не показывают: список неотключаемых переключателей
+// только отвлекает.
+func TestNotificationCatalogSecurityHidden(t *testing.T) {
+	t.Parallel()
+	for _, m := range NotificationCatalog() {
+		if m.Category == NotificationCategorySecurity && !m.HiddenInSettings {
+			t.Errorf("тип безопасности %q виден на экране настроек", m.Code)
+		}
+		if m.Category != NotificationCategorySecurity && m.HiddenInSettings {
+			t.Errorf("тип %q скрыт с экрана настроек без причины", m.Code)
+		}
+	}
+}
+
+// TestNotificationCatalogPermissionGated -- типы, которые приходят только носителям
+// права, помечены этим правом: иначе заявитель увидит переключатель уведомления,
+// которого никогда не получит.
+func TestNotificationCatalogPermissionGated(t *testing.T) {
+	t.Parallel()
+	want := map[string]string{
+		NotificationTypeArchiveQuotaWarning: KeyActionManageFileArchive,
+		NotificationTypeFeedbackCreated:     KeyPageAdminFeedback,
+		NotificationTypeDirectoryPending:    KeyApplicationOrganizationModerate,
+	}
+	for code, key := range want {
+		meta, ok := NotificationTypeMeta(code)
+		if !ok {
+			t.Fatalf("тип %q пропал из каталога", code)
+		}
+		if meta.Permission != key {
+			t.Errorf("тип %q должен гейтиться правом %q, получено %q", code, key, meta.Permission)
 		}
 	}
 }

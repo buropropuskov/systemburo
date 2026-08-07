@@ -99,24 +99,6 @@ describe('UserNotifications — список: дозагрузка/фильтр/
     wrapper.unmount();
   });
 
-  it('«Прочитать все» гасит счётчик и локально помечает загруженные элементы', async () => {
-    apiRequestRaw.mockResolvedValue(page([
-      { id: 1, is_read: false, title: 'a', message: 'm', created_at: '2026-08-06T10:00:00' },
-      { id: 2, is_read: false, title: 'b', message: 'm', created_at: '2026-08-06T09:00:00' },
-    ], 2, 2));
-    const wrapper = mountN();
-    await flushPromises();
-    expect(wrapper.vm.unreadCount).toBe(2);
-
-    apiRequest.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(2) });
-    await wrapper.vm.markAllRead();
-
-    expect(apiRequest).toHaveBeenCalledWith('/notifications/read-all', { method: 'PUT' });
-    expect(wrapper.vm.unreadCount).toBe(0);
-    expect(wrapper.vm.notifications.every((n) => n.is_read)).toBe(true);
-    wrapper.unmount();
-  });
-
   it('«Прочитать все» не рисуется когда непрочитанных нет', async () => {
     apiRequestRaw.mockResolvedValue(page([{ id: 1, is_read: true, title: 'a', message: 'm', created_at: '2026-08-06T10:00:00' }], 1, 0));
     const wrapper = mountN();
@@ -158,34 +140,6 @@ describe('UserNotifications — список: дозагрузка/фильтр/
     const items = wrapper.findAll('.notification-item');
     expect(items[0].find('.notification-item__count').text()).toBe('3');
     expect(items[1].find('.notification-item__count').exists()).toBe(false);
-    wrapper.unmount();
-  });
-
-  it('карточка несёт цветовую метку категории по типу уведомления', async () => {
-    apiRequestRaw.mockResolvedValue(page([
-      { id: 1, is_read: true, title: 'a', message: 'm', created_at: '2026-08-06T10:00:00', type: 'password_changed' },
-    ], 1, 0));
-    const wrapper = mountN();
-    await flushPromises();
-
-    const dot = wrapper.findComponent(NotificationCategoryDot);
-    expect(dot.exists()).toBe(true);
-    expect(dot.props('type')).toBe('password_changed');
-    wrapper.unmount();
-  });
-
-  it('разделители дней расставлены группировкой по last_event_at/created_at', async () => {
-    apiRequestRaw.mockResolvedValue(page([
-      { id: 1, is_read: true, title: 'today', message: 'm', created_at: new Date().toISOString() },
-      { id: 2, is_read: true, title: 'old', message: 'm', created_at: '2020-01-01T10:00:00' },
-    ], 2, 0));
-    const wrapper = mountN();
-    await flushPromises();
-
-    const headers = wrapper.findAll('.notification-day-header');
-    expect(headers.length).toBe(2);
-    expect(headers[0].text()).toBe('Сегодня');
-    expect(headers[1].text()).toBe('01.01.2020');
     wrapper.unmount();
   });
 });

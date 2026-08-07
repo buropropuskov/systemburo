@@ -44,14 +44,6 @@
             </h3>
             <div class="notifications__header-actions">
               <button
-                v-if="unreadCount > 0"
-                class="notifications__read-all-btn"
-                :disabled="markingAllRead"
-                @click="markAllRead"
-              >
-                Прочитать все
-              </button>
-              <button
                 v-if="notifications.length > 0"
                 class="notifications__clear-btn"
                 @click="clearAll"
@@ -67,8 +59,8 @@
                 @click="openSettings"
               >
                 <svg
-                  width="16"
-                  height="16"
+                  width="19"
+                  height="19"
                   viewBox="0 0 24 24"
                   fill="none"
                   aria-hidden="true"
@@ -117,27 +109,15 @@
           role="list"
         >
           <template
-            v-for="group in groupedNotifications"
-            :key="'day-' + group.label + '-' + group.items[0].id"
+            v-for="item in notifications"
+            :key="item.id"
           >
             <li
-              class="notification-day-header"
-              role="presentation"
-            >
-              {{ group.label }}
-            </li>
-            <li
-              v-for="item in group.items"
-              :key="item.id"
               class="notification-item"
               :class="{ 'notification-item--unread': !item.is_read }"
               role="listitem"
               @click="markAsRead(item)"
             >
-              <NotificationCategoryDot
-                :type="item.type"
-                class="notification-item__category"
-              />
               <div class="notification-item__content">
                 <div class="notification-item__top">
                   <p
@@ -214,17 +194,15 @@
 <script>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { apiRequest } from '@/api/client'
-import { getNotificationsPaginated, markAllNotificationsRead } from '@/api/notifications'
-import { useDeletionsStore } from '@/stores/deletions'
+import { getNotificationsPaginated } from '@/api/notifications'
 import eventStream from '@/services/eventStream'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 import { useNotificationNavigation } from '@/composables/useNotificationNavigation'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import { formatTimeAgo } from '@/utils/datetime'
-import { parseNotificationData, groupNotificationsByDay } from '@/utils/notificationDetails'
+import { parseNotificationData } from '@/utils/notificationDetails'
 import NotificationDetailModal from '@/components/notifications/NotificationDetailModal.vue'
 import NotificationFilterTabs from '@/components/notifications/NotificationFilterTabs.vue'
-import NotificationCategoryDot from '@/components/notifications/NotificationCategoryDot.vue'
 
 // Компактная панель (десктоп-дропдаун 360px/350px список, мобильный sheet) - страница
 // поменьше, чем у полноэкранных списков (Центр/реестры берут 30, #1158): карточка ниже
@@ -233,7 +211,7 @@ const NOTIFICATIONS_PER_PAGE = 20
 
 export default {
   name: 'UserNotifications',
-  components: { NotificationDetailModal, NotificationFilterTabs, NotificationCategoryDot },
+  components: { NotificationDetailModal, NotificationFilterTabs },
   props: {
     show: {
       type: Boolean,
@@ -290,7 +268,6 @@ export default {
     return {
       filter: 'all',
       unreadCount: 0,
-      markingAllRead: false,
       pollTimer: null,
       eventStreamOff: null,
       eventStreamStatusOff: null,
@@ -301,10 +278,6 @@ export default {
   },
   computed: {
     // Разделители "Сегодня"/"Вчера"/дата (#1748 S7) - сегментирует УЖЕ отсортированную
-    // бэком ленту, порядок не меняет (см. groupNotificationsByDay).
-    groupedNotifications() {
-      return groupNotificationsByDay(this.notifications)
-    },
   },
   watch: {
     show(val) {
@@ -407,25 +380,6 @@ export default {
       this.$router.push('/notification-settings')
         .then(() => this.$emit('close'))
         .catch(() => this.$emit('close'))
-    },
-
-    async markAllRead() {
-      if (this.markingAllRead || this.unreadCount === 0) return
-      this.markingAllRead = true
-      try {
-        await markAllNotificationsRead()
-        this.notifications.forEach((n) => { n.is_read = true })
-        this.unreadCount = 0
-      } catch {
-        useDeletionsStore().notify({
-          prefix: 'Не удалось отметить ',
-          bold: 'уведомления',
-          suffix: ' прочитанными',
-          type: 'error',
-        })
-      } finally {
-        this.markingAllRead = false
-      }
     },
 
     async markAsRead(item) {
@@ -600,7 +554,6 @@ export default {
   color: var(--accent-text);
 }
 
-.notifications__read-all-btn,
 .notifications__settings-btn {
   display: inline-flex;
   align-items: center;
@@ -630,35 +583,11 @@ export default {
   padding: 0;
 }
 
-.notifications__read-all-btn {
-  white-space: nowrap;
-  color: var(--accent-text);
-}
-
-.notifications__read-all-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.notifications__read-all-btn:hover:not(:disabled) {
-  color: var(--accent-hover);
-}
-
 .notifications__clear-btn:hover {
   color: var(--color-text);
 }
 
 /* Разделитель дня (#1748 S7) - "Сегодня"/"Вчера"/дата. */
-.notification-day-header {
-  padding: 8px 16px 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  background: var(--surface);
-}
-
 /* List */
 .notifications__list {
   list-style: none;
@@ -705,12 +634,6 @@ export default {
 
 .notification-item--unread:hover {
   background: color-mix(in srgb, var(--accent) 18%, var(--surface));
-}
-
-.notification-item__category {
-  margin-top: 5px;
-  margin-right: 8px;
-  flex-shrink: 0;
 }
 
 .notification-item__content {
