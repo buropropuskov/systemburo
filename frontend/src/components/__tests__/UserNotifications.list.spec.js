@@ -24,7 +24,6 @@ vi.mock('@/services/eventStream', () => ({
 
 import { apiRequest, apiRequestRaw } from '@/api/client';
 import UserNotifications from '../UserNotifications.vue';
-import NotificationCategoryDot from '@/components/notifications/NotificationCategoryDot.vue';
 
 function mountN() {
   setActivePinia(createPinia());
