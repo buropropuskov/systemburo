@@ -2,9 +2,6 @@
   <div class="app-files">
     <div class="app-files__head">
       <span class="app-files__label">Файлы к заявке</span>
-      <span class="app-files__hint">
-        Не прикрепляйте копии паспортов: номер уже указан в карточке человека
-      </span>
     </div>
 
     <div class="app-files__controls">
@@ -163,8 +160,7 @@ defineExpose({ reset });
 
 .app-files__head {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    align-items: center;
 }
 
 .app-files__label {
@@ -172,16 +168,19 @@ defineExpose({ reset });
     color: var(--text-muted);
 }
 
-.app-files__hint {
-    font-size: 12px;
-    color: var(--text-muted);
-    opacity: 0.8;
-}
-
 .app-files__controls {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+}
+
+/* Кнопка компактная: она лишь открывает выбор файла и не должна спорить по весу
+   с «Отправить заявку» в той же колонке. */
+.app-files__add {
+    padding: 4px 12px;
+    font-size: 12px;
+    line-height: 18px;
+    min-height: 26px;
 }
 
 .app-files__input {
