@@ -59,6 +59,8 @@ import { usePDConsentStore } from '@/stores/pdConsent'
 import { useThemeStore } from '@/stores/theme'
 import { isShellHiddenPath } from '@/utils/shellPaths'
 import eventStream from '@/services/eventStream'
+import { unsubscribeWebPush } from '@/api/webPush'
+import { getCurrentSubscription, unsubscribeLocal } from '@/utils/webPushSubscription'
 import NavMenu from './components/NavMenu.vue';
 import TheHeader from './components/TheHeader/TheHeader.vue';
 import ScrollTopButton from './components/ScrollTopButton.vue';
@@ -281,6 +283,20 @@ export default {
 
     async logout() {
       const authStore = useAuthStore()
+      // Явный выход снимает push-подписку этого устройства (#974): иначе на
+      // общем компьютере следующий вошедший увидит в системных уведомлениях
+      // заголовки чужих заявок. Протухание токена (не через эту кнопку) push
+      // намеренно НЕ трогает - там подписка обязана пережить сессию.
+      try {
+        const subscription = await getCurrentSubscription()
+        if (subscription) {
+          await unsubscribeWebPush(subscription.endpoint)
+          await unsubscribeLocal(subscription)
+        }
+      } catch {
+        // best-effort: не блокируем выход из-за push - подписка просто
+        // останется висеть до следующей ручной отписки в настройках.
+      }
       try {
         if (authStore.token) {
           await apiRequest("/logout", { method: "POST", body: '{}' });

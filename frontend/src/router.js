@@ -5,6 +5,7 @@ import { shouldRedirectToMaintenance } from '@/utils/maintenanceAccess';
 import { useAuthStore } from '@/stores/auth';
 import { useMaintenanceStore } from '@/stores/maintenance';
 import { usePDConsentStore } from '@/stores/pdConsent';
+import { buildLoginRedirect } from '@/utils/postLoginRedirect';
 import LoginComponent from './components/LoginComponent.vue';
 import TablesComponent from './components/TablesComponent.vue';
 import AccountComponent from './components/AccountComponent.vue';
@@ -356,7 +357,10 @@ router.beforeEach(async (to, from, next) => {
   }
 
   if (to.meta.requiresAuth && !isAuthenticated) {
-    next('/');
+    // #974: сохраняем адрес, на который метил переход, в query - push-уведомление
+    // приводит человека спустя дни, когда сессия давно протухла, и без этого
+    // логин всегда высаживал на дефолтную ленту вместо заявки из уведомления.
+    next(buildLoginRedirect(to.fullPath));
     return;
   }
 
