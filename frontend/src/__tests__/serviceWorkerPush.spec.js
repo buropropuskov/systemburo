@@ -125,6 +125,15 @@ describe('service worker: показ push-уведомления', () => {
     expect(options.data.url).not.toContain('personal-cabinet');
   });
 
+  it('картинки уведомления - лёгкие файлы под свой размер, а не логотип с подписью', () => {
+    sw.listeners.push(pushEvent({ title: 'Требуется согласование', application_id: 124 }));
+
+    const [, options] = sw.showNotification.mock.calls[0];
+    expect(options.icon).toBe('/notification-icon.png');
+    // Без badge в строке состояния Android рисует значок браузера, а не наш.
+    expect(options.badge).toBe('/notification-badge.png');
+  });
+
   it('worker забирает управление сразу, не дожидаясь закрытия вкладок', async () => {
     sw.listeners.install({});
     await sw.listeners.activate({ waitUntil: (p) => p });

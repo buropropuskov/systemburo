@@ -46,9 +46,16 @@ self.addEventListener('push', (event) => {
   const tag = payload.application_id
     ? `app-${payload.application_id}-${payload.type || 'event'}`
     : undefined;
+  // Две РАЗНЫЕ картинки, и путать их нельзя. icon - крупная, в теле уведомления;
+  // раньше здесь стоял icon.jpg: 185 КБ и 1129x1129 с подписью «Остров мечты»,
+  // которую система ужимает до нескольких десятков точек в нечитаемое пятно.
+  // badge - монохромный значок в строке состояния Android; без него там рисуется
+  // значок браузера, а не наш. Форма badge важна, цвет нет - система красит его
+  // сама, поэтому файл белый на прозрачном.
   const options = {
     body: payload.message || '',
-    icon: '/icon.jpg',
+    icon: '/notification-icon.png',
+    badge: '/notification-badge.png',
     tag,
     renotify: Boolean(tag),
     data: { url },
