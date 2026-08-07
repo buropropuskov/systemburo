@@ -6,6 +6,7 @@
         ref="panel"
         class="gsp"
         :class="{ 'gsp--collapsed': collapsed }"
+        data-testid="global-search-panel"
         role="complementary"
         aria-label="Результаты поиска"
       >

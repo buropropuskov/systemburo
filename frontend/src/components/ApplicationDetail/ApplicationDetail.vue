@@ -44,7 +44,10 @@
         aria-hidden="true"
       />
       <!-- Заголовок и кнопки -->
-      <div class="detail-header">
+      <div
+        class="detail-header"
+        data-testid="ob-detail-header"
+      >
         <div class="detail-header-left">
           <div class="detail-title-row">
             <h3 class="detail-title">

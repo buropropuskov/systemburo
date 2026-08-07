@@ -39,8 +39,12 @@ type UserOnboardingProgress struct {
 	TourKey string `gorm:"size:32;not null;uniqueIndex:idx_user_onboarding_tour,priority:2" json:"tour_key"`
 	// CompletedVersion - версия тура, на которой он был пройден. Только растёт:
 	// повторная отметка меньшей версией (устаревшая вкладка) прогресс не понижает.
-	CompletedVersion int       `gorm:"not null" json:"completed_version"`
-	CompletedAt      time.Time `json:"completed_at"`
+	CompletedVersion int `gorm:"not null" json:"completed_version"`
+	// Finished различает «дошёл до конца» и «закрыл на середине». Строка появляется
+	// в обоих случаях - она гасит автозапуск, - но бейдж «Пройден» в меню обучения
+	// показывается только дошедшим: иначе пропуск врал бы, что человек всё посмотрел.
+	Finished    bool      `gorm:"not null;default:false" json:"finished"`
+	CompletedAt time.Time `json:"completed_at"`
 }
 
 func (UserOnboardingProgress) TableName() string { return "user_onboarding_progress" }

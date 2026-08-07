@@ -358,13 +358,27 @@ describe('onboarding store', () => {
       expect(store.pickAutostartTour().key).toBe('guard');
     });
 
-    it('пройденный приоритетный тур уступает следующему доступному', () => {
+    // Замок на баг #1771: раньше автозапуск после пройденного тура находил
+    // следующий непройденный, и человеку сыпало туры один за другим - завершил
+    // охрану, вернулся на «Обзор», поехал тур пользователя, и так по всем.
+    it('после любого показанного тура автозапуск молчит - остальные только вручную', () => {
       const auth = useAuthStore();
       auth.setTokens(createMockJWT({ username: 'guard1' }));
       auth.userTypeCode = 'security';
       const store = useOnboardingStore();
       store.completedByTour = { guard: SECURITY_ONBOARDING_VERSION };
-      expect(store.pickAutostartTour().key).toBe('user');
+      expect(store.pickAutostartTour()).toBeNull();
+    });
+
+    it('брошенный на середине тур автозапуск тоже гасит', () => {
+      const auth = useAuthStore();
+      auth.setTokens(createMockJWT({ username: 'guard1' }));
+      auth.userTypeCode = 'security';
+      const store = useOnboardingStore();
+      // Версия записана, но до финала не дошли - finishedTours пуст.
+      store.completedByTour = { guard: SECURITY_ONBOARDING_VERSION };
+      store.finishedTours = [];
+      expect(store.pickAutostartTour()).toBeNull();
     });
 
     it('все доступные туры пройдены - автозапускать нечего', () => {
@@ -629,7 +643,29 @@ describe('onboarding store', () => {
       expect(store.completedByTour.guard).toBe(SECURITY_ONBOARDING_VERSION);
       expect(store.hasCompleted('guard')).toBe(true);
       expect(store.hasCompleted('user')).toBe(false);
-      expect(markOnboardingComplete).toHaveBeenCalledWith('guard', SECURITY_ONBOARDING_VERSION);
+      expect(markOnboardingComplete).toHaveBeenCalledWith('guard', SECURITY_ONBOARDING_VERSION, false);
+      // Закрыли на середине: запись есть (автозапуск гасим), «Пройден» нет.
+      expect(store.hasFinished('guard')).toBe(false);
+    });
+
+    it('markCompleted(true) отмечает тур пройденным до конца', () => {
+      const store = useOnboardingStore();
+      store.start({ tour: 'guard' });
+      store.markCompleted(true);
+
+      expect(store.hasFinished('guard')).toBe(true);
+      expect(markOnboardingComplete).toHaveBeenCalledWith('guard', SECURITY_ONBOARDING_VERSION, true);
+    });
+
+    it('досмотр после пропуска доводит отметку до «Пройден»', () => {
+      const store = useOnboardingStore();
+      store.start({ tour: 'guard' });
+      store.markCompleted(false);
+      store.stop();
+      store.start({ tour: 'guard' });
+      store.markCompleted(true);
+
+      expect(store.hasFinished('guard')).toBe(true);
     });
 
     it('markCompleted без активного тура ничего не пишет', () => {

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { apiRequest } from '@/api/client';
+import { useUiStore } from '@/stores/ui';
 
 /**
  * Стек уведомлений об удалении с отменой (#186).
@@ -74,6 +75,10 @@ export const useDeletionsStore = defineStore('deletions', () => {
   // 'warning' (янтарный, для частичных/bulk-итогов) или 'info' (синий, нейтральный).
   // title: явный заголовок (дефолт от type из DEFAULT_TITLES, пустая строка = без заголовка).
   function notify({ prefix = '', bold = '', suffix = '', duration, type = 'success', title }) {
+    // Во время онбординга фоновые подсказки («Место разгрузки выбрано
+    // автоматически...») наезжают на поповер и сбивают с шага. Ошибки пропускаем
+    // всегда: молча проглоченный отказ оставит человека гадать, почему не вышло.
+    if (useUiStore().tourActive && type !== 'error') return null;
     return enqueue({ prefix, bold, suffix, showUndo: false, duration: duration || restoreDuration.value, type, title });
   }
 

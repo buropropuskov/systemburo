@@ -269,6 +269,8 @@ describe('cross-page конфигурация (создание заявки)', 
     expect(collectSegment(onboardingSteps, first, '/new-application').map((s) => s.id))
       .toEqual([
         'createapp-selector',
+        'createapp-blank-added',
+        'createapp-form-opened',
         'createapp-orginfo',
         'createapp-custom',
         'createapp-dates',
@@ -395,7 +397,7 @@ describe('сегмент карточки заявки (#1740)', () => {
       renderEmptyCabinet();
       document.body.insertAdjacentHTML('beforeend', `
         <div data-testid="ob-detail-status"></div>
-        <button data-testid="questions-toggle"></button>
+        <div data-testid="application-questions"></div>
         <button data-testid="app-detail-button-supplement"></button>
         <button data-testid="app-detail-button-download"></button>
         <button data-testid="ob-detail-revoke"></button>`);
@@ -459,8 +461,21 @@ describe('шаги, добавленные срезом S4 (#1740)', () => {
     expect(byId('header-broadcast').optional).toBe(true);
   });
 
-  it('шаг поиска раскрывает панель сквозного поиска', () => {
-    expect(byId('header-search').reveal).toEqual({ open: 'search-panel' });
+  // Поиск разбит на два шага (#1771): сперва кнопка - её и надо запомнить, -
+  // и только потом раскрытая панель. Раскрытие висит на втором: открыв панель
+  // на первом, мы спрятали бы под ней ту самую кнопку.
+  it('шаг кнопки поиска панель не раскрывает', () => {
+    expect(byId('header-search').reveal).toBeUndefined();
+    expect(byId('header-search').element).toBe('[data-testid="header-button-search"]');
+  });
+
+  it('шаг панели поиска раскрывает её и уводит поповер влево от панели', () => {
+    const step = byId('header-search-panel');
+    expect(step.reveal).toEqual({ open: 'search-panel' });
+    expect(step.element).toBe('[data-testid="global-search-panel"]');
+    // Панель прижата к правому краю: поповер снизу лёг бы прямо на результаты.
+    expect(step.side).toBe('left');
+    expect(step.optional).toBe(true);
   });
 
   it('тумблер темы держит рельс раскрытым и раскрывает drawer на мобилке', () => {

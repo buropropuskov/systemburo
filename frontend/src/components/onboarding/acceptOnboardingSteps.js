@@ -88,7 +88,7 @@ export const acceptOnboardingSteps = [
   {
     id: 'acc-detail-card',
     route: '/center',
-    element: '[data-testid="ob-detail-card"]',
+    element: '[data-testid="ob-detail-header"]',
     optional: true,
     title: 'Карточка заявки',
     description:

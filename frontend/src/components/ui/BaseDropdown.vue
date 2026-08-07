@@ -211,6 +211,13 @@ export default {
       type: Number,
       default: 0,
     },
+    // Потолок высоты телепортнутого меню. 320 хватает справочникам с одной строкой
+    // в пункте; списку, где у пункта ещё и описание, - нет, и он уезжает в скролл
+    // при пяти элементах. Всё равно клампится по вьюпорту, так что поднять безопасно.
+    menuMaxHeight: {
+      type: Number,
+      default: 320,
+    },
   },
   emits: ['update:modelValue'],
   data() {
@@ -402,7 +409,7 @@ export default {
         left: `${left}px`,
         width: `${width}px`,
         // клампим по доступному пространству выбранной стороны, чтобы меню не выходило за экран
-        maxHeight: `${Math.min(320, avail)}px`,
+        maxHeight: `${Math.min(this.menuMaxHeight, avail)}px`,
         // top:'auto' в ветке флипа обязателен - иначе базовый CSS
         // .base-dropdown__menu{top:calc(100%+5px)} не сбрасывается и конфликтует с bottom.
         ...(openUp

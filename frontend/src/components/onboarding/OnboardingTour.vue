@@ -43,6 +43,9 @@ let waitController = null;
 // Поколение активного driver-инстанса: отложенный onDestroyed предыдущего
 // сегмента (анимация ухода ~0.4s) не должен трогать уже поднятый следующий.
 let driverGen = 0;
+// Тур дошёл до финального шага (кнопка «Готово» или CTA), а не был брошен на
+// середине. Сбрасывается при старте каждого тура - см. watch(isActive).
+let reachedFinal = false;
 // Прежнее состояние рельса до того как тур его развернул - чтобы вернуть как было.
 let railSaved = null;
 
@@ -113,7 +116,12 @@ async function prepareStep(globalIndex) {
   // отрисованы на предыдущем шаге, так что отсутствие элемента (доп.полей нет)
   // определяется быстро - не держим пользователя на «Далее». Обязательный шаг
   // ждём дольше (данным/демо-форме нужно время появиться).
-  const timeout = step.optional ? 700 : FIRST_TARGET_TIMEOUT;
+  // Короткое ожидание - только для «элемента может не быть» (доп.поля, пустой
+  // список). Шаг с reveal.open ждёт полный таймаут: узел там раскрывается по
+  // действию и въезжает анимацией, за 700 мс не поспевает - и шаг вырождался в
+  // окно по центру, хотя цель через миг появлялась (#1771: карточка заявки,
+  // панель поиска).
+  const timeout = step.optional && !step.reveal?.open ? 700 : FIRST_TARGET_TIMEOUT;
   const el = await waitForElement(step.element, timeout);
   if (el) return true;
   if (step.demo) return STEP_DEMO_FALLBACK;
@@ -280,6 +288,10 @@ function retreatToSegment(targetIndex, targetRoute) {
 }
 
 function finishTour() {
+  // Дошли до финала. Кнопка «Готово» и крестик приводят в один и тот же destroy,
+  // поэтому исход помечаем флагом ДО него - иначе handleDestroyed не отличит
+  // досмотренный тур от брошенного и «Пройден» не выставится никогда.
+  reachedFinal = true;
   // Затухаем, затем destroy(): он синхронно зовёт onDestroyed -> handleDestroyed
   // (pendingSegment=false) -> markCompleted (если авто) + stop. driverObj обнуляем
   // сразу, чтобы teardown по stop не дёрнул второй destroy. Без инстанса - напрямую.
@@ -296,11 +308,14 @@ function finishTour() {
 }
 
 /**
- * Авто-тур (первый вход) помечаем пройденным даже при выходе/пропуске, чтобы
- * он не запускался снова. Ручной запуск (кнопка «Обучение») флаг не трогает.
+ * Отметка о туре. Авто-тур помечаем при любом закрытии - иначе он всплывал бы
+ * при каждом входе; ручной запуск отметку ставит только дойдя до финала.
+ *
+ * @param {boolean} [finished] тур доведён до финального шага. Пропуск и Esc
+ *   гасят автозапуск, но «Пройден» в меню не дают - человек тура не видел.
  */
-function markIfAuto() {
-  if (!store.isManual) store.markCompleted();
+function markIfAuto(finished = reachedFinal) {
+  if (!store.isManual || finished) store.markCompleted(finished);
 }
 
 function handleDestroyed(gen) {
@@ -342,8 +357,15 @@ function teardown() {
 watch(
   () => store.isActive,
   (active) => {
-    if (active) startSegment();
-    else teardown();
+    // Фоновые подсказки на время тура придерживаем: они всплывают поверх поповера
+    // и сбивают с шага. Ошибки сквозь паузу проходят - см. deletions.notify.
+    ui.tourActive = active;
+    if (active) {
+      // Каждый запуск начинается «недосмотренным»: иначе повторный тур унаследовал
+      // бы отметку о финале предыдущего и закрытие на первом шаге зачлось бы.
+      reachedFinal = false;
+      startSegment();
+    } else teardown();
   },
 );
 

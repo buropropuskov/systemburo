@@ -22,6 +22,9 @@ func NewOnboardingHandler(service *services.OnboardingService) *OnboardingHandle
 type markCompleteRequest struct {
 	Tour    string `json:"tour" validate:"required"`
 	Version int    `json:"version" validate:"gte=1"`
+	// Finished - тур доведён до финального шага. false = закрыли на середине:
+	// автозапуск гасим, но «Пройден» в меню обучения не показываем.
+	Finished bool `json:"finished"`
 }
 
 // resetRequest — тело POST /users/:username/onboarding/reset. Ключ опционален:
@@ -36,16 +39,16 @@ type resetRequest struct {
 // @Tags         onboarding
 // @Produce      json
 // @Security     BearerAuth
-// @Success      200 {object} map[string]interface{} "completed: {tour: int|null}"
+// @Success      200 {object} map[string]interface{} "completed: {tour: int|null}, finished: [tour]"
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /onboarding [get]
 func (h *OnboardingHandler) GetStatus(c echo.Context) error {
-	completed, err := h.service.GetCompleted(c.Request().Context(), GetUserID(c))
+	completed, finished, err := h.service.GetCompleted(c.Request().Context(), GetUserID(c))
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, map[string]any{"completed": completed})
+	return RespondSuccess(c, map[string]any{"completed": completed, "finished": finished})
 }
 
 // MarkComplete godoc
@@ -66,7 +69,7 @@ func (h *OnboardingHandler) MarkComplete(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.SetCompleted(c.Request().Context(), GetUserID(c), req.Tour, req.Version); err != nil {
+	if err := h.service.SetCompleted(c.Request().Context(), GetUserID(c), req.Tour, req.Version, req.Finished); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Onboarding marked as completed")

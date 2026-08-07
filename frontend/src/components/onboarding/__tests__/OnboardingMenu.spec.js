@@ -151,6 +151,7 @@ describe('OnboardingMenu', () => {
     it('пройденный тур помечен «Пройден»', async () => {
       getOnboardingStatus.mockResolvedValue({
         completed: { user: ONBOARDING_VERSION, guard: null },
+        finished: ['user'],
       });
       login({ security: true });
       await mountMenu();

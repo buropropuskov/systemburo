@@ -49,7 +49,10 @@ function onTriggerClick(toggle) {
  * @returns {string} текст бейджа или пустая строка
  */
 function badgeFor(key) {
-  if (store.hasCompleted(key)) return 'Пройден';
+  // Именно hasFinished, а не hasCompleted: закрытый на середине тур запись
+  // прогресса тоже создаёт (она гасит автозапуск), и по ней бейдж утверждал бы,
+  // что человек всё посмотрел.
+  if (store.hasFinished(key)) return 'Пройден';
   if (store.isOutdated(key)) return 'Обновлён';
   return '';
 }
@@ -72,6 +75,7 @@ onMounted(() => {
     value-key="key"
     teleport
     :menu-min-width="300"
+    :menu-max-height="520"
     @update:model-value="startTour"
   >
     <template #trigger="{ toggle }">
