@@ -6,6 +6,7 @@ const idx = (id) => onboardingSteps.findIndex((s) => s.id === id);
 
 /** Шаги, живущие внутри карточки заявки (модалка в кабинете). */
 const DETAIL_STEP_IDS = [
+  'detail-opened',
   'detail-status', 'detail-questions', 'detail-actions-intro',
   'detail-supplement', 'detail-duplicate', 'detail-download', 'detail-revoke',
 ];
@@ -206,7 +207,9 @@ describe('cross-page конфигурация (cabinet)', () => {
     for (const id of ['cabinet-profile', 'cabinet-notifications', 'cabinet-applications']) {
       expect(ids).toContain(id);
     }
-    for (const s of onboardingSteps.filter((x) => x.id.startsWith('cabinet-'))) {
+    // cabinet-outro - связка перед сменой страницы: у неё цели нет намеренно,
+    // она же замыкает сегмент непропускаемым шагом.
+    for (const s of onboardingSteps.filter((x) => x.id.startsWith('cabinet-') && x.id !== 'cabinet-outro')) {
       expect(s.route).toBe('/personal-cabinet');
       expect(typeof s.element).toBe('string');
     }
@@ -223,6 +226,9 @@ describe('cross-page конфигурация (cabinet)', () => {
       'cabinet-notifications',
       'cabinet-notifications-settings',
       'cabinet-applications',
+      'cabinet-search',
+      'cabinet-application-row',
+      'detail-opened',
       'detail-status',
       'detail-questions',
       'detail-actions-intro',
@@ -230,7 +236,7 @@ describe('cross-page конфигурация (cabinet)', () => {
       'detail-duplicate',
       'detail-download',
       'detail-revoke',
-      'cabinet-search',
+      'cabinet-outro',
     ]);
   });
 
@@ -275,11 +281,11 @@ describe('cross-page конфигурация (создание заявки)', 
       .toEqual([
         'createapp-selector',
         'createapp-blank-added',
-        'createapp-form-opened',
         'createapp-orginfo',
         'createapp-custom',
         'createapp-dates',
         'createapp-car-form',
+        'createapp-blank-switch',
         'createapp-people-form',
         'createapp-consent',
         'createapp-submit',
@@ -345,7 +351,7 @@ describe('сегмент карточки заявки (#1740)', () => {
     // Первый шаг сегмента ждёт цель долго и в центр-модалку не деградирует, а
     // последний ловит «Назад» с /carsview - оба обязаны существовать всегда.
     expect(seg[0].optional).toBeUndefined();
-    expect(seg[seg.length - 1].id).toBe('cabinet-search');
+    expect(seg[seg.length - 1].id).toBe('cabinet-outro');
     expect(seg[seg.length - 1].optional).toBeUndefined();
   });
 
@@ -369,7 +375,7 @@ describe('сегмент карточки заявки (#1740)', () => {
         <div data-testid="cabinet-page">
           <div data-testid="ob-profile"></div>
           <div data-testid="cabinet-notifications"></div>
-          <div data-testid="ob-applications"></div>
+          <div data-testid="ob-applications-head"></div>
           <div data-testid="ob-cabinet-search"></div>
         </div>`;
     }

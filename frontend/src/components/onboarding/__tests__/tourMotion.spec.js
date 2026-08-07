@@ -55,3 +55,22 @@ describe('позиционирование шагов', () => {
     expect(byId('createapp-people-form').side).toBe('top');
   });
 });
+
+describe('размер подсветки', () => {
+  // Подсветка в пол-экрана читается не как указание на элемент, а как вспышка:
+  // «просто огромный светлый квадрат спавнится». Замеряли на живой странице -
+  // список заявок занимал 58%, таблицы 51%, форма бланка 73%.
+  //
+  // Здесь стережём сам принцип: шаги-обзоры целятся в шапки блоков (head/header/
+  // filters/selector), а не в полотна со списками и таблицами.
+  const PANEL_ANCHORS = [
+    'ob-news', 'ob-applications', 'ob-cars-table', 'ob-employees-table', 'ob-app-form',
+  ];
+
+  it('шаги не подсвечивают полотна списков и форм целиком', () => {
+    const offenders = onboardingSteps
+      .filter((s) => PANEL_ANCHORS.some((a) => s.element === `[data-testid="${a}"]`))
+      .map((s) => `${s.id}: ${s.element}`);
+    expect(offenders).toEqual([]);
+  });
+});
