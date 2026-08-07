@@ -565,8 +565,12 @@ export default {
 .consent-badge {
   font-family: inherit;
   line-height: inherit;
-  /* Ниже контактных бейджей: над именем он служебный, а высоту карточки
-     делит с ними в пределах 200px. */
+}
+
+/* Ниже контактных бейджей: над именем он служебный, а высоту карточки делит с
+   ними в пределах 200px. Селектор двойной намеренно: одиночный .consent-badge
+   стоит в файле выше .detail-badge, и её shorthand padding перебивал бы его. */
+.detail-badge.consent-badge {
   padding-top: 2px;
   padding-bottom: 2px;
 }
