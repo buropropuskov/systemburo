@@ -5,7 +5,10 @@ const byId = (id) => onboardingSteps.find((s) => s.id === id);
 const idx = (id) => onboardingSteps.findIndex((s) => s.id === id);
 
 /** Шаги, живущие внутри карточки заявки (модалка в кабинете). */
-const DETAIL_STEP_IDS = ['detail-status', 'detail-questions', 'detail-supplement', 'detail-download', 'detail-revoke'];
+const DETAIL_STEP_IDS = [
+  'detail-status', 'detail-questions', 'detail-actions-intro',
+  'detail-supplement', 'detail-duplicate', 'detail-download', 'detail-revoke',
+];
 
 describe('onboardingSteps', () => {
   it('версия тура - целое число >= 1', () => {
@@ -222,7 +225,9 @@ describe('cross-page конфигурация (cabinet)', () => {
       'cabinet-applications',
       'detail-status',
       'detail-questions',
+      'detail-actions-intro',
       'detail-supplement',
+      'detail-duplicate',
       'detail-download',
       'detail-revoke',
       'cabinet-search',
@@ -398,6 +403,8 @@ describe('сегмент карточки заявки (#1740)', () => {
       document.body.insertAdjacentHTML('beforeend', `
         <div data-testid="ob-detail-status"></div>
         <div data-testid="application-questions"></div>
+        <div data-testid="ob-detail-header"></div>
+        <div data-testid="ob-detail-duplicate"></div>
         <button data-testid="app-detail-button-supplement"></button>
         <button data-testid="app-detail-button-download"></button>
         <button data-testid="ob-detail-revoke"></button>`);

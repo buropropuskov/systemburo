@@ -172,6 +172,7 @@
               </transition>
               <BaseDropdown
                 class="duplicate-dropdown"
+                data-testid="ob-detail-duplicate"
                 :options="duplicatePresets"
                 :model-value="null"
                 label-key="label"

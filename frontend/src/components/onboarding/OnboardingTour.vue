@@ -87,7 +87,30 @@ function restoreRail() {
  * реальная форма. Шаги без demoAttachment - убираем демо (null).
  */
 function applyDemoAttachment(globalIndex) {
-  store.setDemoAttachment(store.steps[globalIndex]?.demoAttachment || null);
+  const next = store.steps[globalIndex]?.demoAttachment || null;
+  const changed = store.demoAttachmentType !== next;
+  store.setDemoAttachment(next);
+  return changed;
+}
+
+/**
+ * Пересчитать подсветку после того, как сменившийся бланк перерисовал форму.
+ * Ждём НОВЫЙ узел по тому же селектору и зовём driver.refresh(): без этого
+ * подсветка остаётся на удалённом элементе, то есть пропадает.
+ *
+ * @param {number} globalIndex шаг, чью цель ждём
+ * @param {number} gen поколение driver-инстанса на момент запроса
+ */
+async function refreshHighlightFor(globalIndex, gen) {
+  const step = store.steps[globalIndex];
+  if (!step?.element) return;
+  const el = await waitForElement(step.element, FIRST_TARGET_TIMEOUT);
+  // Тур мог уйти дальше или перезапуститься, пока форма перерисовывалась.
+  if (!el || !driverObj || gen !== driverGen || store.currentIndex !== globalIndex) return;
+  // refresh здесь бесполезен: он пересчитывает рамку по цели, которую driver
+  // запомнил при создании сегмента. Нужен именно пересбор конфига шага - его
+  // и делает obRetarget.
+  driverObj.obRetarget(globalIndex);
 }
 
 /**
@@ -175,7 +198,12 @@ async function startSegment() {
       applyRail(globalIndex);
       // Backstop: синхронизируем демо-вложение с подсвеченным шагом (важно для
       // навигации «Назад» - prepareStep отрабатывает только на «Далее»).
-      applyDemoAttachment(globalIndex);
+      const attachmentChanged = applyDemoAttachment(globalIndex);
+      // Смена бланка пересоздаёт форму: driver.js держит ссылку на прежний узел,
+      // и после «Назад» с «Сотрудников» на «Автомобили» подсветка пропадала -
+      // форма правильная, а рамки нет. Дожидаемся нового узла и просим driver
+      // пересчитать подсветку по тому же селектору.
+      if (attachmentChanged) refreshHighlightFor(globalIndex, driverGen);
       // Держит раскрытый узел открытым, пока «Назад» ходит внутри группы шагов с
       // одинаковым reveal (prepareStep этот путь не покрывает - он гейтит только
       // «Далее»). Эксклюзивность внутри applyReveal закрывает чужой узел.
