@@ -224,6 +224,10 @@
             <div class="message-section-header">
               <h4>Сообщение к заявке {{ applicationData.application_number }}</h4>
             </div>
+            <ApplicationFiles
+              :application-id="Number(applicationData.id)"
+              :can-remove="canRemoveFiles"
+            />
             <template v-if="hasMessage">
               <!-- Тап по превью открывает полное сообщение в окне (кнопка "Открыть в
                    окне" убрана, W3.10); аффорданс - хинт-строка под превью. -->
@@ -275,11 +279,6 @@
               Сообщение отсутствует
             </div>
           </div>
-
-          <ApplicationFiles
-            :application-id="Number(applicationData.id)"
-            :can-remove="canRemoveFiles"
-          />
 
           <ApplicationMessageModal
             :show="showMessageModal"
@@ -628,6 +627,7 @@ import { SUPPLEMENT_APPROVED } from '@/utils/supplementStatuses'
 import { usePermissionsStore } from '@/stores/permissions'
 import ApplicationAttachments from './ApplicationAttachments.vue'
 import ApplicationFiles from './ApplicationFiles.vue'
+import { useAuthStore } from '@/stores/auth'
 import ApplicationConfirmation from './ApplicationConfirmation.vue'
 import ApplicationHistory from './ApplicationHistory.vue'
 import ForwardModal from './ForwardModal.vue'
@@ -843,14 +843,12 @@ export default {
         },
 
         /**
-         * Убрать приложенный файл (#1721) может подавший заявку, пока она не закрыта.
-         * Зеркалит BE-гейт DeleteAttached; супер-администратору сервер разрешает и
-         * дальше, но кнопку по этому признаку не показываем - у него другой путь.
+         * Убрать приложенный файл (#1721) может только администратор: состав заявки
+         * после подачи неизменен, а удаление нужно, чтобы вычистить приложенное
+         * вопреки подписи поля. Зеркалит BE-гейт DeleteAttached.
          */
         canRemoveFiles() {
-            const a = this.applicationData;
-            if (!a || a.sender_user_id !== this.currentUserId) return false;
-            return !['Завершено', 'Не согласовано', 'Отказано', 'Отозвана'].includes(a.status);
+            return useAuthStore().isSuperAdmin;
         },
 
         // Отозвать свою заявку может только отправитель и только пока она не в
