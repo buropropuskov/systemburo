@@ -58,6 +58,20 @@ describe('UserProfileHeader — согласие на обработку дан�
     wrapper.unmount();
   });
 
+  it('бейдж стоит над именем, а не в ряду контактов', async () => {
+    const wrapper = mountHeader();
+    await flushPromises();
+
+    expect(badge(wrapper).element.closest('.user-details-row')).toBe(null);
+    const mainInfo = wrapper.find('.main-info').element;
+    const consentRow = wrapper.find('.consent-row').element;
+    const nameRow = wrapper.find('.name-and-type').element;
+    expect(consentRow.parentElement).toBe(mainInfo);
+    expect(consentRow.compareDocumentPosition(nameRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    wrapper.unmount();
+  });
+
   it('без действующего согласия бейджа нет - отзывать нечего', async () => {
     listMyConsents.mockResolvedValue([consent({ revoked_at: '2026-07-20T10:00:00Z', granted: false })]);
     const wrapper = mountHeader();
