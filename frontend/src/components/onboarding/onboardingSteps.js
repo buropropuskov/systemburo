@@ -63,7 +63,7 @@ export const onboardingSteps = [
   {
     id: 'news',
     route: '/news',
-    element: '[data-testid="ob-news-head"]',
+    element: '[data-testid="ob-news"]',
     title: 'Новости системы',
     description:
       'Здесь публикуются новости системы. Заглядывайте сюда, чтобы быть в курсе изменений и обновлений.',
@@ -220,9 +220,7 @@ export const onboardingSteps = [
   {
     id: 'cabinet-applications',
     route: '/personal-cabinet',
-    // Шапка списка, а не всё полотно: блок занимает 58% экрана, и подсветка
-    // целиком читается как вспышка вместо указания на элемент.
-    element: '[data-testid="ob-applications-head"]',
+    element: '[data-testid="ob-applications"]',
     title: 'Ваши заявки',
     description: 'Список поданных вами заявок: номер, дата, статус. Свежие изменения помечаются, чтобы не пропустить ответ по своей заявке.',
     demo: 'applications',
@@ -366,7 +364,7 @@ export const onboardingSteps = [
   {
     id: 'cars-table',
     route: '/carsview',
-    element: '[data-testid="ob-cars-table-head"]',
+    element: '[data-testid="ob-cars-table"]',
     title: 'Список автомобилей',
     description: 'Здесь все ваши автомобили с номерами и статусами. Вот как таблица выглядит с данными.',
     demo: 'cars',
@@ -388,7 +386,7 @@ export const onboardingSteps = [
   {
     id: 'employees-table',
     route: '/employeesview',
-    element: '[data-testid="ob-employees-table-head"]',
+    element: '[data-testid="ob-employees-table"]',
     title: 'Список сотрудников',
     description: 'Все ваши сотрудники собраны в этой таблице. Вот как она выглядит с данными.',
     demo: 'employees',

@@ -68,7 +68,7 @@ export const acceptOnboardingSteps = [
     id: 'acc-center-list',
     demo: 'centerList',
     route: '/center',
-    element: '[data-testid="ob-center-table-head"]',
+    element: '[data-testid="ob-center-list"]',
     optional: true,
     side: 'top',
     align: 'start',
