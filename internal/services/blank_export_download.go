@@ -1,6 +1,8 @@
 package services
 
 import (
+	"strings"
+	"io"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -211,7 +213,7 @@ func (s *ArchiveDownloadService) ArchiveApplicationEntries(
 				"application_id", applicationID, "attachment_id", row.AttachmentID, "error", err)
 			continue
 		}
-		entries = append(entries, download.ZipEntry{Path: path, Name: row.FileName})
+		entries = append(entries, s.zipEntry(path, row.FileName))
 	}
 	return entries, nil
 }
@@ -220,6 +222,18 @@ func (s *ArchiveDownloadService) ArchiveApplicationEntries(
 // /file-archive/files/:id). Строка без записанного файла (не status=ok) отдаётся
 // как 404 - на диске за ней ничего нет, отличать "нет строки" от "строка есть, но
 // файла не будет" вызывающему незачем.
+// zipEntry собирает запись архива с учётом шифрования: зашифрованный файл
+// расшифровывается на лету, поэтому в ZIP уезжает читаемый документ, а на диске
+// он остаётся закрытым.
+func (s *ArchiveDownloadService) zipEntry(path, name string) download.ZipEntry {
+	entry := download.ZipEntry{Path: path, Name: strings.TrimSuffix(name, EncryptedSuffix)}
+	if s.writer != nil && s.writer.Crypto().Enabled() {
+		crypto := s.writer.Crypto()
+		entry.Open = func() (io.ReadCloser, error) { return crypto.Open(path) }
+	}
+	return entry
+}
+
 func (s *ArchiveDownloadService) Get(ctx context.Context, id int) (models.BlankExport, error) {
 	var row models.BlankExport
 	err := s.db.WithContext(ctx).First(&row, id).Error
@@ -382,7 +396,7 @@ func (s *ArchiveDownloadService) periodEntries(ctx context.Context, from, to tim
 			slog.Warn("archive download: файл вне корня архива пропущен", "id", row.ID, "error", err)
 			continue
 		}
-		entries = append(entries, download.ZipEntry{Path: path, Name: zipPathFor(row)})
+		entries = append(entries, s.zipEntry(path, zipPathFor(row)))
 	}
 	return entries, nil
 }
