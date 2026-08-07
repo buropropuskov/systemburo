@@ -745,7 +745,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 		apg.DELETE("/files/:id", d.ApplicationFiles.DeleteDraft)
 		apg.GET("/:id/files", d.ApplicationFiles.List)
 		apg.GET("/:id/files/:file_id", d.ApplicationFiles.Download)
-		apg.DELETE("/:id/files/:file_id", d.ApplicationFiles.DeleteAttached)
+		// Удаление приложенного файла - под общим админским правом (page.admin), тем
+		// же, что открывает раздел администрирования: состав заявки после подачи
+		// неизменен, а вычистить приложенное вопреки запрету должен уметь не только
+		// супер-администратор.
+		apg.DELETE("/:id/files/:file_id", d.ApplicationFiles.DeleteAttached, requireAdmin)
 	}
 	apg.GET("/user", app.GetUserApplications)
 	apg.GET("/user/status-updates-count", app.GetUserStatusUpdatesCount) // #1349 - счётчик чипа "Обновления" в ЛК

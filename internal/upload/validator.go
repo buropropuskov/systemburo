@@ -29,6 +29,25 @@ func ValidateFileType(r io.Reader, allowedTypes []string) (string, error) {
 	return "", fmt.Errorf("file type %q not allowed (allowed: %v)", detected, allowedTypes)
 }
 
+// OfficeMimeByName уточняет тип офисного документа по имени файла. Нужен потому,
+// что docx, xlsx и pptx - это zip: по сигнатуре они неразличимы, и определение
+// возвращает первый допустимый офисный тип из списка. Без уточнения таблица
+// попадала в базу как текстовый документ, и интерфейс красил её не тем цветом.
+func OfficeMimeByName(detected, originalName string) string {
+	if !isOfficeType(detected) {
+		return detected
+	}
+	switch strings.ToLower(filepath.Ext(originalName)) {
+	case ".xlsx":
+		return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	case ".pptx":
+		return "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	case ".docx":
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	}
+	return detected
+}
+
 func isOfficeType(mime string) bool {
 	switch mime {
 	case "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

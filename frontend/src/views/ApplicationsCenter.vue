@@ -735,7 +735,7 @@
                       :data-testid="`center-files-badge-${application.id}`"
                     >
                       <svg
-                        class="rt-tag__icon"
+                        class="rt-tag__icon rt-tag__icon--fixed"
                         width="14"
                         height="14"
                         viewBox="0 0 24 24"
@@ -3076,8 +3076,11 @@ export default {
     padding-right: 6px;
 }
 
-.rt-tag--files .rt-tag__icon {
-    margin: 0;
+/* Скрепка - единственное содержимое тега, поэтому отступа справа под подпись нет.
+   Класс --fixed обязателен: обычные иконки тегов свёрнуты (width: 0) и
+   раскрываются только по наведению. */
+.rt-tag--files .rt-tag__icon--fixed {
+    margin-right: 0;
 }
 
 .rt-tag__q-dot {
