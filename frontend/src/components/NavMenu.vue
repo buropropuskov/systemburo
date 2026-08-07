@@ -2227,6 +2227,14 @@ export default {
     pointer-events: auto;
   }
 
+  /* Тумблер темы проявляется по .expanded, а drawer этот класс не получает
+     (expandMenu гейтит hover-разворот на мобилке) - показываем отдельно.
+     pointer-events остаются выключены: клик ловит вся строка. */
+  .nav-menu .nav-theme-switch {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
   /* Пин/сворачивание рельса бессмысленны в тач-drawer'е (B.1, W3.3) - убираем. */
   .nav-menu .nav-controls {
     display: none !important;
@@ -2243,7 +2251,9 @@ export default {
   }
 
   .nav-menu .nav-item.has-dropdown,
-  .nav-menu:not(.expanded) .nav-item.has-dropdown {
+  .nav-menu:not(.expanded) .nav-item.has-dropdown,
+  .nav-menu .nav-item--theme,
+  .nav-menu:not(.expanded) .nav-item--theme {
     justify-content: space-between;
   }
 
