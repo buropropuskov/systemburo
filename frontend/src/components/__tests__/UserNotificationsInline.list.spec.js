@@ -64,24 +64,6 @@ describe('UserNotificationsInline — список: дозагрузка/фил�
     wrapper.unmount();
   });
 
-  it('«Прочитать все» гасит счётчик и не рисуется когда непрочитанных нет', async () => {
-    apiRequestRaw.mockResolvedValue(page([
-      { id: 1, is_read: false, title: 'a', message: 'm', created_at: '2026-08-06T10:00:00' },
-    ], 1, 1));
-    const wrapper = mountN();
-    await flushPromises();
-    expect(wrapper.find('[data-testid="cabinet-notifications-read-all"]').exists()).toBe(true);
-
-    apiRequest.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(1) });
-    await wrapper.vm.markAllRead();
-
-    expect(apiRequest).toHaveBeenCalledWith('/notifications/read-all', { method: 'PUT' });
-    expect(wrapper.vm.unreadCount).toBe(0);
-    await wrapper.vm.$nextTick();
-    expect(wrapper.find('[data-testid="cabinet-notifications-read-all"]').exists()).toBe(false);
-    wrapper.unmount();
-  });
-
   it('дозагрузка ДОБАВЛЯЕТ вторую страницу, а не заменяет первую', async () => {
     apiRequestRaw.mockResolvedValueOnce(page([
       { id: 1, is_read: true, title: 'p1-a', message: 'm', created_at: '2026-08-06T10:00:00' },

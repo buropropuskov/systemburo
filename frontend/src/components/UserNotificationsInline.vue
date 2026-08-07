@@ -23,19 +23,28 @@
           class="notifications__settings"
           data-testid="cabinet-notifications-settings"
           title="Настроить уведомления"
+          aria-label="Настроить уведомления"
           @click="openSettings"
         >
-          Настроить
-        </button>
-        <button
-          v-if="unreadCount > 0"
-          type="button"
-          class="notifications__read-all"
-          data-testid="cabinet-notifications-read-all"
-          :disabled="markingAllRead"
-          @click="markAllRead"
-        >
-          Прочитать все
+          <svg
+            width="19"
+            height="19"
+            viewBox="0 0 24 24"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+              stroke="currentColor"
+              stroke-width="1.8"
+            />
+            <path
+              d="M19.4 13a7.8 7.8 0 0 0 0-2l2-1.5-2-3.5-2.4 1a7.8 7.8 0 0 0-1.7-1L15 3H9l-.3 2.6a7.8 7.8 0 0 0-1.7 1l-2.4-1-2 3.5L4.6 11a7.8 7.8 0 0 0 0 2l-2 1.5 2 3.5 2.4-1c.5.4 1.1.8 1.7 1L9 21h6l.3-2.6c.6-.2 1.2-.6 1.7-1l2.4 1 2-3.5-2-1.5Z"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linejoin="round"
+            />
+          </svg>
         </button>
         <button
           v-if="notifications.length > 0"
@@ -71,17 +80,10 @@
         class="notifications__items"
       >
         <template
-          v-for="group in groupedNotifications"
-          :key="'day-' + group.label + '-' + group.items[0].id"
+          v-for="notif in notifications"
+          :key="notif.id"
         >
           <div
-            class="notification-day-header"
-          >
-            {{ group.label }}
-          </div>
-          <div
-            v-for="notif in group.items"
-            :key="notif.id"
             class="notification-item"
             :class="{ unread: !notif.is_read }"
           >
@@ -93,10 +95,6 @@
                 />
               </transition>
             </div>
-            <NotificationCategoryDot
-              :type="notif.type"
-              class="notification-item__category"
-            />
             <div
               class="notification-content"
               @click="markRead(notif)"
@@ -183,18 +181,16 @@
 
 <script>
 import { apiRequest } from '@/api/client'
-import { getNotificationsPaginated, markAllNotificationsRead } from '@/api/notifications'
+import { getNotificationsPaginated } from '@/api/notifications'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import { useUiStore } from '@/stores/ui'
-import { useDeletionsStore } from '@/stores/deletions'
 import eventStream from '@/services/eventStream'
 import { useNotificationNavigation } from '@/composables/useNotificationNavigation'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import { formatTimeAgo } from '@/utils/datetime'
-import { parseNotificationData, groupNotificationsByDay } from '@/utils/notificationDetails'
+import { parseNotificationData } from '@/utils/notificationDetails'
 import NotificationDetailModal from '@/components/notifications/NotificationDetailModal.vue'
 import NotificationFilterTabs from '@/components/notifications/NotificationFilterTabs.vue'
-import NotificationCategoryDot from '@/components/notifications/NotificationCategoryDot.vue'
 
 // Блок в личном кабинете компактнее колокольчика (min/max-height 200px) - та же логика
 // размера страницы, что и в UserNotifications.vue (см. её комментарий).
@@ -203,7 +199,7 @@ const NOTIFICATIONS_PER_PAGE = 20
 export default {
   name: 'UserNotificationsInline',
 
-  components: { LoaderSpinner, NotificationDetailModal, NotificationFilterTabs, NotificationCategoryDot },
+  components: { LoaderSpinner, NotificationDetailModal, NotificationFilterTabs },
 
   setup() {
     const { resolveApplicationRoute } = useNotificationNavigation();
@@ -228,7 +224,6 @@ export default {
     return {
       filter: 'all',
       unreadCount: 0,
-      markingAllRead: false,
       pollTimer: null,
       eventStreamOff: null,
       eventStreamStatusOff: null,
@@ -241,9 +236,6 @@ export default {
   computed: {
     // Разделители "Сегодня"/"Вчера"/дата (#1748 S7) - сегментирует УЖЕ отсортированную
     // бэком ленту, порядок не меняет.
-    groupedNotifications() {
-      return groupNotificationsByDay(this.notifications)
-    },
   },
 
   mounted() {
@@ -316,25 +308,6 @@ export default {
     // Автодогрузка следующей порции по пересечению sentinel со списком (#1158/#1748 S7).
     setSentinelRef(el) {
       this.observeNotificationsSentinel(el, this.buildNotificationsPage, { root: this.$refs.listScroll || null })
-    },
-
-    async markAllRead() {
-      if (this.markingAllRead || this.unreadCount === 0) return
-      this.markingAllRead = true
-      try {
-        await markAllNotificationsRead()
-        this.notifications.forEach((n) => { n.is_read = true })
-        this.unreadCount = 0
-      } catch {
-        useDeletionsStore().notify({
-          prefix: 'Не удалось отметить ',
-          bold: 'уведомления',
-          suffix: ' прочитанными',
-          type: 'error',
-        })
-      } finally {
-        this.markingAllRead = false
-      }
     },
 
     async markRead(notif) {
@@ -503,8 +476,23 @@ export default {
   text-align: center;
 }
 
-.notifications__settings,
-.notifications__read-all,
+.notifications__settings {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.notifications__settings:hover {
+  color: var(--color-text);
+  transform: rotate(45deg);
+}
+
 .notifications__clear {
   background: none;
   border: none;
@@ -518,15 +506,6 @@ export default {
   font-family: inherit;
 }
 
-.notifications__read-all {
-  color: var(--accent-text);
-}
-
-.notifications__read-all:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 .notifications__read-all:hover:not(:disabled) {
   background: var(--accent-tint);
 }
@@ -537,16 +516,6 @@ export default {
 }
 
 /* Разделитель дня (#1748 S7) - "Сегодня"/"Вчера"/дата. */
-.notification-day-header {
-  padding: 8px 20px 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  background: var(--surface);
-}
-
 .notifications__list {
   flex: 1;
   overflow-y: auto;
