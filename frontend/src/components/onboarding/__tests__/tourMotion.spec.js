@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { onboardingSteps } from '../onboardingSteps';
+import { allTourSteps } from '../tours';
 
 const css = readFileSync(resolve(__dirname, '../../../assets/onboarding.css'), 'utf8');
 
@@ -65,10 +66,13 @@ describe('размер подсветки', () => {
   // filters/selector), а не в полотна со списками и таблицами.
   const PANEL_ANCHORS = [
     'ob-news', 'ob-applications', 'ob-cars-table', 'ob-employees-table', 'ob-app-form',
+    'ob-center-list',
   ];
 
   it('шаги не подсвечивают полотна списков и форм целиком', () => {
-    const offenders = onboardingSteps
+    // По всем турам сразу: полотно в туре согласующего ничем не лучше полотна
+    // в туре заявителя, а замок на одном конфиге пропустил бы остальные.
+    const offenders = allTourSteps()
       .filter((s) => PANEL_ANCHORS.some((a) => s.element === `[data-testid="${a}"]`))
       .map((s) => `${s.id}: ${s.element}`);
     expect(offenders).toEqual([]);

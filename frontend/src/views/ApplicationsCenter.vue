@@ -395,7 +395,10 @@
     />
 
     <div class="applications-table rt-table">
-      <div class="table-header">
+      <div
+        class="table-header"
+        data-testid="ob-center-table-head"
+      >
         <div class="header-row rt-head-row">
           <div
             class="header-col confirmation-col"

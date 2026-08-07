@@ -71,7 +71,7 @@ export const approveOnboardingSteps = [
     id: 'apr-center-list',
     demo: 'centerList',
     route: '/center',
-    element: '[data-testid="ob-center-list"]',
+    element: '[data-testid="ob-center-table-head"]',
     optional: true,
     side: 'top',
     align: 'start',
