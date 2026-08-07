@@ -63,3 +63,28 @@ type PushSubscribeRequest struct {
 type PushUnsubscribeRequest struct {
 	Endpoint string `json:"endpoint"`
 }
+
+// PushPlatformCounts -- разрез по грубой платформе браузера (#974). Технические ключи в
+// JSON короткие (ios/android/desktop/unknown); "ios" покрывает и iPhone, и iPad -
+// ограничение Apple на push вне установленного на экран "Домой" приложения одинаковое
+// для обоих, отдельной группы iPhone нет. Человекочитаемая подпись группы ios -
+// "iOS (iPhone, iPad)".
+type PushPlatformCounts struct {
+	IOS     int64 `json:"ios"`
+	Android int64 `json:"android"`
+	Desktop int64 `json:"desktop"`
+	Unknown int64 `json:"unknown"`
+}
+
+// PushSummary -- ответ GET /notifications/push/summary: сводка использования Web Push
+// для админского раздела статистики (#974), не личная настройка. UsersByLastLoginPlatform
+// считается по платформе ПОСЛЕДНЕГО успешного входа каждого активного пользователя,
+// независимо от того, подключил он push или нет, - это и есть ответ на "сколько людей
+// вообще на iOS", а не только тех, кто оформил подписку.
+type PushSummary struct {
+	ActiveUsersTotal         int64              `json:"active_users_total"`
+	UsersWithPush            int64              `json:"users_with_push"`
+	UsersWithoutPush         int64              `json:"users_without_push"`
+	SubscriptionsByPlatform  PushPlatformCounts `json:"subscriptions_by_platform"`
+	UsersByLastLoginPlatform PushPlatformCounts `json:"users_by_last_login_platform"`
+}

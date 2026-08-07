@@ -957,6 +957,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	notif.GET("/push/status", push.GetStatus)
 	notif.POST("/push/subscribe", push.Subscribe)
 	notif.DELETE("/push/subscribe", push.Unsubscribe)
+	// Сводка использования push - НЕ личная настройка, а админский разрез (раздел
+	// статистики): гейт page.statistics, как у всей остальной статистики дашборда.
+	notif.GET("/push/summary", push.GetSummary, mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageStatistics))
 
 	// Логи запросов (мониторинг) - целиком admin-only, page.admin (Ф5, ранее service checkAdmin).
 	rlg := protected.Group("/request-logs", requireAdmin)

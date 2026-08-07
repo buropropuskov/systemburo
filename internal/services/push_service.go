@@ -78,6 +78,9 @@ type PushService interface {
 	// PublicKey -- VAPID public key для PushManager.subscribe на фронте. Пустая строка,
 	// если push не настроен.
 	PublicKey() string
+	// GetSummary -- сводка использования Web Push для админского раздела статистики
+	// (#974, реализация в push_summary.go): не личная настройка, гейтится page.statistics.
+	GetSummary(ctx context.Context) (*models.PushSummary, error)
 }
 
 type pushService struct {
