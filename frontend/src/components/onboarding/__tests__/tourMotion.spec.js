@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { onboardingSteps } from '../onboardingSteps';
-import { allTourSteps } from '../tours';
 
 const css = readFileSync(resolve(__dirname, '../../../assets/onboarding.css'), 'utf8');
 
