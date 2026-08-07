@@ -33,9 +33,14 @@ vi.mock('driver.js', () => ({
   },
 }));
 
+// createRouter/createWebHistory нужны не самому хосту, а модулям, которые он
+// тянет транзитивно (api-клиент через стор уведомлений). Без них мок роняет
+// загрузку файла целиком, ещё до первого теста.
 vi.mock('vue-router', () => ({
   useRoute: () => mocks.route,
   useRouter: () => mocks.router,
+  createRouter: () => mocks.router,
+  createWebHistory: () => ({}),
 }));
 
 /**

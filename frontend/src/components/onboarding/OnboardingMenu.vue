@@ -75,6 +75,7 @@ onMounted(() => {
     value-key="key"
     teleport
     :menu-min-width="300"
+    :menu-max-height="520"
     @update:model-value="startTour"
   >
     <template #trigger="{ toggle }">
