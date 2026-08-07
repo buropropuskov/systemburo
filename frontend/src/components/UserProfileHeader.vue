@@ -459,7 +459,7 @@ export default {
 }
 
 .main-info {
-  padding-bottom: 6px;
+  padding-bottom: 2px;
   /* Разделитель - цветом рамки, а не тени: --shadow-drop в тёмных темах почти
      чёрный, и линия под именем читалась чёрной полосой. */
   border-bottom: 1px solid var(--border);
@@ -469,7 +469,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 20px;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   flex-wrap: wrap;
 }
 
@@ -490,7 +490,7 @@ export default {
 .org-company-block {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 3px;
 }
 
 .user-organization,
@@ -530,9 +530,9 @@ export default {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  /* Отступы ряда сведены к минимуму: вертикаль карточки выкраивается под ряд
-     согласия над именем, а сам зазор от разделителя дают поля бейджей. */
-  padding-top: 2px;
+  /* Сверху ряд отодвинут от разделителя, снизу его прижимает поле карточки.
+     Вертикаль в пределах 200px выкроена зазорами вокруг имени и организации. */
+  padding-top: 8px;
   padding-bottom: 0;
   /* П.43: контактные бейджи прижаты к нижней части блока */
   margin-top: auto;
@@ -554,7 +554,7 @@ export default {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  margin-bottom: 6px;
+  margin-bottom: 10px;
   opacity: 0;
   transform: translateY(5px);
   animation: fadeInUp 0.3s ease-out 0.25s forwards;
