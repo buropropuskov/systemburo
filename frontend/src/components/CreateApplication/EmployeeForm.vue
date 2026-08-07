@@ -300,21 +300,43 @@
                 class="permission__dropdown-menu"
                 :style="permissionMenuStyle"
               >
-                <div
-                  class="permission__dropdown-item"
-                  :class="{ 'permission__dropdown-item--selected': !selectedPermission }"
-                  @click="selectPermission('')"
-                >
-                  <span class="permission__item-text permission__item-text--empty">Не выбрано</span>
+                <div class="permission__dropdown-search">
+                  <input
+                    ref="permissionSearch"
+                    v-model="permissionQuery"
+                    type="text"
+                    class="permission__search-input"
+                    placeholder="Поиск по списку"
+                    @click.stop
+                    @keydown.esc.prevent="isPermissionDropdownOpen = false"
+                    @keydown.enter.prevent="selectOnlyFoundPermission"
+                  >
                 </div>
-                <div
-                  v-for="permission in availablePermissions"
-                  :key="permission"
-                  class="permission__dropdown-item"
-                  :class="{ 'permission__dropdown-item--selected': permission === selectedPermission }"
-                  @click="selectPermission(permission)"
-                >
-                  <span class="permission__item-text">{{ permission }}</span>
+                <div class="permission__dropdown-list">
+                  <!-- "Не выбрано" остаётся в списке и при поиске: это единственный
+                       способ снять выбор, прятать его за очисткой запроса незачем. -->
+                  <div
+                    class="permission__dropdown-item"
+                    :class="{ 'permission__dropdown-item--selected': !selectedPermission }"
+                    @click="selectPermission('')"
+                  >
+                    <span class="permission__item-text permission__item-text--empty">Не выбрано</span>
+                  </div>
+                  <div
+                    v-for="permission in filteredPermissions"
+                    :key="permission"
+                    class="permission__dropdown-item"
+                    :class="{ 'permission__dropdown-item--selected': permission === selectedPermission }"
+                    @click="selectPermission(permission)"
+                  >
+                    <span class="permission__item-text">{{ permission }}</span>
+                  </div>
+                  <div
+                    v-if="filteredPermissions.length === 0"
+                    class="permission__dropdown-empty"
+                  >
+                    Ничего не найдено
+                  </div>
                 </div>
               </div>
             </transition>
@@ -385,6 +407,7 @@ import { useFieldConfig } from '@/composables/useFieldConfig'
 import { collectActiveWarnings } from '@/utils/warningWindows'
 import { buildScheduleReport } from '@/utils/scheduleCheck'
 import { findDuplicateEmployee, employeeLabel } from '@/utils/applicationDuplicates'
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { getCurrentInstance } from 'vue'
 import { getViewportZoom } from '@/utils/viewportScale'
 
@@ -519,6 +542,7 @@ export default {
             isPermissionDropdownOpen: false,
             permissionMenuStyle: null,
             permissionMenuUp: false,
+            permissionQuery: '',
             // rAF-хендл пересчёта стороны раскрытия; null - пересчёт не запланирован.
             dropDirectionFrame: null,
             availablePermissions: [
@@ -580,6 +604,14 @@ export default {
         },
         permissionArrowUp() {
             return this.permissionMenuUp !== this.isPermissionDropdownOpen;
+        },
+        // Список из 16 длинных формулировок читать целиком дорого, поэтому поиск.
+        // Варианты запроса общие с остальными клиентскими фильтрами: терпят
+        // неверную раскладку и транслит ([[searchVariants]]).
+        filteredPermissions() {
+            const variants = buildSearchVariants(this.permissionQuery);
+            if (variants.length === 0) return this.availablePermissions;
+            return this.availablePermissions.filter((permission) => matchesSearch(permission, variants));
         },
         // patent трёхзначен: нет строки конфига -> условная логика по гражданству;
         // required=true -> всегда обязателен; required=false -> снова условная.
@@ -652,10 +684,23 @@ export default {
             if (open) {
                 this.$nextTick(() => {
                     this.permissionMenuStyle = this.buildPermissionMenuStyle();
+                    // На телефоне фокус поднимает клавиатуру и съедает пол-экрана
+                    // вместе с только что раскрытым списком - там ставит курсор сам юзер.
+                    if (!this.isNarrow && this.$refs.permissionSearch) {
+                        this.$refs.permissionSearch.focus();
+                    }
                 });
             } else {
                 this.permissionMenuStyle = null;
+                this.permissionQuery = '';
             }
+        },
+        // Список укоротился - меню должно ужаться следом, иначе под ним висит пустота.
+        permissionQuery() {
+            if (!this.isPermissionDropdownOpen) return;
+            this.$nextTick(() => {
+                this.permissionMenuStyle = this.buildPermissionMenuStyle();
+            });
         },
         // Блок разрешения появляется вместе с требованием патента - к этому моменту
         // кнопки ещё не было, и сторону раскрытия никто не считал.
@@ -1226,12 +1271,24 @@ export default {
             if (!menu) return limit;
             // offsetHeight, а не getBoundingClientRect: во время анимации открытия rect врёт.
             const borders = 2;
+            // Строка поиска не прокручивается вместе со списком, её высота - фикс. расход.
+            const search = menu.querySelector('.permission__dropdown-search');
+            const searchHeight = search ? search.offsetHeight : 0;
+            const listLimit = limit - searchHeight - borders;
+
+            // Строка "Ничего не найдено" занимает место наравне с пунктами, иначе
+            // список окажется на её высоту короче и заведёт полосу прокрутки.
             let fitted = 0;
-            for (const item of menu.querySelectorAll('.permission__dropdown-item')) {
-                if (fitted + item.offsetHeight + borders > limit) break;
-                fitted += item.offsetHeight;
+            for (const row of menu.querySelectorAll('.permission__dropdown-item, .permission__dropdown-empty')) {
+                if (fitted + row.offsetHeight > listLimit) break;
+                fitted += row.offsetHeight;
             }
-            return fitted > 0 ? fitted + borders : limit;
+            if (fitted === 0) return limit;
+
+            // offsetHeight округляет дробную высоту вниз, и списку не хватает
+            // полупикселя - появляется полоса прокрутки на ровном месте.
+            const subpixelSlack = 1;
+            return Math.min(limit, searchHeight + fitted + borders + subpixelSlack);
         },
 
         /**
@@ -1307,6 +1364,13 @@ export default {
             this.isPermissionDropdownOpen = false;
             if (permission) {
                 this.patentNumber = '';
+            }
+        },
+
+        /** Enter в поиске выбирает вариант, только когда он остался один - иначе гадание. */
+        selectOnlyFoundPermission() {
+            if (this.filteredPermissions.length === 1) {
+                this.selectPermission(this.filteredPermissions[0]);
             }
         },
 
@@ -1704,8 +1768,48 @@ export default {
     /* Рабочий потолок ставит buildPermissionMenuStyle() по месту на экране,
        здесь - запас на случай, если меню открыли до расчёта. */
     max-height: 300px;
+    /* Колонка со скроллом на списке, а не на меню: строка поиска остаётся на месте,
+       а inline max-height ужимает список, а не режет его через overflow. */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.permission__dropdown-search {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.permission__search-input {
+    width: 100%;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.permission__search-input:focus {
+    border-color: var(--accent);
+}
+
+.permission__dropdown-list {
     overflow-y: auto;
     overscroll-behavior: contain;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.permission__dropdown-empty {
+    padding: 12px 15px;
+    font-size: 13px;
+    color: var(--text-muted);
+    text-align: center;
 }
 
 .permission__dropdown-item {
