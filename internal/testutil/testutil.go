@@ -71,7 +71,10 @@ var tables = []string{
 	// журнала его не касается: значение накапливалось от прогона к прогону, и
 	// TestLogPartitionMaintenance ждал единицу, а получал столько, сколько раз
 	// запускали тесты на этой базе.
-	"request_logs_daily", "request_log", "request_logs", "notifications", "user_notification_preferences", "news", "announcements",
+	"request_logs_daily", "request_log", "request_logs", "notifications", "user_notification_preferences",
+	// Подписки Web Push (#974): такая же прямая FK на users, что и у настроек уведомлений.
+	"push_subscriptions",
+	"news", "announcements",
 	// analytics_cache и user_ban_histories тоже живут без внешних ключей: кэш отдаёт
 	// тесту цифры прошлого прогона, история банов копится вечно.
 	"analytics_cache", "user_ban_histories",
@@ -239,8 +242,14 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	attachmentService := services.NewAttachmentService(db)
 	citizenshipService := services.NewCitizenshipService(db)
 	permissionResolver := services.NewPermissionResolver(db)
+	// pushService поднимается и в тестах (#974), пустыми VAPID-ключами: Configured()
+	// false, Send() - no-op. Подключается той же опцией конструктора, что и в
+	// cmd/server/main.go, - иначе прод и тесты разошлись бы в wiring и push молчал бы
+	// в проде при зелёных тестах (уже бывало с другой опцией в этом файле).
+	pushService := services.NewPushService(db, "", "", "")
 	notificationServiceEarly := services.NewNotificationService(db,
-		services.WithNotificationPermissionResolver(permissionResolver))
+		services.WithNotificationPermissionResolver(permissionResolver),
+		services.WithNotificationPushSender(pushService))
 	authService := services.NewAuthService(db, TestJWTSecret, TestJWTRefreshSecret, 15*time.Minute, 168*time.Hour, services.WithAuthNotifications(notificationServiceEarly))
 	// Справочники создаются после уведомлений (#1437): разбор записи «на проверке»
 	// сообщает инициатору наименования, чем он кончился.
@@ -336,6 +345,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	feedbackHandler := handlers.NewFeedbackHandler(feedbackService)
 	newsHandler := handlers.NewNewsHandler(newsService)
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
+	pushHandler := handlers.NewPushHandler(pushService)
 	requestLogsHandler := handlers.NewRequestLogsHandler(requestLogsService)
 	employeesHistoryHandler := handlers.NewEmployeesHistoryHandler(employeesHistoryService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService, permissionResolver)
@@ -468,6 +478,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 		Settings:            settingsHandler,
 		News:                newsHandler,
 		Notifications:       notificationHandler,
+		Push:                pushHandler,
 		RequestLogs:         requestLogsHandler,
 		EmployeesHistory:    employeesHistoryHandler,
 		BugReport:           bugReportHandler,

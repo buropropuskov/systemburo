@@ -54,6 +54,7 @@ type notificationService struct {
 	db                 *gorm.DB
 	realtimePublisher  realtime.Publisher
 	permissionResolver *PermissionResolver
+	pushSender         PushSender
 }
 
 // NotificationServiceOption конфигурирует notificationService при создании.
@@ -72,6 +73,14 @@ func WithNotificationRealtimePublisher(p realtime.Publisher) NotificationService
 // nil-safe: без резолвера показываются все ненулевые типы.
 func WithNotificationPermissionResolver(r *PermissionResolver) NotificationServiceOption {
 	return func(s *notificationService) { s.permissionResolver = r }
+}
+
+// WithNotificationPushSender подключает Web Push рассылку (#974): доставку "сверху" над
+// уже записанным в БД и опубликованным в реальном времени уведомлением, в тех же точках,
+// что и realtimePublisher.Publish. Опционально, nil-safe: без неё push просто не уходит
+// (тесты, offline, выключенные на сервере VAPID-ключи).
+func WithNotificationPushSender(p PushSender) NotificationServiceOption {
+	return func(s *notificationService) { s.pushSender = p }
 }
 
 // NewNotificationService создаёт реализацию NotificationService.
@@ -221,6 +230,7 @@ func (s *notificationService) Create(ctx context.Context, req models.CreateNotif
 	if s.realtimePublisher != nil {
 		s.realtimePublisher.Publish(n.UserID, realtime.Event{Type: "notification.new", Scope: "notifications"})
 	}
+	s.sendPush(ctx, &n)
 	return &n, nil
 }
 
@@ -250,7 +260,7 @@ func (s *notificationService) CreateForUserGrouped(ctx context.Context, userID i
 	}
 
 	if groupKey != "" {
-		collapsed, err := s.collapseNotification(ctx, userID, notifType, groupKey, message, data)
+		collapsedID, collapsed, err := s.collapseNotification(ctx, userID, notifType, groupKey, message, data)
 		if err != nil {
 			return err
 		}
@@ -258,6 +268,8 @@ func (s *notificationService) CreateForUserGrouped(ctx context.Context, userID i
 			if s.realtimePublisher != nil {
 				s.realtimePublisher.Publish(userID, realtime.Event{Type: "notification.new", Scope: "notifications"})
 			}
+			nt, ti, m := notifType, title, message
+			s.sendPush(ctx, &models.Notification{ID: collapsedID, UserID: userID, Type: &nt, Title: &ti, Message: &m, Data: data})
 			return nil
 		}
 		// RowsAffected == 0 - падаем в обычное создание ниже, оно заведёт новую запись
@@ -282,6 +294,7 @@ func (s *notificationService) CreateForUserGrouped(ctx context.Context, userID i
 	if s.realtimePublisher != nil {
 		s.realtimePublisher.Publish(userID, realtime.Event{Type: "notification.new", Scope: "notifications"})
 	}
+	s.sendPush(ctx, &n)
 	return nil
 }
 
@@ -290,9 +303,13 @@ func (s *notificationService) CreateForUserGrouped(ctx context.Context, userID i
 // запросе (не SELECT, потом UPDATE): RowsAffected==0 значит группы ещё нет, окно истекло,
 // либо прежняя запись стала прочитанной между вычислением ключа и записью -- в любом из
 // этих случаев вызывающая сторона обязана упасть в обычное создание, а не потерять событие.
-func (s *notificationService) collapseNotification(ctx context.Context, userID int, notifType, groupKey, message string, data *string) (bool, error) {
+// Возвращает id схлопнутой записи (Returning) -- push поверх схлопнутого события всё
+// равно ссылается на конкретное уведомление, а не только на факт обновления счётчика.
+func (s *notificationService) collapseNotification(ctx context.Context, userID int, notifType, groupKey, message string, data *string) (int, bool, error) {
 	cutoff := time.Now().Add(-notificationAggregationWindow)
-	result := s.db.WithContext(ctx).Model(&models.Notification{}).
+	var row models.Notification
+	result := s.db.WithContext(ctx).Model(&row).
+		Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
 		Where("user_id = ? AND type = ? AND group_key = ? AND is_read = ? AND COALESCE(last_event_at, created_at) >= ?",
 			userID, notifType, groupKey, false, cutoff).
 		Updates(map[string]any{
@@ -302,9 +319,36 @@ func (s *notificationService) collapseNotification(ctx context.Context, userID i
 			"data":          data,
 		})
 	if result.Error != nil {
-		return false, echo.NewHTTPError(http.StatusInternalServerError, "Error collapsing notification")
+		return 0, false, echo.NewHTTPError(http.StatusInternalServerError, "Error collapsing notification")
 	}
-	return result.RowsAffected > 0, nil
+	return row.ID, result.RowsAffected > 0, nil
+}
+
+// sendPush -- push поверх уже созданного или схлопнутого уведомления (#974), в тех же
+// точках, где публикуется real-time сигнал notification.new: гейт подписки
+// (notificationAllowed) уже пройден выше по CreateForUserGrouped, отдельного набора
+// "что слать в push" эта функция не заводит. Нет-op, если push не подключён (nil-safe).
+func (s *notificationService) sendPush(ctx context.Context, n *models.Notification) {
+	if s.pushSender == nil {
+		return
+	}
+	title, message, notifType := "", "", ""
+	if n.Title != nil {
+		title = *n.Title
+	}
+	if n.Message != nil {
+		message = *n.Message
+	}
+	if n.Type != nil {
+		notifType = *n.Type
+	}
+	payload := PushPayload{Title: title, Message: message, Type: notifType, NotificationID: n.ID}
+	if p := parseNotificationDataPayload(n.Data); p != nil {
+		if id, ok := notificationPayloadInt(p, "application_id"); ok {
+			payload.ApplicationID = &id
+		}
+	}
+	s.pushSender.Send(ctx, n.UserID, payload)
 }
 
 // notificationAllowed решает, доставлять ли уведомление CreateForUser*. Mandatory-типы
