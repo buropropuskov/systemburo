@@ -8,10 +8,12 @@
 
 // Форма пейлоада - PushPayload (internal/services/push_service.go): title,
 // message, type, notification_id, application_id (опционален). Явного url
-// пейлоад не несёт - клик ведёт в личный кабинет с открытой заявкой, тот же
-// permission-agnostic путь, что useNotificationNavigation.js берёт по
-// умолчанию для юзера без доступа к Центру заявок (универсальный маршрут,
-// доступный любому авторизованному).
+// пейлоад не несёт, и адрес заявки СПЕЦИАЛЬНО не строится здесь: у Центра
+// заявок и личного кабинета разные маршруты (page.center), а service worker
+// живёт вне вкладки и вне Pinia - прав пользователя не знает и знать не может.
+// Ведём на нейтральный вход /?open_application=<id> - router.js дожидается
+// прав и решает Центр vs личный кабинет тем же кодом, что клик по карточке
+// уведомления (useNotificationNavigation.resolveApplicationRoute), см. #974.
 self.addEventListener('push', (event) => {
   let payload;
   try {
@@ -22,7 +24,7 @@ self.addEventListener('push', (event) => {
   }
 
   const title = payload.title || 'Бюро пропусков';
-  const url = payload.url || (payload.application_id ? `/personal-cabinet?open=${payload.application_id}` : '/');
+  const url = payload.url || (payload.application_id ? `/?open_application=${payload.application_id}` : '/');
   const options = {
     body: payload.message || '',
     icon: '/icon.jpg',
