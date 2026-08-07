@@ -102,6 +102,33 @@ func TestPushService_Send_DeliversAndRecordsSuccess(t *testing.T) {
 	assert.Equal(t, 0, sub.FailedCount)
 }
 
+// TestPushService_Send_SetsHighUrgency: запрос уходит с Urgency: high (RFC 8030).
+// Без заголовка сообщение считается "normal", и телефон с низким зарядом придержит
+// его до следующего пробуждения - уведомление о заявке приедет с опозданием.
+func TestPushService_Send_SetsHighUrgency(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	var gotUrgency, gotTTL string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUrgency = r.Header.Get("Urgency")
+		gotTTL = r.Header.Get("TTL")
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer srv.Close()
+
+	userID := seedPushUser(t, db, td, "push_urgency")
+	seedSubscription(t, db, userID, srv.URL)
+
+	svc := newTestPushService(t, db)
+	svc.Send(context.Background(), userID, services.PushPayload{Title: "T", Message: "M", Type: "application_created", NotificationID: 1})
+
+	assert.Equal(t, "high", gotUrgency)
+	assert.Equal(t, "86400", gotTTL, "сутки хранения недоставленного сообщения")
+}
+
 // TestPushService_Send_410RemovesSubscription: push-сервис подтверждает 410 Gone -
 // подписка удаляется сразу, без накопления счётчика неудач (#974).
 func TestPushService_Send_410RemovesSubscription(t *testing.T) {
