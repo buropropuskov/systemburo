@@ -71,7 +71,10 @@
           </TextConstructor>
           <!-- Согласие и отправка — правая колонка шапки, рядом с полем сообщения -->
           <div class="form__submit-bar">
-            <div class="consent-section">
+            <div
+              class="consent-section"
+              data-testid="ob-app-consent"
+            >
               <div class="consent-checkbox">
                 <input
                   id="consent"

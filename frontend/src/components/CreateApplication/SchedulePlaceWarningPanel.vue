@@ -10,6 +10,7 @@
  */
 import { computed, ref, watch } from 'vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
+import { useUiStore } from '@/stores/ui';
 
 const props = defineProps({
   /**
@@ -63,7 +64,14 @@ watch(signature, (next, prev) => {
   if (next && next !== prev) dismissed.value = false;
 });
 
-const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value);
+const ui = useUiStore();
+
+// Панель плавающая (position: fixed) и во время онбординга ложится прямо на
+// подсвеченный блок сроков. Предупреждения при этом всё равно относятся к
+// демо-вложению тура, а не к настоящей заявке, - прятать нечего жалеть.
+const shown = computed(
+  () => visibleGroups.value.length > 0 && !dismissed.value && !ui.tourActive,
+);
 </script>
 
 <template>

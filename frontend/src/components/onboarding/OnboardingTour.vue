@@ -116,7 +116,12 @@ async function prepareStep(globalIndex) {
   // отрисованы на предыдущем шаге, так что отсутствие элемента (доп.полей нет)
   // определяется быстро - не держим пользователя на «Далее». Обязательный шаг
   // ждём дольше (данным/демо-форме нужно время появиться).
-  const timeout = step.optional ? 700 : FIRST_TARGET_TIMEOUT;
+  // Короткое ожидание - только для «элемента может не быть» (доп.поля, пустой
+  // список). Шаг с reveal.open ждёт полный таймаут: узел там раскрывается по
+  // действию и въезжает анимацией, за 700 мс не поспевает - и шаг вырождался в
+  // окно по центру, хотя цель через миг появлялась (#1771: карточка заявки,
+  // панель поиска).
+  const timeout = step.optional && !step.reveal?.open ? 700 : FIRST_TARGET_TIMEOUT;
   const el = await waitForElement(step.element, timeout);
   if (el) return true;
   if (step.demo) return STEP_DEMO_FALLBACK;

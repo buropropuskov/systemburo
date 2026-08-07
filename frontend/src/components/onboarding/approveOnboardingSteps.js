@@ -82,7 +82,7 @@ export const approveOnboardingSteps = [
   {
     id: 'apr-detail-card',
     route: '/center',
-    element: '[data-testid="ob-detail-card"]',
+    element: '[data-testid="ob-detail-header"]',
     optional: true,
     title: 'Карточка заявки',
     description:
@@ -117,7 +117,8 @@ export const approveOnboardingSteps = [
   {
     id: 'apr-detail-questions',
     route: '/center',
-    element: '[data-testid="questions-toggle"]',
+    element: '[data-testid="application-questions"]',
+    side: 'left',
     optional: true,
     title: 'Спросить у заявителя',
     description:
