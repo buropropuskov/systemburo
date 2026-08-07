@@ -137,7 +137,10 @@
         class="employees-card"
         data-testid="ob-employees-table"
       >
-        <div class="card-header">
+        <div
+          class="card-header"
+          data-testid="ob-employees-table-head"
+        >
           <div class="card-header__title">
             <h3 class="card-title">
               <span

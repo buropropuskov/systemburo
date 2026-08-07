@@ -113,7 +113,10 @@
         <!-- Левая часть - таблица заявок -->
         <div class="applications-list rt-table">
           <!-- Заголовок таблицы -->
-          <div class="applications-header">
+          <div
+            class="applications-header"
+            data-testid="ob-applications-head"
+          >
             <div class="header-row rt-head-row">
               <div
                 class="header-col id-col"
@@ -245,6 +248,7 @@
                       :key="application.id"
                       class="application-item"
                       :class="{ 'status-updated': application.has_status_update }"
+                      data-testid="ob-application-row"
                       @click="openApplication(application)"
                     >
                     <div class="application-row rt-row">
