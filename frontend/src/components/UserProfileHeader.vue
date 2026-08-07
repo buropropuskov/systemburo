@@ -3,6 +3,32 @@
     <div class="user-info">
       <!-- Основная информация -->
       <div class="main-info">
+        <!-- Согласие на обработку данных: единственное место, где работник может
+             его отозвать. Показываем, только когда согласие реально дано - иначе
+             отзывать нечего, а окно согласия он и так видит. -->
+        <div
+          v-if="consentGrantedAt"
+          class="consent-row"
+        >
+          <button
+            type="button"
+            class="detail-badge consent-badge clickable"
+            :disabled="consentRevoking"
+            :title="consentTitle"
+            data-testid="cabinet-consent-badge"
+            @click="revokeOwnConsent"
+          >
+            <span class="badge-content">
+              <svg
+                class="icon"
+                viewBox="0 0 24 24"
+              >
+                <path d="M12,3L4,6V11.1C4,15.6 7.4,19.8 12,21C16.6,19.8 20,15.6 20,11.1V6L12,3M10.9,15.5L7.4,12L8.8,10.6L10.9,12.7L15.2,8.4L16.6,9.8L10.9,15.5Z" />
+              </svg>
+              <span class="badge-text">{{ consentBadgeLabel }}</span>
+            </span>
+          </button>
+        </div>
         <div class="name-and-type">
           <h2
             class="user-name"
@@ -127,32 +153,6 @@
             </transition>
           </span>
         </div>
-        <!-- Согласие на обработку данных: единственное место, где работник может
-             его отозвать. Показываем, только когда согласие реально дано - иначе
-             отзывать нечего, а окно согласия он и так видит. -->
-        <div
-          v-if="consentGrantedAt"
-          class="user-detail"
-        >
-          <button
-            type="button"
-            class="detail-badge consent-badge clickable"
-            :disabled="consentRevoking"
-            :title="consentTitle"
-            data-testid="cabinet-consent-badge"
-            @click="revokeOwnConsent"
-          >
-            <span class="badge-content">
-              <svg
-                class="icon"
-                viewBox="0 0 24 24"
-              >
-                <path d="M12,3L4,6V11.1C4,15.6 7.4,19.8 12,21C16.6,19.8 20,15.6 20,11.1V6L12,3M10.9,15.5L7.4,12L8.8,10.6L10.9,12.7L15.2,8.4L16.6,9.8L10.9,15.5Z" />
-              </svg>
-              <span class="badge-text">{{ consentBadgeLabel }}</span>
-            </span>
-          </button>
-        </div>
       </div>
     </div>
   </div>
@@ -219,8 +219,8 @@ export default {
       return 'П';
     },
     hasContactDetails() {
-      // Показываем ряд, если есть почта, телефон или бейдж согласия
-      return this.email || this.phone || this.consentGrantedAt;
+      // Бейдж согласия переехал в ряд над именем, ряд остаётся контактным.
+      return this.position || this.email || this.phone;
     },
 
     consentBadgeLabel() {
@@ -408,7 +408,7 @@ export default {
   /* Карточка на фоне страницы: без своего фона она темнее соседней карточки уведомлений. */
   background: var(--surface);
   border: 1px solid var(--border);
-  height: 200px;
+  height: var(--cabinet-card-height, 200px);
   position: relative;
   overflow: hidden;
   opacity: 0;
@@ -545,8 +545,20 @@ export default {
 .user-detail:nth-child(2) { animation-delay: 0.45s; }
 .user-detail:nth-child(3) { animation-delay: 0.5s; }
 
-/* Бейдж согласия - кнопка, а не span: он единственный в ряду что-то делает.
-   Обнуляем браузерные стили кнопки, чтобы он не выбивался из ряда соседей. */
+/* Ряд с согласием стоит над именем: бейдж единственный в шапке, по которому
+   работник что-то делает, и в контактной строке внизу его не замечали. */
+.consent-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 8px;
+  opacity: 0;
+  transform: translateY(5px);
+  animation: fadeInUp 0.3s ease-out 0.25s forwards;
+}
+
+/* Бейдж согласия - кнопка, а не span: он единственный в шапке что-то делает.
+   Обнуляем браузерные стили кнопки, чтобы он не выбивался из ряда бейджей. */
 .consent-badge {
   font-family: inherit;
   line-height: inherit;
@@ -709,7 +721,8 @@ export default {
     margin-bottom: 15px;
   }
   
-  .user-details-row {
+  .user-details-row,
+  .consent-row {
     justify-content: center;
   }
   
