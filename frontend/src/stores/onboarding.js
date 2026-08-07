@@ -53,6 +53,10 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   // Пройденные версии по турам: { [tourKey]: number|null }. Загружается одним
   // GET /onboarding; null/отсутствие ключа = тур не проходили.
   const completedByTour = ref({});
+  // Ключи туров, доведённых до финального шага. Отдельно от completedByTour:
+  // тот гасит автозапуск фактом показа, а «Пройден» в меню заслуживает только
+  // досмотренный до конца - иначе пропуск врал бы, что человек всё видел.
+  const finishedTours = ref([]);
   const statusLoaded = ref(false);
   // In-flight промис загрузки статуса - чтобы конкурентные maybeAutostart
   // (onMounted + watch route) не слали два GET (урок про гонки авто-fetch).
@@ -131,6 +135,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
       try {
         const data = await getOnboardingStatus();
         completedByTour.value = { ...(data?.completed || {}) };
+        finishedTours.value = Array.isArray(data?.finished) ? [...data.finished] : [];
         statusLoaded.value = true;
       } catch {
         statusLoaded.value = false;
@@ -249,8 +254,28 @@ export const useOnboardingStore = defineStore('onboarding', () => {
    *
    * @returns {object|null} запись реестра или null
    */
+  /**
+   * Тур для автозапуска - и только при ПЕРВОМ входе, пока человеку не показали
+   * ни одного тура. Иначе получается «сыпет турами подряд»: завершил один, вернулся
+   * на «Обзор», watch(route) снова зовёт автозапуск, а тот находит следующий
+   * непройденный - и так по всем доступным. Остальные туры человек запускает сам
+   * из меню «Обучение».
+   *
+   * @returns {object|null}
+   */
   function pickAutostartTour() {
+    if (hasSeenAnyTour()) return null;
     return pickAutostartTourFrom(tourContext.value, (key) => hasCompleted(key));
+  }
+
+  /**
+   * Показывали ли человеку хоть один тур: любая запись прогресса, независимо от
+   * версии и от того, досмотрел он до конца или закрыл на середине.
+   *
+   * @returns {boolean}
+   */
+  function hasSeenAnyTour() {
+    return Object.values(completedByTour.value).some((v) => v !== null && v !== undefined);
   }
 
   function stop() {
@@ -304,17 +329,31 @@ export const useOnboardingStore = defineStore('onboarding', () => {
    * бэкенд - fire-and-forget: сбой сети не должен ломать завершение тура (в
    * худшем случае переиграется при следующем входе).
    */
-  function markCompleted() {
+  function markCompleted(finished = false) {
     const tour = activeTour.value;
     if (!tour) return;
-    // Идемпотентно: разные пути закрытия (Esc/Готово/CTA) могут позвать дважды -
-    // версию ставим и POST шлём только если ещё не помечено.
-    if (hasCompleted(tour.key)) return;
+    // Идемпотентно по паре (версия, признак финала): повторный вызов при том же
+    // исходе не шлёт второй POST, а вот «закрыл на середине» -> «досмотрел»
+    // пройти обязан, иначе отметка о полном прохождении не запишется никогда.
+    if (hasCompleted(tour.key) && (!finished || hasFinished(tour.key))) return;
     completedByTour.value = { ...completedByTour.value, [tour.key]: tour.version };
+    if (finished && !finishedTours.value.includes(tour.key)) {
+      finishedTours.value = [...finishedTours.value, tour.key];
+    }
     statusLoaded.value = true;
-    markOnboardingComplete(tour.key, tour.version).catch(() => {
+    markOnboardingComplete(tour.key, tour.version, finished).catch(() => {
       // best-effort: статус локально уже стоит, бэкенд догонит при следующем разе
     });
+  }
+
+  /**
+   * Тур доведён до финального шага - для бейджа «Пройден» в меню обучения.
+   *
+   * @param {string} tourKey
+   * @returns {boolean}
+   */
+  function hasFinished(tourKey = activeTourKey.value) {
+    return finishedTours.value.includes(tourKey);
   }
 
   function reset() {
@@ -326,6 +365,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     revealOpen.value = null;
     // Сброс статуса при logout - следующий юзер на этом устройстве подтянет свой.
     completedByTour.value = {};
+    finishedTours.value = [];
     statusLoaded.value = false;
     // Роль в согласовании и route фактовой таблицы тоже per-user.
     approvalRole.value = { isApprover: false, isReviewer: false };
@@ -361,6 +401,9 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     ensureFactRoute,
     loadStatus,
     hasCompleted,
+    hasFinished,
+    hasSeenAnyTour,
+    finishedTours,
     isOutdated,
     pickAutostartTour,
     start,

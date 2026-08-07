@@ -20,7 +20,7 @@ async function unwrap(res, fallback) {
 /**
  * Пройденные версии по всем турам. Ключ отсутствует или null = тур не проходили.
  *
- * @returns {Promise<{ completed: Record<string, number|null> }>}
+ * @returns {Promise<{ completed: Record<string, number|null>, finished: string[] }>}
  */
 export async function getOnboardingStatus() {
   const res = await apiRequest('/onboarding');
@@ -30,12 +30,13 @@ export async function getOnboardingStatus() {
 /**
  * @param {string} tour ключ тура из реестра (tours.js)
  * @param {number} version версия пройденного тура (>= 1)
+ * @param {boolean} [finished] тур доведён до финала (а не закрыт на середине)
  * @returns {Promise<{ message: string }>}
  */
-export async function markOnboardingComplete(tour, version) {
+export async function markOnboardingComplete(tour, version, finished = false) {
   const res = await apiRequest('/onboarding/complete', {
     method: 'POST',
-    body: JSON.stringify({ tour, version }),
+    body: JSON.stringify({ tour, version, finished }),
   });
   return unwrap(res, 'Не удалось сохранить статус обучения');
 }

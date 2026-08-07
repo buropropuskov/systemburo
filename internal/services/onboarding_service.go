@@ -29,28 +29,31 @@ func unknownTourError(tour string) error {
 	return apperr.Validation(fmt.Sprintf("неизвестный тур %q", tour))
 }
 
-// GetCompleted возвращает версию по КАЖДОМУ туру: ключ присутствует всегда, nil =
-// тур не пройден. Если юзера нет - возвращает ошибку, чтобы handler не выдавал
+// GetCompleted возвращает версию по КАЖДОМУ туру (ключ присутствует всегда, nil =
+// тур не показывали) и отдельно список туров, пройденных до конца. Разведены они
+// потому, что гасит автозапуск сам факт показа, а бейдж «Пройден» заслуживает
+// только доведённый до финала. Если юзера нет - ошибка, чтобы handler не выдавал
 // "не проходил" для несуществующего id.
-func (s *OnboardingService) GetCompleted(ctx context.Context, userID int) (map[string]*int, error) {
+func (s *OnboardingService) GetCompleted(ctx context.Context, userID int) (map[string]*int, []string, error) {
 	var exists int64
 	if err := s.db.WithContext(ctx).
 		Model(&models.User{}).
 		Where("id = ?", userID).
 		Count(&exists).Error; err != nil {
-		return nil, fmt.Errorf("failed to check user %d for onboarding progress: %w", userID, err)
+		return nil, nil, fmt.Errorf("failed to check user %d for onboarding progress: %w", userID, err)
 	}
 	if exists == 0 {
-		return nil, apperr.NotFound(fmt.Sprintf("пользователь %d не найден", userID))
+		return nil, nil, apperr.NotFound(fmt.Sprintf("пользователь %d не найден", userID))
 	}
 
 	var rows []models.UserOnboardingProgress
 	if err := s.db.WithContext(ctx).
 		Where("user_id = ?", userID).
 		Find(&rows).Error; err != nil {
-		return nil, fmt.Errorf("failed to get onboarding progress for user %d: %w", userID, err)
+		return nil, nil, fmt.Errorf("failed to get onboarding progress for user %d: %w", userID, err)
 	}
 
+	finished := make([]string, 0, len(rows))
 	completed := make(map[string]*int, len(models.TourKeys))
 	for _, key := range models.TourKeys {
 		completed[key] = nil
@@ -63,13 +66,21 @@ func (s *OnboardingService) GetCompleted(ctx context.Context, userID int) (map[s
 		}
 		version := row.CompletedVersion
 		completed[row.TourKey] = &version
+		if row.Finished {
+			finished = append(finished, row.TourKey)
+		}
 	}
-	return completed, nil
+	return completed, finished, nil
 }
 
 // SetCompleted помечает прохождение тура указанной версии. Версия только растёт:
 // отметка меньшей версией (открытая со вчера вкладка) прогресс не понижает.
-func (s *OnboardingService) SetCompleted(ctx context.Context, userID int, tour string, version int) error {
+//
+// finished=false - тур закрыли на середине. Строка всё равно появляется, иначе
+// автозапуск показывал бы его при каждом входе, но «Пройден» такой тур не считается.
+// Обратный переход (был finished, стал нет) невозможен: повторный просмотр не должен
+// отнимать уже заработанную отметку.
+func (s *OnboardingService) SetCompleted(ctx context.Context, userID int, tour string, version int, finished bool) error {
 	if !models.IsValidTourKey(tour) {
 		return unknownTourError(tour)
 	}
@@ -78,13 +89,13 @@ func (s *OnboardingService) SetCompleted(ctx context.Context, userID int, tour s
 	}
 
 	const q = `
-		INSERT INTO user_onboarding_progress (user_id, tour_key, completed_version, completed_at)
-		VALUES (?, ?, ?, NOW())
+		INSERT INTO user_onboarding_progress (user_id, tour_key, completed_version, finished, completed_at)
+		VALUES (?, ?, ?, ?, NOW())
 		ON CONFLICT (user_id, tour_key) DO UPDATE
-		SET completed_version = EXCLUDED.completed_version,
-		    completed_at = EXCLUDED.completed_at
-		WHERE user_onboarding_progress.completed_version < EXCLUDED.completed_version`
-	if err := s.db.WithContext(ctx).Exec(q, userID, tour, version).Error; err != nil {
+		SET completed_version = GREATEST(user_onboarding_progress.completed_version, EXCLUDED.completed_version),
+		    finished = user_onboarding_progress.finished OR EXCLUDED.finished,
+		    completed_at = EXCLUDED.completed_at`
+	if err := s.db.WithContext(ctx).Exec(q, userID, tour, version, finished).Error; err != nil {
 		return fmt.Errorf("failed to set onboarding tour %q for user %d: %w", tour, userID, err)
 	}
 	return nil

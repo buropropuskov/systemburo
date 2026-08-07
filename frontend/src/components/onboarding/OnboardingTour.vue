@@ -43,6 +43,9 @@ let waitController = null;
 // Поколение активного driver-инстанса: отложенный onDestroyed предыдущего
 // сегмента (анимация ухода ~0.4s) не должен трогать уже поднятый следующий.
 let driverGen = 0;
+// Тур дошёл до финального шага (кнопка «Готово» или CTA), а не был брошен на
+// середине. Сбрасывается при старте каждого тура - см. watch(isActive).
+let reachedFinal = false;
 // Прежнее состояние рельса до того как тур его развернул - чтобы вернуть как было.
 let railSaved = null;
 
@@ -280,6 +283,10 @@ function retreatToSegment(targetIndex, targetRoute) {
 }
 
 function finishTour() {
+  // Дошли до финала. Кнопка «Готово» и крестик приводят в один и тот же destroy,
+  // поэтому исход помечаем флагом ДО него - иначе handleDestroyed не отличит
+  // досмотренный тур от брошенного и «Пройден» не выставится никогда.
+  reachedFinal = true;
   // Затухаем, затем destroy(): он синхронно зовёт onDestroyed -> handleDestroyed
   // (pendingSegment=false) -> markCompleted (если авто) + stop. driverObj обнуляем
   // сразу, чтобы teardown по stop не дёрнул второй destroy. Без инстанса - напрямую.
@@ -296,11 +303,14 @@ function finishTour() {
 }
 
 /**
- * Авто-тур (первый вход) помечаем пройденным даже при выходе/пропуске, чтобы
- * он не запускался снова. Ручной запуск (кнопка «Обучение») флаг не трогает.
+ * Отметка о туре. Авто-тур помечаем при любом закрытии - иначе он всплывал бы
+ * при каждом входе; ручной запуск отметку ставит только дойдя до финала.
+ *
+ * @param {boolean} [finished] тур доведён до финального шага. Пропуск и Esc
+ *   гасят автозапуск, но «Пройден» в меню не дают - человек тура не видел.
  */
-function markIfAuto() {
-  if (!store.isManual) store.markCompleted();
+function markIfAuto(finished = reachedFinal) {
+  if (!store.isManual || finished) store.markCompleted(finished);
 }
 
 function handleDestroyed(gen) {
@@ -342,8 +352,12 @@ function teardown() {
 watch(
   () => store.isActive,
   (active) => {
-    if (active) startSegment();
-    else teardown();
+    if (active) {
+      // Каждый запуск начинается «недосмотренным»: иначе повторный тур унаследовал
+      // бы отметку о финале предыдущего и закрытие на первом шаге зачлось бы.
+      reachedFinal = false;
+      startSegment();
+    } else teardown();
   },
 );
 
