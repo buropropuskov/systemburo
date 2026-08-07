@@ -397,7 +397,7 @@ func TestApplicationFiles_DeletedByAdminOnly(t *testing.T) {
 	r := testutil.DELETE(t, e, path, testutil.AuthHeader(strangerToken))
 	require.Equal(t, http.StatusForbidden, r.Code, r.Body.String())
 
-	// Автор заявку видит, но состав менять не вправе.
+	// Автор заявку видит, но состав менять не вправе: права администрирования у него нет.
 	r = testutil.DELETE(t, e, path, testutil.AuthHeader(ownerToken))
 	require.Equal(t, http.StatusForbidden, r.Code, r.Body.String())
 

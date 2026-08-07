@@ -186,7 +186,7 @@ func (h *ApplicationFileHandler) Download(c echo.Context) error {
 
 // DeleteAttached godoc
 // @Summary      Удаление файла заявки
-// @Description  Убирает приложенный к заявке файл. Подавший заявку может снять свой документ, пока заявка не закрыта; супер-администратор - в любой момент.
+// @Description  Убирает приложенный к заявке файл. Доступно носителям права администрирования: состав заявки после подачи неизменен.
 // @Tags         applications
 // @Produce      json
 // @Security     BearerAuth
@@ -206,7 +206,7 @@ func (h *ApplicationFileHandler) DeleteAttached(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid file ID")
 	}
 
-	if err := h.files.DeleteAttached(c.Request().Context(), GetUserID(c), IsSuperAdmin(c), appID, fileID); err != nil {
+	if err := h.files.DeleteAttached(c.Request().Context(), GetUserID(c), appID, fileID); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Файл удалён")

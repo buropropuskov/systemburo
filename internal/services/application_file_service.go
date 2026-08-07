@@ -39,11 +39,11 @@ type ApplicationFileService interface {
 	ListByApplication(ctx context.Context, applicationID int) ([]models.ApplicationFileItem, error)
 	// Locate возвращает строку файла заявки и путь к нему на диске.
 	Locate(ctx context.Context, applicationID, fileID int) (models.ApplicationFile, string, error)
-	// DeleteAttached убирает приложенный к заявке файл. Право только у
-	// супер-администратора: состав заявки после подачи неизменен, а удаление нужно
-	// как способ вычистить приложенное вопреки подписи поля (скан паспорта). Решение
+	// DeleteAttached убирает приложенный к заявке файл. Право проверяет роутер
+	// (page.admin): состав заявки после подачи неизменен, а удаление нужно как
+	// способ вычистить приложенное вопреки подписи поля (скан паспорта). Решение
 	// владельца - заявителю после отправки состав не менять.
-	DeleteAttached(ctx context.Context, userID int, isSuperAdmin bool, applicationID, fileID int) error
+	DeleteAttached(ctx context.Context, userID int, applicationID, fileID int) error
 	// SweepOrphans убирает черновики старше olderThan вместе с файлами на диске.
 	SweepOrphans(ctx context.Context, olderThan time.Duration) (int, error)
 	// SweepDiskOrphans убирает файлы на диске, которым не соответствует ни одна
@@ -189,7 +189,7 @@ func (s *applicationFileService) Locate(ctx context.Context, applicationID, file
 	return file, filepath.Join(s.dir, file.StoredName), nil
 }
 
-func (s *applicationFileService) DeleteAttached(ctx context.Context, userID int, isSuperAdmin bool, applicationID, fileID int) error {
+func (s *applicationFileService) DeleteAttached(ctx context.Context, userID int, applicationID, fileID int) error {
 	var file models.ApplicationFile
 	err := s.db.WithContext(ctx).
 		Where("id = ? AND application_id = ?", fileID, applicationID).
@@ -199,10 +199,6 @@ func (s *applicationFileService) DeleteAttached(ctx context.Context, userID int,
 	}
 	if err != nil {
 		return apperr.Internal("Не удалось прочитать файл")
-	}
-
-	if !isSuperAdmin {
-		return apperr.Forbidden("Убрать приложенный файл может администратор")
 	}
 
 	if err := s.db.WithContext(ctx).Delete(&models.ApplicationFile{}, file.ID).Error; err != nil {
