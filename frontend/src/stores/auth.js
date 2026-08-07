@@ -5,6 +5,9 @@ import { getMe } from '@/api/auth';
 // не на этапе инициализации модуля - ESM live bindings уже заполнены к вызову.
 import { usePermissionsStore } from './permissions';
 
+// In-flight промис загрузки типа пользователя - см. loadUserTypeCode.
+let userTypePromise = null;
+
 function decodeToken(token) {
   try {
     return JSON.parse(atob(token.split('.')[1]));
@@ -74,14 +77,23 @@ export const useAuthStore = defineStore('auth', {
       this.userTypeCode = null;
     },
     async loadUserTypeCode() {
-      try {
-        // getMe() уже снимает envelope и возвращает данные (как getMyPermissions);
-        // повторный .json() здесь дал бы TypeError и userTypeCode остался бы null.
-        const data = await getMe();
-        this.userTypeCode = data?.user_type_code ?? null;
-      } catch {
-        // сеть упала или токен протух - оставляем null, не блокируем рендер
-      }
+      // Общий in-flight промис: App на старте сессии и онбординг перед выбором
+      // тура спрашивают тип пользователя одновременно - без него это два
+      // одинаковых GET /users/me.
+      if (userTypePromise) return userTypePromise;
+      userTypePromise = (async () => {
+        try {
+          // getMe() уже снимает envelope и возвращает данные (как getMyPermissions);
+          // повторный .json() здесь дал бы TypeError и userTypeCode остался бы null.
+          const data = await getMe();
+          this.userTypeCode = data?.user_type_code ?? null;
+        } catch {
+          // сеть упала или токен протух - оставляем null, не блокируем рендер
+        } finally {
+          userTypePromise = null;
+        }
+      })();
+      return userTypePromise;
     },
   },
 });

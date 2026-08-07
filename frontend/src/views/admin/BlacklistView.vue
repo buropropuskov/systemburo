@@ -1,6 +1,9 @@
 <template>
   <section class="blacklist-page">
-    <div class="blacklist-card">
+    <div
+      class="blacklist-card"
+      data-testid="ob-admin-blacklist"
+    >
       <VehicleBlacklistTab
         v-show="activeTab === 'vehicles'"
         :current-user-name="currentUserName"

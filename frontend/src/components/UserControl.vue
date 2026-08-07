@@ -24,6 +24,7 @@
         <button
           class="lk-button lk-button--primary rt-btn-compact"
           aria-label="Создать"
+          data-testid="ob-users-create"
           @click="openCreateModal"
         >
           <span
@@ -244,7 +245,10 @@
         </div>
         
         <!-- Тело таблицы -->
-        <div class="users-body">
+        <div
+          class="users-body"
+          data-testid="ob-users-list"
+        >
           <div
             v-for="(user, index) in sortedUsers"
             :key="user.username"
@@ -421,13 +425,32 @@
             >
               {{ lockoutResetting ? 'Снимаем…' : 'Снять блокировку входа' }}
             </button>
-            <button
-              class="lk-button lk-button--secondary"
-              data-testid="user-reset-onboarding"
-              @click="resetOnboarding(selectedUser)"
+            <!-- Туров теперь несколько, и сбрасывать их поштучно осмысленно:
+                 у человека может «протухнуть» только один сценарий. Список всех
+                 туров реестра, а не доступных админу - решаем за другого юзера. -->
+            <BaseDropdown
+              class="user-reset-onboarding"
+              :model-value="null"
+              :options="onboardingResetOptions"
+              label-key="title"
+              value-key="key"
+              teleport
+              :menu-z-index="1003"
+              @update:model-value="resetOnboarding(selectedUser, $event)"
             >
-              Сбросить обучение
-            </button>
+              <template #trigger="{ toggle }">
+                <button
+                  class="lk-button lk-button--secondary"
+                  data-testid="user-reset-onboarding"
+                  @click="toggle"
+                >
+                  Сбросить обучение
+                </button>
+              </template>
+              <template #option="{ option }">
+                <span :data-testid="`user-reset-onboarding-${option.key || 'all'}`">{{ option.title }}</span>
+              </template>
+            </BaseDropdown>
             <button
               class="lk-button lk-button--secondary"
               data-testid="user-access"
@@ -1056,6 +1079,7 @@ import UserBulkOperationsModal from './UserBulkOperationsModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import { resetOnboardingForUser } from '@/api/onboarding';
+import { TOURS } from '@/components/onboarding/tours';
 
 // Тик подписей присутствия: раз в секунду, потому что младшая единица подписи -
 // секунды, и на более редком тике «12 с» висело бы неверным до полминуты. Пересчёт
@@ -1191,6 +1215,14 @@ export default {
       if (!this.selectedUser) return false;
       const type = this.userTypes.find(t => t.id === this.selectedUser.type_id);
       return type?.code === 'security';
+    },
+    // Пункты сброса обучения: «Все туры» первым, дальше туры реестра поимённо.
+    // Ключ '' = сброс всех - бэкенд трактует запрос без поля tour именно так.
+    onboardingResetOptions() {
+      return [
+        { key: '', title: 'Все туры' },
+        ...TOURS.map((t) => ({ key: t.key, title: t.title })),
+      ];
     },
     allSelected() {
       return this.sortedUsers.length > 0 && this.selectedUsernames.length === this.sortedUsers.length;
@@ -1665,18 +1697,31 @@ export default {
       }
     },
 
-    async resetOnboarding(user) {
+    /**
+     * Сброс прохождения обучения пользователю. Пустой ключ = все туры сразу.
+     *
+     * @param {object} user
+     * @param {string} tourKey ключ тура из реестра либо '' для сброса всех
+     */
+    async resetOnboarding(user, tourKey) {
+      if (tourKey === null || tourKey === undefined) return;
+      const tourTitle = TOURS.find((t) => t.key === tourKey)?.title || '';
+      const scope = tourTitle ? `тур «${tourTitle}»` : 'все туры';
       const ok = await useUiStore().confirm({
         title: 'Сбросить обучение?',
-        message: `Пользователь «${user.username}» снова увидит автозапуск обучающего тура при следующем входе.`,
+        message: `Пользователю «${user.username}» будет сброшен(ы) ${scope}: обучение запустится у него снова при следующем входе.`,
         confirmText: 'Сбросить',
         cancelText: 'Отмена',
         danger: false,
       });
       if (!ok) return;
       try {
-        await resetOnboardingForUser(user.username);
-        useDeletionsStore().notify({ prefix: 'Обучение сброшено для ', bold: user.username, suffix: ' — тур запустится снова при входе' });
+        await resetOnboardingForUser(user.username, tourKey || undefined);
+        useDeletionsStore().notify({
+          prefix: tourTitle ? `Тур «${tourTitle}» сброшен для ` : 'Все туры сброшены для ',
+          bold: user.username,
+          suffix: ' — обучение запустится снова при входе',
+        });
       } catch (error) {
         useDeletionsStore().notify({ prefix: 'Не удалось сбросить обучение: ', bold: error?.message || 'ошибка', type: 'error' });
       }
@@ -2818,6 +2863,13 @@ export default {
   gap: 8px;
   /* Прижать кнопки «История»/«Сбросить обучение» к правому краю шапки (перед крестиком). */
   margin-left: auto;
+}
+
+/* Сброс обучения открывается списком туров, но в ряду шапки остаётся кнопкой -
+   обёртка дропдауна не должна занимать ширину сверх своего триггера. */
+.user-reset-onboarding {
+  display: inline-flex;
+  width: auto;
 }
 
 /* Вкладки модалки редактирования */

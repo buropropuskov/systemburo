@@ -1,5 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { onboardingSteps, ONBOARDING_VERSION, collectSegment, indexAfterRoute } from '../onboardingSteps';
+
+const byId = (id) => onboardingSteps.find((s) => s.id === id);
+const idx = (id) => onboardingSteps.findIndex((s) => s.id === id);
+
+/** Шаги, живущие внутри карточки заявки (модалка в кабинете). */
+const DETAIL_STEP_IDS = ['detail-status', 'detail-questions', 'detail-supplement', 'detail-download', 'detail-revoke'];
 
 describe('onboardingSteps', () => {
   it('версия тура - целое число >= 1', () => {
@@ -66,7 +72,14 @@ describe('onboardingSteps', () => {
     const ids = onboardingSteps.map((s) => s.id);
     expect(ids).toContain('announcement');
     expect(ids.indexOf('announcement')).toBeLessThan(ids.indexOf('documents'));
-    expect(ids).not.toContain('header-broadcast');
+  });
+
+  it('контент страницы идёт до шапки, шапка - до навигации (тур не мечется по экрану)', () => {
+    const ids = onboardingSteps.filter((s) => s.route === '/news' && s.id !== 'finish').map((s) => s.id);
+    const last = (prefix) => ids.reduce((acc, id, i) => (id.startsWith(prefix) ? i : acc), -1);
+    const first = (prefix) => ids.findIndex((id) => id.startsWith(prefix));
+    expect(ids.indexOf('work-modes')).toBeLessThan(first('header-'));
+    expect(last('header-')).toBeLessThan(first('nav-'));
   });
 
   it('шаги шапки идут слева направо: feedback -> notifications -> submit', () => {
@@ -77,31 +90,45 @@ describe('onboardingSteps', () => {
   });
 });
 
-describe('mobileReveal (#1097 S11 - переехавшие на <768 цели)', () => {
-  it('значение только nav (header-overflow вымер вместе с меню "..." в W3)', () => {
+describe('reveal (#1097 S11 - переехавшие на <768 цели)', () => {
+  it('единственное значение оси mobile - nav (header-overflow вымер вместе с меню "..." в W3)', () => {
     for (const s of onboardingSteps) {
-      if (s.mobileReveal !== undefined) {
-        expect(s.mobileReveal).toBe('nav');
+      if (s.reveal?.mobile !== undefined) {
+        expect(s.reveal.mobile).toBe('nav');
       }
     }
   });
 
   it('nav-rail и nav-group-data просят раскрытие drawer (nav)', () => {
     const byId = (id) => onboardingSteps.find((s) => s.id === id);
-    expect(byId('nav-rail').mobileReveal).toBe('nav');
-    expect(byId('nav-group-data').mobileReveal).toBe('nav');
+    expect(byId('nav-rail').reveal).toEqual({ mobile: 'nav' });
+    expect(byId('nav-group-data').reveal).toEqual({ mobile: 'nav' });
   });
 
   it('feedback переехал в drawer (nav); колокольчик - в самой шапке', () => {
     const byId = (id) => onboardingSteps.find((s) => s.id === id);
     // #1097 W3.3: «Сообщить о проблеме» вынесено из "⋯" в бургер-drawer.
-    expect(byId('header-feedback').mobileReveal).toBe('nav');
+    expect(byId('header-feedback').reveal).toEqual({ mobile: 'nav' });
     // #1097 W3.2: колокольчик вынесен из "⋯" в саму шапку - reveal не нужен.
-    expect(byId('header-notifications').mobileReveal).toBeUndefined();
+    expect(byId('header-notifications').reveal).toBeUndefined();
   });
 
-  it('header-submit остаётся видимой иконкой на мобилке - без mobileReveal', () => {
-    expect(onboardingSteps.find((s) => s.id === 'header-submit').mobileReveal).toBeUndefined();
+  it('header-submit остаётся видимой иконкой на мобилке - без reveal', () => {
+    expect(onboardingSteps.find((s) => s.id === 'header-submit').reveal).toBeUndefined();
+  });
+});
+
+describe('requires (шаги, зависящие от прав)', () => {
+  it('permission-зависимые цели шапки помечены своим правом', () => {
+    const byId = (id) => onboardingSteps.find((s) => s.id === id);
+    expect(byId('header-feedback').requires).toBe('header.report_problem');
+    expect(byId('header-submit').requires).toBe('header.create_application');
+  });
+
+  it('requires не путается с optional - у этих шагов элемент есть всегда, когда право есть', () => {
+    const byId = (id) => onboardingSteps.find((s) => s.id === id);
+    expect(byId('header-feedback').optional).toBeUndefined();
+    expect(byId('header-submit').optional).toBeUndefined();
   });
 });
 
@@ -137,7 +164,7 @@ describe('collectSegment', () => {
     const firstNonNews = onboardingSteps.findIndex((s) => s.route !== '/news');
     expect(seg.length).toBe(firstNonNews);
     expect(seg[0].id).toBe('start');
-    expect(seg[seg.length - 1].id).toBe('nav-group-data');
+    expect(seg[seg.length - 1].id).toBe('nav-theme');
   });
 });
 
@@ -188,7 +215,18 @@ describe('cross-page конфигурация (cabinet)', () => {
     // предыдущий шаг - другой страницы (настоящая граница сегмента)
     expect(onboardingSteps[firstCabinet - 1].route).not.toBe('/personal-cabinet');
     const cabinetSeg = collectSegment(onboardingSteps, firstCabinet, '/personal-cabinet');
-    expect(cabinetSeg.map((s) => s.id)).toEqual(['cabinet-profile', 'cabinet-notifications', 'cabinet-applications']);
+    expect(cabinetSeg.map((s) => s.id)).toEqual([
+      'cabinet-profile',
+      'cabinet-notifications',
+      'cabinet-notifications-settings',
+      'cabinet-applications',
+      'detail-status',
+      'detail-questions',
+      'detail-supplement',
+      'detail-download',
+      'detail-revoke',
+      'cabinet-search',
+    ]);
   });
 
   it('шаг заявок несёт демо-скриншот applications', () => {
@@ -236,7 +274,19 @@ describe('cross-page конфигурация (создание заявки)', 
         'createapp-dates',
         'createapp-car-form',
         'createapp-people-form',
+        'createapp-consent',
+        'createapp-submit',
       ]);
+  });
+
+  it('тур доводит до отправки: согласие идёт перед кнопкой «Отправить заявку»', () => {
+    const idx = (id) => onboardingSteps.findIndex((s) => s.id === id);
+    expect(idx('createapp-consent')).toBeLessThan(idx('createapp-submit'));
+    // Согласие и кнопка отправки живут внутри формы вложения: без демо-бланка
+    // блок не отрисован и шаги подсветили бы пустоту.
+    for (const id of ['createapp-consent', 'createapp-submit']) {
+      expect(onboardingSteps[idx(id)].demoAttachment).toBe('people');
+    }
   });
 
   it('гранулярные шаги формы держат демо-вложение и не несут скриншотов', () => {
@@ -259,6 +309,172 @@ describe('cross-page конфигурация (создание заявки)', 
   it('идёт после сотрудников', () => {
     const idx = (id) => onboardingSteps.findIndex((s) => s.id === id);
     expect(idx('employees-table')).toBeLessThan(idx('createapp-selector'));
+  });
+});
+
+describe('сегмент карточки заявки (#1740)', () => {
+  const detailSteps = DETAIL_STEP_IDS.map(byId);
+
+  it('все шаги карточки есть и живут на роуте кабинета (карточка - модалка, не роут)', () => {
+    detailSteps.forEach((s, i) => {
+      expect(s, DETAIL_STEP_IDS[i]).toBeDefined();
+      expect(s.route).toBe('/personal-cabinet');
+    });
+  });
+
+  it('каждый шаг карточки optional - у новичка заявок нет вовсе', () => {
+    detailSteps.forEach((s) => expect(s.optional, s.id).toBe(true));
+  });
+
+  it('reveal стоит на КАЖДОМ шаге карточки, а не только на первом', () => {
+    // Наследование раскрытия у resolveReveal работает лишь ВНУТРИ группы (нужны оба
+    // соседа с тем же значением): на последнем шаге карточка иначе закрылась бы.
+    detailSteps.forEach((s) => expect(s.reveal, s.id).toEqual({ open: 'first-application' }));
+  });
+
+  it('сегмент кабинета начинается и заканчивается непропускаемым шагом', () => {
+    const first = onboardingSteps.findIndex((s) => s.route === '/personal-cabinet');
+    const seg = collectSegment(onboardingSteps, first, '/personal-cabinet');
+    // Первый шаг сегмента ждёт цель долго и в центр-модалку не деградирует, а
+    // последний ловит «Назад» с /carsview - оба обязаны существовать всегда.
+    expect(seg[0].optional).toBeUndefined();
+    expect(seg[seg.length - 1].id).toBe('cabinet-search');
+    expect(seg[seg.length - 1].optional).toBeUndefined();
+  });
+
+  it('шаги карточки идут подряд и не разрывают сегмент чужим роутом', () => {
+    const positions = DETAIL_STEP_IDS.map(idx);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    expect(positions[positions.length - 1] - positions[0]).toBe(positions.length - 1);
+  });
+
+  describe('пропуск, когда заявок нет', () => {
+    afterEach(() => {
+      document.body.innerHTML = '';
+    });
+
+    /**
+     * Кабинет без открытой карточки: список пуст, модалки в DOM нет. Ровно то
+     * состояние, в котором тур видит новичок.
+     */
+    function renderEmptyCabinet() {
+      document.body.innerHTML = `
+        <div data-testid="cabinet-page">
+          <div data-testid="ob-profile"></div>
+          <div data-testid="cabinet-notifications"></div>
+          <div data-testid="ob-applications"></div>
+          <div data-testid="ob-cabinet-search"></div>
+        </div>`;
+    }
+
+    it('ни одна цель карточки в DOM не находится - движок пропустит их по optional', () => {
+      renderEmptyCabinet();
+      detailSteps.forEach((s) => expect(document.querySelector(s.element), s.id).toBe(null));
+    });
+
+    it('шаги кабинета вне карточки при этом на месте (иначе проверка была бы зелёной впустую)', () => {
+      renderEmptyCabinet();
+      for (const id of ['cabinet-profile', 'cabinet-notifications', 'cabinet-applications', 'cabinet-search']) {
+        expect(document.querySelector(byId(id).element), id).not.toBe(null);
+      }
+    });
+
+    it('после пропуска всех шагов карточки следующая цель - поиск, на том же роуте', () => {
+      renderEmptyCabinet();
+      // Тот же обход, что у движка на «Далее»: optional без элемента - к следующему.
+      let i = idx('cabinet-applications') + 1;
+      while (i < onboardingSteps.length
+        && onboardingSteps[i].optional
+        && !document.querySelector(onboardingSteps[i].element)) i += 1;
+
+      expect(onboardingSteps[i].id).toBe('cabinet-search');
+      expect(onboardingSteps[i].route).toBe('/personal-cabinet');
+    });
+
+    it('когда карточка открыта, те же цели находятся (замок не тавтология)', () => {
+      renderEmptyCabinet();
+      document.body.insertAdjacentHTML('beforeend', `
+        <div data-testid="ob-detail-status"></div>
+        <button data-testid="questions-toggle"></button>
+        <button data-testid="app-detail-button-supplement"></button>
+        <button data-testid="app-detail-button-download"></button>
+        <button data-testid="ob-detail-revoke"></button>`);
+      detailSteps.forEach((s) => expect(document.querySelector(s.element), s.id).not.toBe(null));
+    });
+  });
+});
+
+describe('порядок сегментов (#1740: новые шаги не рвут cross-page навигацию)', () => {
+  /** Непрерывные блоки шагов одного роута - то, что движок поднимает как сегмент. */
+  const blocks = onboardingSteps.reduce((acc, s) => {
+    if (!acc.length || acc[acc.length - 1].route !== s.route) acc.push({ route: s.route, ids: [s.id] });
+    else acc[acc.length - 1].ids.push(s.id);
+    return acc;
+  }, []);
+
+  it('роут не появляется дважды вразбивку - единственный возврат на /news это финал', () => {
+    expect(blocks.map((b) => b.route)).toEqual([
+      '/news',
+      '/personal-cabinet',
+      '/carsview',
+      '/employeesview',
+      '/new-application',
+      '/news',
+    ]);
+    expect(blocks[blocks.length - 1].ids).toEqual(['finish']);
+  });
+
+  it('каждый переход между блоками - смена роута (движок делает cross-page переход)', () => {
+    blocks.forEach((b, i) => {
+      if (i > 0) expect(b.route).not.toBe(blocks[i - 1].route);
+    });
+  });
+});
+
+describe('шаги, добавленные срезом S4 (#1740)', () => {
+  const NEW_IDS = [
+    'work-modes',
+    'header-broadcast',
+    'header-search',
+    'nav-theme',
+    ...DETAIL_STEP_IDS,
+    'cabinet-search',
+    'createapp-consent',
+    'createapp-submit',
+  ];
+
+  it('все новые шаги на месте и целятся по data-testid (их стережёт tourSelectors.spec)', () => {
+    NEW_IDS.forEach((id) => {
+      const step = byId(id);
+      expect(step, id).toBeDefined();
+      expect(step.element, id).toMatch(/^\[data-testid="[^"]+"\]$/);
+    });
+  });
+
+  it('версия тура поднята - иначе прошедшие старый тур не увидят новые шаги', () => {
+    expect(ONBOARDING_VERSION).toBeGreaterThanOrEqual(2);
+  });
+
+  it('объявление в шапке помечено optional - пилюли нет, пока нет объявления', () => {
+    expect(byId('header-broadcast').optional).toBe(true);
+  });
+
+  it('шаг поиска раскрывает панель сквозного поиска', () => {
+    expect(byId('header-search').reveal).toEqual({ open: 'search-panel' });
+  });
+
+  it('тумблер темы держит рельс раскрытым и раскрывает drawer на мобилке', () => {
+    expect(byId('nav-theme').expandRail).toBe(true);
+    expect(byId('nav-theme').reveal).toEqual({ mobile: 'nav' });
+  });
+
+  it('дополнение заявки гейтится правом, а не только наличием кнопки', () => {
+    expect(byId('detail-supplement').requires).toBe('action.supplement.application');
+  });
+
+  it('остальные новые шаги прав не требуют - их элементы правами не закрыты', () => {
+    NEW_IDS.filter((id) => id !== 'detail-supplement')
+      .forEach((id) => expect(byId(id).requires, id).toBeUndefined());
   });
 });
 

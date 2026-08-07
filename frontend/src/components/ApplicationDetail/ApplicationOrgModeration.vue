@@ -3,7 +3,12 @@
     class="org-moderation"
     :data-testid="`org-moderation-${kind}`"
   >
-    <div class="org-moderation__head">
+    <!-- Статический якорь тура принимающего: сам корень несёт `org-moderation-${kind}`,
+         и по вычисляемому testid шаг тура сослаться не может. -->
+    <div
+      class="org-moderation__head"
+      data-testid="ob-org-moderation"
+    >
       <span class="org-moderation__badge">На проверке</span>
       <span class="org-moderation__text">
         {{ label }} <b>{{ entryName }}</b> заведена этой заявкой и ещё не разобрана.

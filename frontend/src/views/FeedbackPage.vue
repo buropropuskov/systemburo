@@ -1,6 +1,9 @@
 <template>
   <AdminPageShell>
-    <div class="feedback-container dashboard-card">
+    <div
+      class="feedback-container dashboard-card"
+      data-testid="ob-admin-feedback"
+    >
       <div class="management-header">
         <h3 class="management-title">
           Обратная связь

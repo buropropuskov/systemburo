@@ -1,6 +1,9 @@
 <template>
   <AdminPageShell>
-    <div class="groups-container dashboard-card">
+    <div
+      class="groups-container dashboard-card"
+      data-testid="ob-admin-permission-groups"
+    >
       <div class="management-header rt-header-inline">
         <h3 class="management-title">
           Группы прав доступа

@@ -31,7 +31,13 @@
         </button>
       </div>
       
-      <div class="card-header__settings">
+      <!-- Якорь тура на всю строку настроек, а не на сам поиск: на десктопе поиск -
+           инпут SearchComponent, на <768 он схлопывается в иконку-тоггл, и шаг про
+           поиск, привязанный к иконке, на десктопе просто не показался бы. -->
+      <div
+        class="card-header__settings"
+        data-testid="ob-cabinet-search"
+      >
         <DateFilter
           ref="dateFilter"
           :mode="'range'"
@@ -555,6 +561,7 @@ import { getUserApplicationsPaginated, getApplicationById, getUserStatusUpdatesC
 import { useAuthStore } from '@/stores/auth'
 import { useDeletionsStore } from '@/stores/deletions'
 import { useInfiniteList } from '@/composables/useInfiniteList'
+import { useRevealFirstApplication } from '@/composables/useRevealFirstApplication'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import DateFilter from './DateFilter.vue';
@@ -800,7 +807,18 @@ export default {
     // Переход из уведомления в кабинет: /personal-cabinet?open=<id> (#973).
     '$route.query.open'(val) {
       if (val) this.openFromDeepLink();
-    }
+    },
+  },
+  // Онбординг просит показать карточку заявки (reveal.open) - деталь это модалка
+  // внутри кабинета, а не роут, сам тур её открыть не может. Контракт общий с
+  // Центром заявок, живёт в композабле.
+  created() {
+    this._tourReveal = useRevealFirstApplication({
+      first: () => this.sortedApplications[0],
+      isOpen: () => this.showDetailModal,
+      open: (application) => this.openApplication(application),
+      close: () => this.closeApplicationDetail(),
+    });
   },
   mounted() {
     this.fetchUserApplications().then(() => this.openFromDeepLink());
@@ -810,6 +828,7 @@ export default {
   },
   beforeUnmount() {
     this.disconnectApplicationsSentinel();
+    this._tourReveal?.stop();
     clearTimeout(this.searchDebounceTimer);
     if (this._mobileMql) {
       if (this._mobileMql.removeEventListener) {
@@ -1148,7 +1167,9 @@ export default {
       this.showDetailModal = false;
       this.selectedApplication = null;
       this.responsibleUsers = [];
-      
+      // Деталь закрыли (крестик, Esc, дубликат) - тур больше не «владелец».
+      this._tourReveal?.release();
+
       // Разблокируем скролл body при закрытии модального окна
       releaseBodyScrollLock(this);
     },

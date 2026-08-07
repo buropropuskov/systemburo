@@ -150,19 +150,26 @@ func (h *ApproverHandler) GetHistory(c echo.Context) error {
 }
 
 // IsApprover godoc
-// @Summary      Числится ли текущий пользователь принимающим
-// @Description  Возвращает только ответ про себя. Полный состав принимающих отдаёт
-// @Description  GET /application-approvers, он закрыт правом администратора.
+// @Summary      Роли текущего пользователя в согласовании заявок
+// @Description  Возвращает только ответ про себя: is_approver - принимающий,
+// @Description  is_reviewer - согласующий хоть в одной организации или компании.
+// @Description  Полный состав принимающих отдаёт GET /application-approvers, он
+// @Description  закрыт правом администратора.
 // @Tags         application-approvers
 // @Produce      json
 // @Security     BearerAuth
 // @Success      200 {object} map[string]bool
 // @Router       /application-approvers/me [get]
 func (h *ApproverHandler) IsApprover(c echo.Context) error {
-	username := c.Get("username").(string)
-	isApprover, err := h.service.IsApprover(c.Request().Context(), username)
+	username := GetUsername(c)
+	ctx := c.Request().Context()
+	isApprover, err := h.service.IsApprover(ctx, username)
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, map[string]bool{"is_approver": isApprover})
+	isReviewer, err := h.service.IsReviewer(ctx, username)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]bool{"is_approver": isApprover, "is_reviewer": isReviewer})
 }

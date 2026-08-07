@@ -17,6 +17,18 @@ export async function getApprovers() {
   return unwrap(res, 'Не удалось загрузить принимающих');
 }
 
+/**
+ * Роль текущего пользователя в согласовании заявок: принимающий и/или согласующий.
+ * Гейтит туры «Принимающий»/«Согласующий» - права на них выдаются не грантом, а
+ * записью в справочниках, поэтому по permissions это не определить.
+ *
+ * @returns {Promise<{ is_approver: boolean, is_reviewer: boolean }>}
+ */
+export async function getMyApprovalRole() {
+  const res = await apiRequest('/application-approvers/me');
+  return unwrap(res, 'Не удалось загрузить роль согласования');
+}
+
 export async function getAllUsers() {
   const res = await apiRequest('/users/all');
   return unwrap(res, 'Не удалось загрузить пользователей');

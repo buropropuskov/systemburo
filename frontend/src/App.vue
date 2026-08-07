@@ -94,6 +94,9 @@ export default {
       // открывают кнопкой из шапки, а показывается она поверх всей страницы.
       searchOpen: false,
       searchQuery: '',
+      // Панель поиска раскрыл онбординг-тур (reveal), а не пользователь -
+      // только такую тур и закроет за собой.
+      searchOpenedByTour: false,
     }
   },
   computed: {
@@ -141,6 +144,10 @@ export default {
     isBanned() {
       return usePermissionsStore().banned
     },
+    /** Сигнал раскрытия свёрнутого узла от онбординг-тура - см. watch ниже. */
+    onboardingReveal() {
+      return useOnboardingStore().revealOpen
+    },
     /**
      * ID залогиненного пользователя - scope адресного real-time сигнала бана;
      * null без токена. Реактивен к token (userPayload = decodeToken(token)):
@@ -168,6 +175,21 @@ export default {
     isBanned(banned) {
       if (banned && this.isAuthenticated && this.$route.name !== 'Account') {
         this.$router.push('/personal-cabinet').catch(() => {})
+      }
+    },
+    /**
+     * Онбординг просит показать панель сквозного поиска (reveal.open). Закрываем
+     * только то, что открыли сами: панель, открытую пользователем, тур не трогает.
+     */
+    onboardingReveal(target) {
+      if (target === 'search-panel') {
+        if (!this.searchOpen) {
+          this.searchOpenedByTour = true
+          this.openGlobalSearch()
+        }
+      } else if (this.searchOpenedByTour) {
+        this.searchOpenedByTour = false
+        this.closeGlobalSearch()
       }
     }
   },
@@ -202,6 +224,7 @@ export default {
     closeGlobalSearch() {
       this.searchOpen = false
       this.searchQuery = ''
+      this.searchOpenedByTour = false
     },
     /**
      * Ctrl+K (Cmd+K на маке) -- общепринятое сочетание для поиска по приложению.

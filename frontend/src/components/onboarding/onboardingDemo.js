@@ -1,6 +1,9 @@
 import demoApplications from '@/assets/onboarding/demo-applications.png';
 import demoCars from '@/assets/onboarding/demo-cars.png';
 import demoEmployees from '@/assets/onboarding/demo-employees.png';
+import demoCenterList from '@/assets/onboarding/demo-center-list.png';
+import demoApprovers from '@/assets/onboarding/demo-approvers.png';
+import demoVote from '@/assets/onboarding/demo-detail-actions.png';
 
 /**
  * Демо-скриншоты для шагов, где у нового пользователя элемент пустой (заявки,
@@ -24,6 +27,21 @@ const DEMO = {
     src: demoEmployees,
     alt: 'Пример списка сотрудников с должностями',
     caption: 'Пример: так выглядит список сотрудников',
+  },
+  centerList: {
+    src: demoCenterList,
+    alt: 'Пример списка заявок в центре: группы по датам, статусы, метки ожидания',
+    caption: 'Пример: так выглядит центр заявок, когда заявки есть',
+  },
+  approvers: {
+    src: demoApprovers,
+    alt: 'Пример блока согласования: статус заявки и список ответственных',
+    caption: 'Пример: так выглядит блок согласования в карточке',
+  },
+  vote: {
+    src: demoVote,
+    alt: 'Кнопки согласования и отказа в карточке заявки',
+    caption: 'Пример: так выглядят кнопки решения по заявке',
   },
 };
 

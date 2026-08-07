@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -365,4 +366,54 @@ func TestApprovers_Me_AvailableWithoutAdmin(t *testing.T) {
 	// А полный состав ему по-прежнему закрыт - это админская информация.
 	rec = testutil.GET(t, e, "/application-approvers", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusForbidden, rec.Code, "состав принимающих остаётся под правом администратора")
+}
+
+// Согласующий назначается per-application, глобального признака у него не было -
+// гейтить обучающий тур согласования было нечем (#1737). Признак выводится из
+// назначений в организациях и компаниях, и он не должен путаться с принимающим.
+func TestApprovers_Me_IsReviewerFromRequiredApproval(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	plainToken := testutil.RegisterAndLogin(t, e, "plain_member", "password123", 1, td.OrgID, td.CompanyID)
+	orgToken := testutil.RegisterAndLogin(t, e, "org_reviewer", "password123", 1, td.OrgID, td.CompanyID)
+	compToken := testutil.RegisterAndLogin(t, e, "comp_reviewer", "password123", 1, td.OrgID, td.CompanyID)
+
+	userID := func(username string) int {
+		var user models.User
+		require.NoError(t, db.Where("username = ?", username).First(&user).Error)
+		return user.ID
+	}
+
+	// Обычное членство в организации согласующим не делает - только required_approval.
+	require.NoError(t, db.Create(&models.OrganizationUser{
+		OrganizationID: td.OrgID, UserID: userID("plain_member"),
+	}).Error)
+	require.NoError(t, db.Create(&models.OrganizationUser{
+		OrganizationID: td.OrgID, UserID: userID("org_reviewer"), RequiredApproval: true,
+	}).Error)
+	require.NoError(t, db.Create(&models.CompaniesUser{
+		CompanyID: td.CompanyID, UserID: userID("comp_reviewer"), RequiredApproval: true,
+	}).Error)
+
+	roles := func(token string) map[string]bool {
+		rec := testutil.GET(t, e, "/application-approvers/me", testutil.AuthHeader(token))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return testutil.ParseResponse[map[string]bool](t, rec)
+	}
+
+	plain := roles(plainToken)
+	assert.False(t, plain["is_reviewer"], "членство без required_approval согласующим не делает")
+	assert.False(t, plain["is_approver"])
+
+	assert.True(t, roles(orgToken)["is_reviewer"], "согласующий организации")
+	assert.True(t, roles(compToken)["is_reviewer"], "согласующий компании")
+
+	// Принимающий - другая роль: назначение в неё признак согласующего не поднимает.
+	makeApprover(t, db, "plain_member")
+	afterApprover := roles(plainToken)
+	assert.True(t, afterApprover["is_approver"], "поле принимающего сохраняет прежний смысл")
+	assert.False(t, afterApprover["is_reviewer"], "принимающий не становится согласующим")
 }

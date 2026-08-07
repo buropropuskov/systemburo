@@ -13,7 +13,7 @@
               <span class="news-title__short">Новости</span>
             </h2>
             <div class="header-actions">
-              <OnboardingButton />
+              <OnboardingMenu />
               <RefreshButton @refresh="fetchAllData" />
             </div>
           </div>
@@ -272,7 +272,7 @@ import { useDeletionsStore } from '@/stores/deletions'
 import { sanitizeHtml } from '@/utils/sanitize.js'
 import DocumentsBlock from '../components/news/DocumentsBlock.vue'
 import WorkModesModal from '../components/news/WorkModesModal.vue'
-import OnboardingButton from '../components/onboarding/OnboardingButton.vue'
+import OnboardingMenu from '../components/onboarding/OnboardingMenu.vue'
 import { ref } from 'vue'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 
@@ -285,7 +285,7 @@ export default {
     UserGuideModal,
     DocumentsBlock,
     WorkModesModal,
-    OnboardingButton,
+    OnboardingMenu,
   },
   setup() {
     // Читалка новости на мобилке - bottom-sheet со свайп-вниз-закрытием (W3.4).

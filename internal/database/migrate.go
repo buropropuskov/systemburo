@@ -10,6 +10,7 @@ import (
 	"systemburo/internal/normalize"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // AllModels returns all GORM models for AutoMigrate.
@@ -37,6 +38,8 @@ func AllModels() []interface{} {
 		&models.AuthEvent{},
 		&models.OrganizationUser{},
 		&models.CompaniesUser{},
+		// Прогресс онбординг-туров (#1737): строка на пару (пользователь, тур).
+		&models.UserOnboardingProgress{},
 
 		// License plate cells (depends on LicensePlateFormat)
 		&models.LicensePlateFormatCell{},
@@ -232,6 +235,9 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 	if err := BackfillOrgNameNormalized(db); err != nil {
+		return err
+	}
+	if err := MigrateOnboardingProgress(db); err != nil {
 		return err
 	}
 	if err := installSQLFunctions(db); err != nil {
@@ -683,6 +689,67 @@ func BackfillApplicationAcceptedAt(db *gorm.DB) error {
 		return fmt.Errorf("backfill applications.accepted_at: %w", err)
 	}
 	return nil
+}
+
+// OnboardingProgressMigratedMarker - ключ в system_settings: перенос старой колонки
+// users.onboarding_completed_version в per-tour прогресс выполняется РОВНО один раз.
+// Без маркера каждый старт сервера воскрешал бы прохождение, снятое администратором:
+// колонка остаётся заполненной (её удаление - отдельная задача), и повторный перенос
+// вернул бы удалённую строку прогресса.
+const OnboardingProgressMigratedMarker = "onboarding_progress_migrated"
+
+// securityTypeCodeForOnboarding - код типа аккаунта охранника ЧОП в user_types (тот же,
+// что securityUserTypeCode в services): у охранника единственным пройденным туром был
+// сценарий охраны, у остальных - общий пользовательский.
+const securityTypeCodeForOnboarding = "security"
+
+// MigrateOnboardingProgress РАЗОВО переносит прохождение тура из старой колонки
+// users.onboarding_completed_version в строки user_onboarding_progress (#1737): тур
+// был один на пользователя, теперь их пять и каждый версионируется отдельно.
+//
+// Перенос и маркер идут одной транзакцией. При параллельном старте двух инстанций
+// обе проходят проверку маркера и доходят до вставки, поэтому ON CONFLICT DO NOTHING
+// стоит на ОБЕИХ вставках: проигравшая гонку пишет ноль строк и спокойно коммитится.
+// Без этого на маркере прилетал duplicate key и валил весь AutoMigrate - ловилось
+// параллельным прогоном тестов, где пакеты идут против одной базы.
+func MigrateOnboardingProgress(db *gorm.DB) error {
+	var done int64
+	if err := db.Model(&models.SystemSetting{}).
+		Where("key = ?", OnboardingProgressMigratedMarker).Count(&done).Error; err != nil {
+		return fmt.Errorf("check onboarding progress migration marker: %w", err)
+	}
+	if done > 0 {
+		return nil
+	}
+
+	const q = `
+		INSERT INTO user_onboarding_progress (user_id, tour_key, completed_version, completed_at)
+		SELECT u.id,
+		       CASE WHEN ut.code = ? THEN ? ELSE ? END,
+		       u.onboarding_completed_version,
+		       NOW()
+		FROM users u
+		LEFT JOIN user_types ut ON ut.id = u.type_id
+		WHERE u.onboarding_completed_version IS NOT NULL
+		ON CONFLICT (user_id, tour_key) DO NOTHING`
+
+	return db.Transaction(func(tx *gorm.DB) error {
+		res := tx.Exec(q, securityTypeCodeForOnboarding, models.TourGuard, models.TourUser)
+		if res.Error != nil {
+			return fmt.Errorf("migrate onboarding progress: %w", res.Error)
+		}
+		marker := models.SystemSetting{Key: OnboardingProgressMigratedMarker, Value: "true", Type: "bool"}
+		if err := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "key"}},
+			DoNothing: true,
+		}).Create(&marker).Error; err != nil {
+			return fmt.Errorf("set onboarding progress migration marker: %w", err)
+		}
+		// Логируем и нулевой перенос (свежая установка) - оператору видно, что шаг
+		// отработал, а не молча не дошёл сюда.
+		slog.Info("onboarding progress migrated from legacy column", "rows", res.RowsAffected)
+		return nil
+	})
 }
 
 // backfillBlacklistNormalized заполняет normalized_number/normalized_fio у записей
