@@ -48,6 +48,7 @@ type Dependencies struct {
 	Settings            *handlers.SettingsHandler
 	News                *handlers.NewsHandler
 	Notifications       *handlers.NotificationHandler
+	Push                *handlers.PushHandler
 	RequestLogs         *handlers.RequestLogsHandler
 	EmployeesHistory    *handlers.EmployeesHistoryHandler
 	BugReport           *handlers.BugReportHandler
@@ -140,6 +141,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	settings := d.Settings
 	news := d.News
 	notifications := d.Notifications
+	push := d.Push
 	requestLogs := d.RequestLogs
 	employeesHistory := d.EmployeesHistory
 	bugReport := d.BugReport
@@ -953,6 +955,15 @@ func Setup(e *echo.Echo, d Dependencies) {
 	notif.PUT("/:id/read", notifications.MarkRead)
 	notif.DELETE("/:id", notifications.Delete)
 	notif.DELETE("", notifications.DeleteAll)
+
+	// Web Push (#974): подписка браузера на доставку уведомлений при закрытой вкладке -
+	// личная настройка устройства, тот же доступ, что у preferences/read-all выше.
+	notif.GET("/push/status", push.GetStatus)
+	notif.POST("/push/subscribe", push.Subscribe)
+	notif.DELETE("/push/subscribe", push.Unsubscribe)
+	// Сводка использования push - НЕ личная настройка, а админский разрез (раздел
+	// статистики): гейт page.statistics, как у всей остальной статистики дашборда.
+	notif.GET("/push/summary", push.GetSummary, mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageStatistics))
 
 	// Логи запросов (мониторинг) - целиком admin-only, page.admin (Ф5, ранее service checkAdmin).
 	rlg := protected.Group("/request-logs", requireAdmin)

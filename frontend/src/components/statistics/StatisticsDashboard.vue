@@ -186,6 +186,12 @@
       </div>
     </div>
 
+    <!-- ===== PUSH-УВЕДОМЛЕНИЯ (#974) =====
+         Снимок на сейчас, не завязан на выбранный период (from/to) - в отличие
+         от групп выше, поэтому не в watch([props.from, props.to]) и не в
+         summarySeq/summaryLoading, а сам себе загружает и обновляет данные. -->
+    <PushAdoptionSummary ref="pushAdoptionRef" />
+
     <!-- ===== ГРУППА: СИСТЕМА ===== -->
     <div class="dashboard__group">
       <div class="dashboard__group-head">
@@ -525,6 +531,7 @@ import TopList from '@/components/statistics/TopList.vue';
 import AnimatedNumber from '@/components/statistics/AnimatedNumber.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import OnlineUsersModal from '@/components/statistics/OnlineUsersModal.vue';
+import PushAdoptionSummary from '@/components/statistics/PushAdoptionSummary.vue';
 import { getSummary, getTimeline, getRecentPassages, getInsights, getOnlinePeaks, getOnlineUsers } from '@/api/statistics.js';
 import { mergeFeed, feedRowKey } from './feedMerge.js';
 
@@ -933,9 +940,21 @@ async function refreshFeeds() {
   }
 }
 
+// Push-сводка (#974) - отдельный самодостаточный компонент со своей загрузкой
+// (см. комментарий у <PushAdoptionSummary> в template), сюда попадает только
+// ссылка для ручного обновления кнопкой «Обновить» в шапке аналитики.
+const pushAdoptionRef = ref(null);
+
 // ---- публичный метод для обновления из родителя ----
 async function refresh() {
-  await Promise.all([loadSummary(), loadTimeline(), loadInsights(), loadOnlinePeaks(), loadFeed()]);
+  await Promise.all([
+    loadSummary(),
+    loadTimeline(),
+    loadInsights(),
+    loadOnlinePeaks(),
+    loadFeed(),
+    pushAdoptionRef.value?.refresh(),
+  ]);
 }
 
 defineExpose({ refresh });

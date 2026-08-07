@@ -3,6 +3,7 @@ module systemburo
 go 1.25.12
 
 require (
+	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/caarlos0/env/v11 v11.4.0
 	github.com/go-pdf/fpdf v0.9.0
 	github.com/go-playground/validator/v10 v10.30.2

@@ -167,6 +167,48 @@ func TestSweepRetention_UnreadNotificationsOwnThreshold(t *testing.T) {
 	require.True(t, exists(unreadFresh), "свежее непрочитанное удалять рано")
 }
 
+// TestSweepRetention_PushSubscriptionsFreshNotSwept защищает push-подписки (#974) от
+// уборки раньше срока: свежая подписка без единой успешной доставки (last_success_at
+// NULL) отсчитывается от created_at, а не считается устаревшей сразу же. Дешёвый тест
+// против опечатки в знаке сравнения COALESCE(last_success_at, created_at) < cutoff,
+// которую в диффе глазами не видно (разбор team-lead, #974, пункт 5).
+func TestSweepRetention_PushSubscriptionsFreshNotSwept(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+
+	user := createRetentionUser(t, db, "retention-push")
+	now := time.Now().UTC()
+
+	newSub := func(endpoint string, createdAt time.Time, lastSuccessAt *time.Time) int {
+		var id int
+		require.NoError(t, db.Raw(
+			`INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at, last_success_at)
+			 VALUES (?,?,?,?,?,?) RETURNING id`,
+			user.ID, endpoint, "p256dh", "auth", createdAt, lastSuccessAt,
+		).Scan(&id).Error)
+		return id
+	}
+
+	fresh := newSub("https://push.example.com/retention-fresh", now.Add(-time.Minute), nil)
+	staleNeverSucceeded := newSub("https://push.example.com/retention-stale", now.AddDate(0, 0, -200), nil)
+	recentSuccess := now.Add(-time.Hour)
+	oldButRecentSuccess := newSub("https://push.example.com/retention-recent-success", now.AddDate(0, 0, -200), &recentSuccess)
+
+	cutoff := database.DefaultRetentionCutoff(database.TargetPushSubscriptions, now)
+	_, err := database.SweepRetention(context.Background(), db, database.TargetPushSubscriptions,
+		database.SweepOptions{Cutoff: cutoff, Apply: true})
+	require.NoError(t, err)
+
+	exists := func(id int) bool {
+		var n int64
+		require.NoError(t, db.Raw(`SELECT count(*) FROM push_subscriptions WHERE id = ?`, id).Scan(&n).Error)
+		return n > 0
+	}
+	require.True(t, exists(fresh), "подписка минуту назад не должна попадать под уборку")
+	require.False(t, exists(staleNeverSucceeded), "подписка без единой доставки за 200 дней должна быть удалена")
+	require.True(t, exists(oldButRecentSuccess), "недавняя успешная доставка защищает даже старую подписку")
+}
+
 // TestSweepRetention_AuditKeepsTrashAndLastPassage - главная защита уборки истории:
 // запись об удалении держит корзину таблицы поста, а последние entry/exit дают
 // «последний выезд» в карточке. Обе переживают любой срок хранения.

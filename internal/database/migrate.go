@@ -136,6 +136,9 @@ func AllModels() []interface{} {
 		&models.FeedbackRead{},
 		&models.Notification{},
 		&models.UserNotificationPreference{},
+		// Подписки браузеров на Web Push (#974): доставка уведомлений при закрытой
+		// вкладке, поверх уже существующей ленты уведомлений выше.
+		&models.PushSubscription{},
 		&models.BugReport{},
 
 		// News

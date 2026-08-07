@@ -14,6 +14,8 @@
       </button>
     </header>
 
+    <WebPushSettings />
+
     <p
       v-if="loading"
       class="notif-settings__state"
@@ -105,6 +107,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
+import WebPushSettings from '@/components/NotificationSettings/WebPushSettings.vue';
 import { getNotificationPreferences, updateNotificationPreferences } from '@/api/notificationPreferences';
 import { useDeletionsStore } from '@/stores/deletions';
 

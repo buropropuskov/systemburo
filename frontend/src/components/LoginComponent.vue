@@ -226,6 +226,7 @@
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { useContactsStore } from '@/stores/contacts'
+import { resolveLoginRedirect } from '@/utils/postLoginRedirect'
 import PasswordRecoveryModal from '@/components/PasswordRecoveryModal.vue'
 
 // Фолбэк-контакты Бюро, если в настройках системы они ещё не заданы.
@@ -557,7 +558,9 @@ export default {
 
             this.$emit('login-success', { token: data.token });
 
-            this.$router.push('/news');
+            // #974: если сюда привёл гард (открыли ссылку/push-уведомление без
+            // сессии), возвращаем на исходный адрес, а не на дефолтную ленту.
+            this.$router.push(resolveLoginRedirect(this.$route.query) || '/news');
         } else {
             // Проверяем статус код для определения типа ошибки
             if (response.status === 429) {

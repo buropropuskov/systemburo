@@ -127,6 +127,27 @@ type Config struct {
 	// прочитанных нарочно: непрочитанное не обесценилось само по себе (человек его ещё
 	// не видел), поэтому порог заметно мягче, а не совпадает с ReadNotificationRetentionDays.
 	NotificationRetentionDays int `env:"NOTIFICATION_RETENTION_DAYS" envDefault:"90"`
+
+	// Web Push (#974): доставка уведомлений в браузер, пока вкладка системы закрыта.
+	// Оба ключа пустые - штатный режим "push выключен": подписка на экране настроек
+	// всё равно сохраняется (пригодится, если ключи потом появятся), реальная отправка
+	// молча пропускается и ошибок не сыплет - стенд без ключей работает как раньше.
+	// Пара генерируется командой `server vapid` (cmd/server/vapid.go).
+	VAPIDPublicKey  string `env:"VAPID_PUBLIC_KEY" envDefault:""`
+	VAPIDPrivateKey string `env:"VAPID_PRIVATE_KEY" envDefault:""`
+	// VAPIDSubject - контакт бюро в Sub VAPID-токена (mailto: или https://), по которому
+	// push-сервис браузера может связаться с оператором при проблемах с рассылкой.
+	// Спецификацией не обязателен, но браузеры настойчиво рекомендуют его задавать.
+	VAPIDSubject string `env:"VAPID_SUBJECT" envDefault:""`
+
+	// PushSubscriptionRetentionDays - через сколько дней без единой успешной доставки
+	// подписка считается брошенной и подчищается уборкой (#974, database/retention.go).
+	// Не совпадает с порогом подряд идущих неудач в push_service.go: тот ловит явно
+	// мёртвый endpoint (браузер снял подписку, сервис отвечает не 404/410, а таймаутом),
+	// этот - молчаливо забытое устройство, которое ещё отвечает 2xx, но человек им давно
+	// не пользуется (ушёл в другой браузер, не отписавшись). 180 дней - половина года без
+	// единого успеха, заведомо больше типового цикла смены браузера или устройства.
+	PushSubscriptionRetentionDays int `env:"PUSH_SUBSCRIPTION_RETENTION_DAYS" envDefault:"180"`
 }
 
 func Load() (*Config, error) {
@@ -202,6 +223,12 @@ func (c *Config) Validate() error {
 	}
 	if err := validateArchiveOutsideUploads(c.ArchivePath, c.UploadPath); err != nil {
 		return err
+	}
+	if (c.VAPIDPublicKey == "") != (c.VAPIDPrivateKey == "") {
+		return fmt.Errorf("VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be set together (both empty disables push)")
+	}
+	if c.PushSubscriptionRetentionDays <= 0 {
+		return fmt.Errorf("PUSH_SUBSCRIPTION_RETENTION_DAYS must be positive (got %d)", c.PushSubscriptionRetentionDays)
 	}
 	return nil
 }
