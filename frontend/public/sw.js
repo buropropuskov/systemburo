@@ -25,12 +25,24 @@ self.addEventListener('push', (event) => {
 
   const title = payload.title || 'Бюро пропусков';
   const url = payload.url || (payload.application_id ? `/?open_application=${payload.application_id}` : '/');
+  // tag схлопывает ПОВТОРЫ ОДНОГО СОБЫТИЯ по одной заявке: новый push с тем же
+  // тегом заменяет предыдущий вместо роста стопки. В теге обязателен тип: без
+  // него «требуется согласование» и «новый вопрос» по одной заявке считались бы
+  // одним событием и затирали друг друга, а это разные поводы для человека.
+  //
+  // renotify обязателен вместе с tag. Браузер заменяет уведомление с прежним
+  // тегом МОЛЧА: без звука и без всплытия, сразу в центр уведомлений. Проверка
+  // на живом стенде показала ровно это - уведомления о заявке приходили
+  // незаметно, тогда как без тега всплывали нормально. Задумано было «не
+  // спамить повторами», а вышло «важное проходит мимо человека».
+  const tag = payload.application_id
+    ? `app-${payload.application_id}-${payload.type || 'event'}`
+    : undefined;
   const options = {
     body: payload.message || '',
     icon: '/icon.jpg',
-    // tag схлопывает повторные уведомления по одной заявке - новый push с тем
-    // же tag заменяет предыдущий в системном центре вместо роста стопки.
-    tag: payload.application_id ? `application-${payload.application_id}` : undefined,
+    tag,
+    renotify: Boolean(tag),
     data: { url },
   };
 
