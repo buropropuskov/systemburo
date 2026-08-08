@@ -993,7 +993,7 @@ func safeDerefInt(p *int) int {
 // подавший заявку и сам знает, что подал, а «Заявка отправлена» ему уже ушла.
 // Ошибка отдельного получателя не прерывает рассылку - остальные должны узнать.
 func (s *applicationService) notifyApproversAboutNewApplication(
-	ctx context.Context, authorID, appID int, applicationNumber, organizationName, senderName, payload string,
+	ctx context.Context, authorID, appID int, note pendingAcceptanceNote, payload string,
 ) {
 	var approverIDs []int
 	if err := s.db.WithContext(ctx).Model(&models.ApplicationApprover{}).
@@ -1007,8 +1007,8 @@ func (s *applicationService) notifyApproversAboutNewApplication(
 		if err := s.notificationService.CreateForUser(
 			ctx, userID,
 			NotificationTypeApplicationPendingAcceptance,
-			"Новая заявка в центре",
-			pendingAcceptanceMessage(applicationNumber, organizationName, senderName),
+			"Новая заявка",
+			note.message(),
 			&payload,
 		); err != nil {
 			slog.Warn("не удалось уведомить принимающего о новой заявке",
@@ -1017,23 +1017,41 @@ func (s *applicationService) notifyApproversAboutNewApplication(
 	}
 }
 
-// pendingAcceptanceMessage собирает текст приглашения принять заявку. Кто прислал и
-// откуда - вперёд номера: в шторке телефона видно две строки, и по одному номеру
-// принимающий не понимает ни чья заявка, ни насколько она срочная. Пустые части просто
-// выпадают, чтобы не получилось «от «», отправитель ».
-func pendingAcceptanceMessage(applicationNumber, organizationName, senderName string) string {
-	var head []string
-	if org := strings.TrimSpace(organizationName); org != "" {
-		head = append(head, fmt.Sprintf("«%s»", org))
+// pendingAcceptanceNote -- из чего складывается приглашение принять заявку.
+type pendingAcceptanceNote struct {
+	number       string
+	organization string
+	sender       string
+	messageText  string
+	fileCount    int
+}
+
+// message собирает текст строками: событие, от кого, о чём, сколько вложено. Строки, а
+// не одна фраза, потому что в развёрнутом уведомлении и в окне подробностей переносы
+// видны, и «от кого» глаз находит сразу. Пустые части выпадают целиком - у заявки может
+// не быть ни организации, ни сообщения, ни файлов, и пустые ярлыки только занимали бы
+// место.
+func (n pendingAcceptanceNote) message() string {
+	lines := []string{fmt.Sprintf("Поступила новая заявка %s", n.number)}
+
+	var from []string
+	if org := strings.TrimSpace(n.organization); org != "" {
+		from = append(from, fmt.Sprintf("«%s»", org))
 	}
-	if sender := strings.TrimSpace(senderName); sender != "" {
-		head = append(head, sender)
+	if sender := strings.TrimSpace(n.sender); sender != "" {
+		from = append(from, sender)
 	}
-	if len(head) == 0 {
-		return fmt.Sprintf("Заявка %s ждёт, когда её возьмут в работу.", applicationNumber)
+	if len(from) > 0 {
+		lines = append(lines, strings.Join(from, ", "))
 	}
-	return fmt.Sprintf("%s - заявка %s ждёт, когда её возьмут в работу.",
-		strings.Join(head, ", "), applicationNumber)
+
+	if preview := previewText(plainTextFromRichText(n.messageText), notificationPreviewLimit); preview != "" {
+		lines = append(lines, preview)
+	}
+	if files := fileCountLabel(n.fileCount); files != "" {
+		lines = append(lines, files)
+	}
+	return strings.Join(lines, "\n")
 }
 
 // applicationSenderTitle - наименование организации заявки, а если её нет, то компании.

@@ -40,7 +40,7 @@ func TestSubmit_NotifiesApproversAboutPendingApplication(t *testing.T) {
 
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_pending_tmpl", "Cars Pending")
 	body := fmt.Sprintf(`{
-		"message":"pending acceptance","organization":"Test Organization",
+		"message":"<p>Привоз мебели на склад</p>","organization":"Test Organization",
 		"responsible_person":"Test","contact_phone":"+79001234567","data_approval":true,
 		"attachments":[{"attachment_type":"cars","attachment_name":"cars_tmpl",
 			"attachment_display_name":"Cars Template","unique_attachment_id":%d,
@@ -56,13 +56,17 @@ func TestSubmit_NotifiesApproversAboutPendingApplication(t *testing.T) {
 	require.Len(t, forApprover, 1, "принимающий должен узнать о заявке, ждущей принятия")
 	require.NotNil(t, forApprover[0].Title)
 	require.NotNil(t, forApprover[0].Message)
-	assert.Equal(t, "Новая заявка в центре", *forApprover[0].Title)
-	assert.Contains(t, *forApprover[0].Message, "ждёт, когда её возьмут в работу")
+	assert.Equal(t, "Новая заявка", *forApprover[0].Title)
+	assert.Contains(t, *forApprover[0].Message, "Поступила новая заявка")
 	// Организация в тексте: в шторке телефона видно две строки, и по одному номеру
 	// заявки принимающий не понимает, чья она (#974).
 	assert.Contains(t, *forApprover[0].Message, "Test Organization")
 	// Отправитель рядом с организацией: принимающему важно, кто именно прислал (#974).
 	assert.Contains(t, *forApprover[0].Message, "author_notify")
+	// Превью сообщения заявки - без разметки, отдельной строкой.
+	assert.Contains(t, *forApprover[0].Message, "Привоз мебели на склад")
+	assert.NotContains(t, *forApprover[0].Message, "<p>")
+	assert.Contains(t, *forApprover[0].Message, "\n", "текст собирается строками, а не одной фразой")
 	require.NotNil(t, forApprover[0].Data, "без data в окне подробностей не будет перехода к заявке")
 	assert.Contains(t, *forApprover[0].Data, "application_id")
 	assert.Contains(t, *forApprover[0].Data, "Test Organization")
