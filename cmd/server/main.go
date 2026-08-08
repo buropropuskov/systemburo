@@ -331,8 +331,7 @@ func main() {
 	permissionHandler := handlers.NewPermissionHandler(permissionService, permissionResolver)
 	// roleNotifier уведомляет владельца учётки о смене роли (#1748 S3), оборачивая
 	// permissionGroupService.SetUserRole - его файл off-limits для этого среза.
-	userRoleNotifier := services.NewUserRoleNotifier(db, permissionGroupService, notificationService)
-	permissionGroupHandler := handlers.NewPermissionGroupHandler(permissionGroupService, userRoleNotifier)
+	permissionGroupHandler := handlers.NewPermissionGroupHandler(permissionGroupService)
 	roleHandler := handlers.NewRoleHandler(roleService)
 	accessDenialHandler := handlers.NewAccessDenialHandler(accessDenialService)
 	userBanHandler := handlers.NewUserBanHandler(userBanService)
