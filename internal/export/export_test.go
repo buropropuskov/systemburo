@@ -1,7 +1,9 @@
 package export
 
 import (
+	"archive/zip"
 	"bytes"
+	"io"
 	"regexp"
 	"strconv"
 	"strings"
@@ -105,6 +107,93 @@ func TestToXLSX_AdaptiveColumnWidths(t *testing.T) {
 	if wWide > maxColWidth {
 		t.Fatalf("широкая колонка шире потолка: %.1f > %.1f", wWide, maxColWidth)
 	}
+}
+
+// Выгрузку открывают, чтобы отобрать в ней строки, поэтому шапка обязана нести
+// автофильтр и оставаться на месте при прокрутке. Диапазон фильтра проверяем по XML
+// листа: excelize не отдаёт его обратно геттером.
+func TestToXLSX_HeaderHasAutoFilterAndFreeze(t *testing.T) {
+	tbl := Table{
+		Title:    "Реестр заявок",
+		Subtitle: "заявок: 2",
+		Headers:  []string{"Номер", "Организация", "Статус"},
+		Rows: [][]string{
+			{"A-1", "Орг", "Завершено"},
+			{"A-2", "Орг", "В обработке"},
+		},
+	}
+	data, err := ToXLSX(tbl)
+	if err != nil {
+		t.Fatalf("ToXLSX: %v", err)
+	}
+	f, err := excelize.OpenReader(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("OpenReader: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+	sheet := f.GetSheetName(0)
+
+	// Заголовок, подзаголовок, пустая строка-разделитель - шапка таблицы четвёртая,
+	// данные с пятой. Фильтр обязан накрывать шапку и обе строки данных.
+	// excelize пишет диапазон абсолютными ссылками.
+	if want := `autoFilter ref="$A$4:$C$6"`; !strings.Contains(sheetXML(t, data), want) {
+		t.Fatalf("автофильтр не накрывает шапку и данные, ожидали %s", want)
+	}
+
+	panes, err := f.GetPanes(sheet)
+	if err != nil {
+		t.Fatalf("GetPanes: %v", err)
+	}
+	if !panes.Freeze {
+		t.Fatal("шапка не закреплена: при прокрутке длинного реестра она уедет")
+	}
+	if panes.YSplit != 4 {
+		t.Fatalf("закреплены не все строки шапки: YSplit=%d, ожидали 4", panes.YSplit)
+	}
+}
+
+// Пустая выборка - это ответ «за период ничего нет», а не ошибка: файл обязан
+// открываться, а фильтр на единственной строке шапки Excel считает поводом
+// пожаловаться, поэтому его там нет.
+func TestToXLSX_EmptyRows_NoFilterButValidFile(t *testing.T) {
+	data, err := ToXLSX(Table{Headers: []string{"Номер", "Статус"}})
+	if err != nil {
+		t.Fatalf("ToXLSX: %v", err)
+	}
+	if _, err := excelize.OpenReader(bytes.NewReader(data)); err != nil {
+		t.Fatalf("OpenReader: %v", err)
+	}
+	if strings.Contains(sheetXML(t, data), "autoFilter") {
+		t.Fatal("на пустой выборке автофильтра быть не должно")
+	}
+}
+
+// sheetXML достаёт разметку первого листа из готового файла. Автофильтр excelize
+// обратно не отдаёт ни одним геттером, а xlsx - это zip, поэтому читаем описание
+// листа напрямую: проверка не зависит от версии библиотеки.
+func sheetXML(t *testing.T, data []byte) string {
+	t.Helper()
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatalf("xlsx не читается как zip: %v", err)
+	}
+	for _, file := range zr.File {
+		if file.Name != "xl/worksheets/sheet1.xml" {
+			continue
+		}
+		rc, err := file.Open()
+		if err != nil {
+			t.Fatalf("открыть %s: %v", file.Name, err)
+		}
+		defer func() { _ = rc.Close() }()
+		body, err := io.ReadAll(rc)
+		if err != nil {
+			t.Fatalf("прочитать %s: %v", file.Name, err)
+		}
+		return string(body)
+	}
+	t.Fatal("в xlsx нет xl/worksheets/sheet1.xml")
+	return ""
 }
 
 // TestToPDF_ManyRows_MultiPage: большая таблица разбивается на несколько страниц
