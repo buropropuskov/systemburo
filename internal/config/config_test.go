@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -242,6 +243,22 @@ func TestValidate_RequireEncryption_NoKey(t *testing.T) {
 	err := cfg.Validate()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "REQUIRE_ENCRYPTION")
+}
+
+// Требование шифрования распространяется и на файловый архив: без ключей он пишет
+// открытым текстом, а заметить это можно только по именам файлов в каталоге.
+func TestValidate_RequireEncryption_NoArchiveKeys(t *testing.T) {
+	cfg := validConfig()
+	cfg.RequireEncryption = true
+	cfg.DataEncryptionKey = strings.Repeat("ab", 32)
+
+	err := cfg.Validate()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "ARCHIVE_AGE_RECIPIENT")
+
+	cfg.ArchiveAgeRecipient = "age1qqqq"
+	cfg.ArchiveAgeIdentity = "AGE-SECRET-KEY-1QQQQ"
+	assert.NoError(t, cfg.Validate())
 }
 
 func TestLoad_RateLimitDefaults(t *testing.T) {

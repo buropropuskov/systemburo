@@ -190,6 +190,27 @@ func (w *ArchiveWriter) RemoveFile(levels []string, name string) error {
 	return nil
 }
 
+// MoveFile переименовывает файл внутри одного каталога архива. Нужен дошифровке:
+// содержимое уже закрыто, менять его незачем, а имя обязано получить суффикс.
+// Каталоги не создаются намеренно - переезд между папками делает MoveDir.
+func (w *ArchiveWriter) MoveFile(levels []string, from, to string) error {
+	src, err := w.Resolve(append(append([]string{}, levels...), from)...)
+	if err != nil {
+		return err
+	}
+	dst, err := w.Resolve(append(append([]string{}, levels...), to)...)
+	if err != nil {
+		return err
+	}
+	if src == dst {
+		return nil
+	}
+	if err := os.Rename(src, dst); err != nil {
+		return fmt.Errorf("failed to rename archive file: %w", err)
+	}
+	return syncDir(filepath.Dir(dst))
+}
+
 // EnsureDir создаёт уровни каталогов под корнем и возвращает путь самого глубокого.
 //
 // Уровни создаются по одному, а режим выставляется только на созданные нами: чужой
