@@ -33,10 +33,37 @@ export function isStandalone(win = window) {
 }
 
 /**
+ * Признаки браузеров, которые на iOS работают на том же движке WebKit, но НЕ умеют
+ * ставить сайт на экран "Домой" так, чтобы у него был push: ярлык из них открывается
+ * обычной вкладкой. Отличить их можно только по этим меткам - Safari своей метки не
+ * ставит, а слово Safari в строке несут все.
+ * @param {Navigator} nav
+ * @returns {boolean}
+ */
+export function isIosSafari(nav = navigator) {
+  if (!isIOS(nav)) return false;
+  const ua = nav.userAgent || '';
+  return !/(CriOS|FxiOS|EdgiOS|YaBrowser|YaSearchBrowser|OPiOS|OPT\/|DuckDuckGo|Coast|mercury)/i.test(ua);
+}
+
+/**
  * @param {Navigator} nav
  * @param {Window} win
- * @returns {boolean} нужно показать подсказку "добавьте сайт на экран Домой"
+ * @returns {boolean} человек на iOS открыл сайт в стороннем браузере - подключить push
+ * оттуда нельзя вообще, и инструкция про экран "Домой" ему бесполезна: сначала нужно
+ * перейти в Safari. Проверка на живом iPhone (#974) показала ровно эту дыру - Chrome
+ * получал подсказку для Safari и выполнить её не мог.
+ */
+export function iosNeedsSafari(nav = navigator, win = window) {
+  return isIOS(nav) && !isStandalone(win) && !isIosSafari(nav);
+}
+
+/**
+ * @param {Navigator} nav
+ * @param {Window} win
+ * @returns {boolean} нужно показать подсказку "добавьте сайт на экран Домой" - то есть
+ * человек уже в Safari, но сайт ещё не установлен.
  */
 export function needsIosHomeScreenInstall(nav = navigator, win = window) {
-  return isIOS(nav) && !isStandalone(win);
+  return isIOS(nav) && !isStandalone(win) && isIosSafari(nav);
 }

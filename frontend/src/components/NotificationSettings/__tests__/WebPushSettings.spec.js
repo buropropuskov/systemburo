@@ -19,6 +19,7 @@ vi.mock('@/utils/webPushSubscription', () => ({
 }))
 vi.mock('@/utils/webPushPlatform', () => ({
   needsIosHomeScreenInstall: vi.fn(() => false),
+  iosNeedsSafari: vi.fn(() => false),
 }))
 const notify = vi.fn()
 vi.mock('@/stores/deletions', () => ({ useDeletionsStore: () => ({ notify }) }))
@@ -31,7 +32,7 @@ import {
   subscribeToPush,
   unsubscribeLocal,
 } from '@/utils/webPushSubscription'
-import { needsIosHomeScreenInstall } from '@/utils/webPushPlatform'
+import { needsIosHomeScreenInstall, iosNeedsSafari } from '@/utils/webPushPlatform'
 
 function mountBlock() {
   return mount(WebPushSettings)
@@ -43,6 +44,9 @@ describe('WebPushSettings', () => {
     notify.mockClear()
     isPushSupported.mockReturnValue(true)
     needsIosHomeScreenInstall.mockReturnValue(false)
+    // Возврат мока clearAllMocks не трогает - без явного сброса состояние iOS-подсказки
+    // из предыдущего теста утекает в следующий.
+    iosNeedsSafari.mockReturnValue(false)
     getCurrentSubscription.mockResolvedValue(null)
     getWebPushStatus.mockResolvedValue({ public_key: 'server-key', enabled: true, devices: [] })
     vi.stubGlobal('Notification', { permission: 'default', requestPermission: vi.fn().mockResolvedValue('granted') })
@@ -72,6 +76,21 @@ describe('WebPushSettings', () => {
     expect(hint.text()).toContain('экран «Домой»')
     expect(hint.findAll('.webpush__steps li')).toHaveLength(4)
     expect(hint.text()).toContain('Поделиться')
+    expect(wrapper.find('[data-testid="webpush-enable"]').exists()).toBe(false)
+  })
+
+  // Живой iPhone (#974): зашли через Chrome и получили инструкцию для Safari, которую
+  // из Chrome выполнить нельзя - ярлык оттуда push не даёт.
+  it('сторонний браузер на iOS - ведём в Safari, а не предлагаем ставить на «Домой»', async () => {
+    iosNeedsSafari.mockReturnValue(true)
+    needsIosHomeScreenInstall.mockReturnValue(false)
+    const wrapper = mountBlock()
+    await flushPromises()
+
+    const hint = wrapper.find('[data-testid="webpush-ios-safari-hint"]')
+    expect(hint.exists()).toBe(true)
+    expect(hint.text()).toContain('не в Safari')
+    expect(wrapper.find('[data-testid="webpush-ios-hint"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="webpush-enable"]').exists()).toBe(false)
   })
 
