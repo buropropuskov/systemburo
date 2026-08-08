@@ -107,9 +107,15 @@ describe('гейтинг: матрица пяти ролей на пять ту�
     expect(TOURS.filter((t) => t.isAvailable(ctx({ anonymous: true }))).map((t) => t.key)).toEqual([]);
   });
 
-  it('тур охраны берётся и по page.available, и по page.tables', () => {
+  // Одного page.tables мало намеренно: шесть шагов тура и финал живут на
+  // «Доступных мне», а её роут закрыт гардом requiresSecurityOrAdmin (супер-админ,
+  // работник поста, право page.available). С page.tables в гейте человек видел
+  // тур, проходил вступление и на первом шаге сегмента уезжал в личный кабинет.
+  // Лучше не показать тур, чем оборвать его на середине - так же решено у
+  // согласующего и принимающего с page.center.
+  it('тур охраны берётся по page.available, но не по одному page.tables', () => {
     expect(getTour('guard').isAvailable(ctx({ permissions: ['page.available'] }))).toBe(true);
-    expect(getTour('guard').isAvailable(ctx({ permissions: ['page.tables'] }))).toBe(true);
+    expect(getTour('guard').isAvailable(ctx({ permissions: ['page.tables'] }))).toBe(false);
     expect(getTour('guard').isAvailable(ctx())).toBe(false);
   });
 

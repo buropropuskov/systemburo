@@ -309,11 +309,20 @@ describe('onboarding store', () => {
       expect(keys(store)).toContain('guard');
     });
 
-    it('тур охраны доступен и по праву page.tables', () => {
+    it('тур охраны доступен по праву page.available', () => {
+      useAuthStore().setTokens(createMockJWT({ username: 'ivanov' }));
+      grant('page.available');
+      const store = useOnboardingStore();
+      expect(keys(store)).toContain('guard');
+    });
+
+    // Одного page.tables мало: большая часть тура живёт на «Доступных мне», куда
+    // это право не пускает, и тур обрывался бы на первом шаге сегмента.
+    it('тур охраны не появляется по одному праву page.tables', () => {
       useAuthStore().setTokens(createMockJWT({ username: 'ivanov' }));
       grant('page.tables');
       const store = useOnboardingStore();
-      expect(keys(store)).toContain('guard');
+      expect(keys(store)).not.toContain('guard');
     });
 
     it('согласующий (isReviewer) получает тур approve', async () => {
@@ -435,7 +444,7 @@ describe('onboarding store', () => {
       // Права приезжают только внутри ensureGatingContext - до него их нет.
       permissions.fetchPermissions = vi.fn(async () => {
         permissions.mode = 'normal';
-        permissions.effective = { 'page.tables': { value: 'allow', source: 'base' } };
+        permissions.effective = { 'page.available': { value: 'allow', source: 'base' } };
       });
 
       const store = useOnboardingStore();

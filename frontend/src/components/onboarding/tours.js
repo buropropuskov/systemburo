@@ -57,7 +57,13 @@ export const TOURS = [
       ...buildSecurityFactSteps(ctx?.factTableRoute || null),
       buildSecurityFinalStep(),
     ],
-    isAvailable: (ctx) => ctx.isSecurity || ctx.can('page.available') || ctx.can('page.tables'),
+    // Доступ к «Доступным мне» обязателен, как центр заявок у согласующего: на
+    // этой странице живут шесть шагов и финал, а её роут закрыт гардом
+    // `requiresSecurityOrAdmin` (супер-админ, охранник, право page.available).
+    // Раньше в гейт входило ещё page.tables - работник с одним этим правом видел
+    // тур, проходил вступление на новостях и на первом шаге сегмента уезжал в
+    // личный кабинет, теряя шесть шагов и празднование.
+    isAvailable: (ctx) => ctx.isSecurity || ctx.can('page.available'),
     autostartPriority: 1,
   },
   {

@@ -19,7 +19,17 @@ const ROUTER_FILE = path.resolve(
   '../../../router.js',
 );
 
-/** @returns {Array<{ path: string, permission: string|null }>} роуты с requiresAuth */
+/**
+ * Мета-флаги, которыми доступность роута закрыта ПОМИМО `permission`: гард
+ * проверяет их отдельной ветвью, и по одному `permission` такой роут выглядит
+ * открытым любому вошедшему. Замки достижимости обязаны их видеть, иначе шаг,
+ * ведущий на закрытую страницу, проходит проверку и разворачивает человека
+ * посреди тура (#7: так четыре шага тура администратора уехали на /403, а тур
+ * охранника терял шесть шагов и финал у работника с одним page.tables).
+ */
+const EXTRA_GATE_FLAGS = ['requiresSuperAdmin', 'requiresSecurityOrAdmin'];
+
+/** @returns {Array<{ path: string, permission: string|null, extraGate: string|null }>} роуты с requiresAuth */
 function parseAuthRoutes() {
   const src = fs.readFileSync(ROUTER_FILE, 'utf8');
   const marks = [...src.matchAll(/path:\s*'([^']+)'/g)];
@@ -27,7 +37,11 @@ function parseAuthRoutes() {
   marks.forEach((m, i) => {
     const chunk = src.slice(m.index, i + 1 < marks.length ? marks[i + 1].index : src.length);
     if (!/requiresAuth:\s*true/.test(chunk)) return;
-    routes.push({ path: m[1], permission: chunk.match(/permission:\s*'([^']+)'/)?.[1] ?? null });
+    routes.push({
+      path: m[1],
+      permission: chunk.match(/permission:\s*'([^']+)'/)?.[1] ?? null,
+      extraGate: EXTRA_GATE_FLAGS.find((f) => new RegExp(`${f}:\\s*true`).test(chunk)) ?? null,
+    });
   });
   return routes;
 }
@@ -45,4 +59,16 @@ export function authRoutePaths() {
  */
 export function routeGate(routePath) {
   return authRoutes.find((r) => r.path === routePath)?.permission ?? null;
+}
+
+/**
+ * Имя мета-флага, которым роут закрыт помимо `permission`. Гейт тура обязан
+ * покрывать этот флаг: пропустить его - значит пустить в тур человека, которого
+ * роут-гард развернёт на первом же шаге такой страницы.
+ *
+ * @param {string} routePath
+ * @returns {string|null} имя флага либо null, если дополнительного гейта нет
+ */
+export function routeExtraGate(routePath) {
+  return authRoutes.find((r) => r.path === routePath)?.extraGate ?? null;
 }
