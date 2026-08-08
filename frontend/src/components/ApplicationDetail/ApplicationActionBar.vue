@@ -221,11 +221,15 @@
                      справочника принимающих - такой же согласующий, и раньше кнопка отзыва
                      ему не доставалась, потому что эта ветка перехватывала рендер. -->
                 <template v-else>
-                  <template v-if="canTakeToWork">
+                  <!-- В обучении кнопки показываем всегда, но неактивными: пока
+                       заявка ждёт согласующих, их нет вовсе, и шаг тура про главное
+                       действие роли подсвечивал пустое место. -->
+                  <template v-if="canTakeToWork || tourOnlyActions">
                     <button
                       class="accept-btn"
+                      :class="{ 'is-tour-stub': !canTakeToWork }"
                       data-testid="app-detail-button-take-to-work"
-                      :disabled="processing"
+                      :disabled="processing || !canTakeToWork"
                       @click="handleApplicationAction('accept')"
                     >
                       <span
@@ -236,8 +240,9 @@
                     </button>
                     <button
                       class="reject-btn"
+                      :class="{ 'is-tour-stub': !canTakeToWork }"
                       data-testid="app-detail-button-reject"
-                      :disabled="processing"
+                      :disabled="processing || !canTakeToWork"
                       @click="handleApplicationAction('reject')"
                     >
                       <span
@@ -594,6 +599,14 @@ export default {
         };
     },
     computed: {
+        /**
+         * Идёт обучение: кнопки решения показываем даже там, где их сейчас нет.
+         * Неактивные - чтобы их не приняли за рабочие (см. is-tour-stub).
+         */
+        tourOnlyActions() {
+            return useUiStore().tourActive;
+        },
+
         // На узком экране ряд действий не переносится (nowrap), а у совмещённой роли рядом
         // стоят ещё "Принять" и "Отказать" - полная подпись в 390px не помещается.
         revokeApprovalLabel() {
@@ -1285,6 +1298,16 @@ export default {
         min-width: auto;
         white-space: nowrap;
     }
+}
+
+/*
+ * Кнопка, показанная только ради обучения: этой заявке действие сейчас недоступно.
+ * Приглушаем и гасим наведение, чтобы её не приняли за рабочую.
+ */
+.is-tour-stub {
+    opacity: 0.5;
+    cursor: default;
+    pointer-events: none;
 }
 
 .confirm-btn, .reject-btn, .accept-btn {

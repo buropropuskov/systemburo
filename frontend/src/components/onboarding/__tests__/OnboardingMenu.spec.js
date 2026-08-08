@@ -200,7 +200,10 @@ describe('OnboardingMenu', () => {
       login();
       const permissions = usePermissionsStore();
       permissions.mode = 'normal';
-      permissions.effective = { 'page.tables': { value: 'allow', source: 'base' } };
+      // page.available, а не page.tables: тур охранника гейтится доступом к
+      // «Доступным мне», где живёт большая часть его шагов. Смысл проверки тот же -
+      // тур попадает в меню по ПРАВУ, без смены типа учётной записи.
+      permissions.effective = { 'page.available': { value: 'allow', source: 'base' } };
       await mountMenu();
 
       await wrapper.find('[data-testid="ob-start-button"]').trigger('click');

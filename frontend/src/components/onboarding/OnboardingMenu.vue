@@ -22,8 +22,11 @@ const canShow = computed(() => store.canShowTour && tours.value.length > 0);
 const isSingle = computed(() => tours.value.length === 1);
 
 /** @param {string} key ключ тура */
-function startTour(key) {
+async function startTour(key) {
   if (!key) return;
+  // Ждём гейтинг-контекст: у охраны в нём резолвится route фактовой таблицы, от
+  // которого зависит длина тура. Без ожидания счётчик на первых шагах врёт.
+  await store.ensureGatingContext();
   store.start({ tour: key, manual: true });
 }
 

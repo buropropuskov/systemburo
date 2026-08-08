@@ -8,7 +8,8 @@ import {
 } from '../securityOnboardingSteps';
 import { collectSegment } from '../onboardingSteps';
 import { resolveReveal } from '../reveal';
-import { buildTourSteps } from '../tours';
+import { buildTourSteps, getTour } from '../tours';
+import { routeGate, routeExtraGate } from './routerGates';
 
 describe('securityOnboardingSteps', () => {
   it('каждый шаг имеет непустые id, title и строковый description', () => {
@@ -303,9 +304,13 @@ describe('buildSecurityFactSteps', () => {
     expect(step.description).toMatch(/21:30/);
   });
 
-  it('первый шаг - optionalSegment-центр-модал (граница для грациозной деградации)', () => {
+  // Раньше первый шаг был центр-модалкой без цели, и на живом посту это читалось
+  // как «тур потерялся». Подсвечиваем таблицу, но шаг оставляем необязательным:
+  // у нового поста записей может не быть вовсе.
+  it('первый шаг подсвечивает таблицу и остаётся границей деградации сегмента', () => {
     const [intro] = buildSecurityFactSteps('/table/kpp_1');
-    expect(intro.element).toBe(null);
+    expect(intro.element).toBe('[data-testid="fact-table"]');
+    expect(intro.optional).toBe(true);
     expect(intro.optionalSegment).toBe(true);
   });
 
@@ -364,5 +369,68 @@ describe('buildSecurityFinalStep', () => {
     expect(last.id).toBe('sec-finish');
     // Финал живёт на «Доступных мне» - странице, достижимой охранником всегда.
     expect(last.route).toBe('/accessible-attachments');
+  });
+});
+
+/**
+ * Достижимость страниц тура. Гейт тура обязан покрывать гейты всех страниц, на
+ * которых стоят его шаги, - иначе человек видит тур в меню «Обучение», проходит
+ * вступление и уезжает с первого шага недостижимого сегмента.
+ *
+ * Проверка идёт и по `permission` роута, и по мета-флагам вроде
+ * `requiresSecurityOrAdmin`: последние гард проверяет отдельной ветвью, и по
+ * одному `permission` такая страница выглядит открытой любому вошедшему.
+ */
+describe('securityOnboardingSteps - достижимость страниц участником тура', () => {
+  const guard = getTour('guard');
+
+  /** @returns {object} контекст гейтинга: одно основание доступа за раз */
+  function ctx({ permissions = [], isSecurity = false } = {}) {
+    return {
+      isAuthenticated: true,
+      isSecurity,
+      can: (key) => permissions.includes(key),
+      approvalRole: { isApprover: false, isReviewer: false },
+    };
+  }
+
+  /** Модель гардов роутера, выраженных мета-флагом, а не правом. */
+  const EXTRA_GATE_MODEL = {
+    requiresSecurityOrAdmin: (c) => c.isSecurity || c.can('page.available'),
+    requiresSuperAdmin: () => false,
+  };
+
+  /** Основания, каждое из которых само по себе даёт доступ к туру или не даёт. */
+  const CANDIDATES = [
+    { name: 'работник поста (тип security)', c: ctx({ isSecurity: true }) },
+    { name: 'право «Доступные мне»', c: ctx({ permissions: ['page.available'] }) },
+    { name: 'право «Таблицы постов»', c: ctx({ permissions: ['page.tables'] }) },
+    { name: 'без прав', c: ctx() },
+  ];
+
+  it('«Доступные мне» закрыты мета-флагом, а не правом - замок обязан это видеть', () => {
+    expect(routeExtraGate('/accessible-attachments')).toBe('requiresSecurityOrAdmin');
+    expect(routeGate('/accessible-attachments')).toBeNull();
+  });
+
+  it('одного права «Таблицы постов» для тура недостаточно: шесть шагов и финал живут на «Доступных мне»', () => {
+    expect(guard.isAvailable(ctx({ permissions: ['page.tables'] }))).toBe(false);
+    expect(guard.isAvailable(ctx({ permissions: ['page.available'] }))).toBe(true);
+    expect(guard.isAvailable(ctx({ isSecurity: true }))).toBe(true);
+  });
+
+  it('каждый статический роут шагов достижим любому, кого гейт тура пускает', () => {
+    const routes = [
+      ...new Set(buildTourSteps('guard', { factTableRoute: null }).map((s) => s.route)),
+    ];
+    for (const { name, c } of CANDIDATES) {
+      if (!guard.isAvailable(c)) continue;
+      for (const route of routes) {
+        const gate = routeGate(route);
+        if (gate) expect(c.can(gate), `${name} -> ${route} (${gate})`).toBe(true);
+        const extra = routeExtraGate(route);
+        if (extra) expect(EXTRA_GATE_MODEL[extra](c), `${name} -> ${route} (${extra})`).toBe(true);
+      }
+    }
   });
 });
