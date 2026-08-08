@@ -165,16 +165,18 @@ export function useOnboarding() {
    * по конечному положению.
    *
    * @param {Element|null} el
+   * @param {'center'|'end'|'start'} [block] куда подвести цель. 'end' прижимает её
+   *   к низу экрана - так делают высокие формы, над которыми встаёт поповер.
    * @returns {Promise<void>}
    */
-  function ensureInView(el) {
+  function ensureInView(el, block = 'center') {
     // scrollIntoView есть не везде (jsdom в юнит-тестах) - тогда просто не скроллим.
     if (!el?.getBoundingClientRect || typeof el.scrollIntoView !== 'function') return Promise.resolve();
     const rect = el.getBoundingClientRect();
     const margin = 24;
     const fits = rect.top >= margin && rect.bottom <= window.innerHeight - margin;
-    if (fits) return Promise.resolve();
-    el.scrollIntoView({ block: 'center', inline: 'nearest' });
+    if (fits && block !== 'end') return Promise.resolve();
+    el.scrollIntoView({ block, inline: 'nearest' });
     // Кадр на применение скролла: без него driver померит прежнюю позицию.
     return new Promise((resolve) => requestAnimationFrame(() => resolve()));
   }

@@ -8,7 +8,7 @@ const idx = (id) => onboardingSteps.findIndex((s) => s.id === id);
 const DETAIL_STEP_IDS = [
   'detail-opened',
   'detail-status', 'detail-questions', 'detail-actions-intro',
-  'detail-supplement', 'detail-duplicate', 'detail-download', 'detail-revoke',
+  'detail-supplement', 'detail-duplicate', 'detail-revoke',
 ];
 
 describe('onboardingSteps', () => {
@@ -227,6 +227,7 @@ describe('cross-page конфигурация (cabinet)', () => {
       'cabinet-notifications-settings',
       'cabinet-applications',
       'cabinet-search',
+      'cabinet-download',
       'cabinet-application-row',
       'detail-opened',
       'detail-status',
@@ -234,7 +235,6 @@ describe('cross-page конфигурация (cabinet)', () => {
       'detail-actions-intro',
       'detail-supplement',
       'detail-duplicate',
-      'detail-download',
       'detail-revoke',
       'cabinet-outro',
     ]);
@@ -285,8 +285,12 @@ describe('cross-page конфигурация (создание заявки)', 
         'createapp-custom',
         'createapp-dates',
         'createapp-car-form',
+        'createapp-car-existing',
+        'createapp-car-places',
         'createapp-blank-switch',
         'createapp-people-form',
+        'createapp-people-existing',
+        'createapp-people-places',
         'createapp-consent',
         'createapp-submit',
       ]);
@@ -326,6 +330,27 @@ describe('cross-page конфигурация (создание заявки)', 
     expect(waitOf('createapp-blank-switch')).toContain('data-selected-type="people"');
   });
 
+  // Места разгрузки и прохода определяют, куда пустят машину и человека, а
+  // «Добавить существующих» снимает повторный ввод - обе вещи просил показать
+  // владелец, и обе живут внутри формы бланка.
+  it('форма каждого бланка рассказывает про существующих и про места', () => {
+    for (const id of ['createapp-car-existing', 'createapp-car-places']) {
+      expect(byId(id).demoAttachment, id).toBe('cars');
+    }
+    for (const id of ['createapp-people-existing', 'createapp-people-places']) {
+      expect(byId(id).demoAttachment, id).toBe('people');
+    }
+    expect(byId('createapp-car-places').element).toBe('[data-testid="ob-form-places"]');
+    expect(byId('createapp-people-existing').element).toBe('[data-testid="ob-form-existing"]');
+  });
+
+  // Форма сотрудников выше половины экрана: по центру поповер накрывал ровно то,
+  // о чём рассказывает.
+  it('высокие шаги формы прижимают цель к низу экрана', () => {
+    expect(byId('createapp-people-form').scrollTo).toBe('end');
+    expect(byId('createapp-people-places').scrollTo).toBe('end');
+  });
+
   it('шаг доп.полей опционален (может отсутствовать в форме)', () => {
     expect(onboardingSteps.find((s) => s.id === 'createapp-custom').optional).toBe(true);
   });
@@ -354,6 +379,21 @@ describe('сегмент карточки заявки (#1740)', () => {
   // полоска с номером, и это читалось как «тур показывает заголовок».
   it('шаг «Вот ваша заявка» подсвечивает карточку, а не её шапку', () => {
     expect(byId('detail-opened').element).toBe('[data-testid="ob-detail-card"]');
+  });
+
+  // У нового пользователя заявок нет: открывать нечего, и без скриншота шаг
+  // выпадал молча вместе со всем рассказом про карточку.
+  it('шаг «Вот ваша заявка» несёт скриншот-пример на случай пустого кабинета', () => {
+    expect(byId('detail-opened').demo).toBe('applicationDetail');
+  });
+
+  // В карточке кнопка скачивания скрыта на десктопе (display:none до 768px),
+  // поэтому шаг про бланки всегда пропускался. Он живёт в списке заявок.
+  it('шаг про скачивание бланков смотрит на кнопку в строке списка', () => {
+    expect(byId('detail-download')).toBeUndefined();
+    const step = byId('cabinet-download');
+    expect(step.element).toBe('[data-testid="ob-application-download"]');
+    expect(step.reveal).toBeUndefined();
   });
 
   it('reveal стоит на КАЖДОМ шаге карточки, а не только на первом', () => {

@@ -9,6 +9,7 @@
       <button
         v-if="allowExistingSearch"
         class="completion__button"
+        data-testid="ob-form-existing"
         @click="openExistingCarsModal"
       >
         {{ isNarrow ? 'Добавить сущ.' : 'Добавить существующую(-ие)' }}
@@ -340,6 +341,7 @@
     <div
       v-if="fieldVisible('unloading_places')"
       class="completion__unloading"
+      data-testid="ob-form-places"
     >
       <label class="input__label">Места разгрузки (выбор) <span
         v-if="fieldRequired('unloading_places')"

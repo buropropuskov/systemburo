@@ -178,7 +178,7 @@ async function prepareStep(globalIndex) {
   if (el) {
     // Подсвечиваем ровно то, что человек видит: длинная форма заявки остаётся
     // прокрученной от прошлого шага, и цель могла уехать за край экрана.
-    await ensureInView(step.element ? document.querySelector(step.element) : el);
+    await ensureInView(step.element ? document.querySelector(step.element) : el, step.scrollTo);
     return true;
   }
   if (step.demo) return STEP_DEMO_FALLBACK;

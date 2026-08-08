@@ -9,6 +9,7 @@
       <button
         v-if="allowExistingSearch"
         class="completion__button"
+        data-testid="ob-form-existing"
         @click="openExistingEmployeesModal"
       >
         {{ isNarrow ? 'Добавить сущ.' : 'Добавить существующего(-их)' }}
@@ -348,6 +349,7 @@
     <div
       v-if="fieldVisible('target_tables')"
       class="completion__passage"
+      data-testid="ob-form-places"
     >
       <label class="input__label">Места прохода (целевые таблицы) <span
         v-if="fieldRequired('target_tables')"
