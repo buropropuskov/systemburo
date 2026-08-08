@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import GlobalSearchPanel from '../GlobalSearchPanel.vue';
 import { globalSearch } from '@/api/search';
+import { useAuthStore } from '@/stores/auth';
 
 // Панель показывает найденное, ввод идёт в поле меню и приходит сюда строкой. Проверяем
 // то, что ломается незаметно: разделы находятся без обращения к серверу, пустая строка
@@ -13,6 +14,7 @@ vi.mock('@/api/search', () => ({ globalSearch: vi.fn() }));
 vi.mock('@/composables/usePermission', () => ({
   usePermission: () => ({ can: () => true }),
 }));
+vi.mock('@/stores/auth', () => ({ useAuthStore: vi.fn(() => ({ isSuperAdmin: false })) }));
 
 const push = vi.fn();
 
@@ -212,5 +214,25 @@ describe('GlobalSearchPanel', () => {
     await flushPromises();
 
     expect(push).toHaveBeenCalledWith({ path: '/new-application' });
+  });
+
+  // #7: «Настройки» несёт superOnly в navSections.js - тот же гейт, что и в меню
+  // Администрирования, иначе поиск предлагал бы раздел, ведущий на Forbidden.
+  it('не супер-админ: раздел «Настройки» не находится поиском, даже с правом page.admin', async () => {
+    useAuthStore.mockReturnValueOnce({ isSuperAdmin: false });
+    wrapper = mountPanel('Настро');
+    await flushPromises();
+
+    const titles = wrapper.findAll('.gsp__row-title').map((el) => el.text());
+    expect(titles).not.toContain('Настройки');
+  });
+
+  it('супер-админ: раздел «Настройки» находится поиском', async () => {
+    useAuthStore.mockReturnValueOnce({ isSuperAdmin: true });
+    wrapper = mountPanel('Настро');
+    await flushPromises();
+
+    const titles = wrapper.findAll('.gsp__row-title').map((el) => el.text());
+    expect(titles).toContain('Настройки');
   });
 });

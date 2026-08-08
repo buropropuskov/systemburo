@@ -148,11 +148,15 @@ const routes = [
     component: () => import('./views/admin/DataProcessingView.vue'),
     meta: { requiresAuth: true, permission: 'page.admin' }
   },
+  // requiresSuperAdmin (#7): бэкенд требует именно супер-админа и на чтение, и на
+  // запись (checkSuper в settings_service.go), а page.admin выдаётся и обычным
+  // администраторам - без этого флага админ без супер-права проходил бы гейт по
+  // permission и упирался в мёртвый error-state на самой странице.
   {
     path: '/admin/settings',
     name: 'AdminSettings',
     component: () => import('./views/AdminSettings.vue'),
-    meta: { requiresAuth: true, permission: 'page.admin' }
+    meta: { requiresAuth: true, permission: 'page.admin', requiresSuperAdmin: true }
   },
   {
     path: '/admin/users',
@@ -443,6 +447,13 @@ router.beforeEach(async (to, from, next) => {
       ? to.meta.permission(to)
       : to.meta.permission;
     if (requiredPermission && !store.hasPermission(requiredPermission)) {
+      next({ name: 'Forbidden', query: { permission: requiredPermission, from: to.fullPath } });
+      return;
+    }
+    // Супер-гейт поверх permission (#7): некоторые страницы permission-ключом
+    // доступны и обычным админам, но бэкенд под ними требует именно супер-права
+    // (checkSuper). Исход тот же, что и при нехватке permission - Forbidden.
+    if (to.meta.requiresSuperAdmin && !isSuperAdmin) {
       next({ name: 'Forbidden', query: { permission: requiredPermission, from: to.fullPath } });
       return;
     }
