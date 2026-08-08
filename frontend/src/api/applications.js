@@ -1,4 +1,5 @@
 import { apiRequest, apiRequestRaw } from './client';
+import { useAuthStore } from '@/stores/auth';
 
 export async function getApplications(params = {}) {
   const query = new URLSearchParams(params).toString();
@@ -385,4 +386,40 @@ export async function markQuestionsSeen(id) {
  */
 export async function markQuestionRead(applicationId, questionId) {
   return apiRequest(`/applications/${applicationId}/questions/${questionId}/read`, { method: 'POST' });
+}
+
+/**
+ * Выгрузка реестра заявок в .xlsx (#1832). Параметры - те же фильтры, что у списка:
+ * файл собирает сервер по той же выборке, с тем же скоупингом видимости и той же
+ * подменой ФИО без согласия на обработку данных.
+ *
+ * Идёт мимо apiRequest: тот разворачивает JSON-конверт, а здесь ответ - поток байтов.
+ * Имя файла берётся из Content-Disposition, который ставит сервер.
+ *
+ * @param {Record<string, string|number>} params query-параметры фильтра
+ * @returns {Promise<void>} промис завершения скачивания
+ */
+export async function downloadApplicationsRegistry(params = {}) {
+  const authStore = useAuthStore();
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(
+    `${(import.meta.env.VITE_API_BASE_URL || '') + '/api'}/applications/export${query ? '?' + query : ''}`,
+    {
+      credentials: 'include',
+      headers: { ...(authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}) },
+    },
+  );
+  if (!res.ok) throw new Error(`Не удалось выгрузить реестр: ${res.status}`);
+
+  const disposition = res.headers.get('Content-Disposition') || '';
+  const fromHeader = /filename="?([^";]+)"?/.exec(disposition);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fromHeader ? fromHeader[1] : 'applications.xlsx';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
