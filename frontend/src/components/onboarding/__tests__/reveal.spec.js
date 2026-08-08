@@ -223,8 +223,9 @@ describe('reveal', () => {
       const p = applyReveal(steps, 0);
       await vi.advanceTimersByTimeAsync(300);
       await p;
-      // Второй вызов резолвится без прокрутки таймеров - сигнал уже стоит.
-      await expect(applyReveal(steps, 0)).resolves.toBeUndefined();
+      // Второй вызов резолвится без прокрутки таймеров и сообщает «ничего не
+      // раскрывал» - по этому признаку хост ждёт цель коротко, а не 4 секунды.
+      await expect(applyReveal(steps, 0)).resolves.toBe(false);
     });
   });
 

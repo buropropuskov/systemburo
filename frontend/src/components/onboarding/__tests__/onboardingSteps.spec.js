@@ -315,6 +315,17 @@ describe('cross-page конфигурация (создание заявки)', 
       .forEach((s) => expect(s.demo).toBeUndefined());
   });
 
+  // Форма одна на все бланки: по её появлению не понять, перерисовалась ли она
+  // под нужный бланк. Без строгого ожидания шаг «Сотрудники» подсвечивал форму
+  // автомобилей, а шаг смены бланка - список со старым выделением.
+  it('шаги, зависящие от бланка, ждут именно свой бланк', () => {
+    const waitOf = (id) => onboardingSteps.find((s) => s.id === id).waitFor;
+    expect(waitOf('createapp-car-form')).toContain('data-attachment-type="cars"');
+    expect(waitOf('createapp-people-form')).toContain('data-attachment-type="people"');
+    expect(waitOf('createapp-consent')).toContain('data-attachment-type="people"');
+    expect(waitOf('createapp-blank-switch')).toContain('data-selected-type="people"');
+  });
+
   it('шаг доп.полей опционален (может отсутствовать в форме)', () => {
     expect(onboardingSteps.find((s) => s.id === 'createapp-custom').optional).toBe(true);
   });
@@ -337,6 +348,12 @@ describe('сегмент карточки заявки (#1740)', () => {
 
   it('каждый шаг карточки optional - у новичка заявок нет вовсе', () => {
     detailSteps.forEach((s) => expect(s.optional, s.id).toBe(true));
+  });
+
+  // Шаг знакомит с окном заявки целиком. Пока он смотрел на шапку, подсвечивалась
+  // полоска с номером, и это читалось как «тур показывает заголовок».
+  it('шаг «Вот ваша заявка» подсвечивает карточку, а не её шапку', () => {
+    expect(byId('detail-opened').element).toBe('[data-testid="ob-detail-card"]');
   });
 
   it('reveal стоит на КАЖДОМ шаге карточки, а не только на первом', () => {
@@ -409,7 +426,7 @@ describe('сегмент карточки заявки (#1740)', () => {
       document.body.insertAdjacentHTML('beforeend', `
         <div data-testid="ob-detail-status"></div>
         <div data-testid="application-questions"></div>
-        <div data-testid="ob-detail-header"></div>
+        <div data-testid="ob-detail-card"><div data-testid="ob-detail-header"></div></div>
         <div data-testid="ob-detail-duplicate"></div>
         <button data-testid="app-detail-button-supplement"></button>
         <button data-testid="app-detail-button-download"></button>

@@ -94,8 +94,10 @@
             <!-- Скачать бланк: на мобилке кнопку убрали из строки списка (W3.8),
                  отсюда родитель (Центр/Кабинет) открывает выбор бланков. Только @768. -->
             <button
-              v-if="applicationData.has_blank_template && (mode !== 'center' || can('action.export.applications'))"
+              v-if="canDownloadBlank || tourOnlyActions"
               class="detail-download-btn"
+              :class="{ 'is-tour-stub': !canDownloadBlank }"
+              :disabled="!canDownloadBlank"
               data-testid="app-detail-button-download"
               title="Скачать бланк"
               @click="$emit('download', applicationData)"
@@ -162,8 +164,10 @@
             <template #user-actions>
               <transition name="fade">
                 <button
-                  v-if="canSupplementApplication"
+                  v-if="canSupplementApplication || tourOnlyActions"
                   class="supplement-btn"
+                  :class="{ 'is-tour-stub': !canSupplementApplication }"
+                  :disabled="!canSupplementApplication"
                   data-testid="app-detail-button-supplement"
                   @click="showSupplementModal = true"
                 >
@@ -182,8 +186,10 @@
               />
               <transition name="fade">
                 <button
-                  v-if="canWithdraw"
+                  v-if="canWithdraw || tourOnlyActions"
                   class="withdraw-btn"
+                  :class="{ 'is-tour-stub': !canWithdraw }"
+                  :disabled="!canWithdraw"
                   data-testid="ob-detail-revoke"
                   @click="withdrawApplication"
                 >
@@ -783,6 +789,22 @@ export default {
         }
     },
     computed: {
+        /**
+         * Идёт обучение. Тогда действия над заявкой показываем все, даже те, что
+         * этой заявке сейчас не положены - иначе тур рассказывает про кнопку,
+         * которой на экране нет, и человек ищет её глазами. Показанные «лишними»
+         * кнопки неактивны (см. tourOnly в шаблоне).
+         */
+        tourOnlyActions() {
+            return useUiStore().tourActive;
+        },
+
+        /** Бланки к заявке настроены и их выгрузка этому режиму/праву доступна. */
+        canDownloadBlank() {
+            return Boolean(this.applicationData.has_blank_template)
+                && (this.mode !== 'center' || this.can('action.export.applications'));
+        },
+
         hasMessage() {
             const m = this.applicationData?.message;
             if (!m) return false;
@@ -2523,6 +2545,17 @@ export default {
 
 .withdraw-btn:hover {
     background: color-mix(in srgb, var(--danger) 85%, var(--text));
+}
+
+/*
+ * Кнопка, показанная только ради обучения: этой заявке действие не положено, но
+ * тур про него рассказывает. Приглушаем и гасим наведение, чтобы её не приняли
+ * за рабочую.
+ */
+.is-tour-stub {
+    opacity: 0.5;
+    cursor: default;
+    pointer-events: none;
 }
 
 .revoke-btn, .restore-btn {

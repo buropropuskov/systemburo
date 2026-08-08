@@ -226,9 +226,13 @@
         </div>
 
         <!-- 4 ряд: Динамические формы в зависимости от типа вложения -->
+        <!-- data-attachment-type читает онбординг: форма одна на все бланки, и по
+             одному лишь её появлению не понять, успела ли она перерисоваться под
+             выбранный бланк. -->
         <div
           class="form__data"
           data-testid="ob-app-formdata"
+          :data-attachment-type="selectedAttachment && selectedAttachment.attachment_type"
         >
           <!-- Для автомобилей -->
           <template v-if="selectedAttachment && selectedAttachment.attachment_type === 'cars'">
