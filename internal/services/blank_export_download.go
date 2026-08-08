@@ -1,15 +1,15 @@
 package services
 
 import (
-	"strings"
-	"io"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -251,6 +251,35 @@ func (s *ArchiveDownloadService) Get(ctx context.Context, id int) (models.BlankE
 // ResolveFile отдаёт абсолютный путь файла реестра для download.Serve.
 func (s *ArchiveDownloadService) ResolveFile(row models.BlankExport) (string, error) {
 	return s.resolvePath(row)
+}
+
+// FileForDownload собирает файл реестра к отдаче поштучно - для ленты архива и для
+// кнопки «сохранённый файл» в карточке заявки.
+//
+// Зашифрованный файл расшифровывается на лету, а имя теряет суффикс: на диске
+// лежит шифротекст, и отдать его байт в байт значит выдать администратору то, что
+// он не откроет. Выгрузка ZIP за период так и делала с самого начала (zipEntry), а
+// поштучное скачивание отдавало сырой файл - расхождение, которое было видно
+// только на площадке с включёнными ключами.
+//
+// Размер берётся из реестра: там записан объём ИСХОДНОГО содержимого, а размер
+// файла на диске к расшифрованному потоку отношения не имеет.
+func (s *ArchiveDownloadService) FileForDownload(row models.BlankExport) (download.File, error) {
+	path, err := s.resolvePath(row)
+	if err != nil {
+		return download.File{}, err
+	}
+
+	file := download.File{Path: path, Name: row.FileName}
+	if s.writer == nil || !s.writer.Crypto().Enabled() || !strings.HasSuffix(row.FileName, EncryptedSuffix) {
+		return file, nil
+	}
+
+	crypto := s.writer.Crypto()
+	file.Name = strings.TrimSuffix(row.FileName, EncryptedSuffix)
+	file.Size = row.SizeBytes
+	file.Open = func() (io.ReadCloser, error) { return crypto.Open(path) }
+	return file, nil
 }
 
 // GetByApplicationAttachment отдаёт строку реестра одного вложения заявки для
