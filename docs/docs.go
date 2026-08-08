@@ -1113,6 +1113,111 @@ const docTemplate = `{
                 }
             }
         },
+        "/applications/export": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Отдаёт текущую выборку Центра заявок файлом. Фильтры и видимость - те же,\nчто у GET /applications; ФИО без согласия на обработку ПД заменены логином.",
+                "produces": [
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Выгрузка реестра заявок в .xlsx",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Поисковый запрос",
+                        "name": "search_query",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID организаций через запятую",
+                        "name": "organization_ids",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID компаний через запятую",
+                        "name": "company_ids",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID мест разгрузки через запятую",
+                        "name": "unload_place_ids",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID таблиц проходной через запятую",
+                        "name": "passage_table_ids",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Статус согласования",
+                        "name": "confirmation",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Статус заявки",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Дата от (YYYY-MM-DD)",
+                        "name": "date_from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Дата до (YYYY-MM-DD)",
+                        "name": "date_to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Архивные заявки",
+                        "name": "archive",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/applications/files": {
             "post": {
                 "security": [
@@ -2325,7 +2430,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Убирает приложенный к заявке файл. Подавший заявку может снять свой документ, пока заявка не закрыта; супер-администратор - в любой момент.",
+                "description": "Убирает приложенный к заявке файл. Доступно носителям права администрирования: состав заявки после подачи неизменен.",
                 "produces": [
                     "application/json"
                 ],
@@ -4391,6 +4496,49 @@ const docTemplate = `{
                     },
                     "422": {
                         "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/{id}/blank-template": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Отдаёт активный шаблон вложения как файл для заполнения списка участников с отпечатком, по которому загруженный обратно файл узнаётся. Доступ - любой авторизованный: бланк не содержит данных заявок, а скачивают его из формы подачи.",
+                "produces": [
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ],
+                "tags": [
+                    "attachment-blanks"
+                ],
+                "summary": "Скачать пустой бланк типа вложения для заполнения",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID UniqueAttachment",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -12012,6 +12160,43 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications/push/summary": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Сколько активных пользователей всего, у скольких есть хотя бы одна живая\nподписка, разрез живых подписок по платформе браузера и разрез\nПОЛЬЗОВАТЕЛЕЙ по платформе последнего успешного входа - включая тех, кто\npush не подключил (#974). Не личная настройка: гейт page.statistics.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notifications"
+                ],
+                "summary": "Сводка использования Web Push (админ)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.PushSummary"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -24613,6 +24798,32 @@ const docTemplate = `{
                 }
             }
         },
+        "models.PushDeliveryState": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "failed_count": {
+                    "type": "integer"
+                },
+                "last_error": {
+                    "type": "string"
+                },
+                "last_success_at": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
         "models.PushDevice": {
             "type": "object",
             "properties": {
@@ -24627,6 +24838,23 @@ const docTemplate = `{
                 },
                 "user_agent": {
                     "type": "string"
+                }
+            }
+        },
+        "models.PushPlatformCounts": {
+            "type": "object",
+            "properties": {
+                "android": {
+                    "type": "integer"
+                },
+                "desktop": {
+                    "type": "integer"
+                },
+                "ios": {
+                    "type": "integer"
+                },
+                "unknown": {
+                    "type": "integer"
                 }
             }
         },
@@ -24671,6 +24899,33 @@ const docTemplate = `{
                             "type": "string"
                         }
                     }
+                }
+            }
+        },
+        "models.PushSummary": {
+            "type": "object",
+            "properties": {
+                "active_users_total": {
+                    "type": "integer"
+                },
+                "delivery": {
+                    "description": "Delivery -- состояние доставки по каждому живому устройству. Причина отказа до\nэтого жила только в журнале приложения, а до журнала на сервере доступа нет ни у\nадминистратора, ни при разборе жалобы «уведомление не пришло» (#974): молчание\npush-службы и отказ push-службы выглядели одинаково - никак.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.PushDeliveryState"
+                    }
+                },
+                "subscriptions_by_platform": {
+                    "$ref": "#/definitions/models.PushPlatformCounts"
+                },
+                "users_by_last_login_platform": {
+                    "$ref": "#/definitions/models.PushPlatformCounts"
+                },
+                "users_with_push": {
+                    "type": "integer"
+                },
+                "users_without_push": {
+                    "type": "integer"
                 }
             }
         },

@@ -296,6 +296,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 	att.PUT("/:id/restore", attachments.Restore, requireDirectories)
 	att.GET("/:id/history", attachments.GetHistory, requireDirectories)
 	att.GET("/:id", attachments.GetByID)
+	// Пустой бланк для заполнения списка участников - из формы подачи, поэтому без
+	// админского права: файл не содержит данных заявок, это тот же шаблон, по
+	// которому система заполняет бланки. Когда появится право на импорт списка,
+	// кнопка и приём файла закрываются им вместе - гейт выдачи пересматриваем тем же
+	// заходом, чтобы скачавший бланк мог его загрузить.
+	att.GET("/:id/blank-template", attachmentBlanks.DownloadTemplate)
 	// Привязка ручного вложения-сироты к заявке (#1049 режим-2): только super/admin.
 	// Внимание: :id здесь = экземпляр attachments.id (ручная сирота), а НЕ unique_attachment
 	// (шаблон), как в CRUD-маршрутах группы выше. Разные таблицы под одним префиксом.

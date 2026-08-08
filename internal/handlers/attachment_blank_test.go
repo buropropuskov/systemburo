@@ -92,6 +92,7 @@ func TestBlankAccessAndTemplateRoutes(t *testing.T) {
 	w := setupBlankWorld(t)
 	t.Run("скачивание бланка", func(t *testing.T) { blankDownloadGateSection(t, w) })
 	t.Run("настройка шаблона под правом", func(t *testing.T) { templateRoutesSection(t, w) })
+	t.Run("пустой бланк для заполнения", func(t *testing.T) { blankTemplateDownloadSection(t, w) })
 	t.Run("границы списка", func(t *testing.T) { templateParamsSection(t, w) })
 	t.Run("журнал доступа к персональным данным", func(t *testing.T) { pdAuditSection(t, w) })
 	t.Run("копирование привязок", func(t *testing.T) { copyMappingsSection(t, w) })

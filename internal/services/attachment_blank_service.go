@@ -3,6 +3,7 @@ package services
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -74,6 +75,7 @@ type ApplicationItemRow struct {
 // шаблона UniqueAttachment + данных заявки (#183, часть 2).
 type AttachmentBlankService interface {
 	GenerateBlank(ctx context.Context, applicationID, attachmentID int) (io.Reader, string, error)
+	GenerateEmptyBlank(ctx context.Context, uniqueAttachmentID int) (io.Reader, string, error)
 }
 
 type attachmentBlankService struct {
@@ -258,6 +260,86 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 
 	filename := formatBlankFilename(bctx)
 	return bytes.NewReader(out), filename, nil
+}
+
+// GenerateEmptyBlank отдаёт активный бланк типа вложения как файл для заполнения
+// (массовый ввод участников). От GenerateBlank отличается тем, что заявки ещё нет:
+// в файл не подставляется ничего, кроме отпечатка, по которому загруженный обратно
+// файл узнаётся как бланк именно этого типа вложения.
+func (s *attachmentBlankService) GenerateEmptyBlank(ctx context.Context, uniqueAttachmentID int) (io.Reader, string, error) {
+	// Архивный тип вложения бланка не получает: подать по нему заявку всё равно
+	// нельзя, а форма подачи такие типы не показывает (attachments.GetActive). У
+	// заполненного бланка ограничения нет и быть не может - заявку подали, когда тип
+	// был живым.
+	var ua models.UniqueAttachment
+	if err := s.db.WithContext(ctx).
+		Where("id = ? AND is_active = ?", uniqueAttachmentID, true).
+		First(&ua).Error; err != nil {
+		return nil, "", echo.NewHTTPError(http.StatusNotFound, "Тип вложения не найден")
+	}
+
+	var template models.AttachmentTemplate
+	if err := s.db.WithContext(ctx).
+		Preload("Mappings").
+		Where("unique_attachment_id = ? AND is_active = ?", uniqueAttachmentID, true).
+		First(&template).Error; err != nil {
+		return nil, "", echo.NewHTTPError(http.StatusNotFound, "Шаблон бланка не настроен")
+	}
+	// Без списочных привязок бланк заполнять нечем: строки участников в нём просто
+	// некуда писать, а значит и загружать обратно нечего.
+	if !hasListMappings(template.Mappings) {
+		return nil, "", echo.NewHTTPError(http.StatusNotFound,
+			"В бланке не размечен список участников")
+	}
+
+	templateBytes, err := s.loadTemplateFile(template.FilePath)
+	if err != nil {
+		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "Не удалось открыть шаблон: "+err.Error())
+	}
+	f, err := excelize.OpenReader(bytes.NewReader(templateBytes))
+	if err != nil {
+		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "Не удалось открыть шаблон: "+err.Error())
+	}
+	defer f.Close()
+
+	if err := StampBlankFingerprint(f, BlankFingerprint{
+		UniqueAttachmentID: uniqueAttachmentID,
+		TemplateID:         template.ID,
+		ListStartRow:       template.ListStartRow,
+	}); err != nil {
+		return nil, "", echo.NewHTTPError(http.StatusInternalServerError,
+			fmt.Sprintf("Не удалось подготовить бланк (шаблон %d): %s", template.ID, err.Error()))
+	}
+
+	var buf bytes.Buffer
+	if _, err := f.WriteTo(&buf); err != nil {
+		return nil, "", echo.NewHTTPError(http.StatusInternalServerError,
+			fmt.Sprintf("Не удалось собрать бланк (шаблон %d): %s", template.ID, err.Error()))
+	}
+	return bytes.NewReader(buf.Bytes()), emptyBlankFilename(&ua), nil
+}
+
+// hasListMappings - размечена ли в шаблоне списочная часть.
+func hasListMappings(mappings []models.AttachmentTemplateMapping) bool {
+	for _, m := range mappings {
+		if m.IsListField {
+			return true
+		}
+	}
+	return false
+}
+
+// emptyBlankFilename - имя файла пустого бланка. Заявки ещё нет, поэтому от имени
+// заполненного (номер, организация, отправитель) остаётся только тип вложения.
+func emptyBlankFilename(ua *models.UniqueAttachment) string {
+	name := ""
+	if ua != nil && ua.Name != nil {
+		name = strings.TrimSpace(*ua.Name)
+	}
+	if name == "" {
+		name = "бланк"
+	}
+	return sanitizeFilename(fmt.Sprintf("Бланк_%s.xlsx", strings.ReplaceAll(name, " ", "-")))
 }
 
 // listSource возвращает префикс field_path списочной части и число записей для типа
