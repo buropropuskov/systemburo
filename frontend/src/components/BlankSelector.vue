@@ -88,6 +88,7 @@
             :key="getAttachmentKey(attachment)"
             class="attachment"
             :class="{ selected: isSelected(attachment), editing: isEditing(attachment) }"
+            :data-testid="isSelected(attachment) ? 'ob-blank-selected' : null"
 
             @click="selectAttachment(attachment, $event)"
             @mouseenter="handleMouseEnter(attachment, $event)"

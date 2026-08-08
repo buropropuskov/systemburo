@@ -211,22 +211,6 @@ export const onboardingSteps = [
     description: 'Мы перешли в ваш Личный кабинет. Вверху - ваши данные: организация, должность, контакты. Они автоматически подставляются в заявки.',
   },
   {
-    id: 'cabinet-notifications',
-    route: '/personal-cabinet',
-    element: '[data-testid="cabinet-notifications"]',
-    title: 'Ваши уведомления',
-    description: 'Лента событий по вашим заявкам: согласование, одобрение, отказ. Так вы всегда в курсе, что происходит.',
-  },
-  {
-    id: 'cabinet-notifications-settings',
-    route: '/personal-cabinet',
-    element: '[data-testid="cabinet-notifications-settings"]',
-    title: 'Что вам будет приходить',
-    description:
-      'Кнопка «Настроить» открывает «Настройку уведомлений»: события собраны по разделам, у каждого свой переключатель. Лишнее можно выключить, чтобы лента не забивалась, - кроме обязательных, их отключить нельзя. Там же можно включить push-уведомления на телефон или компьютер: системным сообщением, даже когда сайт закрыт. После правки нажмите «Сохранить».',
-    optional: true,
-  },
-  {
     id: 'cabinet-applications',
     route: '/personal-cabinet',
     element: '[data-testid="ob-applications"]',
@@ -297,6 +281,17 @@ export const onboardingSteps = [
     reveal: { open: 'first-application' },
   },
   {
+    id: 'detail-status-section',
+    route: '/personal-cabinet',
+    element: '[data-testid="ob-detail-status-section"]',
+    title: 'Статус заявки',
+    description:
+      'Когда заявку приняли в работу, отказали или завершили, здесь появляется блок «Статус заявки»: кто принял решение, когда и с каким комментарием. У заявки на согласовании его ещё нет.',
+    optional: true,
+    side: 'left',
+    reveal: { open: 'first-application' },
+  },
+  {
     id: 'detail-questions',
     route: '/personal-cabinet',
     element: '[data-testid="application-questions"]',
@@ -354,11 +349,58 @@ export const onboardingSteps = [
     reveal: { open: 'first-application' },
   },
   {
+    id: 'cabinet-notifications',
+    route: '/personal-cabinet',
+    element: '[data-testid="cabinet-notifications"]',
+    title: 'Ваши уведомления',
+    description: 'Лента событий по вашим заявкам: согласование, одобрение, отказ. Так вы всегда в курсе, что происходит.',
+  },
+  {
+    id: 'cabinet-notifications-settings',
+    route: '/personal-cabinet',
+    element: '[data-testid="cabinet-notifications-settings"]',
+    title: 'Что вам будет приходить',
+    description: 'Кнопка «Настроить» открывает страницу настройки уведомлений - сейчас заглянем туда и разберём её.',
+  },
+  {
+    id: 'notif-push',
+    route: '/notification-settings',
+    element: '[data-testid="webpush-block"]',
+    title: 'Уведомления на телефон',
+    description:
+      'Push-уведомления доходят, даже когда система закрыта: разрешите их в браузере на своём устройстве, и о смене статуса заявки узнаете сразу. Разрешение даётся на каждом устройстве отдельно.',
+    optional: true,
+    side: 'bottom',
+  },
+  {
+    id: 'notif-categories',
+    route: '/notification-settings',
+    // Подсвечиваем ОДИН раздел, а не весь список: он длиннее экрана, и вырез
+    // уходил за верхний край.
+    element: '[data-testid="ob-notif-category"]',
+    title: 'Что присылать',
+    description:
+      'Типы уведомлений собраны по разделам - вот один из них. Переключатель на разделе гасит или включает его целиком, а внутри можно оставить только нужное: например, ответы согласующих, но без напоминаний.',
+    optional: true,
+    side: 'bottom',
+    align: 'start',
+  },
+  {
+    id: 'notif-save',
+    route: '/notification-settings',
+    element: '[data-testid="notif-settings-save"]',
+    title: 'Не забудьте сохранить',
+    description: 'Изменения вступают в силу после «Сохранить». Кнопка становится активной, как только вы что-то переключили.',
+    optional: true,
+    side: 'bottom',
+    align: 'end',
+  },
+  {
     // Замыкает сегмент кабинета непропускаемым шагом: все шаги карточки
     // необязательны, и без этого при пустом списке заявок хвост сегмента исчезал
     // целиком. Заодно проговаривает переход - тур уводит на другую страницу.
     id: 'cabinet-outro',
-    route: '/personal-cabinet',
+    route: '/notification-settings',
     element: null,
     title: 'Дальше - ваши данные',
     description: 'С заявками разобрались. Теперь посмотрим, откуда берутся машины и сотрудники, которых вы вносите в заявку: у них свои разделы.',
@@ -496,12 +538,14 @@ export const onboardingSteps = [
   {
     id: 'createapp-blank-switch',
     route: '/new-application',
-    element: '[data-testid="ob-blank-list"]',
-    // Ждём, пока выделение в списке переедет на «Сотрудников»: смена бланка
-    // пересоздаёт форму, и без этого шаг подсвечивал список со старым выбором.
-    waitFor: '[data-testid="ob-blank-list"][data-selected-type="people"]',
+    // Подсвечиваем именно выбранную строку: на весь список смотреть бесполезно -
+    // непонятно, на какой бланк переключились.
+    element: '[data-testid="ob-blank-selected"]',
+    // Ждём, пока выделение переедет на бланк людей: смена пересоздаёт форму, и
+    // без этого шаг подсвечивал прежний выбор.
+    waitFor: '[data-testid="ob-blank-list"][data-selected-type="people"] [data-testid="ob-blank-selected"]',
     title: 'Переключились на другой бланк',
-    description: 'Слева выбран другой бланк - выбранный подсвечен. Форма справа уже сменилась под него, а внесённое в прежний бланк осталось в нём.',
+    description: 'Вот выбранный бланк - в заявке сейчас открыт он. Прежний бланк из заявки убран, а если бы вы оставили оба, заполненное в каждом хранилось бы отдельно.',
     demoAttachment: 'people',
     optional: true,
     side: 'right',
