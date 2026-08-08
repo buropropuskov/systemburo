@@ -283,9 +283,14 @@ def inventories():
         {
             "имя": "6 подсистемы и разделы администрирования",
             "документ": OVERVIEW,
+            # AdminSettings.vue лежит не в views/admin, а рядом, и раздел
+            # «Настройки» из-за этого не сторожила ни одна проверка: описание
+            # его доступа успело разойтись с кодом за два часа (#7).
             "код": code_list(
-                "ls frontend/src/views/admin/*.vue | xargs -n1 basename"),
+                "ls frontend/src/views/admin/*.vue frontend/src/views/AdminSettings.vue "
+                "| xargs -n1 basename"),
             "реестр": {
+                "AdminSettings.vue": "Настройки",
                 "AccessDenialsLog.vue": "Журнал отказов",
                 "FileArchiveView.vue": "Файловый архив",
                 "AdminPageShell.vue": "Администрирование",
