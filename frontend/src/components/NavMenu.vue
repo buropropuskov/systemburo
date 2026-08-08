@@ -708,7 +708,10 @@ export default {
       adminSearch: '',
       // Разделы Админки по группам мокапа (#510). permission - ключ права на
       // раздел (совпадает с meta.permission роутов, #187 Фаза 2): пункт виден
-      // только если can(permission). super/admin проходят, Техработы - super-only.
+      // только если can(permission). super/admin проходят, Техработы - super-only
+      // (бэкенд денаит ключ в admin-режиме через каталог прав). Настройки (#7) -
+      // super-only иначе, флагом superOnly на самом пункте: page.admin выдан и
+      // обычным админам, гейт держит только фронт.
       adminGroups: ADMIN_GROUPS,
     };
   },
@@ -736,10 +739,16 @@ export default {
     },
     // Разделы Админки, доступные по правам (#187 Фаза 2): пункт остаётся, только
     // если can(item.permission). super/admin проходят, обычный юзер - по гранту.
+    // item.superOnly (#7) добивает дополнительным гейтом по факту супер-админа -
+    // нужен для разделов, где сам permission-ключ выдаётся и обычным админам
+    // (page.admin), а бэкенд всё равно требует именно супер-права (checkSuper).
     // Пустые группы отбрасываем. Поверх этого работают поиск и счётчик.
     permittedAdminGroups() {
       return this.adminGroups
-        .map((g) => ({ ...g, items: g.items.filter((i) => this.can(i.permission)) }))
+        .map((g) => ({
+          ...g,
+          items: g.items.filter((i) => this.can(i.permission) && (!i.superOnly || this.authStore.isSuperAdmin)),
+        }))
         .filter((g) => g.items.length > 0);
     },
     // Видимость пункта/секции «Администрирование»: хотя бы один доступный раздел.
