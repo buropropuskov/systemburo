@@ -993,7 +993,7 @@ func safeDerefInt(p *int) int {
 // подавший заявку и сам знает, что подал, а «Заявка отправлена» ему уже ушла.
 // Ошибка отдельного получателя не прерывает рассылку - остальные должны узнать.
 func (s *applicationService) notifyApproversAboutNewApplication(
-	ctx context.Context, authorID, appID int, applicationNumber, payload string,
+	ctx context.Context, authorID, appID int, applicationNumber, organizationName, senderName, payload string,
 ) {
 	var approverIDs []int
 	if err := s.db.WithContext(ctx).Model(&models.ApplicationApprover{}).
@@ -1008,11 +1008,52 @@ func (s *applicationService) notifyApproversAboutNewApplication(
 			ctx, userID,
 			NotificationTypeApplicationPendingAcceptance,
 			"Новая заявка в центре",
-			fmt.Sprintf("Заявка %s ждёт, когда её возьмут в работу.", applicationNumber),
+			pendingAcceptanceMessage(applicationNumber, organizationName, senderName),
 			&payload,
 		); err != nil {
 			slog.Warn("не удалось уведомить принимающего о новой заявке",
 				"user_id", userID, "app_id", appID, "error", err)
 		}
 	}
+}
+
+// pendingAcceptanceMessage собирает текст приглашения принять заявку. Кто прислал и
+// откуда - вперёд номера: в шторке телефона видно две строки, и по одному номеру
+// принимающий не понимает ни чья заявка, ни насколько она срочная. Пустые части просто
+// выпадают, чтобы не получилось «от «», отправитель ».
+func pendingAcceptanceMessage(applicationNumber, organizationName, senderName string) string {
+	var head []string
+	if org := strings.TrimSpace(organizationName); org != "" {
+		head = append(head, fmt.Sprintf("«%s»", org))
+	}
+	if sender := strings.TrimSpace(senderName); sender != "" {
+		head = append(head, sender)
+	}
+	if len(head) == 0 {
+		return fmt.Sprintf("Заявка %s ждёт, когда её возьмут в работу.", applicationNumber)
+	}
+	return fmt.Sprintf("%s - заявка %s ждёт, когда её возьмут в работу.",
+		strings.Join(head, ", "), applicationNumber)
+}
+
+// applicationSenderTitle - наименование организации заявки, а если её нет, то компании.
+// Читается из справочника, а не берётся из тела запроса: фронт присылает то, что человек
+// набрал в поле, и при выборе существующей записи это может расходиться с реальным
+// названием в справочнике.
+func (s *applicationService) applicationSenderTitle(ctx context.Context, organizationID, companyID *int) string {
+	if organizationID != nil {
+		var name string
+		if err := s.db.WithContext(ctx).Table("organizations").
+			Where("id = ?", *organizationID).Limit(1).Pluck("name", &name).Error; err == nil && name != "" {
+			return name
+		}
+	}
+	if companyID != nil {
+		var name string
+		if err := s.db.WithContext(ctx).Table("companies").
+			Where("id = ?", *companyID).Limit(1).Pluck("name", &name).Error; err == nil {
+			return name
+		}
+	}
+	return ""
 }
