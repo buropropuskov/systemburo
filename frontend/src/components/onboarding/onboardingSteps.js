@@ -45,6 +45,12 @@ export const ONBOARDING_VERSION = 3;
  * - `ctaRoute`   куда ведёт CTA (по умолчанию - оформление заявки);
  * - `demoAttachment` тип демо-вложения ('cars'/'people'), которое BlankSelector
  *                добавит на время шага, чтобы показать реальную форму;
+ * - `dynamic`    карта «имя -> селектор»: `{имя}` в заголовке и описании заменяется
+ *                текстом узла. Для того, что называет не система, а Бюро (имена
+ *                бланков);
+ * - `advanceWhen` селектор: если во время шага этот узел появился, тур сам идёт
+ *                дальше. Шаг-приглашение к действию («Откройте заявку») иначе
+ *                оставался бы с подсветкой под открытым окном;
  * - `scrollTo`   куда подвести цель перед показом: 'end' прижимает её к низу
  *                экрана. Нужно высоким блокам (форма сотрудников), над которыми
  *                встаёт поповер: по центру он накрывал ровно то, что объясняет;
@@ -58,7 +64,7 @@ export const ONBOARDING_VERSION = 3;
  *                узел свёрнут на любой ширине и появляется только по действию
  *                пользователя. Механика - в reveal.js.
  *
- * @type {Array<{ id: string, route: string, element: string|null, waitFor?: string, scrollTo?: 'center'|'end'|'start', title: string, description: string, demo?: string, requires?: string, optional?: boolean, optionalSegment?: boolean, expandRail?: boolean, celebrate?: boolean, cta?: string, ctaRoute?: string, demoAttachment?: string, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: 'admin-column'|'search-panel'|'first-application' } }>}
+ * @type {Array<{ id: string, route: string, element: string|null, waitFor?: string, dynamic?: Record<string, string>, advanceWhen?: string, scrollTo?: 'center'|'end'|'start', title: string, description: string, demo?: string, requires?: string, optional?: boolean, optionalSegment?: boolean, expandRail?: boolean, celebrate?: boolean, cta?: string, ctaRoute?: string, demoAttachment?: string, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: 'admin-column'|'search-panel'|'first-application' } }>}
  */
 export const onboardingSteps = [
   {
@@ -249,7 +255,11 @@ export const onboardingSteps = [
     route: '/personal-cabinet',
     element: '[data-testid="ob-application-row"]',
     title: 'Откройте заявку',
-    description: 'Клик по строке открывает карточку заявки - всё о ней в одном окне. Сейчас откроем первую из списка.',
+    description: 'Клик по строке открывает карточку заявки - всё о ней в одном окне. Нажмите на любую или просто идите дальше: следующим шагом откроем первую сами.',
+    // Человек может нажать на строку прямо сейчас - тогда карточка появится
+    // поверх подсвеченной строки, и тур обязан перейти к рассказу о ней сам,
+    // иначе подсветка останется под открытым окном.
+    advanceWhen: '[data-testid="ob-detail-card"]',
     optional: true,
     side: 'bottom',
   },
@@ -544,8 +554,13 @@ export const onboardingSteps = [
     // Ждём, пока выделение переедет на бланк людей: смена пересоздаёт форму, и
     // без этого шаг подсвечивал прежний выбор.
     waitFor: '[data-testid="ob-blank-list"][data-selected-type="people"] [data-testid="ob-blank-selected"]',
-    title: 'Переключились на другой бланк',
-    description: 'Вот выбранный бланк - в заявке сейчас открыт он. Прежний бланк из заявки убран, а если бы вы оставили оба, заполненное в каждом хранилось бы отдельно.',
+    // Заголовок без подстановки: он же попадает в список шагов, где имени бланка
+    // на экране ещё нет и подставлять нечего.
+    title: 'Сменили бланк',
+    description: 'Теперь в заявке выбран бланк «{blank}» - форма справа сменилась под него. Прежний бланк мы из заявки убрали; если оставить оба, заполненное в каждом хранится отдельно и уходит одной заявкой.',
+    // Имена бланков задаёт Бюро («Заявка на работы», «Ввоз»), поэтому берём их с
+    // экрана: без этого шаг говорил «выбран другой бланк» и не называл какой.
+    dynamic: { blank: '[data-testid="ob-blank-selected"] .attachment-name' },
     demoAttachment: 'people',
     optional: true,
     side: 'right',
