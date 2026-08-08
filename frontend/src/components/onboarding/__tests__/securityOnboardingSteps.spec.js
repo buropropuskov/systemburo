@@ -304,9 +304,13 @@ describe('buildSecurityFactSteps', () => {
     expect(step.description).toMatch(/21:30/);
   });
 
-  it('первый шаг - optionalSegment-центр-модал (граница для грациозной деградации)', () => {
+  // Раньше первый шаг был центр-модалкой без цели, и на живом посту это читалось
+  // как «тур потерялся». Подсвечиваем таблицу, но шаг оставляем необязательным:
+  // у нового поста записей может не быть вовсе.
+  it('первый шаг подсвечивает таблицу и остаётся границей деградации сегмента', () => {
     const [intro] = buildSecurityFactSteps('/table/kpp_1');
-    expect(intro.element).toBe(null);
+    expect(intro.element).toBe('[data-testid="fact-table"]');
+    expect(intro.optional).toBe(true);
     expect(intro.optionalSegment).toBe(true);
   });
 

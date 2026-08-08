@@ -161,6 +161,10 @@ async function refreshHighlightFor(globalIndex, gen) {
  *   показать без подсветки со скриншотом, true = вести шаг как обычно
  */
 async function prepareStep(globalIndex) {
+  // Тур уже двинулся - наблюдение прошлого шага снимаем сразу. Иначе оно
+  // срабатывало на узле, который открывает СЛЕДУЮЩИЙ шаг (карточку заявки), и
+  // тур перескакивал через него.
+  stopAdvanceWatch();
   const step = store.steps[globalIndex];
   const attachmentChanged = applyDemoAttachment(globalIndex);
   const revealed = await applyReveal(store.steps, globalIndex);
