@@ -758,6 +758,51 @@ def rows_in_table(tables_meta, number):
     return 0
 
 
+def next_break_in_tail(cfg, tables_meta, number, known):
+    """Место следующего разрыва в уже разрезанной таблице.
+
+    Длинная таблица не укладывается и в две части: приложение параметров рвётся
+    после первой подписи продолжения ещё раз, а подбор ставит одну точку и
+    считает работу сделанной. Ищем от последней подписи продолжения, отсчитывая
+    строки от последнего разреза, - возвращаем точку в тех же координатах, что
+    и первая, то есть от начала таблицы.
+    """
+    meta = next((m for m in tables_meta if m["number"] == number), None)
+    if not meta:
+        return None
+    pages = subprocess.run(
+        ["pdftotext", "-layout", doc_path(cfg, ".pdf"), "-"],
+        capture_output=True, text=True, check=True,
+    ).stdout.split("\f")
+    flat = [re.sub(r"\s+", " ", pg) for pg in pages]
+
+    marker = f"Продолжение таблицы {number}"
+    tail = [i for i, pg in enumerate(flat) if marker in pg]
+    if not tail:
+        return None
+
+    page = flat[tail[-1]]
+    cursor = page.rfind(marker) + len(marker)
+    for probe in meta["head_probes"]:
+        at = find_probe(page, probe, cursor)
+        if at >= 0:
+            cursor = at
+
+    probes = meta["row_probes"]
+    pos = known[-1]
+    while pos < len(probes):
+        hit = -1
+        for probe in probes[pos]:
+            hit = find_probe(page, probe, cursor)
+            if hit >= 0:
+                break
+        if hit < 0 and probes[pos]:
+            break
+        cursor = hit if hit >= 0 else cursor
+        pos += 1
+    return pos if pos < len(probes) else None
+
+
 def find_first_unsplit_break(cfg, tables_meta, handled):
     """Найти первую сверху таблицу, которую страница рвёт, и место разрыва.
 
@@ -825,7 +870,7 @@ def find_first_unsplit_break(cfg, tables_meta, handled):
 
 
 
-def split_verdict(cfg, number):
+def split_verdict(cfg, number, tail=False):
     """Оценить разрез таблицы по готовому PDF и подсказать, куда двигать точку.
 
     Подпись продолжения сама занимает строку, поэтому попадание с первого раза
@@ -844,7 +889,10 @@ def split_verdict(cfg, number):
     ).stdout.split("\f")
 
     head = next((i for i, pg in enumerate(pages) if f"Таблица {number} " in pg), None)
-    for pageno, page in enumerate(pages):
+    # При двух разрезах первая подпись уже стоит верно, и оценивать надо
+    # последнюю: иначе подбор второй точки всегда получает «ok».
+    order = reversed(list(enumerate(pages))) if tail else enumerate(pages)
+    for pageno, page in order:
         lines = [ln for ln in page.splitlines() if ln.strip()]
         for idx, line in enumerate(lines):
             if f"Продолжение таблицы {number}" in line:
@@ -1379,7 +1427,7 @@ def report_silent_breaks(cfg, quiet=False):
         capture_output=True, text=True, check=True,
     ).stdout.split("\f")
 
-    silent, hanging = [], []
+    silent, hanging, hanging_tables = [], [], []
     for number, page in enumerate(pages, 1):
         rows = [ln for ln in page.splitlines() if ln.strip()]
         if not rows:
@@ -1392,6 +1440,9 @@ def report_silent_breaks(cfg, quiet=False):
         for idx, line in enumerate(rows):
             if "Продолжение таблицы" in line and idx != 0:
                 hanging.append(number)
+                found = re.search(r"Продолжение таблицы ([\w.]+)", line)
+                if found:
+                    hanging_tables.append(found.group(1))
         if "Продолжение таблицы" in rows[0]:
             continue
         if re.sub(r"\s+", " ", rows[0]).strip() in heads:
@@ -1400,7 +1451,7 @@ def report_silent_breaks(cfg, quiet=False):
         print(f"  ВНИМАНИЕ: таблица разорвана без подписи продолжения, страницы: {silent}")
     if hanging and not quiet:
         print(f"  ВНИМАНИЕ: подпись продолжения не в начале страницы: {hanging}")
-    return silent
+    return silent, hanging_tables
 
 
 def build_one(key):
@@ -1464,20 +1515,45 @@ def build_one(key):
     # сборка их добавляет и сдвигает содержимое: таблица, помещавшаяся при
     # подборе, разъезжается уже в готовом документе. Раньше об этом только
     # печаталось предупреждение, и подпись продолжения так и не появлялась.
-    for _ in range(3):
-        if not report_silent_breaks(cfg, quiet=True):
+    # Разрез одной таблицы сдвигает лежащие ниже, поэтому проходов несколько:
+    # закрытый разрыв способен повесить подпись у следующей таблицы.
+    for _ in range(6):
+        silent, hanging = report_silent_breaks(cfg, quiet=True)
+        if not silent and not hanging:
             break
-        number, breaks = find_first_unsplit_break(cfg, tables_meta, set())
-        if not number:
+        # Снимок разбиения: правка одной таблицы сдвигает лежащие ниже, и
+        # попытка может оставить документ хуже, чем был. Тогда откатываемся.
+        before = {k: list(v) for k, v in splitmap.items()}
+        trouble = len(silent) + len(hanging)
+        number, breaks, known = None, None, []
+        if silent:
+            # Уже разрезанные пропускаем: их разрыв - тот самый, ради которого
+            # разрез и сделан, и без этого поиск возвращает первую из них по кругу.
+            number, breaks = find_first_unsplit_break(cfg, tables_meta, set(splitmap))
+            if not number:
+                # Разрыв в таблице, которая уже разрезана: рвётся её продолжение.
+                number = next((n for n in splitmap
+                               if next_break_in_tail(cfg, tables_meta, n, splitmap[n])), None)
+                if number:
+                    known = list(splitmap[number])
+                    breaks = [next_break_in_tail(cfg, tables_meta, number, known)]
+        if not number and hanging:
+            # Подпись повисла посреди сплошной таблицы: точку разреза надо
+            # передвинуть, а не искать новый разрыв.
+            number = hanging[0]
+            known = list(splitmap.get(number, []))[:-1]
+            last = splitmap.get(number)
+            breaks = [last[-1]] if last else None
+        if not number or not breaks or breaks[0] is None:
             break
         point, placed = breaks[0], False
         for _ in range(6):
             if point < 1 or point >= rows_in_table(tables_meta, number):
                 break
-            splitmap[number] = [point]
+            splitmap[number] = sorted(set(known + [point]))
             _, tables_meta = build(cfg, pagemap, splitmap)
             to_pdf(cfg)
-            verdict = split_verdict(cfg, number)
+            verdict = split_verdict(cfg, number, tail=bool(known))
             dbg(f"таблица {number} (после финальной): точка {point} -> {verdict}")
             if verdict == "ok":
                 placed = True
@@ -1486,7 +1562,16 @@ def build_one(key):
                 break
             point += 1 if verdict == "early" else -1
         if not placed:
-            splitmap.pop(number, None)
+            splitmap.clear()
+            splitmap.update(before)
+            _, tables_meta = build(cfg, pagemap, splitmap)
+            to_pdf(cfg)
+            break
+        after_silent, after_hanging = report_silent_breaks(cfg, quiet=True)
+        if len(after_silent) + len(after_hanging) >= trouble:
+            dbg(f"таблица {number}: правка не улучшила вёрстку, откат")
+            splitmap.clear()
+            splitmap.update(before)
             _, tables_meta = build(cfg, pagemap, splitmap)
             to_pdf(cfg)
             break
