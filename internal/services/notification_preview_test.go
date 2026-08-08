@@ -67,13 +67,18 @@ func TestFileCountLabel(t *testing.T) {
 // Текст уведомления собирается строками, и пустые части выпадают целиком: у заявки может
 // не быть ни организации, ни сообщения, ни файлов.
 func TestPendingAcceptanceNoteMessage(t *testing.T) {
-	t.Run("всё заполнено - три блока через пустую строку", func(t *testing.T) {
+	t.Run("номер и организация в одной строке - её видно в свёрнутом уведомлении", func(t *testing.T) {
 		note := pendingAcceptanceNote{
 			number: "№ 20260808/003", organization: "ООО Ромашка",
 			sender: "Иванов Иван Иванович", messageText: "<p>Привоз мебели</p>", fileCount: 2,
 		}
-		assert.Equal(t, "№ 20260808/003\n\n«ООО Ромашка»\nИванов Иван Иванович\n\nПривоз мебели\nВложено 2 файла",
+		assert.Equal(t, "№ 20260808/003 · ООО Ромашка\n\nИванов Иван Иванович\n\nПривоз мебели\n\nВложено 2 файла",
 			note.message())
+	})
+
+	t.Run("вложения отдельным блоком, а не хвостом превью", func(t *testing.T) {
+		note := pendingAcceptanceNote{number: "№ 9", messageText: "Груз", fileCount: 1}
+		assert.Equal(t, "№ 9\n\nГруз\n\nВложено 1 файл", note.message())
 	})
 
 	t.Run("только номер - одна строка, без висящих отступов", func(t *testing.T) {
@@ -81,14 +86,14 @@ func TestPendingAcceptanceNoteMessage(t *testing.T) {
 		assert.Equal(t, "№ 1", note.message())
 	})
 
-	t.Run("без организации остаётся отправитель, пустых кавычек нет", func(t *testing.T) {
+	t.Run("без организации первая строка - только номер", func(t *testing.T) {
 		note := pendingAcceptanceNote{number: "№ 2", sender: "Петров П. П."}
 		assert.Equal(t, "№ 2\n\nПетров П. П.", note.message())
 	})
 
-	t.Run("без сообщения и файлов третьего блока нет", func(t *testing.T) {
+	t.Run("без сообщения и файлов остаётся одна строка", func(t *testing.T) {
 		note := pendingAcceptanceNote{number: "№ 4", organization: "ООО Ромашка"}
-		assert.Equal(t, "№ 4\n\n«ООО Ромашка»", note.message())
+		assert.Equal(t, "№ 4 · ООО Ромашка", note.message())
 	})
 
 	t.Run("заголовок не дублируется в тексте", func(t *testing.T) {
