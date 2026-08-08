@@ -196,11 +196,11 @@ func (h *ArchiveDownloadHandler) DownloadFile(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	path, err := h.downloads.ResolveFile(row)
+	file, err := h.downloads.FileForDownload(row)
 	if err != nil {
 		return err
 	}
-	return download.Serve(c, download.File{Path: path, Name: row.FileName})
+	return download.Serve(c, file)
 }
 
 // ListItems godoc

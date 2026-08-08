@@ -372,6 +372,15 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	if err != nil {
 		t.Fatalf("archive writer: %v", err)
 	}
+	// Шифрование архива включается теми же переменными, что в рабочем процессе.
+	// Без этого тест не отличил бы закрытый файл от открытого, а расходятся эти
+	// пути именно на площадке с ключами: ZIP расшифровывал, поштучное скачивание
+	// отдавало шифротекст. Пустые переменные оставляют прежнее поведение.
+	archiveCrypto, err := services.NewArchiveCrypto(os.Getenv("ARCHIVE_AGE_RECIPIENT"), os.Getenv("ARCHIVE_AGE_IDENTITY"))
+	if err != nil {
+		t.Fatalf("archive crypto: %v", err)
+	}
+	archiveWriter.SetCrypto(archiveCrypto)
 	archivePathService := services.NewArchivePathService(db, time.UTC)
 	// Место и квота (#1615, срез B2): та же пара каталогов, что видит настоящий
 	// процесс (архив/загрузки), логи в тестах не пишутся в файл. Как и в cmd/server,

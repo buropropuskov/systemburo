@@ -22,6 +22,13 @@ import (
 type File struct {
 	// Path - абсолютный путь к файлу на диске.
 	Path string
+	// Open - как получить содержимое, когда на диске лежит не оно само. Задан у
+	// файлов файлового архива: там на диске шифротекст, и отдать его байт в байт
+	// значит выдать пользователю то, что он не откроет. Пусто - отдаём файл как есть.
+	Open func() (io.ReadCloser, error)
+	// Size - размер отдаваемого содержимого. Нужен вместе с Open: размер файла на
+	// диске к расшифрованному потоку отношения не имеет. 0 - заголовок не ставим.
+	Size int64
 	// Name - имя файла для Content-Disposition. Пусто - заголовок не ставится
 	// (браузер сам решит, как показать; для inline-предпросмотра по расширению).
 	Name string
@@ -99,7 +106,24 @@ func Serve(c echo.Context, f File) error {
 			fmt.Sprintf(`%s; filename="%s"`, disposition, sanitizeName(f.Name)))
 	}
 
-	return c.File(f.Path)
+	if f.Open == nil {
+		return c.File(f.Path)
+	}
+
+	reader, err := f.Open()
+	if err != nil {
+		return fmt.Errorf("open file content: %w", err)
+	}
+	defer reader.Close()
+
+	if f.Size > 0 {
+		c.Response().Header().Set(echo.HeaderContentLength, strconv.FormatInt(f.Size, 10))
+	}
+	mime := f.Mime
+	if mime == "" {
+		mime = echo.MIMEOctetStream
+	}
+	return c.Stream(http.StatusOK, mime, reader)
 }
 
 // sanitizeName экранирует кавычки и убирает переносы строк из имени файла,

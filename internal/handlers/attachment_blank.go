@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -97,16 +98,28 @@ func (h *AttachmentBlankHandler) downloadArchived(c echo.Context, appID, attID i
 	if err != nil {
 		return err
 	}
-	path, err := h.archive.ResolveFile(row)
+	file, err := h.archive.FileForDownload(row)
 	if err != nil {
 		return err
 	}
 	c.Response().Header().Set("Content-Type",
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	encoded := url.PathEscape(row.FileName)
+	// Имя берётся из собранного файла, а не из строки реестра: у зашифрованного
+	// архива в реестре лежит имя с суффиксом, и пользователь получил бы .xlsx.age,
+	// который Excel не открывает.
+	encoded := url.PathEscape(file.Name)
 	c.Response().Header().Set("Content-Disposition",
 		`attachment; filename="blank.xlsx"; filename*=UTF-8''`+encoded)
-	return c.File(path)
+	if file.Open == nil {
+		return c.File(file.Path)
+	}
+	reader, err := file.Open()
+	if err != nil {
+		return fmt.Errorf("open archived blank: %w", err)
+	}
+	defer reader.Close()
+	return c.Stream(http.StatusOK,
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", reader)
 }
 
 // canDownload повторяет обе точки, откуда бланк запрашивают: деталь заявки (DownloadBlanksModal)
