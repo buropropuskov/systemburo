@@ -366,6 +366,13 @@ func main() {
 		slog.Error("не удалось включить шифрование файлового архива", "error", err)
 		os.Exit(1)
 	}
+	// Состояние шифрования печатается при запуске: иначе понять, включилось ли оно,
+	// можно только по именам файлов в архиве, а это замечают не сразу.
+	if archiveCrypto.Enabled() {
+		slog.Info("файловый архив шифруется", "recipient", cfg.ArchiveAgeRecipient)
+	} else {
+		slog.Warn("файловый архив пишется без шифрования: ключи не заданы")
+	}
 	if archiveWriter, err := services.NewArchiveWriter(cfg.ArchivePath); err != nil {
 		slog.Error("файловый архив не поднят", "path", cfg.ArchivePath, "error", err)
 	} else {
