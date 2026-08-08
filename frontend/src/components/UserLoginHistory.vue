@@ -670,7 +670,9 @@ function thinBorder() {
   z-index: 1;
   text-align: left;
   padding: 11px 14px;
-  background: var(--accent-tint);
+  /* Непрозрачная поверхность, а не --accent-tint: тот полупрозрачный (0.22 в тёмной
+     теме), и уезжающие под шапку строки читались сквозь неё. */
+  background: var(--surface-2);
   border-bottom: 1px solid var(--border);
   font-size: 11px;
   font-weight: 600;
