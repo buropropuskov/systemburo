@@ -134,6 +134,28 @@ describe('service worker: показ push-уведомления', () => {
     expect(options.badge).toBe('/notification-badge.png');
   });
 
+  // Значок говорит о поводе раньше, чем человек прочтёт текст: в шторке сначала видно
+  // картинку. Плашка у всех одна, символ внутри разный.
+  it.each([
+    ['application_pending_acceptance', '/notification-icon-application.png'],
+    ['application_approval_required', '/notification-icon-approval.png'],
+    ['application_question', '/notification-icon-question.png'],
+    ['password_changed', '/notification-icon-security.png'],
+    ['news_published', '/notification-icon-content.png'],
+  ])('тип %s получает свою картинку', (type, expected) => {
+    sw.listeners.push(pushEvent({ title: 'T', type }));
+
+    const [, options] = sw.showNotification.mock.calls[0];
+    expect(options.icon).toBe(expected);
+  });
+
+  it('незнакомый тип получает общий знак системы, а не пустоту', () => {
+    sw.listeners.push(pushEvent({ title: 'T', type: 'нечто_неизвестное' }));
+
+    const [, options] = sw.showNotification.mock.calls[0];
+    expect(options.icon).toBe('/notification-icon.png');
+  });
+
   it('worker забирает управление сразу, не дожидаясь закрытия вкладок', async () => {
     sw.listeners.install({});
     await sw.listeners.activate({ waitUntil: (p) => p });
