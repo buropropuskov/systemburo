@@ -251,7 +251,7 @@ describe('onboarding store', () => {
 
       expect(store.steps.some((s) => s.id === 'detail-supplement')).toBe(false);
       // Соседи по карточке правами не закрыты и остаются - выброшен ровно один шаг.
-      expect(store.steps.some((s) => s.id === 'detail-download')).toBe(true);
+      expect(store.steps.some((s) => s.id === 'detail-duplicate')).toBe(true);
       expect(store.steps.some((s) => s.id === 'detail-revoke')).toBe(true);
     });
 
@@ -262,7 +262,7 @@ describe('onboarding store', () => {
 
       const ids = store.steps.map((s) => s.id);
       expect(ids.indexOf('detail-questions')).toBeLessThan(ids.indexOf('detail-supplement'));
-      expect(ids.indexOf('detail-supplement')).toBeLessThan(ids.indexOf('detail-download'));
+      expect(ids.indexOf('detail-supplement')).toBeLessThan(ids.indexOf('detail-revoke'));
     });
 
     it('режим super пропускает все requires-шаги', () => {
