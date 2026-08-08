@@ -2247,7 +2247,13 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	// выше, второй берёт заявку в работу и до этого о подаче не узнавал вообще ничего,
 	// хотя именно он ждёт её в Центре.
 	if s.notificationService != nil {
-		s.notifyApproversAboutNewApplication(ctx, user.ID, appID, applicationNumber, senderTitle, senderPerson, submitPayload)
+		s.notifyApproversAboutNewApplication(ctx, user.ID, appID, pendingAcceptanceNote{
+			number:       applicationNumber,
+			organization: senderTitle,
+			sender:       senderPerson,
+			messageText:  optionalString(req.Message),
+			fileCount:    len(req.FileIDs),
+		}, submitPayload)
 	}
 
 	// Подача завела наименование, которого не было в справочнике (#1437): зовём тех,
