@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"systemburo/internal/models"
 )
@@ -31,23 +32,42 @@ func (s *pushService) GetSummary(ctx context.Context) (*models.PushSummary, erro
 	// Подписки считаются только у активных пользователей: архивный аккаунт с забытой
 	// подпиской не должен искажать картину адопции текущей базы.
 	var subs []struct {
-		UserID    int
-		UserAgent string
+		UserID        int
+		Username      string
+		UserAgent     string
+		CreatedAt     time.Time
+		LastSuccessAt *time.Time
+		FailedCount   int
+		LastError     *string
 	}
 	if err := s.db.WithContext(ctx).
 		Table("push_subscriptions ps").
 		Joins("JOIN users u ON u.id = ps.user_id AND u.is_active = true").
-		Select("ps.user_id AS user_id, COALESCE(ps.user_agent, '') AS user_agent").
+		Select(`ps.user_id AS user_id, u.username AS username, COALESCE(ps.user_agent, '') AS user_agent,
+			ps.created_at AS created_at, ps.last_success_at AS last_success_at,
+			ps.failed_count AS failed_count, ps.last_error AS last_error`).
+		Order("ps.created_at DESC").
 		Scan(&subs).Error; err != nil {
 		return nil, fmt.Errorf("push summary: read subscriptions: %w", err)
 	}
 	withPush := make(map[int]bool, len(subs))
+	summary.Delivery = make([]models.PushDeliveryState, 0, len(subs))
 	for _, sub := range subs {
 		// Пользователь с двумя устройствами считается один раз в UsersWithPush, но
 		// каждое его устройство - отдельная строка в разрезе по платформам: подписка,
 		// не человек, единица учёта адопции канала на устройство.
 		withPush[sub.UserID] = true
-		addPlatformCount(&summary.SubscriptionsByPlatform, DetectPlatform(sub.UserAgent))
+		platform := DetectPlatform(sub.UserAgent)
+		addPlatformCount(&summary.SubscriptionsByPlatform, platform)
+		summary.Delivery = append(summary.Delivery, models.PushDeliveryState{
+			UserID:        sub.UserID,
+			Username:      sub.Username,
+			Platform:      platform,
+			CreatedAt:     sub.CreatedAt,
+			LastSuccessAt: sub.LastSuccessAt,
+			FailedCount:   sub.FailedCount,
+			LastError:     sub.LastError,
+		})
 	}
 	summary.UsersWithPush = int64(len(withPush))
 	summary.UsersWithoutPush = summary.ActiveUsersTotal - summary.UsersWithPush

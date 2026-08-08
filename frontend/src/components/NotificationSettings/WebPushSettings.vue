@@ -29,8 +29,30 @@
          фактической поддержки API: Safari формально может отдавать
          Notification/PushManager вне режима "Домой", но subscribe() там
          откажет - лучше объяснить заранее, чем ловить пойманную ошибку. -->
+    <!-- Сторонний браузер на iOS проверяется ПЕРВЫМ: подсказка про экран «Домой»
+         ему бесполезна. Ярлык, поставленный из Chrome или Яндекс.Браузера,
+         открывается обычной вкладкой, и push там не включается совсем - человеку
+         нужно сначала перейти в Safari. Найдено на живом iPhone (#974). -->
     <div
-      v-if="iosNeedsInstall"
+      v-if="iosNeedsSafariBrowser"
+      class="webpush__state webpush__state--info"
+      data-testid="webpush-ios-safari-hint"
+    >
+      <p>
+        Сейчас сайт открыт не в Safari. На iOS (iPhone и iPad) уведомления
+        подключаются только через Safari - другие браузеры там работают на движке
+        Safari, но push им не доступен.
+      </p>
+      <ol class="webpush__steps">
+        <li>Скопируйте адрес сайта и откройте его в Safari.</li>
+        <li>Нажмите «Поделиться» в нижней панели.</li>
+        <li>Выберите «На экран Домой».</li>
+        <li>Откройте бюро пропусков с появившейся иконки и включите уведомления здесь.</li>
+      </ol>
+    </div>
+
+    <div
+      v-else-if="iosNeedsInstall"
       class="webpush__state webpush__state--info"
       data-testid="webpush-ios-hint"
     >
@@ -144,6 +166,7 @@ import { formatDateTime } from '@/utils/datetime';
 const {
   supported,
   iosNeedsInstall,
+  iosNeedsSafariBrowser,
   permission,
   serverConfigured,
   devices,
