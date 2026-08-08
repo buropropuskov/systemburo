@@ -47,6 +47,12 @@ function collectTestIds() {
       for (const m of source.matchAll(/(^|[^[])data-testid\s*=\s*["']([^"'`${}]+)["']/gm)) {
         found.add(m[2]);
       }
+      // Условная привязка вида `:data-testid="выбран ? 'ob-blank-selected' : null"`:
+      // имя тут - обычный литерал, и якорь на него настоящий. Шаблонные строки
+      // по-прежнему не берём - там имя собирается в рантайме.
+      for (const m of source.matchAll(/:data-testid\s*=\s*"([^"]*)"/g)) {
+        for (const lit of m[1].matchAll(/'([^'`${}]+)'/g)) found.add(lit[1]);
+      }
     }
   };
   walk(SRC_DIR);
