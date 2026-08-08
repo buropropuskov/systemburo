@@ -2099,7 +2099,6 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 					firstName := e.FirstName
 					citizenshipID := e.CitizenshipID
 					position := e.Position
-					passportSeriesNumber := e.PassportSeriesNumber
 					employee := models.Employee{
 						AttachmentID:         &attID,
 						LastName:             &lastName,
@@ -2107,8 +2106,8 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 						MiddleName:           e.MiddleName,
 						CitizenshipID:        &citizenshipID,
 						Position:             &position,
-						PassportSeriesNumber: &passportSeriesNumber,
-						PatentNumber:         e.PatentNumber,
+						PassportSeriesNumber: nilIfBlank(e.PassportSeriesNumber),
+						PatentNumber:         nilIfBlankPtr(e.PatentNumber),
 						OtherPermission:      e.OtherPermission,
 						Status:               &statusZero,
 					}
