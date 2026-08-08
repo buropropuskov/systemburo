@@ -101,6 +101,14 @@ describe('securityOnboardingSteps - сегмент /news', () => {
     });
   });
 
+  // Пункт «Таблицы» есть в меню только у того, кому доступна хотя бы одна таблица
+  // поста, а тур открывается и по праву «Доступные мне». Без пометки шаг ждал
+  // цель четыре секунды и рассказывал про раздел, которого у человека нет.
+  it('шаг «Таблицы» помечен как «может отсутствовать»', () => {
+    const step = securityOnboardingSteps.find((s) => s.id === 'sec-nav-tables');
+    expect(step.optional).toBe(true);
+  });
+
   it('подсвечивает nav «Доступные мне» и «Таблицы» по реальным testid', () => {
     const byId = (id) => securityOnboardingSteps.find((s) => s.id === id);
     expect(byId('sec-nav-accessible').element).toBe('[data-testid="nav-link-accessible-attachments"]');
