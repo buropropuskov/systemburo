@@ -55,6 +55,24 @@ describe('UserApplications - раскрытие карточки заявки д
     expect(wrapper.vm.selectedApplication).toEqual(expect.objectContaining({ id: 7 }));
   });
 
+  // Список приезжает своим запросом: при переходе к шагу карточки из списка шагов
+  // сигнал встаёт раньше данных. Раньше попытка была одна - карточка не
+  // открывалась, весь сегмент выбрасывался, и счётчик стоял на месте.
+  it('заявки приехали после сигнала - карточка всё равно открывается', async () => {
+    const wrapper = mountUA();
+    await flushPromises();
+
+    useOnboardingStore().setRevealOpen('first-application');
+    await flushPromises();
+    expect(wrapper.vm.showDetailModal).toBe(false);
+
+    wrapper.vm.applications = [{ id: 9, sender_user_id: 1, application_number: 'A-9' }];
+    await flushPromises();
+
+    expect(wrapper.vm.showDetailModal).toBe(true);
+    expect(wrapper.vm.selectedApplication).toEqual(expect.objectContaining({ id: 9 }));
+  });
+
   it('гашение сигнала закрывает деталь, открытую туром', async () => {
     const wrapper = mountUA();
     wrapper.vm.applications = [{ id: 7, sender_user_id: 1, application_number: 'A-7' }];

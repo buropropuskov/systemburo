@@ -42,11 +42,20 @@ export const REVEAL_FIRST_APPLICATION = 'first-application';
 export function useRevealFirstApplication({ first, isOpen, open, close }) {
   const store = useOnboardingStore();
   let openedByTour = false;
+  // Правило 3 в действии: человек закрыл карточку сам, и пока сигнал не сменится,
+  // тур её больше не открывает. Без флага повторная попытка (см. ниже) вернула бы
+  // карточку на экран при первом же обновлении списка.
+  let releasedByUser = false;
 
+  // Следим и за сигналом, и за первой заявкой: список приезжает своим запросом, и
+  // на медленной сети сигнал успевает встать раньше данных. Так было при переходе
+  // к шагу карточки из списка шагов - открывать было нечего, сегмент выбрасывался
+  // целиком, а счётчик стоял на месте. Приход данных даёт вторую попытку.
   const stop = watch(
-    () => store.revealOpen,
-    (target) => {
+    () => [store.revealOpen, first()],
+    ([target]) => {
       if (target === REVEAL_FIRST_APPLICATION) {
+        if (releasedByUser) return;
         const application = first();
         // Правила 1 и 2: открывать нечего либо карточка уже на экране.
         if (!application || isOpen()) return;
@@ -56,6 +65,7 @@ export function useRevealFirstApplication({ first, isOpen, open, close }) {
       }
       // Сигнал сменился на чужой узел или погас. Закрываем только своё: ось `open`
       // общая, по ней же ходят колонка Админки и панель поиска.
+      releasedByUser = false;
       if (!openedByTour) return;
       openedByTour = false;
       close();
@@ -67,6 +77,7 @@ export function useRevealFirstApplication({ first, isOpen, open, close }) {
     /** Правило 3: карточку закрыли помимо тура - владение сброшено. */
     release() {
       openedByTour = false;
+      releasedByUser = true;
     },
   };
 }
