@@ -15,61 +15,19 @@
       <input
         v-model="searchQuery"
         type="text"
-        class="list-search"
+        class="lk-input list-search"
         placeholder="Поиск по номеру или марке"
         data-testid="vehicles-search"
       >
-      <div
+      <Pager
         v-if="totalPages > 1"
-        class="list-pagination"
-      >
-        <button
-          type="button"
-          class="page-btn"
-          title="В начало"
-          :disabled="currentPage === 1"
-          data-testid="vehicles-first-page"
-          @click="goToPage(1)"
-        >
-          «
-        </button>
-        <button
-          type="button"
-          class="page-btn"
-          title="Назад"
-          :disabled="currentPage === 1"
-          data-testid="vehicles-prev-page"
-          @click="goToPage(currentPage - 1)"
-        >
-          ‹
-        </button>
-        <span
-          class="page-info"
-          data-testid="vehicles-page-info"
-        >
-          Стр. {{ currentPage }} из {{ totalPages }}
-        </span>
-        <button
-          type="button"
-          class="page-btn"
-          title="Вперёд"
-          :disabled="currentPage === totalPages"
-          data-testid="vehicles-next-page"
-          @click="goToPage(currentPage + 1)"
-        >
-          ›
-        </button>
-        <button
-          type="button"
-          class="page-btn"
-          title="В конец"
-          :disabled="currentPage === totalPages"
-          data-testid="vehicles-last-page"
-          @click="goToPage(totalPages)"
-        >
-          »
-        </button>
-      </div>
+        class="list-pager"
+        :page="currentPage"
+        :total-pages="totalPages"
+        :total="filteredVehicles.length"
+        page-prefix="Стр. "
+        @update:page="goToPage"
+      />
     </div>
 
     <!-- Десктоп/планшет: колоночная раскладка. В DOM ячейки идут по столбцам, поэтому
@@ -96,10 +54,10 @@
         </div>
         <div
           v-for="(row, index) in pagedVehicles"
-          :key="row.vehicle.id"
+          :key="row.item.id"
           class="vcol__cell vcol__cell--muted"
           data-testid="vehicles-row"
-          :class="rowState(row.vehicle, index)"
+          :class="rowState(row.item, index)"
           @mouseenter="hoveredIndex = index"
         >
           {{ row.number }}
@@ -122,12 +80,12 @@
         </div>
         <div
           v-for="(row, index) in pagedVehicles"
-          :key="row.vehicle.id"
+          :key="row.item.id"
           class="vcol__cell vcol__cell--text"
-          :class="rowState(row.vehicle, index)"
+          :class="rowState(row.item, index)"
           @mouseenter="hoveredIndex = index"
         >
-          {{ row.vehicle.plateNumber || 'Не указано' }}
+          {{ row.item.plateNumber || 'Не указано' }}
         </div>
       </div>
 
@@ -147,12 +105,12 @@
         </div>
         <div
           v-for="(row, index) in pagedVehicles"
-          :key="row.vehicle.id"
+          :key="row.item.id"
           class="vcol__cell vcol__cell--text"
-          :class="rowState(row.vehicle, index)"
+          :class="rowState(row.item, index)"
           @mouseenter="hoveredIndex = index"
         >
-          {{ row.vehicle.mark || 'Не указано' }}
+          {{ row.item.mark || 'Не указано' }}
         </div>
       </div>
 
@@ -162,22 +120,22 @@
         </div>
         <div
           v-for="(row, index) in pagedVehicles"
-          :key="row.vehicle.id"
+          :key="row.item.id"
           class="vcol__cell vcol__cell--actions"
-          :class="rowState(row.vehicle, index)"
+          :class="rowState(row.item, index)"
           @mouseenter="hoveredIndex = index"
         >
           <button
             class="details-btn"
             title="Детали"
-            @click="showVehicleDetails(row.vehicle)"
+            @click="showVehicleDetails(row.item)"
           >
             <DetailsIcon class="details-icon" />
           </button>
           <button
             class="edit-btn"
             title="Редактировать"
-            @click="$emit('edit-vehicle', row.vehicle)"
+            @click="$emit('edit-vehicle', row.item)"
           >
             <img
               src="@/assets/icons/edit.png"
@@ -188,7 +146,7 @@
           <button
             class="delete-btn"
             title="Удалить"
-            @click="$emit('delete-vehicle', row.vehicle.id)"
+            @click="$emit('delete-vehicle', row.item.id)"
           >
             <img
               src="@/assets/icons/trashcan.png"
@@ -237,36 +195,36 @@
       <div class="table-body">
         <div
           v-for="row in pagedVehicles"
-          :key="row.vehicle.id"
+          :key="row.item.id"
           class="table-row rt-row"
           data-testid="vehicles-row"
-          :class="{ 'has-active': row.vehicle.activeInfo }"
+          :class="{ 'has-active': row.item.activeInfo }"
         >
           <div class="table-col number-col">
             {{ row.number }}
           </div>
           <div class="table-col plate-col">
             <div class="cell-with-icon">
-              {{ row.vehicle.plateNumber || 'Не указано' }}
+              {{ row.item.plateNumber || 'Не указано' }}
             </div>
           </div>
           <div class="table-col mark-col">
             <div class="cell-with-icon">
-              {{ row.vehicle.mark || 'Не указано' }}
+              {{ row.item.mark || 'Не указано' }}
             </div>
           </div>
           <div class="table-col actions-col">
             <button
               class="details-btn"
               title="Детали"
-              @click="showVehicleDetails(row.vehicle)"
+              @click="showVehicleDetails(row.item)"
             >
               <DetailsIcon class="details-icon" />
             </button>
             <button
               class="edit-btn"
               title="Редактировать"
-              @click="$emit('edit-vehicle', row.vehicle)"
+              @click="$emit('edit-vehicle', row.item)"
             >
               <img
                 src="@/assets/icons/edit.png"
@@ -277,7 +235,7 @@
             <button
               class="delete-btn"
               title="Удалить"
-              @click="$emit('delete-vehicle', row.vehicle.id)"
+              @click="$emit('delete-vehicle', row.item.id)"
             >
               <img
                 src="@/assets/icons/trashcan.png"
@@ -318,25 +276,18 @@
 </template>
 
 <script>
-import { ref, computed, watch } from 'vue';
 import VehicleDetailsModal from './VehicleDetailsModal.vue';
 import DetailsIcon from '@/components/ui/DetailsIcon.vue';
+import Pager from '@/components/ui/Pager.vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
-
-// Импорт бланком (blank-import E1) может завести до 2000 машин - весь массив v-for'ом
-// (да ещё продублированным на 4 колонки в десктопной раскладке) перестаёт быть дёшево
-// по числу DOM-узлов. Окно рендера по scroll здесь не подошло по тем же причинам, что
-// у EmployeesList: список живёт в ДВУХ разных скролл-контекстах (bounded .vehicles-cols
-// на десктопе, page-scroll карточек на мобилке), и честная unit-проверка виртуализации
-// по scroll в jsdom невозможна (нет layout и IntersectionObserver). Постраничный показ
-// с поиском - чистое состояние, одинаковое для обеих раскладок.
-const PAGE_SIZE = 50;
+import { useListSearchPagination } from '@/composables/useListSearchPagination';
 
 export default {
     name: 'VehiclesList',
     components: {
         VehicleDetailsModal,
-        DetailsIcon
+        DetailsIcon,
+        Pager
     },
     props: {
         vehicles: {
@@ -370,40 +321,21 @@ export default {
     setup(props) {
         const { isNarrow } = useNarrowScreen(767.98);
 
-        const searchQuery = ref('');
-        const currentPage = ref(1);
-
-        const showToolbar = computed(() => props.vehicles.length > PAGE_SIZE);
-
-        const filteredVehicles = computed(() => {
-            const q = searchQuery.value.trim().toLowerCase();
-            if (!q) return props.vehicles;
-            return props.vehicles.filter((vehicle) => {
-                const haystack = `${vehicle.plateNumber || ''} ${vehicle.mark || ''}`.toLowerCase();
-                return haystack.includes(q);
-            });
-        });
-
-        const totalPages = computed(() => Math.max(1, Math.ceil(filteredVehicles.value.length / PAGE_SIZE)));
-
-        const pagedVehicles = computed(() => {
-            const start = (currentPage.value - 1) * PAGE_SIZE;
-            return filteredVehicles.value.slice(start, start + PAGE_SIZE).map((vehicle, i) => ({
-                vehicle,
-                number: start + i + 1
-            }));
-        });
-
-        function goToPage(page) {
-            currentPage.value = Math.min(Math.max(1, page), totalPages.value);
-        }
-
-        // Новый поиск - снова с первой страницы; удаление строки или сужение поиска
-        // могли увести currentPage за пределы totalPages - клампим на актуальный максимум.
-        watch(searchQuery, () => { currentPage.value = 1; });
-        watch(totalPages, (max) => {
-            if (currentPage.value > max) currentPage.value = max;
-        });
+        // Поиск+постраничный показ - см. useListSearchPagination (blank-import E1: до
+        // 2000 машин, рендерить всё v-for'ом - да ещё продублированным на 4 колонки в
+        // десктопной раскладке - не годится).
+        const {
+            searchQuery,
+            currentPage,
+            showToolbar,
+            filteredItems: filteredVehicles,
+            totalPages,
+            pagedItems: pagedVehicles,
+            goToPage
+        } = useListSearchPagination(
+            () => props.vehicles,
+            (vehicle, q) => `${vehicle.plateNumber || ''} ${vehicle.mark || ''}`.toLowerCase().includes(q)
+        );
 
         return {
             isNarrow,
@@ -423,6 +355,13 @@ export default {
             // Индекс строки под курсором: подсвечиваем ячейки того же индекса во всех
             // столбцах (в колоночном DOM «строки» как элемента нет - синхроним по index).
             hoveredIndex: null
+        }
+    },
+    watch: {
+        currentPage() {
+            // Клик по пейджеру не даёт mouseleave - без сброса подсветка осталась бы
+            // на строке с тем же ЛОКАЛЬНЫМ индексом, то есть на другой машине.
+            this.hoveredIndex = null;
         }
     },
     methods: {
@@ -493,62 +432,18 @@ export default {
     padding-bottom: 10px;
 }
 
+/* Границы/фон/фокус/тёмная тема - на .lk-input, здесь только раскладка в тулбаре. */
 .list-search {
     flex: 1;
     min-width: 160px;
-    padding: 6px 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md, 15px);
-    background: var(--surface);
-    color: var(--text);
-    font-size: 13px;
     height: 32px;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    padding: 6px 12px;
+    font-size: 13px;
 }
 
-.list-search:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
-}
-
-.list-pagination {
-    display: flex;
-    align-items: center;
-    gap: 4px;
+.list-pager {
     flex-shrink: 0;
-}
-
-.page-btn {
-    width: 28px;
-    height: 28px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm, 8px);
-    background: var(--surface);
-    color: var(--text);
-    cursor: pointer;
-    font-size: 14px;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background-color 0.2s ease, opacity 0.2s ease;
-}
-
-.page-btn:hover:not(:disabled) {
-    background: var(--surface-2);
-}
-
-.page-btn:disabled {
-    opacity: 0.4;
-    cursor: default;
-}
-
-.page-info {
-    font-size: 12px;
     color: var(--text-muted);
-    white-space: nowrap;
-    padding: 0 4px;
 }
 
 /* Колоночная раскладка (десктоп/планшет): каждый столбец - отдельный flex-column,
@@ -880,9 +775,8 @@ h4 {
         font-size: 16px;
     }
 
-    .page-btn {
-        width: 44px;
-        height: 44px;
+    .list-pager :deep(.lk-button) {
+        min-height: 44px;
     }
 
     /* Список больше не скроллится внутри 180px - страница скроллит сама. */

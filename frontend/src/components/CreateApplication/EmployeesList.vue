@@ -15,61 +15,19 @@
       <input
         v-model="searchQuery"
         type="text"
-        class="list-search"
+        class="lk-input list-search"
         placeholder="Поиск по ФИО"
         data-testid="employees-search"
       >
-      <div
+      <Pager
         v-if="totalPages > 1"
-        class="list-pagination"
-      >
-        <button
-          type="button"
-          class="page-btn"
-          title="В начало"
-          :disabled="currentPage === 1"
-          data-testid="employees-first-page"
-          @click="goToPage(1)"
-        >
-          «
-        </button>
-        <button
-          type="button"
-          class="page-btn"
-          title="Назад"
-          :disabled="currentPage === 1"
-          data-testid="employees-prev-page"
-          @click="goToPage(currentPage - 1)"
-        >
-          ‹
-        </button>
-        <span
-          class="page-info"
-          data-testid="employees-page-info"
-        >
-          Стр. {{ currentPage }} из {{ totalPages }}
-        </span>
-        <button
-          type="button"
-          class="page-btn"
-          title="Вперёд"
-          :disabled="currentPage === totalPages"
-          data-testid="employees-next-page"
-          @click="goToPage(currentPage + 1)"
-        >
-          ›
-        </button>
-        <button
-          type="button"
-          class="page-btn"
-          title="В конец"
-          :disabled="currentPage === totalPages"
-          data-testid="employees-last-page"
-          @click="goToPage(totalPages)"
-        >
-          »
-        </button>
-      </div>
+        class="list-pager"
+        :page="currentPage"
+        :total-pages="totalPages"
+        :total="filteredEmployees.length"
+        page-prefix="Стр. "
+        @update:page="goToPage"
+      />
     </div>
 
     <div class="employees-table rt-table">
@@ -141,7 +99,7 @@
       <div class="table-body">
         <div
           v-for="row in pagedEmployees"
-          :key="row.employee.id"
+          :key="row.item.id"
           class="table-row rt-row"
           data-testid="employees-row"
         >
@@ -149,26 +107,26 @@
             {{ row.number }}
           </div>
           <div class="table-col lastName-col">
-            {{ row.employee.lastName || 'Не указано' }}
+            {{ row.item.lastName || 'Не указано' }}
           </div>
           <div class="table-col firstName-col">
-            {{ row.employee.firstName || 'Не указано' }}
+            {{ row.item.firstName || 'Не указано' }}
           </div>
           <div class="table-col middleName-col">
-            {{ row.employee.middleName || 'Не указано' }}
+            {{ row.item.middleName || 'Не указано' }}
           </div>
           <div class="table-col actions-col">
             <button
               class="details-btn"
               title="Детали"
-              @click="showEmployeeDetails(row.employee)"
+              @click="showEmployeeDetails(row.item)"
             >
               <DetailsIcon class="details-icon" />
             </button>
             <button
               class="edit-btn"
               title="Редактировать"
-              @click="$emit('edit-employee', row.employee)"
+              @click="$emit('edit-employee', row.item)"
             >
               <img
                 src="@/assets/icons/edit.png"
@@ -178,7 +136,7 @@
             </button>
             <button
               class="delete-btn"
-              @click="$emit('delete-employee', row.employee.id)"
+              @click="$emit('delete-employee', row.item.id)"
             >
               <img
                 src="@/assets/icons/trashcan.png"
@@ -216,25 +174,14 @@
 </template>
 
 <script>
-import { ref, computed, watch } from 'vue';
 import EmployeeDetailsModal from './EmployeeDetailsModal.vue';
 import DetailsIcon from '@/components/ui/DetailsIcon.vue';
-
-// Импорт бланком (blank-import E1) может завести до 2000 строк - рендерить их все
-// v-for'ом за раз перестаёт быть дёшево по числу DOM-узлов. Окно рендера по scroll
-// здесь не подошло: список живёт в ДВУХ разных скролл-контекстах - на десктопе это
-// свой bounded-контейнер (.table-body, max-height 180px), на мобилке (карточки) он
-// становится частью обычного потока и скроллит страница целиком (см. @media ниже) -
-// виртуализация по scroll потребовала бы разного root для IntersectionObserver в
-// каждом режиме и не поддаётся честной unit-проверке (jsdom не считает layout и не
-// реализует IntersectionObserver). Постраничный показ с поиском - чистое состояние
-// (номер страницы, строка поиска), одинаково работает в обеих раскладках и проверяется
-// обычными assert'ами по DOM.
-const PAGE_SIZE = 50;
+import Pager from '@/components/ui/Pager.vue';
+import { useListSearchPagination } from '@/composables/useListSearchPagination';
 
 export default {
     name: 'EmployeesList',
-    components: { EmployeeDetailsModal, DetailsIcon },
+    components: { EmployeeDetailsModal, DetailsIcon, Pager },
     props: {
         employees: {
             type: Array,
@@ -255,40 +202,20 @@ export default {
     },
     emits: ['sort', 'edit-employee', 'delete-employee'],
     setup(props) {
-        const searchQuery = ref('');
-        const currentPage = ref(1);
-
-        const showToolbar = computed(() => props.employees.length > PAGE_SIZE);
-
-        const filteredEmployees = computed(() => {
-            const q = searchQuery.value.trim().toLowerCase();
-            if (!q) return props.employees;
-            return props.employees.filter((employee) => {
-                const haystack = `${employee.lastName || ''} ${employee.firstName || ''} ${employee.middleName || ''}`.toLowerCase();
-                return haystack.includes(q);
-            });
-        });
-
-        const totalPages = computed(() => Math.max(1, Math.ceil(filteredEmployees.value.length / PAGE_SIZE)));
-
-        const pagedEmployees = computed(() => {
-            const start = (currentPage.value - 1) * PAGE_SIZE;
-            return filteredEmployees.value.slice(start, start + PAGE_SIZE).map((employee, i) => ({
-                employee,
-                number: start + i + 1
-            }));
-        });
-
-        function goToPage(page) {
-            currentPage.value = Math.min(Math.max(1, page), totalPages.value);
-        }
-
-        // Новый поиск - снова с первой страницы; удаление строки или сужение поиска
-        // могли увести currentPage за пределы totalPages - клампим на актуальный максимум.
-        watch(searchQuery, () => { currentPage.value = 1; });
-        watch(totalPages, (max) => {
-            if (currentPage.value > max) currentPage.value = max;
-        });
+        // Поиск+постраничный показ - см. useListSearchPagination (blank-import E1: до
+        // 2000 строк, рендерить всё v-for'ом не годится).
+        const {
+            searchQuery,
+            currentPage,
+            showToolbar,
+            filteredItems: filteredEmployees,
+            totalPages,
+            pagedItems: pagedEmployees,
+            goToPage
+        } = useListSearchPagination(
+            () => props.employees,
+            (employee, q) => `${employee.lastName || ''} ${employee.firstName || ''} ${employee.middleName || ''}`.toLowerCase().includes(q)
+        );
 
         return {
             searchQuery,
@@ -378,62 +305,18 @@ export default {
     padding-bottom: 10px;
 }
 
+/* Границы/фон/фокус/тёмная тема - на .lk-input, здесь только раскладка в тулбаре. */
 .list-search {
     flex: 1;
     min-width: 160px;
-    padding: 6px 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md, 15px);
-    background: var(--surface);
-    color: var(--text);
-    font-size: 13px;
     height: 32px;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    padding: 6px 12px;
+    font-size: 13px;
 }
 
-.list-search:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
-}
-
-.list-pagination {
-    display: flex;
-    align-items: center;
-    gap: 4px;
+.list-pager {
     flex-shrink: 0;
-}
-
-.page-btn {
-    width: 28px;
-    height: 28px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm, 8px);
-    background: var(--surface);
-    color: var(--text);
-    cursor: pointer;
-    font-size: 14px;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background-color 0.2s ease, opacity 0.2s ease;
-}
-
-.page-btn:hover:not(:disabled) {
-    background: var(--surface-2);
-}
-
-.page-btn:disabled {
-    opacity: 0.4;
-    cursor: default;
-}
-
-.page-info {
-    font-size: 12px;
     color: var(--text-muted);
-    white-space: nowrap;
-    padding: 0 4px;
 }
 
 .employees-table {
@@ -652,9 +535,8 @@ h4 {
         font-size: 16px;
     }
 
-    .page-btn {
-        width: 44px;
-        height: 44px;
+    .list-pager :deep(.lk-button) {
+        min-height: 44px;
     }
 
     /* Список больше не скроллится внутри 180px - страница скроллит сама. */
