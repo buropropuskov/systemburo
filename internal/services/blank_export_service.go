@@ -235,7 +235,7 @@ func (s *BlankExportService) ExportApplication(ctx context.Context, applicationI
 		reason:        reason,
 		bucketDate:    appValues.Date,
 		levels:        levels,
-		target:        blankExportTarget{AttachmentID: archiveSnapshotAttachmentID, FileName: archiveSnapshotFileName},
+		target:        blankExportTarget{AttachmentID: archiveSnapshotAttachmentID, FileName: s.writer.Crypto().FileName(archiveSnapshotFileName)},
 		row:           registry[archiveSnapshotAttachmentID],
 		frozenAt:      frozenAt,
 	})
@@ -256,7 +256,7 @@ func (s *BlankExportService) ExportApplication(ctx context.Context, applicationI
 func (s *BlankExportService) exportSnapshot(ctx context.Context, req exportRequest) models.BlankExportSnapshotResult {
 	frozen := req.frozenAt != nil
 	out := models.BlankExportSnapshotResult{
-		RelPath: path.Join(path.Join(req.levels...), archiveSnapshotFileName),
+		RelPath: path.Join(path.Join(req.levels...), req.target.FileName),
 		Frozen:  frozen,
 	}
 
