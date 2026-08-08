@@ -1023,7 +1023,7 @@ type pendingAcceptanceNote struct {
 	organization string
 	sender       string
 	messageText  string
-	fileCount    int
+	fileNames    []string
 }
 
 // message собирает текст уведомления. Первая строка несёт номер И организацию вместе:
@@ -1045,7 +1045,7 @@ func (n pendingAcceptanceNote) message() string {
 	if preview := previewText(plainTextFromRichText(n.messageText), notificationPreviewLimit); preview != "" {
 		blocks = append(blocks, preview)
 	}
-	if files := fileCountLabel(n.fileCount); files != "" {
+	if files := filesLabel(n.fileNames); files != "" {
 		blocks = append(blocks, files)
 	}
 	return strings.Join(blocks, "\n\n")
@@ -1071,4 +1071,23 @@ func (s *applicationService) applicationSenderTitle(ctx context.Context, organiz
 		}
 	}
 	return ""
+}
+
+// applicationFileNames -- имена вложений заявки для уведомления. Читаются из базы после
+// привязки, а не берутся из запроса: тело несёт только идентификаторы, а человеку нужны
+// названия. Ошибка чтения не повод молчать обо всей заявке - вернём пустой список, и
+// строка про вложения просто не появится.
+func (s *applicationService) applicationFileNames(ctx context.Context, fileIDs []int) []string {
+	if len(fileIDs) == 0 {
+		return nil
+	}
+	var names []string
+	if err := s.db.WithContext(ctx).Model(&models.ApplicationFile{}).
+		Where("id IN ?", fileIDs).
+		Order("id").
+		Pluck("file_name", &names).Error; err != nil {
+		slog.Warn("не удалось прочитать имена вложений для уведомления", "error", err)
+		return nil
+	}
+	return names
 }

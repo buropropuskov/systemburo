@@ -2252,7 +2252,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 			organization: senderTitle,
 			sender:       senderPerson,
 			messageText:  optionalString(req.Message),
-			fileCount:    len(req.FileIDs),
+			fileNames:    s.applicationFileNames(ctx, req.FileIDs),
 		}, submitPayload)
 	}
 
