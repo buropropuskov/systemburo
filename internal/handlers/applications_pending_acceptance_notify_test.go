@@ -58,8 +58,15 @@ func TestSubmit_NotifiesApproversAboutPendingApplication(t *testing.T) {
 	require.NotNil(t, forApprover[0].Message)
 	assert.Equal(t, "Новая заявка в центре", *forApprover[0].Title)
 	assert.Contains(t, *forApprover[0].Message, "ждёт, когда её возьмут в работу")
+	// Организация в тексте: в шторке телефона видно две строки, и по одному номеру
+	// заявки принимающий не понимает, чья она (#974).
+	assert.Contains(t, *forApprover[0].Message, "Test Organization")
+	// Отправитель рядом с организацией: принимающему важно, кто именно прислал (#974).
+	assert.Contains(t, *forApprover[0].Message, "author_notify")
 	require.NotNil(t, forApprover[0].Data, "без data в окне подробностей не будет перехода к заявке")
 	assert.Contains(t, *forApprover[0].Data, "application_id")
+	assert.Contains(t, *forApprover[0].Data, "Test Organization")
+	assert.Contains(t, *forApprover[0].Data, "sender_name")
 
 	var forOutsider int64
 	require.NoError(t, db.Model(&models.Notification{}).Where("user_id = ? AND type = ?",

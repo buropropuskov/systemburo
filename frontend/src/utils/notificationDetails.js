@@ -23,6 +23,8 @@ function dayWord(n) {
 // действия, а не в список полей.
 const FIELD_LABELS = {
   application_number: 'Заявка',
+  organization: 'От организации',
+  sender_name: 'Отправитель',
   actor_name: 'Решение принял',
   decision_comment: 'Комментарий',
   forwarded_by: 'Передал',
