@@ -63,6 +63,8 @@ let driverGen = 0;
 let reachedFinal = false;
 // Прежнее состояние рельса до того как тур его развернул - чтобы вернуть как было.
 let railSaved = null;
+// Наблюдатель шага-приглашения к действию (см. watchAdvance).
+let advanceObserver = null;
 
 /**
  * Рельс держим развёрнутым на nav-шаге И на шаге ПЕРЕД ним: разворачиваем
@@ -230,6 +232,7 @@ async function startSegment() {
     onIndexChange: (globalIndex) => {
       store.setIndex(globalIndex);
       applyRail(globalIndex);
+      watchAdvance(globalIndex);
       // Backstop: синхронизируем демо-вложение с подсвеченным шагом (важно для
       // навигации «Назад» - prepareStep отрабатывает только на «Далее»).
       const attachmentChanged = applyDemoAttachment(globalIndex);
@@ -279,6 +282,37 @@ async function jumpToStep(globalIndex) {
   const ready = await prepareStep(globalIndex);
   if (!driverObj || gen !== driverGen) return;
   driverObj.obGoTo(globalIndex, ready === false || ready === STEP_DEMO_FALLBACK);
+}
+
+/**
+ * Шаг-приглашение к действию: ждём, пока на экране появится узел из `advanceWhen`,
+ * и уходим вперёд сами. Без этого человек, выполнивший просьбу шага («Откройте
+ * заявку»), оставался с подсветкой строки под уже открытым окном.
+ *
+ * Наблюдение снимается при любой смене шага (см. вызовы stopAdvanceWatch).
+ *
+ * @param {number} globalIndex
+ */
+function watchAdvance(globalIndex) {
+  stopAdvanceWatch();
+  const selector = store.steps[globalIndex]?.advanceWhen;
+  if (!selector || typeof MutationObserver === 'undefined') return;
+  // Узел мог появиться до подписки - проверяем сразу.
+  if (document.querySelector(selector)) return;
+  const gen = driverGen;
+  advanceObserver = new MutationObserver(() => {
+    if (!document.querySelector(selector)) return;
+    stopAdvanceWatch();
+    if (!driverObj || gen !== driverGen || store.currentIndex !== globalIndex) return;
+    driverObj.obNext();
+  });
+  advanceObserver.observe(document.body, { childList: true, subtree: true });
+}
+
+function stopAdvanceWatch() {
+  if (!advanceObserver) return;
+  advanceObserver.disconnect();
+  advanceObserver = null;
 }
 
 /**
@@ -406,6 +440,7 @@ function markIfAuto(finished = reachedFinal) {
 function handleDestroyed(gen) {
   // Игнорируем callback от инстанса, который уже сменён следующим сегментом.
   if (gen !== driverGen) return;
+  stopAdvanceWatch();
   driverObj = null;
   // Переход между страницами: тур продолжается, не останавливаем и рельс не трогаем.
   if (store.pendingSegment) return;
@@ -416,6 +451,7 @@ function handleDestroyed(gen) {
 }
 
 function teardown() {
+  stopAdvanceWatch();
   // Тур ещё жив (logout/unmount во время прохождения) - авто-тур помечаем
   // пройденным здесь: ниже driverGen++ обезвредит отложенный onDestroyed, и тот
   // до markIfAuto уже не дойдёт. Так автозапуск действительно "один раз".

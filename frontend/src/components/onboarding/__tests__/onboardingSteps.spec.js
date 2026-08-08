@@ -351,6 +351,17 @@ describe('cross-page конфигурация (создание заявки)', 
     expect(byId('createapp-people-places').scrollTo).toBe('end');
   });
 
+  // Имена бланков задаёт Бюро, поэтому шаг обязан брать их с экрана: иначе он
+  // говорит «выбран другой бланк», не называя какой.
+  it('шаг смены бланка называет бланк по имени с экрана', () => {
+    const step = byId('createapp-blank-switch');
+    expect(step.dynamic).toEqual({ blank: '[data-testid="ob-blank-selected"] .attachment-name' });
+    // Заголовок остаётся статичным: он же показывается в списке шагов, где
+    // подставлять ещё нечего.
+    expect(step.title).not.toContain('{');
+    expect(step.description).toContain('{blank}');
+  });
+
   it('шаг доп.полей опционален (может отсутствовать в форме)', () => {
     expect(onboardingSteps.find((s) => s.id === 'createapp-custom').optional).toBe(true);
   });
@@ -377,6 +388,12 @@ describe('сегмент карточки заявки (#1740)', () => {
 
   // Шаг знакомит с окном заявки целиком. Пока он смотрел на шапку, подсвечивалась
   // полоска с номером, и это читалось как «тур показывает заголовок».
+  // Шаг просит нажать на строку. Если человек нажал, карточка появляется поверх
+  // подсвеченной строки - тур обязан уйти вперёд сам.
+  it('шаг «Откройте заявку» уходит вперёд, когда карточка открылась', () => {
+    expect(byId('cabinet-application-row').advanceWhen).toBe('[data-testid="ob-detail-card"]');
+  });
+
   it('шаг «Вот ваша заявка» подсвечивает карточку, а не её шапку', () => {
     expect(byId('detail-opened').element).toBe('[data-testid="ob-detail-card"]');
   });
