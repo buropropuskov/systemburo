@@ -317,6 +317,7 @@
               :key="item.id"
               class="item-row"
               :class="{ 'item-row--expanded': expandedRows[item.id], 'item-row--selected': isSelected(item.id) }"
+              :data-testid="index === 0 ? 'ob-pass-row' : null"
               :style="{ animationDelay: `${index * 0.05}s` }"
               @click="preview ? null : onRowClick($event, item)"
               @mousedown="preview ? null : onRowMouseDown($event, item)"
@@ -334,6 +335,7 @@
                     class="action-btn entry-btn"
                     :class="{ 'active': item.entry_checked }"
                     :disabled="preview || item.entry_checked"
+                    data-testid="ob-pass-entry"
                     @click="preview ? null : handleEntryExit(item, 'entry')"
                   >
                     Въезд
@@ -350,6 +352,7 @@
                     class="action-btn exit-btn"
                     :class="{ 'active': item.exit_checked }"
                     :disabled="preview || !item.entry_checked || item.exit_checked"
+                    data-testid="ob-pass-exit"
                     @click="preview ? null : handleEntryExit(item, 'exit')"
                   >
                     Выезд

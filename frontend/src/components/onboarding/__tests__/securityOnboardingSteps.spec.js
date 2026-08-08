@@ -76,25 +76,35 @@ describe('securityOnboardingSteps - сегмент /news', () => {
       'sec-start',
       'sec-header-notifications',
       'sec-header-search',
+      'sec-header-search-panel',
       'sec-header-feedback',
       'sec-nav-rail',
-      'sec-nav-accessible',
+      // «Таблицы» раньше «Доступных мне»: последний шаг сегмента обещает переход,
+      // и обещание должно исполняться следующим же шагом.
       'sec-nav-tables',
+      'sec-nav-accessible',
     ]);
   });
 
-  it('сквозной поиск: своя кнопка шапки и раскрытие панели поиска', () => {
+  // Панель выезжает поверх шапки и закрывает саму кнопку: раскрытие просит
+  // ОТДЕЛЬНЫЙ шаг про панель, иначе подсветки не видно вовсе.
+  it('сквозной поиск: кнопка шапки без раскрытия, панель - отдельным шагом', () => {
     const step = securityOnboardingSteps.find((s) => s.id === 'sec-header-search');
     expect(step.element).toBe('[data-testid="header-button-search"]');
-    expect(step.reveal).toEqual({ open: 'search-panel' });
+    expect(step.reveal).toBeUndefined();
+    const panel = securityOnboardingSteps.find((s) => s.id === 'sec-header-search-panel');
+    expect(panel.element).toBe('[data-testid="global-search-panel"]');
+    expect(panel.reveal).toEqual({ open: 'search-panel' });
+    expect(panel.optional).toBe(true);
     // Кнопка поиска правами не гейтится (в шапке нет v-if по can) - requires не нужен.
     expect(step.requires).toBeUndefined();
-    // Смысл шага для охраны: машину ищут и по марке, не только по госномеру.
-    expect(step.description).toMatch(/марке/);
+    // Смысл шага для охраны: машину ищут и по марке, не только по госномеру -
+    // это рассказывает шаг про саму панель.
+    expect(panel.description).toMatch(/марке/);
   });
 
-  it('шаг поиска не наследует раскрытие drawer от соседей (панель поверх шапки)', () => {
-    const index = securityOnboardingSteps.findIndex((s) => s.id === 'sec-header-search');
+  it('шаг панели поиска не наследует раскрытие drawer от соседей (панель поверх шапки)', () => {
+    const index = securityOnboardingSteps.findIndex((s) => s.id === 'sec-header-search-panel');
     expect(resolveReveal(securityOnboardingSteps, index)).toEqual({
       mobile: null,
       open: 'search-panel',
@@ -116,7 +126,11 @@ describe('securityOnboardingSteps - сегмент /news', () => {
   });
 
   it('шаги шапки несут целевой селектор и поповер снизу', () => {
-    for (const s of securityOnboardingSteps.filter((x) => x.id.startsWith('sec-header-'))) {
+    // Панель поиска - исключение: она сама занимает правый край, и поповер
+    // ставится слева от неё, а не под кнопкой.
+    const headerSteps = securityOnboardingSteps
+      .filter((x) => x.id.startsWith('sec-header-') && x.id !== 'sec-header-search-panel');
+    for (const s of headerSteps) {
       expect(typeof s.element).toBe('string');
       expect(s.side).toBe('bottom');
     }
@@ -273,25 +287,38 @@ describe('buildSecurityFactSteps', () => {
     expect(buildSecurityFactSteps('')).toEqual([]);
   });
 
-  it('строит intro + строка + Въезд + пропуск по факту + Выезд + отчёт на переданный route', () => {
+  // Порядок отражает работу поста: сперва список «по заявке», где отмечают
+  // проезд ожидаемых машин, и только потом «по факту» - ручной ввод для тех,
+  // кого в заявке не было. Раньше тур рассказывал только про «по факту».
+  it('строит список по заявке, отметки, ручной ввод и отчёт на переданный route', () => {
     const steps = buildSecurityFactSteps('/table/kpp_1');
     expect(steps.map((s) => s.id)).toEqual([
+      'sec-pass-intro',
+      'sec-pass-row',
+      'sec-pass-entry',
+      'sec-pass-exit',
       'sec-fact-intro',
-      'sec-fact-row',
-      'sec-fact-entry',
       'sec-fact-pass',
-      'sec-fact-exit',
       'sec-fact-report',
     ]);
     expect(steps.every((s) => s.route === '/table/kpp_1')).toBe(true);
   });
 
+  it('отметки смотрят на кнопки списка «по заявке», а не на блок ручного ввода', () => {
+    const byId = (id) => buildSecurityFactSteps('/table/kpp_1').find((s) => s.id === id);
+    expect(byId('sec-pass-intro').element).toBe('[data-testid="cars-table"]');
+    expect(byId('sec-pass-row').element).toBe('[data-testid="ob-pass-row"]');
+    expect(byId('sec-pass-entry').element).toBe('[data-testid="ob-pass-entry"]');
+    expect(byId('sec-pass-exit').element).toBe('[data-testid="ob-pass-exit"]');
+    expect(byId('sec-fact-intro').element).toBe('[data-testid="fact-table"]');
+  });
+
   it('тексты нейтральны к типу таблицы: сегмент строится и для людей', () => {
     const steps = buildSecurityFactSteps('/table/people_1');
-    // Прежние формулировки утверждали «Открыли таблицу "Автомобили по факту"» и
-    // «Каждая строка - автомобиль», хотя таблица может быть про людей.
-    expect(steps.find((s) => s.id === 'sec-fact-intro').description).toMatch(/Люди по факту/);
-    expect(steps.find((s) => s.id === 'sec-fact-row').description).toMatch(/у людей/);
+    // Формулировки не должны утверждать, что таблица про машины: у поста может
+    // быть закреплён список людей.
+    expect(steps.find((s) => s.id === 'sec-pass-intro').description).toMatch(/машины и люди/);
+    expect(steps.find((s) => s.id === 'sec-pass-row').description).toMatch(/ФИО человека/);
   });
 
   it('пропуск по факту описывает окно с формата, номера и кнопки «Пропустить»', () => {
@@ -299,7 +326,7 @@ describe('buildSecurityFactSteps', () => {
     // Окно открывается только по нажатию, подсвечивать нечего - висим на той же кнопке.
     expect(step.element).toBe('[data-testid="ob-fact-entry"]');
     expect(step.optional).toBe(true);
-    expect(step.description).toMatch(/Пропуск по факту/);
+    expect(step.description).toMatch(/по факту/);
     expect(step.description).toMatch(/Пропустить/);
   });
 
@@ -317,20 +344,17 @@ describe('buildSecurityFactSteps', () => {
   // у нового поста записей может не быть вовсе.
   it('первый шаг подсвечивает таблицу и остаётся границей деградации сегмента', () => {
     const [intro] = buildSecurityFactSteps('/table/kpp_1');
-    expect(intro.element).toBe('[data-testid="fact-table"]');
+    expect(intro.element).toBe('[data-testid="cars-table"]');
     expect(intro.optional).toBe(true);
     expect(intro.optionalSegment).toBe(true);
   });
 
-  it('строка и кнопки опциональны и несут реюзимые ob-fact-* / fact-table якоря', () => {
+  it('строка и кнопки опциональны - на пустом посту и в таблице людей их нет', () => {
     const byId = (id) => buildSecurityFactSteps('/table/kpp_1').find((s) => s.id === id);
-    expect(byId('sec-fact-row').element).toBe('[data-testid="ob-fact-row"]');
-    expect(byId('sec-fact-entry').element).toBe('[data-testid="ob-fact-entry"]');
-    expect(byId('sec-fact-exit').element).toBe('[data-testid="ob-fact-exit"]');
-    // На таблице людей кнопок «Въезд»/«Выезд» нет вовсе - без optional тур ждал бы
-    // цель, которой в разметке не будет.
-    for (const id of ['sec-fact-row', 'sec-fact-entry', 'sec-fact-exit']) {
-      expect(byId(id).optional).toBe(true);
+    // На таблице людей кнопок «Въезд»/«Выезд» нет вовсе, а на новом посту пуст и
+    // сам список - без optional тур ждал бы цель, которой в разметке не будет.
+    for (const id of ['sec-pass-row', 'sec-pass-entry', 'sec-pass-exit', 'sec-fact-intro', 'sec-fact-pass']) {
+      expect(byId(id).optional, id).toBe(true);
     }
   });
 
