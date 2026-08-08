@@ -196,7 +196,6 @@ import NavIcon from '@/components/icons/NavIcon.vue';
 import SkeletonLine from '@/components/ui/SkeletonLine.vue';
 import { usePermission } from '@/composables/usePermission';
 import { useGlobalSearch, MIN_QUERY_LENGTH } from '@/composables/useGlobalSearch';
-import { useAuthStore } from '@/stores/auth';
 import { ADMIN_GROUPS, MAIN_SECTIONS } from '@/constants/navSections';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { SEARCH_TARGETS } from '@/constants/searchTargets';
@@ -219,8 +218,7 @@ export default {
   setup() {
     const { can } = usePermission();
     const search = useGlobalSearch();
-    const authStore = useAuthStore();
-    return { can, authStore, ...search, MIN_QUERY_LENGTH };
+    return { can, ...search, MIN_QUERY_LENGTH };
   },
   data() {
     return {
@@ -272,11 +270,7 @@ export default {
 
       const all = [...MAIN_SECTIONS, ...ADMIN_GROUPS.flatMap((g) => g.items)];
       return all
-        // superOnly (#7) - тот же гейт, что в меню: пункт с выданным permission, но
-        // требующий факта супер-админа (напр. «Настройки», под ней бэкенд держит
-        // checkSuper). Иначе поиск предлагал бы раздел, ведущий на Forbidden.
         .filter((s) => (!s.permission || this.can(s.permission))
-          && (!s.superOnly || this.authStore.isSuperAdmin)
           && matchesSearch(s.label, variants))
         .slice(0, SECTIONS_LIMIT)
         .map((s) => ({

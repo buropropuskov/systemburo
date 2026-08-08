@@ -313,6 +313,10 @@
       "tour": "admin",
       "step": "admin-more"
     },
+    "page.admin.settings": {
+      "tour": "admin",
+      "step": "admin-settings"
+    },
     "action.manage.file_archive": {
       "skip": "настройка выгрузки бланков на диск: узкая администраторская операция внутри уже названного раздела"
     },

@@ -189,8 +189,28 @@ export function useOnboarding() {
    * @param {{ description: string, demo?: string, element?: string|null }} step
    * @returns {string}
    */
+  /**
+   * Подставить в текст шага живые значения с экрана: `{имя}` заменяется на текст
+   * узла из `step.dynamic.имя`. Нужно там, где название задаёт не система, а Бюро:
+   * шаг про смену бланка говорил «выбран другой бланк», и понять, какой именно,
+   * было нельзя - имена бланков у каждой организации свои.
+   *
+   * @param {string} text
+   * @param {Record<string, string>|undefined} dynamic карта «имя -> селектор»
+   * @returns {string}
+   */
+  function fillDynamic(text, dynamic) {
+    if (!text || !dynamic) return text;
+    return Object.entries(dynamic).reduce((acc, [key, selector]) => {
+      const value = document.querySelector(selector)?.textContent?.trim();
+      // Узла нет - оставляем текст как есть, но без плейсхолдера: лучше общая
+      // фраза, чем фигурные скобки в лицо пользователю.
+      return acc.replaceAll(`{${key}}`, value || 'выбранный');
+    }, text);
+  }
+
   function buildPopoverHtml(step) {
-    let html = step.description || '';
+    let html = fillDynamic(step.description || '', step.dynamic);
     const demo = showsDemo(step) ? getDemo(step.demo) : null;
     if (demo) {
       const caption = demo.caption
@@ -446,7 +466,7 @@ export function useOnboarding() {
      */
     function buildDriverStep(s, li) {
       const popover = {
-        title: s.title,
+        title: fillDynamic(s.title, s.dynamic),
         description: buildPopoverHtml(s),
       };
       // Сторона/выравнивание поповера от шага - чтобы карточка не наезжала на
@@ -677,6 +697,13 @@ export function useOnboarding() {
     driverObj.obRetarget = (globalIndex) => driverObj.obGoTo(globalIndex, false);
 
     /**
+     * Шаг вперёд ровно тем же путём, что и кнопка «Далее»: с подготовкой
+     * следующего шага и обработкой границы сегмента. Нужен хосту, когда шаг
+     * должен продвинуться сам (человек выполнил действие, о котором шаг просил).
+     */
+    driverObj.obNext = () => driverObj.getConfig().onNextClick?.();
+
+    /**
      * Перейти на шаг сегмента по глобальному индексу, собрав его заново. Ходом
      * пользуются переприцеливание после смены бланка и прыжок из списка шагов.
      *
@@ -695,6 +722,7 @@ export function useOnboarding() {
 
   return {
     prefersReducedMotion,
+    fillDynamic,
     waitForElement,
     ensureInView,
     buildPopoverHtml,

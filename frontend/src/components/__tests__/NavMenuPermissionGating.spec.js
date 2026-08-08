@@ -21,8 +21,8 @@ vi.mock('@/utils/notificationSound', () => ({ playPreset: vi.fn() }));
 // видимые в навигации page.*). page.center/page.statistics в неё НЕ входят.
 const BASE_KEYS = ['page.new_application', 'page.employees', 'page.cars', 'page.news', 'page.personal_cabinet'];
 
-function permResponse(mode, keys = []) {
-  return { mode, permissions: keys.map((key) => ({ key, value: 'allow', source: 'role' })), denied: [], banned: false };
+function permResponse(mode, keys = [], denied = []) {
+  return { mode, permissions: keys.map((key) => ({ key, value: 'allow', source: 'role' })), denied, banned: false };
 }
 
 function mountNav() {
@@ -140,7 +140,7 @@ describe('NavMenu: гранулярность Администрирования
     expect(groupBy(wrapper.vm, 'Система').items.map((i) => i.label)).toEqual(['Конструктор таблиц']);
   });
 
-  it('page.admin, не супер: Обработка данных (Система) + Руководство (Справочники), Настройки скрыты', async () => {
+  it('page.admin, не супер, точечный грант без page.admin.settings: Обработка данных (Система) + Руководство (Справочники), Настройки скрыты', async () => {
     useAuthStore.mockReturnValue({ isSuperAdmin: false, canViewAccessibleAttachments: false });
     getMyPermissions.mockResolvedValue(permResponse('normal', ['page.admin']));
     wrapper = mountNav();
@@ -149,14 +149,36 @@ describe('NavMenu: гранулярность Администрирования
     // page.admin покрывает baseline-пункты этого ключа: «Обработка данных» (Система) и
     // «Руководство» (Справочники, гейт page.admin - бэкенд requireAdmin). Сами
     // справочники (page.admin.directories) и конструктор/мониторинг не выданы.
-    // «Настройки» (#7) несёт superOnly - permission-ключ page.admin есть, но бэкенд под
-    // ней требует именно супер-права (checkSuper), поэтому пункт скрыт от обычного админа.
+    // «Настройки» (#7) гейтится отдельным ключом page.admin.settings - точечный грант
+    // ['page.admin'] его не включает, поэтому пункт скрыт как любой невыданный раздел.
     expect(groupTitles(wrapper.vm)).toEqual(['Справочники', 'Система']);
     expect(groupBy(wrapper.vm, 'Справочники').items.map((i) => i.label)).toEqual(['Руководство']);
     expect(groupBy(wrapper.vm, 'Система').items.map((i) => i.label)).toEqual(['Обработка данных']);
   });
 
-  it('page.admin, супер-админ: Настройки видны наравне с Обработкой данных (#7)', async () => {
+  it('mode=admin (adminAll) без deny-override: Настройки видны наравне с Обработкой данных (#7)', async () => {
+    useAuthStore.mockReturnValue({ isSuperAdmin: false, canViewAccessibleAttachments: false });
+    getMyPermissions.mockResolvedValue(permResponse('admin', []));
+    wrapper = mountNav();
+    await flushPromises();
+
+    expect(groupBy(wrapper.vm, 'Система').items.map((i) => i.label)).toEqual(
+      expect.arrayContaining(['Настройки', 'Обработка данных']),
+    );
+  });
+
+  it('mode=admin с личным deny-override на page.admin.settings: Настройки скрыты, остальное видно (#7)', async () => {
+    useAuthStore.mockReturnValue({ isSuperAdmin: false, canViewAccessibleAttachments: false });
+    getMyPermissions.mockResolvedValue(permResponse('admin', [], ['page.admin.settings']));
+    wrapper = mountNav();
+    await flushPromises();
+
+    const system = groupBy(wrapper.vm, 'Система').items.map((i) => i.label);
+    expect(system).not.toContain('Настройки');
+    expect(system).toContain('Обработка данных');
+  });
+
+  it('супер-админ: Настройки видны', async () => {
     useAuthStore.mockReturnValue({ isSuperAdmin: true, canViewAccessibleAttachments: true });
     getMyPermissions.mockResolvedValue(permResponse('super', []));
     wrapper = mountNav();
