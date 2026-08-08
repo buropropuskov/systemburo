@@ -1026,39 +1026,28 @@ type pendingAcceptanceNote struct {
 	fileCount    int
 }
 
-// message собирает текст блоками, разделёнными пустой строкой: номер заявки, от кого,
-// о чём. Внутри блока строки идут подряд. Так уведомление читается взглядом сверху вниз,
-// а не вычитывается из сплошной фразы - в шторке телефона и в окне подробностей переносы
-// видны (white-space: pre-wrap). Слов «поступила новая заявка» в тексте нет намеренно:
-// это уже сказано заголовком, и повторять его значит тратить первую строку впустую.
-// Пустые блоки выпадают целиком, лишних отступов от них не остаётся.
+// message собирает текст уведомления. Первая строка несёт номер И организацию вместе:
+// в свёрнутом уведомлении система показывает заголовок и ровно одну строку текста,
+// остальное прячет за многоточием, и содержимое этого многоточия задать нельзя - значит
+// всё, что должно быть видно не разворачивая, обязано уместиться в первую строку.
+// Дальше через отступ отправитель, потом превью сообщения, потом вложения отдельным
+// блоком: приписанные к превью, они там терялись. Пустые части выпадают целиком.
 func (n pendingAcceptanceNote) message() string {
-	var blocks []string
-
-	blocks = append(blocks, n.number)
-
-	var from []string
+	head := n.number
 	if org := strings.TrimSpace(n.organization); org != "" {
-		from = append(from, fmt.Sprintf("«%s»", org))
+		head = fmt.Sprintf("%s · %s", head, org)
 	}
-	if sender := strings.TrimSpace(n.sender); sender != "" {
-		from = append(from, sender)
-	}
-	if len(from) > 0 {
-		blocks = append(blocks, strings.Join(from, "\n"))
-	}
+	blocks := []string{head}
 
-	var about []string
+	if sender := strings.TrimSpace(n.sender); sender != "" {
+		blocks = append(blocks, sender)
+	}
 	if preview := previewText(plainTextFromRichText(n.messageText), notificationPreviewLimit); preview != "" {
-		about = append(about, preview)
+		blocks = append(blocks, preview)
 	}
 	if files := fileCountLabel(n.fileCount); files != "" {
-		about = append(about, files)
+		blocks = append(blocks, files)
 	}
-	if len(about) > 0 {
-		blocks = append(blocks, strings.Join(about, "\n"))
-	}
-
 	return strings.Join(blocks, "\n\n")
 }
 
