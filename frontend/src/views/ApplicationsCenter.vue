@@ -301,6 +301,22 @@
             >
               Сбросить сортировку
             </button>
+
+            <!-- Выгрузка реестра (#1832). На мобилке та же кнопка живёт во втором ряду
+                 шапки рядом с «Фильтром» - как и «Обновить», которая тоже двоится между
+                 раскладками. Отдаёт ТЕКУЩУЮ выборку: что отобрано на экране, то и уедет
+                 в файл. -->
+            <button
+              v-if="can('action.export.applications')"
+              type="button"
+              class="status-btn export-btn"
+              :disabled="exporting"
+              :title="exporting ? 'Готовим файл' : 'Выгрузить реестр заявок в Excel'"
+              data-testid="center-button-export-desktop"
+              @click="exportRegistry"
+            >
+              {{ exporting ? 'Готовим...' : 'Выгрузить в Excel' }}
+            </button>
           </div>
         </div>
       </div>
@@ -331,6 +347,26 @@
           :loading="refreshing"
           @refresh="fetchApplications"
         />
+
+        <!-- Выгрузка реестра (#1832): отдаёт ТЕКУЩУЮ выборку, поэтому стоит рядом с
+             «Фильтром» - что отобрал, то и уедет в файл. Право то же, что у скачивания
+             бланка одной заявки. -->
+        <button
+          v-if="can('action.export.applications')"
+          type="button"
+          class="filter-btn export-btn"
+          :disabled="exporting"
+          :title="exporting ? 'Готовим файл' : 'Выгрузить реестр заявок в Excel'"
+          data-testid="center-button-export"
+          @click="exportRegistry"
+        >
+          <img
+            src="@/assets/icons/export.png"
+            class="filter-btn__icon"
+            alt=""
+          >
+          {{ exporting ? 'Готовим...' : 'Выгрузить' }}
+        </button>
 
         <button
           type="button"
@@ -938,7 +974,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
-import { getApplicationsPaginated, getApplicationById } from '@/api/applications'
+import { getApplicationsPaginated, getApplicationById, downloadApplicationsRegistry } from '@/api/applications'
 import eventStream from '@/services/eventStream'
 import { useAuthStore } from '@/stores/auth'
 import { useSoundStore } from '@/stores/sound'
@@ -1099,6 +1135,9 @@ export default {
 
             loading: true,
             refreshing: false,
+            // Выгрузка реестра (#1832): файл собирает сервер, на большой выборке это
+            // не мгновенно - кнопка гасится, чтобы человек не запускал сборку повторно.
+            exporting: false,
 
             // Данные заявок: applications/total/hasMoreApplications/listLoading
             // выставлены из useInfiniteList в setup() (#1158).
@@ -1982,13 +2021,29 @@ export default {
         },
 
         /**
-         * fetchPage для useInfiniteList (#1158): строит те же query-параметры фильтра,
-         * что и раньше, плюс page/per_page - бэк переключается на GetApplicationsPaginated,
-         * как только видит per_page (см. internal/handlers/applications.go). Идёт через
-         * getApplicationsPaginated (api/applications.js), которая читает envelope.meta
-         * через apiRequestRaw - apiRequest снимает его вместе с data (см. getAccessibleAttachments).
+         * Query-параметры активных фильтров - одна точка на листинг и на выгрузку
+         * реестра (#1832). Выгрузка обязана отдавать ровно то, что человек видит на
+         * экране, а скопированная сборка разъедется с первым же новым фильтром.
          */
-        async buildApplicationsPage(page, perPage) {
+        /**
+         * Выгрузка реестра заявок (#1832). Фильтры берутся из общей сборки, поэтому в
+         * файл уезжает ровно текущая выборка; видимость и подмену ФИО без согласия
+         * применяет сервер - тем же кодом, что отдаёт список на экран.
+         */
+        async exportRegistry() {
+            if (this.exporting) return;
+            this.exporting = true;
+            try {
+                await downloadApplicationsRegistry(this.buildApplicationsFilterParams());
+            } catch (error) {
+                console.error('Ошибка выгрузки реестра заявок:', error);
+                useDeletionsStore().notify({ prefix: 'Не удалось выгрузить реестр заявок', type: 'error' });
+            } finally {
+                this.exporting = false;
+            }
+        },
+
+        buildApplicationsFilterParams() {
             const params = {};
 
             if (this.searchQuery) {
@@ -2054,6 +2109,18 @@ export default {
                 params.date_to = this.toLocalYMD(this.dateRangeEnd);
             }
 
+            return params;
+        },
+
+        /**
+         * fetchPage для useInfiniteList (#1158): фильтры из buildApplicationsFilterParams
+         * плюс page/per_page - бэк переключается на GetApplicationsPaginated, как только
+         * видит per_page (см. internal/handlers/applications.go). Идёт через
+         * getApplicationsPaginated (api/applications.js), которая читает envelope.meta
+         * через apiRequestRaw - apiRequest снимает его вместе с data (см. getAccessibleAttachments).
+         */
+        async buildApplicationsPage(page, perPage) {
+            const params = this.buildApplicationsFilterParams();
             params.page = page;
             params.per_page = perPage;
 
@@ -2684,6 +2751,13 @@ export default {
     color: var(--color-text);
     white-space: nowrap;
     transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+/* Выгрузка реестра (#1832): геометрию берёт у соседа по ряду - «Фильтра» на мобилке
+   и чипов состояния на десктопе, - меняется только поведение в занятом состоянии. */
+.export-btn:disabled {
+    opacity: 0.6;
+    cursor: progress;
 }
 
 .filter-btn:hover {

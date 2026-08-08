@@ -753,6 +753,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 		// супер-администратор.
 		apg.DELETE("/:id/files/:file_id", d.ApplicationFiles.DeleteAttached, requireAdmin)
 	}
+	// Выгрузка реестра заявок (#1832) - под тем же правом, что скачивание бланка:
+	// «Экспорт заявок». Роут объявлен до /:id, иначе номер заявки перехватил бы слово
+	// export. Обращения пишутся в журнал 152-ФЗ (pdPaths): один файл уносит
+	// персональные данные пачкой.
+	apg.GET("/export", app.ExportApplications,
+		mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionExportApplications))
 	apg.GET("/user", app.GetUserApplications)
 	apg.GET("/user/status-updates-count", app.GetUserStatusUpdatesCount) // #1349 - счётчик чипа "Обновления" в ЛК
 	apg.GET("/unread-count", app.GetUnreadCount)
