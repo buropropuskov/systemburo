@@ -1860,7 +1860,7 @@ export default {
   height: 50px;
   padding: 0 20px;
   border-bottom: 1px solid var(--border);
-  background: var(--accent-tint);
+  background: var(--accent-tint-solid);
 }
 
 .bulk-count {
