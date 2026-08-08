@@ -37,6 +37,21 @@ function fadeAndDestroy(driverInstance) {
 // Первую цель сегмента ждём дольше при cross-page: после router.push страница
 // монтируется и грузит данные (скелетоны), цель появляется не сразу.
 const FIRST_TARGET_TIMEOUT = 4000;
+// Цель, которую надо СНАЧАЛА раскрыть (карточка заявки, панель поиска), ждёт ещё
+// дольше: сперва приходит список своим запросом, и только потом владелец узла
+// открывает карточку. На staging этой цепочки не хватало четырёх секунд - сегмент
+// карточки выбрасывался целиком.
+const REVEAL_TARGET_TIMEOUT = 9000;
+
+/**
+ * Сколько ждать цель шага, которому нужно раскрытие узла.
+ *
+ * @param {{ reveal?: { open?: string } }} step
+ * @returns {number}
+ */
+function targetTimeoutFor(step) {
+  return step?.reveal?.open ? REVEAL_TARGET_TIMEOUT : FIRST_TARGET_TIMEOUT;
+}
 
 let driverObj = null;
 let waitController = null;
@@ -158,7 +173,7 @@ async function prepareStep(globalIndex) {
   // видна на карточке заявки: там подряд идут необязательные кнопки, и по 4 с на
   // каждую превращались в «нажал Далее, а ничего не происходит».
   const needsLongWait = revealed || attachmentChanged || !step.optional;
-  const timeout = needsLongWait ? FIRST_TARGET_TIMEOUT : 700;
+  const timeout = needsLongWait ? targetTimeoutFor(step) : 700;
   const el = await waitForElement(waitSelectorOf(step), timeout);
   if (el) {
     // Подсвечиваем ровно то, что человек видит: длинная форма заявки остаётся
@@ -201,7 +216,7 @@ async function startSegment() {
   let targetMissing = false;
   if (targetStep.element) {
     waitController = new AbortController();
-    const el = await waitForElement(waitSelectorOf(targetStep), FIRST_TARGET_TIMEOUT, waitController.signal);
+    const el = await waitForElement(waitSelectorOf(targetStep), targetTimeoutFor(targetStep), waitController.signal);
     waitController = null;
     // Тур могли остановить или перезапустить (Esc/logout/новый сегмент) пока
     // ждали элемент - не поднимаем driver-зомби поверх неактивного/чужого тура.
