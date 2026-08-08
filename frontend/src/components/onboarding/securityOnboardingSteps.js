@@ -102,7 +102,10 @@ export const securityOnboardingSteps = [
   {
     id: 'sec-aa-intro',
     route: '/accessible-attachments',
-    element: null,
+    // Подсвечиваем сам список: центр-модалка без цели читалась как «тур завис».
+    element: '[data-testid="aa-list"]',
+    optional: true,
+    scrollTo: 'start',
     title: 'Раздел «Доступные мне»',
     description:
       'Мы открыли раздел «Доступные мне». Здесь собраны согласованные вложения заявок по местам, которые вы охраняете.',
@@ -227,7 +230,12 @@ export function buildSecurityFactSteps(route) {
     {
       id: 'sec-fact-intro',
       route,
-      element: null,
+      // Подсвечиваем саму таблицу: центр-модалка без цели читалась как «тур
+      // потерялся». Пустая таблица - обычное дело для нового поста, поэтому шаг
+      // необязательный.
+      element: '[data-testid="fact-table"]',
+      optional: true,
+      scrollTo: 'start',
       optionalSegment: true,
       title: 'Таблица по факту',
       description:

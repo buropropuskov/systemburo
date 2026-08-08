@@ -195,6 +195,10 @@ export const useOnboardingStore = defineStore('onboarding', () => {
       usePermissionsStore().fetchPermissions(),
       auth.userTypeCode === null ? auth.loadUserTypeCode() : null,
       ensureApprovalRole(),
+      // Сегмент фактовой таблицы добавляется в хвост шагов охраны, когда route
+      // резолвится. Если ждать этого уже во время тура, счётчик прыгает: «Шаг 1
+      // из 14» превращается в «из 20». Резолвим заранее, вместе с правами.
+      ensureFactRoute(),
     ]);
   }
 
