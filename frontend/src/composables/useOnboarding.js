@@ -403,21 +403,34 @@ export function useOnboarding() {
      * driver.js помечает элемент классом сразу, а снимает со старого только когда
      * его внутреннее `__activeElement` доедет - при переприцеливании (obRetarget)
      * и быстрых переходах этого не происходит, и над затемнением остаются торчать
-     * прежние цели. Страховка дешёвая, поэтому держим её и с animate:false.
+     * прежние цели, пока driver доводит свою анимацию.
      */
-    function dropStaleHighlights() {
+    function dropStaleHighlights(activeEl) {
       const localIndex = driverObj?.getActiveIndex?.() ?? 0;
       const selector = stepsForSegment[localIndex]?.element;
-      // Активную цель берём и от driver, и по селектору шага: на первом шаге
+      // Активную цель берём из хука, от driver и по селектору шага: на первом шаге
       // сегмента внутреннее состояние driver ещё не обновлено, и чистка по нему
       // сняла бы класс с только что подсвеченного элемента.
-      const active = driverObj?.getActiveElement?.()
+      const active = activeEl
+        || driverObj?.getActiveElement?.()
         || (selector ? document.querySelector(selector) : null);
       if (!active) return;
-      document.querySelectorAll('.driver-active-element').forEach((el) => {
+      document.querySelectorAll('.driver-active-element, .ob-highlighted').forEach((el) => {
         if (el === active) return;
-        el.classList.remove('driver-active-element', 'driver-no-interaction');
+        el.classList.remove('driver-active-element', 'driver-no-interaction', 'ob-highlighted');
       });
+    }
+
+    /**
+     * Поднять доехавшую цель над затемнением.
+     *
+     * driver.js вешает свой класс в НАЧАЛЕ перехода, когда вырез ещё едет к новой
+     * рамке, и цель успевала протыкать затемнение раньше подсветки. Свой класс
+     * ставим по завершении перехода - см. .ob-highlighted в onboarding.css.
+     */
+    function raiseActiveHighlight() {
+      const active = driverObj?.getActiveElement?.();
+      if (active && active.id !== 'driver-dummy-element') active.classList.add('ob-highlighted');
     }
 
     /**
@@ -481,13 +494,13 @@ export function useOnboarding() {
 
     const driverObj = driver({
       showProgress: false,
-      // Подсветка переключается мгновенно. Собственная анимация driver.js (400 мс
-      // «доезда» рамки) давала два зримых дефекта: цель поднималась над затемнением
-      // сразу, а вырез приезжал следом - на форме заявки это читалось как «сначала
-      // светятся инпуты, потом появляется сам блок»; и класс подсветки со старой
-      // цели снимался только в КОНЦЕ доезда, поэтому при быстрых «Далее» он
-      // накапливался - на разделе «Автомобили» одновременно светились три элемента.
-      animate: false,
+      // Родная анимация driver.js: вырез плавно едет от прежней цели к новой.
+      // Два её побочных эффекта закрыты снаружи - подсветка со старой цели
+      // снимается в onHighlightStarted (иначе накапливалась и над затемнением
+      // торчали сразу три элемента), а новая цель поднимается над затемнением
+      // только по завершении перехода (иначе протыкала его раньше выреза, и на
+      // форме заявки это читалось как «сначала светятся инпуты»).
+      animate: !prefersReducedMotion(),
       allowClose: true,
       // Чётче выделение: затемнение фона плотнее, скругление 30px.
       // popoverOffset больше - карточка не наезжает на элемент.
@@ -628,13 +641,23 @@ export function useOnboarding() {
         if (onCloseRequest) onCloseRequest();
         else driverObj.destroy();
       },
+      // Начало перехода: снимаем подсветку с прежней цели сразу. driver.js делает
+      // это только в конце своей анимации, и при быстрых «Далее» пометки
+      // накапливались - на разделе «Автомобили» светились три элемента разом.
+      onHighlightStarted(element) {
+        dropStaleHighlights(element);
+      },
       onHighlighted() {
         dropStaleHighlights();
+        raiseActiveHighlight();
         const localIndex = driverObj.getActiveIndex() ?? 0;
         onIndexChange?.(startIndex + localIndex);
       },
       onDestroyed() {
         detachPopoverZoomFix();
+        // Свой класс подъёма driver не знает - снимаем сами, иначе элемент
+        // останется висеть над остальной страницей после закрытия тура.
+        document.querySelectorAll('.ob-highlighted').forEach((el) => el.classList.remove('ob-highlighted'));
         onDestroyed?.();
       },
     });
