@@ -53,6 +53,15 @@ function iconForType(type) {
   return name ? `/notification-icon-${name}.png` : '/notification-icon.png';
 }
 
+// Значок строки состояния тоже свой на каждый повод: до этого он был один, и в шторке
+// все уведомления выглядели одинаково, пока их не развернёшь. Знака Бюро в нём нет и
+// быть не может - значок монохромный и размером с букву, двум символам там не разойтись,
+// поэтому принадлежность к системе несёт крупная картинка, а значок - повод.
+function badgeForType(type) {
+  const name = TYPE_ICONS[type];
+  return name ? `/notification-badge-${name}.png` : '/notification-badge.png';
+}
+
 self.addEventListener('push', (event) => {
   let payload;
   try {
@@ -77,16 +86,15 @@ self.addEventListener('push', (event) => {
   const tag = payload.application_id
     ? `app-${payload.application_id}-${payload.type || 'event'}`
     : undefined;
-  // Две РАЗНЫЕ картинки, и путать их нельзя. icon - крупная, в теле уведомления;
-  // раньше здесь стоял icon.jpg: 185 КБ и 1129x1129 с подписью «Остров мечты»,
-  // которую система ужимает до нескольких десятков точек в нечитаемое пятно.
-  // badge - монохромный значок в строке состояния Android; без него там рисуется
-  // значок браузера, а не наш. Форма badge важна, цвет нет - система красит его
-  // сама, поэтому файл белый на прозрачном.
+  // Две РАЗНЫЕ картинки, и путать их нельзя. icon - крупная, в теле уведомления:
+  // на ней знак Бюро подложкой и символ события поверх, чтобы читались и отправитель,
+  // и повод. badge - монохромный значок в строке состояния Android; там помещается
+  // только символ события, а цвет не важен - система красит значок сама, поэтому файл
+  // белый на прозрачном.
   const options = {
     body: payload.message || '',
     icon: iconForType(payload.type),
-    badge: '/notification-badge.png',
+    badge: badgeForType(payload.type),
     tag,
     renotify: Boolean(tag),
     data: { url },

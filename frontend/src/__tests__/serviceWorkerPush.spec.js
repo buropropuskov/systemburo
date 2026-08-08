@@ -142,11 +142,14 @@ describe('service worker: показ push-уведомления', () => {
     ['application_question', '/notification-icon-question.png'],
     ['password_changed', '/notification-icon-security.png'],
     ['news_published', '/notification-icon-content.png'],
-  ])('тип %s получает свою картинку', (type, expected) => {
+  ])('тип %s получает свою картинку и свой значок', (type, expected) => {
     sw.listeners.push(pushEvent({ title: 'T', type }));
 
     const [, options] = sw.showNotification.mock.calls[0];
     expect(options.icon).toBe(expected);
+    // Значок строки состояния тоже свой: иначе в шторке все уведомления
+    // выглядят одинаково, пока их не развернёшь.
+    expect(options.badge).toBe(expected.replace('notification-icon-', 'notification-badge-'));
   });
 
   it('незнакомый тип получает общий знак системы, а не пустоту', () => {
@@ -154,6 +157,7 @@ describe('service worker: показ push-уведомления', () => {
 
     const [, options] = sw.showNotification.mock.calls[0];
     expect(options.icon).toBe('/notification-icon.png');
+    expect(options.badge).toBe('/notification-badge.png');
   });
 
   it('worker забирает управление сразу, не дожидаясь закрытия вкладок', async () => {
