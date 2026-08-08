@@ -160,3 +160,65 @@ func TestArchiveWriter_WritesEncrypted(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "паспортные данные", string(got))
 }
+
+// TestArchiveWriter_SnapshotRoundTrip: слепок заявки - самый чувствительный файл
+// архива, в нём паспорта всех людей заявки. Он обязан шифроваться наравне с
+// бланками и читаться обратно: имя без суффикса заставило бы чтение отдать
+// шифротекст как есть, то есть выдать принимающей стороне нечитаемый мусор.
+func TestArchiveWriter_SnapshotRoundTrip(t *testing.T) {
+	recipient, identity := keyPair(t)
+	crypto, err := NewArchiveCrypto(recipient, identity)
+	require.NoError(t, err)
+
+	root := filepath.Join(t.TempDir(), "archive")
+	writer, err := NewArchiveWriter(root)
+	require.NoError(t, err)
+	writer.SetCrypto(crypto)
+
+	levels := []string{"2026", "08", "заявка"}
+	name := crypto.FileName(archiveSnapshotFileName)
+	require.Equal(t, "заявка.json.age", name)
+
+	payload := []byte(`{"passport":"4509 123456"}`)
+	require.NoError(t, writer.WriteFile(levels, name, payload))
+
+	full := filepath.Join(append([]string{root}, append(levels, name)...)...)
+	raw, err := os.ReadFile(full)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "4509", "слепок не должен лежать открытым")
+
+	rc, err := crypto.Open(full)
+	require.NoError(t, err)
+	defer rc.Close()
+	got, err := io.ReadAll(rc)
+	require.NoError(t, err)
+	require.Equal(t, payload, got)
+}
+
+// TestSnapshotContentChanged_StableForSameData: сравнение идёт по расшифрованному
+// содержимому. Шифрование берёт новый ключ потока на каждую запись, поэтому байты
+// на диске у неизменного слепка каждый раз разные - сравнение шифротекстов
+// переписывало бы файл на каждом прогоне и двигало mtime, ломая инкрементальную
+// синхронизацию на рабочий компьютер.
+func TestSnapshotContentChanged_StableForSameData(t *testing.T) {
+	recipient, identity := keyPair(t)
+	crypto, err := NewArchiveCrypto(recipient, identity)
+	require.NoError(t, err)
+
+	root := filepath.Join(t.TempDir(), "archive")
+	writer, err := NewArchiveWriter(root)
+	require.NoError(t, err)
+	writer.SetCrypto(crypto)
+
+	levels := []string{"2026", "08", "заявка"}
+	payload := []byte(`{"application":"№ 1"}`)
+	require.NoError(t, writer.WriteFile(levels, crypto.FileName(archiveSnapshotFileName), payload))
+
+	changed, err := snapshotContentChanged(writer, levels, payload)
+	require.NoError(t, err)
+	require.False(t, changed, "неизменный слепок не должен переписываться")
+
+	changed, err = snapshotContentChanged(writer, levels, []byte(`{"application":"№ 2"}`))
+	require.NoError(t, err)
+	require.True(t, changed, "изменённый слепок обязан переписаться")
+}
