@@ -28,6 +28,8 @@ func TestSettings_GetAll_NonAdmin(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rec.Code)
 }
 
+// TestSettings_GetAll_Admin: RegisterAdmin заводит буропропускова (type_id=6,
+// is_super_admin=true) - тест проверяет ветку "супер-админ проходит" (#7).
 func TestSettings_GetAll_Admin(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -38,6 +40,56 @@ func TestSettings_GetAll_Admin(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	data := testutil.ParseSlice(t, rec)
 	assert.GreaterOrEqual(t, len(data), 6)
+}
+
+// TestSettings_GetAll_PlainAdmin: обычный администратор (is_admin, НЕ супер)
+// получает page.admin.settings через adminAll - ключ не super-only (#7). До этой
+// правки читал бы 403 (checkSuper в settings_service.go требовал именно супера).
+func TestSettings_GetAll_PlainAdmin(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterManager(t, e, "settings_plain_admin", td.OrgID, td.CompanyID)
+	rec := testutil.GET(t, e, "/settings", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+	data := testutil.ParseSlice(t, rec)
+	assert.GreaterOrEqual(t, len(data), 6)
+}
+
+// TestSettings_Update_PlainAdminAllowed: тот же обычный администратор пишет
+// настройку, не только читает (#7).
+func TestSettings_Update_PlainAdminAllowed(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterManager(t, e, "settings_plain_writer", td.OrgID, td.CompanyID)
+	rec := testutil.PUT(t, e, "/settings/upload.max_file_size", `{"value":"5242880"}`, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+}
+
+// TestSettings_DeniedByPersonalOverride: точечный смысл задачи #7 - у КОНКРЕТНОГО
+// администратора можно отобрать доступ личным deny-override, хотя adminAll по
+// умолчанию page.admin.settings выдаёт. Гейт снимает и чтение, и запись.
+func TestSettings_DeniedByPersonalOverride(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterManager(t, e, "settings_denied_admin", td.OrgID, td.CompanyID)
+	userID := userIDByName(t, db, "settings_denied_admin")
+	require.NoError(t, db.Create(&models.UserPermissionOverride{
+		UserID:        userID,
+		PermissionKey: "page.admin.settings",
+		Value:         "deny",
+	}).Error)
+
+	rec := testutil.GET(t, e, "/settings", testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+
+	rec = testutil.PUT(t, e, "/settings/upload.max_file_size", `{"value":"5242880"}`, testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusForbidden, rec.Code)
 }
 
 func TestSettings_Update_Success(t *testing.T) {

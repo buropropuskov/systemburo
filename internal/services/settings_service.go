@@ -36,8 +36,8 @@ const (
 const PDConsentTextMaxBytes = 512 * 1024
 
 type SettingsService interface {
-	GetAll(ctx context.Context, isSuperAdmin bool) ([]models.SystemSetting, error)
-	Update(ctx context.Context, isSuperAdmin bool, key string, value string) (*models.SystemSetting, error)
+	GetAll(ctx context.Context) ([]models.SystemSetting, error)
+	Update(ctx context.Context, key string, value string) (*models.SystemSetting, error)
 	GetUploadSettings(ctx context.Context) (map[string]interface{}, error)
 	GetNotificationSettings(ctx context.Context) (map[string]interface{}, error)
 	GetPasswordPolicy() models.PasswordPolicy
@@ -134,18 +134,9 @@ func (s *settingsService) loadCache() {
 	}
 }
 
-func (s *settingsService) checkSuper(isSuperAdmin bool) error {
-	if !isSuperAdmin {
-		return echo.NewHTTPError(http.StatusForbidden, "Доступ только для супер-администратора")
-	}
-	return nil
-}
-
-// GetAll возвращает все системные настройки из кэша.
-func (s *settingsService) GetAll(ctx context.Context, isSuperAdmin bool) ([]models.SystemSetting, error) {
-	if err := s.checkSuper(isSuperAdmin); err != nil {
-		return nil, err
-	}
+// GetAll возвращает все системные настройки из кэша. Доступ гейтится на уровне
+// роутера правом page.admin.settings (#7), сервис уже не проверяет вызывающего.
+func (s *settingsService) GetAll(ctx context.Context) ([]models.SystemSetting, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -156,11 +147,10 @@ func (s *settingsService) GetAll(ctx context.Context, isSuperAdmin bool) ([]mode
 	return result, nil
 }
 
-// Update обновляет значение системной настройки по ключу.
-func (s *settingsService) Update(ctx context.Context, isSuperAdmin bool, key string, value string) (*models.SystemSetting, error) {
-	if err := s.checkSuper(isSuperAdmin); err != nil {
-		return nil, err
-	}
+// Update обновляет значение системной настройки по ключу. Доступ гейтится на
+// уровне роутера правом page.admin.settings (#7), сервис уже не проверяет
+// вызывающего.
+func (s *settingsService) Update(ctx context.Context, key string, value string) (*models.SystemSetting, error) {
 	settingType, ok := knownKeys[key]
 	if !ok {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Неизвестная настройка: %s", key))

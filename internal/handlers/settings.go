@@ -34,23 +34,25 @@ func NewSettingsHandler(
 	}
 }
 
-// GetAll возвращает все системные настройки (только для super-admin).
+// GetAll возвращает все системные настройки. Доступ - под page.admin.settings
+// (#7): гейтится роутером, а не хендлером.
 func (h *SettingsHandler) GetAll(c echo.Context) error {
-	settings, err := h.service.GetAll(c.Request().Context(), IsSuperAdmin(c))
+	settings, err := h.service.GetAll(c.Request().Context())
 	if err != nil {
 		return err
 	}
 	return RespondSuccess(c, settings)
 }
 
-// Update обновляет значение конкретной настройки по ключу.
+// Update обновляет значение конкретной настройки по ключу. Доступ - под
+// page.admin.settings (#7): гейтится роутером, а не хендлером.
 func (h *SettingsHandler) Update(c echo.Context) error {
 	key := c.Param("key")
 	var req models.UpdateSettingRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	setting, err := h.service.Update(c.Request().Context(), IsSuperAdmin(c), key, req.Value)
+	setting, err := h.service.Update(c.Request().Context(), key, req.Value)
 	if err != nil {
 		return err
 	}

@@ -32,6 +32,9 @@ const (
 	// настройки и выгрузка файлов. Слово «архив» отдельно уже занято архивными
 	// заявками, поэтому раздел называется файловым и в ключе, и в интерфейсе.
 	KeyPageAdminFileArchive = "page.admin.file_archive"
+	// Раздел «Настройки» (#7): администраторы получают ключ через adminAll (не
+	// super-only), точечно снимается личным deny-override у конкретного человека.
+	KeyPageAdminSettings = "page.admin.settings"
 
 	KeyHeaderReportProblem     = "header.report_problem"
 	KeyHeaderCreateApplication = "header.create_application"
@@ -166,6 +169,7 @@ func staticCatalog() []CatalogNode {
 		{Key: KeyPageAdminDirectories, DisplayName: "Раздел «Справочники»", Category: CatAdmin},
 		{Key: KeyPageAdminTablesCtor, DisplayName: "Раздел «Конструктор таблиц»", Category: CatAdmin},
 		{Key: KeyPageAdminFileArchive, DisplayName: "Раздел «Файловый архив»", Category: CatAdmin},
+		{Key: KeyPageAdminSettings, DisplayName: "Раздел «Настройки»", Category: CatAdmin},
 		{Key: KeyActionManageFileArchive, DisplayName: "Файловый архив: настройка", Category: CatAdmin},
 		{Key: KeyActionDownloadFileArchive, DisplayName: "Файловый архив: выгрузка файлов", Category: CatAdmin},
 		{Key: KeyAuditRead, DisplayName: "Журнал отказов в доступе", Category: CatAdmin},

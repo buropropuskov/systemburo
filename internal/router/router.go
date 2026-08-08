@@ -916,12 +916,15 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// своей кнопки отзыва у него нет. Право то же, что у раздела работников.
 	protected.DELETE("/users/:username/consent", consent.RevokeForUser, requireUsers)
 
-	// Настройки системы
-	protected.GET("/settings", settings.GetAll)
+	// Настройки системы. GetAll/Update - под page.admin.settings (#7, ранее
+	// checkSuper в settings_service.go): администраторы получают ключ через
+	// adminAll (не super-only), точечно снимается личным deny-override.
+	requireSettings := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminSettings)
+	protected.GET("/settings", settings.GetAll, requireSettings)
 	protected.GET("/settings/upload", settings.GetUploadSettings)
 	protected.GET("/settings/notifications", settings.GetNotificationSettings)
 	protected.GET("/settings/password-policy", settings.GetPasswordPolicy)
-	protected.PUT("/settings/:key", settings.Update)
+	protected.PUT("/settings/:key", settings.Update, requireSettings)
 
 	// Новости. Активные (GET "") - всем авторизованным; управление - page.admin
 	// (Ф5, ранее service checkAdmin).
