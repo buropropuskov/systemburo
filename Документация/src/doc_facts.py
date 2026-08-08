@@ -107,6 +107,12 @@ def metrics():
                              r"internal/router/router.go | wc -l")
     m["api_groups"] = count(r"grep -oE '\.Group\(' internal/router/router.go "
                             r"| wc -l")
+    # Число методов, отвечающих без входа: их состав стережёт реестр перечней, но
+    # само числительное в тексте («отвечают только семь методов») он не двигает.
+    m["public_routes"] = count(
+        r"sed -n '/^\tapi := e.Group/,/^\tprotected := api.Group/p' "
+        r"internal/router/router.go "
+        r"| grep -cE 'api\.(GET|POST|PUT|PATCH|DELETE)\(\"'")
 
     catalog = "internal/services/permission_catalog.go"
     m["perm_keys"] = count(r"sed -n '/func staticCatalog/,/^}/p' %s "
@@ -156,6 +162,8 @@ def anchors(m):
         (OVERVIEW, "11 программный интерфейс",
          r"Зарегистрировано ([\d  ]+?) метод\w* в (\d+) группах",
          [m["api_methods"], m["api_groups"]]),
+        (OVERVIEW, "11 методы без входа в систему",
+         r"Без входа в систему отвечают только (\S+) метод", [m["public_routes"]]),
         (OVERVIEW, "14.1 бэкенд-тесты",
          r"Штатное средство тестирования Go \| ([\d  ]+?) тест\w* "
          r"в (\d+) файлах", [m["go_tests"], m["go_test_files"]]),

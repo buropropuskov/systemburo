@@ -260,6 +260,9 @@ CHANGELOGS = {
         ("1.38", "08.08.2026", "Уточнено, что через систему файлы архива "
                              "скачиваются расшифрованными: ключ нужен только при "
                              "чтении каталога напрямую"),
+        ("1.39", "08.08.2026", "Приложение параметров: перечень ограничений и "
+                               "файлов разделён на обращения, файлы заявки и "
+                               "файловый архив"),
     ],
     "pilot": [
         ("1.0", "28.07.2026", "Первая редакция"),
@@ -275,6 +278,27 @@ CHANGELOGS = {
 
 def changelog(cfg):
     return CHANGELOGS[cfg["key"]]
+
+
+def check_changelogs():
+    """Номера редакций уникальны и идут по возрастанию.
+
+    Версия на титуле берётся из последней записи, поэтому запись, дописанная в
+    середину журнала, уводит титул назад, а повторённый номер даёт две разные
+    редакции с одним именем. Оба случая - следствие того, что журнал правят
+    руками из нескольких сессий, и глазами они не видны.
+    """
+    for key, rows in CHANGELOGS.items():
+        nums = [row[0] for row in rows]
+        doubled = sorted({n for n in nums if nums.count(n) > 1})
+        if doubled:
+            raise SystemExit(
+                f"лист регистрации «{key}»: номер повторяется - {doubled}")
+        order = [tuple(int(part) for part in n.split(".")) for n in nums]
+        if order != sorted(order):
+            raise SystemExit(
+                f"лист регистрации «{key}»: номера идут не по возрастанию, "
+                "новая запись дописывается в конец")
 
 
 def version_of(cfg):
@@ -1583,6 +1607,7 @@ def build_one(key):
 
 
 def main():
+    check_changelogs()
     keys = sys.argv[1:] or list(DOCS)
     for key in keys:
         if key not in DOCS:
