@@ -205,6 +205,13 @@ func (c *Config) Validate() error {
 	if c.RequireEncryption && c.DataEncryptionKey == "" {
 		return fmt.Errorf("REQUIRE_ENCRYPTION=true but DATA_ENCRYPTION_KEY is empty")
 	}
+	// Тот же рубильник закрывает и файловый архив. Пустые ключи означают запись
+	// открытым текстом, и узнать об этом можно только по именам файлов в каталоге:
+	// на staging архив так и писался месяц, пока не хватились. Требование заявлено
+	// один раз - выполняться оно должно везде, где данные ложатся на диск.
+	if c.RequireEncryption && (c.ArchiveAgeRecipient == "" || c.ArchiveAgeIdentity == "") {
+		return fmt.Errorf("REQUIRE_ENCRYPTION=true but ARCHIVE_AGE_RECIPIENT/ARCHIVE_AGE_IDENTITY are empty: archive files would be written unencrypted")
+	}
 	if c.DataEncryptionKey != "" {
 		if _, err := crypto.ParseHexKey(c.DataEncryptionKey); err != nil {
 			return fmt.Errorf("DATA_ENCRYPTION_KEY: %w", err)

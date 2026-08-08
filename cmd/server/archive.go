@@ -40,6 +40,7 @@ const archiveHelp = `Настройка файлового архива блан
   server archive preview [-dir Ш] [-file Ш]  Показать путь, который получится
   server archive set [флаги]              Изменить настройки
   server archive on | off                 Включить или выключить выгрузку
+  server archive encrypt [-apply]         Закрыть файлы, записанные до включения ключей
 
 Флаги команды set:
   -dir Ш            Шаблон каталогов заявки, уровни через /
@@ -54,9 +55,14 @@ const archiveHelp = `Настройка файлового архива блан
 Размер Р задаётся числом байт либо с единицей: 512M, 2G, 750K.
 Каталог архива задаётся переменной ARCHIVE_PATH и здесь не меняется.
 
+Команда encrypt без -apply только считает и ничего не меняет. Нужна один раз, если
+ключи ARCHIVE_AGE_RECIPIENT и ARCHIVE_AGE_IDENTITY задали не сразу: файлы, записанные
+до них, лежат открытыми и сами не закроются.
+
 Примеры:
   server archive preview -dir '{год}/{дата}/{дата} №{номер} {организация}'
   server archive set -freeze 60 -min-free 4G
+  server archive encrypt -apply
 `
 
 func runArchive(args []string) int {
@@ -79,6 +85,8 @@ func runArchive(args []string) int {
 		return archiveSwitch(true)
 	case "off":
 		return archiveSwitch(false)
+	case "encrypt":
+		return archiveEncrypt(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "Неизвестная команда %q\n\n%s", args[0], archiveHelp)
 		return 2
@@ -267,6 +275,78 @@ func archiveSet(args []string) int {
 
 func archiveSwitch(on bool) int {
 	return applyArchiveSettings(models.UpdateArchiveSettingsRequest{Enabled: &on})
+}
+
+// archiveEncrypt закрывает файлы архива, записанные до включения ключей.
+//
+// По умолчанию только считает: проход переписывает весь каталог, и оператор обязан
+// сначала увидеть объём, а уже потом решить. Действие требует явного -apply.
+func archiveEncrypt(args []string) int {
+	fs := flag.NewFlagSet("archive encrypt", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	fs.Usage = func() { fmt.Fprint(os.Stderr, archiveHelp) }
+	apply := fs.Bool("apply", false, "выполнить, а не только посчитать")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка: параметры не загружены:", err)
+		return 1
+	}
+	db, settings, paths, err := archiveServices()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 1
+	}
+
+	crypto, err := services.NewArchiveCrypto(cfg.ArchiveAgeRecipient, cfg.ArchiveAgeIdentity)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 1
+	}
+	writer, err := services.NewArchiveWriter(cfg.ArchivePath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка: каталог архива недоступен:", err)
+		return 1
+	}
+	writer.SetCrypto(crypto)
+
+	// Сторож места не подключаем: проход не наращивает архив, а заменяет файлы
+	// почти того же размера, и упереться в порог ему нечем.
+	svc := services.NewBlankExportService(db, nil, paths, writer, settings, nil)
+	res, err := svc.EncryptExisting(context.Background(), !*apply)
+	if err != nil {
+		if errors.Is(err, services.ErrArchiveCryptoDisabled) {
+			fmt.Fprintln(os.Stderr, "Ошибка: ключи архива не заданы.")
+			fmt.Fprintln(os.Stderr, "Задайте ARCHIVE_AGE_RECIPIENT и ARCHIVE_AGE_IDENTITY, затем повторите.")
+			return 1
+		}
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 1
+	}
+
+	fmt.Println()
+	if !*apply {
+		fmt.Println("Пробный прогон, ничего не изменено. Повторите с -apply.")
+		fmt.Println()
+	}
+	fmt.Println(padRight("Открытых файлов найдено", 34), res.Candidates)
+	fmt.Println(padRight("Закрыто", 34), res.Encrypted)
+	if res.Recovered > 0 {
+		fmt.Println(padRight("Уже были закрыты, поправлен реестр", 34), res.Recovered)
+	}
+	if res.Missing > 0 {
+		fmt.Println(padRight("Нет на диске", 34), res.Missing)
+	}
+	if res.Failed > 0 {
+		fmt.Println(padRight("Не удалось", 34), res.Failed)
+		fmt.Println()
+		fmt.Println("Причины каждого отказа - в журнале сервера. Повторный запуск безопасен.")
+		return 1
+	}
+	return 0
 }
 
 // applyArchiveSettings сохраняет изменение и пишет его в общий журнал. Запись
