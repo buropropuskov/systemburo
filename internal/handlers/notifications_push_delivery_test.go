@@ -5,9 +5,11 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -52,8 +54,12 @@ func newTestPushService(t *testing.T, db *gorm.DB) services.PushService {
 	t.Helper()
 	priv, pub, err := webpush.GenerateVAPIDKeys()
 	require.NoError(t, err)
-	return services.NewPushService(db, pub, priv, "mailto:bureau@example.com", services.WithPushSyncSend())
+	return services.NewPushService(db, pub, priv, testPushSubject, services.WithPushSyncSend())
 }
+
+// testPushSubject -- адрес контакта в том виде, в каком он лежит в VAPID_SUBJECT: со
+// схемой mailto:. Ровно такой же он обязан оказаться и в подписи запроса.
+const testPushSubject = "mailto:bureau@example.com"
 
 // seedPushUser заводит пользователя напрямую через db.Create - этим тестам не нужна
 // настоящая аутентификация, только валидный user_id для FK подписки.
@@ -127,6 +133,55 @@ func TestPushService_Send_SetsHighUrgency(t *testing.T) {
 
 	assert.Equal(t, "high", gotUrgency)
 	assert.Equal(t, "86400", gotTTL, "сутки хранения недоставленного сообщения")
+}
+
+// TestPushService_Send_SubjectHasSingleMailtoScheme: в подписи VAPID адрес контакта
+// должен стоять ровно с одной схемой mailto:. webpush-go приписывает её сама всему, что
+// не начинается с https:, поэтому готовое значение VAPID_SUBJECT давало
+// "mailto:mailto:адрес" - Apple отвергала такие запросы с 403, и на iPhone не доходило
+// ни одно уведомление, тогда как Google и Mozilla то же самое принимали (#974).
+func TestPushService_Send_SubjectHasSingleMailtoScheme(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	var auth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer srv.Close()
+
+	userID := seedPushUser(t, db, td, "push_subject")
+	seedSubscription(t, db, userID, srv.URL)
+
+	svc := newTestPushService(t, db)
+	svc.Send(context.Background(), userID, services.PushPayload{Title: "T", Message: "M", Type: "application_created", NotificationID: 1})
+
+	require.True(t, strings.HasPrefix(auth, "vapid t="), "ожидался заголовок схемы vapid, получено: %q", auth)
+	claims := decodeJWTClaims(t, auth)
+	sub, _ := claims["sub"].(string)
+	assert.Equal(t, testPushSubject, sub, "адрес контакта в подписи должен совпадать с настроенным")
+	assert.False(t, strings.HasPrefix(sub, "mailto:mailto:"), "схема mailto: продублирована - Apple ответит 403")
+}
+
+// decodeJWTClaims достаёт полезную нагрузку JWT из заголовка "vapid t=<jwt>, k=<key>".
+// Подпись здесь не проверяется: тест смотрит на содержимое утверждений, а корректность
+// подписи стерегут сами push-сервисы.
+func decodeJWTClaims(t *testing.T, authHeader string) map[string]any {
+	t.Helper()
+	token := strings.TrimPrefix(authHeader, "vapid t=")
+	if i := strings.Index(token, ","); i >= 0 {
+		token = token[:i]
+	}
+	parts := strings.Split(token, ".")
+	require.Len(t, parts, 3, "JWT должен состоять из трёх частей")
+	raw, err := base64.RawURLEncoding.DecodeString(parts[1])
+	require.NoError(t, err)
+	var claims map[string]any
+	require.NoError(t, json.Unmarshal(raw, &claims))
+	return claims
 }
 
 // TestPushService_Send_410RemovesSubscription: push-сервис подтверждает 410 Gone -
