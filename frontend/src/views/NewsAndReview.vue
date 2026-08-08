@@ -7,7 +7,10 @@
           class="news-container"
           data-testid="ob-news"
         >
-          <div class="news-header">
+          <div
+            class="news-header"
+            data-testid="ob-news-head"
+          >
             <h2 class="news-title">
               <span class="news-title__full">Последние новости</span>
               <span class="news-title__short">Новости</span>

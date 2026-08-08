@@ -55,3 +55,39 @@ describe('позиционирование шагов', () => {
     expect(byId('createapp-people-form').side).toBe('top');
   });
 });
+
+describe('переключение подсветки', () => {
+  const engine = readFileSync(resolve(__dirname, '../../../composables/useOnboarding.js'), 'utf8');
+  const css = readFileSync(resolve(__dirname, '../../../assets/onboarding.css'), 'utf8');
+
+  // Родной переезд рамки driver.js оставляем включённым: без него подсветка
+  // щёлкает с шага на шаг, и это заметили сразу.
+  it('переезд подсветки анимирует сам driver.js', () => {
+    expect(engine).toMatch(/animate:\s*!prefersReducedMotion\(\)/);
+  });
+
+  // driver.js снимает класс с прежней цели только в конце своей анимации: при
+  // быстрых «Далее» пометки накапливались и над затемнением торчали три элемента.
+  it('прежняя подсветка снимается в начале перехода', () => {
+    expect(engine).toMatch(/onHighlightStarted\(element\)\s*\{\s*dropStaleHighlights\(element\)/);
+  });
+
+  // Пока вырез едет, цель уже помечена классом driver.js. Если вешать на него
+  // подъём над затемнением, форма протыкает затемнение раньше подсветки -
+  // «сначала светятся инпуты, потом появляется блок». Поднимаем своим классом,
+  // и только когда переход доехал.
+  it('цель поднимается над затемнением по завершении перехода', () => {
+    expect(css).toMatch(/\.ob-highlighted\s*\{[^}]*z-index/s);
+    expect(css).not.toMatch(/\.driver-active-element\s*\{[^}]*z-index/s);
+    expect(engine).toMatch(/onHighlighted\(\)[\s\S]{0,120}raiseActiveHighlight\(\)/);
+  });
+});
+
+describe('появление подсветки', () => {
+  // Переливание выреза через `transition: d` пробовали и откатили по просьбе
+  // владельца: «квадрат медленно выползает». Подсветка обязана переключаться
+  // мгновенно - замок держит решение, чтобы его не вернули «для плавности».
+  it('вырез затемнения переключается мгновенно', () => {
+    expect(css).not.toMatch(/\.driver-overlay\s+path\s*\{[^}]*transition:\s*(?!none)/s);
+  });
+});

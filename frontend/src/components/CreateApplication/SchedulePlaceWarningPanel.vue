@@ -81,6 +81,7 @@ const shown = computed(
         v-if="shown"
         class="warn-panel"
         :class="{ 'warn-panel--collapsed': !expanded }"
+        :style="{ zIndex: props.zIndex }"
         data-testid="schedule-warning-panel"
         role="status"
         aria-live="polite"
@@ -224,10 +225,10 @@ const shown = computed(
   position: fixed;
   right: 20px;
   bottom: 20px;
-  /* Ниже окон страницы (1000 у модалок привязки и выбора): подсказка не должна
-     закрывать их нижнюю часть с кнопками действий. Из окна дополнения приходит
-     свой слой - там панель обязана быть выше окна, иначе её не видно. */
-  z-index: v-bind('props.zIndex');
+  /* Слой приходит инлайн-стилем (см. шаблон), а не v-bind() в этом блоке: панель
+     уходит в Teleport, и переменная от v-bind до неё не доезжает - z-index молча
+     становится auto, и панель проваливается под любой элемент с z-index: 1
+     (sticky-шапка списка Т/С, ряд дат). */
   width: 360px;
   max-width: calc(100vw - 32px);
   max-height: calc(var(--app-vh, 1vh) * 60);

@@ -6,7 +6,7 @@ import {
   subscribeToPush,
   unsubscribeLocal,
 } from '@/utils/webPushSubscription';
-import { needsIosHomeScreenInstall } from '@/utils/webPushPlatform';
+import { needsIosHomeScreenInstall, iosNeedsSafari } from '@/utils/webPushPlatform';
 import { useDeletionsStore } from '@/stores/deletions';
 
 /**
@@ -20,6 +20,9 @@ import { useDeletionsStore } from '@/stores/deletions';
 export function useWebPush() {
   const supported = ref(isPushSupported());
   const iosNeedsInstall = ref(needsIosHomeScreenInstall());
+  // Сторонний браузер на iOS - тупик: подключить push оттуда нельзя, и
+  // подсказка про экран «Домой» ему не поможет (#974).
+  const iosNeedsSafariBrowser = ref(iosNeedsSafari());
   const permission = ref(supported.value && typeof Notification !== 'undefined' ? Notification.permission : 'default');
   const serverConfigured = ref(false);
   const vapidKey = ref(null);
@@ -121,6 +124,7 @@ export function useWebPush() {
   return {
     supported,
     iosNeedsInstall,
+    iosNeedsSafariBrowser,
     permission,
     serverConfigured,
     devices,

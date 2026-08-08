@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -51,6 +52,15 @@ const PushSendTimeout = 10 * time.Second
 // событии заявки актуально в пределах рабочего дня-двух, более старое лучше не
 // показывать вовсе, чем доставить с большим опозданием и без контекста.
 const pushMessageTTLSeconds = 24 * 60 * 60
+
+// pushMessageUrgency -- заголовок Urgency (RFC 8030): при какой степени экономии
+// заряда push-служба всё ещё будит устройство. Без заголовка сообщение считается
+// "normal" и на телефоне с низким зарядом придерживается до следующего пробуждения,
+// а уведомление о заявке нужно человеку тогда же, когда оно случилось - в этом весь
+// смысл доставки наружу. На вид уведомления (всплывающий баннер) заголовок не влияет
+// никак: всплытие решает система по важности своего канала уведомлений, сайту она
+// не подчиняется - проверено на Samsung в двух браузерах, см. #974.
+const pushMessageUrgency = webpush.UrgencyHigh
 
 // pushMaxConcurrentDeliveries -- общий на весь pushService потолок ОДНОВРЕМЕННЫХ
 // исходящих запросов к push-сервисам (не на пользователя и не на одну рассылку).
@@ -159,13 +169,24 @@ func WithPushHTTPClient(c webpush.HTTPClient) PushServiceOption {
 // экране настроек сохраняется), а Send молча ничего не отправляет.
 func NewPushService(db *gorm.DB, publicKey, privateKey, subscriber string, opts ...PushServiceOption) PushService {
 	s := &pushService{
-		db: db, publicKey: publicKey, privateKey: privateKey, subscriber: subscriber,
+		db: db, publicKey: publicKey, privateKey: privateKey, subscriber: normalizePushSubscriber(subscriber),
 		deliverySem: make(chan struct{}, pushMaxConcurrentDeliveries),
 	}
 	for _, opt := range opts {
 		opt(s)
 	}
 	return s
+}
+
+// normalizePushSubscriber снимает схему mailto: с адреса контакта перед передачей в
+// webpush-go. Библиотека приписывает mailto: сама всему, что не начинается с https:
+// (vapid.go), поэтому готовое значение из VAPID_SUBJECT превращалось в подписи в
+// "mailto:mailto:адрес". Google и Mozilla на это поле смотрят сквозь пальцы, а Apple
+// отвергает запрос с 403 - на живом iPhone (#974) не доходило НИ ОДНО уведомление, при
+// том что Android и компьютер работали. В параметре схему оставляем: человеку, который
+// читает .env, она говорит, что здесь адрес почты, а не что-то другое.
+func normalizePushSubscriber(subscriber string) string {
+	return strings.TrimPrefix(strings.TrimSpace(subscriber), "mailto:")
 }
 
 func (s *pushService) Configured() bool {
@@ -316,6 +337,7 @@ func (s *pushService) deliver(ctx context.Context, sub models.PushSubscription, 
 		HTTPClient:      s.httpClient,
 		Subscriber:      s.subscriber,
 		TTL:             pushMessageTTLSeconds,
+		Urgency:         pushMessageUrgency,
 		VAPIDPublicKey:  s.publicKey,
 		VAPIDPrivateKey: s.privateKey,
 	})

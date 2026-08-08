@@ -104,7 +104,9 @@ function resolveAxis(steps, index, axis) {
  *
  * @param {Array<object>} steps
  * @param {number} index
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>} раскрывали ли что-то именно на этом шаге - вызывающий
+ *   по этому признаку решает, ждать ли цель долго (узел ещё едет) или коротко
+ *   (узел давно открыт, и отсутствие цели значит «её тут нет»).
  */
 export async function applyReveal(steps, index) {
   const { mobile, open } = resolveReveal(steps, index);
@@ -119,11 +121,13 @@ export async function applyReveal(steps, index) {
     drawerOpened = setNavDrawerOpen(wantNav) && wantNav;
   }
 
+  const revealed = drawerOpened || (openChanged && Boolean(open));
   const waitMs = Math.max(
     drawerOpened ? NAV_DRAWER_TRANSITION_MS : 0,
     openChanged && open ? OPEN_REVEAL_TRANSITION_MS : 0,
   );
   if (waitMs) await new Promise((resolve) => setTimeout(resolve, waitMs));
+  return revealed;
 }
 
 /**

@@ -154,9 +154,11 @@ func TestLoginBlocked_Notification_UnknownLogin_NoNotification(t *testing.T) {
 	assert.Empty(t, notifs, "для несуществующего логина уведомление не создаётся")
 }
 
-// TestSetUserRole_Notification_OnChange проверяет, что назначение новой роли
-// создаёт уведомление role_changed с названием роли.
-func TestSetUserRole_Notification_OnChange(t *testing.T) {
+// Уведомление о смене роли убрано по решению владельца (#974): человеку от строки
+// «ваша роль изменена» толку нет - он всё равно видит доступные разделы сам, а в ленте
+// это был шум. Тест держит отсутствие: смена роли обязана проходить, уведомление -
+// не появляться.
+func TestSetUserRole_DoesNotNotify(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -172,43 +174,13 @@ func TestSetUserRole_Notification_OnChange(t *testing.T) {
 	rec := testutil.PUT(t, e, fmt.Sprintf("/users/%d/role", targetID), fmt.Sprintf(`{"role_id":%d}`, role.ID), testutil.AuthHeader(actorToken))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	var notifs []models.Notification
-	require.NoError(t, db.Where("user_id = ? AND type = ?", targetID, "role_changed").Find(&notifs).Error)
-	require.Len(t, notifs, 1, "ожидается одно уведомление role_changed")
+	var updated models.User
+	require.NoError(t, db.Select("role_id").First(&updated, targetID).Error)
+	require.NotNil(t, updated.RoleID, "роль должна была назначиться")
+	assert.Equal(t, role.ID, *updated.RoleID)
 
-	n := notifs[0]
-	require.NotNil(t, n.Title)
-	assert.Equal(t, "Изменились роль или права", *n.Title)
-	require.NotNil(t, n.Message)
-	assert.Contains(t, *n.Message, role.Name)
-	require.NotNil(t, n.Data)
-	assert.Contains(t, *n.Data, role.Name)
-}
-
-// TestSetUserRole_NoNotification_WhenUnchanged проверяет, что повторная установка
-// ТОЙ ЖЕ роли не создаёт второго уведомления.
-func TestSetUserRole_NoNotification_WhenUnchanged(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-
-	actorToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-	testutil.RegisterAndLogin(t, e, "rolesametarget", "pass123", 1, td.OrgID, td.CompanyID)
-	targetID := getUserID(t, db, "rolesametarget")
-
-	role := models.Role{Code: "role_notif_same_test", Name: "Оператор"}
-	require.NoError(t, db.Create(&role).Error)
-	h := testutil.AuthHeader(actorToken)
-	body := fmt.Sprintf(`{"role_id":%d}`, role.ID)
-
-	rec1 := testutil.PUT(t, e, fmt.Sprintf("/users/%d/role", targetID), body, h)
-	require.Equal(t, http.StatusOK, rec1.Code, rec1.Body.String())
-
-	rec2 := testutil.PUT(t, e, fmt.Sprintf("/users/%d/role", targetID), body, h)
-	require.Equal(t, http.StatusOK, rec2.Code, rec2.Body.String())
-
-	var notifs []models.Notification
-	require.NoError(t, db.Where("user_id = ? AND type = ?", targetID, "role_changed").Find(&notifs).Error)
-	assert.Len(t, notifs, 1, "повторная установка той же роли не должна создавать второе уведомление")
+	var count int64
+	require.NoError(t, db.Model(&models.Notification{}).
+		Where("user_id = ? AND type = ?", targetID, "role_changed").Count(&count).Error)
+	assert.Zero(t, count, "уведомление о смене роли больше не создаётся")
 }

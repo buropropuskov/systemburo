@@ -25,7 +25,13 @@ vi.mock('driver.js', () => ({
 }));
 
 // createDriver читает из стора только набор шагов (нумерация и подпись «Далее»).
-const storeState = vi.hoisted(() => ({ steps: [] }));
+const storeState = vi.hoisted(() => ({
+  steps: [],
+  skippedIndexes: [],
+  markSkipped(index) {
+    if (!this.skippedIndexes.includes(index)) this.skippedIndexes.push(index);
+  },
+}));
 vi.mock('@/stores/onboarding', () => ({ useOnboardingStore: () => storeState }));
 
 import {
@@ -157,6 +163,7 @@ describe('createDriver - шаг без цели', () => {
     mocks.state.activeIndex = 0;
     mocks.state.moves = [];
     storeState.steps = steps;
+    storeState.skippedIndexes = [];
     document.body.innerHTML = '';
   });
 
@@ -264,18 +271,29 @@ describe('createDriver - прогресс и подсказка следующе
     mocks.state.config = null;
     mocks.state.activeIndex = 0;
     mocks.state.moves = [];
+    storeState.skippedIndexes = [];
     document.body.innerHTML = '';
   });
 
-  it('шаг со скриншотом посчитан, пропускаемый - нет', () => {
-    // Из четырёх шагов в счёт идут три: «доп. поля» выпадут на пустой системе.
+  // Раньше из счёта заранее выбрасывали ВСЕ шаги с `optional`. На сегменте, где
+  // необязателен каждый шаг (карточка заявки), счётчик замирал: девять показов
+  // подряд с надписью «Шаг 16 из 32».
+  it('необязательный шаг считается, пока он не выброшен', () => {
     const popover = render(1);
-    expect(popover.wrapper.querySelector('.ob-popover__step-label').textContent).toBe('Шаг 2 из 3');
+    expect(popover.wrapper.querySelector('.ob-popover__step-label').textContent).toBe('Шаг 2 из 4');
   });
 
-  it('номер последнего шага сходится с итогом', () => {
+  it('выброшенный шаг выпадает и из номера, и из итога', () => {
+    storeState.skippedIndexes = [2];
     const popover = render(3);
     expect(popover.wrapper.querySelector('.ob-popover__step-label').textContent).toBe('Шаг 3 из 3');
+  });
+
+  it('номер растёт на каждом показанном шаге', () => {
+    const seen = [0, 1, 2, 3].map((i) => (
+      render(i).wrapper.querySelector('.ob-popover__step-label').textContent
+    ));
+    expect(seen).toEqual(['Шаг 1 из 4', 'Шаг 2 из 4', 'Шаг 3 из 4', 'Шаг 4 из 4']);
   });
 
   it('подсказка перескакивает пропускаемый шаг без цели', () => {

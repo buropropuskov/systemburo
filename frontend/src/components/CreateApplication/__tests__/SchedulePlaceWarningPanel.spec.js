@@ -199,6 +199,35 @@ describe('SchedulePlaceWarningPanel - обводка шапки', () => {
   });
 });
 
+/**
+ * Слой панели задаётся инлайн-стилем, а не v-bind() в scoped CSS: панель уходит в
+ * Teleport, переменная от v-bind до неё не доезжает, и в браузере z-index становится
+ * auto - панель проваливалась под sticky-шапку списка Т/С и под ряд дат (обе z-index: 1).
+ * В jsdom правило CSS не применяется, поэтому слой проверяется по атрибуту style.
+ */
+describe('SchedulePlaceWarningPanel - слой', () => {
+  const src = readFileSync(resolve(__dirname, '../SchedulePlaceWarningPanel.vue'), 'utf8');
+
+  it('z-index не задаётся через v-bind() в стилях', () => {
+    const styles = src.slice(src.indexOf('<style'));
+    expect(styles, 'v-bind() в scoped CSS телепортированной панели не доезжает')
+      .not.toMatch(/z-index:\s*v-bind/);
+  });
+
+  it('слой по умолчанию доезжает до элемента', () => {
+    mountPanel([scheduleGroup()]);
+    expect(panel().style.zIndex).toBe('990');
+  });
+
+  it('слой из пропа перебивает дефолтный', () => {
+    mount(SchedulePlaceWarningPanel, {
+      props: { groups: [scheduleGroup()], zIndex: 1010 },
+      attachTo: document.body,
+    });
+    expect(panel().style.zIndex).toBe('1010');
+  });
+});
+
 describe('панель и онбординг-тур', () => {
   // Панель плавающая и во время тура ложилась на подсвеченный блок сроков (#1771).
   it('во время тура панель не рендерится', () => {

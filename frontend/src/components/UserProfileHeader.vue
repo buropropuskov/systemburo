@@ -403,7 +403,7 @@ export default {
   display: flex;
   align-items: flex-start;
   gap: 20px;
-  padding: 20px 45px;
+  padding: 10px 45px 10px;
   border-radius: 30px;
   /* Карточка на фоне страницы: без своего фона она темнее соседней карточки уведомлений. */
   background: var(--surface);
@@ -530,7 +530,10 @@ export default {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding-top: 12px;
+  /* Ряд отодвинут и от разделителя, и от нижней кромки: 8px снизу плюс поле
+     карточки. Место под них взято у верхнего поля - высота остаётся 200px. */
+  padding-top: 8px;
+  padding-bottom: 8px;
   /* П.43: контактные бейджи прижаты к нижней части блока */
   margin-top: auto;
 }
@@ -551,7 +554,7 @@ export default {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   opacity: 0;
   transform: translateY(5px);
   animation: fadeInUp 0.3s ease-out 0.25s forwards;
@@ -562,6 +565,14 @@ export default {
 .consent-badge {
   font-family: inherit;
   line-height: inherit;
+}
+
+/* Ниже контактных бейджей: над именем он служебный, а высоту карточки делит с
+   ними в пределах 200px. Селектор двойной намеренно: одиночный .consent-badge
+   стоит в файле выше .detail-badge, и её shorthand padding перебивал бы его. */
+.detail-badge.consent-badge {
+  padding-top: 2px;
+  padding-bottom: 2px;
 }
 
 .consent-badge:disabled {

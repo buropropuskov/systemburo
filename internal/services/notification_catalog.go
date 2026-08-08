@@ -63,9 +63,14 @@ type NotificationMeta struct {
 // Коды типов уведомлений раздела "application" -- события по заявке от подачи
 // до завершения.
 const (
-	NotificationTypeApplicationCreated           = "application_created"
-	NotificationTypeApplicationApprovalRequired  = "application_approval_required"
-	NotificationTypeApplicationForwarded         = "application_forwarded"
+	NotificationTypeApplicationCreated          = "application_created"
+	NotificationTypeApplicationApprovalRequired = "application_approval_required"
+	NotificationTypeApplicationForwarded        = "application_forwarded"
+	// NotificationTypeApplicationPendingAcceptance -- принимающим о заявке, которая
+	// пришла в Центр и ждёт, что её возьмут в работу. Согласующий и принимающий - разные
+	// роли: первый голосует (required_approval), второй берёт заявку (application_approvers),
+	// и до этого типа второй не получал о подаче вообще ничего.
+	NotificationTypeApplicationPendingAcceptance = "application_pending_acceptance"
 	NotificationTypeApplicationStatusChanged     = "application_status_changed"
 	NotificationTypeApplicationQuestion          = "application_question"
 	NotificationTypeApplicationAnswer            = "application_answer"
@@ -83,7 +88,6 @@ const (
 	NotificationTypeUserBanned      = "user_banned"
 	NotificationTypeUserUnbanned    = "user_unbanned"
 	NotificationTypeLoginBlocked    = "login_blocked"
-	NotificationTypeRoleChanged     = "role_changed"
 )
 
 // Коды типов уведомлений раздела "passage" -- события вокруг прохода по заявке.
@@ -128,6 +132,16 @@ var notificationCatalog = map[string]NotificationMeta{
 		Label:       "Требуется согласование",
 		Description: "Поступила заявка, которая ждёт вашего решения как согласующего.",
 		Mandatory:   true, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityHigh, Order: 10,
+	},
+	NotificationTypeApplicationPendingAcceptance: {
+		Code: NotificationTypeApplicationPendingAcceptance, Category: NotificationCategoryApplication,
+		Label:       "Новая заявка в центре",
+		Description: "Поступила заявка, которую нужно взять в работу.",
+		// Гейт по праву Центра заявок, а не по членству в реестре принимающих:
+		// каталог знает только права, а принимающий - строка в application_approvers.
+		// Право Центра - ближайшая честная граница: тот, кто заявки не видит, и
+		// переключателя не получит.
+		Mandatory: false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityHigh, Order: 15, Permission: KeyPageCenter,
 	},
 	NotificationTypeApplicationForwarded: {
 		Code: NotificationTypeApplicationForwarded, Category: NotificationCategoryApplication,
@@ -185,7 +199,7 @@ var notificationCatalog = map[string]NotificationMeta{
 	NotificationTypeUserBanned: {
 		Code: NotificationTypeUserBanned, Category: NotificationCategorySecurity,
 		Label:       "Учётная запись заблокирована",
-		Description: "Вашу учётную запись заблокировал администратор. Отключить такие уведомления нельзя.",
+		Description: "Ваша учётная запись заблокирована. Отключить такие уведомления нельзя.",
 		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 20, HiddenInSettings: true,
 	},
 	NotificationTypeUserUnbanned: {
@@ -199,12 +213,6 @@ var notificationCatalog = map[string]NotificationMeta{
 		Label:       "Вход временно заблокирован",
 		Description: "Слишком много неудачных попыток входа в вашу учётную запись. Отключить такие уведомления нельзя.",
 		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 40, HiddenInSettings: true,
-	},
-	NotificationTypeRoleChanged: {
-		Code: NotificationTypeRoleChanged, Category: NotificationCategorySecurity,
-		Label:       "Изменились роль или права",
-		Description: "Администратор назначил вам другую роль. Отключить такие уведомления нельзя.",
-		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 50, HiddenInSettings: true,
 	},
 
 	// passage

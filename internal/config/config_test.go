@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -242,6 +243,22 @@ func TestValidate_RequireEncryption_NoKey(t *testing.T) {
 	err := cfg.Validate()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "REQUIRE_ENCRYPTION")
+}
+
+// Требование шифрования распространяется и на файловый архив: без ключей он пишет
+// открытым текстом, а заметить это можно только по именам файлов в каталоге.
+func TestValidate_RequireEncryption_NoArchiveKeys(t *testing.T) {
+	cfg := validConfig()
+	cfg.RequireEncryption = true
+	cfg.DataEncryptionKey = strings.Repeat("ab", 32)
+
+	err := cfg.Validate()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "ARCHIVE_AGE_RECIPIENT")
+
+	cfg.ArchiveAgeRecipient = "age1qqqq"
+	cfg.ArchiveAgeIdentity = "AGE-SECRET-KEY-1QQQQ"
+	assert.NoError(t, cfg.Validate())
 }
 
 func TestLoad_RateLimitDefaults(t *testing.T) {
@@ -488,6 +505,36 @@ func TestValidate_PushSubscriptionRetentionDaysMustBePositive(t *testing.T) {
 	require.ErrorContains(t, cfg.Validate(), "PUSH_SUBSCRIPTION_RETENTION_DAYS")
 }
 
+// TestValidate_VAPIDSubjectRequiredWhenEnabled (#974) - службы доставки (в первую
+// очередь Google) отвергают уведомления с пустым контактом отправителя. Без этой
+// проверки конфигурация выглядела бы рабочей: ключи заданы, интерфейс сообщает
+// «включено», а уведомления молча не доходят ни до кого.
+func TestValidate_VAPIDSubjectRequiredWhenEnabled(t *testing.T) {
+	cfg := validConfig()
+	cfg.VAPIDPublicKey = "pub"
+	cfg.VAPIDPrivateKey = "priv"
+	cfg.VAPIDSubject = ""
+	require.ErrorContains(t, cfg.Validate(), "VAPID_SUBJECT")
+}
+
+// TestValidate_VAPIDSubjectFormat (#974) - контакт обязан быть адресом почты или
+// сайта: произвольная строка проходит нашу проверку, но отвергается службой уже
+// в бою, где разбираться дороже.
+func TestValidate_VAPIDSubjectFormat(t *testing.T) {
+	cfg := validConfig()
+	cfg.VAPIDPublicKey = "pub"
+	cfg.VAPIDPrivateKey = "priv"
+
+	cfg.VAPIDSubject = "бюро пропусков"
+	require.ErrorContains(t, cfg.Validate(), "VAPID_SUBJECT")
+
+	cfg.VAPIDSubject = "mailto:bureau@example.com"
+	require.NoError(t, cfg.Validate())
+
+	cfg.VAPIDSubject = "https://example.com"
+	require.NoError(t, cfg.Validate())
+}
+
 // TestValidate_VAPIDKeysMustComeInPair (#974) - заданный только один из двух
 // VAPID-ключей означает опечатку в конфигурации (забыли скопировать вторую строку),
 // а не осознанное "push выключен" (оба пустые). Такую конфигурацию нельзя пропускать
@@ -514,10 +561,13 @@ func TestValidate_VAPIDKeysMustComeInPair(t *testing.T) {
 		require.ErrorContains(t, cfg.Validate(), "VAPID_PUBLIC_KEY")
 	})
 
-	t.Run("оба заданы - ошибки нет", func(t *testing.T) {
+	t.Run("оба заданы вместе с контактом - ошибки нет", func(t *testing.T) {
 		cfg := validConfig()
 		cfg.VAPIDPublicKey = "pub"
 		cfg.VAPIDPrivateKey = "priv"
+		// Контакт отправителя обязателен при включённой доставке - см.
+		// TestValidate_VAPIDSubjectRequiredWhenEnabled.
+		cfg.VAPIDSubject = "mailto:bureau@example.com"
 		assert.NoError(t, cfg.Validate())
 	})
 }

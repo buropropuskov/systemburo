@@ -42,6 +42,17 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     demoAttachmentType.value = type || null;
   }
 
+  // Шаги, реально выброшенные в ЭТОМ прохождении: цели на экране не оказалось
+  // (кнопки, которой человеку не положено; пустого списка). Нужны для честной
+  // нумерации: «Шаг N из M» считается по пройденному маршруту. Раньше из счёта
+  // выбрасывались все `optional` разом - и на карточке заявки, где optional
+  // ВЕСЬ сегмент, счётчик замирал на девять шагов подряд.
+  const skippedIndexes = ref([]);
+  function markSkipped(index) {
+    if (skippedIndexes.value.includes(index)) return;
+    skippedIndexes.value = [...skippedIndexes.value, index];
+  }
+
   // Сигнал раскрытия свёрнутого узла (`reveal.open` шага): владелец узла
   // (NavMenu/App/UserApplications) реагирует watch'ем и сам закрывает то, что
   // открыл, когда сигнал гаснет. Тур в чужой DOM не лезет - см. reveal.js.
@@ -242,6 +253,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     activeTourKey.value = entry.key;
     isManual.value = manual;
     currentIndex.value = 0;
+    skippedIndexes.value = [];
     isActive.value = true;
     // Фоновый резолв фактовой таблицы: не блокирует показ первого шага, сегмент
     // отметки добавится в хвост, как только route приедет.
@@ -359,6 +371,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   function reset() {
     isActive.value = false;
     currentIndex.value = 0;
+    skippedIndexes.value = [];
     activeTourKey.value = null;
     pendingSegment.value = false;
     demoAttachmentType.value = null;
@@ -381,6 +394,8 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     setRevealOpen,
     isActive,
     currentIndex,
+    skippedIndexes,
+    markSkipped,
     activeTourKey,
     activeTour,
     steps,

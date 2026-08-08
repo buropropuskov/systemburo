@@ -570,8 +570,8 @@ type ApplicationWithDetails struct {
 	HasUnseenQuestions           bool    `json:"has_unseen_questions"`
 	// HasFiles - к заявке приложены файлы (#1721). В списке Центра рисуется скрепкой:
 	// признак, а не количество - в строке списка важно «есть или нет», состав виден в карточке.
-	HasFiles                     bool    `json:"has_files"`
-	HasStatusUpdate              bool    `json:"has_status_update"`
+	HasFiles        bool `json:"has_files"`
+	HasStatusUpdate bool `json:"has_status_update"`
 	// HasOpenSupplement - по заявке идёт незакрытый раунд дополнения (#1685). Статус и
 	// согласование самой заявки при этом не откатываются, поэтому без отдельной метки
 	// повторный круг в списке ничем себя не выдаёт.
@@ -2191,10 +2191,24 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	// Данные для подробностей уведомления: без них окно показывает один текст, а
 	// кнопка перехода к заявке не появляется вовсе - именно на этих двух типах
 	// согласующий и заявитель упирались в тупик (#1748).
-	submitPayloadBytes, _ := json.Marshal(map[string]any{
+	// Отправитель кладётся в данные, а не только в текст: окно подробностей строит поля
+	// из них, и без организации принимающий видит один номер заявки.
+	senderTitle := s.applicationSenderTitle(ctx, organizationID, companyID)
+	senderPerson := formatFullName(user.LastName, user.FirstName, user.MiddleName)
+	if strings.TrimSpace(senderPerson) == "" {
+		senderPerson = user.Username
+	}
+	submitPayloadFields := map[string]any{
 		"application_id":     appID,
 		"application_number": applicationNumber,
-	})
+	}
+	if senderTitle != "" {
+		submitPayloadFields["organization"] = senderTitle
+	}
+	if senderPerson != "" {
+		submitPayloadFields["sender_name"] = senderPerson
+	}
+	submitPayloadBytes, _ := json.Marshal(submitPayloadFields)
 	submitPayload := string(submitPayloadBytes)
 
 	// Уведомление отправителю о создании заявки
@@ -2226,6 +2240,20 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 				slog.Warn("notification create failed", "err", err, "user_id", ru.UserID, "app_id", appID)
 			}
 		}
+	}
+
+	// Принимающим - о заявке, которая легла в Центр и ждёт, что её возьмут в работу.
+	// Согласующий и принимающий - разные роли: первый голосует и получает уведомление
+	// выше, второй берёт заявку в работу и до этого о подаче не узнавал вообще ничего,
+	// хотя именно он ждёт её в Центре.
+	if s.notificationService != nil {
+		s.notifyApproversAboutNewApplication(ctx, user.ID, appID, pendingAcceptanceNote{
+			number:       applicationNumber,
+			organization: senderTitle,
+			sender:       senderPerson,
+			messageText:  optionalString(req.Message),
+			fileNames:    s.applicationFileNames(ctx, req.FileIDs),
+		}, submitPayload)
 	}
 
 	// Подача завела наименование, которого не было в справочнике (#1437): зовём тех,

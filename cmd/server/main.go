@@ -331,8 +331,7 @@ func main() {
 	permissionHandler := handlers.NewPermissionHandler(permissionService, permissionResolver)
 	// roleNotifier уведомляет владельца учётки о смене роли (#1748 S3), оборачивая
 	// permissionGroupService.SetUserRole - его файл off-limits для этого среза.
-	userRoleNotifier := services.NewUserRoleNotifier(db, permissionGroupService, notificationService)
-	permissionGroupHandler := handlers.NewPermissionGroupHandler(permissionGroupService, userRoleNotifier)
+	permissionGroupHandler := handlers.NewPermissionGroupHandler(permissionGroupService)
 	roleHandler := handlers.NewRoleHandler(roleService)
 	accessDenialHandler := handlers.NewAccessDenialHandler(accessDenialService)
 	userBanHandler := handlers.NewUserBanHandler(userBanService)
@@ -360,9 +359,24 @@ func main() {
 	// а ручка пересоздания честно отвечает «архив недоступен».
 	var blankExportService *services.BlankExportService
 	var archiveDownloadService *services.ArchiveDownloadService
+	// Шифрование архива разбирается до писателя: неверная пара ключей должна
+	// останавливать старт, а не всплывать при первой выгрузке.
+	archiveCrypto, err := services.NewArchiveCrypto(cfg.ArchiveAgeRecipient, cfg.ArchiveAgeIdentity)
+	if err != nil {
+		slog.Error("не удалось включить шифрование файлового архива", "error", err)
+		os.Exit(1)
+	}
+	// Состояние шифрования печатается при запуске: иначе понять, включилось ли оно,
+	// можно только по именам файлов в архиве, а это замечают не сразу.
+	if archiveCrypto.Enabled() {
+		slog.Info("файловый архив шифруется", "recipient", cfg.ArchiveAgeRecipient)
+	} else {
+		slog.Warn("файловый архив пишется без шифрования: ключи не заданы")
+	}
 	if archiveWriter, err := services.NewArchiveWriter(cfg.ArchivePath); err != nil {
 		slog.Error("файловый архив не поднят", "path", cfg.ArchivePath, "error", err)
 	} else {
+		archiveWriter.SetCrypto(archiveCrypto)
 		blankExportService = services.NewBlankExportService(
 			db, attachmentBlankService, archivePathService, archiveWriter, settingsService,
 			blankExportQuotaService)
@@ -374,6 +388,8 @@ func main() {
 	// а не конструкторские опции: сервисы выше уже собраны, а blankExportService
 	// поднят только сейчас (зависит от attachmentBlankService/archivePathService).
 	// blankExportService типизированный nil безопасен - Enqueue* на нём no-op.
+	// Приложенные к заявке файлы уезжают в архив тем же путём, что и бланки.
+	blankExportService.SetApplicationFiles(applicationFileService)
 	applicationService.SetBlankExportEnqueuer(blankExportService)
 	organizationService.SetBlankExportEnqueuer(blankExportService)
 	companyService.SetBlankExportEnqueuer(blankExportService)

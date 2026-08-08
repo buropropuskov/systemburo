@@ -986,3 +986,108 @@ func safeDerefInt(p *int) int {
 	}
 	return 0
 }
+
+// notifyApproversAboutNewApplication зовёт принимающих к свежеподанной заявке.
+// Принимающий - глобальная роль (строка в application_approvers), не привязанная ни к
+// организации, ни к конкретной заявке, поэтому зовём весь реестр. Автор пропускается:
+// подавший заявку и сам знает, что подал, а «Заявка отправлена» ему уже ушла.
+// Ошибка отдельного получателя не прерывает рассылку - остальные должны узнать.
+func (s *applicationService) notifyApproversAboutNewApplication(
+	ctx context.Context, authorID, appID int, note pendingAcceptanceNote, payload string,
+) {
+	var approverIDs []int
+	if err := s.db.WithContext(ctx).Model(&models.ApplicationApprover{}).
+		Where("user_id <> ?", authorID).
+		Pluck("user_id", &approverIDs).Error; err != nil {
+		slog.Error("не удалось получить список принимающих для уведомления о новой заявке",
+			"app_id", appID, "error", err)
+		return
+	}
+	for _, userID := range approverIDs {
+		if err := s.notificationService.CreateForUser(
+			ctx, userID,
+			NotificationTypeApplicationPendingAcceptance,
+			"Новая заявка",
+			note.message(),
+			&payload,
+		); err != nil {
+			slog.Warn("не удалось уведомить принимающего о новой заявке",
+				"user_id", userID, "app_id", appID, "error", err)
+		}
+	}
+}
+
+// pendingAcceptanceNote -- из чего складывается приглашение принять заявку.
+type pendingAcceptanceNote struct {
+	number       string
+	organization string
+	sender       string
+	messageText  string
+	fileNames    []string
+}
+
+// message собирает текст уведомления. Первая строка несёт номер И организацию вместе:
+// в свёрнутом уведомлении система показывает заголовок и ровно одну строку текста,
+// остальное прячет за многоточием, и содержимое этого многоточия задать нельзя - значит
+// всё, что должно быть видно не разворачивая, обязано уместиться в первую строку.
+// Дальше через отступ отправитель, потом превью сообщения, потом вложения отдельным
+// блоком: приписанные к превью, они там терялись. Пустые части выпадают целиком.
+func (n pendingAcceptanceNote) message() string {
+	head := n.number
+	if org := strings.TrimSpace(n.organization); org != "" {
+		head = fmt.Sprintf("%s · %s", head, org)
+	}
+	blocks := []string{head}
+
+	if sender := strings.TrimSpace(n.sender); sender != "" {
+		blocks = append(blocks, sender)
+	}
+	if preview := previewText(plainTextFromRichText(n.messageText), notificationPreviewLimit); preview != "" {
+		blocks = append(blocks, preview)
+	}
+	if files := filesLabel(n.fileNames); files != "" {
+		blocks = append(blocks, files)
+	}
+	return strings.Join(blocks, "\n\n")
+}
+
+// applicationSenderTitle - наименование организации заявки, а если её нет, то компании.
+// Читается из справочника, а не берётся из тела запроса: фронт присылает то, что человек
+// набрал в поле, и при выборе существующей записи это может расходиться с реальным
+// названием в справочнике.
+func (s *applicationService) applicationSenderTitle(ctx context.Context, organizationID, companyID *int) string {
+	if organizationID != nil {
+		var name string
+		if err := s.db.WithContext(ctx).Table("organizations").
+			Where("id = ?", *organizationID).Limit(1).Pluck("name", &name).Error; err == nil && name != "" {
+			return name
+		}
+	}
+	if companyID != nil {
+		var name string
+		if err := s.db.WithContext(ctx).Table("companies").
+			Where("id = ?", *companyID).Limit(1).Pluck("name", &name).Error; err == nil {
+			return name
+		}
+	}
+	return ""
+}
+
+// applicationFileNames -- имена вложений заявки для уведомления. Читаются из базы после
+// привязки, а не берутся из запроса: тело несёт только идентификаторы, а человеку нужны
+// названия. Ошибка чтения не повод молчать обо всей заявке - вернём пустой список, и
+// строка про вложения просто не появится.
+func (s *applicationService) applicationFileNames(ctx context.Context, fileIDs []int) []string {
+	if len(fileIDs) == 0 {
+		return nil
+	}
+	var names []string
+	if err := s.db.WithContext(ctx).Model(&models.ApplicationFile{}).
+		Where("id IN ?", fileIDs).
+		Order("id").
+		Pluck("file_name", &names).Error; err != nil {
+		slog.Warn("не удалось прочитать имена вложений для уведомления", "error", err)
+		return nil
+	}
+	return names
+}

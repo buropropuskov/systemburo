@@ -55,7 +55,15 @@
       </div>
     </template>
 
-    <div class="categories-container">
+    <!-- Якорь онбординга - на контейнере всех категорий: списки бланков живут
+         внутри v-for, и одинаковый testid на каждом из них тур цеплял по
+         первому - на бланке «Сотрудники» это была пустая категория «Автомобили».
+         data-selected-type даёт туру дождаться, пока выделение переедет. -->
+    <div
+      class="categories-container"
+      data-testid="ob-blank-list"
+      :data-selected-type="selectedAttachment && selectedAttachment.attachment_type"
+    >
       <div
         v-for="category in uniqueCategories"
         v-show="!isNarrow || getCategoryAttachments(category).length > 0"
@@ -80,6 +88,7 @@
             :key="getAttachmentKey(attachment)"
             class="attachment"
             :class="{ selected: isSelected(attachment), editing: isEditing(attachment) }"
+
             @click="selectAttachment(attachment, $event)"
             @mouseenter="handleMouseEnter(attachment, $event)"
             @mouseleave="handleMouseLeave"

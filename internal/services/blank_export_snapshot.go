@@ -8,8 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
-	"os"
 	"strings"
 	"time"
 
@@ -539,7 +539,12 @@ func formatSnapshotTime(t *time.Time) string {
 // фактического пути для переезда, решение «писать или нет» по-прежнему смотрит на
 // диск, а не на неё.
 func writeApplicationSnapshot(ctx context.Context, db *gorm.DB, writer *ArchiveWriter, applicationID int, levels []string, frozen bool) (written bool, hash string, size int64, err error) {
-	exists, err := writer.Exists(levels, archiveSnapshotFileName)
+	// Имя слепка тоже несёт признак шифрования: по нему чтение понимает, надо ли
+	// расшифровывать. Без суффикса зашифрованный файл отдавался бы как есть, и
+	// принимающая сторона получила бы нечитаемый мусор вместо описания заявки.
+	snapshotName := writer.Crypto().FileName(archiveSnapshotFileName)
+
+	exists, err := writer.Exists(levels, snapshotName)
 	if err != nil {
 		return false, "", 0, err
 	}
@@ -564,7 +569,7 @@ func writeApplicationSnapshot(ctx context.Context, db *gorm.DB, writer *ArchiveW
 		}
 	}
 
-	if err := writer.WriteFile(levels, archiveSnapshotFileName, data); err != nil {
+	if err := writer.WriteFile(levels, snapshotName, data); err != nil {
 		return false, hash, size, err
 	}
 	return true, hash, size, nil
@@ -575,17 +580,27 @@ func writeApplicationSnapshot(ctx context.Context, db *gorm.DB, writer *ArchiveW
 // и не двигает mtime, от которого зависит инкрементальная синхронизация на рабочий
 // компьютер.
 func snapshotContentChanged(writer *ArchiveWriter, levels []string, data []byte) (bool, error) {
-	full, err := writer.Resolve(append(append([]string{}, levels...), archiveSnapshotFileName)...)
+	full, err := writer.Resolve(append(append([]string{}, levels...), writer.Crypto().FileName(archiveSnapshotFileName))...)
 	if err != nil {
 		return false, err
 	}
 
-	existing, err := os.ReadFile(full)
+	// Сравнивать надо расшифрованное содержимое: шифрование берёт новый ключ потока
+	// на каждую запись, поэтому байты на диске отличаются даже у неизменного слепка,
+	// и сравнение шифротекстов переписывало бы файл на каждом прогоне - двигая mtime
+	// и заставляя синхронизацию на рабочий компьютер перекачивать его снова.
+	rc, err := writer.Crypto().Open(full)
 	switch {
 	case err == nil:
 	case errors.Is(err, fs.ErrNotExist):
 		return true, nil
 	default:
+		return false, fmt.Errorf("failed to read existing archive snapshot: %w", err)
+	}
+	defer rc.Close()
+
+	existing, err := io.ReadAll(rc)
+	if err != nil {
 		return false, fmt.Errorf("failed to read existing archive snapshot: %w", err)
 	}
 

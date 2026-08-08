@@ -6,6 +6,7 @@ const idx = (id) => onboardingSteps.findIndex((s) => s.id === id);
 
 /** Шаги, живущие внутри карточки заявки (модалка в кабинете). */
 const DETAIL_STEP_IDS = [
+  'detail-opened',
   'detail-status', 'detail-questions', 'detail-actions-intro',
   'detail-supplement', 'detail-duplicate', 'detail-download', 'detail-revoke',
 ];
@@ -206,7 +207,9 @@ describe('cross-page конфигурация (cabinet)', () => {
     for (const id of ['cabinet-profile', 'cabinet-notifications', 'cabinet-applications']) {
       expect(ids).toContain(id);
     }
-    for (const s of onboardingSteps.filter((x) => x.id.startsWith('cabinet-'))) {
+    // cabinet-outro - связка перед сменой страницы: у неё цели нет намеренно,
+    // она же замыкает сегмент непропускаемым шагом.
+    for (const s of onboardingSteps.filter((x) => x.id.startsWith('cabinet-') && x.id !== 'cabinet-outro')) {
       expect(s.route).toBe('/personal-cabinet');
       expect(typeof s.element).toBe('string');
     }
@@ -223,6 +226,9 @@ describe('cross-page конфигурация (cabinet)', () => {
       'cabinet-notifications',
       'cabinet-notifications-settings',
       'cabinet-applications',
+      'cabinet-search',
+      'cabinet-application-row',
+      'detail-opened',
       'detail-status',
       'detail-questions',
       'detail-actions-intro',
@@ -230,7 +236,7 @@ describe('cross-page конфигурация (cabinet)', () => {
       'detail-duplicate',
       'detail-download',
       'detail-revoke',
-      'cabinet-search',
+      'cabinet-outro',
     ]);
   });
 
@@ -275,11 +281,11 @@ describe('cross-page конфигурация (создание заявки)', 
       .toEqual([
         'createapp-selector',
         'createapp-blank-added',
-        'createapp-form-opened',
         'createapp-orginfo',
         'createapp-custom',
         'createapp-dates',
         'createapp-car-form',
+        'createapp-blank-switch',
         'createapp-people-form',
         'createapp-consent',
         'createapp-submit',
@@ -309,6 +315,17 @@ describe('cross-page конфигурация (создание заявки)', 
       .forEach((s) => expect(s.demo).toBeUndefined());
   });
 
+  // Форма одна на все бланки: по её появлению не понять, перерисовалась ли она
+  // под нужный бланк. Без строгого ожидания шаг «Сотрудники» подсвечивал форму
+  // автомобилей, а шаг смены бланка - список со старым выделением.
+  it('шаги, зависящие от бланка, ждут именно свой бланк', () => {
+    const waitOf = (id) => onboardingSteps.find((s) => s.id === id).waitFor;
+    expect(waitOf('createapp-car-form')).toContain('data-attachment-type="cars"');
+    expect(waitOf('createapp-people-form')).toContain('data-attachment-type="people"');
+    expect(waitOf('createapp-consent')).toContain('data-attachment-type="people"');
+    expect(waitOf('createapp-blank-switch')).toContain('data-selected-type="people"');
+  });
+
   it('шаг доп.полей опционален (может отсутствовать в форме)', () => {
     expect(onboardingSteps.find((s) => s.id === 'createapp-custom').optional).toBe(true);
   });
@@ -333,6 +350,12 @@ describe('сегмент карточки заявки (#1740)', () => {
     detailSteps.forEach((s) => expect(s.optional, s.id).toBe(true));
   });
 
+  // Шаг знакомит с окном заявки целиком. Пока он смотрел на шапку, подсвечивалась
+  // полоска с номером, и это читалось как «тур показывает заголовок».
+  it('шаг «Вот ваша заявка» подсвечивает карточку, а не её шапку', () => {
+    expect(byId('detail-opened').element).toBe('[data-testid="ob-detail-card"]');
+  });
+
   it('reveal стоит на КАЖДОМ шаге карточки, а не только на первом', () => {
     // Наследование раскрытия у resolveReveal работает лишь ВНУТРИ группы (нужны оба
     // соседа с тем же значением): на последнем шаге карточка иначе закрылась бы.
@@ -345,7 +368,7 @@ describe('сегмент карточки заявки (#1740)', () => {
     // Первый шаг сегмента ждёт цель долго и в центр-модалку не деградирует, а
     // последний ловит «Назад» с /carsview - оба обязаны существовать всегда.
     expect(seg[0].optional).toBeUndefined();
-    expect(seg[seg.length - 1].id).toBe('cabinet-search');
+    expect(seg[seg.length - 1].id).toBe('cabinet-outro');
     expect(seg[seg.length - 1].optional).toBeUndefined();
   });
 
@@ -403,7 +426,7 @@ describe('сегмент карточки заявки (#1740)', () => {
       document.body.insertAdjacentHTML('beforeend', `
         <div data-testid="ob-detail-status"></div>
         <div data-testid="application-questions"></div>
-        <div data-testid="ob-detail-header"></div>
+        <div data-testid="ob-detail-card"><div data-testid="ob-detail-header"></div></div>
         <div data-testid="ob-detail-duplicate"></div>
         <button data-testid="app-detail-button-supplement"></button>
         <button data-testid="app-detail-button-download"></button>

@@ -87,4 +87,22 @@ type PushSummary struct {
 	UsersWithoutPush         int64              `json:"users_without_push"`
 	SubscriptionsByPlatform  PushPlatformCounts `json:"subscriptions_by_platform"`
 	UsersByLastLoginPlatform PushPlatformCounts `json:"users_by_last_login_platform"`
+	// Delivery -- состояние доставки по каждому живому устройству. Причина отказа до
+	// этого жила только в журнале приложения, а до журнала на сервере доступа нет ни у
+	// администратора, ни при разборе жалобы «уведомление не пришло» (#974): молчание
+	// push-службы и отказ push-службы выглядели одинаково - никак.
+	Delivery []PushDeliveryState `json:"delivery"`
+}
+
+// PushDeliveryState -- строка разбора доставки. Ни endpoint, ни ключей шифрования здесь
+// нет и быть не должно: по endpoint можно слать уведомления в чужой браузер, а раздел
+// открыт всем носителям права на статистику.
+type PushDeliveryState struct {
+	UserID        int        `json:"user_id"`
+	Username      string     `json:"username"`
+	Platform      string     `json:"platform"`
+	CreatedAt     time.Time  `json:"created_at"`
+	LastSuccessAt *time.Time `json:"last_success_at,omitempty"`
+	FailedCount   int        `json:"failed_count"`
+	LastError     *string    `json:"last_error,omitempty"`
 }

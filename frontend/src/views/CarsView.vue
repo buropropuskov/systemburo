@@ -137,7 +137,10 @@
         class="cars-card"
         data-testid="ob-cars-table"
       >
-        <div class="card-header">
+        <div
+          class="card-header"
+          data-testid="ob-cars-table-head"
+        >
           <div class="card-header__title">
             <h3 class="card-title">
               <span

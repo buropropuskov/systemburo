@@ -40,11 +40,20 @@ type ArchiveWriter struct {
 	// root - абсолютный путь корня (ARCHIVE_PATH). Относительные пути реестра
 	// разрешаются от него, и результат каждый раз проверяется на выход за корень.
 	root string
+	// crypto - шифрование файлов архива. nil означает прежний режим: файлы
+	// пишутся как есть, и площадка без ключей продолжает работать.
+	crypto *ArchiveCrypto
 }
 
 // NewArchiveWriter создаёт писатель поверх корня архива. Путь приводится к
 // абсолютному сразу: рабочий каталог процесса меняться не должен, но проверка
 // «не вышли за корень» на относительном пути дала бы ложное срабатывание.
+// SetCrypto включает шифрование записываемых файлов. nil оставляет прежний режим.
+func (w *ArchiveWriter) SetCrypto(c *ArchiveCrypto) { w.crypto = c }
+
+// Crypto отдаёт шифрование архива: читающей стороне нужен тот же ключ.
+func (w *ArchiveWriter) Crypto() *ArchiveCrypto { return w.crypto }
+
 func NewArchiveWriter(root string) (*ArchiveWriter, error) {
 	if strings.TrimSpace(root) == "" {
 		return nil, errors.New("archive root is empty")
@@ -115,6 +124,13 @@ func (w *ArchiveWriter) Exists(levels []string, name string) (bool, error) {
 // Каталог синхронизируется после переименования - иначе при внезапной перезагрузке
 // содержимое файла уцелеет, а записи о нём в каталоге не останется.
 func (w *ArchiveWriter) WriteFile(levels []string, name string, data []byte) error {
+	// Шифруем до записи: на диск не должно попасть даже временного файла с
+	// открытым содержимым - подметатель убирает такие с задержкой.
+	data, err := w.crypto.Encrypt(data)
+	if err != nil {
+		return err
+	}
+
 	dir, err := w.EnsureDir(levels)
 	if err != nil {
 		return err
@@ -172,6 +188,27 @@ func (w *ArchiveWriter) RemoveFile(levels []string, name string) error {
 		return fmt.Errorf("failed to remove archive file: %w", err)
 	}
 	return nil
+}
+
+// MoveFile переименовывает файл внутри одного каталога архива. Нужен дошифровке:
+// содержимое уже закрыто, менять его незачем, а имя обязано получить суффикс.
+// Каталоги не создаются намеренно - переезд между папками делает MoveDir.
+func (w *ArchiveWriter) MoveFile(levels []string, from, to string) error {
+	src, err := w.Resolve(append(append([]string{}, levels...), from)...)
+	if err != nil {
+		return err
+	}
+	dst, err := w.Resolve(append(append([]string{}, levels...), to)...)
+	if err != nil {
+		return err
+	}
+	if src == dst {
+		return nil
+	}
+	if err := os.Rename(src, dst); err != nil {
+		return fmt.Errorf("failed to rename archive file: %w", err)
+	}
+	return syncDir(filepath.Dir(dst))
 }
 
 // EnsureDir создаёт уровни каталогов под корнем и возвращает путь самого глубокого.

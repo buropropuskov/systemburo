@@ -82,6 +82,13 @@ type Config struct {
 	ArchivePath string `env:"ARCHIVE_PATH" envDefault:"./archive"`
 
 	// ArchiveWorkerTick - как часто фоновый воркер разбирает очередь выгрузки.
+	// Шифрование файлового архива. Бланки читает внешняя сторона, поэтому они
+	// шифруются на её публичный ключ (ARCHIVE_AGE_RECIPIENT), а вторым получателем
+	// идёт сама система (ARCHIVE_AGE_IDENTITY) - иначе она не отдаст ZIP по кнопке
+	// в карточке заявки. Пустая пара оставляет прежний режим без шифрования.
+	ArchiveAgeRecipient string `env:"ARCHIVE_AGE_RECIPIENT" envDefault:""`
+	ArchiveAgeIdentity  string `env:"ARCHIVE_AGE_IDENTITY" envDefault:""`
+
 	ArchiveWorkerTick time.Duration `env:"ARCHIVE_WORKER_TICK" envDefault:"15s"`
 
 	// ArchiveSweepInterval - как часто подметаются заявки, для которых очередь
@@ -198,6 +205,13 @@ func (c *Config) Validate() error {
 	if c.RequireEncryption && c.DataEncryptionKey == "" {
 		return fmt.Errorf("REQUIRE_ENCRYPTION=true but DATA_ENCRYPTION_KEY is empty")
 	}
+	// Тот же рубильник закрывает и файловый архив. Пустые ключи означают запись
+	// открытым текстом, и узнать об этом можно только по именам файлов в каталоге:
+	// на staging архив так и писался месяц, пока не хватились. Требование заявлено
+	// один раз - выполняться оно должно везде, где данные ложатся на диск.
+	if c.RequireEncryption && (c.ArchiveAgeRecipient == "" || c.ArchiveAgeIdentity == "") {
+		return fmt.Errorf("REQUIRE_ENCRYPTION=true but ARCHIVE_AGE_RECIPIENT/ARCHIVE_AGE_IDENTITY are empty: archive files would be written unencrypted")
+	}
 	if c.DataEncryptionKey != "" {
 		if _, err := crypto.ParseHexKey(c.DataEncryptionKey); err != nil {
 			return fmt.Errorf("DATA_ENCRYPTION_KEY: %w", err)
@@ -226,6 +240,16 @@ func (c *Config) Validate() error {
 	}
 	if (c.VAPIDPublicKey == "") != (c.VAPIDPrivateKey == "") {
 		return fmt.Errorf("VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be set together (both empty disables push)")
+	}
+	// Контакт отправителя обязателен, когда доставка вне системы включена: службы
+	// push (в первую очередь Google) отвергают уведомления с пустым полем sub, и
+	// без этой проверки конфигурация выглядела бы рабочей, а уведомления молча не
+	// доходили бы ни до кого.
+	if c.VAPIDPublicKey != "" && c.VAPIDSubject == "" {
+		return fmt.Errorf("VAPID_SUBJECT is required when push is enabled (mailto: address or https:// site)")
+	}
+	if c.VAPIDSubject != "" && !strings.HasPrefix(c.VAPIDSubject, "mailto:") && !strings.HasPrefix(c.VAPIDSubject, "https://") {
+		return fmt.Errorf("VAPID_SUBJECT must start with mailto: or https:// (got %q)", c.VAPIDSubject)
 	}
 	if c.PushSubscriptionRetentionDays <= 0 {
 		return fmt.Errorf("PUSH_SUBSCRIPTION_RETENTION_DAYS must be positive (got %d)", c.PushSubscriptionRetentionDays)
