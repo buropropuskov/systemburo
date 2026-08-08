@@ -54,7 +54,11 @@ func TestUserService_UpdatePassword_AdminChange_CreatesNotification(t *testing.T
 	require.NotNil(t, n.Title)
 	assert.Equal(t, "Пароль изменён", *n.Title)
 	require.NotNil(t, n.Message)
-	assert.Contains(t, *n.Message, "Администратор")
+	// Должность того, кто сменил пароль, человеку не сообщается: важен факт, а сменить
+	// пароль может не только администратор. Требование владельца по итогам работы на
+	// стенде (#974) - прежний текст начинался со слова «Администратор».
+	assert.Equal(t, "Ваш пароль в системе был изменён.", *n.Message)
+	assert.NotContains(t, *n.Message, "Администратор")
 	require.NotNil(t, n.Data)
 	assert.Contains(t, *n.Data, "changed_at")
 	assert.Contains(t, *n.Data, fmt.Sprintf("\"changed_by_user_id\": %d", callerUserID))

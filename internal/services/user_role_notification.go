@@ -65,12 +65,15 @@ func (n *UserRoleNotifier) notifyRoleChanged(ctx context.Context, userID int, ne
 		}
 	}
 
-	message := "Администратор изменил вашу роль."
+	// Как и в уведомлении о смене пароля: важен факт, а не должность того, кто менял.
+	// Права меняет не только администратор, а человеку от его звания ни холодно ни жарко -
+	// ему нужно понять, что доступ стал другим.
+	message := "Ваша роль в системе была изменена."
 	switch {
 	case newRoleID == nil:
-		message = "Администратор снял вашу роль."
+		message = "С вас снята роль в системе."
 	case roleName != "":
-		message = fmt.Sprintf("Администратор назначил вам роль «%s».", roleName)
+		message = fmt.Sprintf("Вам назначена роль «%s».", roleName)
 	}
 
 	dataPayload := map[string]any{
