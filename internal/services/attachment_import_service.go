@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/models"
 	"systemburo/internal/upload"
 
@@ -211,13 +212,17 @@ func (s *attachmentImportService) checkStructure(uploaded *excelize.File, templa
 		return nil
 	}
 
+	// apperr, а не echo.HTTPError: CustomHTTPErrorHandler логирует 5xx только у apperr.Error,
+	// иначе пропавший с диска шаблон дал бы недиагностируемый 500.
 	refBytes, err := os.ReadFile(template.FilePath)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось сверить структуру бланка")
+		return apperr.Internal("Не удалось сверить структуру бланка",
+			fmt.Errorf("чтение эталонного шаблона %s: %w", template.FilePath, err))
 	}
 	ref, err := excelize.OpenReader(bytes.NewReader(refBytes))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось сверить структуру бланка")
+		return apperr.Internal("Не удалось сверить структуру бланка",
+			fmt.Errorf("открытие эталонного шаблона %s: %w", template.FilePath, err))
 	}
 	defer ref.Close()
 
