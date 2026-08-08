@@ -1536,7 +1536,7 @@ export default {
   gap: 14px;
   padding: 0 20px;
   border-bottom: 1px solid var(--border);
-  background: var(--accent-tint);
+  background: var(--accent-tint-solid);
   /* фиксированная высота оверлея + перенос кнопок = наезд на таблицу на узкой
      карточке (expanded-nav ~800-965px). Держим одну строку, узко - горизонтальный скролл. */
   overflow-x: auto;
