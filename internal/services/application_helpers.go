@@ -39,6 +39,28 @@ func (s *applicationService) isApprover(ctx context.Context, userID int) (bool, 
 	return count > 0, nil
 }
 
+// nilIfBlank возвращает nil для пустой (после trim) строки.
+//
+// Опциональные HMAC-поля (паспорт, патент) нельзя писать указателем на "": HMAC("") одинаков
+// у всех незаполнивших, а дедуп PARTITION BY passport_series_number_hmac (rn=1) в
+// GetActiveEmployeesForTable оставит в таблице проходной одного человека из всех безпаспортных.
+// NULL из дедупа исключён условием hmac IS NULL OR rn = 1. Паспорт опционален: у мигрантов
+// вместо него патент или иное разрешение.
+func nilIfBlank(s string) *string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	return &s
+}
+
+// nilIfBlankPtr - то же для указателя: пустая строка от клиента равнозначна незаполненному полю.
+func nilIfBlankPtr(p *string) *string {
+	if p == nil {
+		return nil
+	}
+	return nilIfBlank(*p)
+}
+
 // formatFullName формирует полное ФИО.
 func formatFullName(lastName, firstName, middleName *string) string {
 	parts := []string{}
