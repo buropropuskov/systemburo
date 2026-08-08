@@ -58,6 +58,7 @@ type Dependencies struct {
 	PersonBlacklist     *handlers.PersonBlacklistHandler
 	AttachmentTemplates *handlers.AttachmentTemplateHandler
 	AttachmentBlanks    *handlers.AttachmentBlankHandler
+	AttachmentImport    *handlers.AttachmentImportHandler
 	Trash               *handlers.TrashHandler
 	DocumentGroups      *handlers.DocumentGroupHandler
 	Documents           *handlers.DocumentHandler
@@ -83,6 +84,10 @@ type Dependencies struct {
 	BanCheck         echo.MiddlewareFunc
 	LoginLimiter     echo.MiddlewareFunc
 	LastSeen         echo.MiddlewareFunc
+	// ImportListLimiter - свой rate limit на POST /attachments/:id/import-list
+	// (blank-import, C1C2), сверх общего RateLimit в main.go. nil в тестах - разбор
+	// .xlsx на несколько подтестов подряд не должен упираться в лимит.
+	ImportListLimiter echo.MiddlewareFunc
 	// ConsentGate - PDConsentGate: закрывает API до согласия на обработку ПД
 	// (#1567). nil по умолчанию, в том числе в тестах: иначе каждый тест, где
 	// согласия нет, начал бы получать 403. Тесты самого гейта поднимают
@@ -151,6 +156,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	personBlacklist := d.PersonBlacklist
 	attachmentTemplates := d.AttachmentTemplates
 	attachmentBlanks := d.AttachmentBlanks
+	attachmentImport := d.AttachmentImport
 	trash := d.Trash
 	docGroups := d.DocumentGroups
 	docs := d.Documents
@@ -173,6 +179,15 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// Конструктор системных таблиц: создание/изменение/удаление структуры и настроек
 	// таблиц КПП. Ключ тот же, что у фронтовой страницы /table-constructor.
 	requireTablesCtor := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminTablesCtor)
+	// Массовый ввод из бланка (blank-import, C1C2): скачивание пустого бланка и приём
+	// заполненного гейтятся ОДНИМ правом - иначе пользователь скачивает бланк, заполняет
+	// его и упирается в 403 на загрузке (класс "видно, но 403").
+	requireImportList := mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionImportList)
+	// importListLimiter - свой rate limit сверх общего (RateLimit в main.go): приём файла
+	// разбирает .xlsx на до 2000 строк, дороже обычной ручки. Опционален и nil в тестах
+	// (тот же приём, что у LoginLimiter ниже) - иначе один тестовый файл с полудюжиной
+	// подтестов на одну ручку упёрся бы в лимит посреди прогона.
+	importListLimiter := d.ImportListLimiter
 	maintenanceBlock := d.MaintenanceBlock
 	banCheck := d.BanCheck
 	consentGate := d.ConsentGate
@@ -296,12 +311,15 @@ func Setup(e *echo.Echo, d Dependencies) {
 	att.PUT("/:id/restore", attachments.Restore, requireDirectories)
 	att.GET("/:id/history", attachments.GetHistory, requireDirectories)
 	att.GET("/:id", attachments.GetByID)
-	// Пустой бланк для заполнения списка участников - из формы подачи, поэтому без
-	// админского права: файл не содержит данных заявок, это тот же шаблон, по
-	// которому система заполняет бланки. Когда появится право на импорт списка,
-	// кнопка и приём файла закрываются им вместе - гейт выдачи пересматриваем тем же
-	// заходом, чтобы скачавший бланк мог его загрузить.
-	att.GET("/:id/blank-template", attachmentBlanks.DownloadTemplate)
+	// Пустой бланк для заполнения списка участников и приём заполненного - под одним
+	// правом action.import.list (blank-import, C1C2): скачивание без права загрузки
+	// оставило бы пользователя с заполненным файлом, который загрузить некуда.
+	att.GET("/:id/blank-template", attachmentBlanks.DownloadTemplate, requireImportList)
+	importListHandlers := []echo.MiddlewareFunc{requireImportList}
+	if importListLimiter != nil {
+		importListHandlers = append(importListHandlers, importListLimiter)
+	}
+	att.POST("/:id/import-list", attachmentImport.ImportList, importListHandlers...)
 	// Привязка ручного вложения-сироты к заявке (#1049 режим-2): только super/admin.
 	// Внимание: :id здесь = экземпляр attachments.id (ручная сирота), а НЕ unique_attachment
 	// (шаблон), как в CRUD-маршрутах группы выше. Разные таблицы под одним префиксом.
