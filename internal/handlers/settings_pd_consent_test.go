@@ -59,8 +59,10 @@ func TestPDConsent_Get_DefaultsWhenNothingSet(t *testing.T) {
 }
 
 // Ключевая проверка: секция настроек открыта по page.admin, поэтому обычный
-// администратор (is_admin, НЕ супер) обязан сохранять текст без 403. Через
-// settingsService.Update этот путь давал бы 403 -- там стоит проверка супер-админа.
+// администратор (is_admin, НЕ супер) обязан сохранять текст без 403. Сохранение
+// идёт через отдельный SetPDConsentText, а не через общий settingsService.Update
+// (тот до #7 требовал супер-админа через checkSuper, сейчас гейтится точечным
+// правом page.admin.settings на уровне роутера).
 func TestPDConsent_SaveText_PlainAdminAllowed(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

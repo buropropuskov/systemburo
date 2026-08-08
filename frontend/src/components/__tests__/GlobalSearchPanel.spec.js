@@ -3,7 +3,6 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import GlobalSearchPanel from '../GlobalSearchPanel.vue';
 import { globalSearch } from '@/api/search';
-import { useAuthStore } from '@/stores/auth';
 
 // Панель показывает найденное, ввод идёт в поле меню и приходит сюда строкой. Проверяем
 // то, что ломается незаметно: разделы находятся без обращения к серверу, пустая строка
@@ -11,10 +10,12 @@ import { useAuthStore } from '@/stores/auth';
 // несохранённой форме окажется под панелью.
 
 vi.mock('@/api/search', () => ({ globalSearch: vi.fn() }));
+// settingsAllowed управляет только ключом page.admin.settings - остальные разделы
+// остаются доступны всем прочим тестам файла без явной настройки.
+let settingsAllowed = true;
 vi.mock('@/composables/usePermission', () => ({
-  usePermission: () => ({ can: () => true }),
+  usePermission: () => ({ can: (key) => (key === 'page.admin.settings' ? settingsAllowed : true) }),
 }));
-vi.mock('@/stores/auth', () => ({ useAuthStore: vi.fn(() => ({ isSuperAdmin: false })) }));
 
 const push = vi.fn();
 
@@ -40,6 +41,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   localStorage.clear();
   globalSearch.mockResolvedValue({ groups: [], total: 0 });
+  settingsAllowed = true;
 });
 
 afterEach(() => {
@@ -216,10 +218,11 @@ describe('GlobalSearchPanel', () => {
     expect(push).toHaveBeenCalledWith({ path: '/new-application' });
   });
 
-  // #7: «Настройки» несёт superOnly в navSections.js - тот же гейт, что и в меню
-  // Администрирования, иначе поиск предлагал бы раздел, ведущий на Forbidden.
-  it('не супер-админ: раздел «Настройки» не находится поиском, даже с правом page.admin', async () => {
-    useAuthStore.mockReturnValueOnce({ isSuperAdmin: false });
+  // #7: «Настройки» гейтится точечным ключом page.admin.settings (не super-only),
+  // тем же приёмом, что и любой другой раздел Админки - без личного deny-override
+  // раздел найдётся, с ним - нет.
+  it('администратор с личным deny-override: раздел «Настройки» не находится поиском', async () => {
+    settingsAllowed = false;
     wrapper = mountPanel('Настро');
     await flushPromises();
 
@@ -227,8 +230,8 @@ describe('GlobalSearchPanel', () => {
     expect(titles).not.toContain('Настройки');
   });
 
-  it('супер-админ: раздел «Настройки» находится поиском', async () => {
-    useAuthStore.mockReturnValueOnce({ isSuperAdmin: true });
+  it('администратор с правом page.admin.settings: раздел «Настройки» находится поиском', async () => {
+    settingsAllowed = true;
     wrapper = mountPanel('Настро');
     await flushPromises();
 
