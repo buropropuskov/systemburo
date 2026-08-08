@@ -2191,10 +2191,24 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	// Данные для подробностей уведомления: без них окно показывает один текст, а
 	// кнопка перехода к заявке не появляется вовсе - именно на этих двух типах
 	// согласующий и заявитель упирались в тупик (#1748).
-	submitPayloadBytes, _ := json.Marshal(map[string]any{
+	// Отправитель кладётся в данные, а не только в текст: окно подробностей строит поля
+	// из них, и без организации принимающий видит один номер заявки.
+	senderTitle := s.applicationSenderTitle(ctx, organizationID, companyID)
+	senderPerson := formatFullName(user.LastName, user.FirstName, user.MiddleName)
+	if strings.TrimSpace(senderPerson) == "" {
+		senderPerson = user.Username
+	}
+	submitPayloadFields := map[string]any{
 		"application_id":     appID,
 		"application_number": applicationNumber,
-	})
+	}
+	if senderTitle != "" {
+		submitPayloadFields["organization"] = senderTitle
+	}
+	if senderPerson != "" {
+		submitPayloadFields["sender_name"] = senderPerson
+	}
+	submitPayloadBytes, _ := json.Marshal(submitPayloadFields)
 	submitPayload := string(submitPayloadBytes)
 
 	// Уведомление отправителю о создании заявки
@@ -2233,7 +2247,13 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	// выше, второй берёт заявку в работу и до этого о подаче не узнавал вообще ничего,
 	// хотя именно он ждёт её в Центре.
 	if s.notificationService != nil {
-		s.notifyApproversAboutNewApplication(ctx, user.ID, appID, applicationNumber, submitPayload)
+		s.notifyApproversAboutNewApplication(ctx, user.ID, appID, pendingAcceptanceNote{
+			number:       applicationNumber,
+			organization: senderTitle,
+			sender:       senderPerson,
+			messageText:  optionalString(req.Message),
+			fileCount:    len(req.FileIDs),
+		}, submitPayload)
 	}
 
 	// Подача завела наименование, которого не было в справочнике (#1437): зовём тех,

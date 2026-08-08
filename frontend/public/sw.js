@@ -22,6 +22,37 @@ self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim(
 // Ведём на нейтральный вход /?open_application=<id> - router.js дожидается
 // прав и решает Центр vs личный кабинет тем же кодом, что клик по карточке
 // уведомления (useNotificationNavigation.resolveApplicationRoute), см. #974.
+// Картинка уведомления говорит о поводе раньше, чем человек прочтёт текст: в шторке
+// сначала видно значок. Плашка у всех одна - индиговая, как знак в шапке системы, - а
+// символ внутри разный, и все символы взяты из того же набора, которым нарисовано меню
+// (navIcons.js): конверт у Центра заявок, щит с галочкой у прав, газета у новостей.
+// Незнакомый тип получает общий знак системы, а не пустоту.
+const TYPE_ICONS = {
+  application_created: 'application',
+  application_pending_acceptance: 'application',
+  application_forwarded: 'application',
+  application_approval_required: 'approval',
+  application_approval_reminder: 'approval',
+  application_status_changed: 'approval',
+  application_supplement_ready: 'approval',
+  application_supplement_decided: 'approval',
+  application_question: 'question',
+  application_answer: 'question',
+  password_changed: 'security',
+  user_banned: 'security',
+  user_unbanned: 'security',
+  login_blocked: 'security',
+  news_published: 'content',
+  document_published: 'content',
+  feedback_created: 'content',
+  feedback_answered: 'content',
+};
+
+function iconForType(type) {
+  const name = TYPE_ICONS[type];
+  return name ? `/notification-icon-${name}.png` : '/notification-icon.png';
+}
+
 self.addEventListener('push', (event) => {
   let payload;
   try {
@@ -54,7 +85,7 @@ self.addEventListener('push', (event) => {
   // сама, поэтому файл белый на прозрачном.
   const options = {
     body: payload.message || '',
-    icon: '/notification-icon.png',
+    icon: iconForType(payload.type),
     badge: '/notification-badge.png',
     tag,
     renotify: Boolean(tag),

@@ -993,7 +993,7 @@ func safeDerefInt(p *int) int {
 // подавший заявку и сам знает, что подал, а «Заявка отправлена» ему уже ушла.
 // Ошибка отдельного получателя не прерывает рассылку - остальные должны узнать.
 func (s *applicationService) notifyApproversAboutNewApplication(
-	ctx context.Context, authorID, appID int, applicationNumber, payload string,
+	ctx context.Context, authorID, appID int, note pendingAcceptanceNote, payload string,
 ) {
 	var approverIDs []int
 	if err := s.db.WithContext(ctx).Model(&models.ApplicationApprover{}).
@@ -1007,12 +1007,79 @@ func (s *applicationService) notifyApproversAboutNewApplication(
 		if err := s.notificationService.CreateForUser(
 			ctx, userID,
 			NotificationTypeApplicationPendingAcceptance,
-			"Новая заявка в центре",
-			fmt.Sprintf("Заявка %s ждёт, когда её возьмут в работу.", applicationNumber),
+			"Новая заявка",
+			note.message(),
 			&payload,
 		); err != nil {
 			slog.Warn("не удалось уведомить принимающего о новой заявке",
 				"user_id", userID, "app_id", appID, "error", err)
 		}
 	}
+}
+
+// pendingAcceptanceNote -- из чего складывается приглашение принять заявку.
+type pendingAcceptanceNote struct {
+	number       string
+	organization string
+	sender       string
+	messageText  string
+	fileCount    int
+}
+
+// message собирает текст блоками, разделёнными пустой строкой: номер заявки, от кого,
+// о чём. Внутри блока строки идут подряд. Так уведомление читается взглядом сверху вниз,
+// а не вычитывается из сплошной фразы - в шторке телефона и в окне подробностей переносы
+// видны (white-space: pre-wrap). Слов «поступила новая заявка» в тексте нет намеренно:
+// это уже сказано заголовком, и повторять его значит тратить первую строку впустую.
+// Пустые блоки выпадают целиком, лишних отступов от них не остаётся.
+func (n pendingAcceptanceNote) message() string {
+	var blocks []string
+
+	blocks = append(blocks, n.number)
+
+	var from []string
+	if org := strings.TrimSpace(n.organization); org != "" {
+		from = append(from, fmt.Sprintf("«%s»", org))
+	}
+	if sender := strings.TrimSpace(n.sender); sender != "" {
+		from = append(from, sender)
+	}
+	if len(from) > 0 {
+		blocks = append(blocks, strings.Join(from, "\n"))
+	}
+
+	var about []string
+	if preview := previewText(plainTextFromRichText(n.messageText), notificationPreviewLimit); preview != "" {
+		about = append(about, preview)
+	}
+	if files := fileCountLabel(n.fileCount); files != "" {
+		about = append(about, files)
+	}
+	if len(about) > 0 {
+		blocks = append(blocks, strings.Join(about, "\n"))
+	}
+
+	return strings.Join(blocks, "\n\n")
+}
+
+// applicationSenderTitle - наименование организации заявки, а если её нет, то компании.
+// Читается из справочника, а не берётся из тела запроса: фронт присылает то, что человек
+// набрал в поле, и при выборе существующей записи это может расходиться с реальным
+// названием в справочнике.
+func (s *applicationService) applicationSenderTitle(ctx context.Context, organizationID, companyID *int) string {
+	if organizationID != nil {
+		var name string
+		if err := s.db.WithContext(ctx).Table("organizations").
+			Where("id = ?", *organizationID).Limit(1).Pluck("name", &name).Error; err == nil && name != "" {
+			return name
+		}
+	}
+	if companyID != nil {
+		var name string
+		if err := s.db.WithContext(ctx).Table("companies").
+			Where("id = ?", *companyID).Limit(1).Pluck("name", &name).Error; err == nil {
+			return name
+		}
+	}
+	return ""
 }
