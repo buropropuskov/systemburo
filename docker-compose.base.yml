@@ -34,6 +34,9 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       UPLOAD_PATH: /app/uploads
       ARCHIVE_PATH: /app/archive
+      # Ключи шифрования архива. Пусто - архив пишется как раньше, без шифрования.
+      ARCHIVE_AGE_RECIPIENT: ${ARCHIVE_AGE_RECIPIENT:-}
+      ARCHIVE_AGE_IDENTITY: ${ARCHIVE_AGE_IDENTITY:-}
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
       # Ниже - параметры, которые описаны в приложении Б и в шаблоне файла
       # параметров, но до этой правки внутрь контейнера не попадали: compose
