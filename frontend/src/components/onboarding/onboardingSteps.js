@@ -45,6 +45,9 @@ export const ONBOARDING_VERSION = 3;
  * - `ctaRoute`   куда ведёт CTA (по умолчанию - оформление заявки);
  * - `demoAttachment` тип демо-вложения ('cars'/'people'), которое BlankSelector
  *                добавит на время шага, чтобы показать реальную форму;
+ * - `scrollTo`   куда подвести цель перед показом: 'end' прижимает её к низу
+ *                экрана. Нужно высоким блокам (форма сотрудников), над которыми
+ *                встаёт поповер: по центру он накрывал ровно то, что объясняет;
  * - `side`       сторона поповера от элемента (top/bottom/left/right) - чтобы
  *                карточка не наезжала на выделенный элемент;
  * - `align`      выравнивание поповера вдоль стороны (start/center/end);
@@ -55,7 +58,7 @@ export const ONBOARDING_VERSION = 3;
  *                узел свёрнут на любой ширине и появляется только по действию
  *                пользователя. Механика - в reveal.js.
  *
- * @type {Array<{ id: string, route: string, element: string|null, waitFor?: string, title: string, description: string, demo?: string, requires?: string, optional?: boolean, optionalSegment?: boolean, expandRail?: boolean, celebrate?: boolean, cta?: string, ctaRoute?: string, demoAttachment?: string, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: 'admin-column'|'search-panel'|'first-application' } }>}
+ * @type {Array<{ id: string, route: string, element: string|null, waitFor?: string, scrollTo?: 'center'|'end'|'start', title: string, description: string, demo?: string, requires?: string, optional?: boolean, optionalSegment?: boolean, expandRail?: boolean, celebrate?: boolean, cta?: string, ctaRoute?: string, demoAttachment?: string, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: 'admin-column'|'search-panel'|'first-application' } }>}
  */
 export const onboardingSteps = [
   {
@@ -244,6 +247,18 @@ export const onboardingSteps = [
     side: 'bottom',
   },
   {
+    id: 'cabinet-download',
+    route: '/personal-cabinet',
+    element: '[data-testid="ob-application-download"]',
+    title: 'Скачать бланки',
+    description:
+      'Кнопка «Скачать» в строке заявки открывает окно «Скачивание бланков»: заполненные бланки можно взять по одному или все разом. Она есть только у заявок, для вложений которых бланки настроены.',
+    // Кнопки нет у заявок без бланков; на телефоне её убрали из строки - там
+    // скачивание живёт в самой карточке.
+    optional: true,
+    side: 'left',
+  },
+  {
     // Показываем строку до открытия карточки: иначе окно появляется само собой
     // и человек не понимает, откуда оно взялось.
     id: 'cabinet-application-row',
@@ -262,6 +277,10 @@ export const onboardingSteps = [
     element: '[data-testid="ob-detail-card"]',
     title: 'Вот ваша заявка',
     description: 'Окно заявки: сверху - номер, дата подачи и действия над ней; ниже - состав заявки и её согласование. Закрывается крестиком справа или клавишей Esc.',
+    // У нового пользователя заявок нет, открывать нечего - тогда шаг показывается
+    // со скриншотом-примером вместо подсветки, а не выпадает молча вместе со всем
+    // сегментом карточки.
+    demo: 'applicationDetail',
     optional: true,
     side: 'bottom',
     reveal: { open: 'first-application' },
@@ -319,17 +338,6 @@ export const onboardingSteps = [
     title: 'Продублировать заявку',
     description:
       'Ездит один и тот же транспорт - не заполняйте всё заново. «Продублировать» создаёт копию заявки со всем содержимым, а из списка сразу выбирается срок для копии: на сегодня, на завтра, на неделю.',
-    optional: true,
-    side: 'bottom',
-    reveal: { open: 'first-application' },
-  },
-  {
-    id: 'detail-download',
-    route: '/personal-cabinet',
-    element: '[data-testid="app-detail-button-download"]',
-    title: 'Скачать бланки',
-    description:
-      'Кнопка «Скачать» открывает окно «Скачивание бланков»: заполненные бланки заявки можно взять по одному или все сразу. Кнопка появляется только у заявок, для вложений которых бланки настроены.',
     optional: true,
     side: 'bottom',
     reveal: { open: 'first-application' },
@@ -456,10 +464,34 @@ export const onboardingSteps = [
     element: '[data-testid="ob-app-formdata"]',
     waitFor: '[data-testid="ob-app-formdata"][data-attachment-type="cars"]',
     title: 'Форма транспорта',
-    description: 'Форма выбранного бланка: формат номера, номер и марка, места разгрузки. Кнопка «Добавить» переносит машину в список справа - в один бланк их можно внести несколько.',
+    description: 'Форма выбранного бланка: формат номера, номер и марка. Кнопка «Добавить» переносит машину в список справа - в один бланк их можно внести несколько.',
     demoAttachment: 'cars',
     side: 'left',
     align: 'start',
+  },
+  {
+    id: 'createapp-car-existing',
+    route: '/new-application',
+    element: '[data-testid="ob-form-existing"]',
+    title: 'Машина уже заводилась',
+    description:
+      'Если транспорт уже есть в вашем разделе «Автомобили», не заполняйте всё заново: «Добавить существующую(-ие)» откроет список ваших машин - отметьте нужные и они попадут в заявку сразу с номером и маркой.',
+    demoAttachment: 'cars',
+    optional: true,
+    side: 'bottom',
+    align: 'start',
+  },
+  {
+    id: 'createapp-car-places',
+    route: '/new-application',
+    element: '[data-testid="ob-form-places"]',
+    title: 'Места разгрузки',
+    description:
+      'Отметьте, где машина будет разгружаться: без этого охрана на посту не поймёт, куда её пропускать. Список - места вашей организации; у каждого свой график, и если время заявки в него не попадает, форма предупредит.',
+    demoAttachment: 'cars',
+    optional: true,
+    side: 'top',
+    align: 'center',
   },
   {
     id: 'createapp-blank-switch',
@@ -482,11 +514,39 @@ export const onboardingSteps = [
     waitFor: '[data-testid="ob-app-formdata"][data-attachment-type="people"]',
     title: 'Форма сотрудников',
     description: 'Бланк для людей: гражданство, ФИО, должность и паспортные данные (иностранным гражданам добавятся патент и разрешение на работу). Кнопка «Добавить» переносит сотрудника в список справа.',
+    // Форма высокая - прижимаем её к низу экрана, иначе поповер сверху
+    // накрывает ровно то, о чём рассказывает.
+    scrollTo: 'end',
     demoAttachment: 'people',
     // Форма занимает почти весь экран, и по бокам driver.js места не находит -
     // поповер выдавливало в угол (замер 21,0). Сверху место есть всегда.
     side: 'top',
     align: 'center',
+  },
+  {
+    id: 'createapp-people-existing',
+    route: '/new-application',
+    element: '[data-testid="ob-form-existing"]',
+    title: 'Сотрудник уже заводился',
+    description:
+      'Тех, кто уже есть в вашем разделе «Сотрудники», добавляйте кнопкой «Добавить существующего(-их)»: отметьте нужных в списке - паспортные данные подставятся сами.',
+    demoAttachment: 'people',
+    optional: true,
+    side: 'bottom',
+    align: 'start',
+  },
+  {
+    id: 'createapp-people-places',
+    route: '/new-application',
+    element: '[data-testid="ob-form-places"]',
+    title: 'Места прохода',
+    description:
+      'Отметьте посты, через которые человек будет проходить: заявка попадёт в таблицы именно этих постов, и охрана увидит его на своём экране. Не отметите - пропускать будет некому.',
+    demoAttachment: 'people',
+    optional: true,
+    side: 'top',
+    align: 'center',
+    scrollTo: 'end',
   },
   {
     id: 'createapp-consent',

@@ -438,6 +438,7 @@
                         <button
                           v-if="application.has_blank_template"
                           class="download-btn"
+                          data-testid="ob-application-download"
                           title="Скачать"
                           @click.stop="downloadApplication(application)"
                         >
