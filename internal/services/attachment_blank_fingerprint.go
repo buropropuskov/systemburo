@@ -67,7 +67,9 @@ func ParseBlankFingerprint(s string) (BlankFingerprint, bool) {
 			fp.ListStartRow = value
 		}
 	}
-	if fp.UniqueAttachmentID <= 0 || fp.TemplateID <= 0 {
+	// Строка списка меньше первой - не «странное значение», а нечитаемый отпечаток:
+	// разбор загруженного бланка отсчитывает от неё строки участников.
+	if fp.UniqueAttachmentID <= 0 || fp.TemplateID <= 0 || fp.ListStartRow <= 0 {
 		return BlankFingerprint{}, false
 	}
 	return fp, true
@@ -76,9 +78,19 @@ func ParseBlankFingerprint(s string) (BlankFingerprint, bool) {
 // StampBlankFingerprint вписывает отпечаток в уже открытый файл.
 func StampBlankFingerprint(f *excelize.File, fp BlankFingerprint) error {
 	mark := fp.String()
-	// Незаданные поля SetDocProps берёт из текущих свойств файла, поэтому передаём
-	// только Category: заголовок и автора шаблона затирать незачем.
-	if err := f.SetDocProps(&excelize.DocProperties{Category: mark}); err != nil {
+	// SetDocProps переписывает свойства ЦЕЛИКОМ по переданной структуре: непереданные
+	// поля обнуляются, а не наследуются. Поэтому читаем текущие и меняем только
+	// Category - иначе у шаблона пропадут заголовок, автор и тема, которые админ
+	// вписал в Excel.
+	props, err := f.GetDocProps()
+	if err != nil {
+		return fmt.Errorf("read blank doc props: %w", err)
+	}
+	if props == nil {
+		props = &excelize.DocProperties{}
+	}
+	props.Category = mark
+	if err := f.SetDocProps(props); err != nil {
 		return fmt.Errorf("set blank fingerprint doc props: %w", err)
 	}
 

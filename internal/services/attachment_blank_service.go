@@ -267,8 +267,14 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 // в файл не подставляется ничего, кроме отпечатка, по которому загруженный обратно
 // файл узнаётся как бланк именно этого типа вложения.
 func (s *attachmentBlankService) GenerateEmptyBlank(ctx context.Context, uniqueAttachmentID int) (io.Reader, string, error) {
+	// Архивный тип вложения бланка не получает: подать по нему заявку всё равно
+	// нельзя, а форма подачи такие типы не показывает (attachments.GetActive). У
+	// заполненного бланка ограничения нет и быть не может - заявку подали, когда тип
+	// был живым.
 	var ua models.UniqueAttachment
-	if err := s.db.WithContext(ctx).First(&ua, uniqueAttachmentID).Error; err != nil {
+	if err := s.db.WithContext(ctx).
+		Where("id = ? AND is_active = ?", uniqueAttachmentID, true).
+		First(&ua).Error; err != nil {
 		return nil, "", echo.NewHTTPError(http.StatusNotFound, "Тип вложения не найден")
 	}
 
@@ -301,12 +307,14 @@ func (s *attachmentBlankService) GenerateEmptyBlank(ctx context.Context, uniqueA
 		TemplateID:         template.ID,
 		ListStartRow:       template.ListStartRow,
 	}); err != nil {
-		return nil, "", fmt.Errorf("stamp empty blank %d: %w", template.ID, err)
+		return nil, "", echo.NewHTTPError(http.StatusInternalServerError,
+			fmt.Sprintf("Не удалось подготовить бланк (шаблон %d): %s", template.ID, err.Error()))
 	}
 
 	var buf bytes.Buffer
 	if _, err := f.WriteTo(&buf); err != nil {
-		return nil, "", fmt.Errorf("write empty blank %d: %w", template.ID, err)
+		return nil, "", echo.NewHTTPError(http.StatusInternalServerError,
+			fmt.Sprintf("Не удалось собрать бланк (шаблон %d): %s", template.ID, err.Error()))
 	}
 	return bytes.NewReader(buf.Bytes()), emptyBlankFilename(&ua), nil
 }

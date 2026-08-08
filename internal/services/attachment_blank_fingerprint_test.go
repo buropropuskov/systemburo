@@ -13,6 +13,12 @@ import (
 func TestBlankFingerprintRoundTrip(t *testing.T) {
 	f := excelize.NewFile()
 	defer func() { require.NoError(t, f.Close()) }()
+	// Свойства, которые админ вписал в шаблон своими руками: SetDocProps переписывает
+	// их целиком по переданной структуре, поэтому штамп обязан сначала прочитать
+	// текущие. Без файла с непустыми свойствами эта проверка вакуумна.
+	require.NoError(t, f.SetDocProps(&excelize.DocProperties{
+		Title: "Заявка на проход", Creator: "Бюро пропусков", Subject: "Бланк",
+	}))
 	require.NoError(t, StampBlankFingerprint(f, BlankFingerprint{
 		UniqueAttachmentID: 12, TemplateID: 34, ListStartRow: 7,
 	}))
@@ -27,6 +33,9 @@ func TestBlankFingerprintRoundTrip(t *testing.T) {
 
 	props, err := saved.GetDocProps()
 	require.NoError(t, err)
+	require.Equal(t, "Заявка на проход", props.Title, "штамп затёр заголовок шаблона")
+	require.Equal(t, "Бюро пропусков", props.Creator, "штамп затёр автора шаблона")
+	require.Equal(t, "Бланк", props.Subject, "штамп затёр тему шаблона")
 	fromProps, ok := ParseBlankFingerprint(props.Category)
 	require.True(t, ok, "отпечаток не читается из свойств документа: %q", props.Category)
 	require.Equal(t, BlankFingerprint{UniqueAttachmentID: 12, TemplateID: 34, ListStartRow: 7}, fromProps)
@@ -91,6 +100,9 @@ func TestParseBlankFingerprint(t *testing.T) {
 		{"без вложения", "systemburo:tpl=7:rows=12", BlankFingerprint{}, false},
 		{"нулевое вложение", "systemburo:ua=0:tpl=7:rows=12", BlankFingerprint{}, false},
 		{"не число", "systemburo:ua=abc:tpl=7:rows=12", BlankFingerprint{}, false},
+		{"без строки списка", "systemburo:ua=5:tpl=7", BlankFingerprint{}, false},
+		{"нулевая строка списка", "systemburo:ua=5:tpl=7:rows=0", BlankFingerprint{}, false},
+		{"отрицательная строка списка", "systemburo:ua=5:tpl=7:rows=-3", BlankFingerprint{}, false},
 		{"мусор вместо пары", "systemburo:ua=5:tpl=7:rows", BlankFingerprint{}, false},
 		{"описание пользователя", "Отчёт за июль", BlankFingerprint{}, false},
 	}

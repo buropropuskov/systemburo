@@ -68,6 +68,15 @@ func blankTemplateDownloadSection(t *testing.T, w blankWorld) {
 		require.Equal(t, http.StatusNotFound, rec.Code, "заполнять в таком бланке нечего")
 	})
 
+	t.Run("архивный тип вложения", func(t *testing.T) {
+		uaID, _ := seedListTemplate(t, db, "import_archived", "people", 5, 9)
+		require.NoError(t, db.Model(&models.UniqueAttachment{}).Where("id = ?", uaID).
+			Update("is_active", false).Error)
+
+		rec := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/blank-template", uaID), user)
+		require.Equal(t, http.StatusNotFound, rec.Code, "по архивному типу заявку не подать")
+	})
+
 	t.Run("несуществующий тип вложения", func(t *testing.T) {
 		rec := testutil.GET(t, w.h.e, "/attachments/999999/blank-template", user)
 		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
