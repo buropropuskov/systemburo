@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Сообщение заявки хранится размеченным текстом из редактора, и в уведомление его
@@ -52,16 +53,32 @@ func TestPreviewText(t *testing.T) {
 	})
 }
 
-func TestFileCountLabel(t *testing.T) {
-	cases := map[int]string{
-		0: "", -3: "",
-		1: "Вложено 1 файл", 2: "Вложено 2 файла", 5: "Вложено 5 файлов",
-		11: "Вложено 11 файлов", 14: "Вложено 14 файлов",
-		21: "Вложено 21 файл", 22: "Вложено 22 файла", 25: "Вложено 25 файлов",
-	}
-	for n, want := range cases {
-		assert.Equal(t, want, fileCountLabel(n), "количество: %d", n)
-	}
+// «Вложено 2 файла» не говорит ничего, а по названию человек понимает, накладная это
+// или паспорт машины (#974).
+func TestFilesLabel(t *testing.T) {
+	t.Run("один файл", func(t *testing.T) {
+		assert.Equal(t, "Файл: nakladnaya.pdf", filesLabel([]string{"nakladnaya.pdf"}))
+	})
+
+	t.Run("несколько - через запятую", func(t *testing.T) {
+		assert.Equal(t, "Файлы: akt.pdf, pasport.pdf", filesLabel([]string{"akt.pdf", "pasport.pdf"}))
+	})
+
+	t.Run("длинный список обрезается, а не растягивает уведомление", func(t *testing.T) {
+		got := filesLabel([]string{
+			"Накладная на привоз мебели от 08.08.2026.pdf",
+			"Паспорт транспортного средства.pdf",
+			"Доверенность на водителя.pdf",
+		})
+		assert.True(t, strings.HasPrefix(got, "Файлы: "))
+		assert.True(t, strings.HasSuffix(got, "..."), "ожидалось многоточие, получено %q", got)
+		assert.LessOrEqual(t, len([]rune(got)), len("Файлы: ")+notificationFilesLimit+3)
+	})
+
+	t.Run("без вложений строки нет", func(t *testing.T) {
+		assert.Equal(t, "", filesLabel(nil))
+		assert.Equal(t, "", filesLabel([]string{"", "   "}))
+	})
 }
 
 // Текст уведомления собирается строками, и пустые части выпадают целиком: у заявки может
@@ -70,15 +87,27 @@ func TestPendingAcceptanceNoteMessage(t *testing.T) {
 	t.Run("номер и организация в одной строке - её видно в свёрнутом уведомлении", func(t *testing.T) {
 		note := pendingAcceptanceNote{
 			number: "№ 20260808/003", organization: "ООО Ромашка",
-			sender: "Иванов Иван Иванович", messageText: "<p>Привоз мебели</p>", fileCount: 2,
+			sender: "Иванов Иван Иванович", messageText: "<p>Привоз мебели</p>",
+			fileNames: []string{"akt.pdf", "pasport.pdf"},
 		}
-		assert.Equal(t, "№ 20260808/003 · ООО Ромашка\n\nИванов Иван Иванович\n\nПривоз мебели\n\nВложено 2 файла",
+		assert.Equal(t, "№ 20260808/003 · ООО Ромашка\n\nИванов Иван Иванович\n\nПривоз мебели\n\nФайлы: akt.pdf, pasport.pdf",
 			note.message())
 	})
 
 	t.Run("вложения отдельным блоком, а не хвостом превью", func(t *testing.T) {
-		note := pendingAcceptanceNote{number: "№ 9", messageText: "Груз", fileCount: 1}
-		assert.Equal(t, "№ 9\n\nГруз\n\nВложено 1 файл", note.message())
+		note := pendingAcceptanceNote{number: "№ 9", messageText: "Груз", fileNames: []string{"akt.pdf"}}
+		assert.Equal(t, "№ 9\n\nГруз\n\nФайл: akt.pdf", note.message())
+	})
+
+	t.Run("длинное сообщение обрезается до намёка", func(t *testing.T) {
+		note := pendingAcceptanceNote{
+			number:      "№ 10",
+			messageText: "Привоз офисной мебели на склад номер три, просьба открыть ворота к девяти утра",
+		}
+		lines := strings.Split(note.message(), "\n\n")
+		require.Len(t, lines, 2)
+		assert.True(t, strings.HasSuffix(lines[1], "..."), "ожидалось многоточие, получено %q", lines[1])
+		assert.LessOrEqual(t, len([]rune(lines[1])), notificationPreviewLimit+3)
 	})
 
 	t.Run("только номер - одна строка, без висящих отступов", func(t *testing.T) {

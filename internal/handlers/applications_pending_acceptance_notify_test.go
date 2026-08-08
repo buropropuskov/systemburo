@@ -67,7 +67,7 @@ func TestSubmit_NotifiesApproversAboutPendingApplication(t *testing.T) {
 	// Отправитель рядом с организацией: принимающему важно, кто именно прислал (#974).
 	assert.Contains(t, *forApprover[0].Message, "author_notify")
 	// Превью сообщения заявки - без разметки, отдельной строкой.
-	assert.Contains(t, *forApprover[0].Message, "Привоз мебели на склад")
+	assert.Contains(t, *forApprover[0].Message, "Привоз мебели")
 	assert.NotContains(t, *forApprover[0].Message, "<p>")
 	assert.Contains(t, *forApprover[0].Message, "\n\n", "блоки разделяются пустой строкой")
 	require.NotNil(t, forApprover[0].Data, "без data в окне подробностей не будет перехода к заявке")

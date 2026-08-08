@@ -1,7 +1,6 @@
 package services
 
 import (
-	"fmt"
 	"html"
 	"regexp"
 	"strings"
@@ -14,11 +13,15 @@ import (
 // предложения. Форматирования богаче переносов в системном уведомлении не существует:
 // Notification API принимает только заголовок и текст, ни разметки, ни списков.
 
-// notificationPreviewLimit -- сколько знаков сообщения заявки показывать. Ровно строка
-// в развёрнутом уведомлении: это превью, а не текст сообщения, остальное человек
-// прочтёт, открыв заявку. При 160 знаках короткие сообщения показывались целиком, и
-// уведомление переставало отличаться от самой заявки.
-const notificationPreviewLimit = 80
+// notificationPreviewLimit -- сколько знаков сообщения заявки показывать. Это именно
+// намёк на содержание, а не пересказ: сообщение целиком человек прочтёт, открыв заявку,
+// а в уведомлении длинный текст оттесняет вниз всё остальное.
+const notificationPreviewLimit = 30
+
+// notificationFilesLimit -- предел строки с именами вложений. Имена бывают длиннее
+// самого уведомления («Накладная на привоз мебели от 08.08.2026 склад 3.pdf»), и без
+// предела одна такая строка съедала бы всю видимую часть.
+const notificationFilesLimit = 60
 
 var (
 	htmlTagRe   = regexp.MustCompile(`(?s)<[^>]*>`)
@@ -60,19 +63,23 @@ func previewText(s string, limit int) string {
 	return strings.TrimRight(cut, " ,.;:-") + "..."
 }
 
-// fileCountLabel -- «Файлов: 3» с правильным словом. Ноль файлов строкой не показывается
-// вовсе: «Файлов: 0» ничего не сообщает, только занимает строку в шторке.
-func fileCountLabel(n int) string {
-	if n <= 0 {
+// filesLabel перечисляет вложения по именам: человек по названию понимает, накладная
+// это или паспорт машины, тогда как «вложено 2 файла» не говорит ничего. Список
+// обрезается целиком, а не по каждому имени: обрезанные с двух сторон названия
+// читаются хуже, чем честное «и ещё» в конце. Без вложений строки нет вовсе.
+func filesLabel(names []string) string {
+	var clean []string
+	for _, n := range names {
+		if n = strings.TrimSpace(n); n != "" {
+			clean = append(clean, n)
+		}
+	}
+	if len(clean) == 0 {
 		return ""
 	}
-	word := "файлов"
-	switch {
-	case n%100 >= 11 && n%100 <= 14:
-	case n%10 == 1:
-		word = "файл"
-	case n%10 >= 2 && n%10 <= 4:
-		word = "файла"
+	word := "Файлы"
+	if len(clean) == 1 {
+		word = "Файл"
 	}
-	return fmt.Sprintf("Вложено %d %s", n, word)
+	return word + ": " + previewText(strings.Join(clean, ", "), notificationFilesLimit)
 }
