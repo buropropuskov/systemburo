@@ -58,18 +58,28 @@ describe('позиционирование шагов', () => {
 
 describe('переключение подсветки', () => {
   const engine = readFileSync(resolve(__dirname, '../../../composables/useOnboarding.js'), 'utf8');
+  const css = readFileSync(resolve(__dirname, '../../../assets/onboarding.css'), 'utf8');
 
-  // Собственная анимация driver.js (400 мс «доезда» рамки) поднимала цель над
-  // затемнением сразу, а вырез приводила следом - на форме заявки это читалось
-  // как «сначала светятся инпуты, потом появляется блок». Она же откладывала
-  // снятие класса с прежней цели, и при быстрых «Далее» подсветка накапливалась.
-  it('driver.js не анимирует переезд подсветки', () => {
-    expect(engine).toMatch(/animate:\s*false/);
+  // Родной переезд рамки driver.js оставляем включённым: без него подсветка
+  // щёлкает с шага на шаг, и это заметили сразу.
+  it('переезд подсветки анимирует сам driver.js', () => {
+    expect(engine).toMatch(/animate:\s*!prefersReducedMotion\(\)/);
   });
 
-  it('чужие подсветки снимаются на каждом шаге', () => {
-    expect(engine).toMatch(/function dropStaleHighlights\(\)/);
-    expect(engine).toMatch(/onHighlighted\(\)\s*\{\s*dropStaleHighlights\(\)/);
+  // driver.js снимает класс с прежней цели только в конце своей анимации: при
+  // быстрых «Далее» пометки накапливались и над затемнением торчали три элемента.
+  it('прежняя подсветка снимается в начале перехода', () => {
+    expect(engine).toMatch(/onHighlightStarted\(element\)\s*\{\s*dropStaleHighlights\(element\)/);
+  });
+
+  // Пока вырез едет, цель уже помечена классом driver.js. Если вешать на него
+  // подъём над затемнением, форма протыкает затемнение раньше подсветки -
+  // «сначала светятся инпуты, потом появляется блок». Поднимаем своим классом,
+  // и только когда переход доехал.
+  it('цель поднимается над затемнением по завершении перехода', () => {
+    expect(css).toMatch(/\.ob-highlighted\s*\{[^}]*z-index/s);
+    expect(css).not.toMatch(/\.driver-active-element\s*\{[^}]*z-index/s);
+    expect(engine).toMatch(/onHighlighted\(\)[\s\S]{0,120}raiseActiveHighlight\(\)/);
   });
 });
 
