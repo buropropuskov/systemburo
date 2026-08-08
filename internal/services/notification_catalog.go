@@ -88,7 +88,6 @@ const (
 	NotificationTypeUserBanned      = "user_banned"
 	NotificationTypeUserUnbanned    = "user_unbanned"
 	NotificationTypeLoginBlocked    = "login_blocked"
-	NotificationTypeRoleChanged     = "role_changed"
 )
 
 // Коды типов уведомлений раздела "passage" -- события вокруг прохода по заявке.
@@ -214,12 +213,6 @@ var notificationCatalog = map[string]NotificationMeta{
 		Label:       "Вход временно заблокирован",
 		Description: "Слишком много неудачных попыток входа в вашу учётную запись. Отключить такие уведомления нельзя.",
 		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 40, HiddenInSettings: true,
-	},
-	NotificationTypeRoleChanged: {
-		Code: NotificationTypeRoleChanged, Category: NotificationCategorySecurity,
-		Label:       "Изменились роль или права",
-		Description: "Вам назначили другую роль. Отключить такие уведомления нельзя.",
-		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 50, HiddenInSettings: true,
 	},
 
 	// passage

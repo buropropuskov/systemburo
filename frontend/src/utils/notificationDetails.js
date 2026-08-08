@@ -109,6 +109,9 @@ const EXACT_CATEGORY = {
   user_banned: 'security',
   user_unbanned: 'security',
   login_blocked: 'security',
+  // Новых уведомлений этого типа не создаётся (#974, убрано по решению владельца), но
+  // ранее отправленные лежат в ленте до истечения срока хранения - без записи они
+  // потеряли бы иконку и цвет категории.
   role_changed: 'security',
   news_published: 'content',
   document_published: 'content',
