@@ -30,22 +30,39 @@
          Notification/PushManager вне режима "Домой", но subscribe() там
          откажет - лучше объяснить заранее, чем ловить пойманную ошибку. -->
     <!-- Сторонний браузер на iOS проверяется ПЕРВЫМ: подсказка про экран «Домой»
-         ему бесполезна. Ярлык, поставленный из Chrome или Яндекс.Браузера,
-         открывается обычной вкладкой, и push там не включается совсем - человеку
-         нужно сначала перейти в Safari. Найдено на живом iPhone (#974). -->
+         ему бесполезна, ярлык оттуда push не получает. Текст намеренно не требует
+         «перейти на Safari»: Safari нужен ОДИН раз, чтобы поставить иконку, дальше
+         бюро открывается отдельным приложением, и повседневный браузер человека это
+         никак не задевает. Первая формулировка читалась как «пересядь на Safari» и
+         справедливо вызвала возражение (#974). -->
     <div
       v-if="iosNeedsSafariBrowser"
       class="webpush__state webpush__state--info"
       data-testid="webpush-ios-safari-hint"
     >
       <p>
-        Сейчас сайт открыт не в Safari. На iOS (iPhone и iPad) уведомления
-        подключаются только через Safari - другие браузеры там работают на движке
-        Safari, но push им не доступен.
+        На iOS (iPhone и iPad) уведомления получает не сайт в браузере, а отдельное
+        приложение с экрана «Домой». Установить его умеет только Safari - так решила
+        Apple, и это одинаково для всех сайтов.
+      </p>
+      <p class="webpush__hint">
+        Менять браузер не нужно: Safari понадобится один раз, для установки. Дальше
+        бюро пропусков открывается со своей иконки, а вы продолжаете пользоваться
+        привычным браузером.
       </p>
       <ol class="webpush__steps">
-        <li>Скопируйте адрес сайта и откройте его в Safari.</li>
-        <li>Нажмите «Поделиться» в нижней панели.</li>
+        <li>
+          Скопируйте адрес и откройте его в Safari:
+          <button
+            class="webpush__copy"
+            type="button"
+            data-testid="webpush-copy-url"
+            @click="copySiteUrl"
+          >
+            {{ siteUrl }}
+          </button>
+        </li>
+        <li>Нажмите «Поделиться» в нижней панели Safari.</li>
         <li>Выберите «На экран Домой».</li>
         <li>Откройте бюро пропусков с появившейся иконки и включите уведомления здесь.</li>
       </ol>
@@ -160,8 +177,31 @@
 </template>
 
 <script setup>
+import { computed } from 'vue';
 import { useWebPush } from '@/composables/useWebPush';
+import { useDeletionsStore } from '@/stores/deletions';
 import { formatDateTime } from '@/utils/datetime';
+
+const siteUrl = computed(() => window.location.origin);
+const deletions = useDeletionsStore();
+
+/**
+ * Адрес нужно перенести в Safari руками - на iOS страница не может открыть ссылку в
+ * другом браузере. Копирование через буфер снимает ручной ввод; отказ буфера не тупик,
+ * адрес виден на самой кнопке и его можно выделить.
+ */
+async function copySiteUrl() {
+  try {
+    await navigator.clipboard.writeText(siteUrl.value);
+    deletions.notify({ bold: 'Адрес скопирован', suffix: ' - вставьте его в Safari' });
+  } catch {
+    deletions.notify({
+      bold: 'Скопировать не вышло',
+      suffix: ' - наберите адрес в Safari вручную',
+      type: 'warning',
+    });
+  }
+}
 
 const {
   supported,
@@ -202,6 +242,28 @@ const {
   font-size: 12px;
   color: var(--text-muted);
   line-height: 1.4;
+}
+
+/* Адрес кнопкой, а не простым текстом: по нему нажимают, чтобы забрать в буфер, и
+   сам адрес при этом остаётся читаемым - если буфер откажет, его можно набрать. */
+.webpush__copy {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-color, #d8d9e3);
+  border-radius: var(--radius-md, 15px);
+  background: transparent;
+  color: var(--color-primary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  word-break: break-all;
+  text-align: left;
+  transition: background-color 150ms ease;
+}
+
+.webpush__copy:hover {
+  background: var(--color-primary-tint, rgba(79, 91, 223, 0.08));
 }
 
 .webpush__state {

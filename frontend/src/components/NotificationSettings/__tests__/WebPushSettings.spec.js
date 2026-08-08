@@ -89,7 +89,11 @@ describe('WebPushSettings', () => {
 
     const hint = wrapper.find('[data-testid="webpush-ios-safari-hint"]')
     expect(hint.exists()).toBe(true)
-    expect(hint.text()).toContain('не в Safari')
+    // Текст обязан снимать возражение «я принципиально не пользуюсь Safari»: он нужен
+    // один раз для установки, повседневный браузер остаётся прежним.
+    expect(hint.text()).toContain('Менять браузер не нужно')
+    expect(hint.text()).toContain('один раз')
+    expect(hint.find('[data-testid="webpush-copy-url"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="webpush-ios-hint"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="webpush-enable"]').exists()).toBe(false)
   })
