@@ -66,6 +66,11 @@
   --accent-hover: #3d49c7;
   --accent-contrast: #ffffff;
   --accent-tint: rgba(79, 91, 223, 0.08);
+  /* Тот же оттенок, но НЕПРОЗРАЧНЫЙ - для панелей-оверлеев (.bulk-bar поверх шапки
+     карточки): на --accent-tint сквозь панель читалась закрытая ею шапка, и надписи
+     налезали друг на друга. Процент равен альфе --accent-tint своей палитры, поэтому
+     цвет поверх --surface совпадает с прежним. */
+  --accent-tint-solid: color-mix(in srgb, var(--accent) 8%, var(--surface));
 
   /* Фон рабочей области в светлой теме белый - как и карточка на нём. Пробовали
      развести (#f8f9ff из мокапа-эталона), чтобы ошибка выбора слоя была видна
@@ -140,6 +145,7 @@
   --accent-hover: #616DC6;
   --accent-contrast: #F2F4FF;
   --accent-tint: rgba(85, 97, 184, 0.22);
+  --accent-tint-solid: color-mix(in srgb, var(--accent) 22%, var(--surface));
   --fill-text: #F2F4FF;
 
   --bg: #1f2229;

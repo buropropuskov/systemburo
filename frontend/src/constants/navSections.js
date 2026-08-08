@@ -6,6 +6,10 @@
  * молча отсутствовал в поиске, а именно за ответом «где это искать» в поиск и приходят.
  *
  * `permission` -- ключ права; пункт показывается, если оно есть у пользователя.
+ * `superOnly` -- дополнительный гейт поверх `permission`: пункт скрыт от всех, кроме
+ * супер-админа, даже если право выдано (#7 -- бэкенд для этого раздела требует именно
+ * супер-права через checkSuper, а не через каталог прав, поэтому обычным admin-гейтом
+ * не выразить).
  */
 export const ADMIN_GROUPS = [
   {
@@ -39,7 +43,7 @@ export const ADMIN_GROUPS = [
   {
     title: 'Система',
     items: [
-      { label: 'Настройки', icon: 'settings', path: '/admin/settings', permission: 'page.admin' },
+      { label: 'Настройки', icon: 'settings', path: '/admin/settings', permission: 'page.admin', superOnly: true },
       { label: 'Обработка данных', icon: 'data-processing', path: '/admin/data-processing', permission: 'page.admin' },
       { label: 'Конструктор таблиц', icon: 'table-constructor', path: '/table-constructor', permission: 'page.admin.tables_constructor' },
       { label: 'Техработы', icon: 'system-control', path: '/admin/system-control', permission: 'page.admin.system_control' },

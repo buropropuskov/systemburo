@@ -406,6 +406,7 @@
             <div
               v-if="hasStatusSection"
               class="application-status-section"
+              data-testid="ob-detail-status-section"
             >
               <div class="status-header">
                 <h4>Статус заявки</h4>

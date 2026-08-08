@@ -46,11 +46,13 @@
     <div
       v-else
       class="notif-settings__categories"
+      data-testid="ob-notif-categories"
     >
       <section
-        v-for="group in groups"
+        v-for="(group, index) in groups"
         :key="group.category"
         class="lk-card notif-category"
+        :data-testid="index === 0 ? 'ob-notif-category' : null"
       >
         <header class="notif-category__header">
           <h2 class="notif-category__title">

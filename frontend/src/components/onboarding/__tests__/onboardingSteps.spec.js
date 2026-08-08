@@ -7,7 +7,7 @@ const idx = (id) => onboardingSteps.findIndex((s) => s.id === id);
 /** Шаги, живущие внутри карточки заявки (модалка в кабинете). */
 const DETAIL_STEP_IDS = [
   'detail-opened',
-  'detail-status', 'detail-questions', 'detail-actions-intro',
+  'detail-status', 'detail-status-section', 'detail-questions', 'detail-actions-intro',
   'detail-supplement', 'detail-duplicate', 'detail-revoke',
 ];
 
@@ -223,20 +223,20 @@ describe('cross-page конфигурация (cabinet)', () => {
     const cabinetSeg = collectSegment(onboardingSteps, firstCabinet, '/personal-cabinet');
     expect(cabinetSeg.map((s) => s.id)).toEqual([
       'cabinet-profile',
-      'cabinet-notifications',
-      'cabinet-notifications-settings',
       'cabinet-applications',
       'cabinet-search',
       'cabinet-download',
       'cabinet-application-row',
       'detail-opened',
       'detail-status',
+      'detail-status-section',
       'detail-questions',
       'detail-actions-intro',
       'detail-supplement',
       'detail-duplicate',
       'detail-revoke',
-      'cabinet-outro',
+      'cabinet-notifications',
+      'cabinet-notifications-settings',
     ]);
   });
 
@@ -406,9 +406,10 @@ describe('сегмент карточки заявки (#1740)', () => {
     const first = onboardingSteps.findIndex((s) => s.route === '/personal-cabinet');
     const seg = collectSegment(onboardingSteps, first, '/personal-cabinet');
     // Первый шаг сегмента ждёт цель долго и в центр-модалку не деградирует, а
-    // последний ловит «Назад» с /carsview - оба обязаны существовать всегда.
+    // последний ловит «Назад» со страницы настройки уведомлений - оба обязаны
+    // существовать всегда.
     expect(seg[0].optional).toBeUndefined();
-    expect(seg[seg.length - 1].id).toBe('cabinet-outro');
+    expect(seg[seg.length - 1].id).toBe('cabinet-notifications-settings');
     expect(seg[seg.length - 1].optional).toBeUndefined();
   });
 
@@ -465,6 +466,7 @@ describe('сегмент карточки заявки (#1740)', () => {
       renderEmptyCabinet();
       document.body.insertAdjacentHTML('beforeend', `
         <div data-testid="ob-detail-status"></div>
+        <div data-testid="ob-detail-status-section"></div>
         <div data-testid="application-questions"></div>
         <div data-testid="ob-detail-card"><div data-testid="ob-detail-header"></div></div>
         <div data-testid="ob-detail-duplicate"></div>
@@ -488,6 +490,9 @@ describe('порядок сегментов (#1740: новые шаги не р�
     expect(blocks.map((b) => b.route)).toEqual([
       '/news',
       '/personal-cabinet',
+      // Настройка уведомлений - отдельная страница; шаги про неё стоят в конце
+      // кабинета, чтобы не разрывать его надвое.
+      '/notification-settings',
       '/carsview',
       '/employeesview',
       '/new-application',

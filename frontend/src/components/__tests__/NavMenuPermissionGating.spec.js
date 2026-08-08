@@ -140,17 +140,30 @@ describe('NavMenu: гранулярность Администрирования
     expect(groupBy(wrapper.vm, 'Система').items.map((i) => i.label)).toEqual(['Конструктор таблиц']);
   });
 
-  it('page.admin: Настройки и Обработка данных (Система) + Руководство (Справочники), без директорий/конструктора/мониторинга', async () => {
+  it('page.admin, не супер: Обработка данных (Система) + Руководство (Справочники), Настройки скрыты', async () => {
     useAuthStore.mockReturnValue({ isSuperAdmin: false, canViewAccessibleAttachments: false });
     getMyPermissions.mockResolvedValue(permResponse('normal', ['page.admin']));
     wrapper = mountNav();
     await flushPromises();
 
-    // page.admin покрывает baseline-пункты этого ключа: «Настройки» (Система) и
+    // page.admin покрывает baseline-пункты этого ключа: «Обработка данных» (Система) и
     // «Руководство» (Справочники, гейт page.admin - бэкенд requireAdmin). Сами
     // справочники (page.admin.directories) и конструктор/мониторинг не выданы.
+    // «Настройки» (#7) несёт superOnly - permission-ключ page.admin есть, но бэкенд под
+    // ней требует именно супер-права (checkSuper), поэтому пункт скрыт от обычного админа.
     expect(groupTitles(wrapper.vm)).toEqual(['Справочники', 'Система']);
     expect(groupBy(wrapper.vm, 'Справочники').items.map((i) => i.label)).toEqual(['Руководство']);
-    expect(groupBy(wrapper.vm, 'Система').items.map((i) => i.label)).toEqual(['Настройки', 'Обработка данных']);
+    expect(groupBy(wrapper.vm, 'Система').items.map((i) => i.label)).toEqual(['Обработка данных']);
+  });
+
+  it('page.admin, супер-админ: Настройки видны наравне с Обработкой данных (#7)', async () => {
+    useAuthStore.mockReturnValue({ isSuperAdmin: true, canViewAccessibleAttachments: true });
+    getMyPermissions.mockResolvedValue(permResponse('super', []));
+    wrapper = mountNav();
+    await flushPromises();
+
+    expect(groupBy(wrapper.vm, 'Система').items.map((i) => i.label)).toEqual(
+      expect.arrayContaining(['Настройки', 'Обработка данных']),
+    );
   });
 });

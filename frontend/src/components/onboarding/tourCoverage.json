@@ -131,7 +131,7 @@
     },
     "/notification-settings": {
       "tour": "user",
-      "step": "cabinet-notifications-settings"
+      "step": "notif-categories"
     },
     "/personal-cabinet": {
       "tour": "user",
