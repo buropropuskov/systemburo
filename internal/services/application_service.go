@@ -108,6 +108,12 @@ type ApplicationService interface {
 	// GetApplicationsPaginated возвращает страницу заявок с общим количеством.
 	GetApplicationsPaginated(ctx context.Context, username string, filter ApplicationFilter, page, perPage int) ([]ApplicationWithDetails, int64, error)
 
+	// GetRegistryExtras добирает к списку заявок то, чего нет в строке Центра, но
+	// нужно в выгруженном реестре (#1832): сколько людей и машин в заявке и границы
+	// срока действия её вложений. Одним запросом на всю выборку - в списке заявок
+	// сотни строк, и подзапрос на каждую превратил бы выгрузку в N+1.
+	GetRegistryExtras(ctx context.Context, applicationIDs []int) (map[int]ApplicationRegistryExtras, error)
+
 	// GetUserApplications возвращает заявки текущего пользователя с фильтрацией.
 	GetUserApplications(ctx context.Context, username string, filter ApplicationFilter) ([]ApplicationWithDetails, error)
 
@@ -578,6 +584,19 @@ type ApplicationWithDetails struct {
 	HasOpenSupplement bool `json:"has_open_supplement"`
 }
 
+// ApplicationRegistryExtras - то, чего нет в строке Центра, но нужно в выгруженном
+// реестре (#1832): состав заявки числами и границы срока действия её вложений.
+//
+// Даты вложений хранятся строками (varchar с ISO-датой), поэтому границы берутся
+// MIN/MAX по строке: для YYYY-MM-DD лексикографический порядок совпадает с
+// хронологическим. Пустая строка - срок не задан.
+type ApplicationRegistryExtras struct {
+	PeopleCount   int
+	CarsCount     int
+	EntryDateFrom string
+	EntryDateTo   string
+}
+
 // ApplicationCreateResponse ответ при создании заявки.
 type ApplicationCreateResponse struct {
 	Success           bool   `json:"success"`
@@ -897,6 +916,51 @@ func (s *applicationService) maskApplicationNames(ctx context.Context, rows []Ap
 		rows[i].SenderName = maskName(masks, &sender, rows[i].SenderName)
 		rows[i].SenderFullName = maskNamePtr(masks, &sender, rows[i].SenderFullName)
 	}
+}
+
+// GetRegistryExtras добирает состав и сроки по списку заявок одним запросом.
+// Отдельным методом, а не полем ApplicationWithDetails: строке Центра эти числа не
+// нужны, а лишний GROUP BY на каждом открытии списка платили бы все.
+func (s *applicationService) GetRegistryExtras(ctx context.Context, applicationIDs []int) (map[int]ApplicationRegistryExtras, error) {
+	out := make(map[int]ApplicationRegistryExtras, len(applicationIDs))
+	if len(applicationIDs) == 0 {
+		return out, nil
+	}
+
+	var rows []struct {
+		ApplicationID int
+		PeopleCount   int
+		CarsCount     int
+		EntryDateFrom string
+		EntryDateTo   string
+	}
+	// COUNT(DISTINCT) обязателен: у заявки несколько вложений, и join людей с
+	// машинами размножает строки друг друга (декартово произведение внутри группы).
+	err := s.db.WithContext(ctx).
+		Table("attachments AS at").
+		Select(`at.application_id AS application_id,
+			COUNT(DISTINCT e.id) AS people_count,
+			COUNT(DISTINCT c.id) AS cars_count,
+			COALESCE(MIN(NULLIF(at.entry_date_from, '')), '') AS entry_date_from,
+			COALESCE(MAX(NULLIF(at.entry_date_to, '')), '') AS entry_date_to`).
+		Joins("LEFT JOIN employees e ON e.attachment_id = at.id").
+		Joins("LEFT JOIN cars c ON c.attachment_id = at.id").
+		Where("at.application_id IN ?", applicationIDs).
+		Group("at.application_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("сводка вложений для реестра заявок: %w", err)
+	}
+
+	for _, r := range rows {
+		out[r.ApplicationID] = ApplicationRegistryExtras{
+			PeopleCount:   r.PeopleCount,
+			CarsCount:     r.CarsCount,
+			EntryDateFrom: r.EntryDateFrom,
+			EntryDateTo:   r.EntryDateTo,
+		}
+	}
+	return out, nil
 }
 
 func (s *applicationService) GetApplications(ctx context.Context, username string, filter ApplicationFilter) ([]ApplicationWithDetails, error) {
@@ -2099,7 +2163,6 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 					firstName := e.FirstName
 					citizenshipID := e.CitizenshipID
 					position := e.Position
-					passportSeriesNumber := e.PassportSeriesNumber
 					employee := models.Employee{
 						AttachmentID:         &attID,
 						LastName:             &lastName,
@@ -2107,8 +2170,8 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 						MiddleName:           e.MiddleName,
 						CitizenshipID:        &citizenshipID,
 						Position:             &position,
-						PassportSeriesNumber: &passportSeriesNumber,
-						PatentNumber:         e.PatentNumber,
+						PassportSeriesNumber: nilIfBlank(e.PassportSeriesNumber),
+						PatentNumber:         nilIfBlankPtr(e.PatentNumber),
 						OtherPermission:      e.OtherPermission,
 						Status:               &statusZero,
 					}

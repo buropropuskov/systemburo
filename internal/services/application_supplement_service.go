@@ -579,7 +579,6 @@ func (s *applicationService) insertSupplementEntities(ctx context.Context, tx *g
 		statusZero := 0
 		lastName, firstName := e.LastName, e.FirstName
 		citizenshipID, position := e.CitizenshipID, e.Position
-		passport := e.PassportSeriesNumber
 		attachmentID, roundID := attID, supplementID
 		employee := models.Employee{
 			AttachmentID:         &attachmentID,
@@ -589,8 +588,8 @@ func (s *applicationService) insertSupplementEntities(ctx context.Context, tx *g
 			MiddleName:           e.MiddleName,
 			CitizenshipID:        &citizenshipID,
 			Position:             &position,
-			PassportSeriesNumber: &passport,
-			PatentNumber:         e.PatentNumber,
+			PassportSeriesNumber: nilIfBlank(e.PassportSeriesNumber),
+			PatentNumber:         nilIfBlankPtr(e.PatentNumber),
 			OtherPermission:      e.OtherPermission,
 			Status:               &statusZero,
 		}

@@ -251,8 +251,8 @@ func (s *employeeService) CreateEmployee(ctx context.Context, req CreateEmployee
 			MiddleName:           req.MiddleName,
 			CitizenshipID:        &req.CitizenshipID,
 			Position:             &req.Position,
-			PassportSeriesNumber: &req.PassportSeriesNumber,
-			PatentNumber:         req.PatentNumber,
+			PassportSeriesNumber: nilIfBlank(req.PassportSeriesNumber),
+			PatentNumber:         nilIfBlankPtr(req.PatentNumber),
 			OtherPermission:      req.OtherPermission,
 			Status:               &statusZero,
 		}
@@ -347,16 +347,6 @@ func (s *employeeService) CreateManualEmployees(ctx context.Context, req ManualE
 				citizenshipID = &emp.CitizenshipID
 			}
 			lastName, firstName, position := emp.LastName, emp.FirstName, emp.Position
-			// Пустой паспорт -> nil (а не &""): иначе HMAC("") одинаков у всех безпаспортных,
-			// и dedup PARTITION BY passport_hmac (rn=1) в GetActiveEmployeesForTable молча
-			// спрячет всех гостей без паспорта кроме одного. NULL-паспорт инвариантно не
-			// схлопывается (условие hmac IS NULL OR rn=1). Паспорт опционален - у мигрантов
-			// патент/иное разрешение вместо него.
-			var passportPtr *string
-			if strings.TrimSpace(emp.PassportSeriesNumber) != "" {
-				passport := emp.PassportSeriesNumber
-				passportPtr = &passport
-			}
 			employee := models.Employee{
 				AttachmentID:         &attID,
 				LastName:             &lastName,
@@ -364,8 +354,8 @@ func (s *employeeService) CreateManualEmployees(ctx context.Context, req ManualE
 				MiddleName:           emp.MiddleName,
 				CitizenshipID:        citizenshipID,
 				Position:             &position,
-				PassportSeriesNumber: passportPtr,
-				PatentNumber:         emp.PatentNumber,
+				PassportSeriesNumber: nilIfBlank(emp.PassportSeriesNumber),
+				PatentNumber:         nilIfBlankPtr(emp.PatentNumber),
 				OtherPermission:      emp.OtherPermission,
 				Status:               &empStatus,
 			}

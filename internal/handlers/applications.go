@@ -34,6 +34,29 @@ func (h *ApplicationHandler) canOverrideOrganization(c echo.Context) (bool, erro
 	return set.Has(services.KeyApplicationOrganizationOverride), nil
 }
 
+// bindApplicationListFilter собирает фильтр списка заявок из query-параметров.
+// Одна функция на список и на выгрузку реестра (#1832): набор фильтров у них
+// обязан совпадать, а скопированный парсинг разъезжается с первым же новым
+// фильтром - в файл уедет не то, что человек видит на экране.
+//
+// archive и active_today разбираются руками: Bind не кладёт "true"/"false" в
+// *bool, а отсутствие параметра должно означать «фильтр не задан», а не false.
+func bindApplicationListFilter(c echo.Context) (services.ApplicationFilter, error) {
+	var filter services.ApplicationFilter
+	if err := c.Bind(&filter); err != nil {
+		return filter, echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if archiveStr := c.QueryParam("archive"); archiveStr != "" {
+		archive := archiveStr == "true"
+		filter.Archive = &archive
+	}
+	if activeTodayStr := c.QueryParam("active_today"); activeTodayStr != "" {
+		activeToday := activeTodayStr == "true"
+		filter.ActiveToday = &activeToday
+	}
+	return filter, nil
+}
+
 // GetApplications godoc
 // @Summary      Список заявок для Центра заявок
 // @Description  Возвращает заявки с фильтрацией. Принимающие видят все, обычные пользователи -- только свои.
@@ -59,18 +82,9 @@ func (h *ApplicationHandler) canOverrideOrganization(c echo.Context) (bool, erro
 func (h *ApplicationHandler) GetApplications(c echo.Context) error {
 	username := c.Get("username").(string)
 
-	var filter services.ApplicationFilter
-	if err := c.Bind(&filter); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
-	}
-
-	if archiveStr := c.QueryParam("archive"); archiveStr != "" {
-		archive := archiveStr == "true"
-		filter.Archive = &archive
-	}
-	if activeTodayStr := c.QueryParam("active_today"); activeTodayStr != "" {
-		activeToday := activeTodayStr == "true"
-		filter.ActiveToday = &activeToday
+	filter, err := bindApplicationListFilter(c)
+	if err != nil {
+		return err
 	}
 
 	// Legacy mode: if per_page not specified, return all (backward compat)
