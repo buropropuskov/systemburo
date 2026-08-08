@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"systemburo/internal/models"
@@ -57,7 +58,9 @@ func TestSubmit_NotifiesApproversAboutPendingApplication(t *testing.T) {
 	require.NotNil(t, forApprover[0].Title)
 	require.NotNil(t, forApprover[0].Message)
 	assert.Equal(t, "Новая заявка", *forApprover[0].Title)
-	assert.Contains(t, *forApprover[0].Message, "Поступила новая заявка")
+	// Номер первой строкой, без повтора заголовка.
+	assert.True(t, strings.HasPrefix(*forApprover[0].Message, "№ "),
+		"текст должен начинаться с номера заявки, получено: %q", *forApprover[0].Message)
 	// Организация в тексте: в шторке телефона видно две строки, и по одному номеру
 	// заявки принимающий не понимает, чья она (#974).
 	assert.Contains(t, *forApprover[0].Message, "Test Organization")
@@ -66,7 +69,7 @@ func TestSubmit_NotifiesApproversAboutPendingApplication(t *testing.T) {
 	// Превью сообщения заявки - без разметки, отдельной строкой.
 	assert.Contains(t, *forApprover[0].Message, "Привоз мебели на склад")
 	assert.NotContains(t, *forApprover[0].Message, "<p>")
-	assert.Contains(t, *forApprover[0].Message, "\n", "текст собирается строками, а не одной фразой")
+	assert.Contains(t, *forApprover[0].Message, "\n\n", "блоки разделяются пустой строкой")
 	require.NotNil(t, forApprover[0].Data, "без data в окне подробностей не будет перехода к заявке")
 	assert.Contains(t, *forApprover[0].Data, "application_id")
 	assert.Contains(t, *forApprover[0].Data, "Test Organization")

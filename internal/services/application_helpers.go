@@ -1026,13 +1026,16 @@ type pendingAcceptanceNote struct {
 	fileCount    int
 }
 
-// message собирает текст строками: событие, от кого, о чём, сколько вложено. Строки, а
-// не одна фраза, потому что в развёрнутом уведомлении и в окне подробностей переносы
-// видны, и «от кого» глаз находит сразу. Пустые части выпадают целиком - у заявки может
-// не быть ни организации, ни сообщения, ни файлов, и пустые ярлыки только занимали бы
-// место.
+// message собирает текст блоками, разделёнными пустой строкой: номер заявки, от кого,
+// о чём. Внутри блока строки идут подряд. Так уведомление читается взглядом сверху вниз,
+// а не вычитывается из сплошной фразы - в шторке телефона и в окне подробностей переносы
+// видны (white-space: pre-wrap). Слов «поступила новая заявка» в тексте нет намеренно:
+// это уже сказано заголовком, и повторять его значит тратить первую строку впустую.
+// Пустые блоки выпадают целиком, лишних отступов от них не остаётся.
 func (n pendingAcceptanceNote) message() string {
-	lines := []string{fmt.Sprintf("Поступила новая заявка %s", n.number)}
+	var blocks []string
+
+	blocks = append(blocks, n.number)
 
 	var from []string
 	if org := strings.TrimSpace(n.organization); org != "" {
@@ -1042,16 +1045,21 @@ func (n pendingAcceptanceNote) message() string {
 		from = append(from, sender)
 	}
 	if len(from) > 0 {
-		lines = append(lines, strings.Join(from, ", "))
+		blocks = append(blocks, strings.Join(from, "\n"))
 	}
 
+	var about []string
 	if preview := previewText(plainTextFromRichText(n.messageText), notificationPreviewLimit); preview != "" {
-		lines = append(lines, preview)
+		about = append(about, preview)
 	}
 	if files := fileCountLabel(n.fileCount); files != "" {
-		lines = append(lines, files)
+		about = append(about, files)
 	}
-	return strings.Join(lines, "\n")
+	if len(about) > 0 {
+		blocks = append(blocks, strings.Join(about, "\n"))
+	}
+
+	return strings.Join(blocks, "\n\n")
 }
 
 // applicationSenderTitle - наименование организации заявки, а если её нет, то компании.

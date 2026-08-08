@@ -67,33 +67,33 @@ func TestFileCountLabel(t *testing.T) {
 // Текст уведомления собирается строками, и пустые части выпадают целиком: у заявки может
 // не быть ни организации, ни сообщения, ни файлов.
 func TestPendingAcceptanceNoteMessage(t *testing.T) {
-	t.Run("всё заполнено", func(t *testing.T) {
+	t.Run("всё заполнено - три блока через пустую строку", func(t *testing.T) {
 		note := pendingAcceptanceNote{
 			number: "№ 20260808/003", organization: "ООО Ромашка",
 			sender: "Иванов Иван Иванович", messageText: "<p>Привоз мебели</p>", fileCount: 2,
 		}
-		lines := strings.Split(note.message(), "\n")
-		assert.Equal(t, []string{
-			"Поступила новая заявка № 20260808/003",
-			"«ООО Ромашка», Иванов Иван Иванович",
-			"Привоз мебели",
-			"Вложено 2 файла",
-		}, lines)
+		assert.Equal(t, "№ 20260808/003\n\n«ООО Ромашка»\nИванов Иван Иванович\n\nПривоз мебели\nВложено 2 файла",
+			note.message())
 	})
 
-	t.Run("только номер - одна строка, без пустых ярлыков", func(t *testing.T) {
+	t.Run("только номер - одна строка, без висящих отступов", func(t *testing.T) {
 		note := pendingAcceptanceNote{number: "№ 1"}
-		assert.Equal(t, "Поступила новая заявка № 1", note.message())
+		assert.Equal(t, "№ 1", note.message())
 	})
 
-	t.Run("без организации остаётся отправитель", func(t *testing.T) {
+	t.Run("без организации остаётся отправитель, пустых кавычек нет", func(t *testing.T) {
 		note := pendingAcceptanceNote{number: "№ 2", sender: "Петров П. П."}
-		assert.Contains(t, note.message(), "Петров П. П.")
-		assert.NotContains(t, note.message(), "«»")
+		assert.Equal(t, "№ 2\n\nПетров П. П.", note.message())
 	})
 
-	t.Run("прежней формулировки про работу больше нет", func(t *testing.T) {
+	t.Run("без сообщения и файлов третьего блока нет", func(t *testing.T) {
+		note := pendingAcceptanceNote{number: "№ 4", organization: "ООО Ромашка"}
+		assert.Equal(t, "№ 4\n\n«ООО Ромашка»", note.message())
+	})
+
+	t.Run("заголовок не дублируется в тексте", func(t *testing.T) {
 		note := pendingAcceptanceNote{number: "№ 3", organization: "ООО Ромашка"}
+		assert.NotContains(t, note.message(), "Поступила новая заявка")
 		assert.NotContains(t, note.message(), "возьмут в работу")
 	})
 }
