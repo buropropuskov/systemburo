@@ -88,6 +88,10 @@ const store = reactive({
   currentIndex: 0,
   isManual: true,
   pendingSegment: false,
+  skippedIndexes: [],
+  markSkipped(index) {
+    if (!this.skippedIndexes.includes(index)) this.skippedIndexes.push(index);
+  },
   statusLoaded: true,
   canShowTour: false,
   currentStep: null,
@@ -140,6 +144,7 @@ describe('OnboardingTour - шаг без цели на пустой систем
     mocks.route.path = '/news';
     store.isActive = false;
     store.currentIndex = 0;
+    store.skippedIndexes = [];
     document.body.innerHTML = '<div data-testid="ob-intro"></div><div data-testid="ob-outro"></div>';
   });
 
@@ -189,15 +194,15 @@ describe('OnboardingTour - шаг без цели на пустой систем
     expect(shownStep(0).popover.description).not.toContain('<img');
   });
 
-  it('счётчик считает шаг со скриншотом и не считает пропускаемый', async () => {
+  it('счётчик считает все шаги, пока ни один не выброшен', async () => {
     await startTour();
     mocks.driver.activeIndex = 1;
     const popover = fakePopover();
 
     mocks.driver.config.onPopoverRender(popover);
 
-    // Всего шагов четыре, но «Доп. поля» выпадут - в счёт идут три.
-    expect(popover.wrapper.querySelector('.ob-popover__step-label').textContent).toBe('Шаг 2 из 3');
+    // «Доп. поля» может и не выпасть - пока шаг не выброшен, он в счёте.
+    expect(popover.wrapper.querySelector('.ob-popover__step-label').textContent).toBe('Шаг 2 из 4');
   });
 });
 

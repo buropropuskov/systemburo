@@ -1,3 +1,5 @@
+import { MAIN_SECTIONS, ADMIN_GROUPS } from '@/constants/navSections';
+
 /**
  * Версия тура заявителя. Сверяется с пройденной версией, полученной с бэкенда:
  * повышение версии (новые шаги) заставит тур считаться непройденным и
@@ -25,9 +27,13 @@ export const ONBOARDING_VERSION = 3;
  *                «Шаг N из M». Не путать с `optional`: `requires` - «этому
  *                пользователю такого элемента не положено», `optional` - «элемент
  *                может не отрисоваться» (данных нет);
+ * - `waitFor`    селектор ОЖИДАНИЯ, если он строже подсвечиваемого: форма заявки
+ *                живёт в одном узле для всех бланков, и «форма появилась» ещё не
+ *                значит «перерисовалась под нужный бланк». По умолчанию ждём сам
+ *                `element`;
  * - `optional`   элемента может не быть в DOM - шаг ждёт цель коротко и
- *                пропускается, если она не появилась (тогда он не участвует и в
- *                счётчике «Шаг N из M»). Вместе с `demo` пропуска нет: у нового
+ *                пропускается, если она не появилась (пропущенный шаг выпадает из
+ *                счётчика «Шаг N из M»). Вместе с `demo` пропуска нет: у нового
  *                пользователя система пуста, и вместо подсветки шаг показывается
  *                центр-модалом со скриншотом - и считается наравне с обычными;
  * - `optionalSegment` весь сегмент может быть недостижим (роут-гард) - хост
@@ -49,7 +55,7 @@ export const ONBOARDING_VERSION = 3;
  *                узел свёрнут на любой ширине и появляется только по действию
  *                пользователя. Механика - в reveal.js.
  *
- * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, demo?: string, requires?: string, optional?: boolean, optionalSegment?: boolean, expandRail?: boolean, celebrate?: boolean, cta?: string, ctaRoute?: string, demoAttachment?: string, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: 'admin-column'|'search-panel'|'first-application' } }>}
+ * @type {Array<{ id: string, route: string, element: string|null, waitFor?: string, title: string, description: string, demo?: string, requires?: string, optional?: boolean, optionalSegment?: boolean, expandRail?: boolean, celebrate?: boolean, cta?: string, ctaRoute?: string, demoAttachment?: string, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: 'admin-column'|'search-panel'|'first-application' } }>}
  */
 export const onboardingSteps = [
   {
@@ -251,9 +257,11 @@ export const onboardingSteps = [
   {
     id: 'detail-opened',
     route: '/personal-cabinet',
-    element: '[data-testid="ob-detail-header"]',
+    // Карточка целиком, а не её шапка: шаг знакомит с окном, и подсвеченная
+    // полоска сверху читалась как «тур показывает заголовок».
+    element: '[data-testid="ob-detail-card"]',
     title: 'Вот ваша заявка',
-    description: 'Это карточка заявки. Сверху - номер, дата подачи и действия над заявкой; ниже - её состав и согласование. Закрывается крестиком справа или клавишей Esc.',
+    description: 'Окно заявки: сверху - номер, дата подачи и действия над ней; ниже - состав заявки и её согласование. Закрывается крестиком справа или клавишей Esc.',
     optional: true,
     side: 'bottom',
     reveal: { open: 'first-application' },
@@ -406,7 +414,7 @@ export const onboardingSteps = [
     route: '/new-application',
     element: '[data-testid="ob-app-selector"]',
     title: 'Бланк добавлен',
-    description: 'Для примера мы добавили сюда бланк «Автомобили» - обычно вы делаете это кнопкой «Добавить». Бланк - это раздел заявки: в него вносят один или несколько автомобилей. Бланков в заявке может быть несколько, например машины и сотрудники сразу.',
+    description: 'Для примера мы добавили сюда бланк для транспорта - обычно вы делаете это кнопкой «Добавить». Бланк - это раздел заявки: в него вносят одну или несколько машин. Названия бланков задаёт Бюро, а бланков в заявке может быть сразу несколько - например, машины и сотрудники.',
     demoAttachment: 'cars',
     side: 'right',
     align: 'start',
@@ -446,8 +454,9 @@ export const onboardingSteps = [
     id: 'createapp-car-form',
     route: '/new-application',
     element: '[data-testid="ob-app-formdata"]',
-    title: 'Форма «Автомобили»',
-    description: 'Сама форма транспорта: формат номера, номер и марка, места разгрузки. Кнопка «Добавить» переносит авто в «Список транспортных средств» справа - в одну заявку можно внести несколько машин.',
+    waitFor: '[data-testid="ob-app-formdata"][data-attachment-type="cars"]',
+    title: 'Форма транспорта',
+    description: 'Форма выбранного бланка: формат номера, номер и марка, места разгрузки. Кнопка «Добавить» переносит машину в список справа - в один бланк их можно внести несколько.',
     demoAttachment: 'cars',
     side: 'left',
     align: 'start',
@@ -456,8 +465,11 @@ export const onboardingSteps = [
     id: 'createapp-blank-switch',
     route: '/new-application',
     element: '[data-testid="ob-blank-list"]',
+    // Ждём, пока выделение в списке переедет на «Сотрудников»: смена бланка
+    // пересоздаёт форму, и без этого шаг подсвечивал список со старым выбором.
+    waitFor: '[data-testid="ob-blank-list"][data-selected-type="people"]',
     title: 'Переключились на другой бланк',
-    description: 'Выбрали слева бланк «Сотрудники» - подсвечен выбранный. Форма справа сейчас сменится под него, а заполненное по автомобилям сохранится в своём бланке.',
+    description: 'Слева выбран другой бланк - выбранный подсвечен. Форма справа уже сменилась под него, а внесённое в прежний бланк осталось в нём.',
     demoAttachment: 'people',
     optional: true,
     side: 'right',
@@ -467,8 +479,9 @@ export const onboardingSteps = [
     id: 'createapp-people-form',
     route: '/new-application',
     element: '[data-testid="ob-app-formdata"]',
-    title: 'Форма «Сотрудники»',
-    description: 'Слева выбрали бланк «Сотрудники» - и форма сменилась: теперь это гражданство, ФИО, должность и паспортные данные. Для иностранных граждан добавятся поля патента и разрешения на работу. Кнопка «Добавить» переносит сотрудника в «Список сотрудников» справа. Заполненное по автомобилям при этом никуда не делось.',
+    waitFor: '[data-testid="ob-app-formdata"][data-attachment-type="people"]',
+    title: 'Форма сотрудников',
+    description: 'Бланк для людей: гражданство, ФИО, должность и паспортные данные (иностранным гражданам добавятся патент и разрешение на работу). Кнопка «Добавить» переносит сотрудника в список справа.',
     demoAttachment: 'people',
     // Форма занимает почти весь экран, и по бокам driver.js места не находит -
     // поповер выдавливало в угол (замер 21,0). Сверху место есть всегда.
@@ -479,6 +492,7 @@ export const onboardingSteps = [
     id: 'createapp-consent',
     route: '/new-application',
     element: '[data-testid="ob-app-consent"]',
+    waitFor: '[data-testid="ob-app-formdata"][data-attachment-type="people"]',
     title: 'Согласие на обработку данных',
     description:
       'Без этой отметки заявка не отправится: вы подтверждаете согласие на обработку, хранение и передачу персональных данных, изложенных в заявке. Слово «согласие» - ссылка на полный текст, он открывается отдельной вкладкой.',
@@ -507,6 +521,48 @@ export const onboardingSteps = [
     cta: 'Подать первую заявку',
   },
 ];
+
+/**
+ * Человеческое имя раздела по его route - подпись группы в списке шагов тура.
+ * Берём из навигации системы, чтобы названия совпадали с тем, что человек видит
+ * в меню; для страниц вне меню (таблицы постов) отдаём запасное имя.
+ *
+ * @param {string} route
+ * @returns {string}
+ */
+export function sectionTitleFor(route) {
+  const inMain = MAIN_SECTIONS.find((s) => s.path === route);
+  if (inMain) return inMain.label;
+  for (const group of ADMIN_GROUPS) {
+    const item = group.items.find((i) => i.path === route);
+    if (item) return `${group.title}: ${item.label}`;
+  }
+  if (route === '/admin/settings') return 'Настройки Бюро';
+  if (route?.startsWith('/table/')) return 'Таблица поста';
+  return 'Раздел системы';
+}
+
+/**
+ * Шаги тура, сгруппированные по разделам, - для списка «перейти к шагу». Считаем
+ * от полного набора: пользователь должен видеть и то, что уже прошёл, и то, что
+ * впереди. Выброшенные в этом прохождении шаги (их целей на экране нет) из списка
+ * убираем - прыгнуть на них всё равно некуда.
+ *
+ * @param {Array<{route: string, title: string}>} steps
+ * @param {Array<number>|Set<number>} [skipped] индексы выброшенных шагов
+ * @returns {Array<{ route: string, title: string, items: Array<{ index: number, title: string }> }>}
+ */
+export function groupStepsBySection(steps, skipped = []) {
+  const dropped = skipped instanceof Set ? skipped : new Set(skipped);
+  const groups = [];
+  steps.forEach((step, index) => {
+    if (dropped.has(index)) return;
+    const last = groups[groups.length - 1];
+    if (last && last.route === step.route) last.items.push({ index, title: step.title });
+    else groups.push({ route: step.route, title: sectionTitleFor(step.route), items: [{ index, title: step.title }] });
+  });
+  return groups;
+}
 
 /**
  * Подряд идущие шаги начиная с `startIndex`, чей `route` совпадает с активной

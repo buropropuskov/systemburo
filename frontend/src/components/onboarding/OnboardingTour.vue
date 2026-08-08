@@ -11,7 +11,7 @@ const store = useOnboardingStore();
 const ui = useUiStore();
 const route = useRoute();
 const router = useRouter();
-const { waitForElement, createDriver, prefersReducedMotion } = useOnboarding();
+const { waitForElement, ensureInView, createDriver, prefersReducedMotion } = useOnboarding();
 
 /**
  * Плавное закрытие тура: driver.js делает только fade-IN, а на destroy убирает
@@ -94,6 +94,19 @@ function applyDemoAttachment(globalIndex) {
 }
 
 /**
+ * Что ждём перед показом шага. По умолчанию - сам подсвечиваемый элемент, но шаг
+ * может задать `waitFor` отдельно: у формы заявки один и тот же узел обслуживает
+ * оба бланка, и ждать «форму вообще» мало - иначе тур подсвечивает её, пока в ней
+ * ещё прежний бланк (шаг «Сотрудники» показывал форму автомобилей).
+ *
+ * @param {{ element?: string|null, waitFor?: string }} step
+ * @returns {string}
+ */
+function waitSelectorOf(step) {
+  return step?.waitFor || step?.element;
+}
+
+/**
  * Пересчитать подсветку после того, как сменившийся бланк перерисовал форму.
  * Ждём НОВЫЙ узел по тому же селектору и зовём driver.refresh(): без этого
  * подсветка остаётся на удалённом элементе, то есть пропадает.
@@ -104,7 +117,7 @@ function applyDemoAttachment(globalIndex) {
 async function refreshHighlightFor(globalIndex, gen) {
   const step = store.steps[globalIndex];
   if (!step?.element) return;
-  const el = await waitForElement(step.element, FIRST_TARGET_TIMEOUT);
+  const el = await waitForElement(waitSelectorOf(step), FIRST_TARGET_TIMEOUT);
   // Тур мог уйти дальше или перезапуститься, пока форма перерисовывалась.
   if (!el || !driverObj || gen !== driverGen || store.currentIndex !== globalIndex) return;
   // refresh здесь бесполезен: он пересчитывает рамку по цели, которую driver
@@ -132,21 +145,27 @@ async function refreshHighlightFor(globalIndex, gen) {
  */
 async function prepareStep(globalIndex) {
   const step = store.steps[globalIndex];
-  applyDemoAttachment(globalIndex);
-  await applyReveal(store.steps, globalIndex);
+  const attachmentChanged = applyDemoAttachment(globalIndex);
+  const revealed = await applyReveal(store.steps, globalIndex);
   if (!step?.element) return true;
   // Опциональный шаг ждём коротко: к этому моменту форма и field-config уже
   // отрисованы на предыдущем шаге, так что отсутствие элемента (доп.полей нет)
   // определяется быстро - не держим пользователя на «Далее». Обязательный шаг
   // ждём дольше (данным/демо-форме нужно время появиться).
-  // Короткое ожидание - только для «элемента может не быть» (доп.поля, пустой
-  // список). Шаг с reveal.open ждёт полный таймаут: узел там раскрывается по
-  // действию и въезжает анимацией, за 700 мс не поспевает - и шаг вырождался в
-  // окно по центру, хотя цель через миг появлялась (#1771: карточка заявки,
-  // панель поиска).
-  const timeout = step.optional && !step.reveal?.open ? 700 : FIRST_TARGET_TIMEOUT;
-  const el = await waitForElement(step.element, timeout);
-  if (el) return true;
+  // Полный таймаут ждём, только когда на этом шаге ЧТО-ТО раскрывали или меняли
+  // бланк: узел въезжает анимацией и за 700 мс не поспевает (#1771). Когда узел
+  // давно открыт - ждать нечего, отсутствие цели значит «её тут нет». Разница
+  // видна на карточке заявки: там подряд идут необязательные кнопки, и по 4 с на
+  // каждую превращались в «нажал Далее, а ничего не происходит».
+  const needsLongWait = revealed || attachmentChanged || !step.optional;
+  const timeout = needsLongWait ? FIRST_TARGET_TIMEOUT : 700;
+  const el = await waitForElement(waitSelectorOf(step), timeout);
+  if (el) {
+    // Подсвечиваем ровно то, что человек видит: длинная форма заявки остаётся
+    // прокрученной от прошлого шага, и цель могла уехать за край экрана.
+    await ensureInView(step.element ? document.querySelector(step.element) : el);
+    return true;
+  }
   if (step.demo) return STEP_DEMO_FALLBACK;
   return step.optional ? false : true;
 }
@@ -182,7 +201,7 @@ async function startSegment() {
   let targetMissing = false;
   if (targetStep.element) {
     waitController = new AbortController();
-    const el = await waitForElement(targetStep.element, FIRST_TARGET_TIMEOUT, waitController.signal);
+    const el = await waitForElement(waitSelectorOf(targetStep), FIRST_TARGET_TIMEOUT, waitController.signal);
     waitController = null;
     // Тур могли остановить или перезапустить (Esc/logout/новый сегмент) пока
     // ждали элемент - не поднимаем driver-зомби поверх неактивного/чужого тура.
@@ -213,6 +232,7 @@ async function startSegment() {
     onBeforeStep: prepareStep,
     onBoundaryNext: handleBoundaryNext,
     onBoundaryPrev: handleBoundaryPrev,
+    onJumpTo: jumpToStep,
     onCtaClick: finishWithCta,
     // Esc/оверлей/крестик/Пропустить -> просто останавливаем тур. teardown
     // (через watch isActive) снимет overlay и пометит авто-тур пройденным -
@@ -222,6 +242,28 @@ async function startSegment() {
     onDestroyed: () => handleDestroyed(myGen),
   });
   driverObj.drive(localTarget);
+}
+
+/**
+ * Прыжок на произвольный шаг из списка в поповере. Шаг на этой же странице
+ * готовим как обычно (демо-вложение, раскрытие узла, ожидание цели) и просим
+ * driver перейти; шаг на другой странице отдаём той же дорогой, что и переход по
+ * границе сегмента - через навигацию с флагом ожидания.
+ *
+ * @param {number} globalIndex
+ */
+async function jumpToStep(globalIndex) {
+  const step = store.steps[globalIndex];
+  if (!step || globalIndex === store.currentIndex) return;
+  if (step.route !== route.path) {
+    retreatToSegment(globalIndex, step.route);
+    return;
+  }
+  const gen = driverGen;
+  applyRail(globalIndex);
+  const ready = await prepareStep(globalIndex);
+  if (!driverObj || gen !== driverGen) return;
+  driverObj.obGoTo(globalIndex, ready === false || ready === STEP_DEMO_FALLBACK);
 }
 
 /**
