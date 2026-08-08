@@ -986,3 +986,33 @@ func safeDerefInt(p *int) int {
 	}
 	return 0
 }
+
+// notifyApproversAboutNewApplication зовёт принимающих к свежеподанной заявке.
+// Принимающий - глобальная роль (строка в application_approvers), не привязанная ни к
+// организации, ни к конкретной заявке, поэтому зовём весь реестр. Автор пропускается:
+// подавший заявку и сам знает, что подал, а «Заявка отправлена» ему уже ушла.
+// Ошибка отдельного получателя не прерывает рассылку - остальные должны узнать.
+func (s *applicationService) notifyApproversAboutNewApplication(
+	ctx context.Context, authorID, appID int, applicationNumber, payload string,
+) {
+	var approverIDs []int
+	if err := s.db.WithContext(ctx).Model(&models.ApplicationApprover{}).
+		Where("user_id <> ?", authorID).
+		Pluck("user_id", &approverIDs).Error; err != nil {
+		slog.Error("не удалось получить список принимающих для уведомления о новой заявке",
+			"app_id", appID, "error", err)
+		return
+	}
+	for _, userID := range approverIDs {
+		if err := s.notificationService.CreateForUser(
+			ctx, userID,
+			NotificationTypeApplicationPendingAcceptance,
+			"Новая заявка в центре",
+			fmt.Sprintf("Заявка %s ждёт, когда её возьмут в работу.", applicationNumber),
+			&payload,
+		); err != nil {
+			slog.Warn("не удалось уведомить принимающего о новой заявке",
+				"user_id", userID, "app_id", appID, "error", err)
+		}
+	}
+}
