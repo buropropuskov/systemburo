@@ -225,6 +225,23 @@
           />
         </div>
 
+        <!-- Скачать пустой бланк для массового ввода участников (эпик blank-import, B2):
+             гейт правом action.import.list - скачал, значит сможет и загрузить обратно. -->
+        <div
+          v-if="showBlankTemplateButton"
+          class="blank-template-row"
+        >
+          <button
+            type="button"
+            class="lk-button lk-button--secondary lk-button--sm"
+            data-testid="download-blank-template-btn"
+            :disabled="downloadingBlankTemplate"
+            @click="downloadBlankTemplate"
+          >
+            {{ downloadingBlankTemplate ? 'Скачиваем...' : 'Скачать бланк для заполнения' }}
+          </button>
+        </div>
+
         <!-- 4 ряд: Динамические формы в зависимости от типа вложения -->
         <!-- data-attachment-type читает онбординг: форма одна на все бланки, и по
              одному лишь её появлению не понять, успела ли она перерисоваться под
@@ -381,6 +398,8 @@ import { apiRequest } from '@/api/client'
 import { mapWithConcurrency } from '@/utils/mapWithConcurrency'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionsStore } from '@/stores/permissions'
+import { downloadBlankTemplate as fetchBlankTemplate } from '@/api/blankImport'
+import { saveBlobAs } from '@/api/attachment-templates'
 import { toAttachmentContent } from '@/utils/applicationEntityPayload';
 import { useDeletionsStore } from '@/stores/deletions'
 import { formatRussianPhone, isValidRussianPhone } from '@/composables/useRussianPhoneMask'
@@ -413,6 +432,11 @@ import {
 // Параллелизм привязки новых ТС/сотрудников при подаче: держим веер узким, чтобы
 // крупная заявка не выстрелила сотнями одновременных POST и не упёрлась в лимит.
 const BIND_CONCURRENCY = 6;
+
+// Право на импорт списка из заполненного бланка (эпик blank-import, срез C1C2).
+// Кнопка скачивания ПУСТОГО бланка (B2) гейтится тем же правом: скачал -
+// значит сможет и загрузить обратно, иначе получится класс "видно, но 403".
+const ACTION_IMPORT_LIST_PERMISSION = 'action.import.list';
 
 export default {
     name: 'CreateApplication',
@@ -476,6 +500,10 @@ export default {
             selectedAttachment: null,
             attachments: [],
 
+            // Скачивание пустого бланка для массового ввода (эпик blank-import, B2):
+            // блокирует повторный клик, пока летит запрос.
+            downloadingBlankTemplate: false,
+
             // #1183: предупреждения выбранных мест текущей формы для плавающей панели.
             placeNotices: [],
 
@@ -538,6 +566,15 @@ export default {
         // запись из профиля, а сервер всё равно привяжет заявку к ней.
         canOverrideDirectory() {
             return usePermissionsStore().hasPermission('application.organization.override');
+        },
+
+        // Кнопка «Скачать бланк для заполнения» (B2): видна только когда у пользователя
+        // есть право на обратную загрузку (C1C2) и выбрано вложение со списком
+        // участников - у ТМЦ (items) списочной части в бланке нет.
+        showBlankTemplateButton() {
+            return usePermissionsStore().hasPermission(ACTION_IMPORT_LIST_PERMISSION)
+                && !!this.selectedAttachment
+                && ['cars', 'people'].includes(this.selectedAttachment.attachment_type);
         },
 
         // Привязка машин и сотрудников к организации возможна, только когда организация
@@ -1300,6 +1337,25 @@ export default {
                 // объект falsy -> следующий выбор вложения повторит запрос.
                 this.fieldConfigByAttachment[uniqueAttachmentId] = {};
                 this.customFieldDefinitions[uniqueAttachmentId] = [];
+            }
+        },
+
+        // Скачивание пустого бланка для массового заполнения списка (эпик blank-import,
+        // B1 отдаёт файл, B2 - эта кнопка). Наличие list-маппингов не запрашивается
+        // отдельным эндпоинтом заранее - эндпоинт сам возвращает 404 с готовым русским
+        // текстом ("Шаблон бланка не настроен" / "В бланке не размечен список
+        // участников"), его и показываем как есть.
+        async downloadBlankTemplate() {
+            if (!this.selectedAttachment || this.downloadingBlankTemplate) return;
+            const uaId = this.selectedAttachment.template_id || this.selectedAttachment.id;
+            this.downloadingBlankTemplate = true;
+            try {
+                const { blob, filename } = await fetchBlankTemplate(uaId);
+                saveBlobAs(blob, filename);
+            } catch (error) {
+                useDeletionsStore().notify({ prefix: error.message || 'Не удалось скачать бланк для заполнения', type: 'error' });
+            } finally {
+                this.downloadingBlankTemplate = false;
             }
         },
 
@@ -3015,6 +3071,14 @@ export default {
     .form__data {
         display: flex;
         position: relative;
+    }
+
+    /* Кнопка «Скачать бланк для заполнения» (B2) - прижата к правому краю над
+       блоком формы+списка, чтобы не втискиваться в их flex-ряд. */
+    .blank-template-row {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 10px;
     }
 
     /* Форма ввода (data__completion, 450px) + список (data__list, flex:1) стоят рядом
