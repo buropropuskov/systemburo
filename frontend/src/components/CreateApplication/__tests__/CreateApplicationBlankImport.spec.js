@@ -141,4 +141,20 @@ describe('CreateApplication - загрузка заполненного блан
         expect(w.vm.showImportResultModal).toBe(true);
         expect(notifyMock).not.toHaveBeenCalled();
     });
+
+    // Ревью D1D2 (замечание 3): открытая шторка дропзона переживала переключение на
+    // другое вложение - у него свой шаблон/право, шторка должна закрываться.
+    it('переключение на другое вложение закрывает открытую шторку загрузки бланка', async () => {
+        const w = await mountApp();
+        w.vm.attachments = [
+            { local_id: 'p1', id: 9, attachment_type: 'people', display_name: 'Люди' },
+            { local_id: 'c1', id: 10, attachment_type: 'cars', display_name: 'Машины' },
+        ];
+        w.vm.selectedAttachment = w.vm.attachments[0];
+        w.vm.showImportDropzone = true;
+
+        await w.vm.handleAttachmentSelected(w.vm.attachments[1]);
+
+        expect(w.vm.showImportDropzone).toBe(false);
+    });
 });

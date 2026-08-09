@@ -232,6 +232,167 @@ describe('BlankImportResultModal (blank-import D1D2)', () => {
   });
 });
 
+describe('BlankImportResultModal - обязательность мест по fieldConfig (ревью, блокер 1)', () => {
+  beforeEach(() => {
+    notifyMock.mockReset();
+  });
+
+  it('required:false у visible-поля не блокирует кнопку и не рисует звёздочку - зеркало EmployeeForm/VehicleForm', async () => {
+    const wrapper = mountModal({
+      rows: [PEOPLE_ROWS[0]],
+      summary: { read: 1, accepted: 1, rejected: 0 },
+      fieldConfig: { target_tables: { visible: true, required: false } },
+    });
+    await flushPromises();
+
+    // Видимое необязательное поле - грид всё ещё рисуется (можно выбрать по желанию),
+    // но submit не должен требовать выбора: EmployeeForm.vue:491-492/573-574.
+    expect(wrapper.find('[data-testid="bim-target-tables"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="bim-target-tables"] .required').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="bim-submit"]').attributes('disabled')).toBeUndefined();
+  });
+
+  it('required:false для машин (места разгрузки и проезд) не блокирует submit', async () => {
+    const wrapper = mountModal({
+      attachmentType: 'cars',
+      rows: [CAR_ROWS[0]],
+      summary: { read: 1, accepted: 1, rejected: 0 },
+      fieldConfig: {
+        unloading_places: { visible: true, required: false },
+        passage_tables: { visible: true, required: false },
+      },
+    });
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="bim-unload-places"] .required').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="bim-passage-tables"] .required').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="bim-submit"]').attributes('disabled')).toBeUndefined();
+  });
+});
+
+describe('BlankImportResultModal - блокирующие причины не обходятся правкой (ревью, блокер 2)', () => {
+  const BLACKLIST_ROW = {
+    row_number: 7,
+    employee: {
+      last_name: 'Сидоров', first_name: 'Пётр', middle_name: '',
+      citizenship_id: 1, position: 'Инженер',
+      passport_series_number: '', patent_number: null, other_permission: null,
+      target_tables: [],
+    },
+    // ФИО у блокирующей строки заведомо непустое - иначе совпадение по ключу
+    // ЧС/дубля не случилось бы (fmtErrEmployeeBlacklisted/"Дублирует строку").
+    errors: ['Человек Сидоров Пётр в чёрном списке: судимость'],
+    warnings: [],
+  };
+  const DUPLICATE_ROW = {
+    row_number: 8,
+    employee: {
+      last_name: 'Кузнецов', first_name: 'Олег', middle_name: '',
+      citizenship_id: 1, position: '',
+      passport_series_number: '', patent_number: null, other_permission: null,
+      target_tables: [],
+    },
+    errors: ['Дублирует строку 4: то же ФИО'],
+    warnings: [],
+  };
+  const PATENT_ROW = {
+    row_number: 9,
+    employee: {
+      last_name: 'Рахимов', first_name: 'Азиз', middle_name: '',
+      citizenship_id: 2, position: 'Разнорабочий',
+      passport_series_number: '', patent_number: null, other_permission: null,
+      target_tables: [],
+    },
+    // Патент/паспорт полей в этой таблице нет и не должно быть (152-ФЗ) - косметическая
+    // правка ФИО не должна включать такую строку.
+    errors: ['Для гражданства "Узбекистан" нужен номер патента или иное разрешение на работы'],
+    warnings: [],
+  };
+
+  it('строку с блокировкой по чёрному списку нельзя отметить даже после правки ФИО', async () => {
+    const wrapper = mountModal({ rows: [BLACKLIST_ROW], summary: { read: 1, accepted: 0, rejected: 1 } });
+    await flushPromises();
+
+    const row = wrapper.find('[data-testid="bim-problem-row-7"]');
+    const inputs = row.findAll('input.bim__cell-input');
+    await inputs[0].setValue('Другая Фамилия');
+    await inputs[1].setValue('Другое Имя');
+
+    expect(wrapper.find('[data-testid="bim-include-7"]').attributes('disabled')).toBeDefined();
+  });
+
+  it('строку-дубль внутри файла нельзя отметить даже после правки ФИО', async () => {
+    const wrapper = mountModal({ rows: [DUPLICATE_ROW], summary: { read: 1, accepted: 0, rejected: 1 } });
+    await flushPromises();
+
+    const row = wrapper.find('[data-testid="bim-problem-row-8"]');
+    const inputs = row.findAll('input.bim__cell-input');
+    await inputs[0].setValue('Другая Фамилия');
+    await inputs[1].setValue('Другое Имя');
+
+    expect(wrapper.find('[data-testid="bim-include-8"]').attributes('disabled')).toBeDefined();
+  });
+
+  it('строку с ошибкой про патент нельзя отметить косметической правкой ФИО - полей патента здесь нет', async () => {
+    const wrapper = mountModal({ rows: [PATENT_ROW], summary: { read: 1, accepted: 0, rejected: 1 } });
+    await flushPromises();
+
+    const row = wrapper.find('[data-testid="bim-problem-row-9"]');
+    const inputs = row.findAll('input.bim__cell-input');
+    await inputs[0].setValue('Рахимов-испр');
+    await inputs[1].setValue('Азиз-испр');
+
+    expect(wrapper.find('[data-testid="bim-include-9"]').attributes('disabled')).toBeDefined();
+  });
+
+  it('реально исправимая строка (пустое имя) по-прежнему становится добавляемой', async () => {
+    const wrapper = mountModal({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
+    await flushPromises();
+
+    const row = wrapper.find('[data-testid="bim-problem-row-6"]');
+    const inputs = row.findAll('input.bim__cell-input');
+    await inputs[0].setValue('Петров');
+    await inputs[1].setValue('Пётр');
+
+    expect(wrapper.find('[data-testid="bim-include-6"]').attributes('disabled')).toBeUndefined();
+  });
+});
+
+describe('BlankImportResultModal - ПДн не выводятся (ревью, замечание 4)', () => {
+  const PASSPORT_VALUE = '4009 112233';
+  const ROW_WITH_PASSPORT = {
+    row_number: 11,
+    employee: {
+      last_name: '', first_name: 'Мария', middle_name: '',
+      citizenship_id: 1, position: 'Бухгалтер',
+      passport_series_number: PASSPORT_VALUE, patent_number: null, other_permission: null,
+      target_tables: [],
+    },
+    errors: ['Поле «Фамилия» обязательно для заполнения'],
+    warnings: [],
+  };
+
+  it('паспорт не встречается в тексте таблицы проблемных строк', async () => {
+    const wrapper = mountModal({ rows: [ROW_WITH_PASSPORT], summary: { read: 1, accepted: 0, rejected: 1 } });
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain(PASSPORT_VALUE);
+  });
+
+  it('паспорт не попадает в буфер выгрузки списка ошибок', async () => {
+    const wrapper = mountModal({ rows: [ROW_WITH_PASSPORT], summary: { read: 1, accepted: 0, rejected: 1 } });
+    await flushPromises();
+
+    await wrapper.find('[data-testid="bim-download-errors"]').trigger('click');
+    await flushPromises();
+
+    const ExcelJS = (await import('exceljs')).default;
+    const worksheet = new ExcelJS.Workbook().addWorksheet();
+    const addedRows = worksheet.addRow.mock.calls.map((call) => JSON.stringify(call[0]));
+    expect(addedRows.some((r) => r.includes(PASSPORT_VALUE))).toBe(false);
+  });
+});
+
 describe('BlankImportResultModal - выгрузка списка ошибок', () => {
   beforeEach(() => {
     saveBlobAsMock.mockReset();

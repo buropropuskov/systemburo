@@ -34,7 +34,10 @@
         class="bim__places"
         data-testid="bim-target-tables"
       >
-        <label class="input__label">Места прохода <span class="required">*</span></label>
+        <label class="input__label">Места прохода <span
+          v-if="targetTablesRequired"
+          class="required"
+        >*</span></label>
         <div
           v-if="!targetTablesOptions.length"
           class="bim__places-empty"
@@ -53,7 +56,10 @@
         class="bim__places"
         data-testid="bim-unload-places"
       >
-        <label class="input__label">Места разгрузки <span class="required">*</span></label>
+        <label class="input__label">Места разгрузки <span
+          v-if="unloadPlacesRequired"
+          class="required"
+        >*</span></label>
         <div
           v-if="!unloadPlacesOptions.length"
           class="bim__places-empty"
@@ -72,7 +78,10 @@
         class="bim__places"
         data-testid="bim-passage-tables"
       >
-        <label class="input__label">Проезд <span class="required">*</span></label>
+        <label class="input__label">Проезд <span
+          v-if="passageTablesRequired"
+          class="required"
+        >*</span></label>
         <div
           v-if="!passageTablesOptions.length"
           class="bim__places-empty"
@@ -95,8 +104,9 @@
         </h4>
         <p class="bim__problems-hint">
           Правьте поля прямо здесь и отмечайте строку галочкой, чтобы добавить её вместе с
-          остальными. Причины отказа (чёрный список, дубли) заново не проверяются - решение
-          за вами, финальная проверка при подаче всё равно сработает.
+          остальными. Галочка доступна только для исправимых здесь причин (пустые поля,
+          гражданство). Чёрный список, дубли внутри файла и данные, которых в этой таблице
+          нет (паспорт, патент), — строку нужно добавить через обычную форму.
         </p>
         <div class="bim__problems-table-wrap">
           <table class="bim__problems-table">
@@ -237,6 +247,15 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { useFieldConfig } from '@/composables/useFieldConfig';
 import { employeeLabel, vehicleLabel } from '@/utils/applicationDuplicates';
 
+// Метки полей реестра (attachment_fields_registry.go), которые эта таблица умеет
+// править - ФИКСИРОВАННЫЕ строки (Label не переопределяется оверрайдами шаблона,
+// см. MergeFieldConfig), поэтому сверка префиксом "Поле «<Label>»" надёжна. Любая
+// причина вне этого списка (паспорт, патент, должность, чёрный список, дубль
+// внутри файла) остаётся блокирующей - полей для них здесь нет и не должно быть
+// (152-ФЗ), а чёрный список/дубли - решение, которое клиент не переигрывает.
+const PEOPLE_FIXABLE_FIELD_LABELS = ['Фамилия', 'Имя', 'Отчество', 'Гражданство'];
+const CAR_FIXABLE_FIELD_LABELS = ['Номер Т/С', 'Марка ТС'];
+
 /**
  * Результат импорта заполненного бланка (эпик blank-import, срез D1D2). Принятые
  * бэком строки (без errors) уходят в заявку тем же путём, что ручное добавление -
@@ -299,6 +318,19 @@ export default {
     showPassageTables() {
       return !this.isPeople && this.fieldVisible('passage_tables');
     },
+    // Обязательность выбора - ЗЕРКАЛО ручных форм (EmployeeForm.vue:491-492,
+    // VehicleForm.vue:573-574): "видимо И required", а не одно только "видимо".
+    // Видимое необязательное поле грид всё равно рисует (можно выбрать по желанию),
+    // но submit им не блокируется.
+    targetTablesRequired() {
+      return this.showTargetTables && this.fieldRequired('target_tables');
+    },
+    unloadPlacesRequired() {
+      return this.showUnloadPlaces && this.fieldRequired('unloading_places');
+    },
+    passageTablesRequired() {
+      return this.showPassageTables && this.fieldRequired('passage_tables');
+    },
     targetTablesOptions() {
       return this.reshapeTables(this.allPassageTables, 'people');
     },
@@ -317,10 +349,10 @@ export default {
     },
     placesReady() {
       if (this.isPeople) {
-        return !this.showTargetTables || this.selectedTargetTables.length > 0;
+        return !this.targetTablesRequired || this.selectedTargetTables.length > 0;
       }
-      const unloadOk = !this.showUnloadPlaces || this.selectedUnloadPlaces.length > 0;
-      const passageOk = !this.showPassageTables || this.selectedPassageTables.length > 0;
+      const unloadOk = !this.unloadPlacesRequired || this.selectedUnloadPlaces.length > 0;
+      const passageOk = !this.passageTablesRequired || this.selectedPassageTables.length > 0;
       return unloadOk && passageOk;
     },
     includedFixedRows() {
@@ -346,6 +378,9 @@ export default {
   methods: {
     fieldVisible(key) {
       return useFieldConfig(() => this.fieldConfig).fieldVisible(key);
+    },
+    fieldRequired(key) {
+      return useFieldConfig(() => this.fieldConfig).fieldRequired(key);
     },
     resetState() {
       this.selectedTargetTables = [];
@@ -411,10 +446,24 @@ export default {
       if (names.length > 1) return `${names[0]} и др.`;
       return names[0] || '';
     },
-    // Минимальная проверка на клиенте - те же поля, что форма требует всегда
-    // (ФИО/номер): полную серверную валидацию (ЧС, дубли, гражданство) строка уже
-    // прошла и провалила, повторно её здесь не переигрываем.
+    // Причина ошибки "исправима здесь", только если это пустое/слишком длинное
+    // значение поля, которое эта таблица реально редактирует, либо неизвестное
+    // гражданство. Всё остальное (чёрный список, дубль внутри файла, паспорт,
+    // патент, должность) - НЕ матчится и остаётся блокирующим: подстрока проверяет
+    // ФИКСИРОВАННЫЙ префикс "Поле «<Label>»", где Label берётся из Go-реестра
+    // (attachment_fields_registry.go) и не переопределяется оверрайдами шаблона.
+    errorIsFixable(text) {
+      const labels = this.isPeople ? PEOPLE_FIXABLE_FIELD_LABELS : CAR_FIXABLE_FIELD_LABELS;
+      if (labels.some((label) => text.startsWith(`Поле «${label}»`))) return true;
+      if (this.isPeople && text.includes('не найдено в справочнике')) return true;
+      return false;
+    },
+    // Строка становится добавляемой, только когда ВСЕ её причины исправимы здесь
+    // И минимальные поля реально заполнены - блокирующие причины (ЧС, дубль,
+    // паспорт/патент - полей для них тут нет по 152-ФЗ) чекбокс не разблокируют
+    // никакой правкой ФИО/номера.
     canIncludeRow(row) {
+      if (!row.errors.every((e) => this.errorIsFixable(e))) return false;
       if (this.isPeople) {
         return !!(row.fields.lastName.trim() && row.fields.firstName.trim());
       }
