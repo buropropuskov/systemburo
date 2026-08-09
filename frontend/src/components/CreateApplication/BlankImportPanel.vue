@@ -19,15 +19,18 @@
     </div>
 
     <BlankImportResult
-      v-if="result"
+      v-if="showSummary"
       :attachment-type="attachmentType"
-      :summary="result.summary || {}"
-      :rows="result.rows || []"
+      :has-result="!!result"
+      :summary="result ? (result.summary || {}) : {}"
+      :rows="result ? (result.rows || []) : []"
+      :pending-count="pendingCount"
       :all-passage-tables="allPassageTables"
       :all-unloading-places="allUnloadingPlaces"
       :field-config="fieldConfig"
+      @stage="$emit('stage', $event)"
       @import="$emit('import', $event)"
-      @reset="$emit('reset')"
+      @reset="onResetResult"
     />
 
     <template v-else>
@@ -86,6 +89,18 @@
         >
         {{ downloading ? 'Скачиваем...' : 'Скачать пустой бланк' }}
       </button>
+
+      <!-- Предварительные строки уже в списке: без этой двери «Загрузить другой файл»
+           оставлял бы их без сводки, то есть без кнопки, которая делает их обычными. -->
+      <button
+        v-if="pendingCount > 0"
+        type="button"
+        class="lk-button lk-button--ghost lk-button--sm bip__download"
+        data-testid="import-back-to-summary"
+        @click="showUploader = false"
+      >
+        К сводке ({{ pendingCount }})
+      </button>
     </template>
   </section>
 </template>
@@ -121,15 +136,36 @@ export default {
     allPassageTables: { type: Array, default: () => [] },
     allUnloadingPlaces: { type: Array, default: () => [] },
     fieldConfig: { type: Object, default: () => ({}) },
+    // Сколько строк текущего вложения ещё предварительные (U5). Сводку держим открытой
+    // и по ним одним: разбор файла перезагрузку страницы не переживает, а серые строки
+    // переживают - иначе перевести их в обычные было бы нечем.
+    pendingCount: { type: Number, default: 0 },
   },
-  emits: ['file', 'download-blank', 'import', 'reset', 'close'],
+  emits: ['file', 'download-blank', 'stage', 'import', 'reset', 'close'],
   data() {
     return {
       isDragging: false,
+      // Человек сам попросил область загрузки при живой сводке («Загрузить другой файл»).
+      showUploader: false,
       MAX_IMPORT_ROWS,
     };
   },
+  computed: {
+    showSummary() {
+      return !this.showUploader && (!!this.result || this.pendingCount > 0);
+    },
+  },
+  watch: {
+    result(value) {
+      if (value) this.showUploader = false;
+    },
+  },
   methods: {
+    onResetResult() {
+      this.showUploader = true;
+      this.$emit('reset');
+    },
+
     onFileChange(e) {
       const file = e.target.files[0];
       // Сброс значения - иначе повторный выбор ТОГО ЖЕ файла не даёт change.

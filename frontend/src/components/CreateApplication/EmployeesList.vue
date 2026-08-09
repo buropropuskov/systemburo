@@ -126,6 +126,7 @@
           :key="row.item.id"
           class="table-row rt-row"
           data-testid="employees-row"
+          :class="{ 'is-pending': row.item.isPending }"
         >
           <div class="table-col number-col">
             {{ row.number }}
@@ -447,6 +448,14 @@ export default {
 
 .table-row:hover {
     background: var(--surface-2);
+}
+
+/* Предварительная строка (blank-import-ux, U5): разобрана из бланка, но в заявку ещё не
+   добавлена - текст приглушён, а детали, правка и удаление работают как у обычной.
+   Метка слева - inset-тень, а не border: он сдвинул бы содержимое строки. */
+.table-row.is-pending {
+    color: var(--text-muted);
+    box-shadow: inset 3px 0 0 var(--text-muted);
 }
 
 .table-row.has-active {

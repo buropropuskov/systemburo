@@ -49,12 +49,20 @@ const CITIZENSHIPS = [
   { id: 2, name: 'Узбекистан' },
 ];
 
+// Срез U5 развёл два момента: принятые строки уходят наверх событием stage сразу после
+// разбора и живут в списке предварительными, а «Добавить» (событие import) раскатывает
+// по ним места и приносит вручную исправленные строки. Поэтому счётчик готовых сводка
+// берёт от родителя (pendingCount) - здесь моделируем его тем, что родитель и положил бы
+// в список: все строки без ошибок.
 function mountPanel(props = {}) {
+  const stagedRows = (props.rows || []).filter((r) => !(r.errors && r.errors.length));
   return mount(BlankImportResult, {
     props: {
       attachmentType: 'people',
+      hasResult: true,
       summary: { read: 2, accepted: 1, rejected: 1 },
       rows: [],
+      pendingCount: stagedRows.length,
       allPassageTables: PASSAGE_TABLES,
       allUnloadingPlaces: UNLOAD_PLACES,
       fieldConfig: {},
@@ -129,7 +137,7 @@ describe('BlankImportResult (blank-import D1D2)', () => {
     listCitizenshipsMock.mockResolvedValue(CITIZENSHIPS);
   });
 
-  it('207 разбирается: счётчики совпадают с summary, проблемная строка показана', async () => {
+  it('207 разбирается: прочитано и с ошибками из summary, готово - из списка, проблемная строка показана', async () => {
     const wrapper = mountPanel({
       rows: PEOPLE_ROWS,
       summary: { read: 2, accepted: 1, rejected: 1 },
@@ -177,27 +185,32 @@ describe('BlankImportResult (blank-import D1D2)', () => {
     expect(wrapper.find('[data-testid="bim-submit"]').attributes('disabled')).toBeUndefined();
   });
 
-  it('принятые строки формируют payload с выбранными местами прохода, отклонённые без правки - нет', async () => {
+  it('принятые строки уходят наверх сразу, отклонённые без правки - нет, места приезжают на «Добавить»', async () => {
     const wrapper = mountPanel({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
     await flushPromises();
-    await wrapper.findAll('.passage__item')[0].trigger('click');
 
-    await wrapper.find('[data-testid="bim-submit"]').trigger('click');
-
-    const emitted = wrapper.emitted('import');
-    expect(emitted).toHaveLength(1);
-    const payload = emitted[0][0];
-    expect(payload.attachmentType).toBe('people');
-    expect(payload.rows).toHaveLength(1);
-    expect(payload.rows[0]).toMatchObject({
+    const staged = wrapper.emitted('stage');
+    expect(staged).toHaveLength(1);
+    expect(staged[0][0].attachmentType).toBe('people');
+    expect(staged[0][0].rows).toHaveLength(1);
+    expect(staged[0][0].rows[0]).toMatchObject({
       lastName: 'Иванов',
       firstName: 'Иван',
       citizenshipId: 1,
       citizenshipName: 'Россия',
       passportSeriesNumber: '1234 567890',
-      targetTables: [10],
       isExisting: false,
     });
+
+    await wrapper.findAll('.passage__item')[0].trigger('click');
+    await wrapper.find('[data-testid="bim-submit"]').trigger('click');
+
+    const emitted = wrapper.emitted('import');
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0][0].attachmentType).toBe('people');
+    expect(emitted[0][0].places).toMatchObject({ targetTables: [10] });
+    // Принятая строка уже в списке - второй раз её не шлём.
+    expect(emitted[0][0].rows).toEqual([]);
   });
 
   it('правка проблемной строки на месте делает её добавляемой и включённой в payload', async () => {
@@ -217,9 +230,11 @@ describe('BlankImportResult (blank-import D1D2)', () => {
     await wrapper.find('[data-testid="bim-submit"]').trigger('click');
 
     const payload = wrapper.emitted('import')[0][0];
-    expect(payload.rows).toHaveLength(2);
-    const fixed = payload.rows.find((r) => r.lastName === 'Петров');
-    expect(fixed).toMatchObject({ firstName: 'Пётр', isExisting: false, targetTables: [10] });
+    // Принятая строка уже в списке предварительной, исправленная приходит этим событием.
+    expect(payload.rows).toHaveLength(1);
+    expect(payload.rows[0]).toMatchObject({
+      lastName: 'Петров', firstName: 'Пётр', isExisting: false, targetTables: [10],
+    });
   });
 
   it('незаполненную обязательную часть строки (пустое имя) нельзя отметить галочкой', async () => {
@@ -267,11 +282,11 @@ describe('BlankImportResult (blank-import D1D2)', () => {
     await wrapper.find('[data-testid="bim-submit"]').trigger('click');
 
     const payload = wrapper.emitted('import')[0][0];
-    expect(payload.rows).toHaveLength(2);
-    expect(payload.rows.some((r) => r.plateNumber === 'В777ВВ177')).toBe(true);
+    expect(payload.rows).toHaveLength(1);
+    expect(payload.rows[0].plateNumber).toBe('В777ВВ177');
   });
 
-  it('машины: номер Т/С обязателен, места разгрузки и проезд применяются к payload', async () => {
+  it('машины: принятая строка уходит наверх сразу, места разгрузки и проезд - на «Добавить»', async () => {
     const wrapper = mountPanel({
       attachmentType: 'cars',
       rows: [CAR_ROWS[0]],
@@ -279,18 +294,22 @@ describe('BlankImportResult (blank-import D1D2)', () => {
     });
     await flushPromises();
 
+    expect(wrapper.emitted('stage')[0][0].rows[0]).toMatchObject({
+      plateNumber: 'А001АА777',
+      mark: 'Volvo',
+      isExisting: false,
+    });
+
     await wrapper.find('[data-testid="bim-unload-places"] .passage__item').trigger('click');
     await wrapper.find('[data-testid="bim-passage-tables"] .passage__item').trigger('click');
     await wrapper.find('[data-testid="bim-submit"]').trigger('click');
 
     const payload = wrapper.emitted('import')[0][0];
     expect(payload.attachmentType).toBe('cars');
-    expect(payload.rows[0]).toMatchObject({
-      plateNumber: 'А001АА777',
-      mark: 'Volvo',
+    expect(payload.places).toEqual({
       unloadPlaces: [30],
+      unloadingPlace: 'Склад 1',
       passage_tables: [20],
-      isExisting: false,
     });
   });
 

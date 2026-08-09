@@ -263,8 +263,10 @@
             :all-passage-tables="allPassageTables"
             :all-unloading-places="allUnloadingPlaces"
             :field-config="currentFieldConfig"
+            :pending-count="pendingImportCount"
             @file="uploadImportFile"
             @download-blank="downloadBlankTemplate"
+            @stage="stageImportRows"
             @import="handleImportRows"
             @reset="resetImportResult"
             @close="closeImportMode"
@@ -474,6 +476,15 @@ const ACTION_IMPORT_LIST_PERMISSION = 'action.import.list';
 // более щедрый бюджет (эпик blank-import, срез E2E3).
 const SUBMIT_TIMEOUT_MS = 120000;
 
+// Предварительная строка (эпик blank-import-ux, срез U5): разобрана из бланка и уже
+// видна в списке, но в подачу не уходит, пока в сводке импорта не нажата «Добавить».
+// Флаг живёт на самой строке, поэтому в черновик localStorage он попадает вместе с ней
+// и переживает перезагрузку без отдельного хранилища.
+const isPendingRow = (row) => !!row && row.isPending === true;
+
+/** Строки, которые реально уходят в заявку: без предварительных. */
+const submittedRows = (rows) => (rows || []).filter((row) => !isPendingRow(row));
+
 // Кросс-браузерное распознавание переполнения квоты localStorage: разные
 // движки шлют разный name/code (см. MDN QuotaExceededError).
 function isQuotaExceededError(error) {
@@ -679,6 +690,16 @@ export default {
             return this.itemsByAttachment[this.attachmentKey(this.selectedAttachment)] || [];
         },
 
+        // Предварительные строки текущего вложения (U5). Сводка импорта считает свои
+        // счётчики по ЭТОМУ числу, а не по summary разбора: удалил строку из списка -
+        // сводка обязана пересчитаться, иначе кнопка обещает добавить то, чего нет.
+        pendingImportCount() {
+            if (!this.selectedAttachment) return 0;
+            const key = this.attachmentKey(this.selectedAttachment);
+            return this.rowsForAttachment(this.selectedAttachment.attachment_type, key)
+                .filter(isPendingRow).length;
+        },
+
         hasCars() {
             return this.attachments.some(a => a.attachment_type === 'cars');
         },
@@ -776,23 +797,33 @@ export default {
             this.attachments.forEach(attachment => {
                 const key = this.attachmentKey(attachment);
                 const label = attachment.attachment_display_name || attachment.attachment_name || attachment.display_name || `вложение #${attachment.id}`;
-                let hasAttachmentData;
+                // Предварительные строки в подачу не идут, поэтому и в счёт «есть данные»
+                // не идут тоже: вложение из одних серых строк для сервера пустое.
+                const rows = this.rowsForAttachment(attachment.attachment_type, key);
+                const ready = submittedRows(rows);
+                const pending = rows.length - ready.length;
+                const isEmpty = ready.length === 0 && pending === 0;
+
                 switch (attachment.attachment_type) {
                     case 'cars':
-                        hasAttachmentData = (this.vehiclesByAttachment[key] || []).length > 0;
-                        if (!hasAttachmentData) reasons.push(`"${label}": добавьте хотя бы одно авто`);
+                        if (isEmpty) reasons.push(`"${label}": добавьте хотя бы одно авто`);
                         break;
                     case 'people':
-                        hasAttachmentData = (this.employeesByAttachment[key] || []).length > 0;
-                        if (!hasAttachmentData) reasons.push(`"${label}": добавьте хотя бы одного сотрудника`);
+                        if (isEmpty) reasons.push(`"${label}": добавьте хотя бы одного сотрудника`);
                         break;
                     case 'items':
-                        hasAttachmentData = (this.itemsByAttachment[key] || []).length > 0;
-                        if (!hasAttachmentData) reasons.push(`"${label}": добавьте хотя бы одну позицию`);
+                        if (isEmpty) reasons.push(`"${label}": добавьте хотя бы одну позицию`);
                         if (this.itemsUnloadRequired && this.applicationUnloadPlaces.length === 0) {
                             reasons.push(`"${label}": выберите место разгрузки`);
                         }
                         break;
+                }
+
+                // Не «предупредим и отправим»: незамеченные серые строки ушли бы в никуда
+                // вместе с черновиком, который подача чистит. Поэтому подача ждёт решения -
+                // добавить их или удалить.
+                if (pending > 0) {
+                    reasons.push(`"${label}": строки из бланка ещё предварительные (${pending}) - нажмите «Добавить» в сводке импорта или удалите их`);
                 }
 
                 const dateData = this.attachmentDatesByAttachment[key];
@@ -841,14 +872,17 @@ export default {
                 const displayName = attachment.display_name || attachment.attachment_display_name || attachment.attachment_name || `вложение #${attachment.id}`;
                 const errors = [];
 
-                let items = [];
-                if (type === 'cars') items = this.vehiclesByAttachment[key] || [];
-                else if (type === 'people') items = this.employeesByAttachment[key] || [];
-                else if (type === 'items') items = this.itemsByAttachment[key] || [];
+                const allRows = this.rowsForAttachment(type, key);
+                const items = submittedRows(allRows);
+                const pending = allRows.length - items.length;
 
-                if (type === 'cars' && items.length === 0) errors.push('Не добавлено ни одного автомобиля');
-                else if (type === 'people' && items.length === 0) errors.push('Не добавлено ни одного сотрудника');
+                if (type === 'cars' && items.length === 0 && pending === 0) errors.push('Не добавлено ни одного автомобиля');
+                else if (type === 'people' && items.length === 0 && pending === 0) errors.push('Не добавлено ни одного сотрудника');
                 else if (type === 'items' && items.length === 0) errors.push('Не добавлено ни одной позиции');
+
+                if (pending > 0) {
+                    errors.push(`Строки из бланка ещё предварительные (${pending})`);
+                }
 
                 if (type === 'items' && this.itemsUnloadRequired && this.applicationUnloadPlaces.length === 0) {
                     errors.push('Не выбрано место разгрузки');
@@ -1075,8 +1109,10 @@ export default {
   for (const attachment of this.attachments) {
     if (attachment.attachment_type !== 'cars') continue;
 
-    const vehicles = this.vehiclesByAttachment[this.attachmentKey(attachment)] || [];
-    
+    // Проверяем то, что уйдёт в заявку: предварительная строка активной машиной
+    // никого не блокирует, а запрос на неё - лишний круг по сети на каждую строку.
+    const vehicles = submittedRows(this.vehiclesByAttachment[this.attachmentKey(attachment)]);
+
     for (const vehicle of vehicles) {
       try {
         const params = new URLSearchParams();
@@ -1504,17 +1540,91 @@ export default {
             }
         },
 
-        // Принятые/исправленные строки уходят в список заявки ТЕМ ЖЕ путём, что ручное
-        // массовое добавление (существующие handleEmployeesAdded/handleVehiclesAdded) -
-        // без своей копии логики создания строк (см. addExistingEmployees/addExistingCars).
+        /**
+         * Разобранные бланком строки встают в список СРАЗУ, предварительными (U5): человек
+         * видит, что именно прочитано, и правит это в привычном списке, а не в таблице
+         * разбора. Дедуп живёт здесь, а не на «Добавить»: строка входит в список в этот
+         * момент, и дубль, показанный серым, пришлось бы гасить уже после того, как человек
+         * его увидел и посчитал добавленным.
+         */
+        stageImportRows({ attachmentType, rows }) {
+            // Сводка ждёт справочник гражданств, прежде чем отдать строки, и за это время
+            // человек успевает выйти из режима или переключить вложение. Панель к тому
+            // моменту уже размонтирована, но её эмит доходит - без гарда строки легли бы
+            // в чужое вложение.
+            if (!this.importMode || !this.selectedAttachment) return;
+            if (this.selectedAttachment.attachment_type !== attachmentType) return;
+
+            const staged = this.addImportedRows(attachmentType, rows, true);
+            if (staged > 0) {
+                useDeletionsStore().notify({
+                    bold: `Строк из бланка: ${staged}`,
+                    suffix: ' - показаны в списке предварительно, выберите места и нажмите «Добавить»',
+                });
+            }
+        },
+
+        /**
+         * «Добавить» в сводке: предварительные строки становятся обычными и получают
+         * выбранные места, а вручную исправленные проблемные строки приходят этим же
+         * событием и заводятся сразу обычными.
+         *
+         * @param {{attachmentType: string, rows: Array<Object>, places?: Object}} payload
+         */
+        handleImportRows({ attachmentType, rows, places }) {
+            const fixedRows = rows || [];
+            if (!fixedRows.length && this.pendingImportCount === 0) return;
+
+            const added = this.addImportedRows(attachmentType, fixedRows, false);
+            const activated = this.activatePendingRows(attachmentType, places);
+
+            if (added + activated > 0) {
+                useDeletionsStore().notify({
+                    bold: `Добавлено строк: ${added + activated}`,
+                    suffix: ' из импортированного бланка',
+                });
+            }
+
+            // Строки в списке - режим отработал, возвращаем форму ручного ввода.
+            this.closeImportMode();
+        },
+
+        /**
+         * Снимает предварительность со строк текущего вложения и раскатывает по ним
+         * выбранные в сводке места (в файле их нет и не будет - решение владельца).
+         *
+         * @param {string} attachmentType cars | people
+         * @param {Object} places патч полей мест, общий для всех строк пачки
+         * @returns {number} сколько строк стало обычными
+         */
+        activatePendingRows(attachmentType, places) {
+            if (!this.selectedAttachment) return 0;
+
+            const rows = this.rowsForAttachment(attachmentType, this.attachmentKey(this.selectedAttachment));
+            let activated = 0;
+            rows.forEach((row, index) => {
+                if (!isPendingRow(row)) return;
+                const activeRow = { ...row, ...(places || {}) };
+                delete activeRow.isPending;
+                rows.splice(index, 1, activeRow);
+                activated += 1;
+            });
+
+            if (activated > 0) this.saveToLocalStorage();
+            return activated;
+        },
+
+        // Строки уходят в список заявки ТЕМ ЖЕ путём, что ручное массовое добавление
+        // (существующие handleEmployeesAdded/handleVehiclesAdded) - без своей копии логики
+        // создания строк (см. addExistingEmployees/addExistingCars).
         // Дубли ВНУТРИ файла бэкенд уже отсеивает при разборе (attachment_import_validate.go,
         // строка попадает в rows только один раз) - здесь только пересечение с тем, что уже
         // добавлено в текущее вложение заявки, теми же findDuplicateEmployee/findDuplicateVehicle,
         // что и ручной ввод. Строку-в-строку внутри самой пачки (правка проблемных строк вручную
         // может свести две разные строки к одному человеку/машине) та же накопительная проверка
         // гасит побочным эффектом - как и addExistingEmployees/addExistingCars для каталога.
-        handleImportRows({ attachmentType, rows }) {
-            if (!rows.length) return;
+        addImportedRows(attachmentType, rows, pending) {
+            if (!rows || !rows.length) return 0;
             const isPeople = attachmentType === 'people';
             const findDuplicate = isPeople ? findDuplicateEmployee : findDuplicateVehicle;
             const label = isPeople ? employeeLabel : vehicleLabel;
@@ -1556,20 +1666,15 @@ export default {
                 });
             }
 
-            if (toAdd.length > 0) {
-                if (isPeople) {
-                    this.handleEmployeesAdded(toAdd);
-                } else {
-                    this.handleVehiclesAdded(toAdd);
-                }
-                useDeletionsStore().notify({
-                    bold: `Добавлено строк: ${toAdd.length}`,
-                    suffix: ' из импортированного бланка',
-                });
-            }
+            if (toAdd.length === 0) return 0;
 
-            // Строки в списке - режим отработал, возвращаем форму ручного ввода.
-            this.closeImportMode();
+            const marked = pending ? toAdd.map((row) => ({ ...row, isPending: true })) : toAdd;
+            if (isPeople) {
+                this.handleEmployeesAdded(marked);
+            } else {
+                this.handleVehiclesAdded(marked);
+            }
+            return marked.length;
         },
 
         async handleAttachmentSelected(attachment) {
@@ -1855,7 +1960,7 @@ export default {
             
             const index = vehicles.findIndex(v => v.id === updatedVehicle.id);
             if (index !== -1) {
-                vehicles.splice(index, 1, updatedVehicle);
+                vehicles.splice(index, 1, this.keepPendingFlag(vehicles[index], updatedVehicle));
                 this.saveToLocalStorage();
             }
         },
@@ -1929,9 +2034,21 @@ export default {
             
             const index = employees.findIndex(e => e.id === updatedEmployee.id);
             if (index !== -1) {
-                employees.splice(index, 1, updatedEmployee);
+                employees.splice(index, 1, this.keepPendingFlag(employees[index], updatedEmployee));
                 this.saveToLocalStorage();
             }
+        },
+
+        /**
+         * Формы отдают свой объект строки и про предварительность ничего не знают -
+         * без переноса флага правка серой строки молча делала бы её обычной.
+         *
+         * @param {Object} previous строка до правки
+         * @param {Object} updated строка, собранная формой
+         * @returns {Object}
+         */
+        keepPendingFlag(previous, updated) {
+            return isPendingRow(previous) ? { ...updated, isPending: true } : updated;
         },
 
         handleEmployeeEditCancelled() {
@@ -2227,15 +2344,17 @@ export default {
             for (const attachment of this.attachments) {
                 const key = this.attachmentKey(attachment);
 
+                // Гард стережёт ТЕЛО подачи, поэтому смотрит на те же строки, что в него
+                // уйдут - предварительные в нём не участвуют.
                 if (attachment.attachment_type === 'people') {
-                    const employee = findFirstDuplicate(this.employeesByAttachment[key], isSameEmployee);
+                    const employee = findFirstDuplicate(submittedRows(this.employeesByAttachment[key]), isSameEmployee);
                     if (employee) {
                         return { attachmentName: attachment.display_name, label: employeeLabel(employee) };
                     }
                 }
 
                 if (attachment.attachment_type === 'cars') {
-                    const vehicle = findFirstDuplicate(this.vehiclesByAttachment[key], isSameVehicle);
+                    const vehicle = findFirstDuplicate(submittedRows(this.vehiclesByAttachment[key]), isSameVehicle);
                     if (vehicle) {
                         return { attachmentName: attachment.display_name, label: vehicleLabel(vehicle) };
                     }
@@ -2252,8 +2371,10 @@ export default {
             const existingVehicles = await this.loadExistingVehicles();
             const existingEmployees = await this.loadExistingEmployees();
             
+            // Привязка заводит записи в справочнике под то, что уйдёт в заявку -
+            // предварительные строки туда не входят и справочник не трогают.
             Object.keys(this.vehiclesByAttachment).forEach(attachmentId => {
-                const vehicles = this.vehiclesByAttachment[attachmentId] || [];
+                const vehicles = submittedRows(this.vehiclesByAttachment[attachmentId]);
                 vehicles.forEach(vehicle => {
                     if (!vehicle.isExisting) {
                         const isByFact = vehicle.plateNumber === 'По факту' || vehicle.mark === 'По факту';
@@ -2276,7 +2397,7 @@ export default {
             });
             
             Object.keys(this.employeesByAttachment).forEach(attachmentId => {
-                const employees = this.employeesByAttachment[attachmentId] || [];
+                const employees = submittedRows(this.employeesByAttachment[attachmentId]);
                 employees.forEach(employee => {
                     if (!employee.isExisting) {
                         const isByFact = employee.passportSeriesNumber === 'По факту' || 
@@ -2537,9 +2658,14 @@ export default {
                     data: {}
                 };
 
+                // Предварительные строки (U5) в тело подачи не попадают: они живут в
+                // черновике до нажатия «Добавить» в сводке импорта.
                 Object.assign(
                     attachmentData.data,
-                    toAttachmentContent(attachment.attachment_type, this.rowsForAttachment(attachment.attachment_type, key))
+                    toAttachmentContent(
+                        attachment.attachment_type,
+                        submittedRows(this.rowsForAttachment(attachment.attachment_type, key)),
+                    )
                 );
 
                 const customValues = this.customFieldsByAttachment[key] || {};
