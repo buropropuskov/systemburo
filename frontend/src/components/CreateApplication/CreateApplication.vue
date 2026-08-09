@@ -104,11 +104,29 @@
                 <button
                   class="send-all-btn"
                   data-testid="create-app-button-submit"
-                  :disabled="!canSubmit"
+                  :disabled="!canSubmit || isSubmitting"
                   @click="submitApplication"
                 >
-                  Отправить заявку
+                  <span
+                    v-if="isSubmitting"
+                    class="send-all-btn__spinner"
+                    aria-hidden="true"
+                  />
+                  {{ isSubmitting ? 'Отправляем...' : 'Отправить заявку' }}
                 </button>
+                <!-- Честный статус долгой подачи (эпик blank-import, срез E2E3): большой
+                     импортированный список отправляется дольше обычного, кнопка одна
+                     "погасла" читалась бы как зависшая форма. -->
+                <div
+                  v-if="isSubmitting"
+                  class="submit-progress-hint"
+                  data-testid="create-app-submit-progress"
+                  role="status"
+                  aria-live="polite"
+                >
+                  Заявка отправляется - при большом числе строк это может занять до пары
+                  минут. Не закрывайте страницу.
+                </div>
                 <div
                   v-if="showSubmitTooltip && !canSubmit && tooltipSections.length"
                   class="submit-tooltip"
@@ -362,9 +380,10 @@
       :company="company"
       :has-organization="hasOrganization"
       :has-company="hasCompany"
+      :processing="isBindingActionInProgress"
       @confirm-binding="confirmBinding"
       @skip-binding="skipBinding"
-      @close="closeBindingModal"
+      @close="cancelBindingModal"
     />
 
     <ApplicationSuccessModal
@@ -394,7 +413,7 @@
 </template>
 
 <script>
-import { apiRequest } from '@/api/client'
+import { apiRequest, createExtendedTimeoutSignal } from '@/api/client'
 import { mapWithConcurrency } from '@/utils/mapWithConcurrency'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionsStore } from '@/stores/permissions'
@@ -437,6 +456,22 @@ const BIND_CONCURRENCY = 6;
 // Кнопка скачивания ПУСТОГО бланка (B2) гейтится тем же правом: скачал -
 // значит сможет и загрузить обратно, иначе получится класс "видно, но 403".
 const ACTION_IMPORT_LIST_PERMISSION = 'action.import.list';
+
+// Подача заявки с массовым импортом (до 2000 строк) не укладывается в дефолтный
+// таймаут apiRequest (10с) - даём этому единственному запросу отдельный, куда
+// более щедрый бюджет (эпик blank-import, срез E2E3).
+const SUBMIT_TIMEOUT_MS = 120000;
+
+// Кросс-браузерное распознавание переполнения квоты localStorage: разные
+// движки шлют разный name/code (см. MDN QuotaExceededError).
+function isQuotaExceededError(error) {
+    return error instanceof DOMException && (
+        error.name === 'QuotaExceededError'
+        || error.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+        || error.code === 22
+        || error.code === 1014
+    );
+}
 
 export default {
     name: 'CreateApplication',
@@ -544,6 +579,20 @@ export default {
             showSuccessModal: false,
             createdApplicationNumber: '',
             createdAttachmentsData: [],
+
+            // Блокирует повторное нажатие "Отправить заявку", пока летит подача
+            // (эпик blank-import, срез E2E3): без гарда двойной клик на большом
+            // списке успевает уйти вторым POST раньше, чем отработает первый.
+            isSubmitting: false,
+            // Уточнение isSubmitting: true строго ПОДМНОЖЕСТВО isSubmitting=true, с момента
+            // клика "Привязать и отправить"/"Отправить без привязки" внутри модалки привязки
+            // и до завершения confirmBinding/skipBinding (mapWithConcurrency-привязка + сам
+            // submit). Пока модалка только ОТКРЫТА и юзер решает - false, крестик/оверлей/
+            // Escape/свайп закрывают её штатно. Как только процесс стартовал - true, и
+            // UniversalBindingModal (проп processing) сама блокирует и свои кнопки, и закрытие -
+            // иначе повторный клик внутри модалки или "отмена" посреди работающего confirmBinding
+            // оставляют его фоновый прогон невидимым и ведут ко второму параллельному submit.
+            isBindingActionInProgress: false,
 
             showSubmitTooltip: false,
             tooltipTimer: null,
@@ -1927,72 +1976,93 @@ export default {
         },
 
         async submitApplication() {
-            this.validateAllFields();
-            
-            if (!this.canSubmit) {
-                useDeletionsStore().notify({ prefix: 'Заполните все обязательные поля во всех вложениях', type: 'error' });
-                return;
-            }
+            // Гард от повторного клика: пока летит подача (проверки + сам POST,
+            // включая время внутри модалки привязки и после неё), второй клик
+            // по кнопке - no-op, а не второй параллельный прогон.
+            if (this.isSubmitting) return;
+            this.isSubmitting = true;
+            // Модалка привязки доводит подачу до sendCompleteApplication сама
+            // (confirmBinding/skipBinding) и сама снимает isSubmitting по
+            // завершении - здесь снимаем только если до неё дело не дошло.
+            let handedOffToBindingModal = false;
 
-            // Формы гасят дубли при добавлении, но черновик из localStorage мог накопить их
-            // раньше - такую заявку на бэк не пускаем.
-            const duplicate = this.findDuplicateEntry();
-            if (duplicate) {
-                useDeletionsStore().notify({
-                    prefix: `Во вложении "${duplicate.attachmentName}" повторяется `,
-                    bold: duplicate.label,
-                    suffix: ' - удалите лишнюю строку',
-                    type: 'error',
-                });
-                return;
-            }
+            try {
+                this.validateAllFields();
 
-            // Проверяем активные машины
-  const activeVehicles = await this.checkVehiclesBeforeSubmit();
-  
-  if (activeVehicles.length > 0) {
-    const vehicleList = activeVehicles.map(v => this.formatActiveVehicleConflict(v)).join('; ');
-    useDeletionsStore().notify({ prefix: 'Невозможно отправить заявку. Уже в активных заявках: ', bold: vehicleList, type: 'error' });
-    return;
-  }
-
-            let hasDateErrors = false;
-            let errorMessage = '';
-            
-            this.attachments.forEach(attachment => {
-                const dateData = this.attachmentDatesByAttachment[this.attachmentKey(attachment)];
-                if (dateData) {
-                    if (!dateData.isOneDay && dateData.startDate && dateData.endDate) {
-                        const start = new Date(dateData.startDate.split('.').reverse().join('-'));
-                        const end = new Date(dateData.endDate.split('.').reverse().join('-'));
-                        if (start > end) {
-                            hasDateErrors = true;
-                            errorMessage = `В вложении "${attachment.display_name}" дата окончания не может быть раньше даты начала`;
-                        }
-                    }
-
+                if (!this.canSubmit) {
+                    useDeletionsStore().notify({ prefix: 'Заполните все обязательные поля во всех вложениях', type: 'error' });
+                    return;
                 }
-            });
 
-            if (hasDateErrors) {
-                useDeletionsStore().notify({ prefix: errorMessage, type: 'error' });
-                return;
-            }
+                // Формы гасят дубли при добавлении, но черновик из localStorage мог накопить их
+                // раньше - такую заявку на бэк не пускаем.
+                const duplicate = this.findDuplicateEntry();
+                if (duplicate) {
+                    useDeletionsStore().notify({
+                        prefix: `Во вложении "${duplicate.attachmentName}" повторяется `,
+                        bold: duplicate.label,
+                        suffix: ' - удалите лишнюю строку',
+                        type: 'error',
+                    });
+                    return;
+                }
 
-            await this.collectNewDataForBinding();
+                // Проверяем активные машины
+                const activeVehicles = await this.checkVehiclesBeforeSubmit();
 
-            const vehiclesForBinding = this.newVehiclesToBind.filter(vehicle => 
-                vehicle.plateNumber !== 'По факту' && vehicle.mark !== 'По факту'
-            );
-            
-            const employeesForBinding = this.newEmployeesToBind.filter(employee => 
-                employee.passportSeriesNumber !== 'По факту' && employee.position !== 'По факту'
-            );
+                if (activeVehicles.length > 0) {
+                    const vehicleList = activeVehicles.map(v => this.formatActiveVehicleConflict(v)).join('; ');
+                    useDeletionsStore().notify({ prefix: 'Невозможно отправить заявку. Уже в активных заявках: ', bold: vehicleList, type: 'error' });
+                    return;
+                }
 
-            if (vehiclesForBinding.length > 0 || employeesForBinding.length > 0) {
-                this.showBindingModal = true;
-            } else {
-                await this.sendCompleteApplication();
+                let hasDateErrors = false;
+                let errorMessage = '';
+
+                this.attachments.forEach(attachment => {
+                    const dateData = this.attachmentDatesByAttachment[this.attachmentKey(attachment)];
+                    if (dateData) {
+                        if (!dateData.isOneDay && dateData.startDate && dateData.endDate) {
+                            const start = new Date(dateData.startDate.split('.').reverse().join('-'));
+                            const end = new Date(dateData.endDate.split('.').reverse().join('-'));
+                            if (start > end) {
+                                hasDateErrors = true;
+                                errorMessage = `В вложении "${attachment.display_name}" дата окончания не может быть раньше даты начала`;
+                            }
+                        }
+
+                    }
+                });
+
+                if (hasDateErrors) {
+                    useDeletionsStore().notify({ prefix: errorMessage, type: 'error' });
+                    return;
+                }
+
+                await this.collectNewDataForBinding();
+
+                const vehiclesForBinding = this.newVehiclesToBind.filter(vehicle =>
+                    vehicle.plateNumber !== 'По факту' && vehicle.mark !== 'По факту'
+                );
+
+                const employeesForBinding = this.newEmployeesToBind.filter(employee =>
+                    employee.passportSeriesNumber !== 'По факту' && employee.position !== 'По факту'
+                );
+
+                if (vehiclesForBinding.length > 0 || employeesForBinding.length > 0) {
+                    // Модалка привязки перекрывает форму оверлеем, а confirmBinding/
+                    // skipBinding доводят подачу до sendCompleteApplication и сами
+                    // снимают isSubmitting по завершении - кнопка остаётся
+                    // заблокированной весь путь, а не только пока модалка открыта.
+                    handedOffToBindingModal = true;
+                    this.showBindingModal = true;
+                } else {
+                    await this.sendCompleteApplication();
+                }
+            } finally {
+                if (!handedOffToBindingModal) {
+                    this.isSubmitting = false;
+                }
             }
         },
 
@@ -2104,6 +2174,12 @@ export default {
         },
         
         async confirmBinding(bindingData) {
+            // Гард от повторного клика внутри самой модалки: пока привязка уже летит
+            // (mapWithConcurrency по сотням строк массового импорта - окно широкое),
+            // второй emit того же confirm-binding - no-op, не второй набор запросов.
+            if (this.isBindingActionInProgress) return;
+            this.isBindingActionInProgress = true;
+
             try {
                 if (this.newVehiclesToBind.length > 0 && bindingData.vehicles.hasVehiclesForBinding) {
                     const vehiclesToBind = this.newVehiclesToBind.filter(vehicle => 
@@ -2166,18 +2242,44 @@ export default {
             } catch (error) {
                 console.error('Ошибка при привязке:', error);
                 this.closeBindingModal();
+            } finally {
+                this.isBindingActionInProgress = false;
+                this.isSubmitting = false;
             }
         },
 
-        skipBinding() {
+        async skipBinding() {
+            // Тот же гард, что и в confirmBinding - "Отправить без привязки" тоже
+            // не должен запускать sendCompleteApplication дважды на двойной клик.
+            if (this.isBindingActionInProgress) return;
+            this.isBindingActionInProgress = true;
+
             this.closeBindingModal();
-            this.sendCompleteApplication();
+            try {
+                await this.sendCompleteApplication();
+            } finally {
+                this.isBindingActionInProgress = false;
+                this.isSubmitting = false;
+            }
         },
 
         closeBindingModal() {
             this.showBindingModal = false;
             this.newVehiclesToBind = [];
             this.newEmployeesToBind = [];
+        },
+
+        /** Пользователь закрыл модалку сам (крестик/оверлей/Escape/свайп), не подтвердив
+         * и не пропустив привязку - продолжения не будет, снимаем isSubmitting здесь,
+         * иначе кнопка "Отправить заявку" зависнет в состоянии "Отправляем..." навсегда.
+         * Пока confirmBinding/skipBinding уже работают (isBindingActionInProgress) -
+         * модалка сама блокирует эти пути (проп processing), это - страховка на случай
+         * программного вызова: закрыть/отменить фоновый прогон отсюда нельзя, иначе он
+         * останется невидимым и всё равно дойдёт до sendCompleteApplication. */
+        cancelBindingModal() {
+            if (this.isBindingActionInProgress) return;
+            this.closeBindingModal();
+            this.isSubmitting = false;
         },
 
         onSuccessClose() {
@@ -2354,7 +2456,9 @@ export default {
 
                 const response = await apiRequest("/applications/submit-complete-application", {
                     method: "POST",
-                    body: JSON.stringify(finalRequestData)
+                    body: JSON.stringify(finalRequestData),
+                    // Массовый импорт даёт до 2000 строк - дефолтных 10с apiRequest не хватает.
+                    signal: createExtendedTimeoutSignal(SUBMIT_TIMEOUT_MS),
                 });
 
                 if (response.ok) {
@@ -2554,6 +2658,17 @@ export default {
                 localStorage.setItem('draftApplicationState', JSON.stringify(savedData));
             } catch (error) {
                 console.error('Ошибка сохранения состояния в localStorage:', error);
+                // Импорт бланком на 2000 строк с паспортами/патентами - сотни килобайт
+                // черновика, квота браузера (обычно 5-10 МБ на источник) может кончиться.
+                // Форма при этом не должна молчать или падать: данные всё ещё в памяти
+                // Vue и уйдут на сервер по кнопке "Отправить", теряется только автосохранение.
+                if (isQuotaExceededError(error)) {
+                    useDeletionsStore().notify({
+                        prefix: 'Не удалось сохранить черновик заявки: в хранилище браузера закончилось место. ',
+                        suffix: 'Данные пока не потеряны - продолжайте заполнение и отправьте заявку, не закрывая вкладку.',
+                        type: 'error',
+                    });
+                }
             }
         },
 
@@ -3030,7 +3145,9 @@ export default {
         cursor: pointer;
         transition: background-color 0.2s;
         width: auto;
-        display: inline-block;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
         flex-shrink: 0;
         height: fit-content;
     }
@@ -3043,6 +3160,50 @@ export default {
         background: var(--text-muted);
         cursor: not-allowed;
         opacity: 0.6;
+    }
+
+    /* Крутилка на кнопке подачи - вместе со сменой текста объясняет, ПОЧЕМУ кнопка
+       погасла: голый disabled без визуальной причины читается как мёртвая форма. */
+    .send-all-btn__spinner {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        border: 2px solid color-mix(in srgb, var(--accent-contrast) 35%, transparent);
+        border-top-color: var(--accent-contrast);
+        animation: send-all-btn-spin 0.7s linear infinite;
+        flex-shrink: 0;
+    }
+
+    @keyframes send-all-btn-spin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* Как в LoaderSpinner.vue: не гасим крутилку совсем (текст "Отправляем..." сам по
+       себе не объясняет, что форма ещё жива), а замедляем - тот же приём, что там. */
+    @media (prefers-reduced-motion: reduce) {
+        .send-all-btn__spinner {
+            animation-duration: 2.4s;
+        }
+    }
+
+    .submit-progress-hint {
+        margin-top: 8px;
+        max-width: 320px;
+        font-size: 12px;
+        line-height: 1.4;
+        color: var(--text-muted);
+        animation: submit-progress-hint-in 0.2s ease-out;
+    }
+
+    @keyframes submit-progress-hint-in {
+        from {
+            opacity: 0;
+            transform: translateY(-4px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 
     .form__info-row {

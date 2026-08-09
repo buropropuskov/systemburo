@@ -10,6 +10,7 @@ import UserInfoRow from '../UserInfoRow.vue';
 
 vi.mock('@/api/client', () => ({
   apiRequest: vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue([]) }),
+  createExtendedTimeoutSignal: vi.fn(() => 'FAKE_SIGNAL'),
 }));
 vi.mock('@/stores/auth', () => ({
   useAuthStore: vi.fn().mockReturnValue({ token: 'test-token' }),

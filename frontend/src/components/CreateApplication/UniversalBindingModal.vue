@@ -24,6 +24,7 @@
             </h3>
             <button
               class="modal-close"
+              :disabled="processing"
               @click="closeModal"
             >
               <svg
@@ -197,12 +198,22 @@
             <div class="modal-actions">
               <button
                 class="btn skip-btn"
+                :disabled="processing"
                 @click="handleSkip"
               >
-                Отправить без привязки
+                <transition
+                  name="fade"
+                  mode="out-in"
+                >
+                  <span
+                    :key="skipButtonText"
+                    class="button-text"
+                  >{{ skipButtonText }}</span>
+                </transition>
               </button>
               <button
                 class="btn confirm-btn"
+                :disabled="processing"
                 @click="handleConfirm"
               >
                 <transition
@@ -258,21 +269,34 @@ export default {
         hasCompany: {
             type: Boolean,
             default: false
+        },
+        // true с момента клика по "Привязать и отправить"/"Отправить без привязки" и до
+        // завершения обработки родителем - блокирует свои кнопки и все пути закрытия
+        // (крестик/оверлей/Escape/свайп), чтобы повторный клик/закрытие "вслепую" не
+        // ушли вторым набором запросов поверх фонового прогона confirmBinding/skipBinding.
+        processing: {
+            type: Boolean,
+            default: false
         }
     },
     emits: ['confirm-binding', 'skip-binding', 'close'],
-    setup(_, { emit }) {
-        // Контракт окна: свайп вниз за ползунок закрывает лист на мобилке.
+    setup(props, { emit }) {
+        // Контракт окна: свайп вниз за ползунок закрывает лист на мобилке. Пока идёт
+        // обработка (processing) - жест не стартует вовсе, тот же гард, что у closeModal().
         const modalBody = ref(null);
         const swipe = useSwipeDismiss(() => emit('close'), {
             handleSelector: '.sheet-handle',
             getScrollTop: () => modalBody.value?.scrollTop ?? 0,
         });
+        function onSheetTouchStart(e) {
+            if (props.processing) return;
+            swipe.onTouchStart(e);
+        }
         return {
             modalBody,
             sheetOffset: swipe.offset,
             sheetDragging: swipe.isDragging,
-            onSheetTouchStart: swipe.onTouchStart,
+            onSheetTouchStart,
             onSheetTouchMove: swipe.onTouchMove,
             onSheetTouchEnd: swipe.onTouchEnd,
         };
@@ -282,14 +306,21 @@ export default {
             vehiclesBindToOrganization: false,
             vehiclesBindToCompany: false,
             employeesBindToOrganization: false,
-            employeesBindToCompany: false
+            employeesBindToCompany: false,
+            // Какую именно кнопку нажали - чтобы "Отправляем..." показывалось на
+            // кликнутой кнопке, а не на обеих сразу.
+            pendingAction: null
         }
     },
     computed: {
         buttonText() {
+            if (this.processing && this.pendingAction === 'confirm') return 'Отправляем...';
             const hasAnyBinding = this.vehiclesBindToOrganization || this.vehiclesBindToCompany ||
                                  this.employeesBindToOrganization || this.employeesBindToCompany;
             return hasAnyBinding ? 'Привязать и отправить' : 'Отправить заявку';
+        },
+        skipButtonText() {
+            return (this.processing && this.pendingAction === 'skip') ? 'Отправляем...' : 'Отправить без привязки';
         },
         hasVehiclesForBinding() {
             return this.newVehiclesToBind.some(vehicle => !this.isVehicleByFact(vehicle));
@@ -308,6 +339,7 @@ export default {
                 this.vehiclesBindToCompany = false;
                 this.employeesBindToOrganization = false;
                 this.employeesBindToCompany = false;
+                this.pendingAction = null;
             }
         }
     },
@@ -338,9 +370,15 @@ export default {
                    employee.position === 'По факту';
         },
         closeModal() {
+            // Пока обработка уже идёт (processing) - крестик/оверлей/Escape не закрывают
+            // модалку: confirmBinding/skipBinding в родителе всё равно доведут дело до
+            // sendCompleteApplication, а тихо "отменённая" модалка это бы замаскировала.
+            if (this.processing) return;
             this.$emit('close');
         },
         handleConfirm() {
+            if (this.processing) return;
+            this.pendingAction = 'confirm';
             this.$emit('confirm-binding', {
                 vehicles: {
                     bindToOrganization: this.vehiclesBindToOrganization,
@@ -355,6 +393,8 @@ export default {
             });
         },
         handleSkip() {
+            if (this.processing) return;
+            this.pendingAction = 'skip';
             this.$emit('skip-binding');
         }
     }
@@ -460,6 +500,15 @@ export default {
 
 .modal-close:hover {
     background-color: var(--surface-2);
+}
+
+.modal-close:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.modal-close:disabled:hover {
+    background-color: transparent;
 }
 
 .modal-body {
@@ -671,13 +720,18 @@ export default {
     transition: all 0.2s ease;
 }
 
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 .skip-btn {
     background: var(--surface);
     color: var(--text-muted);
     border-color: var(--border);
 }
 
-.skip-btn:hover {
+.skip-btn:hover:not(:disabled) {
     background: var(--surface-2);
     border-color: var(--border);
     color: var(--text);
@@ -693,7 +747,7 @@ export default {
     overflow: hidden;
 }
 
-.confirm-btn:hover {
+.confirm-btn:hover:not(:disabled) {
     background: var(--accent-hover);
     border-color: var(--accent-hover);
 }
