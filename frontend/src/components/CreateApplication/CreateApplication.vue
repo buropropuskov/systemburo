@@ -382,7 +382,7 @@
       :has-company="hasCompany"
       @confirm-binding="confirmBinding"
       @skip-binding="skipBinding"
-      @close="closeBindingModal"
+      @close="cancelBindingModal"
     />
 
     <ApplicationSuccessModal
@@ -1966,10 +1966,15 @@ export default {
         },
 
         async submitApplication() {
-            // Гард от повторного клика: пока летит подача (проверки + сам POST),
-            // второй клик по кнопке - no-op, а не второй параллельный прогон.
+            // Гард от повторного клика: пока летит подача (проверки + сам POST,
+            // включая время внутри модалки привязки и после неё), второй клик
+            // по кнопке - no-op, а не второй параллельный прогон.
             if (this.isSubmitting) return;
             this.isSubmitting = true;
+            // Модалка привязки доводит подачу до sendCompleteApplication сама
+            // (confirmBinding/skipBinding) и сама снимает isSubmitting по
+            // завершении - здесь снимаем только если до неё дело не дошло.
+            let handedOffToBindingModal = false;
 
             try {
                 this.validateAllFields();
@@ -2035,15 +2040,19 @@ export default {
                 );
 
                 if (vehiclesForBinding.length > 0 || employeesForBinding.length > 0) {
-                    // Модалка привязки перекрывает форму оверлеем (сам "Отправить заявку"
-                    // больше не кликабелен) и сама доводит подачу до sendCompleteApplication -
-                    // снимать isSubmitting здесь незачем.
+                    // Модалка привязки перекрывает форму оверлеем, а confirmBinding/
+                    // skipBinding доводят подачу до sendCompleteApplication и сами
+                    // снимают isSubmitting по завершении - кнопка остаётся
+                    // заблокированной весь путь, а не только пока модалка открыта.
+                    handedOffToBindingModal = true;
                     this.showBindingModal = true;
                 } else {
                     await this.sendCompleteApplication();
                 }
             } finally {
-                this.isSubmitting = false;
+                if (!handedOffToBindingModal) {
+                    this.isSubmitting = false;
+                }
             }
         },
 
@@ -2217,18 +2226,32 @@ export default {
             } catch (error) {
                 console.error('Ошибка при привязке:', error);
                 this.closeBindingModal();
+            } finally {
+                this.isSubmitting = false;
             }
         },
 
-        skipBinding() {
+        async skipBinding() {
             this.closeBindingModal();
-            this.sendCompleteApplication();
+            try {
+                await this.sendCompleteApplication();
+            } finally {
+                this.isSubmitting = false;
+            }
         },
 
         closeBindingModal() {
             this.showBindingModal = false;
             this.newVehiclesToBind = [];
             this.newEmployeesToBind = [];
+        },
+
+        /** Пользователь закрыл модалку сам (крестик/оверлей/Escape/свайп), не подтвердив
+         * и не пропустив привязку - продолжения не будет, снимаем isSubmitting здесь,
+         * иначе кнопка "Отправить заявку" зависнет в состоянии "Отправляем..." навсегда. */
+        cancelBindingModal() {
+            this.closeBindingModal();
+            this.isSubmitting = false;
         },
 
         onSuccessClose() {
