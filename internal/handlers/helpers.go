@@ -47,6 +47,25 @@ func BindAndValidate(c echo.Context, dst interface{}) error {
 	return nil
 }
 
+// MaxSubmitRowsPerList - потолок строк в ОДНОМ списке подачи заявки (data.employees /
+// data.vehicles / data.items вложения). BindAndValidate валидацию слайсов не делает by
+// design (см. комментарий выше, долг H2 аудита валидации) - без явного потолка длину
+// списка ограничивает только тело запроса целиком (BodyLimit на группе /applications,
+// router.go). 2000 - решение владельца эпика blank-import: тот же потолок держит разбор
+// загруженного бланка (список на файл), поэтому импортированный в форму список всегда
+// проходит и здесь.
+const MaxSubmitRowsPerList = 2000
+
+// ValidateSliceCap проверяет, что список не длиннее max, иначе 400 с понятным текстом.
+// label - название списка в падеже "слишком много <label>" ("сотрудников", "машин", "ТМЦ").
+func ValidateSliceCap(n, max int, label string) error {
+	if n > max {
+		return echo.NewHTTPError(http.StatusBadRequest,
+			fmt.Sprintf("Слишком много %s в заявке: %d, максимум %d. Разбейте заявку на несколько частей.", label, n, max))
+	}
+	return nil
+}
+
 // GetUsername безопасно извлекает username из контекста.
 func GetUsername(c echo.Context) string {
 	username, _ := c.Get("username").(string)

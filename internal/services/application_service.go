@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1581,71 +1582,157 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 // Машины матчатся по номеру + mark_id (как и фронтовый /check); машины без mark_id
 // ("по факту"/свободная марка) пропускаем - по mark_id в ЧС они попасть не могут.
 // Люди - строгое совпадение ФИО. Возвращает 409 при первом совпадении.
+//
+// Вложения собираются в плоские списки ДО проверки, а не проверяются по одному
+// (blank-import, срез A2A3): раньше каждое вложение проверялось отдельно, что на
+// многовложенной заявке означало N отдельных загрузок ЧС вместо одной на весь запрос.
+// Порядок ошибок (какая строка сообщается первой) не гарантирован при нескольких
+// одновременных нарушениях в разных вложениях - гард всё равно отклонит заявку 409.
 func (s *applicationService) validateBlacklist(ctx context.Context, req CompleteApplicationRequest) error {
+	var vehicles []VehicleInput
+	var employees []EmployeeInput
 	for _, att := range req.Attachments {
-		vehicles, employees := []VehicleInput(nil), []EmployeeInput(nil)
 		if att.Data.Vehicles != nil {
-			vehicles = *att.Data.Vehicles
+			vehicles = append(vehicles, *att.Data.Vehicles...)
 		}
 		if att.Data.Employees != nil {
-			employees = *att.Data.Employees
-		}
-		if err := s.validateBlacklistEntries(ctx, vehicles, employees); err != nil {
-			return err
+			employees = append(employees, *att.Data.Employees...)
 		}
 	}
-	return nil
+	return s.validateBlacklistEntries(ctx, vehicles, employees)
 }
 
 // validateBlacklistEntries - тот же гард на плоском наборе строк, без обёртки вложений.
 // Дополнение заявки (#1685) добавляет людей и машины в уже существующее вложение и формы
 // подачи не собирает, но обходить ЧС не вправе так же, как подача.
+//
+// На объёме (blank-import, срез A2A3) вход может нести тысячи строк - раньше на каждую
+// шёл отдельный SELECT (Check/CheckByName), что превращало ЧС-гард в тысячи round-trip.
+// Активные записи ЧС по объёму - десятки/сотни, а не тысячи, поэтому дешевле загрузить
+// их ОДНИМ запросом на каждый тип и матчить в памяти, чем гонять запрос на каждую строку
+// заявки. Семантика точного совпадения (LOWER(TRIM(...)) =) сохранена один в один.
 func (s *applicationService) validateBlacklistEntries(ctx context.Context, vehicles []VehicleInput, employees []EmployeeInput) error {
-	for _, v := range vehicles {
-		// Машины из mark-дропдауна приходят с mark_id (строгий матч), выбранные из
-		// существующих unique_cars - без mark_id, но с car_brand (имя марки): для них
-		// fallback на матч по имени, иначе заблокированная машина прошла бы гард.
-		var (
-			res models.VehicleBlacklistCheckResult
-			err error
-		)
-		switch {
-		case v.MarkID != nil:
-			res, err = s.vehicleBlacklist.Check(ctx, v.CarNumber, *v.MarkID)
-		case strings.TrimSpace(v.CarBrand) != "":
-			res, err = s.vehicleBlacklist.CheckByName(ctx, v.CarNumber, v.CarBrand)
-		default:
-			continue
-		}
+	if len(vehicles) > 0 {
+		idx, err := s.loadVehicleBlacklistIndex(ctx)
 		if err != nil {
 			return err
 		}
-		if res.IsBlacklisted {
-			return echo.NewHTTPError(http.StatusConflict,
-				fmt.Sprintf("Машина %s %s в чёрном списке: %s", v.CarNumber, v.CarBrand, res.Reason))
+		for _, v := range vehicles {
+			// Машины из mark-дропдауна приходят с mark_id (строгий матч), выбранные из
+			// существующих unique_cars - без mark_id, но с car_brand (имя марки): для них
+			// fallback на матч по имени, иначе заблокированная машина прошла бы гард.
+			var (
+				match models.VehicleBlacklist
+				found bool
+			)
+			switch {
+			case v.MarkID != nil:
+				match, found = idx.byMarkID[vehicleBlacklistKey(v.CarNumber, strconv.Itoa(*v.MarkID))]
+			case strings.TrimSpace(v.CarBrand) != "":
+				match, found = idx.byMarkName[vehicleBlacklistKey(v.CarNumber, normalizeBlacklistKey(v.CarBrand))]
+			default:
+				continue
+			}
+			if found {
+				return echo.NewHTTPError(http.StatusConflict,
+					fmt.Sprintf("Машина %s %s в чёрном списке: %s", v.CarNumber, v.CarBrand, match.Reason))
+			}
 		}
 	}
-	for _, e := range employees {
-		// Тихая деградация ЧС (#529): если ФИО скрыто конфигом - данных для
-		// совпадения нет, матчить нечем, пропускаем (не падаем, не 500).
-		if strings.TrimSpace(e.LastName) == "" && strings.TrimSpace(e.FirstName) == "" {
-			continue
-		}
-		middleName := ""
-		if e.MiddleName != nil {
-			middleName = *e.MiddleName
-		}
-		res, err := s.personBlacklist.Check(ctx, e.LastName, e.FirstName, middleName)
+	if len(employees) > 0 {
+		idx, err := s.loadPersonBlacklistIndex(ctx)
 		if err != nil {
 			return err
 		}
-		if res.IsBlacklisted {
-			fio := strings.TrimSpace(fmt.Sprintf("%s %s %s", e.LastName, e.FirstName, middleName))
-			return echo.NewHTTPError(http.StatusConflict,
-				fmt.Sprintf("Человек %s в чёрном списке: %s", fio, res.Reason))
+		for _, e := range employees {
+			// Тихая деградация ЧС (#529): если ФИО скрыто конфигом - данных для
+			// совпадения нет, матчить нечем, пропускаем (не падаем, не 500).
+			if strings.TrimSpace(e.LastName) == "" && strings.TrimSpace(e.FirstName) == "" {
+				continue
+			}
+			middleName := ""
+			if e.MiddleName != nil {
+				middleName = *e.MiddleName
+			}
+			match, found := idx[personBlacklistKey(e.LastName, e.FirstName, middleName)]
+			if found {
+				fio := strings.TrimSpace(fmt.Sprintf("%s %s %s", e.LastName, e.FirstName, middleName))
+				return echo.NewHTTPError(http.StatusConflict,
+					fmt.Sprintf("Человек %s в чёрном списке: %s", fio, match.Reason))
+			}
 		}
 	}
 	return nil
+}
+
+// vehicleBlacklistIndex - активные записи ЧС машин, проиндексированные под оба пути
+// матчинга Check/CheckByName (mark_id и имя марки), чтобы validateBlacklistEntries не
+// ходил в БД на каждую строку заявки.
+type vehicleBlacklistIndex struct {
+	byMarkID   map[string]models.VehicleBlacklist
+	byMarkName map[string]models.VehicleBlacklist
+}
+
+// loadVehicleBlacklistIndex грузит ВСЕ активные записи ЧС машин одним запросом и строит
+// индекс по обоим ключам матчинга. ORDER BY id ASC + "первый выигрывает" воспроизводит
+// поведение исходного Check/CheckByName (First() без явного Order сортирует по PK).
+func (s *applicationService) loadVehicleBlacklistIndex(ctx context.Context) (vehicleBlacklistIndex, error) {
+	var rows []models.VehicleBlacklist
+	if err := s.db.WithContext(ctx).Where("is_active = ?", true).Order("id asc").Find(&rows).Error; err != nil {
+		slog.Error("Ошибка загрузки чёрного списка машин", "error", err)
+		return vehicleBlacklistIndex{}, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки чёрного списка")
+	}
+	idx := vehicleBlacklistIndex{
+		byMarkID:   make(map[string]models.VehicleBlacklist, len(rows)),
+		byMarkName: make(map[string]models.VehicleBlacklist, len(rows)),
+	}
+	for _, r := range rows {
+		keyID := vehicleBlacklistKey(r.CarNumber, strconv.Itoa(r.MarkID))
+		if _, exists := idx.byMarkID[keyID]; !exists {
+			idx.byMarkID[keyID] = r
+		}
+		keyName := vehicleBlacklistKey(r.CarNumber, normalizeBlacklistKey(r.MarkName))
+		if _, exists := idx.byMarkName[keyName]; !exists {
+			idx.byMarkName[keyName] = r
+		}
+	}
+	return idx, nil
+}
+
+// loadPersonBlacklistIndex грузит ВСЕ активные записи ЧС людей одним запросом,
+// индексированные по нормализованному ФИО (см. loadVehicleBlacklistIndex).
+func (s *applicationService) loadPersonBlacklistIndex(ctx context.Context) (map[string]models.PersonBlacklist, error) {
+	var rows []models.PersonBlacklist
+	if err := s.db.WithContext(ctx).Where("is_active = ?", true).Order("id asc").Find(&rows).Error; err != nil {
+		slog.Error("Ошибка загрузки чёрного списка людей", "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки чёрного списка")
+	}
+	idx := make(map[string]models.PersonBlacklist, len(rows))
+	for _, r := range rows {
+		middle := ""
+		if r.MiddleName != nil {
+			middle = *r.MiddleName
+		}
+		key := personBlacklistKey(r.LastName, r.FirstName, middle)
+		if _, exists := idx[key]; !exists {
+			idx[key] = r
+		}
+	}
+	return idx, nil
+}
+
+// normalizeBlacklistKey - тот же LOWER(TRIM(...)), что использовали Check/CheckByName в
+// SQL, но в памяти: ключ индекса ЧС должен быть регистронезависим и без крайних пробелов.
+func normalizeBlacklistKey(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
+}
+
+func vehicleBlacklistKey(carNumber, marker string) string {
+	return normalizeBlacklistKey(carNumber) + "|" + marker
+}
+
+func personBlacklistKey(lastName, firstName, middleName string) string {
+	return normalizeBlacklistKey(lastName) + "|" + normalizeBlacklistKey(firstName) + "|" + normalizeBlacklistKey(middleName)
 }
 
 // requiredFieldKeys - ключи полей, которые админ ЯВНО настроил обязательными для
@@ -1874,6 +1961,54 @@ func (s *applicationService) isBlacklistSuppressed(ctx context.Context, elementT
 		return false
 	}
 	return cnt > 0
+}
+
+// Пакетные потолки подачи (blank-import, срез A2A3): вставка тысяч строк по одной душит
+// БД тысячами round-trip, а один INSERT на весь список рискует упереться в лимит числа
+// параметров запроса на большом вложении. Числа - компромисс между этими крайностями,
+// не бизнес-правило: изменение значения не меняет то, что записывается, только сколько
+// запросов на это уходит.
+const (
+	employeeInsertBatchSize = 500
+	carInsertBatchSize      = 500
+	bindingInsertBatchSize  = 1000
+	auditInsertBatchSize    = 1000
+)
+
+// insertCarsBatch вставляет машины одного вложения multi-values INSERT пачками по
+// carInsertBatchSize вместо построчного tx.Raw на каждую (blank-import, срез A2A3).
+// Raw SQL, не GORM: у Car нет шифрующих хуков (в отличие от Employee), пакетная вставка
+// машин раньше и так шла raw построчно - меняется только число round-trip, не механизм.
+// RETURNING id для multi-row INSERT возвращает строки в порядке VALUES (гарантия
+// Postgres для одного оператора), поэтому i-й id в результате соответствует i-й машине
+// входного среза - на этом порядке строится сопоставление с pending-флагами/аудитом/
+// привязками ниже.
+func insertCarsBatch(tx *gorm.DB, attID int, vehicles []VehicleInput, entryDateFrom, entryTimeFrom, entryDateTo, entryTimeTo *string) ([]int, error) {
+	carIDs := make([]int, 0, len(vehicles))
+	for start := 0; start < len(vehicles); start += carInsertBatchSize {
+		end := start + carInsertBatchSize
+		if end > len(vehicles) {
+			end = len(vehicles)
+		}
+		chunk := vehicles[start:end]
+		placeholders := make([]string, 0, len(chunk))
+		args := make([]interface{}, 0, len(chunk)*8)
+		for _, v := range chunk {
+			placeholders = append(placeholders, "(?, ?, ?, ?, ?::date, ?::time, ?::date, ?::time, 0)")
+			args = append(args, attID, v.CarNumber, v.CarBrand, v.UnloadPlace, entryDateFrom, entryTimeFrom, entryDateTo, entryTimeTo)
+		}
+		query := "INSERT INTO cars (attachment_id, car_number, car_brand, unload_place, entry_date_from, entry_time_from, entry_date_to, entry_time_to, status) VALUES " +
+			strings.Join(placeholders, ", ") + " RETURNING id"
+		var chunkIDs []int
+		if err := tx.Raw(query, args...).Scan(&chunkIDs).Error; err != nil {
+			return nil, err
+		}
+		if len(chunkIDs) != len(chunk) {
+			return nil, fmt.Errorf("car insert вернул %d id на %d строк", len(chunkIDs), len(chunk))
+		}
+		carIDs = append(carIDs, chunkIDs...)
+	}
+	return carIDs, nil
 }
 
 // SubmitCompleteApplication создаёт полную заявку с вложениями, машинами и сотрудниками.
@@ -2115,38 +2250,61 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		switch att.AttachmentType {
 		case "cars":
 			if att.Data.Vehicles != nil {
+				vehicles := *att.Data.Vehicles
+				// Машины остаются raw SQL (у Car нет шифрующих хуков), но одним пакетным
+				// multi-values INSERT вместо построчного (blank-import, срез A2A3).
+				carIDs, err := insertCarsBatch(tx, attID, vehicles, att.EntryDateFrom, att.EntryTimeFrom, att.EntryDateTo, att.EntryTimeTo)
+				if err != nil {
+					tx.Rollback()
+					slog.Error("Ошибка создания машин (batch)", "attachment_id", attID, "error", err)
+					return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating car")
+				}
+
 				// Дедуп-union мест всех машин вложения для attachment_unload_places (#706).
 				// car_unload_places продолжаем писать для read-side и истории.
 				carPlacesSet := make(map[int]struct{})
-				for _, v := range *att.Data.Vehicles {
-					var carID int
-					err := tx.Raw(`
-						INSERT INTO cars (attachment_id, car_number, car_brand, unload_place, entry_date_from, entry_time_from, entry_date_to, entry_time_to, status)
-						VALUES (?, ?, ?, ?, ?::date, ?::time, ?::date, ?::time, 0)
-						RETURNING id
-					`, attID, v.CarNumber, v.CarBrand, v.UnloadPlace, att.EntryDateFrom, att.EntryTimeFrom, att.EntryDateTo, att.EntryTimeTo).Scan(&carID).Error
-					if err != nil {
-						tx.Rollback()
-						return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating car")
-					}
-
+				auditEntries := make([]models.AuditLog, 0, len(vehicles))
+				var unloadBindings []models.CarUnloadPlace
+				var tableBindings []models.CarTargetTable
+				for i, v := range vehicles {
+					carID := carIDs[i]
 					pendingVehicleFlags = append(pendingVehicleFlags, pendingVehicleFlag{carID: carID, carNumber: v.CarNumber})
 
 					carCreateComment := fmt.Sprintf("Автомобиль %s %s создан", v.CarNumber, v.CarBrand)
-					s.recorder.Log(ctx, tx, models.AuditEntityCar, &carID, "create", &user.ID, carAuditDetails{Comment: &carCreateComment})
+					entry, err := buildAuditLogEntry(models.AuditEntityCar, &carID, "create", &user.ID, carAuditDetails{Comment: &carCreateComment})
+					if err != nil {
+						slog.Error("не удалось подготовить аудит создания машины (submit)", "car_id", carID, "error", err)
+					} else {
+						auditEntries = append(auditEntries, entry)
+					}
 
 					for _, placeID := range v.UnloadPlaces {
-						tx.Exec("INSERT INTO car_unload_places (car_id, unload_place_id, order_index) VALUES (?, ?, 1)", carID, placeID)
-						carPlacesSet[placeID] = struct{}{}
+						pid, oneIdx := placeID, 1
+						unloadBindings = append(unloadBindings, models.CarUnloadPlace{CarID: carID, UnloadPlaceID: pid, OrderIndex: &oneIdx})
+						carPlacesSet[pid] = struct{}{}
 					}
 
 					// Таблицы «Проезд» (#1036): машина видна только в выбранных cars-таблицах
 					// (зеркало employee_target_tables). Историю попадания в таблицу пишем НЕ здесь,
 					// а при активации заявки (status->1) - при подаче машина ещё неактивна (#1085).
 					for _, tableID := range v.TargetTables {
-						if res := tx.Exec("INSERT INTO car_target_tables (car_id, table_id, order_index) VALUES (?, ?, 1)", carID, tableID); res.Error != nil {
-							slog.Error("не удалось привязать машину к таблице (submit)", "car_id", carID, "table_id", tableID, "error", res.Error)
-						}
+						tid, oneIdx := tableID, 1
+						tableBindings = append(tableBindings, models.CarTargetTable{CarID: carID, TableID: tid, OrderIndex: &oneIdx, Source: "application"})
+					}
+				}
+				if len(auditEntries) > 0 {
+					if err := tx.CreateInBatches(&auditEntries, auditInsertBatchSize).Error; err != nil {
+						slog.Error("не удалось записать аудит создания машин (submit)", "attachment_id", attID, "error", err)
+					}
+				}
+				if len(unloadBindings) > 0 {
+					if err := tx.CreateInBatches(&unloadBindings, bindingInsertBatchSize).Error; err != nil {
+						slog.Error("не удалось привязать машины к местам разгрузки (submit)", "attachment_id", attID, "error", err)
+					}
+				}
+				if len(tableBindings) > 0 {
+					if err := tx.CreateInBatches(&tableBindings, bindingInsertBatchSize).Error; err != nil {
+						slog.Error("не удалось привязать машины к таблицам (submit)", "attachment_id", attID, "error", err)
 					}
 				}
 				// Пишем дедупированные места в attachment_unload_places (источник для охранника).
@@ -2157,13 +2315,15 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 
 		case "people":
 			if att.Data.Employees != nil {
-				for _, e := range *att.Data.Employees {
+				employeesInput := *att.Data.Employees
+				employeeRecords := make([]models.Employee, 0, len(employeesInput))
+				for _, e := range employeesInput {
 					statusZero := 0
 					lastName := e.LastName
 					firstName := e.FirstName
 					citizenshipID := e.CitizenshipID
 					position := e.Position
-					employee := models.Employee{
+					employeeRecords = append(employeeRecords, models.Employee{
 						AttachmentID:         &attID,
 						LastName:             &lastName,
 						FirstName:            &firstName,
@@ -2174,30 +2334,69 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 						PatentNumber:         nilIfBlankPtr(e.PatentNumber),
 						OtherPermission:      e.OtherPermission,
 						Status:               &statusZero,
-					}
-					if err := tx.Create(&employee).Error; err != nil {
-						tx.Rollback()
-						return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating employee")
-					}
+					})
+				}
+				// CreateInBatches, НЕ raw SQL: Employee.BeforeSave (models/employee.go)
+				// шифрует паспорт/патент и пишет HMAC. Хуки срабатывают только через GORM
+				// (Create/CreateInBatches), поэтому пакетная вставка обязана остаться на
+				// нём - иначе персональные данные легли бы в базу открытым текстом
+				// (blank-import, срез A2A3). GORM возвращает id каждой строки в тот же
+				// элемент среза (RETURNING на Postgres), порядок с employeesInput совпадает.
+				if err := tx.CreateInBatches(&employeeRecords, employeeInsertBatchSize).Error; err != nil {
+					tx.Rollback()
+					slog.Error("Ошибка создания сотрудников (batch)", "attachment_id", attID, "error", err)
+					return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating employee")
+				}
+
+				auditEntries := make([]models.AuditLog, 0, len(employeeRecords))
+				var tableBindings []models.EmployeeTargetTable
+				for i, employee := range employeeRecords {
 					empID := employee.ID
+					e := employeesInput[i]
 
 					empMiddle := ""
 					if e.MiddleName != nil {
 						empMiddle = *e.MiddleName
 					}
 					pendingEmployeeFlags = append(pendingEmployeeFlags, pendingEmployeeFlag{
-						empID: empID, lastName: lastName, firstName: firstName, middleName: empMiddle,
+						empID: empID, lastName: e.LastName, firstName: e.FirstName, middleName: empMiddle,
 					})
-					empComment := fmt.Sprintf("Сотрудник %s создан", strings.TrimSpace(strings.Join([]string{lastName, firstName, empMiddle}, " ")))
-					s.recorder.Log(ctx, tx, models.AuditEntityEmployee, &empID, "create", &user.ID, carAuditDetails{Comment: &empComment})
+					empComment := fmt.Sprintf("Сотрудник %s создан", strings.TrimSpace(strings.Join([]string{e.LastName, e.FirstName, empMiddle}, " ")))
+					entry, err := buildAuditLogEntry(models.AuditEntityEmployee, &empID, "create", &user.ID, carAuditDetails{Comment: &empComment})
+					if err != nil {
+						slog.Error("не удалось подготовить аудит создания сотрудника (submit)", "employee_id", empID, "error", err)
+					} else {
+						auditEntries = append(auditEntries, entry)
+					}
 
 					// Историю попадания в таблицу пишем НЕ здесь, а при активации заявки
 					// (status->1) - при подаче сотрудник ещё неактивен (#1085).
 					for _, tableID := range e.TargetTables {
-						if res := tx.Exec("INSERT INTO employee_target_tables (employee_id, table_id, order_index) VALUES (?, ?, 1)", empID, tableID); res.Error != nil {
-							slog.Error("не удалось привязать сотрудника к таблице (submit)", "employee_id", empID, "table_id", tableID, "error", res.Error)
-						}
+						tid, oneIdx := tableID, 1
+						tableBindings = append(tableBindings, models.EmployeeTargetTable{EmployeeID: empID, TableID: tid, OrderIndex: &oneIdx, Source: "application"})
 					}
+				}
+
+				if len(auditEntries) > 0 {
+					if err := tx.CreateInBatches(&auditEntries, auditInsertBatchSize).Error; err != nil {
+						slog.Error("не удалось записать аудит создания сотрудников (submit)", "attachment_id", attID, "error", err)
+					}
+				}
+				if len(tableBindings) > 0 {
+					if err := tx.CreateInBatches(&tableBindings, bindingInsertBatchSize).Error; err != nil {
+						slog.Error("не удалось привязать сотрудников к таблицам (submit)", "attachment_id", attID, "error", err)
+					}
+				}
+
+				// Сводная запись в ленте самой заявки (blank-import, срез A2A3): N карточек
+				// «Сотрудник ФИО создан» продолжают писаться выше для истории каждого
+				// сотрудника (её читает /employees/:id/history) - эта запись их не
+				// заменяет, а добавляет ОДНУ строку в историю заявки, чтобы не пролистывать
+				// всех сотрудников, чтобы понять сколько их добавлено разом.
+				if len(employeeRecords) > 0 {
+					summary := fmt.Sprintf("Добавлено сотрудников: %d", len(employeeRecords))
+					s.recorder.Log(ctx, tx, models.AuditEntityApplication, &appID, models.AuditActionEmployeesBulkAdded, &user.ID,
+						applicationAuditDetails{Comment: &summary})
 				}
 			}
 
