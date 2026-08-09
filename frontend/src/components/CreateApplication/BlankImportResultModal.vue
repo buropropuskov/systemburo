@@ -254,7 +254,7 @@ import { employeeLabel, vehicleLabel } from '@/utils/applicationDuplicates';
 // внутри файла) остаётся блокирующей - полей для них здесь нет и не должно быть
 // (152-ФЗ), а чёрный список/дубли - решение, которое клиент не переигрывает.
 const PEOPLE_FIXABLE_FIELD_LABELS = ['Фамилия', 'Имя', 'Отчество', 'Гражданство'];
-const CAR_FIXABLE_FIELD_LABELS = ['Номер Т/С', 'Марка ТС'];
+const CAR_FIXABLE_FIELD_LABELS = ['Номер ТС', 'Марка ТС'];
 
 /**
  * Результат импорта заполненного бланка (эпик blank-import, срез D1D2). Принятые
@@ -465,7 +465,14 @@ export default {
     canIncludeRow(row) {
       if (!row.errors.every((e) => this.errorIsFixable(e))) return false;
       if (this.isPeople) {
-        return !!(row.fields.lastName.trim() && row.fields.firstName.trim());
+        if (!row.fields.lastName.trim() || !row.fields.firstName.trim()) return false;
+        // Гражданство признано исправимым здесь, значит и требовать его надо так же,
+        // как форма: иначе строку с неопознанным гражданством можно включить, ничего
+        // не выбрав, и она отобьётся уже на подаче.
+        if (this.fieldVisible('citizenship') && this.fieldRequired('citizenship')) {
+          return !!row.fields.citizenshipId;
+        }
+        return true;
       }
       return !!row.fields.plateNumber.trim();
     },

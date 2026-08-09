@@ -80,8 +80,10 @@ const PEOPLE_ROWS = [
   {
     row_number: 6,
     employee: {
+      // Гражданство распозналось, отказ только по ФИО - сервер жалуется ровно на то,
+      // что не заполнено, поэтому citizenship_id здесь валидный.
       last_name: '', first_name: '', middle_name: '',
-      citizenship_id: 0, position: '',
+      citizenship_id: 1, position: '',
       passport_series_number: '', patent_number: null, other_permission: null,
       target_tables: [],
     },
@@ -89,6 +91,20 @@ const PEOPLE_ROWS = [
     warnings: [],
   },
 ];
+
+// Гражданство не опознано справочником: правка ФИО такую строку не спасает, пока
+// человек не выберет гражданство - иначе она отобьётся уже на подаче.
+const PEOPLE_UNKNOWN_CITIZENSHIP_ROW = {
+  row_number: 7,
+  employee: {
+    last_name: 'Сидоров', first_name: 'Сидор', middle_name: '',
+    citizenship_id: 0, position: 'Разнорабочий',
+    passport_series_number: '', patent_number: null, other_permission: null,
+    target_tables: [],
+  },
+  errors: ['Гражданство "Узбекистн" не найдено в справочнике'],
+  warnings: [],
+};
 
 const CAR_ROWS = [
   {
@@ -100,7 +116,10 @@ const CAR_ROWS = [
   {
     row_number: 3,
     vehicle: { car_number: '', car_brand: 'Kamaz', mark_id: null, unload_places: [], passage_tables: [] },
-    errors: ['Поле «Номер Т/С» обязательно для заполнения'],
+    // Текст дословно как его формирует бэк: метка берётся из реестра полей
+    // (attachment_fields_registry.go, Label "Номер ТС"). Своя формулировка во фикстуре
+    // означала бы, что тест сверяет фронт сам с собой.
+    errors: ['Поле «Номер ТС» обязательно для заполнения'],
     warnings: [],
   },
 ];
@@ -186,6 +205,47 @@ describe('BlankImportResultModal (blank-import D1D2)', () => {
 
     const checkbox = wrapper.find('[data-testid="bim-include-6"]');
     expect(checkbox.attributes('disabled')).toBeDefined();
+  });
+
+  it('строку с неопознанным гражданством нельзя включить, пока гражданство не выбрано', async () => {
+    const wrapper = mountModal({
+      rows: [PEOPLE_ROWS[0], PEOPLE_UNKNOWN_CITIZENSHIP_ROW],
+      summary: { read: 2, accepted: 1, rejected: 1 },
+    });
+    await flushPromises();
+    await wrapper.findAll('.passage__item')[0].trigger('click');
+
+    const checkbox = wrapper.find('[data-testid="bim-include-7"]');
+    expect(checkbox.attributes('disabled')).toBeDefined();
+
+    const row = wrapper.find('[data-testid="bim-problem-row-7"]');
+    await row.find('select.bim__cell-input').setValue(String(CITIZENSHIPS[0].id));
+
+    expect(wrapper.find('[data-testid="bim-include-7"]').attributes('disabled')).toBeUndefined();
+  });
+
+  it('машина с пустым номером чинится правкой на месте и попадает в payload', async () => {
+    const wrapper = mountModal({
+      attachmentType: 'cars',
+      rows: CAR_ROWS,
+      summary: { read: 2, accepted: 1, rejected: 1 },
+    });
+    await flushPromises();
+    await wrapper.find('[data-testid="bim-unload-places"] .passage__item').trigger('click');
+    await wrapper.find('[data-testid="bim-passage-tables"] .passage__item').trigger('click');
+
+    const problemRow = wrapper.find('[data-testid="bim-problem-row-3"]');
+    await problemRow.findAll('input.bim__cell-input')[0].setValue('В777ВВ177');
+
+    const checkbox = wrapper.find('[data-testid="bim-include-3"]');
+    expect(checkbox.attributes('disabled')).toBeUndefined();
+    await checkbox.setValue(true);
+
+    await wrapper.find('[data-testid="bim-submit"]').trigger('click');
+
+    const payload = wrapper.emitted('import')[0][0];
+    expect(payload.rows).toHaveLength(2);
+    expect(payload.rows.some((r) => r.plateNumber === 'В777ВВ177')).toBe(true);
   });
 
   it('машины: номер Т/С обязателен, места разгрузки и проезд применяются к payload', async () => {
