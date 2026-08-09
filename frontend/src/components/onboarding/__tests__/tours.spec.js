@@ -195,13 +195,16 @@ describe('buildTourSteps', () => {
   it('с route фактовой таблицы сегмент отметки встаёт перед финалом', () => {
     const steps = buildTourSteps('guard', { factTableRoute: '/table/kpp_1' });
     expect(steps.slice(securityOnboardingSteps.length).map((s) => s.id)).toEqual([
+      'sec-table-instruction',
       'sec-pass-intro',
       'sec-pass-row',
       'sec-pass-entry',
       'sec-pass-exit',
+      'sec-on-territory',
       'sec-fact-intro',
       'sec-fact-pass',
       'sec-fact-report',
+      'sec-fact-report-window',
       'sec-finish',
     ]);
   });

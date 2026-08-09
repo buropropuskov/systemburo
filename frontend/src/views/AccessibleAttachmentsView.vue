@@ -378,6 +378,7 @@
       title="Предпросмотр бланка"
       width="900px"
       content-class="blank-preview-modal"
+      content-testid="ob-blank-preview"
       @close="closePreview"
     >
       <div class="blank-preview">
@@ -766,10 +767,35 @@ watch(
       selectAttachment(first.attachment_id);
       return;
     }
+    // Просмотр бланка живёт ВНУТРИ открытой карточки: на этом сигнале карточку
+    // держим, иначе шаг про бланк сам же и закрывает то, из чего бланк
+    // открывается.
+    if (target === 'attachment-blank') return;
     if (!attachmentOpenedByTour) return;
     attachmentOpenedByTour = false;
     selectedId.value = null;
     detail.value = null;
+  },
+);
+
+/*
+ * Тур просит показать сам бланк: рассказывать про кнопку «Посмотреть файл» и не
+ * открывать файл - половина объяснения. Открываем предпросмотр по сигналу и
+ * закрываем, когда сигнал гаснет; чужое окно не трогаем.
+ */
+let previewOpenedByTour = false;
+watch(
+  () => [useOnboardingStore().revealOpen, detail.value?.attachment?.has_blank],
+  ([target, hasBlank]) => {
+    if (target === 'attachment-blank') {
+      if (!hasBlank || previewOpen.value) return;
+      previewOpenedByTour = true;
+      openPreview();
+      return;
+    }
+    if (!previewOpenedByTour) return;
+    previewOpenedByTour = false;
+    closePreview();
   },
 );
 

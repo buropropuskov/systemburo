@@ -15,6 +15,7 @@
           :style="{ maxWidth: width, '--base-modal-radius': radius || null, ...(sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : {}) }"
           role="dialog"
           aria-modal="true"
+          :data-testid="contentTestid || null"
           :aria-label="title"
           @click.stop
           @mousedown.stop
@@ -91,6 +92,12 @@ export default {
     closeOnOverlay: {
       type: Boolean,
       default: true,
+    },
+    // Якорь для онбординга: окно телепортируется в body, и достучаться до него
+    // из родителя нечем - имя передаётся явно.
+    contentTestid: {
+      type: String,
+      default: '',
     },
     contentClass: {
       type: String,
