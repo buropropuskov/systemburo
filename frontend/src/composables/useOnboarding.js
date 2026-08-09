@@ -584,16 +584,30 @@ export function useOnboarding() {
           onBoundaryPrev(startIndex);
           return;
         }
-        // «Назад» через onBeforeStep не проходит (тот гейтит только «Далее»), а вид
-        // шага со скриншотом зависит от наличия цели прямо сейчас - пересобираем
-        // его сами, иначе шаг вернулся бы в том виде, в каком его собрали на старте
-        // сегмента. Страницу мы уже видели, поэтому проверка синхронная - ждать
-        // отрисовки нечего, и «Назад» не подвисает.
-        const prev = stepsForSegment[localIndex - 1];
+        // «Назад» через onBeforeStep не проходит (тот гейтит только «Далее»),
+        // поэтому те же решения принимаем здесь.
+        //
+        // Во-первых, пропускаем назад шаги, которые «Далее» выбросило: без этого
+        // возврат показывал шаг, которого человек вперёд не видел вовсе (в туре
+        // охраны - «Пропуск по факту» на пустом блоке ручного ввода).
+        //
+        // Во-вторых, вид шага со скриншотом зависит от наличия цели прямо сейчас -
+        // пересобираем его сами, иначе шаг вернулся бы в том виде, в каком его
+        // собрали на старте сегмента. Страницу мы уже видели, поэтому проверка
+        // синхронная: ждать отрисовки нечего, и «Назад» не подвисает.
+        // Пропускаем ровно те шаги, которые тур выбросил по дороге вперёд: их
+        // индексы копит стор. Судить по текущему DOM нельзя - экран с тех пор
+        // изменился (карточка открыта, панель раскрыта), и «Назад» то показывал
+        // шаг, которого человек не видел, то перепрыгивал через увиденный.
+        const skipped = new Set(store.skippedIndexes);
+        let target = localIndex - 1;
+        while (target > 0 && skipped.has(startIndex + target)) target -= 1;
+        const prev = stepsForSegment[target];
         if (prev?.demo) {
-          setStepMode(localIndex - 1, !prev.element || !document.querySelector(prev.element));
+          setStepMode(target, !prev.element || !document.querySelector(prev.element));
         }
-        driverObj.movePrevious();
+        if (target === localIndex - 1) driverObj.movePrevious();
+        else driverObj.moveTo(target);
       },
       onPopoverRender(popover) {
         // Первый показ поповера в сегменте - без анимации переезда: иначе он
@@ -612,9 +626,26 @@ export function useOnboarding() {
         // Подсказка "Далее" сквозная (вкл. шаг со след. страницы). Пропускаем
         // шаги, элемента которых сейчас нет в DOM и которые движок выбросит -
         // иначе хинт обещает шаг, на который тур не перейдёт.
+        //
+        // Судим только о шагах ЭТОЙ страницы: цели соседней страницы в текущем
+        // DOM отсутствуют всегда, и цикл пробегал весь хвост тура - на последнем
+        // шаге раздела «Доступные мне» подсказка обещала «Готово!», хотя дальше
+        // шёл целый сегмент таблицы поста.
+        const currentRoute = store.steps[currentGlobal]?.route;
         let nextIdx = currentGlobal + 1;
         let nextStep = store.steps[nextIdx];
-        while (nextStep && isSkippableStep(nextStep) && nextStep.element && !document.querySelector(nextStep.element)) {
+        while (
+          nextStep
+          && nextStep.route === currentRoute
+          && isSkippableStep(nextStep)
+          && nextStep.element
+          // Цель, которая появляется по действию (раскрытие окна, смена бланка),
+          // сейчас отсутствует законно - шаг всё равно будет показан. Иначе
+          // подсказка перепрыгивала его и обещала «Готово!» посреди тура.
+          && !nextStep.reveal?.open
+          && !nextStep.demoAttachment
+          && !document.querySelector(nextStep.element)
+        ) {
           nextIdx += 1;
           nextStep = store.steps[nextIdx];
         }

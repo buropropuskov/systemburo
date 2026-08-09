@@ -251,7 +251,9 @@ assert_array "system_tables_array" "$BODY"
 echo -e "\n${YELLOW}--- Cars ---${NC}"
 # ============================
 
-parse_response "$(req GET /cars/active-for-tables "$ADMIN_TOKEN")"
+# Адресный путь «Проезд» (#1036): таблица с id=1 может отсутствовать - эндпоинт всё
+# равно отвечает 200 с пустым массивом, поэтому дымовая проверка не зависит от данных.
+parse_response "$(req GET /cars/active-for-table/1 "$ADMIN_TOKEN")"
 assert_status "cars_active" "200" "$STATUS" "$BODY"
 
 parse_response "$(req GET /cars/history/all "$ADMIN_TOKEN")"

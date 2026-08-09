@@ -65,6 +65,8 @@ let reachedFinal = false;
 let railSaved = null;
 // Наблюдатель шага-приглашения к действию (см. watchAdvance).
 let advanceObserver = null;
+// Наблюдатель за пересозданием подсвеченного узла (см. watchRetarget).
+let retargetObserver = null;
 
 /**
  * Рельс держим развёрнутым на nav-шаге И на шаге ПЕРЕД ним: разворачиваем
@@ -165,6 +167,7 @@ async function prepareStep(globalIndex) {
   // срабатывало на узле, который открывает СЛЕДУЮЩИЙ шаг (карточку заявки), и
   // тур перескакивал через него.
   stopAdvanceWatch();
+  stopRetargetWatch();
   const step = store.steps[globalIndex];
   const attachmentChanged = applyDemoAttachment(globalIndex);
   const revealed = await applyReveal(store.steps, globalIndex);
@@ -222,7 +225,11 @@ async function startSegment() {
   let targetMissing = false;
   if (targetStep.element) {
     waitController = new AbortController();
-    const el = await waitForElement(waitSelectorOf(targetStep), targetTimeoutFor(targetStep), waitController.signal);
+    // Первый шаг новой страницы ждём по верхней границе: страница монтируется,
+    // грузит данные и только потом дорастает до конечного размера. На таблице
+    // поста четырёх секунд не хватало - шаг вырождался в окно по центру, хотя
+    // таблица появлялась мгновением позже.
+    const el = await waitForElement(waitSelectorOf(targetStep), REVEAL_TARGET_TIMEOUT, waitController.signal);
     waitController = null;
     // Тур могли остановить или перезапустить (Esc/logout/новый сегмент) пока
     // ждали элемент - не поднимаем driver-зомби поверх неактивного/чужого тура.
@@ -237,6 +244,7 @@ async function startSegment() {
       store.setIndex(globalIndex);
       applyRail(globalIndex);
       watchAdvance(globalIndex);
+      watchRetarget(globalIndex);
       // Backstop: синхронизируем демо-вложение с подсвеченным шагом (важно для
       // навигации «Назад» - prepareStep отрабатывает только на «Далее»).
       const attachmentChanged = applyDemoAttachment(globalIndex);
@@ -317,6 +325,40 @@ function stopAdvanceWatch() {
   if (!advanceObserver) return;
   advanceObserver.disconnect();
   advanceObserver = null;
+}
+
+/**
+ * Держать подсветку на цели, которую страница пересоздала.
+ *
+ * Списки дорисовываются, когда приезжают данные: узел, подсвеченный секунду
+ * назад, выбрасывается из DOM, а вместе с ним пропадает и подсветка - на экране
+ * остаётся затемнение без выреза. Так вело себя начало сегмента таблицы поста.
+ * Дожидаемся нового узла по тому же селектору и переприцеливаем шаг.
+ *
+ * @param {number} globalIndex
+ */
+function watchRetarget(globalIndex) {
+  stopRetargetWatch();
+  const step = store.steps[globalIndex];
+  if (!step?.element || typeof MutationObserver === 'undefined') return;
+  const gen = driverGen;
+  retargetObserver = new MutationObserver(() => {
+    const active = driverObj?.getActiveElement?.();
+    // Цель на месте либо шага без подсветки - трогать нечего.
+    if (!active || active.isConnected) return;
+    const fresh = document.querySelector(step.element);
+    if (!fresh) return;
+    stopRetargetWatch();
+    if (!driverObj || gen !== driverGen || store.currentIndex !== globalIndex) return;
+    driverObj.obRetarget(globalIndex);
+  });
+  retargetObserver.observe(document.body, { childList: true, subtree: true });
+}
+
+function stopRetargetWatch() {
+  if (!retargetObserver) return;
+  retargetObserver.disconnect();
+  retargetObserver = null;
 }
 
 /**
@@ -445,6 +487,7 @@ function handleDestroyed(gen) {
   // Игнорируем callback от инстанса, который уже сменён следующим сегментом.
   if (gen !== driverGen) return;
   stopAdvanceWatch();
+  stopRetargetWatch();
   driverObj = null;
   // Переход между страницами: тур продолжается, не останавливаем и рельс не трогаем.
   if (store.pendingSegment) return;
@@ -456,6 +499,7 @@ function handleDestroyed(gen) {
 
 function teardown() {
   stopAdvanceWatch();
+  stopRetargetWatch();
   // Тур ещё жив (logout/unmount во время прохождения) - авто-тур помечаем
   // пройденным здесь: ниже driverGen++ обезвредит отложенный onDestroyed, и тот
   // до markIfAuto уже не дойдёт. Так автозапуск действительно "один раз".

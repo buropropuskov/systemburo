@@ -277,6 +277,7 @@ func main() {
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, cfg.UploadPath)
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)
+	attachmentImportService := services.NewAttachmentImportService(db, auditRecorder, cfg.UploadPath)
 	// trash_restored (#1748 S5): уведомление автору записи (заявителю) при
 	// восстановлении машины/сотрудника из корзины.
 	trashService := services.NewTrashService(db, auditRecorder, services.WithTrashNotifications(notificationServiceEarly))
@@ -409,6 +410,7 @@ func main() {
 	// archiveDownloadService - тот же источник, что у ZIP заявки (h.Archive выше):
 	// скачивание одного бланка с source=archive обязано видеть те же файлы (#1615, C6).
 	attachmentBlankHandler := handlers.NewAttachmentBlankHandler(attachmentBlankService, applicationService, permissionResolver, archiveDownloadService)
+	attachmentImportHandler := handlers.NewAttachmentImportHandler(attachmentImportService)
 	trashHandler := handlers.NewTrashHandler(trashService, trashDBRef)
 	documentGroupHandler := handlers.NewDocumentGroupHandler(documentGroupService)
 	documentHandler := handlers.NewDocumentHandler(documentService, documentFileService)
@@ -430,6 +432,9 @@ func main() {
 	// исчерпания. Отдельный middleware больше не нужен (иначе его sliding-остаток
 	// перехватывал бы таймер guard). Оставляем nil - router просто не навесит его.
 	var loginLimiter echo.MiddlewareFunc
+	// Приём файла массового импорта (blank-import, C1C2) разбирает .xlsx на до 2000
+	// строк - дороже обычной ручки, поэтому сверх общего лимита свой, per-user/IP.
+	importListLimiter := mw.RateLimit(10, 60)
 	maintenanceBlock := mw.MaintenanceBlock(maintenanceService)
 	banCheck := mw.BanCheck(banCheckService)
 	// Гейт согласия на обработку ПД (#1567). Пока тумблер выключен или текст пуст,
@@ -492,6 +497,7 @@ func main() {
 		PersonBlacklist:     personBlacklistHandler,
 		AttachmentTemplates: attachmentTemplateHandler,
 		AttachmentBlanks:    attachmentBlankHandler,
+		AttachmentImport:    attachmentImportHandler,
 		Trash:               trashHandler,
 		DocumentGroups:      documentGroupHandler,
 		Documents:           documentHandler,
@@ -515,6 +521,7 @@ func main() {
 		BanCheck:            banCheck,
 		ConsentGate:         consentGate,
 		LoginLimiter:        loginLimiter,
+		ImportListLimiter:   importListLimiter,
 		LastSeen:            lastSeen,
 		TableReportGate:     mw.RequireTableVerb(db, permissionResolver, accessDenialService, "report"),
 		TableVersionsGate:   mw.RequireTableVerb(db, permissionResolver, accessDenialService, "versions"),

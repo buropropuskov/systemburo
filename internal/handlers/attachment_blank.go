@@ -87,6 +87,36 @@ func (h *AttachmentBlankHandler) Download(c echo.Context) error {
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", reader)
 }
 
+// DownloadTemplate godoc
+// @Summary      Скачать пустой бланк типа вложения для заполнения
+// @Description  Отдаёт активный шаблон вложения как файл для заполнения списка участников с отпечатком, по которому загруженный обратно файл узнаётся. Доступ - любой авторизованный: бланк не содержит данных заявок, а скачивают его из формы подачи.
+// @Tags         attachment-blanks
+// @Produce      application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+// @Security     BearerAuth
+// @Param        id path int true "ID UniqueAttachment"
+// @Success      200
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /attachments/{id}/blank-template [get]
+func (h *AttachmentBlankHandler) DownloadTemplate(c echo.Context) error {
+	uaID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+
+	reader, filename, err := h.service.GenerateEmptyBlank(c.Request().Context(), uaID)
+	if err != nil {
+		return err
+	}
+	c.Response().Header().Set("Content-Type",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	encoded := url.PathEscape(filename)
+	c.Response().Header().Set("Content-Disposition",
+		`attachment; filename="blank.xlsx"; filename*=UTF-8''`+encoded)
+	return c.Stream(http.StatusOK,
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", reader)
+}
+
 // downloadArchived отдаёт файл с диска по записи реестра файлового архива - доступ
 // уже проверен в Download до вызова, отдельного права под источник "сохранённый
 // файл" нет (#1615, C6).

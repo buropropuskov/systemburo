@@ -14,7 +14,7 @@ vi.mock('@/router', () => ({
   },
 }));
 
-import { apiRequest, apiRequestRaw, _resetDedup403 } from '../client';
+import { apiRequest, apiRequestRaw, createExtendedTimeoutSignal, _resetDedup403 } from '../client';
 import { usePDConsentStore } from '@/stores/pdConsent';
 
 function okJson(body, init = {}) {
@@ -108,6 +108,49 @@ describe('apiRequest basics', () => {
     fetchMock.mockResolvedValue(okJson({ success: false, error: 'boom' }, { status: 200 }));
     const resp = await apiRequest('/test');
     expect(await resp.json()).toEqual({ message: 'boom' });
+  });
+});
+
+// Подача заявки с массовым импортом (эпик blank-import, срез E2E3) не укладывается
+// в дефолтные 10с - у неё свой AbortSignal через createExtendedTimeoutSignal.
+describe('свой таймаут поверх дефолтных 10 секунд', () => {
+  let fetchMock;
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    localStorage.clear();
+    fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('createExtendedTimeoutSignal возвращает AbortSignal', () => {
+    expect(createExtendedTimeoutSignal(120000)).toBeInstanceOf(AbortSignal);
+  });
+
+  it('переданный options.signal уходит в fetch как есть, а не подменяется дефолтным контроллером', async () => {
+    const ownSignal = createExtendedTimeoutSignal(120000);
+    await apiRequest('/applications/submit-complete-application', {
+      method: 'POST',
+      body: '{}',
+      signal: ownSignal,
+    });
+
+    expect(fetchMock.mock.calls[0][1].signal).toBe(ownSignal);
+  });
+
+  it('без options.signal запрос по-прежнему получает свой (дефолтный) AbortSignal', async () => {
+    await apiRequest('/test');
+    const usedSignal = fetchMock.mock.calls[0][1].signal;
+    expect(usedSignal).toBeInstanceOf(AbortSignal);
+
+    const ownSignal = createExtendedTimeoutSignal(120000);
+    await apiRequest('/test2', { signal: ownSignal });
+    expect(fetchMock.mock.calls[1][1].signal).not.toBe(usedSignal);
+    expect(fetchMock.mock.calls[1][1].signal).toBe(ownSignal);
   });
 });
 

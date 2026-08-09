@@ -5,6 +5,7 @@
     width="720px"
     radius="30px"
     content-class="pass-report-modal"
+    content-testid="ob-pass-report"
     @close="$emit('close')"
   >
     <div

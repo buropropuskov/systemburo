@@ -1464,6 +1464,23 @@ definitions:
       sort_order:
         type: integer
     type: object
+  models.PushDeliveryState:
+    properties:
+      created_at:
+        type: string
+      failed_count:
+        type: integer
+      last_error:
+        type: string
+      last_success_at:
+        type: string
+      platform:
+        type: string
+      user_id:
+        type: integer
+      username:
+        type: string
+    type: object
   models.PushDevice:
     properties:
       created_at:
@@ -1474,6 +1491,17 @@ definitions:
         type: string
       user_agent:
         type: string
+    type: object
+  models.PushPlatformCounts:
+    properties:
+      android:
+        type: integer
+      desktop:
+        type: integer
+      ios:
+        type: integer
+      unknown:
+        type: integer
     type: object
   models.PushStatusResponse:
     properties:
@@ -1503,6 +1531,28 @@ definitions:
     required:
     - endpoint
     - keys
+    type: object
+  models.PushSummary:
+    properties:
+      active_users_total:
+        type: integer
+      delivery:
+        description: |-
+          Delivery -- состояние доставки по каждому живому устройству. Причина отказа до
+          этого жила только в журнале приложения, а до журнала на сервере доступа нет ни у
+          администратора, ни при разборе жалобы «уведомление не пришло» (#974): молчание
+          push-службы и отказ push-службы выглядели одинаково - никак.
+        items:
+          $ref: '#/definitions/models.PushDeliveryState'
+        type: array
+      subscriptions_by_platform:
+        $ref: '#/definitions/models.PushPlatformCounts'
+      users_by_last_login_platform:
+        $ref: '#/definitions/models.PushPlatformCounts'
+      users_with_push:
+        type: integer
+      users_without_push:
+        type: integer
     type: object
   models.PushUnsubscribeRequest:
     properties:
@@ -4278,6 +4328,37 @@ definitions:
       user_id:
         type: integer
     type: object
+  services.ImportListResult:
+    properties:
+      rows:
+        items:
+          $ref: '#/definitions/services.ImportRowResult'
+        type: array
+      summary:
+        $ref: '#/definitions/services.ImportListSummary'
+    type: object
+  services.ImportListSummary:
+    properties:
+      accepted:
+        type: integer
+      read:
+        type: integer
+      rejected:
+        type: integer
+    type: object
+  services.ImportRowResult:
+    properties:
+      errors:
+        items:
+          type: string
+        type: array
+      row_number:
+        type: integer
+      warnings:
+        items:
+          type: string
+        type: array
+    type: object
   services.ItemInfo:
     properties:
       count:
@@ -6737,8 +6818,8 @@ paths:
       - applications
   /applications/{id}/files/{file_id}:
     delete:
-      description: Убирает приложенный к заявке файл. Подавший заявку может снять
-        свой документ, пока заявка не закрыта; супер-администратор - в любой момент.
+      description: 'Убирает приложенный к заявке файл. Доступно носителям права администрирования:
+        состав заявки после подачи неизменен.'
       parameters:
       - description: ID заявки
         in: path
@@ -7980,6 +8061,76 @@ paths:
       summary: Деталь доступного вложения
       tags:
       - applications
+  /applications/export:
+    get:
+      description: |-
+        Отдаёт текущую выборку Центра заявок файлом. Фильтры и видимость - те же,
+        что у GET /applications; ФИО без согласия на обработку ПД заменены логином.
+      parameters:
+      - description: Поисковый запрос
+        in: query
+        name: search_query
+        type: string
+      - description: ID организаций через запятую
+        in: query
+        name: organization_ids
+        type: string
+      - description: ID компаний через запятую
+        in: query
+        name: company_ids
+        type: string
+      - description: ID мест разгрузки через запятую
+        in: query
+        name: unload_place_ids
+        type: string
+      - description: ID таблиц проходной через запятую
+        in: query
+        name: passage_table_ids
+        type: string
+      - description: Статус согласования
+        in: query
+        name: confirmation
+        type: string
+      - description: Статус заявки
+        in: query
+        name: status
+        type: string
+      - description: Дата от (YYYY-MM-DD)
+        in: query
+        name: date_from
+        type: string
+      - description: Дата до (YYYY-MM-DD)
+        in: query
+        name: date_to
+        type: string
+      - description: Архивные заявки
+        in: query
+        name: archive
+        type: boolean
+      produces:
+      - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Выгрузка реестра заявок в .xlsx
+      tags:
+      - applications
   /applications/files:
     post:
       consumes:
@@ -8437,6 +8588,36 @@ paths:
       summary: Привязка ручного вложения к заявке (#1049, только super/admin)
       tags:
       - attachments
+  /attachments/{id}/blank-template:
+    get:
+      description: 'Отдаёт активный шаблон вложения как файл для заполнения списка
+        участников с отпечатком, по которому загруженный обратно файл узнаётся. Доступ
+        - любой авторизованный: бланк не содержит данных заявок, а скачивают его из
+        формы подачи.'
+      parameters:
+      - description: ID UniqueAttachment
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Скачать пустой бланк типа вложения для заполнения
+      tags:
+      - attachment-blanks
   /attachments/{id}/cars:
     get:
       description: Возвращает автомобили вложения с привязанными местами разгрузки.
@@ -8635,6 +8816,49 @@ paths:
       summary: История изменений шаблона вложения
       tags:
       - attachments
+  /attachments/{id}/import-list:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Гейт action.import.list, право не super-only. Кривой бланк (не
+        .xlsx, чужой тип вложения, изменённая структура колонок, пустой или слишком
+        длинный список) отлетает целиком с понятным текстом, до разбора отдельных
+        строк - построчный разбор появится следующим срезом.
+      parameters:
+      - description: ID UniqueAttachment
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Заполненный .xlsx бланк
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.ImportListResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Загрузить заполненный Excel-бланк для массового ввода списка
+      tags:
+      - attachment-blanks
   /attachments/{id}/items:
     get:
       description: Возвращает товарно-материальные ценности вложения.
@@ -9373,22 +9597,6 @@ paths:
       summary: Получение активных машин конкретной таблицы «Проезд»
       tags:
       - cars
-  /cars/active-for-tables:
-    get:
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/services.TableCarResponse'
-            type: array
-      security:
-      - BearerAuth: []
-      summary: Получение активных машин для таблиц
-      tags:
-      - cars
   /cars/bulk/add-table:
     post:
       consumes:
@@ -9547,22 +9755,6 @@ paths:
       security:
       - BearerAuth: []
       summary: Получение машин «по факту» конкретной таблицы «Проезд»
-      tags:
-      - cars
-  /cars/fact-for-tables:
-    get:
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/services.TableCarResponse'
-            type: array
-      security:
-      - BearerAuth: []
-      summary: Получение машин «по факту» для таблиц
       tags:
       - cars
   /cars/fact-unload-places:
@@ -13452,6 +13644,33 @@ paths:
       security:
       - BearerAuth: []
       summary: Подписка браузера на Web Push
+      tags:
+      - notifications
+  /notifications/push/summary:
+    get:
+      description: |-
+        Сколько активных пользователей всего, у скольких есть хотя бы одна живая
+        подписка, разрез живых подписок по платформе браузера и разрез
+        ПОЛЬЗОВАТЕЛЕЙ по платформе последнего успешного входа - включая тех, кто
+        push не подключил (#974). Не личная настройка: гейт page.statistics.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PushSummary'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Сводка использования Web Push (админ)
       tags:
       - notifications
   /notifications/read-all:

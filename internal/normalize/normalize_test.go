@@ -42,6 +42,48 @@ func TestNameHomoglyphMatchesCyrillic(t *testing.T) {
 	}
 }
 
+func TestFixLatinInName(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		in        string
+		wantFixed string
+		wantLatin bool
+	}{
+		{"чистая кириллица без изменений", "Иванов", "Иванов", false},
+		{"омоглиф в середине сохраняет регистр", "Ивaнов", "Иванов", true},
+		{"омоглиф в начале слова заглавный", "Aнна", "Анна", true},
+		{"несколько омоглифов", "Пeтpов", "Петров", true},
+		{"лишние пробелы схлопываются без латиницы", "Иванов   Иван", "Иванов Иван", false},
+		{"неомоглифная латиница не трогается", "Fizli", "Fizli", false},
+		{"пустая строка", "", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			fixed, latin := FixLatinInName(tt.in)
+			if fixed != tt.wantFixed || latin != tt.wantLatin {
+				t.Errorf("FixLatinInName(%q) = (%q, %v), want (%q, %v)", tt.in, fixed, latin, tt.wantFixed, tt.wantLatin)
+			}
+		})
+	}
+}
+
+func TestFixLatinInNameIdempotent(t *testing.T) {
+	t.Parallel()
+	// Повторное применение к уже исправленной строке не меняет её и не находит латиницу.
+	for _, in := range []string{"Ивaнов", "Пeтpов", "Сoрoкин", "Иванов"} {
+		once, _ := FixLatinInName(in)
+		twice, latinAgain := FixLatinInName(once)
+		if once != twice {
+			t.Errorf("не идемпотентно: %q -> %q -> %q", in, once, twice)
+		}
+		if latinAgain {
+			t.Errorf("повторный проход снова нашёл латиницу в уже исправленной строке %q", once)
+		}
+	}
+}
+
 func TestPlate(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

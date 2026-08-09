@@ -500,15 +500,19 @@ describe('onboarding store', () => {
       await store.ensureFactRoute();
 
       expect(store.factTableRoute).toBe('/table/kpp_1');
-      expect(store.totalSteps).toBe(baseLen + 7);
+      expect(store.totalSteps).toBe(baseLen + 11);
       const tail = store.steps.slice(baseLen);
       expect(tail.map((s) => s.id)).toEqual([
+        'sec-table-instruction',
+        'sec-pass-intro',
+        'sec-pass-row',
+        'sec-pass-entry',
+        'sec-pass-exit',
+        'sec-on-territory',
         'sec-fact-intro',
-        'sec-fact-row',
-        'sec-fact-entry',
         'sec-fact-pass',
-        'sec-fact-exit',
         'sec-fact-report',
+        'sec-fact-report-window',
         'sec-finish',
       ]);
       // шаги фактовой таблицы - на её route, а финал всегда на достижимом

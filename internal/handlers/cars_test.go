@@ -104,8 +104,6 @@ func TestCars_Unauthorized(t *testing.T) {
 		method string
 		path   string
 	}{
-		{"GET", "/cars/active-for-tables"},
-		{"GET", "/cars/fact-for-tables"},
 		{"GET", "/cars/unload-places"},
 		{"GET", "/cars/fact-unload-places"},
 		{"GET", "/cars/check-active?car_number=X&car_brand=Y"},
@@ -136,42 +134,8 @@ func TestCars_Unauthorized(t *testing.T) {
 	}
 }
 
-// --- GET /cars/active-for-tables ---
 
-func TestGetActiveCarsForTables_Empty(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
 
-	token := testutil.RegisterAndLogin(t, e, "caruser1", "pass123", 1, td.OrgID, td.CompanyID)
-
-	rec := testutil.GET(t, e, "/cars/active-for-tables", testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusOK, rec.Code)
-
-	cars := testutil.ParseSlice(t, rec)
-	assert.Empty(t, cars)
-}
-
-func TestGetActiveCarsForTables_WithActiveCar(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-
-	token := testutil.RegisterAndLogin(t, e, "caractive1", "pass123", 1, td.OrgID, td.CompanyID)
-	appID, _, _ := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
-
-	// Activate the car via take-to-work + update-items-status
-	activateCarViaApp(t, e, db, appID, td)
-
-	rec := testutil.GET(t, e, "/cars/active-for-tables", testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusOK, rec.Code)
-
-	cars := testutil.ParseSlice(t, rec)
-	require.GreaterOrEqual(t, len(cars), 1, "expected active car after activation")
-	assert.Equal(t, "B002BB799", cars[0]["car_number"])
-}
 
 // --- GET /cars/active-for-table/:table_id (scoped «Проезд», #1036) ---
 
@@ -305,23 +269,7 @@ func TestGetAttachmentCars_IncludesTargetTables(t *testing.T) {
 	assert.EqualValues(t, tbl.ID, table["id"])
 }
 
-// --- GET /cars/fact-for-tables ---
 
-func TestGetFactCarsForTables_Empty(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-
-	token := testutil.RegisterAndLogin(t, e, "carfact1", "pass123", 1, td.OrgID, td.CompanyID)
-
-	rec := testutil.GET(t, e, "/cars/fact-for-tables", testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusOK, rec.Code)
-
-	cars := testutil.ParseSlice(t, rec)
-	// Fact cars have car_number "по факту" which is unlikely in test data
-	assert.Empty(t, cars)
-}
 
 // --- GET /cars/unload-places ---
 
@@ -621,8 +569,16 @@ func TestCarLifecycle_CreateActivateTerritoryDeactivateRestore(t *testing.T) {
 	token := testutil.RegisterAndLogin(t, e, "carlc1", "pass123", 1, td.OrgID, td.CompanyID)
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 
+	// Смотрим машину через адресный путь «Проезд» (#1036): выдача идёт по конкретной
+	// таблице, поэтому машину сначала к ней привязываем. Раньше тест ходил на
+	// /cars/active-for-tables - тот путь снят вместе с техдолгом (#1050).
+	lcTable := seedPassTableGrant(t, db, getUserID(t, db, "carlc1"), "cars")
+	require.NoError(t, db.Exec(
+		"INSERT INTO car_target_tables (car_id, table_id, order_index) VALUES (?, ?, 1)", carID, lcTable).Error)
+	lcPath := fmt.Sprintf("/cars/active-for-table/%d", lcTable)
+
 	// 1. Car initially has status=0
-	rec := testutil.GET(t, e, "/cars/active-for-tables", testutil.AuthHeader(token))
+	rec := testutil.GET(t, e, lcPath, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 	emptyCars := testutil.ParseSlice(t, rec)
 	assert.Empty(t, emptyCars, "no active cars before activation")
@@ -631,7 +587,7 @@ func TestCarLifecycle_CreateActivateTerritoryDeactivateRestore(t *testing.T) {
 	activateCarViaApp(t, e, db, appID, td)
 
 	// 3. Now car should be active
-	rec = testutil.GET(t, e, "/cars/active-for-tables", testutil.AuthHeader(token))
+	rec = testutil.GET(t, e, lcPath, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 	activeCars := testutil.ParseSlice(t, rec)
 	require.GreaterOrEqual(t, len(activeCars), 1, "expected active car after activation")

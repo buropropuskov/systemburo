@@ -312,6 +312,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, "./uploads")
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)
+	attachmentImportService := services.NewAttachmentImportService(db, auditRecorder, uploadDir)
 	trashService := services.NewTrashService(db, auditRecorder, services.WithTrashNotifications(notificationServiceEarly))
 	trashDBRef := services.NewTrashDBRef(db)
 	documentFileService := services.NewDocumentFileService("./uploads")
@@ -408,6 +409,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	personBlacklistHandler := handlers.NewPersonBlacklistHandler(personBlacklistService)
 	attachmentTemplateHandler := handlers.NewAttachmentTemplateHandler(attachmentTemplateService, attachmentFieldConfigService)
 	attachmentBlankHandler := handlers.NewAttachmentBlankHandler(attachmentBlankService, applicationService, permissionResolver, archiveDownloadService)
+	attachmentImportHandler := handlers.NewAttachmentImportHandler(attachmentImportService)
 	trashHandler := handlers.NewTrashHandler(trashService, trashDBRef)
 	documentGroupHandler := handlers.NewDocumentGroupHandler(documentGroupService)
 	documentHandler := handlers.NewDocumentHandler(documentService, documentFileService)
@@ -496,6 +498,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 		PersonBlacklist:     personBlacklistHandler,
 		AttachmentTemplates: attachmentTemplateHandler,
 		AttachmentBlanks:    attachmentBlankHandler,
+		AttachmentImport:    attachmentImportHandler,
 		Trash:               trashHandler,
 		DocumentGroups:      documentGroupHandler,
 		Documents:           documentHandler,

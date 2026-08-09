@@ -350,22 +350,26 @@
 
         <!-- Выгрузка реестра (#1832): отдаёт ТЕКУЩУЮ выборку, поэтому стоит рядом с
              «Фильтром» - что отобрал, то и уедет в файл. Право то же, что у скачивания
-             бланка одной заявки. -->
+             бланка одной заявки. На мобилке - только иконка, как «Обновить» слева:
+             четыре подписи в один ряд шириной 390px не влезают. -->
         <button
           v-if="can('action.export.applications')"
           type="button"
           class="filter-btn export-btn"
           :disabled="exporting"
+          :aria-label="exporting ? 'Готовим файл' : 'Выгрузить реестр заявок в Excel'"
           :title="exporting ? 'Готовим файл' : 'Выгрузить реестр заявок в Excel'"
           data-testid="center-button-export"
           @click="exportRegistry"
         >
           <img
             src="@/assets/icons/export.png"
-            class="filter-btn__icon"
+            class="filter-btn__icon export-btn__icon"
+            width="16"
+            height="16"
             alt=""
           >
-          {{ exporting ? 'Готовим...' : 'Выгрузить' }}
+          <span class="export-btn__text">{{ exporting ? 'Готовим...' : 'Выгрузить' }}</span>
         </button>
 
         <button
@@ -2635,6 +2639,32 @@ export default {
     .header-row2 :deep(.refresh-btn__text) {
         display: none;
     }
+
+    /* Выгрузка реестра (#1832) сворачивается в иконку тем же приёмом и той же
+       геометрией, что «Обновить» слева: с подписями «Обновить», «Выгрузить» и
+       «Фильтр» плюс дропдаун на 132px ряд не влезает в 390px и начинает жать
+       кнопки. Подпись не удаляем, а прячем визуально - она остаётся программе
+       чтения с экрана. */
+    .header-row2 .export-btn {
+        width: 45px;
+        height: 34px;
+        padding: 0;
+        gap: 0;
+        justify-content: center;
+        box-sizing: border-box;
+    }
+
+    .header-row2 .export-btn__text {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
 }
 
 /* ── Десктоп: инлайн-фильтры Центра (как до волны 3) ── */
@@ -2758,6 +2788,14 @@ export default {
 .export-btn:disabled {
     opacity: 0.6;
     cursor: progress;
+}
+
+/* Растровая иконка без явного размера рендерится в натуральную величину: export.png
+   нативно 30px, и кнопка распирала ряд по высоте и ширине. 16px - как у «Обновить»
+   рядом (на 2x остаётся чёткой). */
+.export-btn__icon {
+    width: 16px;
+    height: 16px;
 }
 
 .filter-btn:hover {
