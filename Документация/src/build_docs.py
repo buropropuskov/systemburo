@@ -1022,6 +1022,23 @@ def add_table(doc, headers, rows, widths=None):
     set_font(spacer.add_run(""), size=6)
 
 
+# Кегль листинга подбирается по самой длинной строке. Courier New занимает 0.6
+# кегля на знак, поэтому в поле листинга (текст 16.5 см минус отступы 4 и 2 мм)
+# при 10 pt помещается 75 знаков: всё, что шире, Word переносит, и вывод команды,
+# разложенный по столбцам, рассыпается - в перечне копий колонка с именем файла
+# уезжала на отдельную строку. Ниже 6.5 pt не опускаемся: неразборчиво.
+CODE_FIELD_MM = 165 - 4 - 2
+CODE_CHARS_X_PT = CODE_FIELD_MM * 72 / (0.6 * 25.4)
+
+
+def code_font_size(lines):
+    widest = max((len(line) for line in lines), default=1)
+    if widest <= CODE_CHARS_X_PT / 10:
+        return 10
+    fits = CODE_CHARS_X_PT / widest
+    return max(6.5, int(fits * 2) / 2)
+
+
 def add_code_block(doc, lines):
     para = doc.add_paragraph()
     pf = para.paragraph_format
@@ -1035,10 +1052,11 @@ def add_code_block(doc, lines):
     pf.keep_together = True
     shade_paragraph(para, CODE_FILL)
     border_paragraph(para)
+    size = code_font_size(lines)
     for i, line in enumerate(lines):
         if i:
             para.add_run().add_break()
-        set_font(para.add_run(line), name=MONO, size=10)
+        set_font(para.add_run(line), name=MONO, size=size)
 
 
 def add_callout(doc, kind, lines):
