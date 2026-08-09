@@ -143,17 +143,6 @@ export const approveOnboardingSteps = [
     reveal: { open: 'first-application' },
   },
   {
-    id: 'apr-detail-history',
-    route: '/center',
-    element: '[data-testid="ob-detail-history"]',
-    optional: true,
-    requires: 'center.application_history',
-    title: 'Что с заявкой происходило',
-    description:
-      'Кнопка «История заявки» открывает журнал: кто и когда подал заявку, кто голосовал, что менялось в её составе. Записи можно отфильтровать и выгрузить в Excel кнопкой «Экспорт». Сюда стоит заглянуть, когда заявку переслали вам уже с чужими решениями.',
-    reveal: { open: 'first-application' },
-  },
-  {
     id: 'apr-notifications',
     route: '/center',
     element: '[data-testid="ob-header-notifications"]',

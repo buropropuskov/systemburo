@@ -18,6 +18,7 @@
         >
           <div
             class="history-modal"
+            data-testid="ob-history-modal"
             :class="{ 'is-dragging': sheetDragging }"
             :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
             @touchstart="onSheetTouchStart"
@@ -243,6 +244,7 @@ import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import ExcelJS from 'exceljs';
 import { ref } from 'vue';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+import { useOnboardingStore } from '@/stores/onboarding';
 
 export default {
     name: 'ApplicationHistory',
@@ -286,11 +288,14 @@ export default {
             onSheetTouchStart: swipe.onTouchStart,
             onSheetTouchMove: swipe.onTouchMove,
             onSheetTouchEnd: swipe.onTouchEnd,
+            onboardingStore: useOnboardingStore(),
         };
     },
     data() {
         return {
             showModal: false,
+            // Журнал открыл тур - только такое окно он и закрывает за собой.
+            historyOpenedByTour: false,
             loading: false,
             history: [],
             sortOrder: 'desc', // 'desc' - новые сверху, 'asc' - старые сверху
@@ -433,6 +438,23 @@ export default {
     },
     beforeUnmount() {
         document.removeEventListener('click', this.handleClickOutside);
+    },
+    watch: {
+        /**
+         * Онбординг просит показать журнал: открываем окно по сигналу и закрываем,
+         * когда сигнал гаснет. Окно, открытое человеком, не трогаем.
+         */
+        'onboardingStore.revealOpen'(target) {
+            if (target === 'application-history') {
+                if (this.showModal) return;
+                this.historyOpenedByTour = true;
+                this.openModal();
+                return;
+            }
+            if (!this.historyOpenedByTour) return;
+            this.historyOpenedByTour = false;
+            this.closeModal();
+        },
     },
     methods: {
         openModal() {
