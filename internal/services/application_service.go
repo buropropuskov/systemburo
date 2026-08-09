@@ -1679,6 +1679,7 @@ type vehicleBlacklistIndex struct {
 func (s *applicationService) loadVehicleBlacklistIndex(ctx context.Context) (vehicleBlacklistIndex, error) {
 	var rows []models.VehicleBlacklist
 	if err := s.db.WithContext(ctx).Where("is_active = ?", true).Order("id asc").Find(&rows).Error; err != nil {
+		slog.Error("Ошибка загрузки чёрного списка машин", "error", err)
 		return vehicleBlacklistIndex{}, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки чёрного списка")
 	}
 	idx := vehicleBlacklistIndex{
@@ -1703,6 +1704,7 @@ func (s *applicationService) loadVehicleBlacklistIndex(ctx context.Context) (veh
 func (s *applicationService) loadPersonBlacklistIndex(ctx context.Context) (map[string]models.PersonBlacklist, error) {
 	var rows []models.PersonBlacklist
 	if err := s.db.WithContext(ctx).Where("is_active = ?", true).Order("id asc").Find(&rows).Error; err != nil {
+		slog.Error("Ошибка загрузки чёрного списка людей", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки чёрного списка")
 	}
 	idx := make(map[string]models.PersonBlacklist, len(rows))

@@ -61,7 +61,7 @@ const MaxSubmitRowsPerList = 2000
 func ValidateSliceCap(n, max int, label string) error {
 	if n > max {
 		return echo.NewHTTPError(http.StatusBadRequest,
-			fmt.Sprintf("Слишком много %s в одном списке: %d, максимум %d. Разбейте заявку на несколько частей.", label, n, max))
+			fmt.Sprintf("Слишком много %s в заявке: %d, максимум %d. Разбейте заявку на несколько частей.", label, n, max))
 	}
 	return nil
 }
