@@ -492,6 +492,8 @@ import DataProcessingModal from '@/components/DataProcessingModal.vue';
 import BlankImportResultModal from './BlankImportResultModal.vue';
 import {
     findFirstDuplicate,
+    findDuplicateEmployee,
+    findDuplicateVehicle,
     isSameEmployee,
     isSameVehicle,
     employeeLabel,
@@ -1525,18 +1527,68 @@ export default {
         // Принятые/исправленные строки уходят в список заявки ТЕМ ЖЕ путём, что ручное
         // массовое добавление (существующие handleEmployeesAdded/handleVehiclesAdded) -
         // без своей копии логики создания строк (см. addExistingEmployees/addExistingCars).
+        // Дубли ВНУТРИ файла бэкенд уже отсеивает при разборе (attachment_import_validate.go,
+        // строка попадает в rows только один раз) - здесь только пересечение с тем, что уже
+        // добавлено в текущее вложение заявки, теми же findDuplicateEmployee/findDuplicateVehicle,
+        // что и ручной ввод. Строку-в-строку внутри самой пачки (правка проблемных строк вручную
+        // может свести две разные строки к одному человеку/машине) та же накопительная проверка
+        // гасит побочным эффектом - как и addExistingEmployees/addExistingCars для каталога.
         handleImportRows({ attachmentType, rows }) {
             if (!rows.length) return;
-            if (attachmentType === 'people') {
-                this.handleEmployeesAdded(rows);
-            } else {
-                this.handleVehiclesAdded(rows);
-            }
-            this.closeImportResultModal();
-            useDeletionsStore().notify({
-                bold: `Добавлено строк: ${rows.length}`,
-                suffix: ' из импортированного бланка',
+            const isPeople = attachmentType === 'people';
+            const findDuplicate = isPeople ? findDuplicateEmployee : findDuplicateVehicle;
+            const label = isPeople ? employeeLabel : vehicleLabel;
+
+            // employeeLabel фолбэком показывает паспорт, если ФИО пусто (так он и задуман
+            // для ручного ввода). В импорте это означало бы паспорт в тексте уведомления,
+            // поэтому здесь безымянная строка называется обезличенно.
+            const safeLabel = (row) => {
+                const text = label(row);
+                if (!isPeople) return text;
+                const hasName = [row.lastName, row.firstName, row.middleName]
+                    .some((part) => (part || '').trim());
+                return hasName ? text : 'Строка без ФИО';
+            };
+
+            const list = [...(isPeople ? this.employees : this.vehicles)];
+            const toAdd = [];
+            const skipped = [];
+            rows.forEach((row) => {
+                if (findDuplicate(list, row)) {
+                    skipped.push(safeLabel(row));
+                    return;
+                }
+                list.push(row);
+                toAdd.push(row);
             });
+
+            if (skipped.length > 0) {
+                // Файл может нести до 2000 строк - в тост попадают первые несколько имён,
+                // а не вся пачка целиком (SystemTableColumnsTab.vue - тот же приём "и ещё N").
+                const shown = skipped.slice(0, 5).join(', ');
+                const more = skipped.length > 5 ? ` и ещё ${skipped.length - 5}` : '';
+                useDeletionsStore().notify({
+                    prefix: `${shown}${more} `,
+                    bold: skipped.length > 1
+                        ? 'уже в списке - пропущены при импорте'
+                        : (isPeople ? 'уже в списке - пропущен при импорте' : 'уже в списке - пропущена при импорте'),
+                    type: 'error',
+                });
+            }
+
+            if (toAdd.length > 0) {
+                if (isPeople) {
+                    this.handleEmployeesAdded(toAdd);
+                } else {
+                    this.handleVehiclesAdded(toAdd);
+                }
+                useDeletionsStore().notify({
+                    bold: `Добавлено строк: ${toAdd.length}`,
+                    suffix: ' из импортированного бланка',
+                });
+            }
+
+            this.closeImportResultModal();
         },
 
         async handleAttachmentSelected(attachment) {

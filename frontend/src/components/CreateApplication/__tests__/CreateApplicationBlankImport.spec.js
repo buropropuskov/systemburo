@@ -158,3 +158,127 @@ describe('CreateApplication - загрузка заполненного блан
         expect(w.vm.showImportDropzone).toBe(false);
     });
 });
+
+// Срез D3: импортированные строки сверяются с тем, что УЖЕ есть в текущем вложении
+// заявки - иначе дубль долетает до финального гарда (findDuplicateEntry) и отбивает
+// подачу целиком уже после того, как человек заполнил всю форму.
+describe('CreateApplication - дедуп импорта против уже добавленного в заявку (D3)', () => {
+    it('импортированный дубль уже добавленного сотрудника не попадает в список', async () => {
+        const w = await mountApp();
+        w.vm.attachments = [{ local_id: 'p1', attachment_type: 'people', display_name: 'Люди' }];
+        w.vm.employeesByAttachment = {
+            p1: [{ id: 1, lastName: 'Иванов', firstName: 'Иван', middleName: 'Иванович', passportSeriesNumber: '4510 111111' }],
+        };
+        w.vm.selectedAttachment = w.vm.attachments[0];
+
+        w.vm.handleImportRows({
+            attachmentType: 'people',
+            rows: [{ lastName: 'Иванов', firstName: 'Иван', middleName: 'Иванович', passportSeriesNumber: '4510111111' }],
+        });
+
+        expect(w.vm.employeesByAttachment.p1).toHaveLength(1);
+    });
+
+    it('импортированный дубль уже добавленной машины не попадает в список', async () => {
+        const w = await mountApp();
+        w.vm.attachments = [{ local_id: 'c1', attachment_type: 'cars', display_name: 'Машины' }];
+        w.vm.vehiclesByAttachment = { c1: [{ id: 1, plateNumber: 'A777AA 777', mark: 'BMW' }] };
+        w.vm.selectedAttachment = w.vm.attachments[0];
+
+        w.vm.handleImportRows({
+            attachmentType: 'cars',
+            rows: [{ plateNumber: 'a777aa777', mark: 'BMW' }],
+        });
+
+        expect(w.vm.vehiclesByAttachment.c1).toHaveLength(1);
+    });
+
+    it('о пропущенном при импорте дубле сообщается уведомлением', async () => {
+        const w = await mountApp();
+        w.vm.attachments = [{ local_id: 'p1', attachment_type: 'people', display_name: 'Люди' }];
+        w.vm.employeesByAttachment = {
+            p1: [{ id: 1, lastName: 'Иванов', firstName: 'Иван', middleName: 'Иванович', passportSeriesNumber: '4510 111111' }],
+        };
+        w.vm.selectedAttachment = w.vm.attachments[0];
+
+        w.vm.handleImportRows({
+            attachmentType: 'people',
+            rows: [{ lastName: 'Иванов', firstName: 'Иван', middleName: 'Иванович', passportSeriesNumber: '4510111111' }],
+        });
+
+        expect(notifyMock).toHaveBeenCalledTimes(1);
+        expect(notifyMock).toHaveBeenCalledWith(expect.objectContaining({
+            prefix: 'Иванов Иван Иванович ',
+            bold: 'уже в списке - пропущен при импорте',
+            type: 'error',
+        }));
+    });
+
+    // employeeLabel для безымянной строки фолбэком отдаёт паспорт - в уведомлении
+    // импорта персональных данных быть не должно.
+    it('дубль без ФИО назван обезличенно, паспорт в уведомление не попадает', async () => {
+        const w = await mountApp();
+        w.vm.attachments = [{ local_id: 'p1', attachment_type: 'people', display_name: 'Люди' }];
+        w.vm.employeesByAttachment = {
+            p1: [{ id: 1, lastName: '', firstName: '', middleName: '', passportSeriesNumber: '4510 111111' }],
+        };
+        w.vm.selectedAttachment = w.vm.attachments[0];
+
+        w.vm.handleImportRows({
+            attachmentType: 'people',
+            rows: [{ lastName: '', firstName: '', middleName: '', passportSeriesNumber: '4510111111' }],
+        });
+
+        expect(notifyMock).toHaveBeenCalledTimes(1);
+        const call = notifyMock.mock.calls[0][0];
+        expect(call.prefix).toBe('Строка без ФИО ');
+        expect(JSON.stringify(call)).not.toContain('4510');
+    });
+
+    it('уникальные строки из той же пачки проходят, дубль среди них - нет', async () => {
+        const w = await mountApp();
+        w.vm.attachments = [{ local_id: 'p1', attachment_type: 'people', display_name: 'Люди' }];
+        w.vm.employeesByAttachment = {
+            p1: [{ id: 1, lastName: 'Иванов', firstName: 'Иван', passportSeriesNumber: '4510 111111' }],
+        };
+        w.vm.selectedAttachment = w.vm.attachments[0];
+
+        w.vm.handleImportRows({
+            attachmentType: 'people',
+            rows: [
+                { lastName: 'Иванов', firstName: 'Иван', passportSeriesNumber: '4510111111' }, // дубль уже добавленного
+                { lastName: 'Петров', firstName: 'Пётр', passportSeriesNumber: '4510 222222' }, // новый
+            ],
+        });
+
+        expect(w.vm.employeesByAttachment.p1.map((e) => e.lastName)).toEqual(['Иванов', 'Петров']);
+    });
+
+    // Бэк отсеивает дубли внутри файла на разборе (attachment_import_validate.go) - в
+    // rows такого прийти не должно. Но правка проблемной строки прямо в модалке
+    // результата (галочка "Добавить") может свести две РАЗНЫЕ строки файла к одному
+    // и тому же человеку/машине уже ПОСЛЕ бэкового разбора - гард ловит и это тем же
+    // накопительным проходом, тем же приёмом, что addExistingEmployees/addExistingCars
+    // для каталога. Решение: осмысленное поведение - в список идёт первая, вторая
+    // гасится как дубль с тем же уведомлением, а не долетает до findDuplicateEntry.
+    it('дубль внутри самой импортируемой пачки при пустой заявке: добавляется только первая строка', async () => {
+        const w = await mountApp();
+        w.vm.attachments = [{ local_id: 'p1', attachment_type: 'people', display_name: 'Люди' }];
+        w.vm.employeesByAttachment = { p1: [] };
+        w.vm.selectedAttachment = w.vm.attachments[0];
+
+        w.vm.handleImportRows({
+            attachmentType: 'people',
+            rows: [
+                { lastName: 'Сидоров', firstName: 'Сидр', passportSeriesNumber: '4510 333333' },
+                { lastName: 'Сидоров', firstName: 'Сидр', passportSeriesNumber: '4510333333' },
+            ],
+        });
+
+        expect(w.vm.employeesByAttachment.p1).toHaveLength(1);
+        expect(notifyMock).toHaveBeenCalledWith(expect.objectContaining({
+            bold: 'уже в списке - пропущен при импорте',
+            type: 'error',
+        }));
+    });
+});
