@@ -243,8 +243,9 @@
           />
         </div>
 
-        <!-- Скачать пустой бланк для массового ввода участников (эпик blank-import, B2):
-             гейт правом action.import.list - скачал, значит сможет и загрузить обратно. -->
+        <!-- Скачать пустой бланк / загрузить заполненный для массового ввода участников
+             (эпик blank-import, B2+D1D2): гейт правом action.import.list - скачал,
+             значит сможет и загрузить обратно. -->
         <div
           v-if="showBlankTemplateButton"
           class="blank-template-row"
@@ -258,6 +259,41 @@
           >
             {{ downloadingBlankTemplate ? 'Скачиваем...' : 'Скачать бланк для заполнения' }}
           </button>
+          <button
+            type="button"
+            class="lk-button lk-button--secondary lk-button--sm"
+            data-testid="open-import-dropzone-btn"
+            :disabled="importUploading"
+            @click="showImportDropzone = !showImportDropzone"
+          >
+            {{ importUploading ? 'Загружаем...' : 'Загрузить заполненный' }}
+          </button>
+        </div>
+
+        <!-- Дропзон загрузки заполненного бланка - по образцу единственного xlsx-дропзона
+             проекта, AttachmentTemplateEditor.vue (#183). -->
+        <div
+          v-if="showBlankTemplateButton && showImportDropzone"
+          class="bi-dropzone"
+          data-testid="import-dropzone"
+          :class="{ 'bi-dropzone--active': isImportDragging }"
+          @dragenter.prevent="isImportDragging = true"
+          @dragover.prevent
+          @dragleave.prevent="isImportDragging = false"
+          @drop.prevent="onImportDrop"
+        >
+          <span class="bi-dropzone__hint">Перетащите заполненный .xlsx бланк сюда</span>
+          <span class="bi-dropzone__or">или</span>
+          <label class="lk-button lk-button--ghost lk-button--sm bi-dropzone__browse">
+            Выберите файл
+            <input
+              type="file"
+              accept=".xlsx"
+              hidden
+              data-testid="import-file-input"
+              @change="onImportFileChange"
+            >
+          </label>
         </div>
 
         <!-- 4 ряд: Динамические формы в зависимости от типа вложения -->
@@ -409,6 +445,19 @@
       :show="showConsentModal"
       @close="showConsentModal = false"
     />
+
+    <!-- Результат импорта заполненного бланка (эпик blank-import, D1D2). -->
+    <BlankImportResultModal
+      :show="showImportResultModal"
+      :attachment-type="selectedAttachment ? selectedAttachment.attachment_type : 'people'"
+      :summary="importResult ? importResult.summary : {}"
+      :rows="importResult ? importResult.rows : []"
+      :all-passage-tables="allPassageTables"
+      :all-unloading-places="allUnloadingPlaces"
+      :field-config="currentFieldConfig"
+      @close="closeImportResultModal"
+      @import="handleImportRows"
+    />
   </div>
 </template>
 
@@ -417,7 +466,7 @@ import { apiRequest, createExtendedTimeoutSignal } from '@/api/client'
 import { mapWithConcurrency } from '@/utils/mapWithConcurrency'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionsStore } from '@/stores/permissions'
-import { downloadBlankTemplate as fetchBlankTemplate } from '@/api/blankImport'
+import { downloadBlankTemplate as fetchBlankTemplate, uploadImportList } from '@/api/blankImport'
 import { saveBlobAs } from '@/api/attachment-templates'
 import { toAttachmentContent } from '@/utils/applicationEntityPayload';
 import { useDeletionsStore } from '@/stores/deletions'
@@ -440,6 +489,7 @@ import ApplicationRecipientsRow from './ApplicationRecipientsRow.vue';
 import DuplicateConflictModal from './DuplicateConflictModal.vue';
 import SchedulePlaceWarningPanel from './SchedulePlaceWarningPanel.vue';
 import DataProcessingModal from '@/components/DataProcessingModal.vue';
+import BlankImportResultModal from './BlankImportResultModal.vue';
 import {
     findFirstDuplicate,
     isSameEmployee,
@@ -493,7 +543,8 @@ export default {
         TextConstructor,
         ApplicationRecipientsRow,
         DuplicateConflictModal,
-        DataProcessingModal
+        DataProcessingModal,
+        BlankImportResultModal
     },
     data() {
         return {
@@ -538,6 +589,14 @@ export default {
             // Скачивание пустого бланка для массового ввода (эпик blank-import, B2):
             // блокирует повторный клик, пока летит запрос.
             downloadingBlankTemplate: false,
+
+            // Загрузка заполненного бланка (эпик blank-import, D1D2).
+            showImportDropzone: false,
+            isImportDragging: false,
+            importUploading: false,
+            showImportResultModal: false,
+            // {rows, summary} последнего разбора - живёт, пока открыта модалка результата.
+            importResult: null,
 
             // #1183: предупреждения выбранных мест текущей формы для плавающей панели.
             placeNotices: [],
@@ -1419,6 +1478,65 @@ export default {
             } finally {
                 this.downloadingBlankTemplate = false;
             }
+        },
+
+        // Загрузка заполненного бланка (эпик blank-import, D1D2). Файл уходит сразу по
+        // выбору/сбросу - интерфейс рассчитан на неопытного пользователя, отдельного шага
+        // "подтвердить загрузку" нет. 200/207 оба открывают модалку результата (D2);
+        // строки с ошибками разбирает сама модалка, здесь их не фильтруем.
+        onImportFileChange(e) {
+            const file = e.target.files[0];
+            e.target.value = '';
+            if (file) this.uploadImportFile(file);
+        },
+
+        onImportDrop(e) {
+            this.isImportDragging = false;
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].name.endsWith('.xlsx')) {
+                this.uploadImportFile(files[0]);
+            }
+        },
+
+        async uploadImportFile(file) {
+            if (!this.selectedAttachment || this.importUploading) return;
+            const uaId = this.selectedAttachment.template_id || this.selectedAttachment.id;
+            this.importUploading = true;
+            try {
+                this.importResult = await uploadImportList(uaId, file);
+                this.showImportDropzone = false;
+                this.showImportResultModal = true;
+            } catch (error) {
+                useDeletionsStore().notify({
+                    prefix: 'Не удалось загрузить список: ',
+                    bold: error.message || 'ошибка сервера',
+                    type: 'error',
+                });
+            } finally {
+                this.importUploading = false;
+            }
+        },
+
+        closeImportResultModal() {
+            this.showImportResultModal = false;
+            this.importResult = null;
+        },
+
+        // Принятые/исправленные строки уходят в список заявки ТЕМ ЖЕ путём, что ручное
+        // массовое добавление (существующие handleEmployeesAdded/handleVehiclesAdded) -
+        // без своей копии логики создания строк (см. addExistingEmployees/addExistingCars).
+        handleImportRows({ attachmentType, rows }) {
+            if (!rows.length) return;
+            if (attachmentType === 'people') {
+                this.handleEmployeesAdded(rows);
+            } else {
+                this.handleVehiclesAdded(rows);
+            }
+            this.closeImportResultModal();
+            useDeletionsStore().notify({
+                bold: `Добавлено строк: ${rows.length}`,
+                suffix: ' из импортированного бланка',
+            });
         },
 
         async handleAttachmentSelected(attachment) {
@@ -3247,12 +3365,50 @@ export default {
         position: relative;
     }
 
-    /* Кнопка «Скачать бланк для заполнения» (B2) - прижата к правому краю над
-       блоком формы+списка, чтобы не втискиваться в их flex-ряд. */
+    /* Кнопки «Скачать бланк для заполнения» / «Загрузить заполненный» (B2/D1D2) -
+       прижаты к правому краю над блоком формы+списка, чтобы не втискиваться в их
+       flex-ряд. flex-wrap - на узком экране кнопки переносятся, а не режутся. */
     .blank-template-row {
         display: flex;
         justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: 10px;
         margin-bottom: 10px;
+    }
+
+    /* Дропзон загрузки заполненного бланка - byte-копия .te-dropzone
+       (AttachmentTemplateEditor.vue), сжата под ряд формы подачи. */
+    .bi-dropzone {
+        border: 2px dashed var(--color-border);
+        border-radius: var(--radius-sm);
+        padding: 14px;
+        text-align: center;
+        transition: all 0.2s ease;
+        background: var(--surface);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 10px;
+    }
+
+    .bi-dropzone--active {
+        border-color: var(--accent);
+        background: var(--accent-tint);
+    }
+
+    .bi-dropzone__hint {
+        font-size: 12px;
+        color: var(--color-text-muted);
+    }
+
+    .bi-dropzone__or {
+        font-size: 11px;
+        color: var(--text-muted);
+    }
+
+    .bi-dropzone__browse {
+        cursor: pointer;
     }
 
     /* Форма ввода (data__completion, 450px) + список (data__list, flex:1) стоят рядом
