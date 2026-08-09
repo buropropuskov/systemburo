@@ -3431,6 +3431,14 @@ export default {
         margin-bottom: 10px;
     }
 
+    /* На телефоне модификатор --sm давал 24px высоты - вдвое ниже тач-таргета
+       по WCAG 2.5.5 и ниже соседних кнопок формы. */
+    @media (max-width: 768px) {
+        .blank-template-row .lk-button {
+            min-height: 44px;
+        }
+    }
+
     /* Дропзон загрузки заполненного бланка - byte-копия .te-dropzone
        (AttachmentTemplateEditor.vue), сжата под ряд формы подачи. */
     .bi-dropzone {
