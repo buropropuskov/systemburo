@@ -457,7 +457,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useDeletionsStore } from '@/stores/deletions'
 import { useFormValidation } from '@/composables/useFormValidation'
 import { useNarrowScreen } from '@/composables/useNarrowScreen'
-import { validatePartValue, formatPartValue, initializeNumberParts } from '@/composables/useNumberFormat'
+import { validatePartValue, formatPartValue, initializeNumberParts, matchNumberToFormat } from '@/composables/useNumberFormat'
 import { useFieldConfig } from '@/composables/useFieldConfig'
 import { collectActiveWarnings } from '@/utils/warningWindows'
 import { buildScheduleReport } from '@/utils/scheduleCheck'
@@ -1467,6 +1467,39 @@ export default {
             this.selectedExistingCars = [];
         },
 
+        // Раскладывает номер редактируемой строки по ячейкам формата (U3). Строка, добавленная
+        // вручную, несёт formatId - числа частей всегда совпадают, обе стороны собраны этим же
+        // кодом (numberParts.join(' ') при добавлении, split(' ') здесь). Строка из импорта
+        // бланка formatId не несёт вовсе (сервер его туда не кладёт) - формат подбирается по
+        // самой строке номера среди активных форматов. Не подошёл ни один - явно сообщаем об
+        // этом, а не оставляем пустые ячейки под чужим форматом молча.
+        applyEditedVehicleNumber(vehicle) {
+            const knownFormat = vehicle.formatId
+                ? this.availableFormats.find(f => f.format.id === vehicle.formatId)
+                : null;
+
+            if (knownFormat) {
+                this.selectedFormat = knownFormat;
+                this.numberParts = vehicle.plateNumber.split(' ');
+                return;
+            }
+
+            const guessed = matchNumberToFormat(vehicle.plateNumber, this.availableFormats);
+            if (guessed) {
+                this.selectedFormat = guessed.format;
+                this.numberParts = guessed.parts;
+                return;
+            }
+
+            this.selectedFormat = null;
+            this.numberParts = [];
+            useDeletionsStore().notify({
+                prefix: `Номер "${vehicle.plateNumber}" не подошёл ни под один формат. `,
+                bold: 'Выберите формат и введите номер вручную',
+                type: 'error',
+            });
+        },
+
         editVehicle(vehicle) {
             this.editingVehicle = vehicle;
             this.selectedExistingCars = [];
@@ -1506,11 +1539,7 @@ export default {
                     this.isNumberByFact = true;
                 } else {
                     this.isNumberByFact = false;
-                    const format = this.availableFormats.find(f => f.format.id === vehicle.formatId);
-                    if (format) {
-                        this.selectedFormat = format;
-                        this.numberParts = vehicle.plateNumber.split(' ');
-                    }
+                    this.applyEditedVehicleNumber(vehicle);
                 }
 
                 restoreMarkSelection();
