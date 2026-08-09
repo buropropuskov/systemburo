@@ -1572,6 +1572,12 @@ export default {
          * @param {{attachmentType: string, rows: Array<Object>, places?: Object}} payload
          */
         handleImportRows({ attachmentType, rows, places }) {
+            // Тот же гард, что у stageImportRows: сейчас эмит синхронный и разойтись
+            // нечему, но стоит появиться ожиданию перед ним - строки лягут в чужое
+            // вложение. Защита стоит дешевле, чем разбор такого случая потом.
+            if (!this.selectedAttachment) return;
+            if (this.selectedAttachment.attachment_type !== attachmentType) return;
+
             const fixedRows = rows || [];
             if (!fixedRows.length && this.pendingImportCount === 0) return;
 
