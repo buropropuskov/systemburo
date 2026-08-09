@@ -3,6 +3,30 @@
     <div class="header-with-badge">
       <h4>Список транспортных средств</h4>
       <span class="vehicles-badge">{{ vehicles.length }}</span>
+      <div
+        v-if="canImport"
+        class="import-entry"
+      >
+        <span
+          class="hint-anchor"
+          data-hint="Массовый ввод из бланка в опытной эксплуатации: проверяйте, что попало в список"
+        >
+          <Badge
+            variant="warning"
+            size="sm"
+            label="Experimental"
+          />
+        </span>
+        <button
+          type="button"
+          class="lk-button lk-button--secondary lk-button--sm import-entry__btn"
+          data-testid="vehicles-import-btn"
+          :aria-pressed="importActive ? 'true' : 'false'"
+          @click="$emit('toggle-import')"
+        >
+          {{ importActive ? 'Закрыть импорт' : 'Импорт' }}
+        </button>
+      </div>
     </div>
 
     <!-- Импорт бланком (blank-import) может завести до 2000 машин - показываем поиск
@@ -277,6 +301,7 @@
 
 <script>
 import VehicleDetailsModal from './VehicleDetailsModal.vue';
+import Badge from '@/components/ui/Badge.vue';
 import DetailsIcon from '@/components/ui/DetailsIcon.vue';
 import Pager from '@/components/ui/Pager.vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
@@ -286,6 +311,7 @@ export default {
     name: 'VehiclesList',
     components: {
         VehicleDetailsModal,
+        Badge,
         DetailsIcon,
         Pager
     },
@@ -313,9 +339,19 @@ export default {
         detailInfo: {
             type: Object,
             default: () => ({})
+        },
+        // Вход в массовый ввод из бланка (blank-import-ux, U4): гейт права
+        // action.import.list считает родитель, здесь только показ кнопки.
+        canImport: {
+            type: Boolean,
+            default: false
+        },
+        importActive: {
+            type: Boolean,
+            default: false
         }
     },
-    emits: ['sort', 'edit-vehicle', 'delete-vehicle'],
+    emits: ['sort', 'edit-vehicle', 'delete-vehicle', 'toggle-import'],
     // 767.98 - тот же порог, что у карточного @media: ниже него рендерим карточки,
     // выше - колоночную раскладку с выделением по столбцам.
     setup(props) {
@@ -407,8 +443,24 @@ export default {
 .header-with-badge {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
     padding-bottom: 12px;
+}
+
+/* Вход в импорт прижат к правому краю шапки списка; бейдж слева от кнопки. */
+.import-entry {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+@media (max-width: 768px) {
+    .import-entry__btn {
+        min-height: 44px;
+        padding: 4px 14px;
+    }
 }
 
 .vehicles-badge {

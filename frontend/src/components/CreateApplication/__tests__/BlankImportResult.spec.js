@@ -33,7 +33,7 @@ vi.mock('exceljs', () => {
   return { default: { Workbook } };
 });
 
-import BlankImportResultModal from '../BlankImportResultModal.vue';
+import BlankImportResult from '../BlankImportResult.vue';
 
 // Реальная форма /system-tables: double-wrap { table: {...} } - как в
 // TableBulkTargetModal.spec.js, плоская фикстура маскировала бы фильтр по table_type.
@@ -49,10 +49,9 @@ const CITIZENSHIPS = [
   { id: 2, name: 'Узбекистан' },
 ];
 
-function mountModal(props = {}) {
-  return mount(BlankImportResultModal, {
+function mountPanel(props = {}) {
+  return mount(BlankImportResult, {
     props: {
-      show: true,
       attachmentType: 'people',
       summary: { read: 2, accepted: 1, rejected: 1 },
       rows: [],
@@ -61,7 +60,6 @@ function mountModal(props = {}) {
       fieldConfig: {},
       ...props,
     },
-    global: { stubs: { teleport: true } },
   });
 }
 
@@ -124,7 +122,7 @@ const CAR_ROWS = [
   },
 ];
 
-describe('BlankImportResultModal (blank-import D1D2)', () => {
+describe('BlankImportResult (blank-import D1D2)', () => {
   beforeEach(() => {
     notifyMock.mockReset();
     listCitizenshipsMock.mockReset();
@@ -132,7 +130,7 @@ describe('BlankImportResultModal (blank-import D1D2)', () => {
   });
 
   it('207 разбирается: счётчики совпадают с summary, проблемная строка показана', async () => {
-    const wrapper = mountModal({
+    const wrapper = mountPanel({
       rows: PEOPLE_ROWS,
       summary: { read: 2, accepted: 1, rejected: 1 },
     });
@@ -158,7 +156,7 @@ describe('BlankImportResultModal (blank-import D1D2)', () => {
       errors: [],
       warnings: ['Поле «Фамилия»: похожие латинские буквы заменены на русские, "Ивaнов" -> "Иванов"'],
     };
-    const wrapper = mountModal({ rows: [fixed], summary: { read: 1, accepted: 1, rejected: 0 } });
+    const wrapper = mountPanel({ rows: [fixed], summary: { read: 1, accepted: 1, rejected: 0 } });
     await flushPromises();
 
     const block = wrapper.find('.bim__warnings');
@@ -169,7 +167,7 @@ describe('BlankImportResultModal (blank-import D1D2)', () => {
   });
 
   it('кнопка добавления заблокирована без выбора мест прохода и разблокируется после выбора', async () => {
-    const wrapper = mountModal({ rows: [PEOPLE_ROWS[0]], summary: { read: 1, accepted: 1, rejected: 0 } });
+    const wrapper = mountPanel({ rows: [PEOPLE_ROWS[0]], summary: { read: 1, accepted: 1, rejected: 0 } });
     await flushPromises();
 
     const submit = wrapper.find('[data-testid="bim-submit"]');
@@ -180,7 +178,7 @@ describe('BlankImportResultModal (blank-import D1D2)', () => {
   });
 
   it('принятые строки формируют payload с выбранными местами прохода, отклонённые без правки - нет', async () => {
-    const wrapper = mountModal({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
+    const wrapper = mountPanel({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
     await flushPromises();
     await wrapper.findAll('.passage__item')[0].trigger('click');
 
@@ -203,7 +201,7 @@ describe('BlankImportResultModal (blank-import D1D2)', () => {
   });
 
   it('правка проблемной строки на месте делает её добавляемой и включённой в payload', async () => {
-    const wrapper = mountModal({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
+    const wrapper = mountPanel({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
     await flushPromises();
     await wrapper.findAll('.passage__item')[0].trigger('click');
 
@@ -225,7 +223,7 @@ describe('BlankImportResultModal (blank-import D1D2)', () => {
   });
 
   it('незаполненную обязательную часть строки (пустое имя) нельзя отметить галочкой', async () => {
-    const wrapper = mountModal({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
+    const wrapper = mountPanel({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
     await flushPromises();
 
     const checkbox = wrapper.find('[data-testid="bim-include-6"]');
@@ -233,7 +231,7 @@ describe('BlankImportResultModal (blank-import D1D2)', () => {
   });
 
   it('строку с неопознанным гражданством нельзя включить, пока гражданство не выбрано', async () => {
-    const wrapper = mountModal({
+    const wrapper = mountPanel({
       rows: [PEOPLE_ROWS[0], PEOPLE_UNKNOWN_CITIZENSHIP_ROW],
       summary: { read: 2, accepted: 1, rejected: 1 },
     });
@@ -250,7 +248,7 @@ describe('BlankImportResultModal (blank-import D1D2)', () => {
   });
 
   it('машина с пустым номером чинится правкой на месте и попадает в payload', async () => {
-    const wrapper = mountModal({
+    const wrapper = mountPanel({
       attachmentType: 'cars',
       rows: CAR_ROWS,
       summary: { read: 2, accepted: 1, rejected: 1 },
@@ -274,7 +272,7 @@ describe('BlankImportResultModal (blank-import D1D2)', () => {
   });
 
   it('машины: номер Т/С обязателен, места разгрузки и проезд применяются к payload', async () => {
-    const wrapper = mountModal({
+    const wrapper = mountPanel({
       attachmentType: 'cars',
       rows: [CAR_ROWS[0]],
       summary: { read: 1, accepted: 1, rejected: 0 },
@@ -296,34 +294,36 @@ describe('BlankImportResultModal (blank-import D1D2)', () => {
     });
   });
 
-  it('закрытие эмитит close', async () => {
-    const wrapper = mountModal({ rows: [] });
+  it('«Загрузить другой файл» эмитит reset - панель вернётся к области загрузки', async () => {
+    const wrapper = mountPanel({ rows: [] });
     await flushPromises();
-    await wrapper.find('[data-testid="modal-button-close"]').trigger('click');
-    expect(wrapper.emitted('close')).toHaveLength(1);
+    await wrapper.find('[data-testid="bim-reset"]').trigger('click');
+    expect(wrapper.emitted('reset')).toHaveLength(1);
   });
 
-  it('открытие сбрасывает выбор мест и правки предыдущего показа', async () => {
-    const wrapper = mountModal({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
+  // Панель живёт в форме подачи, а не открывается заново: сброс привязан к приходу
+  // новых строк, иначе выбор мест и правки прошлого файла перетекут в следующий.
+  it('новая загрузка сбрасывает выбор мест и правки предыдущего файла', async () => {
+    const wrapper = mountPanel({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
     await flushPromises();
     await wrapper.findAll('.passage__item')[0].trigger('click');
     expect(wrapper.vm.selectedTargetTables).toEqual([10]);
 
-    await wrapper.setProps({ show: false });
-    await wrapper.setProps({ show: true });
+    await wrapper.setProps({ rows: [PEOPLE_ROWS[0]], summary: { read: 1, accepted: 1, rejected: 0 } });
     await flushPromises();
 
     expect(wrapper.vm.selectedTargetTables).toEqual([]);
+    expect(wrapper.vm.problemRows).toEqual([]);
   });
 });
 
-describe('BlankImportResultModal - обязательность мест по fieldConfig (ревью, блокер 1)', () => {
+describe('BlankImportResult - обязательность мест по fieldConfig (ревью, блокер 1)', () => {
   beforeEach(() => {
     notifyMock.mockReset();
   });
 
   it('required:false у visible-поля не блокирует кнопку и не рисует звёздочку - зеркало EmployeeForm/VehicleForm', async () => {
-    const wrapper = mountModal({
+    const wrapper = mountPanel({
       rows: [PEOPLE_ROWS[0]],
       summary: { read: 1, accepted: 1, rejected: 0 },
       fieldConfig: { target_tables: { visible: true, required: false } },
@@ -338,7 +338,7 @@ describe('BlankImportResultModal - обязательность мест по fi
   });
 
   it('required:false для машин (места разгрузки и проезд) не блокирует submit', async () => {
-    const wrapper = mountModal({
+    const wrapper = mountPanel({
       attachmentType: 'cars',
       rows: [CAR_ROWS[0]],
       summary: { read: 1, accepted: 1, rejected: 0 },
@@ -355,7 +355,7 @@ describe('BlankImportResultModal - обязательность мест по fi
   });
 });
 
-describe('BlankImportResultModal - блокирующие причины не обходятся правкой (ревью, блокер 2)', () => {
+describe('BlankImportResult - блокирующие причины не обходятся правкой (ревью, блокер 2)', () => {
   const BLACKLIST_ROW = {
     row_number: 7,
     employee: {
@@ -395,7 +395,7 @@ describe('BlankImportResultModal - блокирующие причины не о
   };
 
   it('строку с блокировкой по чёрному списку нельзя отметить даже после правки ФИО', async () => {
-    const wrapper = mountModal({ rows: [BLACKLIST_ROW], summary: { read: 1, accepted: 0, rejected: 1 } });
+    const wrapper = mountPanel({ rows: [BLACKLIST_ROW], summary: { read: 1, accepted: 0, rejected: 1 } });
     await flushPromises();
 
     const row = wrapper.find('[data-testid="bim-problem-row-7"]');
@@ -407,7 +407,7 @@ describe('BlankImportResultModal - блокирующие причины не о
   });
 
   it('строку-дубль внутри файла нельзя отметить даже после правки ФИО', async () => {
-    const wrapper = mountModal({ rows: [DUPLICATE_ROW], summary: { read: 1, accepted: 0, rejected: 1 } });
+    const wrapper = mountPanel({ rows: [DUPLICATE_ROW], summary: { read: 1, accepted: 0, rejected: 1 } });
     await flushPromises();
 
     const row = wrapper.find('[data-testid="bim-problem-row-8"]');
@@ -419,7 +419,7 @@ describe('BlankImportResultModal - блокирующие причины не о
   });
 
   it('строку с ошибкой про патент нельзя отметить косметической правкой ФИО - полей патента здесь нет', async () => {
-    const wrapper = mountModal({ rows: [PATENT_ROW], summary: { read: 1, accepted: 0, rejected: 1 } });
+    const wrapper = mountPanel({ rows: [PATENT_ROW], summary: { read: 1, accepted: 0, rejected: 1 } });
     await flushPromises();
 
     const row = wrapper.find('[data-testid="bim-problem-row-9"]');
@@ -431,7 +431,7 @@ describe('BlankImportResultModal - блокирующие причины не о
   });
 
   it('реально исправимая строка (пустое имя) по-прежнему становится добавляемой', async () => {
-    const wrapper = mountModal({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
+    const wrapper = mountPanel({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
     await flushPromises();
 
     const row = wrapper.find('[data-testid="bim-problem-row-6"]');
@@ -443,7 +443,7 @@ describe('BlankImportResultModal - блокирующие причины не о
   });
 });
 
-describe('BlankImportResultModal - ПДн не выводятся (ревью, замечание 4)', () => {
+describe('BlankImportResult - ПДн не выводятся (ревью, замечание 4)', () => {
   const PASSPORT_VALUE = '4009 112233';
   const ROW_WITH_PASSPORT = {
     row_number: 11,
@@ -458,14 +458,14 @@ describe('BlankImportResultModal - ПДн не выводятся (ревью, �
   };
 
   it('паспорт не встречается в тексте таблицы проблемных строк', async () => {
-    const wrapper = mountModal({ rows: [ROW_WITH_PASSPORT], summary: { read: 1, accepted: 0, rejected: 1 } });
+    const wrapper = mountPanel({ rows: [ROW_WITH_PASSPORT], summary: { read: 1, accepted: 0, rejected: 1 } });
     await flushPromises();
 
     expect(wrapper.text()).not.toContain(PASSPORT_VALUE);
   });
 
   it('паспорт не попадает в буфер выгрузки списка ошибок', async () => {
-    const wrapper = mountModal({ rows: [ROW_WITH_PASSPORT], summary: { read: 1, accepted: 0, rejected: 1 } });
+    const wrapper = mountPanel({ rows: [ROW_WITH_PASSPORT], summary: { read: 1, accepted: 0, rejected: 1 } });
     await flushPromises();
 
     await wrapper.find('[data-testid="bim-download-errors"]').trigger('click');
@@ -478,13 +478,13 @@ describe('BlankImportResultModal - ПДн не выводятся (ревью, �
   });
 });
 
-describe('BlankImportResultModal - выгрузка списка ошибок', () => {
+describe('BlankImportResult - выгрузка списка ошибок', () => {
   beforeEach(() => {
     saveBlobAsMock.mockReset();
   });
 
   it('клик по "Скачать список ошибок" собирает Excel-книгу и отдаёт её через saveBlobAs', async () => {
-    const wrapper = mountModal({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
+    const wrapper = mountPanel({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
     await flushPromises();
 
     await wrapper.find('[data-testid="bim-download-errors"]').trigger('click');
