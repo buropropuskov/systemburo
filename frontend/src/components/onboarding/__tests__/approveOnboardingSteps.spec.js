@@ -240,8 +240,15 @@ describe('выпадение шагов по правам', () => {
     expect(STEP_RIGHTS.length).toBeGreaterThan(0);
     expect(STEP_RIGHTS).toEqual(expect.arrayContaining([
       'action.forward.application',
-      'center.application_history',
     ]));
+  });
+
+  // Права center.application_history у роли согласующего нет и не должно быть -
+  // шаг про журнал заявки обещал бы кнопку, которой человек не увидит.
+  it('журнала заявки в туре согласующего нет', () => {
+    const ids = approveOnboardingSteps.map((s) => s.id);
+    expect(ids).not.toContain('apr-detail-history');
+    expect(ids).not.toContain('apr-detail-history-window');
   });
 
   it('согласующий со всеми правами проходит тур целиком', () => {
