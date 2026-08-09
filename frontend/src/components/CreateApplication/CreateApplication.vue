@@ -924,10 +924,23 @@ export default {
             });
         }
     },
-    mounted() {
+    async mounted() {
+        // Профиль подтягиваем ДО восстановления черновика (#1457). loadUserData
+        // безусловно перезаписывает организацию, компанию, ФИО и телефон, а раньше он
+        // стоял после восстановления и приходил вторым: заявитель, набравший чужую
+        // организацию по праву application.organization.override (#1437), после
+        // перезагрузки страницы молча получал обратно свою. Порядок «профиль, затем
+        // черновик» оставляет за черновиком последнее слово.
+        //
+        // Сбой профиля не должен стоить введённого: ошибку глотаем и всё равно
+        // восстанавливаем черновик, иначе форма откроется пустой.
+        try {
+            await this.loadUserData();
+        } catch (error) {
+            console.error('Не удалось загрузить данные профиля:', error);
+        }
         this.restoreFromLocalStorage();
         this.checkPendingDuplicate();
-        this.loadUserData();
         this.loadAllUnloadingPlaces();
         this.loadLicensePlateFormats();
         this.loadPassageTables();
