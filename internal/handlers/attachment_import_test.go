@@ -215,6 +215,31 @@ func TestAttachmentImportList(t *testing.T) {
 		require.Contains(t, rec.Body.String(), "нет ни одной заполненной строки")
 	})
 
+	// Ниже списка в бланке стоят подписи ("(контактный телефон)", "(дд.мм.гггг)"),
+	// и попадают они как раз в колонку мест разгрузки. Мест в файле нет вовсе -
+	// они задаются на сайте, - поэтому оформительская строка не должна выглядеть
+	// участником.
+	t.Run("подписи бланка ниже списка не считаются строками", func(t *testing.T) {
+		signed := seedImportTemplate(t, db, "import_signed", "cars", 6, "B", "Номер ТС")
+		require.NoError(t, db.Create(&models.AttachmentTemplateMapping{
+			TemplateID: templateIDOf(t, db, signed.uaID), CellRef: "G6",
+			FieldPath: "car.unload_places", IsListField: true,
+		}).Error)
+
+		f := excelize.NewFile()
+		sheet := f.GetSheetName(0)
+		require.NoError(t, f.SetCellStr(sheet, "B5", "Номер ТС"))
+		require.NoError(t, f.SetCellStr(sheet, "G25", "(дд.мм.гггг)"))
+		var buf bytes.Buffer
+		_, err := f.WriteTo(&buf)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+
+		rec := postImportFile(t, e, signed.uaID, "list.xlsx", buf.Bytes(), admin)
+		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+		require.Contains(t, rec.Body.String(), "нет ни одной заполненной строки")
+	})
+
 	t.Run("2001 строка отлетает потолком", func(t *testing.T) {
 		data := buildImportUpload(t, tpl.startRow, tpl.listCol, tpl.headerText, 2001, 0)
 		rec := postImportFile(t, e, tpl.uaID, "list.xlsx", data, admin)
