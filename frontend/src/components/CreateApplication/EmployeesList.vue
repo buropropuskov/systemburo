@@ -3,8 +3,10 @@
     <div class="header-with-badge">
       <h4>Список сотрудников</h4>
       <span class="employees-badge">{{ employees.length }}</span>
+      <!-- В шапке живёт только вход в импорт: бейдж Experimental стоит рядом с ним и
+           относится к нему. «Очистить» - действие над содержимым таблицы, оно ниже. -->
       <div
-        v-if="canImport || employees.length"
+        v-if="canImport"
         class="header-actions"
       >
         <div
@@ -31,26 +33,17 @@
             {{ importActive ? 'Закрыть импорт' : 'Импорт' }}
           </button>
         </div>
-        <button
-          v-if="employees.length"
-          type="button"
-          class="lk-button lk-button--danger lk-button--sm header-actions__btn"
-          data-testid="employees-clear-btn"
-          @click="showClearConfirm = true"
-        >
-          Очистить
-        </button>
       </div>
     </div>
 
-    <!-- Импорт бланком (blank-import) может занести до 2000 строк - показываем
-         поиск и постраничную навигацию только когда список реально большой,
-         чтобы обычная ручная подача из нескольких человек выглядела как раньше. -->
+    <!-- Строка действий самой таблицы: поиск с пейджером (импорт бланком может занести
+         до 2000 строк, обычной ручной подаче они не нужны) и очистка её содержимого. -->
     <div
-      v-if="showToolbar"
+      v-if="showToolbar || employees.length"
       class="list-toolbar"
     >
       <input
+        v-if="showToolbar"
         v-model="searchQuery"
         type="text"
         class="lk-input list-search"
@@ -58,7 +51,7 @@
         data-testid="employees-search"
       >
       <Pager
-        v-if="totalPages > 1"
+        v-if="showToolbar && totalPages > 1"
         class="list-pager"
         :page="currentPage"
         :total-pages="totalPages"
@@ -66,6 +59,15 @@
         page-prefix="Стр. "
         @update:page="goToPage"
       />
+      <button
+        v-if="employees.length"
+        type="button"
+        class="lk-button lk-button--danger lk-button--sm list-toolbar__clear"
+        data-testid="employees-clear-btn"
+        @click="showClearConfirm = true"
+      >
+        Очистить
+      </button>
     </div>
 
     <div class="employees-table rt-table">
@@ -194,17 +196,14 @@
             </button>
           </div>
         </div>
+        <!-- Пустое состояние - строка внутри тела таблицы под шапкой колонок: причина
+             пустоты разная, место одно. -->
         <div
-          v-if="employees.length === 0"
-          class="no-employees"
+          v-if="emptyMessage"
+          class="table-empty"
+          data-testid="employees-empty"
         >
-          Нет добавленных сотрудников
-        </div>
-        <div
-          v-else-if="filteredEmployees.length === 0"
-          class="no-employees"
-        >
-          Ничего не найдено по запросу «{{ searchQuery }}»
+          {{ emptyMessage }}
         </div>
       </div>
     </div>
@@ -314,6 +313,14 @@ export default {
             const pending = this.employees.filter(employee => employee.isPending).length;
             const fromBlank = pending > 0 ? `, из них предварительных из бланка: ${pending}` : '';
             return `Будет убрано строк: ${this.employees.length}${fromBlank}. Отменить это действие нельзя.`;
+        },
+
+        // Пустая таблица объясняет причину пустоты: список не заполняли вовсе или поиск
+        // ничего не нашёл. Предварительные строки из бланка тоже считаются заполнением.
+        emptyMessage() {
+            if (this.employees.length === 0) return 'Нет добавленных сотрудников';
+            if (this.filteredEmployees.length === 0) return `Ничего не найдено по запросу «${this.searchQuery}»`;
+            return '';
         }
     },
     methods: {
@@ -393,7 +400,7 @@ export default {
 
 @media (max-width: 768px) {
     .import-entry__btn,
-    .header-actions__btn {
+    .list-toolbar__clear {
         min-height: 44px;
         padding: 4px 14px;
     }
@@ -432,6 +439,13 @@ export default {
 .list-pager {
     flex-shrink: 0;
     color: var(--text-muted);
+}
+
+/* Очистка прижата к правому краю строки действий таблицы и держится там же, когда
+   поиска с пейджером ещё нет (короткий список). */
+.list-toolbar__clear {
+    flex-shrink: 0;
+    margin-left: auto;
 }
 
 .employees-table {
@@ -634,7 +648,8 @@ export default {
     opacity: 0.9;
 }
 
-.no-employees {
+/* Пустое состояние живёт внутри тела таблицы, вместо карточек/строк. */
+.table-empty {
     text-align: center;
     padding: 16px;
     color: var(--text-muted);
