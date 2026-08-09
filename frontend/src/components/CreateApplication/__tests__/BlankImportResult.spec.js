@@ -93,7 +93,13 @@ const PEOPLE_ROWS = [
       passport_series_number: '', patent_number: null, other_permission: null,
       target_tables: [],
     },
-    errors: ['Поле «Фамилия» обязательно для заполнения', 'Поле «Имя» обязательно для заполнения'],
+    // Причины приходят объектами: текст для человека плюс машинный признак, правится
+    // ли причина прямо в таблице разбора (services.ImportRowError). Фронт текст не
+    // разбирает, поэтому фикстура копирует форму ответа, а не выдумывает свою.
+    errors: [
+      { text: 'Поле «Фамилия» обязательно для заполнения', code: 'field_required', field: 'last_name', fixable: true },
+      { text: 'Поле «Имя» обязательно для заполнения', code: 'field_required', field: 'first_name', fixable: true },
+    ],
     warnings: [],
   },
 ];
@@ -108,7 +114,12 @@ const PEOPLE_UNKNOWN_CITIZENSHIP_ROW = {
     passport_series_number: '', patent_number: null, other_permission: null,
     target_tables: [],
   },
-  errors: ['Гражданство "Узбекистн" не найдено в справочнике'],
+  errors: [{
+    text: 'Гражданство "Узбекистн" не найдено в справочнике',
+    code: 'citizenship_unknown',
+    field: 'citizenship',
+    fixable: true,
+  }],
   warnings: [],
 };
 
@@ -123,9 +134,15 @@ const CAR_ROWS = [
     row_number: 3,
     vehicle: { car_number: '', car_brand: 'Kamaz', mark_id: null, unload_places: [], passage_tables: [] },
     // Текст дословно как его формирует бэк: метка берётся из реестра полей
-    // (attachment_fields_registry.go, Label "Номер ТС"). Своя формулировка во фикстуре
-    // означала бы, что тест сверяет фронт сам с собой.
-    errors: ['Поле «Номер ТС» обязательно для заполнения'],
+    // (attachment_fields_registry.go, Label "Номер ТС"), ключ поля и признак
+    // исправимости - оттуда же. Своя формулировка во фикстуре означала бы, что тест
+    // сверяет фронт сам с собой.
+    errors: [{
+      text: 'Поле «Номер ТС» обязательно для заполнения',
+      code: 'field_required',
+      field: 'number',
+      fixable: true,
+    }],
     warnings: [],
   },
 ];
@@ -385,7 +402,7 @@ describe('BlankImportResult - блокирующие причины не обх�
     },
     // ФИО у блокирующей строки заведомо непустое - иначе совпадение по ключу
     // ЧС/дубля не случилось бы (fmtErrEmployeeBlacklisted/"Дублирует строку").
-    errors: ['Человек Сидоров Пётр в чёрном списке: судимость'],
+    errors: [{ text: 'Человек Сидоров Пётр в чёрном списке: судимость', code: 'blacklisted', fixable: false }],
     warnings: [],
   };
   const DUPLICATE_ROW = {
@@ -396,7 +413,7 @@ describe('BlankImportResult - блокирующие причины не обх�
       passport_series_number: '', patent_number: null, other_permission: null,
       target_tables: [],
     },
-    errors: ['Дублирует строку 4: то же ФИО'],
+    errors: [{ text: 'Дублирует строку 4: то же ФИО', code: 'duplicate_in_file', fixable: false }],
     warnings: [],
   };
   const PATENT_ROW = {
@@ -409,7 +426,12 @@ describe('BlankImportResult - блокирующие причины не обх�
     },
     // Патент/паспорт полей в этой таблице нет и не должно быть (152-ФЗ) - косметическая
     // правка ФИО не должна включать такую строку.
-    errors: ['Для гражданства "Узбекистан" нужен номер патента или иное разрешение на работы'],
+    errors: [{
+      text: 'Для гражданства "Узбекистан" нужен номер патента или иное разрешение на работы',
+      code: 'patent_required',
+      field: 'patent',
+      fixable: false,
+    }],
     warnings: [],
   };
 
@@ -472,7 +494,12 @@ describe('BlankImportResult - ПДн не выводятся (ревью, зам
       passport_series_number: PASSPORT_VALUE, patent_number: null, other_permission: null,
       target_tables: [],
     },
-    errors: ['Поле «Фамилия» обязательно для заполнения'],
+    errors: [{
+      text: 'Поле «Фамилия» обязательно для заполнения',
+      code: 'field_required',
+      field: 'last_name',
+      fixable: true,
+    }],
     warnings: [],
   };
 

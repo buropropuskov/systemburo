@@ -420,13 +420,14 @@ describe('CreateApplication - режим импорта (U4)', () => {
 });
 
 // Список рядом с панелью остаётся кликабельным, а правка строки живёт в форме ручного
-// ввода - без выхода из режима кнопка «Редактировать» была бы мёртвой.
+// ввода - без показа формы кнопка «Редактировать» была бы мёртвой. Разбор при этом не
+// теряется: панель уступает форме место, а не закрывается.
 describe('CreateApplication - правка строки из списка в режиме импорта (U4)', () => {
     const vehicleEdit = vi.fn();
     const employeeEdit = vi.fn();
 
     // Формы подменяем заглушками с теми же методами, что зовёт родитель: важно не что
-    // делает форма, а что она вообще получила строку после выхода из режима.
+    // делает форма, а что она вообще получила строку.
     const formStubs = {
         VehicleForm: {
             name: 'VehicleForm',
@@ -456,7 +457,7 @@ describe('CreateApplication - правка строки из списка в р�
         hasImportPermission = false;
     });
 
-    it('правка машины выходит из режима и отдаёт строку форме', async () => {
+    it('правка машины отдаёт строку форме и сохраняет разбор', async () => {
         const w = await mountWithFormStubs();
         w.vm.attachments = [{ local_id: 'c1', id: 10, attachment_type: 'cars', display_name: 'Машины' }];
         w.vm.vehiclesByAttachment = { c1: [{ id: 1, plateNumber: 'А001АА777', mark: 'Volvo' }] };
@@ -468,16 +469,16 @@ describe('CreateApplication - правка строки из списка в р�
         w.vm.editVehicle(w.vm.vehicles[0]);
         await flushPromises();
 
-        expect(w.vm.importMode).toBe(false);
-        expect(w.findComponent(BlankImportPanel).exists()).toBe(false);
         expect(vehicleEdit).toHaveBeenCalledWith(expect.objectContaining({ plateNumber: 'А001АА777' }));
-        // Потерянный разбор не должен уходить молча.
-        expect(notifyMock).toHaveBeenCalledWith(expect.objectContaining({
-            bold: 'открыта правка строки',
-        }));
+        // Режим остаётся открытым, панель лишь уступает форме место - разбор бланка
+        // переживает правку строки и возвращается после неё.
+        expect(w.vm.importMode).toBe(true);
+        expect(w.vm.importResult).not.toBeNull();
+        expect(w.findComponent(BlankImportPanel).exists()).toBe(true);
+        expect(notifyMock).not.toHaveBeenCalled();
     });
 
-    it('без загруженного файла выход из режима проходит без уведомления', async () => {
+    it('правка строки сотрудника показывает форму и не трогает режим', async () => {
         const w = await mountWithFormStubs();
         w.vm.attachments = [{ local_id: 'p1', id: 9, attachment_type: 'people', display_name: 'Люди' }];
         w.vm.employeesByAttachment = { p1: [{ id: 1, lastName: 'Иванов', firstName: 'Иван' }] };
@@ -488,7 +489,7 @@ describe('CreateApplication - правка строки из списка в р�
         w.vm.editEmployee(w.vm.employees[0]);
         await flushPromises();
 
-        expect(w.vm.importMode).toBe(false);
+        expect(w.vm.importMode).toBe(true);
         expect(employeeEdit).toHaveBeenCalledWith(expect.objectContaining({ lastName: 'Иванов' }));
         expect(notifyMock).not.toHaveBeenCalled();
     });

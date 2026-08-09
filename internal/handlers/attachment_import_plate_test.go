@@ -145,7 +145,8 @@ func TestAttachmentImportListRows_LicensePlateFormat(t *testing.T) {
 		result := testutil.ParseResponse[services.ImportListResult](t, rec)
 		require.Equal(t, 1, result.Summary.Rejected)
 		require.Len(t, result.Rows, 1)
-		require.Contains(t, result.Rows[0].Errors, `Номер Т/С "Писька" не соответствует ни одному формату номеров`)
+		require.Equal(t, `Номер Т/С "Писька" не соответствует ни одному формату номеров`,
+			errorByCode(t, result.Rows[0].Errors, services.ImportErrPlateFormat).Text)
 	})
 
 	t.Run("короткая числовая часть дополняется по правилам формата", func(t *testing.T) {
@@ -201,7 +202,8 @@ func TestAttachmentImportListRows_LicensePlateFormat(t *testing.T) {
 
 		result := testutil.ParseResponse[services.ImportListResult](t, rec)
 		require.Equal(t, 1, result.Summary.Rejected)
-		require.Contains(t, result.Rows[0].Errors, `Номер Т/С "А" не соответствует ни одному формату номеров`)
+		require.Equal(t, `Номер Т/С "А" не соответствует ни одному формату номеров`,
+			errorByCode(t, result.Rows[0].Errors, services.ImportErrPlateFormat).Text)
 	})
 
 	t.Run("уже приведённый номер проходит без предупреждений", func(t *testing.T) {

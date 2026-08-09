@@ -253,9 +253,13 @@
           :data-attachment-type="selectedAttachment && selectedAttachment.attachment_type"
         >
           <!-- Режим импорта (blank-import-ux, U4): панель встаёт НА МЕСТО формы ручного
-               ввода, список рядом остаётся - вход и выход из режима живут в его шапке. -->
+               ввода, список рядом остаётся - вход и выход из режима живут в его шапке.
+               На время правки строки панель прячется, а НЕ размонтируется: разбор файла,
+               выбор мест и правки проблемных строк живут в ней, а повторное монтирование
+               заново отправило бы принятые строки в список. -->
           <BlankImportPanel
             v-if="importMode"
+            v-show="!importPausedForEdit"
             :attachment-type="selectedAttachment ? selectedAttachment.attachment_type : 'people'"
             :result="importResult"
             :uploading="importUploading"
@@ -275,7 +279,7 @@
           <!-- Для автомобилей -->
           <template v-if="selectedAttachment && selectedAttachment.attachment_type === 'cars'">
             <VehicleForm
-              v-if="!importMode"
+              v-if="!importMode || importPausedForEdit"
               :key="vehicleFormKey"
               ref="vehicleForm"
               :field-config="currentFieldConfig"
@@ -313,7 +317,7 @@
           <!-- Для людей/сотрудников -->
           <template v-else-if="selectedAttachment && selectedAttachment.attachment_type === 'people'">
             <EmployeeForm
-              v-if="!importMode"
+              v-if="!importMode || importPausedForEdit"
               :key="employeeFormKey"
               ref="employeeForm"
               :field-config="currentFieldConfig"
@@ -571,6 +575,10 @@ export default {
             importUploading: false,
             // {rows, summary} последнего разбора - показывается панелью вместо дропзона.
             importResult: null,
+            // Правка строки списка при открытом импорте: панель уступает место форме и
+            // возвращается, когда правка завершена. Режим при этом не выключается -
+            // разбор файла и выбор мест переживают правку.
+            importPausedForEdit: false,
 
             // #1183: предупреждения выбранных мест текущей формы для плавающей панели.
             placeNotices: [],
@@ -1490,9 +1498,52 @@ export default {
             this.importMode = true;
         },
 
+        /**
+         * Выход из режима импорта. Предварительные строки живут ровно столько, сколько
+         * открыт разбор: закрыли панель, не нажав «Добавить», - их уносит вместе с
+         * разбором (решение владельца). Иначе серые строки остались бы в списке без
+         * сводки, то есть без способа ни принять их, ни убрать штатно.
+         *
+         * Правка строки (pauseImportForEdit) закрытием НЕ считается - там панель прячется,
+         * а не закрывается, и сюда не заходит.
+         */
         closeImportMode() {
+            const dropped = this.dropPendingRows();
             this.importMode = false;
+            this.importPausedForEdit = false;
             this.importResult = null;
+
+            if (dropped > 0) {
+                useDeletionsStore().notify({
+                    bold: `Разбор бланка закрыт: убрано строк ${dropped}`,
+                    suffix: ' - они не были добавлены в заявку',
+                });
+            }
+        },
+
+        /**
+         * Убирает предварительные строки вложения. По умолчанию - текущего: при смене
+         * вложения метод зовётся ДО подмены selectedAttachment, то есть чистит то, из
+         * которого уходят.
+         *
+         * @param {Object} [attachment] вложение, если нужно не текущее
+         * @returns {number} сколько строк убрано
+         */
+        dropPendingRows(attachment) {
+            const target = attachment || this.selectedAttachment;
+            if (!target) return 0;
+
+            const rows = this.rowsForAttachment(target.attachment_type, this.attachmentKey(target));
+            let dropped = 0;
+            // Идём с конца: splice по ходу сдвигает индексы впереди стоящих строк.
+            for (let i = rows.length - 1; i >= 0; i -= 1) {
+                if (!isPendingRow(rows[i])) continue;
+                rows.splice(i, 1);
+                dropped += 1;
+            }
+
+            if (dropped > 0) this.saveToLocalStorage();
+            return dropped;
         },
 
         resetImportResult() {
@@ -1501,24 +1552,27 @@ export default {
 
         /**
          * Список рядом с панелью импорта остаётся кликабельным, а правка строки живёт в
-         * форме ручного ввода, которую режим прячет: без выхода из режима «Редактировать»
-         * молча не делает ничего. Разобранный файл при этом теряется - говорим об этом,
-         * а не роняем сводку молча.
+         * форме ручного ввода, которую занимает панель. Панель уступает ей место, но
+         * остаётся смонтированной: разбор файла, выбранные места и правки проблемных
+         * строк живут в ней, и выход из режима стоил бы человеку всей загрузки.
+         *
+         * @param {Function} openEditor открывает нужную форму на правке строки
          */
-        leaveImportModeForEdit(openEditor) {
-            if (!this.importMode) {
+        pauseImportForEdit(openEditor) {
+            // Режим выключен или форма уже показана - открывать нечего, зовём сразу.
+            if (!this.importMode || this.importPausedForEdit) {
                 openEditor();
                 return;
             }
-            const hadResult = !!this.importResult;
-            this.closeImportMode();
-            if (hadResult) {
-                useDeletionsStore().notify({
-                    prefix: 'Разбор бланка закрыт: ',
-                    bold: 'открыта правка строки',
-                });
-            }
+            this.importPausedForEdit = true;
             this.$nextTick(openEditor);
+        },
+
+        /**
+         * Правка завершена (сохранена или отменена) - сводка возвращается на место формы.
+         */
+        resumeImportAfterEdit() {
+            if (this.importPausedForEdit) this.importPausedForEdit = false;
         },
 
         // Загрузка заполненного бланка (эпик blank-import, D1D2). Файл уходит сразу по
@@ -1971,10 +2025,12 @@ export default {
                 vehicles.splice(index, 1, this.keepPendingFlag(vehicles[index], updatedVehicle));
                 this.saveToLocalStorage();
             }
+            this.resumeImportAfterEdit();
         },
 
         handleVehicleEditCancelled() {
             this.vehicleFormKey += 1;
+            this.resumeImportAfterEdit();
         },
 
         deleteVehicle(vehicleId) {
@@ -1991,7 +2047,7 @@ export default {
         },
 
         editVehicle(vehicle) {
-            this.leaveImportModeForEdit(() => {
+            this.pauseImportForEdit(() => {
                 if (!this.$refs.vehicleForm) return;
                 this.$refs.vehicleForm.editVehicle(vehicle);
                 this.scrollToEntityForm();
@@ -2045,6 +2101,7 @@ export default {
                 employees.splice(index, 1, this.keepPendingFlag(employees[index], updatedEmployee));
                 this.saveToLocalStorage();
             }
+            this.resumeImportAfterEdit();
         },
 
         /**
@@ -2061,6 +2118,7 @@ export default {
 
         handleEmployeeEditCancelled() {
             this.employeeFormKey += 1;
+            this.resumeImportAfterEdit();
         },
 
         deleteEmployee(employeeId) {
@@ -2108,7 +2166,7 @@ export default {
         },
 
         editEmployee(employee) {
-            this.leaveImportModeForEdit(() => {
+            this.pauseImportForEdit(() => {
                 if (!this.$refs.employeeForm) return;
                 this.$refs.employeeForm.editEmployee(employee);
                 this.scrollToEntityForm();
@@ -3047,10 +3105,42 @@ export default {
                         // пользователя за это время важнее нашего «открыть первое».
                         if (selectSeq !== this.attachmentSelectSeq) return;
                         this.selectedAttachment = first;
+                        this.restorePendingImport();
                     }
                 }
             } catch (error) {
                 console.error('Ошибка восстановления состояния из localStorage:', error);
+            }
+        },
+
+        /**
+         * Черновик перезагрузку переживает, разбор бланка - нет: в localStorage лежат
+         * только строки. Серая строка без сводки бесполезна (принять её нечем и убрать
+         * штатно тоже), поэтому после восстановления сводка открывается по ним сама.
+         * Где открыть её невозможно - строки убираем, чтобы список не врал.
+         */
+        restorePendingImport() {
+            // Сводка открывается только у выбранного вложения; у остальных серые строки
+            // остались бы без хозяина (черновики прежних версий могли их накопить).
+            const currentKey = this.attachmentKey(this.selectedAttachment);
+            this.attachments.forEach((attachment) => {
+                if (this.attachmentKey(attachment) === currentKey) return;
+                this.dropPendingRows(attachment);
+            });
+
+            if (this.pendingImportCount === 0) return;
+            if (this.canImportList) {
+                this.importMode = true;
+                return;
+            }
+
+            const dropped = this.dropPendingRows();
+            if (dropped > 0) {
+                useDeletionsStore().notify({
+                    bold: `Строки из бланка убраны: ${dropped}`,
+                    suffix: ' - массовый ввод для этого вложения недоступен',
+                    type: 'error',
+                });
             }
         },
 

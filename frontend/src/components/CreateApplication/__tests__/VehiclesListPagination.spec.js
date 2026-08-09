@@ -128,7 +128,7 @@ describe('VehiclesList - мобилка (карточки)', () => {
     mockMatchMedia(true);
     const w = mount(VehiclesList, { props: { vehicles: [] } });
 
-    expect(w.find('.no-vehicles').text()).toContain('Нет добавленных транспортных средств');
+    expect(w.find('[data-testid="vehicles-empty"]').text()).toContain('Нет добавленных транспортных средств');
     expect(w.find('[data-testid="vehicles-search"]').exists()).toBe(false);
   });
 
