@@ -302,10 +302,29 @@ func (s *attachmentImportService) checkStructure(uploaded *excelize.File, templa
 // listMappingColumns - уникальные номера колонок (1-based) списочных полей шаблона,
 // по порядку появления в mappings.
 func listMappingColumns(mappings []models.AttachmentTemplateMapping) []int {
+	return listColumns(mappings, false)
+}
+
+// listDataColumns - то же, но без служебной колонки порядкового номера. Её пишет
+// система при выдаче бланка (строки пронумерованы заранее), поэтому по ней нельзя
+// судить, заполнил ли человек строку: иначе пустой бланк выглядит списком из
+// пятнадцати строк с ошибками вместо честного «в файле нет ни одной строки».
+func listDataColumns(mappings []models.AttachmentTemplateMapping) []int {
+	return listColumns(mappings, true)
+}
+
+// rowNumberFieldSuffix - хвост пути служебного поля нумерации (car.row_number,
+// employee.row_number и т.п.).
+const rowNumberFieldSuffix = ".row_number"
+
+func listColumns(mappings []models.AttachmentTemplateMapping, skipRowNumber bool) []int {
 	seen := make(map[int]struct{}, len(mappings))
 	cols := make([]int, 0, len(mappings))
 	for _, m := range mappings {
 		if !m.IsListField {
+			continue
+		}
+		if skipRowNumber && strings.HasSuffix(m.FieldPath, rowNumberFieldSuffix) {
 			continue
 		}
 		col, _, err := excelize.CellNameToCoordinates(m.CellRef)
@@ -331,7 +350,7 @@ func countListRows(f *excelize.File, template *models.AttachmentTemplate) (int, 
 	if err != nil {
 		return 0, echo.NewHTTPError(http.StatusBadRequest, "Не удалось прочитать список из файла")
 	}
-	cols := listMappingColumns(template.Mappings)
+	cols := listDataColumns(template.Mappings)
 	if len(cols) == 0 || template.ListStartRow < 1 {
 		return 0, nil
 	}
