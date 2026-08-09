@@ -214,6 +214,27 @@ describe('CreateApplication - дедуп импорта против уже до
         }));
     });
 
+    // employeeLabel для безымянной строки фолбэком отдаёт паспорт - в уведомлении
+    // импорта персональных данных быть не должно.
+    it('дубль без ФИО назван обезличенно, паспорт в уведомление не попадает', async () => {
+        const w = await mountApp();
+        w.vm.attachments = [{ local_id: 'p1', attachment_type: 'people', display_name: 'Люди' }];
+        w.vm.employeesByAttachment = {
+            p1: [{ id: 1, lastName: '', firstName: '', middleName: '', passportSeriesNumber: '4510 111111' }],
+        };
+        w.vm.selectedAttachment = w.vm.attachments[0];
+
+        w.vm.handleImportRows({
+            attachmentType: 'people',
+            rows: [{ lastName: '', firstName: '', middleName: '', passportSeriesNumber: '4510111111' }],
+        });
+
+        expect(notifyMock).toHaveBeenCalledTimes(1);
+        const call = notifyMock.mock.calls[0][0];
+        expect(call.prefix).toBe('Строка без ФИО ');
+        expect(JSON.stringify(call)).not.toContain('4510');
+    });
+
     it('уникальные строки из той же пачки проходят, дубль среди них - нет', async () => {
         const w = await mountApp();
         w.vm.attachments = [{ local_id: 'p1', attachment_type: 'people', display_name: 'Люди' }];

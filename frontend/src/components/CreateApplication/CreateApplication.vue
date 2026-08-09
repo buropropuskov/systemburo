@@ -1539,12 +1539,23 @@ export default {
             const findDuplicate = isPeople ? findDuplicateEmployee : findDuplicateVehicle;
             const label = isPeople ? employeeLabel : vehicleLabel;
 
+            // employeeLabel фолбэком показывает паспорт, если ФИО пусто (так он и задуман
+            // для ручного ввода). В импорте это означало бы паспорт в тексте уведомления,
+            // поэтому здесь безымянная строка называется обезличенно.
+            const safeLabel = (row) => {
+                const text = label(row);
+                if (!isPeople) return text;
+                const hasName = [row.lastName, row.firstName, row.middleName]
+                    .some((part) => (part || '').trim());
+                return hasName ? text : 'Строка без ФИО';
+            };
+
             const list = [...(isPeople ? this.employees : this.vehicles)];
             const toAdd = [];
             const skipped = [];
             rows.forEach((row) => {
                 if (findDuplicate(list, row)) {
-                    skipped.push(label(row));
+                    skipped.push(safeLabel(row));
                     return;
                 }
                 list.push(row);
