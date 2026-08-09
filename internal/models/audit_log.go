@@ -161,6 +161,13 @@ const (
 	// Отдельно от AuditActionSupplementCancelled: там раунд снимает система при закрытии
 	// заявки (актор пустой, «Система»), здесь - человек своей волей.
 	AuditActionSupplementCancelledByAuthor = "supplement_cancelled_by_author"
+	// AuditActionEmployeesBulkAdded - сводная запись «добавлено N сотрудников» на заявку
+	// (entity_type=application), одна на вложение people при подаче (blank-import, срез
+	// A2A3). Каждый сотрудник ПРОДОЛЖАЕТ получать свою собственную запись create
+	// (entity_type=employee, entity_id=его id) - её читает история конкретного сотрудника
+	// (/employees/:id/history). Эта запись не заменяет их, а даёт заявке одну строку в
+	// её собственной ленте вместо необходимости открыть каждого сотрудника по отдельности.
+	AuditActionEmployeesBulkAdded = "employees_bulk_added"
 )
 
 // AuditLogItem - запись аудита для API с разрезолвленным именем актора

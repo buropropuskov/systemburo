@@ -6,7 +6,15 @@ import (
 	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
+	echomw "github.com/labstack/echo/v4/middleware"
 )
+
+// applicationsBodyLimit - потолок тела запроса на группу /applications (blank-import,
+// срез A2A3). Раньше единственным пределом был client_max_body_size 50M в nginx (не в
+// этом репозитории) - без него прямой запрос к go-backend в обход nginx (локальная
+// разработка, другой reverse-proxy) читал тело неограниченно. Значение зеркалит nginx,
+// а не ужесточает его: то, что проходило через nginx, продолжает проходить и здесь.
+const applicationsBodyLimit = "50M"
 
 // Dependencies - все хендлеры/сервисы/middleware, нужные для регистрации маршрутов.
 // Использование именованных полей вместо длинного списка позиционных параметров
@@ -758,7 +766,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	fbg.PUT("/:id/flag", fb.SetFlag, requireFeedbackAdmin)
 
 	// Заявки
-	apg := protected.Group("/applications")
+	apg := protected.Group("/applications", echomw.BodyLimit(applicationsBodyLimit))
 	apg.GET("", app.GetApplications)
 	apg.POST("", app.CreateApplication)
 	apg.POST("/submit-complete-application", app.SubmitCompleteApplication)
