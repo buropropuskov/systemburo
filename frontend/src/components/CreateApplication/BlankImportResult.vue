@@ -3,6 +3,7 @@
     class="bim"
     data-testid="blank-import-result"
   >
+    <!-- Сводка - отдельный блок, а не цифры на голом фоне панели. -->
     <div class="bim__counters">
       <div
         v-if="hasResult"
@@ -278,7 +279,7 @@
       </button>
       <button
         type="button"
-        class="lk-button lk-button--primary"
+        class="lk-button lk-button--primary bim__submit"
         data-testid="bim-submit"
         :disabled="!canSubmit"
         @click="onSubmit"
@@ -670,16 +671,37 @@ export default {
   gap: 10px;
 }
 
+/* Основное действие панели - на всю её ширину, вспомогательные остаются по размеру
+   содержимого строкой выше. */
+.bim__submit {
+  flex: 1 0 100%;
+}
+
+/* Счётчики разбора - блок карточкой, как остальные блоки формы: цифры на голом фоне
+   читались случайным текстом. */
 .bim__counters {
   display: flex;
-  gap: 24px;
   flex-wrap: wrap;
+  gap: 12px 20px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
 }
 
 .bim__counter {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* Разделители между счётчиками: смысл у трёх чисел разный, слитной строкой они
+   читаются как одно. */
+.bim__counter + .bim__counter {
+  padding-left: 20px;
+  border-left: 1px solid var(--border);
 }
 
 .bim__counter-value {
@@ -899,6 +921,13 @@ export default {
 }
 
 @media (max-width: 768px) {
+  /* Счётчики переносятся на вторую строку, и разделитель оказался бы у левого края
+     блока - там он читается как обрез, а не как граница между числами. */
+  .bim__counter + .bim__counter {
+    padding-left: 0;
+    border-left: none;
+  }
+
   /* На телефоне карточка идёт одним столбцом: поля во всю ширину, отметка -
      полноценная строка-цель, а не 16px квадрат в углу. */
   .bim__fields {
