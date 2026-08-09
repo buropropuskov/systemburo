@@ -306,6 +306,7 @@
               @edit-vehicle="editVehicle"
               @delete-vehicle="deleteVehicle"
               @toggle-import="toggleImportMode"
+              @clear-list="clearList('cars')"
             />
           </template>
 
@@ -340,6 +341,7 @@
               @edit-employee="editEmployee"
               @delete-employee="deleteEmployee"
               @toggle-import="toggleImportMode"
+              @clear-list="clearList('people')"
             />
           </template>
 
@@ -2072,6 +2074,37 @@ export default {
                 employees.splice(index, 1);
                 this.saveToLocalStorage();
             }
+        },
+
+        /**
+         * «Очистить» в шапке списка (blank-import-ux, U6): убирает ВСЕ строки текущего
+         * вложения - и заведённые руками, и предварительные из бланка. Подтверждение
+         * спрашивает сам список, здесь только удаление: отмены на странице нет.
+         * Сводка импорта считает готовые к добавлению по pendingImportCount, поэтому
+         * после очистки она сама показывает ноль и не обещает добавить пустоту.
+         *
+         * @param {string} attachmentType cars | people
+         */
+        clearList(attachmentType) {
+            if (!this.selectedAttachment) return;
+            if (this.selectedAttachment.attachment_type !== attachmentType) return;
+
+            const key = this.attachmentKey(this.selectedAttachment);
+            const rows = this.rowsForAttachment(attachmentType, key);
+            const removed = rows.length;
+            if (removed === 0) return;
+
+            // splice, а не новый массив: на этот же экземпляр смотрят restoreAttachmentData
+            // и черновик, подмена ссылки оставила бы их со старыми строками.
+            rows.splice(0);
+            this.saveToLocalStorage();
+
+            useDeletionsStore().notify({
+                bold: `Убрано строк: ${removed}`,
+                suffix: attachmentType === 'people'
+                    ? ' из списка сотрудников'
+                    : ' из списка транспортных средств',
+            });
         },
 
         editEmployee(employee) {

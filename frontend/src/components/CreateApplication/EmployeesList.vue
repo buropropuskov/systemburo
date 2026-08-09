@@ -4,27 +4,41 @@
       <h4>Список сотрудников</h4>
       <span class="employees-badge">{{ employees.length }}</span>
       <div
-        v-if="canImport"
-        class="import-entry"
+        v-if="canImport || employees.length"
+        class="header-actions"
       >
-        <span
-          class="hint-anchor"
-          data-hint="Массовый ввод из бланка в опытной эксплуатации: проверяйте, что попало в список"
+        <div
+          v-if="canImport"
+          class="import-entry"
         >
-          <Badge
-            variant="warning"
-            size="sm"
-            label="Experimental"
-          />
-        </span>
+          <span
+            class="hint-anchor"
+            data-hint="Массовый ввод из бланка в опытной эксплуатации: проверяйте, что попало в список"
+          >
+            <Badge
+              variant="warning"
+              size="sm"
+              label="Experimental"
+            />
+          </span>
+          <button
+            type="button"
+            class="lk-button lk-button--secondary lk-button--sm import-entry__btn"
+            data-testid="employees-import-btn"
+            :aria-pressed="importActive ? 'true' : 'false'"
+            @click="$emit('toggle-import')"
+          >
+            {{ importActive ? 'Закрыть импорт' : 'Импорт' }}
+          </button>
+        </div>
         <button
+          v-if="employees.length"
           type="button"
-          class="lk-button lk-button--secondary lk-button--sm import-entry__btn"
-          data-testid="employees-import-btn"
-          :aria-pressed="importActive ? 'true' : 'false'"
-          @click="$emit('toggle-import')"
+          class="lk-button lk-button--danger lk-button--sm header-actions__btn"
+          data-testid="employees-clear-btn"
+          @click="showClearConfirm = true"
         >
-          {{ importActive ? 'Закрыть импорт' : 'Импорт' }}
+          Очистить
         </button>
       </div>
     </div>
@@ -186,6 +200,19 @@
       </div>
     </div>
 
+    <!-- Очистка списка необратима (отмены на странице нет), поэтому идёт только через
+         подтверждение; само удаление делает родитель по clear-list. -->
+    <ConfirmationModal
+      :show="showClearConfirm"
+      title="Очистить список"
+      :message="clearConfirmMessage"
+      confirm-text="Очистить"
+      cancel-text="Отмена"
+      :confirm-button-style="{ background: 'var(--danger)', borderColor: 'var(--danger)', color: 'var(--fill-text)' }"
+      @confirm="confirmClear"
+      @cancel="showClearConfirm = false"
+    />
+
     <!-- Модальное окно деталей сотрудника -->
     <EmployeeDetailsModal
       :show="showDetailsModal"
@@ -200,6 +227,7 @@
 
 <script>
 import EmployeeDetailsModal from './EmployeeDetailsModal.vue';
+import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import Badge from '@/components/ui/Badge.vue';
 import DetailsIcon from '@/components/ui/DetailsIcon.vue';
 import Pager from '@/components/ui/Pager.vue';
@@ -207,7 +235,7 @@ import { useListSearchPagination } from '@/composables/useListSearchPagination';
 
 export default {
     name: 'EmployeesList',
-    components: { EmployeeDetailsModal, Badge, DetailsIcon, Pager },
+    components: { EmployeeDetailsModal, ConfirmationModal, Badge, DetailsIcon, Pager },
     props: {
         employees: {
             type: Array,
@@ -236,7 +264,7 @@ export default {
             default: false
         }
     },
-    emits: ['sort', 'edit-employee', 'delete-employee', 'toggle-import'],
+    emits: ['sort', 'edit-employee', 'delete-employee', 'toggle-import', 'clear-list'],
     setup(props) {
         // Поиск+постраничный показ - см. useListSearchPagination (blank-import E1: до
         // 2000 строк, рендерить всё v-for'ом не годится).
@@ -266,10 +294,25 @@ export default {
     data() {
         return {
             showDetailsModal: false,
-            selectedEmployee: null
+            selectedEmployee: null,
+            showClearConfirm: false
         };
     },
+    computed: {
+        // Считаем по ВСЕМУ списку, а не по видимой странице: поиск и пейджер режут показ,
+        // а чистится вложение целиком - иначе число в вопросе обещало бы меньше, чем уйдёт.
+        clearConfirmMessage() {
+            const pending = this.employees.filter(employee => employee.isPending).length;
+            const fromBlank = pending > 0 ? `, из них предварительных из бланка: ${pending}` : '';
+            return `Будет убрано строк: ${this.employees.length}${fromBlank}. Отменить это действие нельзя.`;
+        }
+    },
     methods: {
+        confirmClear() {
+            this.showClearConfirm = false;
+            this.$emit('clear-list');
+        },
+
         showEmployeeDetails(employee) {
             // EmployeeForm кладёт в employeesByAttachment объекты в camelCase
             // (lastName, firstName, citizenshipName, targetTables, ...), а
@@ -321,16 +364,27 @@ export default {
     padding-bottom: 12px;
 }
 
-/* Вход в импорт прижат к правому краю шапки списка; бейдж слева от кнопки. */
-.import-entry {
+/* Действия списка прижаты к правому краю шапки: вход в импорт, за ним очистка.
+   Перенос обязателен: у .lk-button white-space: nowrap, и на узком экране пара
+   «Закрыть импорт» + «Очистить» иначе выехала бы за край шапки. */
+.header-actions {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 8px;
     margin-left: auto;
 }
 
+.import-entry {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 @media (max-width: 768px) {
-    .import-entry__btn {
+    .import-entry__btn,
+    .header-actions__btn {
         min-height: 44px;
         padding: 4px 14px;
     }
