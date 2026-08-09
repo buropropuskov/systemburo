@@ -380,6 +380,7 @@
       :company="company"
       :has-organization="hasOrganization"
       :has-company="hasCompany"
+      :processing="isBindingActionInProgress"
       @confirm-binding="confirmBinding"
       @skip-binding="skipBinding"
       @close="cancelBindingModal"
@@ -583,6 +584,15 @@ export default {
             // (эпик blank-import, срез E2E3): без гарда двойной клик на большом
             // списке успевает уйти вторым POST раньше, чем отработает первый.
             isSubmitting: false,
+            // Уточнение isSubmitting: true строго ПОДМНОЖЕСТВО isSubmitting=true, с момента
+            // клика "Привязать и отправить"/"Отправить без привязки" внутри модалки привязки
+            // и до завершения confirmBinding/skipBinding (mapWithConcurrency-привязка + сам
+            // submit). Пока модалка только ОТКРЫТА и юзер решает - false, крестик/оверлей/
+            // Escape/свайп закрывают её штатно. Как только процесс стартовал - true, и
+            // UniversalBindingModal (проп processing) сама блокирует и свои кнопки, и закрытие -
+            // иначе повторный клик внутри модалки или "отмена" посреди работающего confirmBinding
+            // оставляют его фоновый прогон невидимым и ведут ко второму параллельному submit.
+            isBindingActionInProgress: false,
 
             showSubmitTooltip: false,
             tooltipTimer: null,
@@ -2164,6 +2174,12 @@ export default {
         },
         
         async confirmBinding(bindingData) {
+            // Гард от повторного клика внутри самой модалки: пока привязка уже летит
+            // (mapWithConcurrency по сотням строк массового импорта - окно широкое),
+            // второй emit того же confirm-binding - no-op, не второй набор запросов.
+            if (this.isBindingActionInProgress) return;
+            this.isBindingActionInProgress = true;
+
             try {
                 if (this.newVehiclesToBind.length > 0 && bindingData.vehicles.hasVehiclesForBinding) {
                     const vehiclesToBind = this.newVehiclesToBind.filter(vehicle => 
@@ -2227,15 +2243,22 @@ export default {
                 console.error('Ошибка при привязке:', error);
                 this.closeBindingModal();
             } finally {
+                this.isBindingActionInProgress = false;
                 this.isSubmitting = false;
             }
         },
 
         async skipBinding() {
+            // Тот же гард, что и в confirmBinding - "Отправить без привязки" тоже
+            // не должен запускать sendCompleteApplication дважды на двойной клик.
+            if (this.isBindingActionInProgress) return;
+            this.isBindingActionInProgress = true;
+
             this.closeBindingModal();
             try {
                 await this.sendCompleteApplication();
             } finally {
+                this.isBindingActionInProgress = false;
                 this.isSubmitting = false;
             }
         },
@@ -2248,8 +2271,13 @@ export default {
 
         /** Пользователь закрыл модалку сам (крестик/оверлей/Escape/свайп), не подтвердив
          * и не пропустив привязку - продолжения не будет, снимаем isSubmitting здесь,
-         * иначе кнопка "Отправить заявку" зависнет в состоянии "Отправляем..." навсегда. */
+         * иначе кнопка "Отправить заявку" зависнет в состоянии "Отправляем..." навсегда.
+         * Пока confirmBinding/skipBinding уже работают (isBindingActionInProgress) -
+         * модалка сама блокирует эти пути (проп processing), это - страховка на случай
+         * программного вызова: закрыть/отменить фоновый прогон отсюда нельзя, иначе он
+         * останется невидимым и всё равно дойдёт до sendCompleteApplication. */
         cancelBindingModal() {
+            if (this.isBindingActionInProgress) return;
             this.closeBindingModal();
             this.isSubmitting = false;
         },
@@ -3148,6 +3176,14 @@ export default {
 
     @keyframes send-all-btn-spin {
         to { transform: rotate(360deg); }
+    }
+
+    /* Как в LoaderSpinner.vue: не гасим крутилку совсем (текст "Отправляем..." сам по
+       себе не объясняет, что форма ещё жива), а замедляем - тот же приём, что там. */
+    @media (prefers-reduced-motion: reduce) {
+        .send-all-btn__spinner {
+            animation-duration: 2.4s;
+        }
     }
 
     .submit-progress-hint {

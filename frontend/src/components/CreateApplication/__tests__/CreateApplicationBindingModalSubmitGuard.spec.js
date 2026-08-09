@@ -93,11 +93,39 @@ function hangSubmitCompleteApplication() {
     };
 }
 
+// Подменяет apiRequest так, что сам POST привязки (/unique-employees) зависает, пока
+// тест не отпустит - остальные запросы (в т.ч. GET-списки существующих и итоговый submit)
+// отвечают сразу. confirmBinding() делает этот POST ДО closeBindingModal(), поэтому пока
+// он висит, модалка формально ещё открыта - именно это окно и проверяем.
+function hangUniqueEmployeesBindPost() {
+    let resolveBind;
+    apiRequestMock.mockImplementation((path, options = {}) => {
+        if (path === '/unique-employees' && options.method === 'POST') {
+            return new Promise((resolve) => { resolveBind = resolve; });
+        }
+        return Promise.resolve(okEmptyJson());
+    });
+    return { resolve: () => resolveBind(okEmptyJson()) };
+}
+
 function submitCompleteApplicationCalls() {
     return apiRequestMock.mock.calls.filter(
         ([path]) => path === '/applications/submit-complete-application'
     );
 }
+
+function uniqueEmployeesBindCalls() {
+    return apiRequestMock.mock.calls.filter(
+        ([path, options]) => path === '/unique-employees' && options?.method === 'POST'
+    );
+}
+
+// Условие для confirmBinding, при котором привязка сотрудника реально запускается
+// (совпадает с тем, что реальная модалка эмитит для нового не-"по факту" сотрудника).
+const bindingDataWithEmployeeBinding = {
+    vehicles: { bindToOrganization: false, bindToCompany: false, hasVehiclesForBinding: false },
+    employees: { bindToOrganization: false, bindToCompany: false, hasEmployeesForBinding: true },
+};
 
 describe('CreateApplication - гард isSubmitting держит путь через модалку привязки', () => {
     it('новые сущности открывают модалку привязки вместо прямой подачи, isSubmitting остаётся true', async () => {
@@ -186,5 +214,69 @@ describe('CreateApplication - гард isSubmitting держит путь чер
         expect(w.vm.showBindingModal).toBe(false);
         expect(w.vm.isSubmitting).toBe(false);
         expect(submitCompleteApplicationCalls()).toHaveLength(0);
+    });
+
+    it('cancelBindingModal посреди работающей привязки (mapWithConcurrency ещё летит) не отменяет фоновый confirmBinding и не открывает второй submit', async () => {
+        const w = await mountApp();
+        fillStateWithNewEmployee(w);
+        const bind = hangUniqueEmployeesBindPost();
+
+        await w.vm.submitApplication();
+        expect(w.vm.showBindingModal).toBe(true);
+
+        const confirmPromise = w.vm.confirmBinding(bindingDataWithEmployeeBinding);
+        await flushPromises();
+
+        // POST /unique-employees ещё висит - confirmBinding не дошёл до closeBindingModal(),
+        // модалка формально ещё открыта.
+        expect(w.vm.showBindingModal).toBe(true);
+        expect(w.vm.isBindingActionInProgress).toBe(true);
+
+        // Крестик/оверлей/Escape/свайп на уровне родителя - это cancelBindingModal().
+        w.vm.cancelBindingModal();
+        await flushPromises();
+
+        // Отмена не прошла: фоновый confirmBinding продолжает работу невидимо для юзера.
+        expect(w.vm.showBindingModal).toBe(true);
+        expect(w.vm.isSubmitting).toBe(true);
+
+        // Юзер, решив что отменил, жмёт "Отправить заявку" снова - должен остаться no-op.
+        await w.vm.submitApplication();
+        await flushPromises();
+
+        bind.resolve();
+        await confirmPromise;
+        await flushPromises();
+
+        expect(uniqueEmployeesBindCalls()).toHaveLength(1);
+        expect(submitCompleteApplicationCalls()).toHaveLength(1);
+        expect(w.vm.isSubmitting).toBe(false);
+        expect(w.vm.isBindingActionInProgress).toBe(false);
+    });
+
+    it('повторный вызов confirmBinding (двойной клик по "Привязать и отправить") не даёт второй набор привязок и второй submit', async () => {
+        const w = await mountApp();
+        fillStateWithNewEmployee(w);
+        const bind = hangUniqueEmployeesBindPost();
+
+        await w.vm.submitApplication();
+        expect(w.vm.showBindingModal).toBe(true);
+
+        const first = w.vm.confirmBinding(bindingDataWithEmployeeBinding);
+        await flushPromises();
+        expect(w.vm.isBindingActionInProgress).toBe(true);
+
+        // Второй emit того же confirm-binding, пока первый ещё летит.
+        const second = w.vm.confirmBinding(bindingDataWithEmployeeBinding);
+        await flushPromises();
+
+        bind.resolve();
+        await Promise.all([first, second]);
+        await flushPromises();
+
+        expect(uniqueEmployeesBindCalls()).toHaveLength(1);
+        expect(submitCompleteApplicationCalls()).toHaveLength(1);
+        expect(w.vm.isSubmitting).toBe(false);
+        expect(w.vm.isBindingActionInProgress).toBe(false);
     });
 });
