@@ -18,15 +18,26 @@ import (
 // Пустой бланк для заполнения списка участников: тот же файл, которым система
 // заполняет бланки, плюс отпечаток - по нему загруженный обратно файл узнаётся как
 // бланк именно этого типа вложения, а не «какой-то xlsx».
+//
+// Гейт скачивания - action.import.list (blank-import, C1C2), то же право, что и у
+// приёма заполненного файла: скачавший без права загрузить не смог бы. Сценарии
+// ниже проверяются под admin (право есть через adminAll); отдельный подтест
+// проверяет отказ обычному пользователю.
 func blankTemplateDownloadSection(t *testing.T, w blankWorld) {
 	db := w.h.w.db
-	user := testutil.AuthHeader(w.h.userToken)
+	admin := testutil.AuthHeader(w.h.adminToken)
 
 	peopleUA, peopleTpl := seedListTemplate(t, db, "import_people", "people", 6, 20)
 	carsUA, carsTpl := seedListTemplate(t, db, "import_cars", "cars", 4, 30)
 
+	t.Run("без права action.import.list - 403", func(t *testing.T) {
+		rec := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/blank-template", peopleUA),
+			testutil.AuthHeader(w.h.userToken))
+		require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	})
+
 	t.Run("отпечаток читается обратно", func(t *testing.T) {
-		rec := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/blank-template", peopleUA), user)
+		rec := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/blank-template", peopleUA), admin)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		require.Contains(t, rec.Header().Get("Content-Disposition"), "filename*=UTF-8''",
 			"кириллица в имени файла требует RFC 5987")
@@ -38,7 +49,7 @@ func blankTemplateDownloadSection(t *testing.T, w blankWorld) {
 	})
 
 	t.Run("бланк другого типа вложения не совпадает", func(t *testing.T) {
-		rec := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/blank-template", carsUA), user)
+		rec := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/blank-template", carsUA), admin)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 		fp := readFingerprint(t, rec.Body.Bytes())
@@ -54,7 +65,7 @@ func blankTemplateDownloadSection(t *testing.T, w blankWorld) {
 		require.NoError(t, db.Model(&models.AttachmentTemplate{}).Where("id = ?", tplID).
 			Update("is_active", false).Error)
 
-		rec := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/blank-template", uaID), user)
+		rec := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/blank-template", uaID), admin)
 		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	})
 
@@ -64,7 +75,7 @@ func blankTemplateDownloadSection(t *testing.T, w blankWorld) {
 			TemplateID: tplID, CellRef: "A1", FieldPath: "application.application_number",
 		}).Error)
 
-		rec := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/blank-template", uaID), user)
+		rec := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/blank-template", uaID), admin)
 		require.Equal(t, http.StatusNotFound, rec.Code, "заполнять в таком бланке нечего")
 	})
 
@@ -73,12 +84,12 @@ func blankTemplateDownloadSection(t *testing.T, w blankWorld) {
 		require.NoError(t, db.Model(&models.UniqueAttachment{}).Where("id = ?", uaID).
 			Update("is_active", false).Error)
 
-		rec := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/blank-template", uaID), user)
+		rec := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/blank-template", uaID), admin)
 		require.Equal(t, http.StatusNotFound, rec.Code, "по архивному типу заявку не подать")
 	})
 
 	t.Run("несуществующий тип вложения", func(t *testing.T) {
-		rec := testutil.GET(t, w.h.e, "/attachments/999999/blank-template", user)
+		rec := testutil.GET(t, w.h.e, "/attachments/999999/blank-template", admin)
 		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	})
 

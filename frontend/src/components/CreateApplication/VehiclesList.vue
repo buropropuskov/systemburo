@@ -5,6 +5,31 @@
       <span class="vehicles-badge">{{ vehicles.length }}</span>
     </div>
 
+    <!-- Импорт бланком (blank-import) может завести до 2000 машин - показываем поиск
+         и постраничную навигацию только когда список реально большой, чтобы обычная
+         ручная подача из нескольких машин выглядела как раньше. -->
+    <div
+      v-if="showToolbar"
+      class="list-toolbar"
+    >
+      <input
+        v-model="searchQuery"
+        type="text"
+        class="lk-input list-search"
+        placeholder="Поиск по номеру или марке"
+        data-testid="vehicles-search"
+      >
+      <Pager
+        v-if="totalPages > 1"
+        class="list-pager"
+        :page="currentPage"
+        :total-pages="totalPages"
+        :total="filteredVehicles.length"
+        page-prefix="Стр. "
+        @update:page="goToPage"
+      />
+    </div>
+
     <!-- Десктоп/планшет: колоночная раскладка. В DOM ячейки идут по столбцам, поэтому
          выделение мышью сверху-вниз захватывает один столбец и копируется как список
          значений (Ctrl+C). Мобилка (карточки) - строковый блок ниже. -->
@@ -28,13 +53,14 @@
           >
         </div>
         <div
-          v-for="(vehicle, index) in vehicles"
-          :key="vehicle.id"
+          v-for="(row, index) in pagedVehicles"
+          :key="row.item.id"
           class="vcol__cell vcol__cell--muted"
-          :class="rowState(vehicle, index)"
+          data-testid="vehicles-row"
+          :class="rowState(row.item, index)"
           @mouseenter="hoveredIndex = index"
         >
-          {{ index + 1 }}
+          {{ row.number }}
         </div>
       </div>
 
@@ -53,13 +79,13 @@
           >
         </div>
         <div
-          v-for="(vehicle, index) in vehicles"
-          :key="vehicle.id"
+          v-for="(row, index) in pagedVehicles"
+          :key="row.item.id"
           class="vcol__cell vcol__cell--text"
-          :class="rowState(vehicle, index)"
+          :class="rowState(row.item, index)"
           @mouseenter="hoveredIndex = index"
         >
-          {{ vehicle.plateNumber || 'Не указано' }}
+          {{ row.item.plateNumber || 'Не указано' }}
         </div>
       </div>
 
@@ -78,13 +104,13 @@
           >
         </div>
         <div
-          v-for="(vehicle, index) in vehicles"
-          :key="vehicle.id"
+          v-for="(row, index) in pagedVehicles"
+          :key="row.item.id"
           class="vcol__cell vcol__cell--text"
-          :class="rowState(vehicle, index)"
+          :class="rowState(row.item, index)"
           @mouseenter="hoveredIndex = index"
         >
-          {{ vehicle.mark || 'Не указано' }}
+          {{ row.item.mark || 'Не указано' }}
         </div>
       </div>
 
@@ -93,23 +119,23 @@
           Действия
         </div>
         <div
-          v-for="(vehicle, index) in vehicles"
-          :key="vehicle.id"
+          v-for="(row, index) in pagedVehicles"
+          :key="row.item.id"
           class="vcol__cell vcol__cell--actions"
-          :class="rowState(vehicle, index)"
+          :class="rowState(row.item, index)"
           @mouseenter="hoveredIndex = index"
         >
           <button
             class="details-btn"
             title="Детали"
-            @click="showVehicleDetails(vehicle)"
+            @click="showVehicleDetails(row.item)"
           >
             <DetailsIcon class="details-icon" />
           </button>
           <button
             class="edit-btn"
             title="Редактировать"
-            @click="$emit('edit-vehicle', vehicle)"
+            @click="$emit('edit-vehicle', row.item)"
           >
             <img
               src="@/assets/icons/edit.png"
@@ -120,7 +146,7 @@
           <button
             class="delete-btn"
             title="Удалить"
-            @click="$emit('delete-vehicle', vehicle.id)"
+            @click="$emit('delete-vehicle', row.item.id)"
           >
             <img
               src="@/assets/icons/trashcan.png"
@@ -168,36 +194,37 @@
       </div>
       <div class="table-body">
         <div
-          v-for="(vehicle, index) in vehicles"
-          :key="vehicle.id"
+          v-for="row in pagedVehicles"
+          :key="row.item.id"
           class="table-row rt-row"
-          :class="{ 'has-active': vehicle.activeInfo }"
+          data-testid="vehicles-row"
+          :class="{ 'has-active': row.item.activeInfo }"
         >
           <div class="table-col number-col">
-            {{ index + 1 }}
+            {{ row.number }}
           </div>
           <div class="table-col plate-col">
             <div class="cell-with-icon">
-              {{ vehicle.plateNumber || 'Не указано' }}
+              {{ row.item.plateNumber || 'Не указано' }}
             </div>
           </div>
           <div class="table-col mark-col">
             <div class="cell-with-icon">
-              {{ vehicle.mark || 'Не указано' }}
+              {{ row.item.mark || 'Не указано' }}
             </div>
           </div>
           <div class="table-col actions-col">
             <button
               class="details-btn"
               title="Детали"
-              @click="showVehicleDetails(vehicle)"
+              @click="showVehicleDetails(row.item)"
             >
               <DetailsIcon class="details-icon" />
             </button>
             <button
               class="edit-btn"
               title="Редактировать"
-              @click="$emit('edit-vehicle', vehicle)"
+              @click="$emit('edit-vehicle', row.item)"
             >
               <img
                 src="@/assets/icons/edit.png"
@@ -208,7 +235,7 @@
             <button
               class="delete-btn"
               title="Удалить"
-              @click="$emit('delete-vehicle', vehicle.id)"
+              @click="$emit('delete-vehicle', row.item.id)"
             >
               <img
                 src="@/assets/icons/trashcan.png"
@@ -226,6 +253,12 @@
       class="no-vehicles"
     >
       Нет добавленных транспортных средств
+    </div>
+    <div
+      v-else-if="filteredVehicles.length === 0"
+      class="no-vehicles"
+    >
+      Ничего не найдено по запросу «{{ searchQuery }}»
     </div>
 
     <!-- Модальное окно деталей транспортного средства -->
@@ -245,13 +278,16 @@
 <script>
 import VehicleDetailsModal from './VehicleDetailsModal.vue';
 import DetailsIcon from '@/components/ui/DetailsIcon.vue';
+import Pager from '@/components/ui/Pager.vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
+import { useListSearchPagination } from '@/composables/useListSearchPagination';
 
 export default {
     name: 'VehiclesList',
     components: {
         VehicleDetailsModal,
-        DetailsIcon
+        DetailsIcon,
+        Pager
     },
     props: {
         vehicles: {
@@ -282,9 +318,35 @@ export default {
     emits: ['sort', 'edit-vehicle', 'delete-vehicle'],
     // 767.98 - тот же порог, что у карточного @media: ниже него рендерим карточки,
     // выше - колоночную раскладку с выделением по столбцам.
-    setup() {
+    setup(props) {
         const { isNarrow } = useNarrowScreen(767.98);
-        return { isNarrow };
+
+        // Поиск+постраничный показ - см. useListSearchPagination (blank-import E1: до
+        // 2000 машин, рендерить всё v-for'ом - да ещё продублированным на 4 колонки в
+        // десктопной раскладке - не годится).
+        const {
+            searchQuery,
+            currentPage,
+            showToolbar,
+            filteredItems: filteredVehicles,
+            totalPages,
+            pagedItems: pagedVehicles,
+            goToPage
+        } = useListSearchPagination(
+            () => props.vehicles,
+            (vehicle, q) => `${vehicle.plateNumber || ''} ${vehicle.mark || ''}`.toLowerCase().includes(q)
+        );
+
+        return {
+            isNarrow,
+            searchQuery,
+            currentPage,
+            showToolbar,
+            filteredVehicles,
+            totalPages,
+            pagedVehicles,
+            goToPage
+        };
     },
     data() {
         return {
@@ -293,6 +355,13 @@ export default {
             // Индекс строки под курсором: подсвечиваем ячейки того же индекса во всех
             // столбцах (в колоночном DOM «строки» как элемента нет - синхроним по index).
             hoveredIndex: null
+        }
+    },
+    watch: {
+        currentPage() {
+            // Клик по пейджеру не даёт mouseleave - без сброса подсветка осталась бы
+            // на строке с тем же ЛОКАЛЬНЫМ индексом, то есть на другой машине.
+            this.hoveredIndex = null;
         }
     },
     methods: {
@@ -352,6 +421,29 @@ export default {
     min-width: 18px;
     text-align: center;
     line-height: 1.2;
+}
+
+.list-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-bottom: 10px;
+}
+
+/* Границы/фон/фокус/тёмная тема - на .lk-input, здесь только раскладка в тулбаре. */
+.list-search {
+    flex: 1;
+    min-width: 160px;
+    height: 32px;
+    padding: 6px 12px;
+    font-size: 13px;
+}
+
+.list-pager {
+    flex-shrink: 0;
+    color: var(--text-muted);
 }
 
 /* Колоночная раскладка (десктоп/планшет): каждый столбец - отдельный flex-column,
@@ -675,6 +767,16 @@ h4 {
         box-shadow: none;
         /* Только по Y: по X инфраструктура держит свой overflow-x: hidden. */
         overflow-y: visible;
+    }
+
+    /* Тач-таргет 44px (WCAG 2.5.5, эталон адаптивности #1097). */
+    .list-search {
+        height: 44px;
+        font-size: 16px;
+    }
+
+    .list-pager :deep(.lk-button) {
+        min-height: 44px;
     }
 
     /* Список больше не скроллится внутри 180px - страница скроллит сама. */

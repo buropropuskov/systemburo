@@ -4,6 +4,32 @@
       <h4>Список сотрудников</h4>
       <span class="employees-badge">{{ employees.length }}</span>
     </div>
+
+    <!-- Импорт бланком (blank-import) может занести до 2000 строк - показываем
+         поиск и постраничную навигацию только когда список реально большой,
+         чтобы обычная ручная подача из нескольких человек выглядела как раньше. -->
+    <div
+      v-if="showToolbar"
+      class="list-toolbar"
+    >
+      <input
+        v-model="searchQuery"
+        type="text"
+        class="lk-input list-search"
+        placeholder="Поиск по ФИО"
+        data-testid="employees-search"
+      >
+      <Pager
+        v-if="totalPages > 1"
+        class="list-pager"
+        :page="currentPage"
+        :total-pages="totalPages"
+        :total="filteredEmployees.length"
+        page-prefix="Стр. "
+        @update:page="goToPage"
+      />
+    </div>
+
     <div class="employees-table rt-table">
       <div class="table-header rt-head-row">
         <div
@@ -71,49 +97,50 @@
         </div>
       </div>
       <div class="table-body">
-        <div 
-          v-for="(employee, index) in employees" 
-          :key="employee.id"
+        <div
+          v-for="row in pagedEmployees"
+          :key="row.item.id"
           class="table-row rt-row"
+          data-testid="employees-row"
         >
           <div class="table-col number-col">
-            {{ index + 1 }}
+            {{ row.number }}
           </div>
           <div class="table-col lastName-col">
-            {{ employee.lastName || 'Не указано' }}
+            {{ row.item.lastName || 'Не указано' }}
           </div>
           <div class="table-col firstName-col">
-            {{ employee.firstName || 'Не указано' }}
+            {{ row.item.firstName || 'Не указано' }}
           </div>
           <div class="table-col middleName-col">
-            {{ employee.middleName || 'Не указано' }}
+            {{ row.item.middleName || 'Не указано' }}
           </div>
           <div class="table-col actions-col">
             <button
               class="details-btn"
               title="Детали"
-              @click="showEmployeeDetails(employee)"
+              @click="showEmployeeDetails(row.item)"
             >
               <DetailsIcon class="details-icon" />
             </button>
-            <button 
+            <button
               class="edit-btn"
               title="Редактировать"
-              @click="$emit('edit-employee', employee)"
+              @click="$emit('edit-employee', row.item)"
             >
-              <img 
-                src="@/assets/icons/edit.png" 
-                alt="Редактировать" 
+              <img
+                src="@/assets/icons/edit.png"
+                alt="Редактировать"
                 class="edit-icon"
               >
             </button>
-            <button 
+            <button
               class="delete-btn"
-              @click="$emit('delete-employee', employee.id)"
+              @click="$emit('delete-employee', row.item.id)"
             >
-              <img 
-                src="@/assets/icons/trashcan.png" 
-                alt="Удалить" 
+              <img
+                src="@/assets/icons/trashcan.png"
+                alt="Удалить"
                 class="delete-icon"
               >
             </button>
@@ -124,6 +151,12 @@
           class="no-employees"
         >
           Нет добавленных сотрудников
+        </div>
+        <div
+          v-else-if="filteredEmployees.length === 0"
+          class="no-employees"
+        >
+          Ничего не найдено по запросу «{{ searchQuery }}»
         </div>
       </div>
     </div>
@@ -143,10 +176,12 @@
 <script>
 import EmployeeDetailsModal from './EmployeeDetailsModal.vue';
 import DetailsIcon from '@/components/ui/DetailsIcon.vue';
+import Pager from '@/components/ui/Pager.vue';
+import { useListSearchPagination } from '@/composables/useListSearchPagination';
 
 export default {
     name: 'EmployeesList',
-    components: { EmployeeDetailsModal, DetailsIcon },
+    components: { EmployeeDetailsModal, DetailsIcon, Pager },
     props: {
         employees: {
             type: Array,
@@ -166,6 +201,32 @@ export default {
         }
     },
     emits: ['sort', 'edit-employee', 'delete-employee'],
+    setup(props) {
+        // Поиск+постраничный показ - см. useListSearchPagination (blank-import E1: до
+        // 2000 строк, рендерить всё v-for'ом не годится).
+        const {
+            searchQuery,
+            currentPage,
+            showToolbar,
+            filteredItems: filteredEmployees,
+            totalPages,
+            pagedItems: pagedEmployees,
+            goToPage
+        } = useListSearchPagination(
+            () => props.employees,
+            (employee, q) => `${employee.lastName || ''} ${employee.firstName || ''} ${employee.middleName || ''}`.toLowerCase().includes(q)
+        );
+
+        return {
+            searchQuery,
+            currentPage,
+            showToolbar,
+            filteredEmployees,
+            totalPages,
+            pagedEmployees,
+            goToPage
+        };
+    },
     data() {
         return {
             showDetailsModal: false,
@@ -233,6 +294,29 @@ export default {
     min-width: 18px;
     text-align: center;
     line-height: 1.2;
+}
+
+.list-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-bottom: 10px;
+}
+
+/* Границы/фон/фокус/тёмная тема - на .lk-input, здесь только раскладка в тулбаре. */
+.list-search {
+    flex: 1;
+    min-width: 160px;
+    height: 32px;
+    padding: 6px 12px;
+    font-size: 13px;
+}
+
+.list-pager {
+    flex-shrink: 0;
+    color: var(--text-muted);
 }
 
 .employees-table {
@@ -443,6 +527,16 @@ h4 {
         box-shadow: none;
         /* Только по Y: по X инфраструктура держит свой overflow-x: hidden. */
         overflow-y: visible;
+    }
+
+    /* Тач-таргет 44px (WCAG 2.5.5, эталон адаптивности #1097). */
+    .list-search {
+        height: 44px;
+        font-size: 16px;
+    }
+
+    .list-pager :deep(.lk-button) {
+        min-height: 44px;
     }
 
     /* Список больше не скроллится внутри 180px - страница скроллит сама. */
