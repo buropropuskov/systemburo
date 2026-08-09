@@ -585,6 +585,8 @@ export default {
             numberParts: [],
             isNumberByFact: false,
             availableFormats: [],
+            // Промис загрузки справочника форматов - см. mounted и applyEditedVehicleNumber.
+            formatsReady: null,
             selectedFormat: null,
             isFormatDropdownOpen: false,
             isMarkByFact: false,
@@ -761,8 +763,11 @@ export default {
         }
     },
     async mounted() {
+        // Промис держим отдельно: правка строки может прийти раньше, чем справочник
+        // форматов доедет, и тогда подбор формата по номеру ложно не находит ничего.
+        this.formatsReady = this.loadLicensePlateFormats();
         await Promise.all([
-            this.loadLicensePlateFormats(),
+            this.formatsReady,
             this.loadUnloadingPlaces(),
             this.loadMarks(),
             this.loadPassageTables()
@@ -1473,7 +1478,10 @@ export default {
         // бланка formatId не несёт вовсе (сервер его туда не кладёт) - формат подбирается по
         // самой строке номера среди активных форматов. Не подошёл ни один - явно сообщаем об
         // этом, а не оставляем пустые ячейки под чужим форматом молча.
-        applyEditedVehicleNumber(vehicle) {
+        async applyEditedVehicleNumber(vehicle) {
+            if (!this.availableFormats.length && this.formatsReady) {
+                await this.formatsReady;
+            }
             const knownFormat = vehicle.formatId
                 ? this.availableFormats.find(f => f.format.id === vehicle.formatId)
                 : null;
@@ -1500,7 +1508,7 @@ export default {
             });
         },
 
-        editVehicle(vehicle) {
+        async editVehicle(vehicle) {
             this.editingVehicle = vehicle;
             this.selectedExistingCars = [];
             this.activeCarInfo = null; // Сбрасываем информацию об активной заявке
@@ -1539,7 +1547,7 @@ export default {
                     this.isNumberByFact = true;
                 } else {
                     this.isNumberByFact = false;
-                    this.applyEditedVehicleNumber(vehicle);
+                    await this.applyEditedVehicleNumber(vehicle);
                 }
 
                 restoreMarkSelection();

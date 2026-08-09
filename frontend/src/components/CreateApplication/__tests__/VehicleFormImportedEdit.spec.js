@@ -87,7 +87,23 @@ describe('VehicleForm - правка импортированной строки
 
         expect(w.vm.selectedFormat).toBeFalsy();
         expect(w.vm.numberParts).toEqual([]);
-        expect(notify).toHaveBeenCalled();
+        expect(notify).toHaveBeenCalledWith(expect.objectContaining({
+            prefix: expect.stringContaining('ZZZZZZZZ'),
+            type: 'error',
+        }));
+    });
+
+    // Клик по "редактировать" может опередить загрузку справочника форматов:
+    // mounted асинхронный, и без ожидания подбор ложно не находил бы ничего.
+    it('правка сразу после монтирования дожидается справочника форматов', async () => {
+        const w = mount(VehicleForm, { props: {}, attachTo: document.body });
+
+        await w.vm.editVehicle(importedVehicle({ plateNumber: 'А123ВС777' }));
+        await flushPromises();
+
+        expect(w.vm.selectedFormat).toBeTruthy();
+        expect(w.vm.numberParts.join('')).not.toBe('');
+        expect(notify).not.toHaveBeenCalled();
     });
 
     it('особый случай "По факту" не задет', async () => {
