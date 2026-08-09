@@ -365,6 +365,31 @@ func TestAttachmentImportListRows(t *testing.T) {
 		require.Contains(t, result.Rows[0].Errors[0], "Узбекистан")
 	})
 
+	// Оверрайд "патент обязателен" делает поле обязательным ВСЕГДА, независимо от
+	// гражданства - зеркало effectivePatentRequired из EmployeeForm.vue. Без этой
+	// проверки импорт оказался бы мягче ручного ввода ровно там, где админ ужесточил
+	// требования вручную.
+	t.Run("патент обязателен по оверрайду даже при гражданстве без patent_required", func(t *testing.T) {
+		require.NoError(t, db.Create(&models.AttachmentFieldConfig{
+			UniqueAttachmentID: uaID, FieldKey: "patent", Visible: true, Required: true,
+		}).Error)
+		defer func() {
+			require.NoError(t, db.Where("unique_attachment_id = ? AND field_key = ?", uaID, "patent").
+				Delete(&models.AttachmentFieldConfig{}).Error)
+		}()
+
+		r := validRow()
+		r.citizenship = "Россия"
+		data := buildPeopleRowsUpload(t, 6, []importPersonRow{r})
+		rec := postImportFile(t, e, uaID, "list.xlsx", data, admin)
+		require.Equal(t, http.StatusMultiStatus, rec.Code, rec.Body.String())
+
+		result := testutil.ParseResponse[services.ImportListResult](t, rec)
+		require.Equal(t, 1, result.Summary.Rejected)
+		require.Len(t, result.Rows[0].Errors, 1)
+		require.Contains(t, result.Rows[0].Errors[0], "патент")
+	})
+
 	t.Run("патент заполненный снимает ошибку по patent_required", func(t *testing.T) {
 		r := validRow()
 		r.citizenship = "Узбекистан"

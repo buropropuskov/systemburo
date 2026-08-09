@@ -244,7 +244,7 @@ func (s *attachmentImportService) parseVehicleRows(ctx context.Context, allRows 
 
 		var errs []string
 		errs = append(errs, requiredVehicleErrors(veh, merged)...)
-		errs = append(errs, checkFieldLength("Номер ТС", number)...)
+		errs = append(errs, checkFieldLengthMax("Номер ТС", number, maxImportCarNumberLen)...)
 		errs = append(errs, checkFieldLength("Марка ТС", mark)...)
 
 		if dup := dedup.checkAndRecord(rowIdx, number); dup != "" {
@@ -284,7 +284,7 @@ func parseItemRows(allRows [][]string, template *models.AttachmentTemplate, merg
 
 		var errs []string
 		errs = append(errs, requiredItemErrors(item, merged)...)
-		errs = append(errs, checkFieldLength("Наименование ТМЦ", name)...)
+		errs = append(errs, checkFieldLengthMax("Наименование ТМЦ", name, maxImportItemNameLen)...)
 
 		rows = append(rows, ImportRowResult{
 			RowNumber: rowIdx,

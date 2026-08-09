@@ -9,11 +9,18 @@ import (
 	"systemburo/internal/normalize"
 )
 
-// maxImportTextFieldLen - потолок длины текстовых полей сотрудника/машины при импорте,
-// зеркало gorm-тега size:100 у last_name/first_name/middle_name/position (models.Employee)
-// и car_brand/mark_name (models.Car). Без этой проверки значение молча обрежется при
-// вставке (см. lessons/backend.md) - импорт обязан поймать это ДО записи в БД.
-const maxImportTextFieldLen = 100
+// Потолки длины при импорте - зеркала gorm-тегов size у соответствующих полей. Без них
+// значение молча обрежется при вставке (см. lessons/backend.md), а завышенный потолок
+// отбивал бы значения, которые схема принимает. Расходиться с моделью нельзя в обе стороны.
+const (
+	// maxImportTextFieldLen - last_name/first_name/middle_name/position (models.Employee),
+	// car_brand/mark_name (models.Car).
+	maxImportTextFieldLen = 100
+	// maxImportCarNumberLen - car_number (models.Car) уже остальных полей машины.
+	maxImportCarNumberLen = 50
+	// maxImportItemNameLen - name (models.Item).
+	maxImportItemNameLen = 255
+)
 
 // importExcludedEmployeeKeys - ключи реестра, обязательность которых импорт НЕ проверяет
 // построчно: места прохода задаются на сайте на весь список целиком (решение владельца
@@ -90,23 +97,27 @@ func requiredItemErrors(i ItemInput, merged []models.MergedField) []string {
 	return errs
 }
 
-// patentErrors зеркалит правило EmployeeForm.vue (rules для patent, ~строки 510-515):
-// патент проверяется НЕ по тумблеру "обязательно" поля patent, а по признаку гражданства
-// patent_required, и только когда поле patent вообще видимо в конфиге вложения.
-// citizenship=nil (гражданство не заполнено или не найдено) - проверка пропускается,
-// об этом уже сообщает отдельная ошибка резолва гражданства.
+// patentErrors зеркалит effectivePatentRequired из EmployeeForm.vue: оверрайд
+// "обязательно" у поля patent делает патент обязательным ВСЕГДА, и только при его
+// отсутствии решает признак гражданства patent_required. Проверка работает, лишь пока
+// поле patent видимо в конфиге вложения. citizenship=nil (гражданство не заполнено или
+// не найдено) - об этом сообщает отдельная ошибка резолва гражданства.
 func patentErrors(e EmployeeInput, merged []models.MergedField, citizenship *models.Citizenship) []string {
 	patentCfg, ok := mergedFieldByKey(merged, "patent")
 	if !ok || !patentCfg.Visible {
 		return nil
 	}
-	if citizenship == nil || !citizenship.PatentRequired {
+	byCitizenship := citizenship != nil && citizenship.PatentRequired
+	if !patentCfg.Required && !byCitizenship {
 		return nil
 	}
 	if employeeFieldPresent(e, "patent") {
 		return nil
 	}
-	return []string{fmt.Sprintf("Для гражданства %q нужен номер патента или иное разрешение на работы", citizenship.Name)}
+	if byCitizenship {
+		return []string{fmt.Sprintf("Для гражданства %q нужен номер патента или иное разрешение на работы", citizenship.Name)}
+	}
+	return []string{"Нужен номер патента или иное разрешение на работы"}
 }
 
 // resolveCitizenship сопоставляет сырую строку гражданства из файла со справочником по
@@ -129,10 +140,15 @@ func resolveCitizenship(raw string, byNormalizedName map[string]models.Citizensh
 // checkFieldLength проверяет текстовое поле против потолка схемы (size:100): дальше
 // значение молча обрежется на вставке в БД, если пропустить строку как есть.
 func checkFieldLength(label, value string) []string {
-	if utf8.RuneCountInString(value) <= maxImportTextFieldLen {
+	return checkFieldLengthMax(label, value, maxImportTextFieldLen)
+}
+
+// checkFieldLengthMax - для полей, у которых свой size в модели (номер машины, ТМЦ).
+func checkFieldLengthMax(label, value string, max int) []string {
+	if utf8.RuneCountInString(value) <= max {
 		return nil
 	}
-	return []string{fmt.Sprintf("Поле «%s» длиннее %d символов - сократите значение", label, maxImportTextFieldLen)}
+	return []string{fmt.Sprintf("Поле «%s» длиннее %d символов - сократите значение", label, max)}
 }
 
 // --- Дубли внутри файла ---
