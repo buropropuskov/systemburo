@@ -206,8 +206,7 @@
       "step": "acc-center-archive"
     },
     "center.application_history": {
-      "tour": "approve",
-      "step": "apr-detail-history"
+      "skip": "журнал заявки согласующему не положен - права у роли нет; тем, у кого право есть, отдельный урок не нужен"
     },
     "action.forward.application": {
       "tour": "approve",
