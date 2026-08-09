@@ -317,7 +317,7 @@ describe('buildSecurityFactSteps', () => {
     const steps = buildSecurityFactSteps('/table/people_1');
     // Формулировки не должны утверждать, что таблица про машины: у поста может
     // быть закреплён список людей.
-    expect(steps.find((s) => s.id === 'sec-pass-intro').description).toMatch(/машины и люди/);
+    expect(steps.find((s) => s.id === 'sec-pass-intro').description).toMatch(/кому пропуск уже согласован/);
     expect(steps.find((s) => s.id === 'sec-pass-row').description).toMatch(/ФИО человека/);
   });
 

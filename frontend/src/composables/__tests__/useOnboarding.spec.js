@@ -218,6 +218,19 @@ describe('createDriver - шаг без цели', () => {
     expect(mocks.state.config.steps[1].popover.description).not.toContain('<img');
   });
 
+  // Вперёд шаг выброшен, а «Назад» его показывал: экран к тому времени менялся
+  // (карточка открыта), и решение по текущему DOM расходилось с пройденным
+  // маршрутом. Возврат обязан идти ровно по тому, что человек видел.
+  it('«Назад» перепрыгивает шаги, выброшенные по дороге вперёд', () => {
+    drive({});
+    storeState.skippedIndexes = [1];
+    mocks.state.activeIndex = 2;
+
+    mocks.state.config.onPrevClick();
+
+    expect(mocks.state.moves).toEqual(['to:0']);
+  });
+
   it('«Назад» на шаг со скриншотом при пустом экране возвращает его с картинкой', () => {
     drive({});
     mocks.state.activeIndex = 2;
