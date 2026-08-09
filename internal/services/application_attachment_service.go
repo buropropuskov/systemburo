@@ -231,6 +231,88 @@ func (s *applicationService) fetchBlacklistFlags(ctx context.Context, elementTyp
 
 // GetAttachmentCars возвращает автомобили вложения с привязанными местами разгрузки.
 // scope решает, попадают ли в выдачу машины ещё не принятого дополнения (#1685).
+// Связи строк вложения с местами и таблицами берутся одним запросом на всю выборку
+// (#1050). Раньше на каждую машину уходило два подзапроса, на каждого сотрудника один:
+// заявка на двадцать машин давала сорок обращений к базе вместо двух, и деталь заявки
+// линейно тяжелела с числом строк.
+
+// carUnloadPlacesByCar возвращает места разгрузки, разложенные по машинам.
+func (s *applicationService) carUnloadPlacesByCar(ctx context.Context, carIDs []int) map[int][]UnloadPlaceRef {
+	out := make(map[int][]UnloadPlaceRef, len(carIDs))
+	if len(carIDs) == 0 {
+		return out
+	}
+	var rows []struct {
+		CarID       int    `gorm:"column:car_id"`
+		ID          int    `gorm:"column:id"`
+		Name        string `gorm:"column:name"`
+		Description *string
+	}
+	// Порядок внутри машины сохраняем тем же order_index, что и раньше: он задаёт
+	// последовательность мест в карточке.
+	s.db.WithContext(ctx).Raw(`
+		SELECT cup.car_id, up.id, up.name, up.description
+		FROM car_unload_places cup
+		JOIN unload_places up ON cup.unload_place_id = up.id
+		WHERE cup.car_id IN ?
+		ORDER BY cup.car_id, cup.order_index
+	`, carIDs).Scan(&rows)
+	for _, r := range rows {
+		out[r.CarID] = append(out[r.CarID], UnloadPlaceRef{ID: r.ID, Name: r.Name, Description: r.Description})
+	}
+	return out
+}
+
+// carTargetTablesByCar возвращает таблицы «Проезда», разложенные по машинам.
+func (s *applicationService) carTargetTablesByCar(ctx context.Context, carIDs []int) map[int][]TableInfoRef {
+	out := make(map[int][]TableInfoRef, len(carIDs))
+	if len(carIDs) == 0 {
+		return out
+	}
+	var rows []struct {
+		CarID       int    `gorm:"column:car_id"`
+		ID          int    `gorm:"column:id"`
+		Name        string `gorm:"column:name"`
+		DisplayName string `gorm:"column:display_name"`
+	}
+	s.db.WithContext(ctx).Raw(`
+		SELECT ctt.car_id, st.id, st.name, st.display_name
+		FROM car_target_tables ctt
+		JOIN system_tables st ON ctt.table_id = st.id
+		WHERE ctt.car_id IN ?
+		ORDER BY ctt.car_id, ctt.order_index
+	`, carIDs).Scan(&rows)
+	for _, r := range rows {
+		out[r.CarID] = append(out[r.CarID], TableInfoRef{ID: r.ID, Name: r.Name, DisplayName: r.DisplayName})
+	}
+	return out
+}
+
+// employeeTargetTablesByEmployee возвращает места прохода, разложенные по сотрудникам.
+func (s *applicationService) employeeTargetTablesByEmployee(ctx context.Context, empIDs []int) map[int][]TableInfoRef {
+	out := make(map[int][]TableInfoRef, len(empIDs))
+	if len(empIDs) == 0 {
+		return out
+	}
+	var rows []struct {
+		EmployeeID  int    `gorm:"column:employee_id"`
+		ID          int    `gorm:"column:id"`
+		Name        string `gorm:"column:name"`
+		DisplayName string `gorm:"column:display_name"`
+	}
+	s.db.WithContext(ctx).Raw(`
+		SELECT ett.employee_id, st.id, st.name, st.display_name
+		FROM employee_target_tables ett
+		JOIN system_tables st ON ett.table_id = st.id
+		WHERE ett.employee_id IN ?
+		ORDER BY ett.employee_id, ett.order_index
+	`, empIDs).Scan(&rows)
+	for _, r := range rows {
+		out[r.EmployeeID] = append(out[r.EmployeeID], TableInfoRef{ID: r.ID, Name: r.Name, DisplayName: r.DisplayName})
+	}
+	return out
+}
+
 func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID int, scope SupplementScope) ([]CarWithPlaces, error) {
 	type carRow struct {
 		ID             int
@@ -287,25 +369,20 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 	appID, _ := s.GetApplicationIDByAttachment(ctx, attachmentID)
 	flags := s.fetchBlacklistFlags(ctx, models.BlacklistElementCar, appID, carIDs)
 
+	placesByCar := s.carUnloadPlacesByCar(ctx, carIDs)
+	tablesByCar := s.carTargetTablesByCar(ctx, carIDs)
+
 	result := make([]CarWithPlaces, 0)
 	for _, car := range cars {
-		places := make([]UnloadPlaceRef, 0)
-		s.db.WithContext(ctx).Raw(`
-			SELECT up.id, up.name, up.description
-			FROM car_unload_places cup
-			JOIN unload_places up ON cup.unload_place_id = up.id
-			WHERE cup.car_id = ?
-			ORDER BY cup.order_index
-		`, car.ID).Scan(&places)
-
-		tables := make([]TableInfoRef, 0)
-		s.db.WithContext(ctx).Raw(`
-			SELECT st.id, st.name, st.display_name
-			FROM car_target_tables ctt
-			JOIN system_tables st ON ctt.table_id = st.id
-			WHERE ctt.car_id = ?
-			ORDER BY ctt.order_index
-		`, car.ID).Scan(&tables)
+		// Пустой срез, а не nil: фронт различает «привязок нет» и «поле не пришло».
+		places := placesByCar[car.ID]
+		if places == nil {
+			places = make([]UnloadPlaceRef, 0)
+		}
+		tables := tablesByCar[car.ID]
+		if tables == nil {
+			tables = make([]TableInfoRef, 0)
+		}
 
 		result = append(result, CarWithPlaces{
 			ID:               car.ID,
@@ -401,16 +478,15 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 	appID, _ := s.GetApplicationIDByAttachment(ctx, attachmentID)
 	flags := s.fetchBlacklistFlags(ctx, models.BlacklistElementEmployee, appID, empIDs)
 
+	tablesByEmployee := s.employeeTargetTablesByEmployee(ctx, empIDs)
+
 	result := make([]EmployeeWithTables, 0)
 	for _, emp := range employees {
-		tables := make([]TableInfoRef, 0)
-		s.db.WithContext(ctx).Raw(`
-			SELECT st.id, st.name, st.display_name
-			FROM employee_target_tables ett
-			JOIN system_tables st ON ett.table_id = st.id
-			WHERE ett.employee_id = ?
-			ORDER BY ett.order_index
-		`, emp.ID).Scan(&tables)
+		// Пустой срез, а не nil: фронт различает «привязок нет» и «поле не пришло».
+		tables := tablesByEmployee[emp.ID]
+		if tables == nil {
+			tables = make([]TableInfoRef, 0)
+		}
 
 		result = append(result, EmployeeWithTables{
 			ID:                   emp.ID,
