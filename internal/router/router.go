@@ -613,13 +613,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Машины (в заявках)
 	carsGroup := protected.Group("/cars")
-	carsGroup.GET("/active-for-tables", cars.GetActiveCarsForTables)
 	carsGroup.GET("/active-for-table/:table_id", cars.GetActiveCarsForTable)
 	// Ручное добавление машин без заявки (#1049): super/admin проходят авто,
 	// остальные - по гранту entity.cars.manual_add.
 	carsGroup.POST("/manual", cars.CreateManualCars,
 		mw.RequirePermissionV2(permResolver, denialLog, services.KeyEntityCarsManualAdd))
-	carsGroup.GET("/fact-for-tables", cars.GetFactCarsForTables)
 	carsGroup.GET("/fact-for-table/:table_id", cars.GetFactCarsForTable)
 	carsGroup.GET("/unload-places", cars.GetCarUnloadPlaces)
 	carsGroup.GET("/fact-unload-places", cars.GetFactCarUnloadPlaces)

@@ -23,12 +23,8 @@ type CarService interface {
 	// создаёт вложение-сироту (application_id NULL, is_manual, org/company на вложении),
 	// сами машины со status=1 и привязку к целевым таблицам - одной транзакцией.
 	CreateManualCars(ctx context.Context, req ManualCarRequest, userID int) (*ManualCarResponse, error)
-	// GetActiveCarsForTables возвращает активные машины для всех таблиц (без «по факту»).
-	GetActiveCarsForTables(ctx context.Context) ([]TableCarResponse, error)
 	// GetActiveCarsForTable возвращает активные машины конкретной таблицы «Проезд» (#1036).
 	GetActiveCarsForTable(ctx context.Context, tableID int) ([]TableCarResponse, error)
-	// GetFactCarsForTables возвращает машины с номером «по факту».
-	GetFactCarsForTables(ctx context.Context) ([]TableCarResponse, error)
 	// GetFactCarsForTable возвращает машины «по факту» конкретной таблицы «Проезд» (#1036).
 	GetFactCarsForTable(ctx context.Context, tableID int) ([]TableCarResponse, error)
 	// GetCarUnloadPlaces возвращает связи активных машин с местами разгрузки.

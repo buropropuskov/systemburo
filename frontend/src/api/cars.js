@@ -1,15 +1,5 @@
 import { apiRequest, apiRequestRaw } from './client';
 
-export async function getActiveCarsForTables() {
-  const res = await apiRequest('/cars/active-for-tables');
-  return res.json();
-}
-
-export async function getFactCarsForTables() {
-  const res = await apiRequest('/cars/fact-for-tables');
-  return res.json();
-}
-
 export async function getActiveCarsForTable(tableId) {
   const res = await apiRequest(`/cars/active-for-table/${tableId}`);
   return res.json();
