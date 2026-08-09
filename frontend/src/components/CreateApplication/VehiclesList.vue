@@ -119,11 +119,20 @@
         <div
           v-for="(row, index) in pagedVehicles"
           :key="row.item.id"
-          class="vcol__cell vcol__cell--text"
+          class="vcol__cell vcol__cell--text vcol__cell--plate"
           :class="rowState(row.item, index)"
           @mouseenter="hoveredIndex = index"
         >
-          {{ row.item.plateNumber || 'Не указано' }}
+          <span class="vcol__value">{{ row.item.plateNumber || 'Не указано' }}</span>
+          <!-- Строка из бланка ещё не в заявке: приглушённого цвета мало, статус
+               называем словами (blank-import-ux, доводка U5). -->
+          <Badge
+            v-if="row.item.isPending"
+            class="pending-badge"
+            variant="info"
+            size="sm"
+            label="В очереди"
+          />
         </div>
       </div>
 
@@ -244,6 +253,13 @@
           <div class="table-col plate-col">
             <div class="cell-with-icon">
               {{ row.item.plateNumber || 'Не указано' }}
+              <Badge
+                v-if="row.item.isPending"
+                class="pending-badge"
+                variant="info"
+                size="sm"
+                label="В очереди"
+              />
             </div>
           </div>
           <div class="table-col mark-col">
@@ -702,14 +718,40 @@ export default {
 }
 
 /* Предварительная строка (blank-import-ux, U5): разобрана из бланка, но в заявку ещё не
-   добавлена - текст приглушён, а действия (детали, правка, удаление) работают как у
-   обычной. Метка слева - inset-тень, а не border: он сдвинул бы текст ячейки. */
+   добавлена - действия (детали, правка, удаление) работают как у обычной. Кроме бейджа
+   «В очереди» строка заметно серее обычной: одного приглушённого текста владельцу было
+   мало. Метка слева - inset-тень, а не border: он сдвинул бы текст ячейки. */
 .vcol__cell--pending {
     color: var(--text-muted);
+    background: color-mix(in srgb, var(--text-muted) 12%, var(--surface));
 }
 
 .vcol--index .vcol__cell--pending {
-    box-shadow: inset 2px 0 0 var(--text-muted);
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* Правило серой подложки идёт после hover-правила той же специфичности, поэтому
+   отклик на курсор возвращаем явно - иначе строка из бланка перестаёт реагировать. */
+.vcol__cell--pending.vcol__cell--hover {
+    background: color-mix(in srgb, var(--text-muted) 20%, var(--surface));
+}
+
+/* Ячейка номера несёт значение и бейдж: номер сжимается многоточием, бейдж остаётся
+   целым - он и есть статус строки. */
+.vcol__cell--plate {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.vcol__value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pending-badge {
+    flex: 0 0 auto;
 }
 
 /* --- Строковая раскладка (мобильные карточки) --- */
@@ -774,10 +816,15 @@ export default {
     background: var(--surface-2);
 }
 
-/* Карточная раскладка: та же приглушённость, что и в колонках выше. */
+/* Карточная раскладка: та же серая подложка и метка, что и в колонках выше. */
 .table-row.is-pending {
     color: var(--text-muted);
-    box-shadow: inset 3px 0 0 var(--text-muted);
+    background: color-mix(in srgb, var(--text-muted) 12%, var(--surface));
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.table-row.is-pending:hover {
+    background: color-mix(in srgb, var(--text-muted) 20%, var(--surface));
 }
 
 .table-row.has-active {
@@ -922,6 +969,12 @@ h4 {
         /* Резерв под три кнопки действий, приколотые справа. */
         padding: 10px 136px 10px 12px !important;
         font-size: 14px;
+    }
+
+    /* Серую подложку строки из бланка возвращаем по той же причине, что и подсветку
+       ниже: карточный фон приходит из инфраструктуры с !important. */
+    .table-row.rt-row.is-pending {
+        background: color-mix(in srgb, var(--text-muted) 12%, var(--surface)) !important;
     }
 
     /* Подсветку уже заведённой машины возвращаем: карточный фон приходит

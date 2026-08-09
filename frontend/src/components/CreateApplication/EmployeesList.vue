@@ -146,7 +146,16 @@
             {{ row.number }}
           </div>
           <div class="table-col lastName-col">
-            {{ row.item.lastName || 'Не указано' }}
+            <span class="cell-value">{{ row.item.lastName || 'Не указано' }}</span>
+            <!-- Строка из бланка ещё не в заявке: приглушённого цвета мало, статус
+                 называем словами (blank-import-ux, доводка U5). -->
+            <Badge
+              v-if="row.item.isPending"
+              class="pending-badge"
+              variant="info"
+              size="sm"
+              label="В очереди"
+            />
           </div>
           <div class="table-col firstName-col">
             {{ row.item.firstName || 'Не указано' }}
@@ -505,11 +514,38 @@ export default {
 }
 
 /* Предварительная строка (blank-import-ux, U5): разобрана из бланка, но в заявку ещё не
-   добавлена - текст приглушён, а детали, правка и удаление работают как у обычной.
+   добавлена - детали, правка и удаление работают как у обычной. Кроме бейджа «В очереди»
+   строка заметно серее обычной: одного приглушённого текста владельцу было мало.
    Метка слева - inset-тень, а не border: он сдвинул бы содержимое строки. */
 .table-row.is-pending {
     color: var(--text-muted);
-    box-shadow: inset 3px 0 0 var(--text-muted);
+    background: color-mix(in srgb, var(--text-muted) 12%, var(--surface));
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* Правило серой подложки идёт после hover-правила той же специфичности, поэтому
+   отклик на курсор возвращаем явно - иначе строка из бланка перестаёт реагировать. */
+.table-row.is-pending:hover {
+    background: color-mix(in srgb, var(--text-muted) 20%, var(--surface));
+}
+
+/* Ячейка фамилии несёт значение и бейдж: фамилия сжимается многоточием, бейдж
+   остаётся целым - он и есть статус строки. Шапку не трогаем - у неё свой gap. */
+.table-col.lastName-col {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cell-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pending-badge {
+    flex: 0 0 auto;
 }
 
 .table-row.has-active {
@@ -670,6 +706,12 @@ h4 {
         /* Резерв под три кнопки действий, приколотые справа. */
         padding: 10px 136px 10px 12px !important;
         font-size: 14px;
+    }
+
+    /* Серую подложку строки из бланка возвращаем: карточный фон приходит из
+       инфраструктуры с !important и иначе её съедает. */
+    .table-row.rt-row.is-pending {
+        background: color-mix(in srgb, var(--text-muted) 12%, var(--surface)) !important;
     }
 
     .table-col {
