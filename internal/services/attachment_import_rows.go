@@ -180,7 +180,7 @@ func (s *attachmentImportService) parseEmployeeRows(ctx context.Context, allRows
 			OtherPermission:      nilIfBlank(permission),
 		}
 
-		var errs []string
+		var errs []ImportRowError
 		citizenship, found := resolveCitizenship(citizenshipRaw, citByKey)
 		if !found {
 			errs = append(errs, fmtErrCitizenshipNotFound(citizenshipRaw))
@@ -190,14 +190,14 @@ func (s *attachmentImportService) parseEmployeeRows(ctx context.Context, allRows
 
 		errs = append(errs, requiredEmployeeErrors(emp, merged)...)
 		errs = append(errs, patentErrors(emp, merged, citizenship)...)
-		errs = append(errs, checkFieldLength("Фамилия", last)...)
-		errs = append(errs, checkFieldLength("Имя", first)...)
-		errs = append(errs, checkFieldLength("Отчество", middle)...)
-		errs = append(errs, checkFieldLength("Должность", position)...)
+		errs = append(errs, checkFieldLength("people", "last_name", "Фамилия", last)...)
+		errs = append(errs, checkFieldLength("people", "first_name", "Имя", first)...)
+		errs = append(errs, checkFieldLength("people", "middle_name", "Отчество", middle)...)
+		errs = append(errs, checkFieldLength("people", "position", "Должность", position)...)
 
 		fioKey := fioDedupKey(last, first, middle)
 		if dup := dedup.checkAndRecord(rowIdx, passport, fioKey); dup != "" {
-			errs = append(errs, dup)
+			errs = append(errs, errDuplicateInFile(dup))
 		}
 
 		if reason, blocked := blSet[blacklistPersonKey(last, first, middle)]; blocked && fioKey != "" {
@@ -207,7 +207,7 @@ func (s *attachmentImportService) parseEmployeeRows(ctx context.Context, allRows
 		rows = append(rows, ImportRowResult{
 			RowNumber: rowIdx,
 			Employee:  &emp,
-			Errors:    emptyIfNil(errs),
+			Errors:    emptyErrorsIfNil(errs),
 			Warnings:  emptyIfNil(warnings),
 		})
 	}
@@ -245,7 +245,7 @@ func (s *attachmentImportService) parseVehicleRows(ctx context.Context, allRows 
 		number := cellAt(row, cols["car_number"])
 		mark := cellAt(row, cols["mark_name"])
 		var warnings []string
-		var plateFormatErr string
+		var plateFormatErr *ImportRowError
 
 		// "По факту" - существующий особый случай (не опознаёт конкретную машину, см.
 		// vehicleByFactPlate), формат номера для него не проверяется. Значение приводим
@@ -261,22 +261,23 @@ func (s *attachmentImportService) parseVehicleRows(ctx context.Context, allRows 
 				}
 				number = match.Formatted
 			} else {
-				plateFormatErr = fmtErrPlateFormatNotFound(number)
+				formatErr := fmtErrPlateFormatNotFound(number)
+				plateFormatErr = &formatErr
 			}
 		}
 
 		veh := VehicleInput{CarNumber: number, CarBrand: mark}
 
-		var errs []string
+		var errs []ImportRowError
 		errs = append(errs, requiredVehicleErrors(veh, merged)...)
-		errs = append(errs, checkFieldLengthMax("Номер ТС", number, maxImportCarNumberLen)...)
-		errs = append(errs, checkFieldLength("Марка ТС", mark)...)
-		if plateFormatErr != "" {
-			errs = append(errs, plateFormatErr)
+		errs = append(errs, checkFieldLengthMax("cars", "number", "Номер ТС", number, maxImportCarNumberLen)...)
+		errs = append(errs, checkFieldLength("cars", "mark", "Марка ТС", mark)...)
+		if plateFormatErr != nil {
+			errs = append(errs, *plateFormatErr)
 		}
 
 		if dup := dedup.checkAndRecord(rowIdx, number); dup != "" {
-			errs = append(errs, dup)
+			errs = append(errs, errDuplicateInFile(dup))
 		}
 
 		if number != "" && mark != "" {
@@ -288,7 +289,7 @@ func (s *attachmentImportService) parseVehicleRows(ctx context.Context, allRows 
 		rows = append(rows, ImportRowResult{
 			RowNumber: rowIdx,
 			Vehicle:   &veh,
-			Errors:    emptyIfNil(errs),
+			Errors:    emptyErrorsIfNil(errs),
 			Warnings:  emptyIfNil(warnings),
 		})
 	}
@@ -310,14 +311,14 @@ func parseItemRows(allRows [][]string, template *models.AttachmentTemplate, merg
 
 		item := ItemInput{Name: name, Count: count}
 
-		var errs []string
+		var errs []ImportRowError
 		errs = append(errs, requiredItemErrors(item, merged)...)
-		errs = append(errs, checkFieldLengthMax("Наименование ТМЦ", name, maxImportItemNameLen)...)
+		errs = append(errs, checkFieldLengthMax("items", "item_name", "Наименование ТМЦ", name, maxImportItemNameLen)...)
 
 		rows = append(rows, ImportRowResult{
 			RowNumber: rowIdx,
 			Item:      &item,
-			Errors:    emptyIfNil(errs),
+			Errors:    emptyErrorsIfNil(errs),
 			Warnings:  emptyIfNil(nil),
 		})
 	}
@@ -349,6 +350,15 @@ func fixNameLatin(last, first, middle string) (string, string, string, []string)
 func emptyIfNil(s []string) []string {
 	if s == nil {
 		return []string{}
+	}
+	return s
+}
+
+// emptyErrorsIfNil - то же для причин отказа: пустой массив в JSON, а не null, иначе
+// фронт разбирал бы отсутствие ошибок отдельной веткой.
+func emptyErrorsIfNil(s []ImportRowError) []ImportRowError {
+	if s == nil {
+		return []ImportRowError{}
 	}
 	return s
 }

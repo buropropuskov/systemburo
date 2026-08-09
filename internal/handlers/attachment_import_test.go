@@ -409,7 +409,8 @@ func TestAttachmentImportListRows(t *testing.T) {
 
 		result := testutil.ParseResponse[services.ImportListResult](t, rec)
 		require.Equal(t, 1, result.Summary.Rejected)
-		require.Contains(t, result.Rows[0].Errors, `Гражданство "Узбекистн" не найдено в справочнике`)
+		err := errorByCode(t, result.Rows[0].Errors, services.ImportErrCitizenshipUnknown)
+		require.Equal(t, `Гражданство "Узбекистн" не найдено в справочнике`, err.Text)
 	})
 
 	t.Run("патент без разрешения при patent_required гражданства - блокирующая ошибка", func(t *testing.T) {
@@ -422,8 +423,8 @@ func TestAttachmentImportListRows(t *testing.T) {
 		result := testutil.ParseResponse[services.ImportListResult](t, rec)
 		require.Equal(t, 1, result.Summary.Rejected)
 		require.Len(t, result.Rows[0].Errors, 1)
-		require.Contains(t, result.Rows[0].Errors[0], "патент")
-		require.Contains(t, result.Rows[0].Errors[0], "Узбекистан")
+		require.Equal(t, services.ImportErrPatentRequired, result.Rows[0].Errors[0].Code)
+		require.Contains(t, result.Rows[0].Errors[0].Text, "Узбекистан")
 	})
 
 	// Оверрайд "патент обязателен" делает поле обязательным ВСЕГДА, независимо от
@@ -448,7 +449,7 @@ func TestAttachmentImportListRows(t *testing.T) {
 		result := testutil.ParseResponse[services.ImportListResult](t, rec)
 		require.Equal(t, 1, result.Summary.Rejected)
 		require.Len(t, result.Rows[0].Errors, 1)
-		require.Contains(t, result.Rows[0].Errors[0], "патент")
+		require.Equal(t, services.ImportErrPatentRequired, result.Rows[0].Errors[0].Code)
 	})
 
 	t.Run("патент заполненный снимает ошибку по patent_required", func(t *testing.T) {
@@ -469,7 +470,9 @@ func TestAttachmentImportListRows(t *testing.T) {
 
 		result := testutil.ParseResponse[services.ImportListResult](t, rec)
 		require.NotEmpty(t, result.Rows[0].Errors)
-		require.Contains(t, result.Rows[0].Errors[0], "длиннее 100 символов")
+		tooLong := errorByCode(t, result.Rows[0].Errors, services.ImportErrFieldTooLong)
+		require.Equal(t, "last_name", tooLong.Field)
+		require.Contains(t, tooLong.Text, "длиннее 100 символов")
 	})
 
 	t.Run("омоглиф в ФИО - предупреждение с исправленным вариантом, не ошибка", func(t *testing.T) {
@@ -516,8 +519,9 @@ func TestAttachmentImportListRows(t *testing.T) {
 		require.Len(t, result.Rows, 2)
 		require.Empty(t, result.Rows[0].Errors)
 		require.Len(t, result.Rows[1].Errors, 1)
-		require.Contains(t, result.Rows[1].Errors[0], "Дублирует строку 6")
-		require.Contains(t, result.Rows[1].Errors[0], "паспорт")
+		dup := errorByCode(t, result.Rows[1].Errors, services.ImportErrDuplicateInFile)
+		require.Contains(t, dup.Text, "Дублирует строку 6")
+		require.Contains(t, dup.Text, "паспорт")
 	})
 
 	t.Run("чёрный список - точное совпадение блокирует строку", func(t *testing.T) {
@@ -532,8 +536,9 @@ func TestAttachmentImportListRows(t *testing.T) {
 
 		result := testutil.ParseResponse[services.ImportListResult](t, rec)
 		require.Len(t, result.Rows[0].Errors, 1)
-		require.Contains(t, result.Rows[0].Errors[0], "в чёрном списке")
-		require.Contains(t, result.Rows[0].Errors[0], "решение суда")
+		blocked := errorByCode(t, result.Rows[0].Errors, services.ImportErrBlacklisted)
+		require.Contains(t, blocked.Text, "в чёрном списке")
+		require.Contains(t, blocked.Text, "решение суда")
 	})
 
 	t.Run("частичный успех - валидная и невалидная строка вместе отдают 207", func(t *testing.T) {

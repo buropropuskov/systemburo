@@ -45,12 +45,12 @@ type ImportListSummary struct {
 // вложения; следующий срез (D1D2) кладёт их прямо в список заявки без пересборки.
 // Строка с непустым Errors в заявку не попадает - Warnings её не блокируют.
 type ImportRowResult struct {
-	RowNumber int            `json:"row_number"`
-	Employee  *EmployeeInput `json:"employee,omitempty"`
-	Vehicle   *VehicleInput  `json:"vehicle,omitempty"`
-	Item      *ItemInput     `json:"item,omitempty"`
-	Errors    []string       `json:"errors"`
-	Warnings  []string       `json:"warnings"`
+	RowNumber int              `json:"row_number"`
+	Employee  *EmployeeInput   `json:"employee,omitempty"`
+	Vehicle   *VehicleInput    `json:"vehicle,omitempty"`
+	Item      *ItemInput       `json:"item,omitempty"`
+	Errors    []ImportRowError `json:"errors"`
+	Warnings  []string         `json:"warnings"`
 }
 
 // ImportListResult - ответ POST /attachments/:id/import-list (по образцу BulkOpResult,
