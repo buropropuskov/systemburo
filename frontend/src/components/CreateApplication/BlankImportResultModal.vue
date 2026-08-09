@@ -95,6 +95,28 @@
         />
       </div>
 
+      <!-- Строки, которые система поправила сама (раскладка в номере, омоглифы в ФИО,
+           дополнение номера нулями). Принимаются без вмешательства, но человек должен
+           видеть, что именно изменилось: молчаливая правка данных - худший исход. -->
+      <div
+        v-if="warningRows.length"
+        class="bim__warnings"
+      >
+        <h4 class="bim__problems-title">
+          Система поправила
+        </h4>
+        <ul class="bim__warnings-list">
+          <li
+            v-for="row in warningRows"
+            :key="`warn-${row.row_number}`"
+            class="bim__warnings-item"
+          >
+            <span class="bim__warnings-row">Стр. {{ row.row_number }}</span>
+            <span>{{ row.warnings.join('; ') }}</span>
+          </li>
+        </ul>
+      </div>
+
       <div
         v-if="problemRows.length"
         class="bim__problems"
@@ -308,6 +330,13 @@ export default {
     },
     acceptedRows() {
       return this.rows.filter((r) => !(r.errors && r.errors.length));
+    },
+    // Строки с предупреждениями показываем отдельно: у отклонённых причина и так видна
+    // в таблице ошибок, а вот принятая строка с исправленным значением иначе уходит
+    // в заявку молча.
+    warningRows() {
+      return this.rows.filter((r) => r.warnings && r.warnings.length
+        && !(r.errors && r.errors.length));
     },
     showTargetTables() {
       return this.isPeople && this.fieldVisible('target_tables');
@@ -636,6 +665,31 @@ export default {
   margin: 0 0 12px;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.bim__warnings {
+  margin-bottom: 16px;
+}
+
+.bim__warnings-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 160px;
+  overflow: auto;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.bim__warnings-item {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.bim__warnings-row {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
 }
 
 .bim__problems-table-wrap {

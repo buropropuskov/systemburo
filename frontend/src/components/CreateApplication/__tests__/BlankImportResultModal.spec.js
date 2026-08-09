@@ -143,6 +143,31 @@ describe('BlankImportResultModal (blank-import D1D2)', () => {
     expect(wrapper.find('[data-testid="bim-problem-row-5"]').exists()).toBe(false);
   });
 
+  // Номер с латиницей и короткая числовая часть чинятся сервером автоматически.
+  // Строка при этом принимается, поэтому единственный способ узнать о правке -
+  // увидеть предупреждение в сводке.
+  it('предупреждения принятых строк показаны отдельным блоком', async () => {
+    const fixed = {
+      row_number: 8,
+      employee: {
+        last_name: 'Иванов', first_name: 'Иван', middle_name: '',
+        citizenship_id: 1, position: 'Инженер',
+        passport_series_number: '', patent_number: null, other_permission: null,
+        target_tables: [],
+      },
+      errors: [],
+      warnings: ['Поле «Фамилия»: похожие латинские буквы заменены на русские, "Ивaнов" -> "Иванов"'],
+    };
+    const wrapper = mountModal({ rows: [fixed], summary: { read: 1, accepted: 1, rejected: 0 } });
+    await flushPromises();
+
+    const block = wrapper.find('.bim__warnings');
+    expect(block.exists()).toBe(true);
+    expect(block.text()).toContain('Стр. 8');
+    expect(block.text()).toContain('заменены на русские');
+    expect(wrapper.find('.bim__problems').exists()).toBe(false);
+  });
+
   it('кнопка добавления заблокирована без выбора мест прохода и разблокируется после выбора', async () => {
     const wrapper = mountModal({ rows: [PEOPLE_ROWS[0]], summary: { read: 1, accepted: 1, rejected: 0 } });
     await flushPromises();
