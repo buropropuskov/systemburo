@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"net/url"
 	"testing"
 
 	"systemburo/internal/models"
@@ -46,6 +47,30 @@ func blankTemplateDownloadSection(t *testing.T, w blankWorld) {
 		require.Equal(t, services.BlankFingerprint{
 			UniqueAttachmentID: peopleUA, TemplateID: peopleTpl, ListStartRow: 6,
 		}, fp)
+	})
+
+	t.Run("имя скачивания - оригинальное имя загруженного шаблона", func(t *testing.T) {
+		// seedListTemplate уже кладёт OriginalFileName = "<name>.xlsx" - ровно то
+		// имя, под которым админ загрузил бы файл в систему.
+		uaID, _ := seedListTemplate(t, db, "Опросный лист", "people", 6, 20)
+
+		rec := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/blank-template", uaID), admin)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		require.Contains(t, rec.Header().Get("Content-Disposition"),
+			"filename*=UTF-8''"+url.PathEscape("Опросный лист.xlsx"),
+			"скачиваемое имя должно совпадать с именем загруженного шаблона")
+	})
+
+	t.Run("шаблон без оригинального имени отдаёт прежний вид имени", func(t *testing.T) {
+		uaID, tplID := seedListTemplate(t, db, "fallback_name", "people", 6, 20)
+		require.NoError(t, db.Model(&models.AttachmentTemplate{}).Where("id = ?", tplID).
+			Update("original_file_name", "").Error)
+
+		rec := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/blank-template", uaID), admin)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		require.Contains(t, rec.Header().Get("Content-Disposition"),
+			"filename*=UTF-8''"+url.PathEscape("Бланк_fallback_name.xlsx"),
+			"без оригинального имени должно остаться служебное Бланк_<тип>")
 	})
 
 	t.Run("бланк другого типа вложения не совпадает", func(t *testing.T) {
