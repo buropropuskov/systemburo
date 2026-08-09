@@ -152,9 +152,14 @@ find_companion() {
   return 0
 }
 
+# Ширины подобраны под самое длинное значение колонки: дата «26 сентября 2026,
+# 03:00» это 23 знака, состав «база+файлы+архив» - 16, метке хватает 14 (она почти
+# всегда «-», а длинная раздвинет строку только в своей копии). Запас здесь стоит
+# дорого: перечень уезжает за ширину окна, а в руководстве строка переносится, и
+# столбцы рассыпаются.
 row() {
   local when="$1" bytes="$2" what="$3" label="$4" name="$5"
-  echo "$(pad_right "$when" 24) $(pad_left "$(human_size "$bytes")" 8)  $(pad_right "$what" 18) $(pad_right "$label" 20) ${name}"
+  echo "$(pad_right "$when" 23) $(pad_left "$(human_size "$bytes")" 8)  $(pad_right "$what" 16) $(pad_right "$label" 14) ${name}"
 }
 
 # Строка спутника: дата и метка у него те же, что у базы строкой выше, поэтому
@@ -166,7 +171,7 @@ companion_row() {
 }
 
 echo "Копии, пригодные для восстановления"
-echo "$(pad_right "Снята" 24) $(pad_left "Размер" 8)  $(pad_right "Что входит" 18) $(pad_right "Метка" 20) Файл"
+echo "$(pad_right "Снята" 23) $(pad_left "Размер" 8)  $(pad_right "Что входит" 16) $(pad_right "Метка" 14) Файл"
 
 found=0
 paired=""
@@ -238,7 +243,7 @@ while read -r name; do
     orphans=1
     echo
     echo "Архивы файлов без выгрузки базы за тот же срок"
-    echo "$(pad_right "Снята" 24) $(pad_left "Размер" 8)  $(pad_right "Что входит" 18) $(pad_right "Метка" 20) Файл"
+    echo "$(pad_right "Снята" 23) $(pad_left "Размер" 8)  $(pad_right "Что входит" 16) $(pad_right "Метка" 14) Файл"
   fi
   bytes="$(stat -c%s "$(locate "$name")" 2>/dev/null || echo 0)"
   row "$(human_when "$STAMP")" "$bytes" "$what" "${LABEL:--}" "$name"
