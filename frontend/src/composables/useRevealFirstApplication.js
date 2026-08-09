@@ -65,6 +65,9 @@ export function useRevealFirstApplication({ first, isOpen, open, close }) {
         open(application);
         return;
       }
+      // Журнал заявки открывается ИЗ карточки: на этом сигнале карточку держим,
+      // иначе шаг про журнал сам же закрывает то, из чего журнал открыт.
+      if (target === 'application-history') return;
       // Сигнал сменился на чужой узел или погас. Закрываем только своё: ось `open`
       // общая, по ней же ходят колонка Админки и панель поиска.
       releasedByUser = false;

@@ -278,6 +278,7 @@ import WorkModesModal from '../components/news/WorkModesModal.vue'
 import OnboardingMenu from '../components/onboarding/OnboardingMenu.vue'
 import { ref } from 'vue'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
+import { useOnboardingStore } from '@/stores/onboarding'
 
 export default {
   name: 'LatestNews',
@@ -319,6 +320,7 @@ export default {
       onSheetTouchStart: swipe.onTouchStart,
       onSheetTouchMove: swipe.onTouchMove,
       onSheetTouchEnd: swipe.onTouchEnd,
+      onboardingStore: useOnboardingStore(),
     }
   },
   data() {
@@ -327,6 +329,8 @@ export default {
       showViewAnnouncementModal: false,
       showGuide: false,
       showModes: false,
+      // Расписание открыл тур - только такое окно он и закрывает за собой.
+      modesOpenedByTour: false,
       viewingAnnouncement: null,
       newsItems: [],
       activeAnnouncement: null,
@@ -354,6 +358,23 @@ export default {
       this.eventStreamOff = null
     }
     eventStream.disconnect()
+  },
+  watch: {
+    /**
+     * Онбординг просит показать расписание: открываем окно режимов работы по
+     * сигналу и закрываем, когда сигнал гаснет. Чужое окно не трогаем.
+     */
+    'onboardingStore.revealOpen'(target) {
+      if (target === 'work-modes') {
+        if (this.showModes) return
+        this.modesOpenedByTour = true
+        this.showModes = true
+        return
+      }
+      if (!this.modesOpenedByTour) return
+      this.modesOpenedByTour = false
+      this.showModes = false
+    },
   },
   methods: {
     sanitizeHtml,
