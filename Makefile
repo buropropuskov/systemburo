@@ -37,26 +37,26 @@ prod-build:
 	docker build --target production -t systemburo:latest .
 
 # Создать/обновить тестового админа (buropropuskov / admin123)
-# Кастомный пароль: make seed PASS=mypass
+# Кастомный пароль: make seed PASS=mypass (уходит в сидер как -password)
 seed:
-	docker compose exec go-backend go run ./cmd/seed $(PASS)
+	docker compose exec go-backend go run ./cmd/seed $(if $(PASS),-password $(PASS))
 
 staging-seed:
-	docker compose -f docker-compose.base.yml -f docker-compose.staging.yml exec backend ./seed $(PASS)
+	docker compose -f docker-compose.base.yml -f docker-compose.staging.yml exec backend ./seed $(if $(PASS),-password $(PASS))
 
 deploy-seed:
-	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec backend ./seed $(PASS)
+	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec backend ./seed $(if $(PASS),-password $(PASS))
 
 # Демо-данные для UI-сценариев (объявления, новости, заявки с вложениями, cars_history).
 # Не запускать на production без явной необходимости.
 seed-demo:
-	docker compose exec -e SEED_DEMO=true go-backend go run ./cmd/seed $(PASS)
+	docker compose exec -e SEED_DEMO=true go-backend go run ./cmd/seed $(if $(PASS),-password $(PASS))
 
 staging-seed-demo:
-	docker compose -f docker-compose.base.yml -f docker-compose.staging.yml exec -e SEED_DEMO=true backend ./seed $(PASS)
+	docker compose -f docker-compose.base.yml -f docker-compose.staging.yml exec -e SEED_DEMO=true backend ./seed $(if $(PASS),-password $(PASS))
 
 deploy-seed-demo:
-	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec -e SEED_DEMO=true backend ./seed $(PASS)
+	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec -e SEED_DEMO=true backend ./seed $(if $(PASS),-password $(PASS))
 
 init:
 	git config core.hooksPath .githooks
