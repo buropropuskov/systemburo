@@ -320,8 +320,11 @@ describe('U5: черновик хранит предварительные ст�
     });
 });
 
-describe('U5: смена вложения и перезагрузка не меняют предварительность', () => {
-    it('строка остаётся предварительной после переключения вложений', async () => {
+describe('U5: смена вложения и перезагрузка', () => {
+    // Доводка: предварительные строки живут ровно столько, сколько открыт разбор, а смена
+    // вложения его закрывает - значит строки уходят вместе с ним, а не остаются серыми в
+    // списке, вернуться к которому уже нечем.
+    it('переключение вложений уносит предварительные строки вместе с разбором', async () => {
         const w = await mountApp();
         w.vm.attachments = [
             { local_id: 'c1', id: 10, attachment_type: 'cars', display_name: 'Машины' },
@@ -336,10 +339,10 @@ describe('U5: смена вложения и перезагрузка не ме�
         await flushPromises();
 
         expect(w.vm.importMode).toBe(false);
-        expect(w.vm.vehiclesByAttachment.c1[0].isPending).toBe(true);
+        expect(w.vm.vehiclesByAttachment.c1).toEqual([]);
     });
 
-    it('черновик после перезагрузки возвращает строку предварительной', async () => {
+    it('черновик после перезагрузки возвращает строку предварительной вместе со сводкой', async () => {
         const first = await mountApp();
         withCarsAttachment(first);
         first.vm.stageImportRows({ attachmentType: 'cars', rows: [{ plateNumber: 'А001АА777', mark: 'Volvo' }] });
@@ -349,6 +352,9 @@ describe('U5: смена вложения и перезагрузка не ме�
         await flushPromises();
 
         expect(second.vm.vehiclesByAttachment.c1[0].isPending).toBe(true);
+        // Серых строк без сводки не бывает: разбор перезагрузку не переживает, поэтому
+        // сводка открывается по самим строкам.
+        expect(second.vm.importMode).toBe(true);
     });
 
     it('после перезагрузки сводка открывается по предварительным строкам без нового файла', async () => {

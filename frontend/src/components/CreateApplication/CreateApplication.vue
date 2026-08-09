@@ -1498,10 +1498,52 @@ export default {
             this.importMode = true;
         },
 
+        /**
+         * Выход из режима импорта. Предварительные строки живут ровно столько, сколько
+         * открыт разбор: закрыли панель, не нажав «Добавить», - их уносит вместе с
+         * разбором (решение владельца). Иначе серые строки остались бы в списке без
+         * сводки, то есть без способа ни принять их, ни убрать штатно.
+         *
+         * Правка строки (pauseImportForEdit) закрытием НЕ считается - там панель прячется,
+         * а не закрывается, и сюда не заходит.
+         */
         closeImportMode() {
+            const dropped = this.dropPendingRows();
             this.importMode = false;
             this.importPausedForEdit = false;
             this.importResult = null;
+
+            if (dropped > 0) {
+                useDeletionsStore().notify({
+                    bold: `Разбор бланка закрыт: убрано строк ${dropped}`,
+                    suffix: ' - они не были добавлены в заявку',
+                });
+            }
+        },
+
+        /**
+         * Убирает предварительные строки вложения. По умолчанию - текущего: при смене
+         * вложения метод зовётся ДО подмены selectedAttachment, то есть чистит то, из
+         * которого уходят.
+         *
+         * @param {Object} [attachment] вложение, если нужно не текущее
+         * @returns {number} сколько строк убрано
+         */
+        dropPendingRows(attachment) {
+            const target = attachment || this.selectedAttachment;
+            if (!target) return 0;
+
+            const rows = this.rowsForAttachment(target.attachment_type, this.attachmentKey(target));
+            let dropped = 0;
+            // Идём с конца: splice по ходу сдвигает индексы впереди стоящих строк.
+            for (let i = rows.length - 1; i >= 0; i -= 1) {
+                if (!isPendingRow(rows[i])) continue;
+                rows.splice(i, 1);
+                dropped += 1;
+            }
+
+            if (dropped > 0) this.saveToLocalStorage();
+            return dropped;
         },
 
         resetImportResult() {
@@ -3063,10 +3105,42 @@ export default {
                         // пользователя за это время важнее нашего «открыть первое».
                         if (selectSeq !== this.attachmentSelectSeq) return;
                         this.selectedAttachment = first;
+                        this.restorePendingImport();
                     }
                 }
             } catch (error) {
                 console.error('Ошибка восстановления состояния из localStorage:', error);
+            }
+        },
+
+        /**
+         * Черновик перезагрузку переживает, разбор бланка - нет: в localStorage лежат
+         * только строки. Серая строка без сводки бесполезна (принять её нечем и убрать
+         * штатно тоже), поэтому после восстановления сводка открывается по ним сама.
+         * Где открыть её невозможно - строки убираем, чтобы список не врал.
+         */
+        restorePendingImport() {
+            // Сводка открывается только у выбранного вложения; у остальных серые строки
+            // остались бы без хозяина (черновики прежних версий могли их накопить).
+            const currentKey = this.attachmentKey(this.selectedAttachment);
+            this.attachments.forEach((attachment) => {
+                if (this.attachmentKey(attachment) === currentKey) return;
+                this.dropPendingRows(attachment);
+            });
+
+            if (this.pendingImportCount === 0) return;
+            if (this.canImportList) {
+                this.importMode = true;
+                return;
+            }
+
+            const dropped = this.dropPendingRows();
+            if (dropped > 0) {
+                useDeletionsStore().notify({
+                    bold: `Строки из бланка убраны: ${dropped}`,
+                    suffix: ' - массовый ввод для этого вложения недоступен',
+                    type: 'error',
+                });
             }
         },
 
