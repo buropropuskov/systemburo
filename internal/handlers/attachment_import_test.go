@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"systemburo/internal/models"
@@ -130,16 +131,25 @@ func TestAttachmentImportList(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 	})
 
-	t.Run("у админа корректный файл проходит", func(t *testing.T) {
+	t.Run("у админа структурно корректный файл проходит гейт и разбирается построчно", func(t *testing.T) {
+		// Шаблон мапит только колонку "Фамилия" - остальные обязательные поля
+		// сотрудника (имя, гражданство, паспорт, должность) в файле не заполнены,
+		// поэтому гейт файла пропускает загрузку, а построчный разбор (срез C3)
+		// закономерно отклоняет все строки: 207, не 200 - "не мягче ручного ввода".
 		data := buildImportUpload(t, tpl.startRow, tpl.listCol, tpl.headerText, 3, 0)
 		rec := postImportFile(t, e, tpl.uaID, "list.xlsx", data, admin)
-		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		require.Equal(t, http.StatusMultiStatus, rec.Code, rec.Body.String())
 
 		result := testutil.ParseResponse[services.ImportListResult](t, rec)
 		require.Equal(t, 3, result.Summary.Read)
-		require.Zero(t, result.Summary.Accepted, "построчный разбор - срез C3")
-		require.Zero(t, result.Summary.Rejected)
-		require.Empty(t, result.Rows)
+		require.Zero(t, result.Summary.Accepted)
+		require.Equal(t, 3, result.Summary.Rejected)
+		require.Len(t, result.Rows, 3)
+		for i, row := range result.Rows {
+			require.Equal(t, tpl.startRow+i, row.RowNumber)
+			require.NotNil(t, row.Employee)
+			require.NotEmpty(t, row.Errors)
+		}
 	})
 
 	t.Run("не xlsx отлетает", func(t *testing.T) {
@@ -189,5 +199,293 @@ func TestAttachmentImportList(t *testing.T) {
 
 		rec = testutil.GET(t, e, fmt.Sprintf("/attachments/%d/blank-template", tpl.uaID), testutil.AuthHeader(admin))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	})
+}
+
+// importPersonRow - одна строка человека для построчных тестов разбора (C3). Пустое
+// поле не пишется в ячейку вовсе - так же, как незаполненный столбец бланка.
+// fullName - альтернатива last/first/middle: склеенное ФИО в одной колонке.
+type importPersonRow struct {
+	last, first, middle string
+	citizenship         string
+	passport            string
+	patent              string
+	permission          string
+	position            string
+	fullName            string
+}
+
+// importPeopleColumns - привязка полей сотрудника к колонкам общего шаблона
+// построчных тестов (C3): каждое базовое поле в своей колонке, плюс J под склеенное
+// employee.full_name.
+var importPeopleColumns = map[string]string{
+	"last_name": "B", "first_name": "C", "middle_name": "D", "citizenship": "E",
+	"passport_series_number": "F", "patent_number": "G", "other_permission": "H",
+	"position": "I", "full_name": "J",
+}
+
+var importPeopleHeaders = map[string]string{
+	"B": "Фамилия", "C": "Имя", "D": "Отчество", "E": "Гражданство",
+	"F": "Паспорт", "G": "Патент", "H": "Иное разрешение", "I": "Должность", "J": "ФИО",
+}
+
+// seedPeopleFieldsTemplate заводит тип вложения "people" с активным шаблоном, где
+// КАЖДОЕ базовое поле сотрудника привязано к своей колонке (importPeopleColumns) - тот
+// минимум, которого достаточно построчному разбору (срез C3), чтобы проверить
+// обязательность/гражданство/патент/ФИО в комплексе, а не по одному полю.
+func seedPeopleFieldsTemplate(t *testing.T, db *gorm.DB, name string, startRow int) int {
+	t.Helper()
+	nm := name
+	ua := models.UniqueAttachment{AttachmentType: "people", Name: &nm, DisplayName: &nm, IsActive: true}
+	require.NoError(t, db.Create(&ua).Error)
+
+	f := excelize.NewFile()
+	sheet := f.GetSheetName(0)
+	for col, text := range importPeopleHeaders {
+		require.NoError(t, f.SetCellStr(sheet, fmt.Sprintf("%s%d", col, startRow-1), text))
+	}
+	path := filepath.Join(t.TempDir(), name+".xlsx")
+	require.NoError(t, f.SaveAs(path))
+	require.NoError(t, f.Close())
+
+	tpl := models.AttachmentTemplate{
+		UniqueAttachmentID: ua.ID, IsActive: true, FilePath: path,
+		OriginalFileName: name + ".xlsx",
+		ListStartRow:     startRow, ListEndRow: startRow + 50, MaxListRows: 50,
+	}
+	require.NoError(t, db.Create(&tpl).Error)
+	for field, col := range importPeopleColumns {
+		require.NoError(t, db.Create(&models.AttachmentTemplateMapping{
+			TemplateID: tpl.ID, CellRef: fmt.Sprintf("%s%d", col, startRow), FieldPath: "employee." + field, IsListField: true,
+		}).Error)
+	}
+	return ua.ID
+}
+
+// buildPeopleRowsUpload собирает байты "заполненного" бланка с несколькими строками
+// сотрудников по importPeopleColumns - тот же заголовок, что у шаблона (checkStructure
+// сверяет их побайтово).
+func buildPeopleRowsUpload(t *testing.T, startRow int, rows []importPersonRow) []byte {
+	t.Helper()
+	f := excelize.NewFile()
+	sheet := f.GetSheetName(0)
+	for col, text := range importPeopleHeaders {
+		require.NoError(t, f.SetCellStr(sheet, fmt.Sprintf("%s%d", col, startRow-1), text))
+	}
+	set := func(row int, col, val string) {
+		if val == "" {
+			return
+		}
+		require.NoError(t, f.SetCellStr(sheet, fmt.Sprintf("%s%d", col, row), val))
+	}
+	for i, r := range rows {
+		row := startRow + i
+		set(row, "B", r.last)
+		set(row, "C", r.first)
+		set(row, "D", r.middle)
+		set(row, "E", r.citizenship)
+		set(row, "F", r.passport)
+		set(row, "G", r.patent)
+		set(row, "H", r.permission)
+		set(row, "I", r.position)
+		set(row, "J", r.fullName)
+	}
+	var buf bytes.Buffer
+	_, err := f.WriteTo(&buf)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+	return buf.Bytes()
+}
+
+// Построчный разбор и валидация загруженного бланка теми же правилами, что форма
+// подачи (blank-import, срез C3): обязательность через MergeFieldConfig, патент по
+// гражданству, длины полей под схему, омоглифы в ФИО, склеенное ФИО, дубли внутри
+// файла, чёрный список пакетно, частичный успех.
+func TestAttachmentImportListRows(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	t.Cleanup(cleanup)
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, 0)
+
+	uaID := seedPeopleFieldsTemplate(t, db, "import_rows_people", 6)
+
+	russia := models.Citizenship{Name: "Россия", IsActive: true, PatentRequired: false}
+	require.NoError(t, db.Create(&russia).Error)
+	uzbekistan := models.Citizenship{Name: "Узбекистан", IsActive: true, PatentRequired: true}
+	require.NoError(t, db.Create(&uzbekistan).Error)
+
+	validRow := func() importPersonRow {
+		return importPersonRow{
+			last: "Иванов", first: "Иван", middle: "Иванович",
+			citizenship: "Россия", passport: "1234 567890", position: "Разнорабочий",
+		}
+	}
+
+	t.Run("полностью валидная строка проходит без ошибок и предупреждений", func(t *testing.T) {
+		data := buildPeopleRowsUpload(t, 6, []importPersonRow{validRow()})
+		rec := postImportFile(t, e, uaID, "list.xlsx", data, admin)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+		result := testutil.ParseResponse[services.ImportListResult](t, rec)
+		require.Equal(t, 1, result.Summary.Accepted)
+		require.Zero(t, result.Summary.Rejected)
+		require.Len(t, result.Rows, 1)
+		row := result.Rows[0]
+		require.Empty(t, row.Errors)
+		require.Empty(t, row.Warnings)
+		require.NotNil(t, row.Employee)
+		require.Equal(t, "Иванов", row.Employee.LastName)
+		require.Equal(t, russia.ID, row.Employee.CitizenshipID)
+	})
+
+	t.Run("отсутствующее гражданство - ошибка строки с названием", func(t *testing.T) {
+		r := validRow()
+		r.citizenship = "Узбекистн" // опечатка - в справочнике нет такого
+		data := buildPeopleRowsUpload(t, 6, []importPersonRow{r})
+		rec := postImportFile(t, e, uaID, "list.xlsx", data, admin)
+		require.Equal(t, http.StatusMultiStatus, rec.Code, rec.Body.String())
+
+		result := testutil.ParseResponse[services.ImportListResult](t, rec)
+		require.Equal(t, 1, result.Summary.Rejected)
+		require.Contains(t, result.Rows[0].Errors, `Гражданство "Узбекистн" не найдено в справочнике`)
+	})
+
+	t.Run("патент без разрешения при patent_required гражданства - блокирующая ошибка", func(t *testing.T) {
+		r := validRow()
+		r.citizenship = "Узбекистан"
+		data := buildPeopleRowsUpload(t, 6, []importPersonRow{r})
+		rec := postImportFile(t, e, uaID, "list.xlsx", data, admin)
+		require.Equal(t, http.StatusMultiStatus, rec.Code, rec.Body.String())
+
+		result := testutil.ParseResponse[services.ImportListResult](t, rec)
+		require.Equal(t, 1, result.Summary.Rejected)
+		require.Len(t, result.Rows[0].Errors, 1)
+		require.Contains(t, result.Rows[0].Errors[0], "патент")
+		require.Contains(t, result.Rows[0].Errors[0], "Узбекистан")
+	})
+
+	// Оверрайд "патент обязателен" делает поле обязательным ВСЕГДА, независимо от
+	// гражданства - зеркало effectivePatentRequired из EmployeeForm.vue. Без этой
+	// проверки импорт оказался бы мягче ручного ввода ровно там, где админ ужесточил
+	// требования вручную.
+	t.Run("патент обязателен по оверрайду даже при гражданстве без patent_required", func(t *testing.T) {
+		require.NoError(t, db.Create(&models.AttachmentFieldConfig{
+			UniqueAttachmentID: uaID, FieldKey: "patent", Visible: true, Required: true,
+		}).Error)
+		defer func() {
+			require.NoError(t, db.Where("unique_attachment_id = ? AND field_key = ?", uaID, "patent").
+				Delete(&models.AttachmentFieldConfig{}).Error)
+		}()
+
+		r := validRow()
+		r.citizenship = "Россия"
+		data := buildPeopleRowsUpload(t, 6, []importPersonRow{r})
+		rec := postImportFile(t, e, uaID, "list.xlsx", data, admin)
+		require.Equal(t, http.StatusMultiStatus, rec.Code, rec.Body.String())
+
+		result := testutil.ParseResponse[services.ImportListResult](t, rec)
+		require.Equal(t, 1, result.Summary.Rejected)
+		require.Len(t, result.Rows[0].Errors, 1)
+		require.Contains(t, result.Rows[0].Errors[0], "патент")
+	})
+
+	t.Run("патент заполненный снимает ошибку по patent_required", func(t *testing.T) {
+		r := validRow()
+		r.citizenship = "Узбекистан"
+		r.patent = "778899"
+		data := buildPeopleRowsUpload(t, 6, []importPersonRow{r})
+		rec := postImportFile(t, e, uaID, "list.xlsx", data, admin)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	})
+
+	t.Run("слишком длинное поле отклоняется", func(t *testing.T) {
+		r := validRow()
+		r.last = strings.Repeat("Ф", 101)
+		data := buildPeopleRowsUpload(t, 6, []importPersonRow{r})
+		rec := postImportFile(t, e, uaID, "list.xlsx", data, admin)
+		require.Equal(t, http.StatusMultiStatus, rec.Code, rec.Body.String())
+
+		result := testutil.ParseResponse[services.ImportListResult](t, rec)
+		require.NotEmpty(t, result.Rows[0].Errors)
+		require.Contains(t, result.Rows[0].Errors[0], "длиннее 100 символов")
+	})
+
+	t.Run("омоглиф в ФИО - предупреждение с исправленным вариантом, не ошибка", func(t *testing.T) {
+		r := validRow()
+		r.last = "Ивaнов" // латинская 'a' вместо кириллической
+		data := buildPeopleRowsUpload(t, 6, []importPersonRow{r})
+		rec := postImportFile(t, e, uaID, "list.xlsx", data, admin)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+		result := testutil.ParseResponse[services.ImportListResult](t, rec)
+		require.Empty(t, result.Rows[0].Errors)
+		require.NotEmpty(t, result.Rows[0].Warnings)
+		require.Contains(t, result.Rows[0].Warnings[0], `"Ивaнов"`)
+		require.Contains(t, result.Rows[0].Warnings[0], `"Иванов"`)
+		require.Equal(t, "Иванов", result.Rows[0].Employee.LastName)
+	})
+
+	t.Run("склеенное ФИО разбирается на три части с предупреждением", func(t *testing.T) {
+		r := importPersonRow{
+			fullName:    "Петров Пётр Петрович",
+			citizenship: "Россия", passport: "1111 222233", position: "Монтажник",
+		}
+		data := buildPeopleRowsUpload(t, 6, []importPersonRow{r})
+		rec := postImportFile(t, e, uaID, "list.xlsx", data, admin)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+		result := testutil.ParseResponse[services.ImportListResult](t, rec)
+		require.Empty(t, result.Rows[0].Errors)
+		require.NotEmpty(t, result.Rows[0].Warnings)
+		require.Contains(t, result.Rows[0].Warnings[0], "проверьте разбор")
+		emp := result.Rows[0].Employee
+		require.Equal(t, "Петров", emp.LastName)
+		require.Equal(t, "Пётр", emp.FirstName)
+	})
+
+	t.Run("дубль внутри файла по паспорту - вторая строка отклоняется", func(t *testing.T) {
+		r1 := validRow()
+		r2 := validRow() // тот же паспорт
+		data := buildPeopleRowsUpload(t, 6, []importPersonRow{r1, r2})
+		rec := postImportFile(t, e, uaID, "list.xlsx", data, admin)
+		require.Equal(t, http.StatusMultiStatus, rec.Code, rec.Body.String())
+
+		result := testutil.ParseResponse[services.ImportListResult](t, rec)
+		require.Len(t, result.Rows, 2)
+		require.Empty(t, result.Rows[0].Errors)
+		require.Len(t, result.Rows[1].Errors, 1)
+		require.Contains(t, result.Rows[1].Errors[0], "Дублирует строку 6")
+		require.Contains(t, result.Rows[1].Errors[0], "паспорт")
+	})
+
+	t.Run("чёрный список - точное совпадение блокирует строку", func(t *testing.T) {
+		bl := models.PersonBlacklist{LastName: "Сидоров", FirstName: "Сидор", Reason: "решение суда", IsActive: true}
+		require.NoError(t, db.Create(&bl).Error)
+
+		r := validRow()
+		r.last, r.first, r.middle = "Сидоров", "Сидор", ""
+		data := buildPeopleRowsUpload(t, 6, []importPersonRow{r})
+		rec := postImportFile(t, e, uaID, "list.xlsx", data, admin)
+		require.Equal(t, http.StatusMultiStatus, rec.Code, rec.Body.String())
+
+		result := testutil.ParseResponse[services.ImportListResult](t, rec)
+		require.Len(t, result.Rows[0].Errors, 1)
+		require.Contains(t, result.Rows[0].Errors[0], "в чёрном списке")
+		require.Contains(t, result.Rows[0].Errors[0], "решение суда")
+	})
+
+	t.Run("частичный успех - валидная и невалидная строка вместе отдают 207", func(t *testing.T) {
+		ok := validRow()
+		bad := validRow()
+		bad.passport = "9999 000011"
+		bad.citizenship = "Нигде"
+		data := buildPeopleRowsUpload(t, 6, []importPersonRow{ok, bad})
+		rec := postImportFile(t, e, uaID, "list.xlsx", data, admin)
+		require.Equal(t, http.StatusMultiStatus, rec.Code, rec.Body.String())
+
+		result := testutil.ParseResponse[services.ImportListResult](t, rec)
+		require.Equal(t, 1, result.Summary.Accepted)
+		require.Equal(t, 1, result.Summary.Rejected)
 	})
 }

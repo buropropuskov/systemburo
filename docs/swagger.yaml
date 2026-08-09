@@ -4328,6 +4328,37 @@ definitions:
       user_id:
         type: integer
     type: object
+  services.ImportListResult:
+    properties:
+      rows:
+        items:
+          $ref: '#/definitions/services.ImportRowResult'
+        type: array
+      summary:
+        $ref: '#/definitions/services.ImportListSummary'
+    type: object
+  services.ImportListSummary:
+    properties:
+      accepted:
+        type: integer
+      read:
+        type: integer
+      rejected:
+        type: integer
+    type: object
+  services.ImportRowResult:
+    properties:
+      errors:
+        items:
+          type: string
+        type: array
+      row_number:
+        type: integer
+      warnings:
+        items:
+          type: string
+        type: array
+    type: object
   services.ItemInfo:
     properties:
       count:
@@ -8785,6 +8816,49 @@ paths:
       summary: История изменений шаблона вложения
       tags:
       - attachments
+  /attachments/{id}/import-list:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Гейт action.import.list, право не super-only. Кривой бланк (не
+        .xlsx, чужой тип вложения, изменённая структура колонок, пустой или слишком
+        длинный список) отлетает целиком с понятным текстом, до разбора отдельных
+        строк - построчный разбор появится следующим срезом.
+      parameters:
+      - description: ID UniqueAttachment
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Заполненный .xlsx бланк
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.ImportListResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Загрузить заполненный Excel-бланк для массового ввода списка
+      tags:
+      - attachment-blanks
   /attachments/{id}/items:
     get:
       description: Возвращает товарно-материальные ценности вложения.
@@ -9523,22 +9597,6 @@ paths:
       summary: Получение активных машин конкретной таблицы «Проезд»
       tags:
       - cars
-  /cars/active-for-tables:
-    get:
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/services.TableCarResponse'
-            type: array
-      security:
-      - BearerAuth: []
-      summary: Получение активных машин для таблиц
-      tags:
-      - cars
   /cars/bulk/add-table:
     post:
       consumes:
@@ -9697,22 +9755,6 @@ paths:
       security:
       - BearerAuth: []
       summary: Получение машин «по факту» конкретной таблицы «Проезд»
-      tags:
-      - cars
-  /cars/fact-for-tables:
-    get:
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/services.TableCarResponse'
-            type: array
-      security:
-      - BearerAuth: []
-      summary: Получение машин «по факту» для таблиц
       tags:
       - cars
   /cars/fact-unload-places:

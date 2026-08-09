@@ -116,6 +116,36 @@ func Name(parts ...string) string {
 	return strings.Join(strings.Fields(b.String()), " ")
 }
 
+// FixLatinInName заменяет латинские омоглифы на кириллицу в ОДНОЙ части ФИО, СОХРАНЯЯ
+// регистр (в отличие от Name, которая приводит всё к нижнему для ключа сравнения), и
+// схлопывает лишние пробелы. Используется там, где латиница внутри кириллического ФИО
+// - предупреждение с показом исправленного варианта, а не блокирующая ошибка (blank-import
+// C3): опечатка раскладки при заполнении бланка встречается чаще, чем настоящее
+// иностранное имя. Второе возвращаемое значение - была ли заменена хотя бы одна буква.
+func FixLatinInName(s string) (fixed string, latinFound bool) {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z':
+			if cyr, ok := latToCyrLower[r]; ok {
+				b.WriteRune(cyr)
+				latinFound = true
+				continue
+			}
+		case r >= 'A' && r <= 'Z':
+			if cyr, ok := latToCyrUpper[r]; ok {
+				b.WriteRune(cyr)
+				latinFound = true
+				continue
+			}
+		}
+		b.WriteRune(r)
+	}
+	fixed = strings.Join(strings.Fields(b.String()), " ")
+	return fixed, latinFound
+}
+
 // Plate приводит госномер к канонической форме: верхний регистр, удаление всех
 // разделителей и пробелов, латинские омоглифы->кириллица, ноль->буква О. Схлопывание
 // 0->О - осознанный компромисс: ловит классическую подмену О<->0, ценой редких

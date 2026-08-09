@@ -286,11 +286,15 @@
                   </div>
                   <div class="section-body">
                     <div class="places-list">
+                      <!-- selectedTable - обёртка {table, time_slots, photos, current_status},
+                           поэтому сравнение идёт по selectedTable.table.id (#1050): по
+                           selectedTable.id оно давало undefined, и подсветка выбранной
+                           таблицы не работала вовсе. У машин это место написано верно. -->
                       <div
                         v-for="t in passageActiveTables"
                         :key="t.id"
                         class="place-item"
-                        :class="{ 'active': showPlaceModal && selectedTable && selectedTable.id === t.id }"
+                        :class="{ 'active': showPlaceModal && selectedTable && selectedTable.table && selectedTable.table.id === t.id }"
                         @click="showTableDetails(t.id)"
                       >
                         {{ t.name }}

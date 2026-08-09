@@ -8,7 +8,9 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"systemburo/internal/apperr"
 	"systemburo/internal/models"
@@ -21,7 +23,7 @@ import (
 
 // maxImportListRows - потолок строк списка на один файл импорта (решение владельца,
 // blank-import): больше - разбить на несколько заявок. Ограничивает и объём разбора
-// в этом гейте, и объём будущей построчной валидации (срез C3).
+// в этом гейте, и объём построчной валидации (parseRows).
 const maxImportListRows = 2000
 
 // importMaxFileSize - потолок размера загружаемого бланка. Список на 2000 строк -
@@ -30,31 +32,41 @@ const maxImportListRows = 2000
 const importMaxFileSize = 10 * 1024 * 1024
 
 // ImportListSummary - сводка разбора файла: сколько строк списка прочитано и сколько
-// из них годится в заявку. Accepted/Rejected считает построчный разбор (срез C3) -
-// в этом срезе гейт файла отвечает только за Read: до построчной проверки дело не
-// доходит, пока сам файл не прошёл структурные проверки.
+// из них годится в заявку.
 type ImportListSummary struct {
 	Read     int `json:"read"`
 	Accepted int `json:"accepted"`
 	Rejected int `json:"rejected"`
 }
 
-// ImportRowResult - результат разбора одной строки списка. Поля errors/warnings
-// заполнит построчный разбор (срез C3); в этом срезе гейт файла отбраковывает
-// кривой бланк целиком, до того как до отдельных строк доходит дело, поэтому Rows
-// в ответе всегда пуст.
+// ImportRowResult - результат построчного разбора и валидации одной строки списка
+// (срез C3). Employee/Vehicle/Item несут те же поля, что и ручной ввод формы подачи
+// (EmployeeInput/VehicleInput/ItemInput) - ровно один из трёх заполнен, по типу
+// вложения; следующий срез (D1D2) кладёт их прямо в список заявки без пересборки.
+// Строка с непустым Errors в заявку не попадает - Warnings её не блокируют.
 type ImportRowResult struct {
-	RowNumber int      `json:"row_number"`
-	Errors    []string `json:"errors"`
-	Warnings  []string `json:"warnings"`
+	RowNumber int            `json:"row_number"`
+	Employee  *EmployeeInput `json:"employee,omitempty"`
+	Vehicle   *VehicleInput  `json:"vehicle,omitempty"`
+	Item      *ItemInput     `json:"item,omitempty"`
+	Errors    []string       `json:"errors"`
+	Warnings  []string       `json:"warnings"`
 }
 
-// ImportListResult - ответ POST /attachments/:id/import-list. Форма заложена под
-// построчный разбор (по образцу BulkOpResult, см. bulk.go): summary уже считает
-// прочитанные строки, Rows наполнит следующий срез.
+// ImportListResult - ответ POST /attachments/:id/import-list (по образцу BulkOpResult,
+// см. bulk.go).
 type ImportListResult struct {
 	Rows    []ImportRowResult `json:"rows"`
 	Summary ImportListSummary `json:"summary"`
+}
+
+// HTTPStatus - 200 при чистом файле (ни одной отклонённой строки), 207 (MultiStatus)
+// при частичном успехе - зеркало BulkOpResult.HTTPStatus.
+func (r *ImportListResult) HTTPStatus() int {
+	if r.Summary.Rejected > 0 {
+		return http.StatusMultiStatus
+	}
+	return http.StatusOK
 }
 
 // AttachmentImportService - приём заполненного Excel-бланка для массового ввода
@@ -63,16 +75,18 @@ type ImportListResult struct {
 // разъехалась с шаблоном - об этом надо узнать одной понятной фразой, а не после
 // разбора тысячи строк.
 type AttachmentImportService interface {
-	ImportList(ctx context.Context, uniqueAttachmentID int, file *multipart.FileHeader) (*ImportListResult, error)
+	ImportList(ctx context.Context, uniqueAttachmentID, userID int, file *multipart.FileHeader) (*ImportListResult, error)
 }
 
 type attachmentImportService struct {
-	db *gorm.DB
+	db         *gorm.DB
+	recorder   AuditRecorder
+	uploadPath string // базовый путь, обычно cfg.UploadPath. Загрузки в <uploadPath>/imports/
 }
 
 // NewAttachmentImportService создаёт сервис.
-func NewAttachmentImportService(db *gorm.DB) AttachmentImportService {
-	return &attachmentImportService{db: db}
+func NewAttachmentImportService(db *gorm.DB, recorder AuditRecorder, uploadPath string) AttachmentImportService {
+	return &attachmentImportService{db: db, recorder: recorder, uploadPath: uploadPath}
 }
 
 // ImportList - шаги гейта файла, по порядку; первая непройденная проверка
@@ -84,8 +98,11 @@ func NewAttachmentImportService(db *gorm.DB) AttachmentImportService {
 //  5. подписи колонок над списком совпадают с эталонным шаблоном;
 //  6. список непустой и укладывается в потолок строк.
 //
-// Построчный разбор и валидация - срез C3.
-func (s *attachmentImportService) ImportList(ctx context.Context, uniqueAttachmentID int, file *multipart.FileHeader) (*ImportListResult, error) {
+// Дальше идёт построчный разбор и валидация (срез C3) теми же правилами, что форма
+// подачи (см. parseEmployeeRows/parseVehicleRows/parseItemRows). Прошедший гейт файл
+// сохраняется на диск как первоисточник (uploads/imports/), в аудит пишется кто, когда,
+// из какого файла и со сколькими строками.
+func (s *attachmentImportService) ImportList(ctx context.Context, uniqueAttachmentID, userID int, file *multipart.FileHeader) (*ImportListResult, error) {
 	template, ua, err := s.loadActiveTemplate(ctx, uniqueAttachmentID)
 	if err != nil {
 		return nil, err
@@ -123,11 +140,50 @@ func (s *attachmentImportService) ImportList(ctx context.Context, uniqueAttachme
 			fmt.Sprintf("В файле %d строк, максимум %d. Разбейте на несколько заявок", read, maxImportListRows))
 	}
 
-	// Построчный разбор и заполнение Rows/Accepted/Rejected - точка расширения C3.
-	return &ImportListResult{
-		Rows:    []ImportRowResult{},
-		Summary: ImportListSummary{Read: read},
-	}, nil
+	rows, err := s.parseRows(ctx, f, template, ua)
+	if err != nil {
+		return nil, err
+	}
+	summary := ImportListSummary{Read: read}
+	for _, r := range rows {
+		if len(r.Errors) > 0 {
+			summary.Rejected++
+		} else {
+			summary.Accepted++
+		}
+	}
+
+	storedPath, err := s.storeSourceFile(uniqueAttachmentID, file.Filename, data)
+	if err != nil {
+		return nil, err
+	}
+
+	s.recorder.Log(ctx, nil, models.AuditEntityUniqueAttachment, &uniqueAttachmentID,
+		models.UniqueAttachmentActionListImported, &userID, map[string]any{
+			"file_name":   file.Filename,
+			"stored_path": storedPath,
+			"read":        summary.Read,
+			"accepted":    summary.Accepted,
+			"rejected":    summary.Rejected,
+		})
+
+	return &ImportListResult{Rows: rows, Summary: summary}, nil
+}
+
+// storeSourceFile сохраняет прошедший гейт файл как первоисточник импорта (решение
+// владельца, blank-import C3): если строку из отчёта оспорят, у бюро должен остаться
+// оригинал, а не только распарсенные значения. Провал записи не глушим - без файла
+// на диске аудит-запись "откуда взяты данные" будет враньём.
+func (s *attachmentImportService) storeSourceFile(uniqueAttachmentID int, originalName string, data []byte) (string, error) {
+	dir := filepath.Join(s.uploadPath, "imports")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", apperr.Internal("Не удалось сохранить файл импорта", fmt.Errorf("mkdir %s: %w", dir, err))
+	}
+	dst := filepath.Join(dir, fmt.Sprintf("%d_%d_%s", uniqueAttachmentID, time.Now().UnixMilli(), sanitizeFilename(originalName)))
+	if err := os.WriteFile(dst, data, 0o644); err != nil {
+		return "", apperr.Internal("Не удалось сохранить файл импорта", fmt.Errorf("write %s: %w", dst, err))
+	}
+	return dst, nil
 }
 
 // loadActiveTemplate загружает активный тип вложения и его активный шаблон с
@@ -268,7 +324,7 @@ func listMappingColumns(mappings []models.AttachmentTemplateMapping) []int {
 // countListRows считает строки списка, у которых заполнена хотя бы одна списочная
 // колонка, от ListStartRow до конца листа. Строки полностью пустых списочных колонок
 // (в середине списка или в хвосте) в счёт не идут - тот же критерий "непустая
-// строка", которым построчный разбор (C3) будет присваивать row_number.
+// строка", которым построчный разбор (listRowNumbers) присваивает row_number.
 func countListRows(f *excelize.File, template *models.AttachmentTemplate) (int, error) {
 	sheet := f.GetSheetName(0)
 	rows, err := f.GetRows(sheet)

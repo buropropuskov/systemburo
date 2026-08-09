@@ -639,6 +639,11 @@ export function useOnboarding() {
           && nextStep.route === currentRoute
           && isSkippableStep(nextStep)
           && nextStep.element
+          // Цель, которая появляется по действию (раскрытие окна, смена бланка),
+          // сейчас отсутствует законно - шаг всё равно будет показан. Иначе
+          // подсказка перепрыгивала его и обещала «Готово!» посреди тура.
+          && !nextStep.reveal?.open
+          && !nextStep.demoAttachment
           && !document.querySelector(nextStep.element)
         ) {
           nextIdx += 1;
