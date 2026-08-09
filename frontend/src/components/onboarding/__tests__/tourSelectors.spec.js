@@ -47,6 +47,12 @@ function collectTestIds() {
       for (const m of source.matchAll(/(^|[^[])data-testid\s*=\s*["']([^"'`${}]+)["']/gm)) {
         found.add(m[2]);
       }
+      // Окно BaseModal телепортируется в body, и снаружи ему нечем проставить
+      // data-testid - имя передаётся пропом content-testid, а модалка вешает его
+      // на себя. Для замка это такой же живой якорь.
+      for (const m of source.matchAll(/content-testid\s*=\s*["']([^"'`${}]+)["']/g)) {
+        found.add(m[1]);
+      }
       // Условная привязка вида `:data-testid="выбран ? 'ob-blank-selected' : null"`:
       // имя тут - обычный литерал, и якорь на него настоящий. Шаблонные строки
       // по-прежнему не берём - там имя собирается в рантайме.

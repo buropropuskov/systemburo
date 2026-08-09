@@ -25,7 +25,10 @@
         class="card-header__settings"
       >
         <span class="items-count">
-          <span class="items-count__text">Машин на территории: <AnimatedCounter :value="carsOnTerritory" /></span>
+          <span
+            class="items-count__text"
+            data-testid="ob-on-territory"
+          >Машин на территории: <AnimatedCounter :value="carsOnTerritory" /></span>
           <button
             v-if="can(`table.${tableName}.history`)"
             class="history-btn"

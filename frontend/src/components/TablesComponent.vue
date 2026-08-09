@@ -13,6 +13,7 @@
       <button
         class="tables__instruction"
         :class="{ 'tables__instruction--compact': instructionCompact }"
+        data-testid="ob-table-instruction"
         :title="instructionCompact ? 'Инструкция' : null"
         :aria-label="instructionCompact ? 'Инструкция' : null"
         @click="openInstruction"
@@ -387,6 +388,7 @@ import FilterButton from '@/components/ui/FilterButton.vue';
 import FilterSheet from '@/components/ui/FilterSheet.vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { usePermissionsStore } from '@/stores/permissions';
+import { useOnboardingStore } from '@/stores/onboarding';
 
 export default {
     name: 'TablesComponent',
@@ -430,7 +432,8 @@ export default {
         // поиск остаётся снаружи. Десктоп не трогаем - фильтры инлайн (эпик mobile-filter-collapse).
         const { isNarrow } = useNarrowScreen();
 
-        return { showInstruction, openInstruction, closeInstruction, onOverlayMousedown, onOverlayMouseup, permissionsStore, isNarrow };
+        const onboardingStore = useOnboardingStore();
+        return { showInstruction, openInstruction, closeInstruction, onOverlayMousedown, onOverlayMouseup, permissionsStore, onboardingStore, isNarrow };
     },
     data() {
         return {
@@ -460,6 +463,8 @@ export default {
             showExportModal: false,
             showManualAdd: false,
             showPassReport: false,
+            // Окно отчёта открыл тур - только такое он и закрывает за собой.
+            passReportOpenedByTour: false,
 
             // Мобилка: открыт ли bottom-sheet со вторичными фильтрами.
             showFilterSheet: false,
@@ -581,6 +586,22 @@ export default {
         }
     },
     watch: {
+        /**
+         * Онбординг просит показать отчёт по проходам: открываем окно по сигналу и
+         * закрываем, когда сигнал гаснет. Окно, открытое человеком, не трогаем.
+         */
+        'onboardingStore.revealOpen'(target) {
+            if (target === 'pass-report') {
+                if (this.showPassReport) return;
+                this.passReportOpenedByTour = true;
+                this.showPassReport = true;
+                return;
+            }
+            if (!this.passReportOpenedByTour) return;
+            this.passReportOpenedByTour = false;
+            this.showPassReport = false;
+        },
+
         '$route.params.tableName': {
             handler() {
                 this.fetchTableData();

@@ -185,19 +185,30 @@ describe('securityOnboardingSteps - сегмент /accessible-attachments', () 
       'sec-aa-filters',
       'sec-aa-card',
       'sec-aa-detail',
-      'sec-aa-sender',
+      'sec-aa-elements',
       'sec-aa-preview',
+      'sec-aa-blank',
     ]);
   });
 
-  it('объясняет скрытое ФИО на строке «Отправитель» и не обещает пустое поле', () => {
-    const step = securityOnboardingSteps.find((s) => s.id === 'sec-aa-sender');
-    expect(step.element).toBe('[data-testid="ob-aa-sender"]');
-    // Строка есть только у выбранной карточки - без неё шаг пропускается.
-    expect(step.optional).toBe(true);
-    // Маскировка подставляет логин со знаком @, а не пустоту (pd_consent_mask.go).
-    expect(step.description).toMatch(/логин/);
-    expect(step.description).toMatch(/согласие на обработку/);
+  // Охране объясняли, почему у отправителя показан логин вместо ФИО. Владелец
+  // убрал: на посту это лишнее, а главное - состав вложения, то есть кого
+  // пропускать.
+  it('показывает состав вложения, а не разбор маскировки ФИО', () => {
+    const ids = securityOnboardingSteps.map((s) => s.id);
+    expect(ids).not.toContain('sec-aa-sender');
+    const step = securityOnboardingSteps.find((s) => s.id === 'sec-aa-elements');
+    expect(step.element).toBe('[data-testid="attachment-elements"]');
+    expect(step.reveal).toEqual({ open: 'first-attachment' });
+  });
+
+  // Рассказывать про кнопку и не открывать файл - половина объяснения.
+  it('тур открывает бланк и отчёт, а не только называет кнопки', () => {
+    const byId = (id) => securityOnboardingSteps.find((s) => s.id === id);
+    expect(byId('sec-aa-preview').advanceWhen).toBe('[data-testid="ob-blank-preview"]');
+    expect(byId('sec-aa-blank').reveal).toEqual({ open: 'attachment-blank' });
+    const report = buildSecurityFactSteps('/table/kpp_1').find((s) => s.id === 'sec-fact-report-window');
+    expect(report.reveal).toEqual({ open: 'pass-report' });
   });
 
   it('реюзит существующие aa-* testid страницы «Доступные мне»', () => {
@@ -209,7 +220,7 @@ describe('securityOnboardingSteps - сегмент /accessible-attachments', () 
   });
 
   it('карточка, деталь и предпросмотр опциональны (нет выбранной карточки - шаг пропускается)', () => {
-    for (const id of ['sec-aa-card', 'sec-aa-detail', 'sec-aa-sender', 'sec-aa-preview']) {
+    for (const id of ['sec-aa-card', 'sec-aa-detail', 'sec-aa-elements', 'sec-aa-preview', 'sec-aa-blank']) {
       expect(securityOnboardingSteps.find((s) => s.id === id).optional).toBe(true);
     }
   });
@@ -293,13 +304,16 @@ describe('buildSecurityFactSteps', () => {
   it('строит список по заявке, отметки, ручной ввод и отчёт на переданный route', () => {
     const steps = buildSecurityFactSteps('/table/kpp_1');
     expect(steps.map((s) => s.id)).toEqual([
+      'sec-table-instruction',
       'sec-pass-intro',
       'sec-pass-row',
       'sec-pass-entry',
       'sec-pass-exit',
+      'sec-on-territory',
       'sec-fact-intro',
       'sec-fact-pass',
       'sec-fact-report',
+      'sec-fact-report-window',
     ]);
     expect(steps.every((s) => s.route === '/table/kpp_1')).toBe(true);
   });
@@ -336,15 +350,18 @@ describe('buildSecurityFactSteps', () => {
     // Ключ права - table.<имя таблицы>.report, статическим requires не выражается.
     expect(step.requires).toBeUndefined();
     expect(step.optional).toBe(true);
-    expect(step.description).toMatch(/21:30/);
+    // Разбор суток с 21:30 переехал на шаг с открытым окном отчёта: рассказ про
+    // цифры уместен, когда цифры на экране.
+    const window = buildSecurityFactSteps('/table/kpp_1').find((s) => s.id === 'sec-fact-report-window');
+    expect(window.description).toMatch(/21:30/);
   });
 
   // Раньше первый шаг был центр-модалкой без цели, и на живом посту это читалось
   // как «тур потерялся». Подсвечиваем таблицу, но шаг оставляем необязательным:
   // у нового поста записей может не быть вовсе.
-  it('первый шаг подсвечивает таблицу и остаётся границей деградации сегмента', () => {
+  it('первый шаг подсвечивает инструкцию поста и остаётся границей деградации сегмента', () => {
     const [intro] = buildSecurityFactSteps('/table/kpp_1');
-    expect(intro.element).toBe('[data-testid="cars-table"]');
+    expect(intro.element).toBe('[data-testid="ob-table-instruction"]');
     expect(intro.optional).toBe(true);
     expect(intro.optionalSegment).toBe(true);
   });
