@@ -48,7 +48,7 @@ func (s *attachmentImportService) parseRows(ctx context.Context, f *excelize.Fil
 // listRowNumbers перечисляет номера строк Excel (1-based), у которых заполнена хотя бы
 // одна списочная колонка - те же строки, что уже посчитал countListRows в гейте файла.
 func listRowNumbers(allRows [][]string, template *models.AttachmentTemplate) []int {
-	cols := listMappingColumns(template.Mappings)
+	cols := listDataColumns(template.Mappings)
 	nums := make([]int, 0, len(allRows))
 	for rowIdx := template.ListStartRow; rowIdx <= len(allRows); rowIdx++ {
 		if rowHasListData(allRows[rowIdx-1], cols) {
