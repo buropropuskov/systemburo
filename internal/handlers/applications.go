@@ -318,6 +318,27 @@ func (h *ApplicationHandler) SubmitCompleteApplication(c echo.Context) error {
 		return err
 	}
 
+	// BindAndValidate срезы не валидирует by design (см. её докблок) - без явного потолка
+	// data.employees/data.vehicles/data.items можно раздуть произвольным числом строк
+	// вплоть до BodyLimit группы (blank-import, срез A2A3).
+	for _, att := range req.Attachments {
+		if att.Data.Employees != nil {
+			if err := ValidateSliceCap(len(*att.Data.Employees), MaxSubmitRowsPerList, "сотрудников"); err != nil {
+				return err
+			}
+		}
+		if att.Data.Vehicles != nil {
+			if err := ValidateSliceCap(len(*att.Data.Vehicles), MaxSubmitRowsPerList, "машин"); err != nil {
+				return err
+			}
+		}
+		if att.Data.Items != nil {
+			if err := ValidateSliceCap(len(*att.Data.Items), MaxSubmitRowsPerList, "ТМЦ"); err != nil {
+				return err
+			}
+		}
+	}
+
 	canOverride, err := h.canOverrideOrganization(c)
 	if err != nil {
 		return err
