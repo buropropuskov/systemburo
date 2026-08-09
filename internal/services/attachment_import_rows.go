@@ -248,7 +248,12 @@ func (s *attachmentImportService) parseVehicleRows(ctx context.Context, allRows 
 		var plateFormatErr string
 
 		// "По факту" - существующий особый случай (не опознаёт конкретную машину, см.
-		// vehicleByFactPlate), формат номера для него не проверяется.
+		// vehicleByFactPlate), формат номера для него не проверяется. Значение приводим
+		// к каноническому виду: дальше по цепочке (форма, привязка к организации)
+		// сравнение идёт строгим равенством, и "по факту" из файла туда не пройдёт.
+		if isByFactPlate(number) {
+			number = vehicleByFactCanonical
+		}
 		if number != "" && !isByFactPlate(number) {
 			if match, ok := matchLicensePlate(number, formats); ok {
 				if match.Changed {

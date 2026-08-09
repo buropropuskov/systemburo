@@ -179,6 +179,19 @@ func TestAttachmentImportListRows_LicensePlateFormat(t *testing.T) {
 		require.Equal(t, "По факту", row.Vehicle.CarNumber)
 	})
 
+	// Ниже по цепочке (форма подачи, привязка к организации) спецзначение сравнивают
+	// строгим равенством, поэтому написание из файла приводится к каноническому.
+	t.Run("По факту из файла приводится к каноническому написанию", func(t *testing.T) {
+		data := buildCarsRowsUpload(t, 6, []importCarRow{{number: "ПО ФАКТУ", mark: "Toyota"}})
+		rec := postImportFile(t, e, uaID, "list.xlsx", data, admin)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+		result := testutil.ParseResponse[services.ImportListResult](t, rec)
+		require.Len(t, result.Rows, 1)
+		require.Empty(t, result.Rows[0].Errors)
+		require.Equal(t, "По факту", result.Rows[0].Vehicle.CarNumber)
+	})
+
 	t.Run("слишком короткая строка не дотягивает пустыми ячейками", func(t *testing.T) {
 		// Регресс: разбор по ячейкам не должен принимать пустой сегмент за
 		// подошедшую ячейку, когда символов в строке физически не хватает.
