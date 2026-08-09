@@ -127,124 +127,135 @@
       </ul>
     </div>
 
+    <!-- Строки с ошибками - не таблица, а карточки: причина отказа это фраза целиком,
+         в узкой колонке она рвалась на три строки, а поля правки жались вплотную. -->
     <div
       v-if="problemRows.length"
       class="bim__problems"
     >
       <h4 class="bim__problems-title">
         Строки с ошибками
+        <span class="bim__problems-count">{{ problemRows.length }}</span>
       </h4>
       <p class="bim__problems-hint">
-        Правьте поля прямо здесь и отмечайте строку галочкой, чтобы добавить её вместе с
-        остальными. Галочка доступна только для исправимых здесь причин (пустые поля,
-        гражданство). Чёрный список, дубли внутри файла и данные, которых в этой таблице
-        нет (паспорт, патент), — строку нужно добавить через обычную форму.
+        Поправьте поля прямо здесь и отметьте строку - она добавится вместе с остальными.
+        Причину с пометкой «Только вручную» здесь не снять (чёрный список, дубль внутри
+        файла, паспорт, патент, должность) - такую строку заводят обычной формой.
       </p>
-      <div class="bim__problems-table-wrap">
-        <table class="bim__problems-table">
-          <thead>
-            <tr>
-              <th>Стр.</th>
-              <th v-if="isPeople">
-                Фамилия
-              </th>
-              <th v-if="isPeople">
-                Имя
-              </th>
-              <th v-if="isPeople">
-                Отчество
-              </th>
-              <th v-if="isPeople">
-                Гражданство
-              </th>
-              <th v-if="!isPeople">
-                Номер Т/С
-              </th>
-              <th v-if="!isPeople">
-                Марка
-              </th>
-              <th>Причина</th>
-              <th>Добавить</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="row in problemRows"
-              :key="row.rowNumber"
-              :data-testid="`bim-problem-row-${row.rowNumber}`"
+
+      <ul class="bim__problems-list">
+        <li
+          v-for="row in problemRows"
+          :key="row.rowNumber"
+          class="bim__problem"
+          :class="{ 'bim__problem--blocked': !rowFixable(row) }"
+          :data-testid="`bim-problem-row-${row.rowNumber}`"
+        >
+          <div class="bim__problem-head">
+            <span class="bim__problem-num">Строка {{ row.rowNumber }}</span>
+            <Badge
+              size="sm"
+              :variant="rowFixable(row) ? 'warning' : 'danger'"
+              :label="rowFixable(row) ? 'Можно исправить' : 'Только вручную'"
+            />
+            <label
+              class="bim__include"
+              :class="{ 'bim__include--off': !canIncludeRow(row) }"
             >
-              <td>{{ row.rowNumber }}</td>
-              <template v-if="isPeople">
-                <td>
-                  <input
-                    v-model="row.fields.lastName"
-                    type="text"
-                    class="lk-input bim__cell-input"
-                  >
-                </td>
-                <td>
-                  <input
-                    v-model="row.fields.firstName"
-                    type="text"
-                    class="lk-input bim__cell-input"
-                  >
-                </td>
-                <td>
-                  <input
-                    v-model="row.fields.middleName"
-                    type="text"
-                    class="lk-input bim__cell-input"
-                  >
-                </td>
-                <td>
-                  <select
-                    v-model="row.fields.citizenshipId"
-                    class="lk-select bim__cell-input"
-                  >
-                    <option :value="null">
-                      Не выбрано
-                    </option>
-                    <option
-                      v-for="c in citizenships"
-                      :key="c.id"
-                      :value="c.id"
-                    >
-                      {{ c.name }}
-                    </option>
-                  </select>
-                </td>
-              </template>
-              <template v-else>
-                <td>
-                  <input
-                    v-model="row.fields.plateNumber"
-                    type="text"
-                    class="lk-input bim__cell-input"
-                  >
-                </td>
-                <td>
-                  <input
-                    v-model="row.fields.mark"
-                    type="text"
-                    class="lk-input bim__cell-input"
-                  >
-                </td>
-              </template>
-              <td class="bim__reason-cell">
-                {{ row.errors.join('; ') }}
-              </td>
-              <td class="bim__include-cell">
+              <input
+                v-model="row.included"
+                type="checkbox"
+                :disabled="!canIncludeRow(row)"
+                :data-testid="`bim-include-${row.rowNumber}`"
+              >
+              <span>Добавить</span>
+            </label>
+          </div>
+
+          <ul class="bim__reasons">
+            <li
+              v-for="(error, index) in row.errors"
+              :key="index"
+              class="bim__reason"
+              :class="{ 'bim__reason--blocking': !error.fixable }"
+            >
+              {{ error.text }}
+            </li>
+          </ul>
+
+          <div class="bim__fields">
+            <template v-if="isPeople">
+              <label class="bim__field">
+                <span class="bim__field-label">Фамилия</span>
                 <input
-                  v-model="row.included"
-                  type="checkbox"
-                  :disabled="!canIncludeRow(row)"
-                  :data-testid="`bim-include-${row.rowNumber}`"
+                  v-model="row.fields.lastName"
+                  type="text"
+                  class="lk-input bim__cell-input"
                 >
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+              </label>
+              <label class="bim__field">
+                <span class="bim__field-label">Имя</span>
+                <input
+                  v-model="row.fields.firstName"
+                  type="text"
+                  class="lk-input bim__cell-input"
+                >
+              </label>
+              <label class="bim__field">
+                <span class="bim__field-label">Отчество</span>
+                <input
+                  v-model="row.fields.middleName"
+                  type="text"
+                  class="lk-input bim__cell-input"
+                >
+              </label>
+              <label class="bim__field">
+                <span class="bim__field-label">Гражданство</span>
+                <select
+                  v-model="row.fields.citizenshipId"
+                  class="lk-select bim__cell-input"
+                >
+                  <option :value="null">
+                    Не выбрано
+                  </option>
+                  <option
+                    v-for="c in citizenships"
+                    :key="c.id"
+                    :value="c.id"
+                  >
+                    {{ c.name }}
+                  </option>
+                </select>
+              </label>
+            </template>
+            <template v-else>
+              <label class="bim__field">
+                <span class="bim__field-label">Номер Т/С</span>
+                <input
+                  v-model="row.fields.plateNumber"
+                  type="text"
+                  class="lk-input bim__cell-input"
+                >
+              </label>
+              <label class="bim__field">
+                <span class="bim__field-label">Марка</span>
+                <input
+                  v-model="row.fields.mark"
+                  type="text"
+                  class="lk-input bim__cell-input"
+                >
+              </label>
+            </template>
+          </div>
+
+          <p
+            v-if="rowFixable(row) && !canIncludeRow(row)"
+            class="bim__problem-note"
+          >
+            Заполните поля выше, чтобы отметить строку.
+          </p>
+        </li>
+      </ul>
     </div>
 
     <div class="bim__actions">
@@ -280,19 +291,11 @@
 
 <script>
 import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vue';
+import Badge from '@/components/ui/Badge.vue';
 import { listCitizenships } from '@/api/citizenships';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useFieldConfig } from '@/composables/useFieldConfig';
 import { employeeLabel, vehicleLabel } from '@/utils/applicationDuplicates';
-
-// Метки полей реестра (attachment_fields_registry.go), которые эта таблица умеет
-// править - ФИКСИРОВАННЫЕ строки (Label не переопределяется оверрайдами шаблона,
-// см. MergeFieldConfig), поэтому сверка префиксом "Поле «<Label>»" надёжна. Любая
-// причина вне этого списка (паспорт, патент, должность, чёрный список, дубль
-// внутри файла) остаётся блокирующей - полей для них здесь нет и не должно быть
-// (152-ФЗ), а чёрный список/дубли - решение, которое клиент не переигрывает.
-const PEOPLE_FIXABLE_FIELD_LABELS = ['Фамилия', 'Имя', 'Отчество', 'Гражданство'];
-const CAR_FIXABLE_FIELD_LABELS = ['Номер ТС', 'Марка ТС'];
 
 /**
  * Сводка разбора заполненного бланка (эпик blank-import, срез D1D2; срез U4 перенёс
@@ -306,12 +309,15 @@ const CAR_FIXABLE_FIELD_LABELS = ['Номер ТС', 'Марка ТС'];
  *
  * Строки с ошибками показывают только ФИО/номер и причину - паспорт и патент не
  * выводятся и не редактируются здесь (152-ФЗ, доб. поля правятся в обычной форме).
+ * Исправима ли причина правкой на месте, решает сервер (ImportRowError.fixable,
+ * internal/services/attachment_import_validate.go) - здесь текст причины только
+ * показывается человеку и никак не разбирается.
  * "Добавить" по исправленной строке не перепроверяет причину отказа повторно
  * (чёрный список, дубли) - финальная подача делает это как для любой ручной строки.
  */
 export default {
   name: 'BlankImportResult',
-  components: { TargetTablesGrid },
+  components: { TargetTablesGrid, Badge },
   props: {
     attachmentType: {
       type: String,
@@ -530,24 +536,18 @@ export default {
       if (names.length > 1) return `${names[0]} и др.`;
       return names[0] || '';
     },
-    // Причина ошибки "исправима здесь", только если это пустое/слишком длинное
-    // значение поля, которое эта таблица реально редактирует, либо неизвестное
-    // гражданство. Всё остальное (чёрный список, дубль внутри файла, паспорт,
-    // патент, должность) - НЕ матчится и остаётся блокирующим: подстрока проверяет
-    // ФИКСИРОВАННЫЙ префикс "Поле «<Label>»", где Label берётся из Go-реестра
-    // (attachment_fields_registry.go) и не переопределяется оверрайдами шаблона.
-    errorIsFixable(text) {
-      const labels = this.isPeople ? PEOPLE_FIXABLE_FIELD_LABELS : CAR_FIXABLE_FIELD_LABELS;
-      if (labels.some((label) => text.startsWith(`Поле «${label}»`))) return true;
-      if (this.isPeople && text.includes('не найдено в справочнике')) return true;
-      return false;
+    // Все ли причины строки правятся прямо здесь. Признак приходит с сервера полем
+    // fixable: разбирать текст причины фронтом нельзя - формулировки меняются, и
+    // каждая новая (несовпадение формата номера) молча блокировала строку навсегда.
+    rowFixable(row) {
+      return row.errors.every((error) => !!error.fixable);
     },
     // Строка становится добавляемой, только когда ВСЕ её причины исправимы здесь
     // И минимальные поля реально заполнены - блокирующие причины (ЧС, дубль,
     // паспорт/патент - полей для них тут нет по 152-ФЗ) чекбокс не разблокируют
     // никакой правкой ФИО/номера.
     canIncludeRow(row) {
-      if (!row.errors.every((e) => this.errorIsFixable(e))) return false;
+      if (!this.rowFixable(row)) return false;
       if (this.isPeople) {
         if (!row.fields.lastName.trim() || !row.fields.firstName.trim()) return false;
         // Гражданство признано исправимым здесь, значит и требовать его надо так же,
@@ -640,7 +640,7 @@ export default {
                 plateNumber: r.vehicle && r.vehicle.car_number,
                 mark: r.vehicle && r.vehicle.car_brand,
               });
-            worksheet.addRow([r.row_number, label, r.errors.join('; ')]);
+            worksheet.addRow([r.row_number, label, r.errors.map((e) => e.text).join('; ')]);
           });
         worksheet.columns = [{ width: 10 }, { width: 30 }, { width: 70 }];
         const buffer = await workbook.xlsx.writeBuffer();
@@ -725,13 +725,26 @@ export default {
 }
 
 .bim__problems-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0 0 4px;
   font-size: 15px;
+}
+
+.bim__problems-count {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .bim__problems-hint {
   margin: 0 0 12px;
   font-size: 12px;
+  line-height: 1.45;
   color: var(--text-muted);
 }
 
@@ -760,53 +773,157 @@ export default {
   color: var(--text-secondary);
 }
 
-.bim__problems-table-wrap {
-  max-height: 320px;
-  overflow: auto;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+.bim__problems-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 420px;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
-.bim__problems-table {
-  width: 100%;
-  border-collapse: collapse;
+.bim__problem {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+/* Строку, которую здесь не спасти, отделяем цветом рамки, а не только текстом
+   причины: в списке из десятка карточек это единственный быстрый признак. */
+.bim__problem--blocked {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--surface));
+  background: color-mix(in srgb, var(--danger) 4%, var(--surface));
+}
+
+.bim__problem-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.bim__problem-num {
   font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
 }
 
-.bim__problems-table th {
-  position: sticky;
-  top: 0;
-  background: var(--surface-2);
-  text-align: left;
-  padding: 8px;
-  border-bottom: 1px solid var(--color-border);
-  white-space: nowrap;
+.bim__include {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
 }
 
-.bim__problems-table td {
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--color-border);
-  vertical-align: middle;
+.bim__include input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.bim__include--off {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.bim__include--off input {
+  cursor: not-allowed;
+}
+
+.bim__reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Причина - готовая фраза целиком: своя строка на всю ширину карточки, без переноса
+   в узкую колонку. Исправимая подсвечена как предупреждение, блокирующая - как отказ. */
+.bim__reason {
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font-size: 12.5px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.bim__reason--blocking {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+.bim__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.bim__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bim__field-label {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .bim__cell-input {
-  padding: 6px 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.bim__problem-note {
+  margin: 0;
   font-size: 12px;
-  min-width: 90px;
-}
-
-.bim__reason-cell {
-  color: var(--danger-text);
-  max-width: 260px;
-}
-
-.bim__include-cell {
-  text-align: center;
+  color: var(--text-muted);
 }
 
 @media (max-width: 768px) {
+  /* На телефоне карточка идёт одним столбцом: поля во всю ширину, отметка -
+     полноценная строка-цель, а не 16px квадрат в углу. */
+  .bim__fields {
+    grid-template-columns: 1fr;
+  }
+
   .bim__cell-input {
-    min-width: 70px;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .bim__include {
+    margin-left: 0;
+    flex-basis: 100%;
+    min-height: 44px;
+  }
+
+  .bim__include input {
+    width: 20px;
+    height: 20px;
+  }
+
+  .bim__problems-list {
+    max-height: none;
+    overflow-y: visible;
   }
 
   /* Тач-таргет 44px (WCAG 2.5.5): --sm-модификатора у этих кнопок нет, но базовые
