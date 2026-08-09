@@ -3,6 +3,7 @@
 # хранилище, не устарела ли копия.
 #
 #   ./scripts/backup-status.sh [local|staging|production]
+#   BACKUP_DIR=/mnt/disk/systemburo ./scripts/backup-status.sh   # чужое хранилище
 #
 # Только читает. Нужен для ежедневного контроля: молчаливо сломавшееся копирование
 # ничем не отличается от работающего, пока не понадобится восстановление.
@@ -10,13 +11,20 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# Каталог из окружения запоминается до чтения .env и имеет приоритет над ним:
+# `set -a; . ./.env` перекрывает окружение, и запуск с BACKUP_DIR=... молча
+# показывал состояние рабочего каталога вместо указанного. Скрипт только читает,
+# и возможность посмотреть чужое хранилище (копии, принесённые с другого сервера,
+# примонтированный внешний диск) не должна требовать правки параметров рабочего.
+BACKUP_DIR_ARG="${BACKUP_DIR:-}"
+
 if [ ! -f .env ]; then
   echo "Файл параметров .env не найден в $(pwd)" >&2
   exit 1
 fi
 set -a; . ./.env; set +a
 
-BACKUP_DIR="${BACKUP_DIR:-/var/backups/systemburo}"
+BACKUP_DIR="${BACKUP_DIR_ARG:-${BACKUP_DIR:-/var/backups/systemburo}}"
 STATUS_FILE="${BACKUP_DIR}/status.json"
 
 if [ ! -d "$BACKUP_DIR" ]; then
@@ -109,27 +117,129 @@ human_when() {
   printf '%s %s %s, %s:%s' "$((10#$d))" "${MONTHS[$((10#$m - 1))]}" "$y" "$hh" "$mm"
 }
 
-echo "Копии базы, пригодные для восстановления"
-echo "$(pad_right "Снята" 24) $(pad_left "Размер" 8)  $(pad_right "Метка" 20) Файл"
+# Метка времени в имени: «2026-08-06-1612» это 15 знаков, дальше идёт метка
+# запуска, если она была задана. Разбор нужен и выгрузке базы, и обоим архивам.
+STAMP=""; LABEL=""
+split_stamp() {
+  STAMP="$1"; LABEL=""
+  if [ "${#STAMP}" -gt 15 ]; then
+    LABEL="${STAMP:16}"
+    STAMP="${STAMP:0:15}"
+  fi
+}
+
+# Файл ищется по всем каталогам сроков хранения: одна и та же копия лежит в них
+# жёсткой ссылкой, и в каком именно каталоге она встретится, значения не имеет.
+locate() {
+  local name="$1" dir
+  for dir in daily weekly monthly; do
+    if [ -f "${BACKUP_DIR}/${dir}/${name}" ]; then echo "${BACKUP_DIR}/${dir}/${name}"; return 0; fi
+  done
+  return 0
+}
+
+# Спутники выгрузки базы: backup.sh даёт всем трём файлам одной копии общую метку
+# времени, поэтому пара к базе находится по её же имени. Суффикс .age появляется
+# у зашифрованных копий, так что проверяются оба варианта имени.
+find_companion() {
+  local prefix="$1" full="$2" dir cand
+  for dir in daily weekly monthly; do
+    for cand in "${BACKUP_DIR}/${dir}/${prefix}-${full}.tar.gz" \
+                "${BACKUP_DIR}/${dir}/${prefix}-${full}.tar.gz.age"; do
+      if [ -f "$cand" ]; then echo "$cand"; return 0; fi
+    done
+  done
+  return 0
+}
+
+row() {
+  local when="$1" bytes="$2" what="$3" label="$4" name="$5"
+  echo "$(pad_right "$when" 24) $(pad_left "$(human_size "$bytes")" 8)  $(pad_right "$what" 18) $(pad_right "$label" 20) ${name}"
+}
+
+# Строка спутника: дата и метка у него те же, что у базы строкой выше, поэтому
+# повторно они не печатаются - иначе перечень читается как список разных копий.
+companion_row() {
+  local file="$1" what="$2" bytes
+  bytes="$(stat -c%s "$file" 2>/dev/null || echo 0)"
+  row "" "$bytes" "  ${what}" "" "$(basename "$file")"
+}
+
+echo "Копии, пригодные для восстановления"
+echo "$(pad_right "Снята" 24) $(pad_left "Размер" 8)  $(pad_right "Что входит" 18) $(pad_right "Метка" 20) Файл"
 
 found=0
+paired=""
+partial=0
+newest_what=""
 while read -r name; do
   [ -n "$name" ] || continue
   found=1
-  stamp="${name#buro-db-}"; stamp="${stamp%%.dump*}"
-  label=""
-  if [ "${#stamp}" -gt 15 ]; then
-    label="${stamp:16}"
-    stamp="${stamp:0:15}"
+  full="${name#buro-db-}"; full="${full%%.dump*}"
+  split_stamp "$full"
+  bytes="$(stat -c%s "$(locate "$name")" 2>/dev/null || echo 0)"
+
+  uploads="$(find_companion buro-uploads "$full")"
+  archive="$(find_companion buro-archive "$full")"
+  # Состав копии одной строкой: без него копия без файлов выглядит так же
+  # благополучно, как полная, а разница видна только в момент восстановления.
+  what="база"
+  if [ -n "$uploads" ]; then what="${what}+файлы"; fi
+  if [ -n "$archive" ]; then what="${what}+архив"; fi
+  if [ "$what" = "база" ]; then what="только база"; partial=1; fi
+  if [ -z "$newest_what" ]; then newest_what="$what"; fi
+
+  row "$(human_when "$STAMP")" "$bytes" "$what" "${LABEL:--}" "$name"
+  if [ -n "$uploads" ]; then
+    companion_row "$uploads" "файлы"
+    paired="${paired} $(basename "$uploads")"
   fi
-  file=""
-  for dir in daily weekly monthly; do
-    [ -f "${BACKUP_DIR}/${dir}/${name}" ] && { file="${BACKUP_DIR}/${dir}/${name}"; break; }
-  done
-  bytes="$(stat -c%s "$file" 2>/dev/null || echo 0)"
-  echo "$(pad_right "$(human_when "$stamp")" 24) $(pad_left "$(human_size "$bytes")" 8)  $(pad_right "${label:--}" 20) ${name}"
+  if [ -n "$archive" ]; then
+    companion_row "$archive" "архив бланков"
+    paired="${paired} $(basename "$archive")"
+  fi
 done <<< "$(find "$BACKUP_DIR"/{daily,weekly,monthly} -maxdepth 1 -name 'buro-db-*' -type f -printf '%f\n' 2>/dev/null | sort -ru)"
 
 if [ "$found" = "0" ]; then
   echo "копий базы нет"
 fi
+
+if [ "$partial" = "1" ] && [ "${BACKUP_UPLOADS_MODE:-weekly}" != "daily" ]; then
+  # Без этой строки состав «только база» у большинства суточных копий читается
+  # как поломка, хотя это заданный режим: файлы архивируются по воскресеньям.
+  echo
+  echo "Файлы архивируются раз в неделю (BACKUP_UPLOADS_MODE=${BACKUP_UPLOADS_MODE:-weekly}),"
+  echo "поэтому состав «только база» у копий за остальные дни - ожидаемый."
+fi
+
+# В ежедневном режиме отсутствие архива у свежей копии - уже сбой архивации, а не
+# расписание. backup.sh пишет о нём в журнал, но в журнал заглядывают редко.
+if [ "${BACKUP_UPLOADS_MODE:-weekly}" = "daily" ] && [ "$newest_what" = "только база" ]; then
+  echo
+  echo "ВНИМАНИЕ: режим BACKUP_UPLOADS_MODE=daily, но в последнюю копию файлы не вошли."
+  echo "Причина - в журнале ${BACKUP_DIR}/backup.log."
+fi
+
+# Архивы файлов переживают свою выгрузку базы: сроки хранения считаются по каждому
+# префиксу отдельно, а при недельном режиме архивы снимаются реже. Восстанавливать
+# такой архив не с чем, но знать о нём нужно - место он занимает наравне с прочими.
+orphans=0
+while read -r name; do
+  [ -n "$name" ] || continue
+  case " $paired " in *" $name "*) continue ;; esac
+  case "$name" in
+    buro-uploads-*) what="файлы"; full="${name#buro-uploads-}" ;;
+    buro-archive-*) what="архив бланков"; full="${name#buro-archive-}" ;;
+    *) continue ;;
+  esac
+  full="${full%%.tar.gz*}"
+  split_stamp "$full"
+  if [ "$orphans" = "0" ]; then
+    orphans=1
+    echo
+    echo "Архивы файлов без выгрузки базы за тот же срок"
+    echo "$(pad_right "Снята" 24) $(pad_left "Размер" 8)  $(pad_right "Что входит" 18) $(pad_right "Метка" 20) Файл"
+  fi
+  bytes="$(stat -c%s "$(locate "$name")" 2>/dev/null || echo 0)"
+  row "$(human_when "$STAMP")" "$bytes" "$what" "${LABEL:--}" "$name"
+done <<< "$(find "$BACKUP_DIR"/{daily,weekly,monthly} -maxdepth 1 \( -name 'buro-uploads-*' -o -name 'buro-archive-*' \) -type f -printf '%f\n' 2>/dev/null | sort -ru)"
