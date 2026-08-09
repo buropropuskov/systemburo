@@ -202,7 +202,6 @@ describe('buildTourSteps', () => {
       'sec-pass-exit',
       'sec-on-territory',
       'sec-fact-intro',
-      'sec-fact-pass',
       'sec-fact-report',
       'sec-fact-report-window',
       'sec-finish',

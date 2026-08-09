@@ -500,7 +500,7 @@ describe('onboarding store', () => {
       await store.ensureFactRoute();
 
       expect(store.factTableRoute).toBe('/table/kpp_1');
-      expect(store.totalSteps).toBe(baseLen + 11);
+      expect(store.totalSteps).toBe(baseLen + 10);
       const tail = store.steps.slice(baseLen);
       expect(tail.map((s) => s.id)).toEqual([
         'sec-table-instruction',
@@ -510,7 +510,6 @@ describe('onboarding store', () => {
         'sec-pass-exit',
         'sec-on-territory',
         'sec-fact-intro',
-        'sec-fact-pass',
         'sec-fact-report',
         'sec-fact-report-window',
         'sec-finish',

@@ -311,7 +311,6 @@ describe('buildSecurityFactSteps', () => {
       'sec-pass-exit',
       'sec-on-territory',
       'sec-fact-intro',
-      'sec-fact-pass',
       'sec-fact-report',
       'sec-fact-report-window',
     ]);
@@ -335,30 +334,16 @@ describe('buildSecurityFactSteps', () => {
     expect(steps.find((s) => s.id === 'sec-pass-row').description).toMatch(/ФИО человека/);
   });
 
-  it('пропуск по факту описывает окно с формата, номера и кнопки «Пропустить»', () => {
-    const step = buildSecurityFactSteps('/table/kpp_1').find((s) => s.id === 'sec-fact-pass');
-    // Окно открывается только по нажатию, подсвечивать нечего - висим на той же кнопке.
-    expect(step.element).toBe('[data-testid="ob-fact-entry"]');
-    expect(step.optional).toBe(true);
-    expect(step.description).toMatch(/по факту/);
-    expect(step.description).toMatch(/Пропустить/);
+  // Отдельный шаг про окно ручного пропуска висел на кнопке «Въезд» блока «по
+  // факту»: у пустого блока её нет, шаг выбрасывался, и общее число шагов на
+  // глазах падало. Рассказ переехал в шаг про сам блок.
+  it('ручной пропуск объясняется в шаге про блок «по факту», без отдельного шага', () => {
+    const steps = buildSecurityFactSteps('/table/kpp_1');
+    expect(steps.some((s) => s.id === 'sec-fact-pass')).toBe(false);
+    const block = steps.find((s) => s.id === 'sec-fact-intro');
+    expect(block.description).toMatch(/номер Т\/С/);
   });
 
-  it('отчёт по проходам берёт кнопку «Отчёт» и опционален (право у каждой таблицы своё)', () => {
-    const step = buildSecurityFactSteps('/table/kpp_1').find((s) => s.id === 'sec-fact-report');
-    expect(step.element).toBe('[data-testid="pass-report-button"]');
-    // Ключ права - table.<имя таблицы>.report, статическим requires не выражается.
-    expect(step.requires).toBeUndefined();
-    expect(step.optional).toBe(true);
-    // Разбор суток с 21:30 переехал на шаг с открытым окном отчёта: рассказ про
-    // цифры уместен, когда цифры на экране.
-    const window = buildSecurityFactSteps('/table/kpp_1').find((s) => s.id === 'sec-fact-report-window');
-    expect(window.description).toMatch(/21:30/);
-  });
-
-  // Раньше первый шаг был центр-модалкой без цели, и на живом посту это читалось
-  // как «тур потерялся». Подсвечиваем таблицу, но шаг оставляем необязательным:
-  // у нового поста записей может не быть вовсе.
   it('первый шаг подсвечивает инструкцию поста и остаётся границей деградации сегмента', () => {
     const [intro] = buildSecurityFactSteps('/table/kpp_1');
     expect(intro.element).toBe('[data-testid="ob-table-instruction"]');
@@ -370,7 +355,7 @@ describe('buildSecurityFactSteps', () => {
     const byId = (id) => buildSecurityFactSteps('/table/kpp_1').find((s) => s.id === id);
     // На таблице людей кнопок «Въезд»/«Выезд» нет вовсе, а на новом посту пуст и
     // сам список - без optional тур ждал бы цель, которой в разметке не будет.
-    for (const id of ['sec-pass-row', 'sec-pass-entry', 'sec-pass-exit', 'sec-fact-intro', 'sec-fact-pass']) {
+    for (const id of ['sec-pass-row', 'sec-pass-entry', 'sec-pass-exit', 'sec-fact-intro']) {
       expect(byId(id).optional, id).toBe(true);
     }
   });
