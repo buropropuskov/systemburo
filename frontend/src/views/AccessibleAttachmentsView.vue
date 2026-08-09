@@ -406,8 +406,9 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useOnboardingStore } from '@/stores/onboarding';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
@@ -746,6 +747,32 @@ function closePreview() {
 // поллинг не добавляем (fetchList сбрасывает пагинацию - периодический сброс мешал
 // бы прокрутке; approve - редкое событие, SSE даёт живость без дизрапта).
 let unsubAvailable = null;
+/*
+ * Раскрытие карточки вложения для онбординга: без него шаги про детали, скрытое
+ * ФИО и просмотр бланка выпадали - их целей на экране нет, пока карточка не
+ * выбрана, и тур молча перескакивал через весь разбор.
+ *
+ * Открываем первую карточку по сигналу и закрываем, когда сигнал гаснет, - но
+ * только если открыли её сами (человек мог выбрать свою до начала шага).
+ */
+let attachmentOpenedByTour = false;
+watch(
+  () => [useOnboardingStore().revealOpen, items.value.length],
+  ([target]) => {
+    if (target === 'first-attachment') {
+      const first = items.value[0];
+      if (!first || selectedId.value !== null) return;
+      attachmentOpenedByTour = true;
+      selectAttachment(first.attachment_id);
+      return;
+    }
+    if (!attachmentOpenedByTour) return;
+    attachmentOpenedByTour = false;
+    selectedId.value = null;
+    detail.value = null;
+  },
+);
+
 onMounted(() => {
   loadFilterOptions();
   fetchList({ reset: true });
