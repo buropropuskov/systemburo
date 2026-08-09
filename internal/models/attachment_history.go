@@ -11,6 +11,10 @@ const (
 	UniqueAttachmentActionUpdated  = "updated"
 	UniqueAttachmentActionArchived = "archived"
 	UniqueAttachmentActionRestored = "restored"
+	// UniqueAttachmentActionListImported - загружен заполненный Excel-бланк для массового
+	// ввода списка (blank-import, срез C3). details несёт имя файла и сводку разбора
+	// (сколько строк прочитано/принято/отклонено) - кто, когда и что именно загрузил.
+	UniqueAttachmentActionListImported = "list_imported"
 )
 
 // UniqueAttachmentHistoryItem - запись истории с именем актора для API (LEFT JOIN users).

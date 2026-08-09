@@ -312,7 +312,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, "./uploads")
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)
-	attachmentImportService := services.NewAttachmentImportService(db)
+	attachmentImportService := services.NewAttachmentImportService(db, auditRecorder, uploadDir)
 	trashService := services.NewTrashService(db, auditRecorder, services.WithTrashNotifications(notificationServiceEarly))
 	trashDBRef := services.NewTrashDBRef(db)
 	documentFileService := services.NewDocumentFileService("./uploads")

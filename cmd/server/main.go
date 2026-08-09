@@ -277,7 +277,7 @@ func main() {
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, cfg.UploadPath)
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)
-	attachmentImportService := services.NewAttachmentImportService(db)
+	attachmentImportService := services.NewAttachmentImportService(db, auditRecorder, cfg.UploadPath)
 	// trash_restored (#1748 S5): уведомление автору записи (заявителю) при
 	// восстановлении машины/сотрудника из корзины.
 	trashService := services.NewTrashService(db, auditRecorder, services.WithTrashNotifications(notificationServiceEarly))
