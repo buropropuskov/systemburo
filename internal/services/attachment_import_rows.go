@@ -301,14 +301,21 @@ func parseItemRows(allRows [][]string, template *models.AttachmentTemplate, merg
 // блокирующая ошибка (решение владельца, blank-import C3).
 func fixNameLatin(last, first, middle string) (string, string, string, []string) {
 	var warnings []string
-	fix := func(label, raw string) string {
-		fixed, found := normalize.FixLatinInName(raw)
-		if found {
-			warnings = append(warnings, fmtWarnLatinFixed(label, raw, fixed))
-		}
-		return fixed
+
+	fixedLast, foundLast := normalize.FixLatinInName(last)
+	if foundLast {
+		warnings = append(warnings, fmtWarnLatinFixed("Фамилия", last, fixedLast))
 	}
-	return fix("Фамилия", last), fix("Имя", first), fix("Отчество", middle), warnings
+	fixedFirst, foundFirst := normalize.FixLatinInName(first)
+	if foundFirst {
+		warnings = append(warnings, fmtWarnLatinFixed("Имя", first, fixedFirst))
+	}
+	fixedMiddle, foundMiddle := normalize.FixLatinInName(middle)
+	if foundMiddle {
+		warnings = append(warnings, fmtWarnLatinFixed("Отчество", middle, fixedMiddle))
+	}
+
+	return fixedLast, fixedFirst, fixedMiddle, warnings
 }
 
 func emptyIfNil(s []string) []string {
