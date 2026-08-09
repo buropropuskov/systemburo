@@ -249,9 +249,17 @@ func newVehicleDedup() *vehicleDedup {
 
 const vehicleByFactPlate = "по факту"
 
+// isByFactPlate сообщает, является ли номер спецзначением "По факту" - сравнение
+// нормализованное (регистр, пробелы), а не побайтовое: значение как в файле бланка
+// (может прийти "по факту" или "По Факту"), так и введённое вручную (форма всегда
+// пишет каноническое "По факту") обязаны опознаваться одинаково.
+func isByFactPlate(plate string) bool {
+	return normCompactKey(plate) == normCompactKey(vehicleByFactPlate)
+}
+
 func (d *vehicleDedup) checkAndRecord(rowNumber int, plate string) string {
 	key := normCompactKey(plate)
-	if key == "" || normCompactKey(vehicleByFactPlate) == key {
+	if key == "" || isByFactPlate(plate) {
 		return ""
 	}
 	if first, ok := d.byPlate[key]; ok {
@@ -311,4 +319,18 @@ func fmtWarnLatinFixed(label, original, fixed string) string {
 
 func fmtWarnFullNameSplit(full, last, first, middle string) string {
 	return fmt.Sprintf("ФИО распознано из одного поля %q как %q - проверьте разбор", full, joinFIO(last, first, middle))
+}
+
+// fmtWarnPlateFixed - номер машины разложен по формату с исправлением (раскладка,
+// похожие буквы, дополнение короткой цифровой части) - показ обоих вариантов, а не
+// молчаливая правка (решение владельца, blank-import-ux U2), зеркало fmtWarnLatinFixed.
+func fmtWarnPlateFixed(original, fixed string) string {
+	return fmt.Sprintf("Номер Т/С приведён к формату номера, %q -> %q", strings.TrimSpace(original), fixed)
+}
+
+// fmtErrPlateFormatNotFound - строка из бланка не разложилась ни по одному активному
+// формату номеров (решение владельца, blank-import-ux U2): блокирующая ошибка,
+// исправляется вручную через модалку.
+func fmtErrPlateFormatNotFound(raw string) string {
+	return fmt.Sprintf("Номер Т/С %q не соответствует ни одному формату номеров", strings.TrimSpace(raw))
 }

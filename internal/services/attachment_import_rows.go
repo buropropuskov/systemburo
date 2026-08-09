@@ -231,6 +231,11 @@ func (s *attachmentImportService) parseVehicleRows(ctx context.Context, allRows 
 		blSet[blacklistVehicleKey(b.CarNumber, b.MarkName)] = b.Reason
 	}
 
+	formats, err := s.loadActiveLicensePlateFormats(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	dedup := newVehicleDedup()
 	rowNums := listRowNumbers(allRows, template)
 	rows := make([]ImportRowResult, 0, len(rowNums))
@@ -239,6 +244,21 @@ func (s *attachmentImportService) parseVehicleRows(ctx context.Context, allRows 
 		row := allRows[rowIdx-1]
 		number := cellAt(row, cols["car_number"])
 		mark := cellAt(row, cols["mark_name"])
+		var warnings []string
+		var plateFormatErr string
+
+		// "По факту" - существующий особый случай (не опознаёт конкретную машину, см.
+		// vehicleByFactPlate), формат номера для него не проверяется.
+		if number != "" && !isByFactPlate(number) {
+			if match, ok := matchLicensePlate(number, formats); ok {
+				if match.Changed {
+					warnings = append(warnings, fmtWarnPlateFixed(number, match.Formatted))
+				}
+				number = match.Formatted
+			} else {
+				plateFormatErr = fmtErrPlateFormatNotFound(number)
+			}
+		}
 
 		veh := VehicleInput{CarNumber: number, CarBrand: mark}
 
@@ -246,6 +266,9 @@ func (s *attachmentImportService) parseVehicleRows(ctx context.Context, allRows 
 		errs = append(errs, requiredVehicleErrors(veh, merged)...)
 		errs = append(errs, checkFieldLengthMax("Номер ТС", number, maxImportCarNumberLen)...)
 		errs = append(errs, checkFieldLength("Марка ТС", mark)...)
+		if plateFormatErr != "" {
+			errs = append(errs, plateFormatErr)
+		}
 
 		if dup := dedup.checkAndRecord(rowIdx, number); dup != "" {
 			errs = append(errs, dup)
@@ -261,7 +284,7 @@ func (s *attachmentImportService) parseVehicleRows(ctx context.Context, allRows 
 			RowNumber: rowIdx,
 			Vehicle:   &veh,
 			Errors:    emptyIfNil(errs),
-			Warnings:  emptyIfNil(nil),
+			Warnings:  emptyIfNil(warnings),
 		})
 	}
 	return rows, nil
