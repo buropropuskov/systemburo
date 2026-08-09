@@ -305,26 +305,44 @@ func listMappingColumns(mappings []models.AttachmentTemplateMapping) []int {
 	return listColumns(mappings, false)
 }
 
-// listDataColumns - то же, но без служебной колонки порядкового номера. Её пишет
-// система при выдаче бланка (строки пронумерованы заранее), поэтому по ней нельзя
-// судить, заполнил ли человек строку: иначе пустой бланк выглядит списком из
-// пятнадцати строк с ошибками вместо честного «в файле нет ни одной строки».
+// listDataColumns - только те списочные колонки, по которым видно, что строку
+// заполнил человек (см. nonDataFieldSuffixes). Без этого нетронутый бланк
+// возвращался списком строк с ошибками: его строки пронумерованы заранее, а ниже
+// списка стоят подписи бланка в колонке мест разгрузки.
 func listDataColumns(mappings []models.AttachmentTemplateMapping) []int {
 	return listColumns(mappings, true)
 }
 
-// rowNumberFieldSuffix - хвост пути служебного поля нумерации (car.row_number,
-// employee.row_number и т.п.).
-const rowNumberFieldSuffix = ".row_number"
+// nonDataFieldSuffixes - списочные поля, по которым нельзя судить, заполнил ли
+// человек строку. Нумерацию (row_number) проставляет система при выдаче бланка.
+// Места разгрузки, проезда и прохода в файле не передаются вовсе - решение
+// владельца, они задаются на сайте на весь список сразу, - зато их подписи стоят
+// в бланке ниже списка ("(контактный телефон)", "(дд.мм.гггг)"), и по ним разбор
+// принимал за участника оформительскую строку бланка.
+var nonDataFieldSuffixes = []string{
+	".row_number",
+	".unload_places",
+	".passage_tables",
+	".target_tables",
+}
 
-func listColumns(mappings []models.AttachmentTemplateMapping, skipRowNumber bool) []int {
+func isNonDataListField(fieldPath string) bool {
+	for _, suffix := range nonDataFieldSuffixes {
+		if strings.HasSuffix(fieldPath, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+func listColumns(mappings []models.AttachmentTemplateMapping, dataOnly bool) []int {
 	seen := make(map[int]struct{}, len(mappings))
 	cols := make([]int, 0, len(mappings))
 	for _, m := range mappings {
 		if !m.IsListField {
 			continue
 		}
-		if skipRowNumber && strings.HasSuffix(m.FieldPath, rowNumberFieldSuffix) {
+		if dataOnly && isNonDataListField(m.FieldPath) {
 			continue
 		}
 		col, _, err := excelize.CellNameToCoordinates(m.CellRef)
