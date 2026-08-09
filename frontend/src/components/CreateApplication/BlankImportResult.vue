@@ -1,244 +1,237 @@
 <template>
-  <BaseModal
-    :show="show"
-    title="Результат импорта"
-    width="820px"
-    radius="30px"
-    content-class="bim-modal"
-    content-testid="blank-import-result-modal"
-    @close="onClose"
+  <div
+    class="bim"
+    data-testid="blank-import-result"
   >
-    <div class="bim">
-      <div class="bim__counters">
-        <div class="bim__counter">
-          <span class="bim__counter-value">{{ summary.read || 0 }}</span>
-          <span class="bim__counter-label">прочитано строк</span>
-        </div>
-        <div class="bim__counter bim__counter--ok">
-          <span class="bim__counter-value">{{ summary.accepted || 0 }}</span>
-          <span class="bim__counter-label">готово к добавлению</span>
-        </div>
-        <div
-          v-if="summary.rejected"
-          class="bim__counter bim__counter--error"
-        >
-          <span class="bim__counter-value">{{ summary.rejected || 0 }}</span>
-          <span class="bim__counter-label">с ошибками</span>
-        </div>
+    <div class="bim__counters">
+      <div class="bim__counter">
+        <span class="bim__counter-value">{{ summary.read || 0 }}</span>
+        <span class="bim__counter-label">прочитано строк</span>
       </div>
-
-      <!-- Мест прохода/разгрузки/проезда в файле нет и не будет (решение владельца,
-           blank-import) - применяются ко ВСЕМ импортируемым строкам целиком здесь. -->
-      <div
-        v-if="showTargetTables"
-        class="bim__places"
-        data-testid="bim-target-tables"
-      >
-        <label class="input__label">Места прохода <span
-          v-if="targetTablesRequired"
-          class="required"
-        >*</span></label>
-        <div
-          v-if="!targetTablesOptions.length"
-          class="bim__places-empty"
-        >
-          Нет доступных мест прохода
-        </div>
-        <TargetTablesGrid
-          v-else
-          v-model="selectedTargetTables"
-          :tables="targetTablesOptions"
-        />
+      <div class="bim__counter bim__counter--ok">
+        <span class="bim__counter-value">{{ summary.accepted || 0 }}</span>
+        <span class="bim__counter-label">готово к добавлению</span>
       </div>
-
       <div
-        v-if="showUnloadPlaces"
-        class="bim__places"
-        data-testid="bim-unload-places"
+        v-if="summary.rejected"
+        class="bim__counter bim__counter--error"
       >
-        <label class="input__label">Места разгрузки <span
-          v-if="unloadPlacesRequired"
-          class="required"
-        >*</span></label>
-        <div
-          v-if="!unloadPlacesOptions.length"
-          class="bim__places-empty"
-        >
-          Нет доступных мест разгрузки
-        </div>
-        <TargetTablesGrid
-          v-else
-          v-model="selectedUnloadPlaces"
-          :tables="unloadPlacesOptions"
-        />
-      </div>
-
-      <div
-        v-if="showPassageTables"
-        class="bim__places"
-        data-testid="bim-passage-tables"
-      >
-        <label class="input__label">Проезд <span
-          v-if="passageTablesRequired"
-          class="required"
-        >*</span></label>
-        <div
-          v-if="!passageTablesOptions.length"
-          class="bim__places-empty"
-        >
-          Нет доступных мест проезда
-        </div>
-        <TargetTablesGrid
-          v-else
-          v-model="selectedPassageTables"
-          :tables="passageTablesOptions"
-        />
-      </div>
-
-      <!-- Строки, которые система поправила сама (раскладка в номере, омоглифы в ФИО,
-           дополнение номера нулями). Принимаются без вмешательства, но человек должен
-           видеть, что именно изменилось: молчаливая правка данных - худший исход. -->
-      <div
-        v-if="warningRows.length"
-        class="bim__warnings"
-      >
-        <h4 class="bim__problems-title">
-          Система поправила
-        </h4>
-        <ul class="bim__warnings-list">
-          <li
-            v-for="row in warningRows"
-            :key="`warn-${row.row_number}`"
-            class="bim__warnings-item"
-          >
-            <span class="bim__warnings-row">Стр. {{ row.row_number }}</span>
-            <span>{{ row.warnings.join('; ') }}</span>
-          </li>
-        </ul>
-      </div>
-
-      <div
-        v-if="problemRows.length"
-        class="bim__problems"
-      >
-        <h4 class="bim__problems-title">
-          Строки с ошибками
-        </h4>
-        <p class="bim__problems-hint">
-          Правьте поля прямо здесь и отмечайте строку галочкой, чтобы добавить её вместе с
-          остальными. Галочка доступна только для исправимых здесь причин (пустые поля,
-          гражданство). Чёрный список, дубли внутри файла и данные, которых в этой таблице
-          нет (паспорт, патент), — строку нужно добавить через обычную форму.
-        </p>
-        <div class="bim__problems-table-wrap">
-          <table class="bim__problems-table">
-            <thead>
-              <tr>
-                <th>Стр.</th>
-                <th v-if="isPeople">
-                  Фамилия
-                </th>
-                <th v-if="isPeople">
-                  Имя
-                </th>
-                <th v-if="isPeople">
-                  Отчество
-                </th>
-                <th v-if="isPeople">
-                  Гражданство
-                </th>
-                <th v-if="!isPeople">
-                  Номер Т/С
-                </th>
-                <th v-if="!isPeople">
-                  Марка
-                </th>
-                <th>Причина</th>
-                <th>Добавить</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="row in problemRows"
-                :key="row.rowNumber"
-                :data-testid="`bim-problem-row-${row.rowNumber}`"
-              >
-                <td>{{ row.rowNumber }}</td>
-                <template v-if="isPeople">
-                  <td>
-                    <input
-                      v-model="row.fields.lastName"
-                      type="text"
-                      class="lk-input bim__cell-input"
-                    >
-                  </td>
-                  <td>
-                    <input
-                      v-model="row.fields.firstName"
-                      type="text"
-                      class="lk-input bim__cell-input"
-                    >
-                  </td>
-                  <td>
-                    <input
-                      v-model="row.fields.middleName"
-                      type="text"
-                      class="lk-input bim__cell-input"
-                    >
-                  </td>
-                  <td>
-                    <select
-                      v-model="row.fields.citizenshipId"
-                      class="lk-select bim__cell-input"
-                    >
-                      <option :value="null">
-                        Не выбрано
-                      </option>
-                      <option
-                        v-for="c in citizenships"
-                        :key="c.id"
-                        :value="c.id"
-                      >
-                        {{ c.name }}
-                      </option>
-                    </select>
-                  </td>
-                </template>
-                <template v-else>
-                  <td>
-                    <input
-                      v-model="row.fields.plateNumber"
-                      type="text"
-                      class="lk-input bim__cell-input"
-                    >
-                  </td>
-                  <td>
-                    <input
-                      v-model="row.fields.mark"
-                      type="text"
-                      class="lk-input bim__cell-input"
-                    >
-                  </td>
-                </template>
-                <td class="bim__reason-cell">
-                  {{ row.errors.join('; ') }}
-                </td>
-                <td class="bim__include-cell">
-                  <input
-                    v-model="row.included"
-                    type="checkbox"
-                    :disabled="!canIncludeRow(row)"
-                    :data-testid="`bim-include-${row.rowNumber}`"
-                  >
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <span class="bim__counter-value">{{ summary.rejected || 0 }}</span>
+        <span class="bim__counter-label">с ошибками</span>
       </div>
     </div>
 
-    <template #actions>
+    <!-- Мест прохода/разгрузки/проезда в файле нет и не будет (решение владельца,
+         blank-import) - применяются ко ВСЕМ импортируемым строкам целиком здесь. -->
+    <div
+      v-if="showTargetTables"
+      class="bim__places"
+      data-testid="bim-target-tables"
+    >
+      <label class="input__label">Места прохода <span
+        v-if="targetTablesRequired"
+        class="required"
+      >*</span></label>
+      <div
+        v-if="!targetTablesOptions.length"
+        class="bim__places-empty"
+      >
+        Нет доступных мест прохода
+      </div>
+      <TargetTablesGrid
+        v-else
+        v-model="selectedTargetTables"
+        :tables="targetTablesOptions"
+      />
+    </div>
+
+    <div
+      v-if="showUnloadPlaces"
+      class="bim__places"
+      data-testid="bim-unload-places"
+    >
+      <label class="input__label">Места разгрузки <span
+        v-if="unloadPlacesRequired"
+        class="required"
+      >*</span></label>
+      <div
+        v-if="!unloadPlacesOptions.length"
+        class="bim__places-empty"
+      >
+        Нет доступных мест разгрузки
+      </div>
+      <TargetTablesGrid
+        v-else
+        v-model="selectedUnloadPlaces"
+        :tables="unloadPlacesOptions"
+      />
+    </div>
+
+    <div
+      v-if="showPassageTables"
+      class="bim__places"
+      data-testid="bim-passage-tables"
+    >
+      <label class="input__label">Проезд <span
+        v-if="passageTablesRequired"
+        class="required"
+      >*</span></label>
+      <div
+        v-if="!passageTablesOptions.length"
+        class="bim__places-empty"
+      >
+        Нет доступных мест проезда
+      </div>
+      <TargetTablesGrid
+        v-else
+        v-model="selectedPassageTables"
+        :tables="passageTablesOptions"
+      />
+    </div>
+
+    <!-- Строки, которые система поправила сама (раскладка в номере, омоглифы в ФИО,
+         дополнение номера нулями). Принимаются без вмешательства, но человек должен
+         видеть, что именно изменилось: молчаливая правка данных - худший исход. -->
+    <div
+      v-if="warningRows.length"
+      class="bim__warnings"
+    >
+      <h4 class="bim__problems-title">
+        Система поправила
+      </h4>
+      <ul class="bim__warnings-list">
+        <li
+          v-for="row in warningRows"
+          :key="`warn-${row.row_number}`"
+          class="bim__warnings-item"
+        >
+          <span class="bim__warnings-row">Стр. {{ row.row_number }}</span>
+          <span>{{ row.warnings.join('; ') }}</span>
+        </li>
+      </ul>
+    </div>
+
+    <div
+      v-if="problemRows.length"
+      class="bim__problems"
+    >
+      <h4 class="bim__problems-title">
+        Строки с ошибками
+      </h4>
+      <p class="bim__problems-hint">
+        Правьте поля прямо здесь и отмечайте строку галочкой, чтобы добавить её вместе с
+        остальными. Галочка доступна только для исправимых здесь причин (пустые поля,
+        гражданство). Чёрный список, дубли внутри файла и данные, которых в этой таблице
+        нет (паспорт, патент), — строку нужно добавить через обычную форму.
+      </p>
+      <div class="bim__problems-table-wrap">
+        <table class="bim__problems-table">
+          <thead>
+            <tr>
+              <th>Стр.</th>
+              <th v-if="isPeople">
+                Фамилия
+              </th>
+              <th v-if="isPeople">
+                Имя
+              </th>
+              <th v-if="isPeople">
+                Отчество
+              </th>
+              <th v-if="isPeople">
+                Гражданство
+              </th>
+              <th v-if="!isPeople">
+                Номер Т/С
+              </th>
+              <th v-if="!isPeople">
+                Марка
+              </th>
+              <th>Причина</th>
+              <th>Добавить</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="row in problemRows"
+              :key="row.rowNumber"
+              :data-testid="`bim-problem-row-${row.rowNumber}`"
+            >
+              <td>{{ row.rowNumber }}</td>
+              <template v-if="isPeople">
+                <td>
+                  <input
+                    v-model="row.fields.lastName"
+                    type="text"
+                    class="lk-input bim__cell-input"
+                  >
+                </td>
+                <td>
+                  <input
+                    v-model="row.fields.firstName"
+                    type="text"
+                    class="lk-input bim__cell-input"
+                  >
+                </td>
+                <td>
+                  <input
+                    v-model="row.fields.middleName"
+                    type="text"
+                    class="lk-input bim__cell-input"
+                  >
+                </td>
+                <td>
+                  <select
+                    v-model="row.fields.citizenshipId"
+                    class="lk-select bim__cell-input"
+                  >
+                    <option :value="null">
+                      Не выбрано
+                    </option>
+                    <option
+                      v-for="c in citizenships"
+                      :key="c.id"
+                      :value="c.id"
+                    >
+                      {{ c.name }}
+                    </option>
+                  </select>
+                </td>
+              </template>
+              <template v-else>
+                <td>
+                  <input
+                    v-model="row.fields.plateNumber"
+                    type="text"
+                    class="lk-input bim__cell-input"
+                  >
+                </td>
+                <td>
+                  <input
+                    v-model="row.fields.mark"
+                    type="text"
+                    class="lk-input bim__cell-input"
+                  >
+                </td>
+              </template>
+              <td class="bim__reason-cell">
+                {{ row.errors.join('; ') }}
+              </td>
+              <td class="bim__include-cell">
+                <input
+                  v-model="row.included"
+                  type="checkbox"
+                  :disabled="!canIncludeRow(row)"
+                  :data-testid="`bim-include-${row.rowNumber}`"
+                >
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="bim__actions">
       <button
         v-if="problemRows.length"
         type="button"
@@ -250,6 +243,14 @@
       </button>
       <button
         type="button"
+        class="lk-button lk-button--ghost"
+        data-testid="bim-reset"
+        @click="$emit('reset')"
+      >
+        Загрузить другой файл
+      </button>
+      <button
+        type="button"
         class="lk-button lk-button--primary"
         data-testid="bim-submit"
         :disabled="!canSubmit"
@@ -257,12 +258,11 @@
       >
         Добавить в заявку ({{ addableCount }})
       </button>
-    </template>
-  </BaseModal>
+    </div>
+  </div>
 </template>
 
 <script>
-import BaseModal from '@/components/ui/BaseModal.vue';
 import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vue';
 import { listCitizenships } from '@/api/citizenships';
 import { useDeletionsStore } from '@/stores/deletions';
@@ -279,8 +279,9 @@ const PEOPLE_FIXABLE_FIELD_LABELS = ['Фамилия', 'Имя', 'Отчеств
 const CAR_FIXABLE_FIELD_LABELS = ['Номер ТС', 'Марка ТС'];
 
 /**
- * Результат импорта заполненного бланка (эпик blank-import, срез D1D2). Принятые
- * бэком строки (без errors) уходят в заявку тем же путём, что ручное добавление -
+ * Сводка разбора заполненного бланка (эпик blank-import, срез D1D2; срез U4 перенёс
+ * её из модалки в панель режима импорта - BlankImportPanel.vue). Принятые бэком
+ * строки (без errors) уходят в заявку тем же путём, что ручное добавление -
  * родитель вызывает handleEmployeesAdded/handleVehiclesAdded с собранным здесь
  * массивом, без своей логики создания строк списка (см. CreateApplication.vue).
  *
@@ -293,10 +294,9 @@ const CAR_FIXABLE_FIELD_LABELS = ['Номер ТС', 'Марка ТС'];
  * (чёрный список, дубли) - финальная подача делает это как для любой ручной строки.
  */
 export default {
-  name: 'BlankImportResultModal',
-  components: { BaseModal, TargetTablesGrid },
+  name: 'BlankImportResult',
+  components: { TargetTablesGrid },
   props: {
-    show: { type: Boolean, default: false },
     attachmentType: {
       type: String,
       default: 'people',
@@ -314,7 +314,7 @@ export default {
     allUnloadingPlaces: { type: Array, default: () => [] },
     fieldConfig: { type: Object, default: () => ({}) },
   },
-  emits: ['close', 'import'],
+  emits: ['reset', 'import'],
   data() {
     return {
       citizenships: [],
@@ -395,12 +395,13 @@ export default {
     },
   },
   watch: {
-    show: {
-      // immediate - модалка может смонтироваться уже открытой (show=true при первом
-      // рендере), а не только переключиться false->true, как делает BaseModal.
+    rows: {
+      // Панель живёт ровно столько, сколько есть разобранный файл, и монтируется уже
+      // с данными - immediate обязателен. Новая загрузка отдаёт новый массив строк:
+      // выбор мест и правки прошлого файла на неё не переносятся.
       immediate: true,
-      handler(val) {
-        if (val) this.resetState();
+      handler() {
+        this.resetState();
       },
     },
   },
@@ -593,19 +594,22 @@ export default {
         useDeletionsStore().notify({ bold: 'Не удалось сформировать список ошибок', type: 'error' });
       }
     },
-    onClose() {
-      this.$emit('close');
-    },
   },
 };
 </script>
 
 <style scoped>
 .bim {
-  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
+}
+
+.bim__actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .bim__counters {
@@ -737,13 +741,15 @@ export default {
 }
 
 @media (max-width: 768px) {
-  .bim {
-    padding: 16px;
-    gap: 16px;
-  }
-
   .bim__cell-input {
     min-width: 70px;
+  }
+
+  /* Тач-таргет 44px (WCAG 2.5.5): --sm-модификатора у этих кнопок нет, но базовые
+     8px padding дают 30px высоты. */
+  .bim__actions .lk-button {
+    min-height: 44px;
+    flex: 1 1 auto;
   }
 }
 </style>
