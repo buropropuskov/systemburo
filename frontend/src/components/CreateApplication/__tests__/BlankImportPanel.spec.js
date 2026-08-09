@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { mount, flushPromises } from '@vue/test-utils';
 
 const notifyMock = vi.fn();
 vi.mock('@/stores/deletions', () => ({
@@ -99,8 +99,10 @@ describe('BlankImportPanel (U4)', () => {
     expect(wrapper.emitted('file')).toBeUndefined();
   });
 
+  // Средний счётчик с U5 приходит от родителя: принятые строки уже лежат в списке
+  // предварительными, и удаление одной обязано отразиться здесь же.
   it('после разбора на месте области загрузки стоит сводка с ответом сервера', () => {
-    const wrapper = mountPanel({ result: RESULT });
+    const wrapper = mountPanel({ result: RESULT, pendingCount: 6 });
 
     expect(wrapper.find('[data-testid="import-dropzone"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="download-blank-template-btn"]').exists()).toBe(false);
@@ -111,14 +113,21 @@ describe('BlankImportPanel (U4)', () => {
     expect(wrapper.findAll('.bim__counter-value').map((n) => n.text())).toEqual(['7', '6', '1']);
   });
 
-  it('«Добавить в заявку» из сводки проходит наверх тем же payload', async () => {
-    const wrapper = mountPanel({ result: RESULT, fieldConfig: { target_tables: { visible: false } } });
+  it('разбор и «Добавить в заявку» из сводки проходят наверх двумя разными событиями', async () => {
+    const wrapper = mountPanel({
+      result: RESULT,
+      pendingCount: 1,
+      fieldConfig: { target_tables: { visible: false } },
+    });
+    await flushPromises();
+
+    expect(wrapper.emitted('stage')[0][0].rows[0]).toMatchObject({ lastName: 'Иванов', firstName: 'Иван' });
 
     await wrapper.find('[data-testid="bim-submit"]').trigger('click');
 
     const payload = wrapper.emitted('import')[0][0];
     expect(payload.attachmentType).toBe('people');
-    expect(payload.rows[0]).toMatchObject({ lastName: 'Иванов', firstName: 'Иван' });
+    expect(payload.places).toEqual({ targetTables: [], passageTables: '' });
   });
 
   it('скачивание пустого бланка и выход из режима просят родителя', async () => {

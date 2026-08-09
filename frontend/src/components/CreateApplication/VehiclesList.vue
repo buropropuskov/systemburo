@@ -222,7 +222,7 @@
           :key="row.item.id"
           class="table-row rt-row"
           data-testid="vehicles-row"
-          :class="{ 'has-active': row.item.activeInfo }"
+          :class="{ 'has-active': row.item.activeInfo, 'is-pending': row.item.isPending }"
         >
           <div class="table-col number-col">
             {{ row.number }}
@@ -406,7 +406,9 @@ export default {
         rowState(vehicle, index) {
             return {
                 'vcol__cell--active': !!vehicle.activeInfo,
-                'vcol__cell--hover': this.hoveredIndex === index
+                'vcol__cell--hover': this.hoveredIndex === index,
+                // Строка из бланка, ещё не добавленная в заявку (blank-import-ux, U5).
+                'vcol__cell--pending': !!vehicle.isPending
             };
         },
 
@@ -644,6 +646,17 @@ export default {
     background: var(--warning);
 }
 
+/* Предварительная строка (blank-import-ux, U5): разобрана из бланка, но в заявку ещё не
+   добавлена - текст приглушён, а действия (детали, правка, удаление) работают как у
+   обычной. Метка слева - inset-тень, а не border: он сдвинул бы текст ячейки. */
+.vcol__cell--pending {
+    color: var(--text-muted);
+}
+
+.vcol--index .vcol__cell--pending {
+    box-shadow: inset 2px 0 0 var(--text-muted);
+}
+
 /* --- Строковая раскладка (мобильные карточки) --- */
 .vehicles-table {
     width: 100%;
@@ -704,6 +717,12 @@ export default {
 
 .table-row:hover {
     background: var(--surface-2);
+}
+
+/* Карточная раскладка: та же приглушённость, что и в колонках выше. */
+.table-row.is-pending {
+    color: var(--text-muted);
+    box-shadow: inset 3px 0 0 var(--text-muted);
 }
 
 .table-row.has-active {

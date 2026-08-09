@@ -4,22 +4,38 @@
     data-testid="blank-import-result"
   >
     <div class="bim__counters">
-      <div class="bim__counter">
+      <div
+        v-if="hasResult"
+        class="bim__counter"
+      >
         <span class="bim__counter-value">{{ summary.read || 0 }}</span>
         <span class="bim__counter-label">прочитано строк</span>
       </div>
+      <!-- Счётчик берём из списка, а не из разбора: удалённая справа строка обязана
+           уйти и отсюда, иначе кнопка обещает добавить то, чего уже нет. -->
       <div class="bim__counter bim__counter--ok">
-        <span class="bim__counter-value">{{ summary.accepted || 0 }}</span>
+        <span
+          class="bim__counter-value"
+          data-testid="bim-pending-count"
+        >{{ pendingCount }}</span>
         <span class="bim__counter-label">готово к добавлению</span>
       </div>
       <div
-        v-if="summary.rejected"
+        v-if="hasResult && summary.rejected"
         class="bim__counter bim__counter--error"
       >
         <span class="bim__counter-value">{{ summary.rejected || 0 }}</span>
         <span class="bim__counter-label">с ошибками</span>
       </div>
     </div>
+
+    <p
+      v-if="!hasResult"
+      class="bim__pending-hint"
+    >
+      Строки прошлого бланка ждут в списке серыми. Выберите места и нажмите «Добавить» -
+      или удалите их прямо в списке.
+    </p>
 
     <!-- Мест прохода/разгрузки/проезда в файле нет и не будет (решение владельца,
          blank-import) - применяются ко ВСЕМ импортируемым строкам целиком здесь. -->
@@ -307,6 +323,11 @@ export default {
       default: () => ({ read: 0, accepted: 0, rejected: 0 }),
     },
     rows: { type: Array, default: () => [] },
+    // Есть ли свежий разбор файла. Сводка открывается и по одним предварительным
+    // строкам (после перезагрузки страницы), и тогда счётчики разбора врали бы нулями.
+    hasResult: { type: Boolean, default: true },
+    // Сколько строк этого вложения сейчас лежит в списке предварительными.
+    pendingCount: { type: Number, default: 0 },
     // Сырые списки CreateApplication (/system-tables, /unload-places) - те же, что
     // питают EmployeesList/VehicleForm, переформатируются в {table:{...}} для
     // TargetTablesGrid по образцу TableBulkTargetModal.availableTables.
@@ -314,7 +335,7 @@ export default {
     allUnloadingPlaces: { type: Array, default: () => [] },
     fieldConfig: { type: Object, default: () => ({}) },
   },
-  emits: ['reset', 'import'],
+  emits: ['reset', 'import', 'stage'],
   data() {
     return {
       citizenships: [],
@@ -387,11 +408,28 @@ export default {
     includedFixedRows() {
       return this.problemRows.filter((r) => r.included && this.canIncludeRow(r));
     },
+    // Принятые строки уже стоят в списке предварительными, поэтому считаем их оттуда:
+    // сколько человек оставил, столько и добавится.
     addableCount() {
-      return this.acceptedRows.length + this.includedFixedRows.length;
+      return this.pendingCount + this.includedFixedRows.length;
     },
     canSubmit() {
       return this.placesReady && this.addableCount > 0;
+    },
+    // Места в файле не приходят и раскатываются на всю пачку разом - патч полей строки
+    // собираем здесь, применяет его родитель ко всем предварительным строкам.
+    placesPatch() {
+      if (this.isPeople) {
+        return {
+          targetTables: [...this.selectedTargetTables],
+          passageTables: this.formatSelectedNames(this.selectedTargetTables, this.targetTablesOptions),
+        };
+      }
+      return {
+        unloadPlaces: [...this.selectedUnloadPlaces],
+        unloadingPlace: this.formatSelectedNames(this.selectedUnloadPlaces, this.unloadPlacesOptions),
+        passage_tables: [...this.selectedPassageTables],
+      };
     },
   },
   watch: {
@@ -412,7 +450,7 @@ export default {
     fieldRequired(key) {
       return useFieldConfig(() => this.fieldConfig).fieldRequired(key);
     },
-    resetState() {
+    async resetState() {
       this.selectedTargetTables = [];
       this.selectedUnloadPlaces = [];
       this.selectedPassageTables = [];
@@ -435,9 +473,25 @@ export default {
               mark: (r.vehicle && r.vehicle.car_brand) || '',
             },
         }));
+      // Справочник ждём ДО передачи строк наверх: citizenshipName собирается по нему,
+      // и без него в списке и в карточке строки гражданство осталось бы пустым навсегда.
       if (this.isPeople && !this.citizenships.length) {
-        this.loadCitizenships();
+        await this.loadCitizenships();
       }
+      this.stageAcceptedRows();
+    },
+
+    // Принятые бэком строки уходят в список сразу после разбора - предварительными.
+    // Места к ним приезжают позже, на «Добавить» (в файле их нет и не будет).
+    stageAcceptedRows() {
+      if (!this.acceptedRows.length) return;
+      const build = this.isPeople
+        ? (row) => this.buildEmployeeFromRow(row, false)
+        : (row) => this.buildVehicleFromRow(row, false);
+      this.$emit('stage', {
+        attachmentType: this.attachmentType,
+        rows: this.acceptedRows.map((row) => build(row)),
+      });
     },
     async loadCitizenships() {
       try {
@@ -549,14 +603,18 @@ export default {
         isExisting: false,
       };
     },
+    // «Добавить»: принятые строки уже в списке (их родитель только раскатывает местами и
+    // делает обычными), а вручную исправленные проблемные строки заводятся этим событием.
     onSubmit() {
       if (!this.canSubmit) return;
       const build = this.isPeople
-        ? (row, fixed) => this.buildEmployeeFromRow(row, fixed)
-        : (row, fixed) => this.buildVehicleFromRow(row, fixed);
-      const accepted = this.acceptedRows.map((row) => build(row, false));
-      const fixed = this.includedFixedRows.map((row) => build(row, true));
-      this.$emit('import', { attachmentType: this.attachmentType, rows: [...accepted, ...fixed] });
+        ? (row) => this.buildEmployeeFromRow(row, true)
+        : (row) => this.buildVehicleFromRow(row, true);
+      this.$emit('import', {
+        attachmentType: this.attachmentType,
+        places: this.placesPatch,
+        rows: this.includedFixedRows.map((row) => build(row)),
+      });
     },
     async downloadErrors() {
       try {
@@ -645,6 +703,12 @@ export default {
 }
 
 .bim__places-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.bim__pending-hint {
+  margin: 0;
   font-size: 13px;
   color: var(--text-muted);
 }
