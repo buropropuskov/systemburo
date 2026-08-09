@@ -1,10 +1,13 @@
 package handlers_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"systemburo/internal/apperr"
@@ -44,6 +47,44 @@ func TestCustomHTTPErrorHandler_AppErr(t *testing.T) {
 			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 			require.Equal(t, false, body["success"])
 			require.Equal(t, tc.wantMsg, body["error"])
+		})
+	}
+}
+
+// TestCustomHTTPErrorHandler_LogsServerErrors -- 5xx обязан попадать в лог любым
+// путём. У apperr.Error это было всегда, у echo.HTTPError - нет, и сервисы отдают
+// 500 именно так, поэтому авария оставалась без следа. 4xx в лог не идут: это
+// нормальный ответ на неверный запрос, а не отказ системы.
+func TestCustomHTTPErrorHandler_LogsServerErrors(t *testing.T) {
+	cases := []struct {
+		name    string
+		err     error
+		wantLog bool
+	}{
+		{"echo 500 логируется", echo.NewHTTPError(http.StatusInternalServerError, "не удалось"), true},
+		{"echo 503 логируется", echo.NewHTTPError(http.StatusServiceUnavailable, "недоступно"), true},
+		{"echo 400 не логируется", echo.NewHTTPError(http.StatusBadRequest, "неверный ввод"), false},
+		{"apperr 500 логируется", apperr.Internal("внутренняя ошибка"), true},
+		{"apperr 404 не логируется", apperr.NotFound("не найдено"), false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			prev := slog.Default()
+			slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelError})))
+			defer slog.SetDefault(prev)
+
+			e := echo.New()
+			rec := httptest.NewRecorder()
+			c := e.NewContext(httptest.NewRequest(http.MethodGet, "/api/some/path", nil), rec)
+
+			handlers.CustomHTTPErrorHandler(tc.err, c)
+
+			logged := strings.Contains(buf.String(), "internal error")
+			require.Equal(t, tc.wantLog, logged, "лог: %q", buf.String())
+			if tc.wantLog {
+				require.Contains(t, buf.String(), "/api/some/path", "в логе должен быть путь запроса")
+			}
 		})
 	}
 }
