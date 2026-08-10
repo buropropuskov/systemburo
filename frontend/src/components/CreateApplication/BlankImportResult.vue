@@ -455,6 +455,18 @@ export default {
         this.resetState();
       },
     },
+    // Отметка снимается, как только строка перестала годиться: человек мог поправить
+    // номер, отметить строку и снова его испортить - галочка оставалась стоять на
+    // негодной строке. В заявку она и так не уходила (счёт и отправка перепроверяют),
+    // но выглядело это как обещание добавить.
+    problemRows: {
+      deep: true,
+      handler(rows) {
+        rows.forEach((row) => {
+          if (row.included && !this.canIncludeRow(row)) row.included = false;
+        });
+      },
+    },
   },
   methods: {
     fieldVisible(key) {

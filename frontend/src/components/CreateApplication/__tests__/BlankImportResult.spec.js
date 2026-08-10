@@ -218,6 +218,30 @@ describe('BlankImportResult - номер обязан лечь в формат',
     expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeDefined();
   });
 
+  it('отметка снимается, если номер снова испортили', async () => {
+    const wrapper = mountPanel({
+      attachmentType: 'cars',
+      rows: [CAR_BAD_PLATE_ROW],
+      summary: { read: 1, accepted: 0, rejected: 1 },
+    });
+    await flushPromises();
+
+    const input = wrapper.find('[data-testid="bim-problem-row-4"] input.bim__cell-input');
+    await input.setValue('А123ВС777');
+    await flushPromises();
+
+    const checkbox = wrapper.find('[data-testid="bim-include-4"]');
+    await checkbox.setValue(true);
+    await flushPromises();
+    expect(wrapper.vm.problemRows[0].included).toBe(true);
+
+    await input.setValue('снова мусор');
+    await flushPromises();
+
+    expect(wrapper.vm.problemRows[0].included).toBe(false);
+    expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeDefined();
+  });
+
   it('«По факту» остаётся допустимым значением', async () => {
     const wrapper = mountPanel({
       attachmentType: 'cars',
