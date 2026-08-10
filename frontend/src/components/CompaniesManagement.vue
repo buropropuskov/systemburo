@@ -1828,7 +1828,7 @@ export default {
   padding: 6px 20px;
   border-top: 1px solid var(--border);
   text-align: end;
-  background: var(--accent-tint);
+  background: var(--surface-2);
 }
 
 .items-count {
@@ -1923,7 +1923,7 @@ export default {
 }
 
 .pill-type {
-  background: var(--accent-tint);
+  background: var(--surface-2);
   color: var(--accent-text);
   cursor: default;
 }
@@ -1963,7 +1963,7 @@ export default {
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 16px;
-  background: var(--accent-tint);
+  background: var(--surface-sunken);
 }
 
 .sec-title {
@@ -1989,7 +1989,7 @@ export default {
   height: 20px;
   padding: 0 7px;
   border-radius: 50px;
-  background: var(--accent-tint);
+  background: var(--surface-2);
   color: var(--accent-text);
   font-size: 11px;
   font-weight: 700;
@@ -2058,7 +2058,7 @@ export default {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--accent-tint);
+  background: var(--surface-2);
   color: var(--accent-text);
   font-weight: 700;
   font-size: 12px;
