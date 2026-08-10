@@ -388,7 +388,7 @@
 
             <!-- Разбор наименования, заведённого подачей (#1437): плашка видна только
                  тому, у кого есть право разбора, и только пока запись на проверке. -->
-            <ApplicationOrgModeration
+            <DirectoryModeration
               v-for="entry in pendingDirectoryEntries"
               :key="entry.kind"
               :kind="entry.kind"
@@ -659,7 +659,7 @@ import Badge from '@/components/ui/Badge.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import { sanitizeHtml } from '@/utils/sanitize'
 import ApplicationMessageModal from './ApplicationMessageModal.vue'
-import ApplicationOrgModeration from './ApplicationOrgModeration.vue'
+import DirectoryModeration from '@/components/directory/DirectoryModeration.vue'
 import eventStream from '@/services/eventStream'
 import { ref } from 'vue'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
@@ -688,7 +688,7 @@ export default {
         Badge,
         BaseDropdown,
         ApplicationMessageModal,
-        ApplicationOrgModeration,
+        DirectoryModeration,
         SupplementModal,
         SupplementPanel
     },
