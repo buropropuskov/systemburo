@@ -13,6 +13,23 @@ vi.mock('@/api/citizenships', () => ({
 import BlankImportPanel from '../BlankImportPanel.vue';
 import BlankImportResult from '../BlankImportResult.vue';
 
+// Компонент сам подтягивает справочник форматов номеров: по нему сводка отличает
+// исправленный номер от такого же негодного. Без мока реальный клиент дёргает Pinia
+// вне приложения и справочник остаётся пустым.
+const RU_PLATE_FORMAT = {
+  format: { id: 1, name: 'Россия', is_default: true },
+  cells: [
+    { cell_order: 1, cell_type: 'letters', min_length: 1, max_length: 1, alphabet_type: 'cyrillic' },
+    { cell_order: 2, cell_type: 'numbers', min_length: 3, max_length: 3 },
+    { cell_order: 3, cell_type: 'letters', min_length: 2, max_length: 2, alphabet_type: 'cyrillic' },
+    { cell_order: 4, cell_type: 'numbers', min_length: 2, max_length: 3 },
+  ],
+};
+vi.mock('@/api/client', () => ({
+  apiRequest: vi.fn(async () => ({ ok: true, json: async () => [RU_PLATE_FORMAT] })),
+}));
+
+
 // Срез U4: панель занимает место формы ручного ввода. Пока файла нет - крупная область
 // загрузки и неброское скачивание пустого бланка; как только сервер разобрал файл, на
 // месте области встаёт сводка. Сеть панель не трогает - только отдаёт файл наверх.
