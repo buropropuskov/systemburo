@@ -184,14 +184,25 @@
               <span class="src src--override">лично</span>
             </div>
 
+            <div class="perm-search">
+              <input
+                v-model="search"
+                class="lk-input"
+                type="text"
+                placeholder="Поиск права..."
+                data-testid="user-permissions-search"
+              >
+            </div>
+
             <LoaderSpinner
               v-if="loading"
               label="Загрузка прав..."
             />
             <EffectivePermissionsTree
               v-else
-              :catalog="catalog"
+              :catalog="filteredCatalog"
               :state-by-key="stateByKey"
+              :expand-all="searchActive"
               @toggle="onToggleKey"
             />
           </div>
@@ -246,6 +257,7 @@ import {
 } from '@/api/permissions';
 import { apiRequest } from '@/api/client';
 import EffectivePermissionsTree from './EffectivePermissionsTree.vue';
+import { filterCatalog, flattenCatalog } from '@/utils/permissionCatalog';
 import LoaderSpinner from '../ui/LoaderSpinner.vue';
 import BaseDropdown from '../ui/BaseDropdown.vue';
 
@@ -288,6 +300,7 @@ export default {
       overrideInit: {},
       overrideMap: {},
       banReasonInput: '',
+      search: '',
     };
   },
   computed: {
@@ -323,13 +336,17 @@ export default {
     availableGroups() {
       return this.groups.filter((g) => !this.selectedGroupIds.has(g.id));
     },
+    // Плоский список и состояния считаются по ПОЛНОМУ каталогу, а поиск сужает
+    // только то, что рисует дерево: иначе набранный запрос обнулял бы состояние
+    // спрятанных прав, и сохранение уносило бы их вместе с собой.
     flatCatalog() {
-      const flat = [];
-      for (const node of this.catalog) {
-        flat.push(node);
-        for (const child of node.children || []) flat.push(child);
-      }
-      return flat;
+      return flattenCatalog(this.catalog);
+    },
+    filteredCatalog() {
+      return filterCatalog(this.catalog, this.search);
+    },
+    searchActive() {
+      return this.search.trim().length > 0;
     },
     stateByKey() {
       const result = {};
@@ -914,6 +931,16 @@ export default {
 
 .ban-box__btn {
   width: 100%;
+}
+
+/* --- Поиск по правам --- */
+.perm-search {
+  margin-bottom: 12px;
+}
+
+.perm-search .lk-input {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* --- Легенда правого столбца --- */
