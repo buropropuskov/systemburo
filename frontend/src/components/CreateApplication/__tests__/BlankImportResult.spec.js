@@ -11,6 +11,21 @@ vi.mock('@/stores/deletions', () => ({
   useDeletionsStore: vi.fn(() => ({ notify: notifyMock })),
 }));
 
+// Справочник форматов номеров: по нему сводка решает, стал ли поправленный номер
+// годным. Один формат РФ-вида - буквы и цифры, как в реальном справочнике.
+const RU_FORMAT = {
+  format: { id: 1, name: 'Россия', is_default: true },
+  cells: [
+    { cell_order: 1, cell_type: 'letters', min_length: 1, max_length: 1, alphabet_type: 'cyrillic' },
+    { cell_order: 2, cell_type: 'numbers', min_length: 3, max_length: 3 },
+    { cell_order: 3, cell_type: 'letters', min_length: 2, max_length: 2, alphabet_type: 'cyrillic' },
+    { cell_order: 4, cell_type: 'numbers', min_length: 2, max_length: 3 },
+  ],
+};
+vi.mock('@/api/client', () => ({
+  apiRequest: vi.fn(async () => ({ ok: true, json: async () => [RU_FORMAT] })),
+}));
+
 const saveBlobAsMock = vi.fn();
 vi.mock('@/api/attachment-templates', () => ({
   saveBlobAs: (...args) => saveBlobAsMock(...args),
@@ -146,6 +161,78 @@ const CAR_ROWS = [
     warnings: [],
   },
 ];
+
+// Строка приезжает сюда именно потому, что номер не подошёл формату, и непустым он
+// был с самого начала: проверка на непустоту разблокировала бы галочку без единой
+// правки, и мусорный номер уехал бы в заявку (замечание владельца про «Писька»).
+const CAR_BAD_PLATE_ROW = {
+  row_number: 4,
+  vehicle: { car_number: 'Писька', car_brand: 'Kamaz', mark_id: null, unload_places: [], passage_tables: [] },
+  errors: [{
+    text: 'Номер Т/С "Писька" не соответствует ни одному формату номеров',
+    code: 'plate_format',
+    field: 'number',
+    fixable: true,
+  }],
+  warnings: [],
+};
+
+describe('BlankImportResult - номер обязан лечь в формат', () => {
+  beforeEach(() => {
+    notifyMock.mockReset();
+    listCitizenshipsMock.mockReset();
+    listCitizenshipsMock.mockResolvedValue(CITIZENSHIPS);
+  });
+
+  it('строку с негодным номером нельзя отметить, пока номер не исправлен', async () => {
+    const wrapper = mountPanel({
+      attachmentType: 'cars',
+      rows: [CAR_BAD_PLATE_ROW],
+      summary: { read: 1, accepted: 0, rejected: 1 },
+    });
+    await flushPromises();
+
+    const checkbox = wrapper.find('[data-testid="bim-include-4"]');
+    expect(checkbox.attributes('disabled')).toBeDefined();
+    expect(wrapper.find('[data-testid="bim-problem-row-4"]').text()).toContain('не подходит ни под один формат');
+
+    const input = wrapper.find('[data-testid="bim-problem-row-4"] input.bim__cell-input');
+    await input.setValue('А123ВС777');
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeUndefined();
+  });
+
+  it('мусор вместо номера не проходит и после правки на такой же мусор', async () => {
+    const wrapper = mountPanel({
+      attachmentType: 'cars',
+      rows: [CAR_BAD_PLATE_ROW],
+      summary: { read: 1, accepted: 0, rejected: 1 },
+    });
+    await flushPromises();
+
+    const input = wrapper.find('[data-testid="bim-problem-row-4"] input.bim__cell-input');
+    await input.setValue('ЫЫЫЫЫ');
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeDefined();
+  });
+
+  it('«По факту» остаётся допустимым значением', async () => {
+    const wrapper = mountPanel({
+      attachmentType: 'cars',
+      rows: [CAR_BAD_PLATE_ROW],
+      summary: { read: 1, accepted: 0, rejected: 1 },
+    });
+    await flushPromises();
+
+    const input = wrapper.find('[data-testid="bim-problem-row-4"] input.bim__cell-input');
+    await input.setValue('По факту');
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeUndefined();
+  });
+});
 
 describe('BlankImportResult (blank-import D1D2)', () => {
   beforeEach(() => {

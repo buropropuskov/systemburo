@@ -253,7 +253,7 @@
             v-if="rowFixable(row) && !canIncludeRow(row)"
             class="bim__problem-note"
           >
-            Заполните поля выше, чтобы отметить строку.
+            {{ rowNote(row) }}
           </p>
         </li>
       </ul>
@@ -297,6 +297,11 @@ import { listCitizenships } from '@/api/citizenships';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useFieldConfig } from '@/composables/useFieldConfig';
 import { employeeLabel, vehicleLabel } from '@/utils/applicationDuplicates';
+import { matchNumberToFormat } from '@/composables/useNumberFormat';
+import { apiRequest } from '@/api/client';
+
+// Спецзначение номера: конкретную машину не опознаёт, формату не подчиняется.
+const VEHICLE_BY_FACT = 'По факту';
 
 /**
  * Сводка разбора заполненного бланка (эпик blank-import, срез D1D2; срез U4 перенёс
@@ -346,6 +351,7 @@ export default {
   data() {
     return {
       citizenships: [],
+      plateFormats: [],
       selectedTargetTables: [],
       selectedUnloadPlaces: [],
       selectedPassageTables: [],
@@ -485,6 +491,11 @@ export default {
       if (this.isPeople && !this.citizenships.length) {
         await this.loadCitizenships();
       }
+      // Форматы номеров нужны, чтобы отличать исправленный номер от такого же
+      // негодного: без них галочка разблокировалась бы по одной непустоте поля.
+      if (!this.isPeople && !this.plateFormats.length) {
+        await this.loadPlateFormats();
+      }
       this.stageAcceptedRows();
     },
 
@@ -499,6 +510,17 @@ export default {
         attachmentType: this.attachmentType,
         rows: this.acceptedRows.map((row) => build(row)),
       });
+    },
+    async loadPlateFormats() {
+      try {
+        const res = await apiRequest('/license-plate-formats', { method: 'GET' });
+        this.plateFormats = res.ok ? await res.json() : [];
+      } catch (error) {
+        // Без справочника форматов номер проверить нечем. Считаем, что проверка
+        // недоступна, и не пускаем правку строки вслепую - см. plateAccepted.
+        console.error('Ошибка при загрузке форматов номеров:', error);
+        this.plateFormats = [];
+      }
     },
     async loadCitizenships() {
       try {
@@ -559,7 +581,36 @@ export default {
         }
         return true;
       }
-      return !!row.fields.plateNumber.trim();
+      return this.plateAccepted(row.fields.plateNumber);
+    },
+
+    /**
+     * Номер годится, только когда он ложится в один из форматов справочника - тот же
+     * разбор, которым пользуется форма ручного ввода (matchNumberToFormat). Проверять
+     * одну непустоту нельзя: строка приезжает сюда именно потому, что номер не подошёл
+     * формату, и непустым он был с самого начала - галочка разблокировалась бы без
+     * единой правки, а мусор уехал бы в заявку.
+     */
+    /** Почему строку пока нельзя отметить - причина конкретная, а не общая просьба. */
+    rowNote(row) {
+      if (!this.isPeople) {
+        const value = (row.fields.plateNumber || '').trim();
+        if (!value) return 'Введите номер Т/С, чтобы отметить строку.';
+        if (!this.plateFormats.length) return 'Справочник форматов номеров недоступен, проверить номер нечем.';
+        return 'Номер не подходит ни под один формат номеров - поправьте его, чтобы отметить строку.';
+      }
+      if (!row.fields.lastName.trim() || !row.fields.firstName.trim()) {
+        return 'Заполните фамилию и имя, чтобы отметить строку.';
+      }
+      return 'Выберите гражданство, чтобы отметить строку.';
+    },
+
+    plateAccepted(raw) {
+      const value = (raw || '').trim();
+      if (!value) return false;
+      if (value.toLowerCase() === VEHICLE_BY_FACT.toLowerCase()) return true;
+      if (!this.plateFormats.length) return false;
+      return !!matchNumberToFormat(value, this.plateFormats);
     },
     buildEmployeeFromRow(row, isFixed) {
       const emp = row.original ? row.original.employee : row.employee;
