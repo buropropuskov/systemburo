@@ -566,7 +566,7 @@ export default {
   height: 20px;
   padding: 0 7px;
   border-radius: 50px;
-  background: var(--surface-2);
+  background: var(--surface);
   color: var(--accent-text);
   font-size: 11px;
   font-weight: 700;
@@ -922,7 +922,7 @@ export default {
   font-size: 0.75rem;
   border: 1px dashed var(--border);
   border-radius: 12px;
-  background: var(--surface-2);
+  background: var(--surface);
 }
 
 .no-selected-users p {
