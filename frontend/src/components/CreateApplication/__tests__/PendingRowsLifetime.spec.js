@@ -188,3 +188,24 @@ describe('Перезагрузка страницы: серых строк бе�
         expect(notifyMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
     });
 });
+
+// Новое вложение создаётся не через handleAttachmentSelected, а через selectAttachment -
+// этим путём панель импорта переживала смену, показывая сводку прошлого вложения, и
+// закрыть её было нечем: у другого типа кнопки «Импорт» нет.
+describe('CreateApplication - панель импорта не переживает смену вложения', () => {
+    it('создание вложения другого типа закрывает режим импорта', async () => {
+        const w = await mountApp();
+        w.vm.attachments = [
+            { local_id: 'c1', attachment_type: 'cars', display_name: 'Авто' },
+            { local_id: 'i1', attachment_type: 'items', display_name: 'ТМЦ' },
+        ];
+        w.vm.selectedAttachment = w.vm.attachments[0];
+        w.vm.importMode = true;
+        await w.vm.$nextTick();
+
+        w.vm.selectAttachment(w.vm.attachments[1]);
+        await w.vm.$nextTick();
+
+        expect(w.vm.importMode).toBe(false);
+    });
+});

@@ -1873,6 +1873,13 @@ export default {
         },
 
         selectAttachment(attachment) {
+            // Добавление нового вложения идёт сюда, минуя handleAttachmentSelected, и без
+            // этого панель импорта переживала смену: у вложения другого типа кнопки
+            // «Импорт» нет вовсе, так что закрыть её штатно было нечем, а сводка
+            // показывала числа от прошлого вложения.
+            if (this.importMode && this.attachmentKey(this.selectedAttachment) !== this.attachmentKey(attachment)) {
+                this.closeImportMode();
+            }
             this.selectedAttachment = attachment;
         },
 
