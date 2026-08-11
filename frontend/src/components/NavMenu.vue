@@ -3,8 +3,10 @@
     <!-- Backdrop для мобильного drawer'а -->
     <transition name="nav-backdrop">
       <div
-        v-if="mobileOpen"
+        v-if="mobileOpen || swipeOffset > 0"
         class="nav-menu__backdrop"
+        :class="{ 'nav-menu__backdrop--dragging': swipeDragging }"
+        :style="swipeDragging ? { opacity: swipeOffset / 280 } : null"
         @click="closeMobile"
       />
     </transition>
@@ -19,8 +21,10 @@
         'nav-menu--pinned': uiStore.sidebarExpanded,
         'nav-menu--hidden': uiStore.sidebarHidden,
         'nav-menu--mobile-open': mobileOpen,
+        'nav-menu--dragging': swipeDragging,
         'nav-menu--banned': isBanned,
       }"
+      :style="swipeOffset ? { transform: `translateX(calc(-100% + ${swipeOffset}px))` } : null"
       @mouseenter="expandMenu"
       @mouseleave="collapseMenu"
     >
@@ -623,6 +627,7 @@
 </template>
 
 <script>
+import { getCurrentInstance } from 'vue'
 import { apiRequest } from '@/api/client'
 import { getUnreadCount } from '@/api/applications'
 import { getFeedbackStats } from '@/api/feedback'
@@ -635,6 +640,8 @@ import { useThemeStore } from '@/stores/theme'
 import { useOnboardingStore } from '@/stores/onboarding'
 import { playPreset } from '@/utils/notificationSound'
 import eventStream from '@/services/eventStream'
+import { useNarrowScreen } from '@/composables/useNarrowScreen'
+import { useEdgeSwipeOpen } from '@/composables/useEdgeSwipeOpen'
 import NavIcon from '@/components/icons/NavIcon.vue'
 import SwitchToggle from '@/components/ui/SwitchToggle.vue'
 import FeedbackModal from '@/components/FeedbackModal.vue'
@@ -659,7 +666,23 @@ export default {
     const themeStore = useThemeStore()
     // Онбординг-тур просит раскрыть колонку Админки на своих шагах (reveal.open).
     const onboardingStore = useOnboardingStore()
-    return { authStore, uiStore, soundStore, permissionsStore, themeStore, onboardingStore }
+    // Свайп открытия drawer'а (W4.1). Состояние drawer'а живёт в data(), поэтому до
+    // него дотягиваемся через инстанс: колбэки жеста зовутся уже после монтирования,
+    // когда и поля, и методы на месте.
+    const instance = getCurrentInstance()
+    const { isNarrow } = useNarrowScreen()
+    const drawerSwipe = useEdgeSwipeOpen(() => instance.proxy.openMobile(), {
+      // Открытая модалка блокирует прокрутку фона инлайн-стилем - там свайп вправо
+      // принадлежит ей (лист, карусель внутри), а не навигации под ней.
+      isEnabled: () => isNarrow.value
+        && !instance.proxy.mobileOpen
+        && document.body.style.overflow !== 'hidden',
+    })
+    return {
+      authStore, uiStore, soundStore, permissionsStore, themeStore, onboardingStore,
+      swipeOffset: drawerSwipe.offset,
+      swipeDragging: drawerSwipe.isDragging,
+    }
   },
   data() {
     return {
@@ -994,6 +1017,13 @@ export default {
       this.mobileOpen = !this.mobileOpen;
       // Блокируем scroll body когда drawer открыт
       document.body.classList.toggle('nav-drawer-open', this.mobileOpen);
+    },
+    // Открытие свайпом (W4.1): жест уже дотянул панель до порога, дальше её доводит
+    // обычная анимация - как если бы нажали бургер.
+    openMobile() {
+      if (this.mobileOpen) return;
+      this.mobileOpen = true;
+      document.body.classList.add('nav-drawer-open');
     },
     closeMobile() {
       if (!this.mobileOpen) return;
@@ -2214,6 +2244,13 @@ export default {
     transform: translateX(0);
   }
 
+  /* Пока панель идёт за пальцем, transition только мешает - она должна стоять ровно
+     там, где палец, а не догонять его. По отпусканию класс снимается, и панель
+     доезжает обычной кривой от текущего места. */
+  .nav-menu.nav-menu--dragging {
+    transition: none;
+  }
+
   /* padding-top держит запас под pill «Сообщить о проблеме» (top:12 + height:34 = 46)
      + отступ вниз, чтобы бренд/пункты не липли к кнопке. */
   .nav-menu .nav-content {
@@ -2295,6 +2332,12 @@ export default {
     inset: 0;
     background: var(--overlay);
     z-index: 9999;
+  }
+
+  /* Затемнение густеет ровно настолько, насколько вытянута панель, поэтому догонять
+     палец переходом ему нельзя - только мгновенное значение. */
+  .nav-menu__backdrop--dragging {
+    transition: none;
   }
 
   .nav-menu__close {

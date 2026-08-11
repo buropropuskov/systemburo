@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import GlobalSearchPanel from '../GlobalSearchPanel.vue';
@@ -237,5 +239,18 @@ describe('GlobalSearchPanel', () => {
 
     const titles = wrapper.findAll('.gsp__row-title').map((el) => el.text());
     expect(titles).toContain('Настройки');
+  });
+
+  // #1097 W4.1: на десктопе прозрачность подпёрта размытием, а на мобилке размытия нет
+  // (backdrop-filter рвёт кадры при выезде, #1201) - и текст страницы читался сквозь
+  // список находок. Проверяем по исходнику: scoped-CSS в jsdom не применяется.
+  it('на мобилке подложка панели почти глухая - находки не сливаются со страницей', () => {
+    const sfc = readFileSync(resolve(__dirname, '../GlobalSearchPanel.vue'), 'utf8');
+    const mobileBlock = sfc.match(/@media\s*\(max-width:\s*768px\)\s*\{([\s\S]*?)\n\}/);
+    expect(mobileBlock).not.toBeNull();
+
+    const surface = mobileBlock[1].match(/background:\s*color-mix\([^)]*var\(--surface\)\s*(\d+)%/);
+    expect(surface).not.toBeNull();
+    expect(Number(surface[1])).toBeGreaterThanOrEqual(95);
   });
 });
