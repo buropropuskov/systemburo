@@ -745,6 +745,26 @@
             </div>
           </div>
 
+          <!-- Смена пароля с отправкой письмом (#1910): закрывает случай
+               «работник потерял пароль». До этого пароль придумывали руками и
+               диктовали по телефону, то есть он проходил через третьи уши. -->
+          <div
+            v-if="selectedUser.is_active !== false"
+            class="rotate-row"
+          >
+            <button
+              class="lk-button lk-button--secondary"
+              :disabled="rotatingPassword"
+              data-testid="user-rotate-password"
+              @click="rotateUserPassword(selectedUser)"
+            >
+              {{ rotatingPassword ? 'Отправляем...' : 'Сменить пароль и отправить письмом' }}
+            </button>
+            <span class="rotate-row__hint">
+              Система придумает пароль по действующим требованиям и отправит его работнику на почту.
+            </span>
+          </div>
+
           <div
             v-if="selectedUser.is_active !== false"
             class="danger-zone"
@@ -1148,6 +1168,7 @@ export default {
       // bulk-операций у активных и архивных разные, поэтому режим один на всё,
       // а не отдельный тумблер «онлайн» поверх архива.
       listMode: 'active',
+      rotatingPassword: false,
       archiveOptions: [
         { value: 'active', label: 'Активные' },
         { value: 'online', label: 'В сети' },
@@ -2168,6 +2189,36 @@ export default {
       }
     },
     
+    /**
+     * Смена пароля работнику с отправкой письмом. Пароль в интерфейсе не
+     * показывается намеренно: он уходит владельцу учётной записи, а не тому,
+     * кто нажал кнопку.
+     */
+    async rotateUserPassword(user) {
+      this.rotatingPassword = true;
+      try {
+        const response = await apiRequest(`/users/${user.username}/rotate-password`, { method: 'POST' });
+        if (response.ok) {
+          useDeletionsStore().notify({
+            prefix: 'Новый пароль отправлен на почту работника ',
+            bold: user.username,
+          });
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          useDeletionsStore().notify({
+            prefix: 'Не удалось сменить пароль: ',
+            bold: errorData.message || 'ошибка',
+            type: 'error',
+          });
+        }
+      } catch (error) {
+        console.error('Ошибка сети при смене пароля с отправкой письмом:', error);
+        useDeletionsStore().notify({ bold: 'Нет связи с сервером', type: 'error' });
+      } finally {
+        this.rotatingPassword = false;
+      }
+    },
+
     async changeUserPassword(user) {
       if (!user.newPassword) {
         useDeletionsStore().notify({ bold: 'Введите новый пароль', type: 'error' });
@@ -2935,6 +2986,21 @@ export default {
 }
 
 /* Опасное действие внизу "Профиля" */
+.rotate-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.rotate-row__hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex: 1;
+  min-width: 200px;
+}
+
 .danger-zone {
   display: flex;
   align-items: center;

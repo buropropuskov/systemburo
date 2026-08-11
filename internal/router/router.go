@@ -611,6 +611,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.GET("/users/all", users.GetAll, requireUsers)
 	protected.PUT("/users/:username/type", users.UpdateType, requireUsers)
 	protected.PUT("/users/:username/password", users.UpdatePassword, requireUsers)
+	// Смена пароля с отправкой письмом (#1910) - под тем же правом, что и ручная
+	// установка пароля: это её замена, а не новое полномочие.
+	protected.POST("/users/:username/rotate-password", users.RotatePassword, requireUsers)
 	protected.PUT("/users/:username/info", users.UpdateInfo, requireUsers)
 	protected.PUT("/users/:username/organization", users.UpdateOrganization, requireUsers)
 	protected.PUT("/users/:username/company", users.UpdateCompany, requireUsers)
@@ -991,6 +994,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.GET("/settings/mail/status", settings.GetMailStatus, requireSettings)
 	protected.POST("/settings/mail/test", settings.SendTestMail, requireSettings)
 	protected.GET("/settings/password-rotation/status", settings.GetPasswordRotationStatus, requireSettings)
+	protected.GET("/settings/password-rotation/last", settings.GetPasswordRotationLast, requireSettings)
+	// Ручной прогон - под своим правом, а не под настройками: сброс паролей всей
+	// организации весит больше, чем правка телефона бюро (#1910).
+	protected.POST("/settings/password-rotation/run", settings.RunPasswordRotation,
+		mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionRotatePasswords))
 	protected.PUT("/settings/:key", settings.Update, requireSettings)
 
 	// Новости. Активные (GET "") - всем авторизованным; управление - page.admin

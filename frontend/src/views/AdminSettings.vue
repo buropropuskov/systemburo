@@ -436,15 +436,60 @@
                   </span>
                 </p>
               </template>
-              <button
-                class="btn btn--secondary"
-                :disabled="testingMail"
-                data-testid="mail-test-button"
-                @click="sendTestMail"
-              >
-                {{ testingMail ? 'Отправляем...' : 'Отправить проверочное письмо' }}
-              </button>
+              <div class="rotation-actions">
+                <button
+                  class="btn btn--secondary"
+                  :disabled="testingMail"
+                  data-testid="mail-test-button"
+                  @click="sendTestMail"
+                >
+                  {{ testingMail ? 'Отправляем...' : 'Отправить проверочное письмо' }}
+                </button>
+                <button
+                  v-if="rotationStatus.mail_configured"
+                  class="btn btn--danger"
+                  :disabled="rotationRunning"
+                  data-testid="rotation-run-button"
+                  @click="askRunRotation"
+                >
+                  {{ rotationRunning ? 'Меняем пароли...' : 'Обновить пароль всем работникам' }}
+                </button>
+              </div>
             </div>
+
+            <BaseModal
+              :show="confirmRotation"
+              title="Сменить пароли всем работникам?"
+              width="440px"
+              content-testid="rotation-confirm"
+              @close="confirmRotation = false"
+            >
+              <p>
+                Пароли сменятся у <b>{{ rotationStatus.eligible }}</b> работников с указанным
+                адресом почты. Каждому уйдёт письмо с новым паролем.
+              </p>
+              <p>
+                Все текущие сессии будут завершены - людям придётся войти заново.
+                <span v-if="rotationStatus.without_email > 0">
+                  Работников без почты ({{ rotationStatus.without_email }}) действие не затронет.
+                </span>
+              </p>
+              <template #actions>
+                <button
+                  class="btn btn--secondary"
+                  @click="confirmRotation = false"
+                >
+                  Отмена
+                </button>
+                <button
+                  class="btn btn--danger"
+                  data-testid="rotation-confirm-button"
+                  @click="runRotationNow"
+                >
+                  Сменить пароли
+                </button>
+              </template>
+            </BaseModal>
 
             <div class="form-group">
               <label class="switch-label">
@@ -631,7 +676,7 @@
 
 <script>
 import { getSettings, updateSetting } from '@/api/settings';
-import { SkeletonTransition, SkeletonLine, SkeletonBlock } from '@/components/ui';
+import { SkeletonTransition, SkeletonLine, SkeletonBlock, BaseModal } from '@/components/ui';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useContactsStore } from '@/stores/contacts';
@@ -646,6 +691,7 @@ export default {
     SkeletonBlock,
     WorkScheduleTab,
     BaseDropdown,
+    BaseModal,
   },
   data() {
     return {
@@ -661,6 +707,8 @@ export default {
       loading: false,
       saving: false,
       testingMail: false,
+      rotationRunning: false,
+      confirmRotation: false,
       // Состояние плановой смены паролей. Пока не загрузилось - почта считается
       // ненастроенной: это запирающая сторона, включить смену вслепую нельзя.
       rotationStatus: {
@@ -778,6 +826,42 @@ export default {
         // Состояние справочное: сбой оставляет блок в исходном виде и не мешает
         // править остальные настройки.
         console.error('Не удалось загрузить состояние плановой смены паролей:', error);
+      }
+    },
+
+    /**
+     * Ручной прогон: спрашиваем подтверждение с числом затрагиваемых учётных
+     * записей. Действие обрывает сессии всей организации, поэтому кнопка не
+     * должна срабатывать с одного клика.
+     */
+    askRunRotation() {
+      this.confirmRotation = true;
+    },
+
+    async runRotationNow() {
+      this.confirmRotation = false;
+      this.rotationRunning = true;
+      try {
+        const response = await apiRequest('/settings/password-rotation/run', { method: 'POST' });
+        if (response.ok) {
+          useDeletionsStore().notify({
+            bold: 'Смена паролей запущена',
+            suffix: ': письма встают в очередь и уходят по мере отправки',
+          });
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          useDeletionsStore().notify({
+            prefix: 'Не удалось запустить смену: ',
+            bold: errorData.message || 'ошибка',
+            type: 'error',
+          });
+        }
+      } catch (error) {
+        console.error('Ошибка сети при запуске смены паролей:', error);
+        useDeletionsStore().notify({ bold: 'Нет связи с сервером', type: 'error' });
+      } finally {
+        this.rotationRunning = false;
+        await this.fetchRotationStatus();
       }
     },
 
@@ -1377,6 +1461,12 @@ export default {
 
 .rotation-status p {
   margin: 0;
+}
+
+.rotation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .rotation-warning {

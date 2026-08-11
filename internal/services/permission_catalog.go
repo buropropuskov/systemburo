@@ -68,6 +68,12 @@ const (
 
 	KeyActionGrantAdmin = "action.grant.admin"
 
+	// KeyActionRotatePasswords - запуск смены паролей всем работникам вручную
+	// (#1910). Отдельно от page.admin.settings намеренно: правка телефона бюро и
+	// сброс паролей всей организации - действия разного веса, и второе не должно
+	// достаться каждому, кто может поменять первое.
+	KeyActionRotatePasswords = "action.password.rotate_all"
+
 	// KeyActionManageFileArchive - правка настроек файлового архива: рубильник,
 	// шаблоны раскладки, пороги места. Отделено от просмотра раздела: смотреть
 	// состояние выгрузки полезно и дежурному, а менять раскладку - нет, сменённый
@@ -177,6 +183,7 @@ func staticCatalog() []CatalogNode {
 		{Key: KeyAuditManage, DisplayName: "Управление ролями и группами", Category: CatAdmin},
 		{Key: KeyActionBanUser, DisplayName: "Блокировка пользователей", Category: CatAdmin},
 		{Key: KeyActionGrantAdmin, DisplayName: "Выдача прав администратора", Category: CatAdmin, SuperOnly: true},
+		{Key: KeyActionRotatePasswords, DisplayName: "Смена паролей всем работникам", Category: CatAdmin},
 		{Key: KeyPageSystemControl, DisplayName: "Режим техработ", Category: CatAdmin, SuperOnly: true},
 
 		// Обзор и новости (управление новостями -- в Администрировании, /admin/news).
