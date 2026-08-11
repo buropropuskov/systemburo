@@ -135,7 +135,7 @@ func TestEntityPurge_ExportsAndDeletesCascadeOnlyTables(t *testing.T) {
 
 	var audit models.AuditLog
 	require.NoError(t, db.Where("entity_type = ? AND action = ? AND entity_id = ?",
-		models.AuditEntityOrganization, "purged", f.org.ID).First(&audit).Error)
+		models.AuditEntityOrganization, models.OrganizationActionPurged, f.org.ID).First(&audit).Error)
 	var details map[string]any
 	require.NoError(t, json.Unmarshal(audit.Details, &details))
 	tablesJSON, err := json.Marshal(details["tables"])
@@ -181,7 +181,7 @@ func TestEntityPurge_DeletesGraphAndFiles(t *testing.T) {
 
 	var audit models.AuditLog
 	err = db.Where("entity_type = ? AND action = ? AND entity_id = ?",
-		models.AuditEntityOrganization, "purged", f.org.ID).First(&audit).Error
+		models.AuditEntityOrganization, models.OrganizationActionPurged, f.org.ID).First(&audit).Error
 	require.NoError(t, err, "успешный снос обязан оставить запись в audit_log")
 
 	var details map[string]any
@@ -379,7 +379,7 @@ func TestEntityPurge_DryRunDeletesNothing(t *testing.T) {
 
 	var count int64
 	require.NoError(t, db.Model(&models.AuditLog{}).
-		Where("entity_type = ? AND action = ? AND entity_id = ?", models.AuditEntityOrganization, "purged", f.org.ID).
+		Where("entity_type = ? AND action = ? AND entity_id = ?", models.AuditEntityOrganization, models.OrganizationActionPurged, f.org.ID).
 		Count(&count).Error)
 	require.Zero(t, count, "пробный прогон не должен был писать в audit_log")
 }
@@ -428,4 +428,60 @@ func TestEntityPurge_RejectsForgedEncryptedFlag(t *testing.T) {
 	require.Error(t, err)
 	require.Empty(t, res.ManifestSHA256, "отпечаток не считается для пакета, отклонённого на проверке")
 	require.True(t, orgExistsInDB(t, db, f.org.ID), "поддельный флаг шифрования не должен был снести организацию")
+}
+
+// TestEntityPurge_WarnsAboutSharedReportTemplates: report_templates каскадится от
+// пользователя молча (FK OwnerUserID OnDelete:CASCADE) - строка сотрётся штатно, узел графа
+// её видит и считает. Но is_shared делает шаблон видимым ВСЕМ, кто им пользуется, не только
+// автору, а снос отвечает только за пользователей СВОЕЙ организации - оператор обязан узнать
+// об этом до -apply, а не после. Предупреждение считается ДО удаления и обязано появиться в
+// обоих прогонах - без общего шаблона его быть не должно вовсе.
+func TestEntityPurge_WarnsAboutSharedReportTemplates(t *testing.T) {
+	_, db, uploadDir, cleanup := testutil.SetupTestAppWithUploads(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	t.Run("общий шаблон - предупреждение и в пробном прогоне, и при apply", func(t *testing.T) {
+		testutil.CleanDB(t, db)
+
+		// Шаблон заводится ДО снятия пакета, а не после (в отличие от purgeFixture) - иначе
+		// снимок не покрыл бы текущее состояние графа, и Purge отказал бы сверкой покрытия
+		// раньше, чем дошёл бы до предупреждения.
+		f := setupExportFixture(t, db, uploadDir)
+		uid := f.app.SenderUserID
+		require.NoError(t, db.Create(&models.ReportTemplate{
+			Name: "Общий отчёт", Config: json.RawMessage(`{}`), IsShared: true, OwnerUserID: &uid,
+		}).Error)
+		crypt := testExportCrypto(t)
+		eres, err := entityarchive.Export(context.Background(), db, entityarchive.TypeOrganization, f.org.ID,
+			entityarchive.ExportOptions{
+				Root: t.TempDir(), UploadPath: uploadDir, Crypto: crypt,
+				Recorder: services.NewAuditRecorder(db), Now: time.Now(),
+			})
+		require.NoError(t, err)
+
+		dry, err := entityarchive.Purge(context.Background(), db, entityarchive.TypeOrganization, f.org.ID, eres.Dir,
+			entityarchive.PurgeOptions{UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db)})
+		require.NoError(t, err, "tables: %+v", dry.Tables)
+		require.Len(t, dry.Warnings, 1)
+		require.Contains(t, dry.Warnings[0], "report_templates")
+		require.True(t, orgExistsInDB(t, db, f.org.ID), "пробный прогон не должен был удалить организацию")
+
+		res, err := entityarchive.Purge(context.Background(), db, entityarchive.TypeOrganization, f.org.ID, eres.Dir,
+			entityarchive.PurgeOptions{UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db), Apply: true})
+		require.NoError(t, err, "tables: %+v", res.Tables)
+		require.Len(t, res.Warnings, 1)
+		require.Contains(t, res.Warnings[0], "report_templates")
+	})
+
+	t.Run("без общих шаблонов - предупреждения нет", func(t *testing.T) {
+		testutil.CleanDB(t, db)
+
+		f, dir, crypt := purgeFixture(t, db, uploadDir)
+
+		res, err := entityarchive.Purge(context.Background(), db, entityarchive.TypeOrganization, f.org.ID, dir,
+			entityarchive.PurgeOptions{UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db)})
+		require.NoError(t, err, "tables: %+v", res.Tables)
+		require.Empty(t, res.Warnings)
+	})
 }
