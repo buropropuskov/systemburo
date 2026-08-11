@@ -28,8 +28,8 @@ func (organizationsStep) Name() string { return "организации и ко�
 
 func (organizationsStep) Plan(p Profile) []PlanItem {
 	return []PlanItem{
-		{Entity: models.AuditEntityOrganization, Title: "Организации", Count: p.Organizations},
-		{Entity: models.AuditEntityCompany, Title: "Компании", Count: p.Companies},
+		{Entity: models.AuditEntityOrganization, Title: EntityTitle(models.AuditEntityOrganization), Count: p.Organizations},
+		{Entity: models.AuditEntityCompany, Title: EntityTitle(models.AuditEntityCompany), Count: p.Companies},
 	}
 }
 
