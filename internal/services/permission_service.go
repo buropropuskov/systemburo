@@ -212,12 +212,20 @@ func (s *permissionService) GetPermissionTree(ctx context.Context) ([]models.Per
 
 // GetCatalog возвращает полный каталог прав: статическое дерево (Catalog) плюс
 // динамические права таблиц (table.<slug>.*) из БД под категорией "Таблицы".
+// Права таблиц, ушедших в архив, из выдачи убраны (#1881): выбирать их в
+// редакторах доступа некому. Скрытие касается ТОЛЬКО этой витрины - сами права
+// остаются в БД, продолжают действовать (резолвер и middleware каталог не
+// читают) и возвращаются в каталог при восстановлении таблицы.
 func (s *permissionService) GetCatalog(ctx context.Context) ([]CatalogNode, error) {
 	nodes := Catalog()
 
 	var tablePerms []models.Permission
 	if err := s.db.WithContext(ctx).
 		Where("category = ?", "table").
+		// Скрываем только заведомо архивные: право, чей entity_id не резолвится
+		// (legacy-строка без ссылки, удалённая таблица), остаётся видимым - иначе
+		// правка витрины молча выносила бы права, о которых ничего не известно.
+		Where("NOT EXISTS (SELECT 1 FROM system_tables st WHERE st.id = permissions.entity_id AND st.is_active = false)").
 		Find(&tablePerms).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения каталога прав")
 	}

@@ -64,6 +64,25 @@ func (h *UsersHandler) GetAll(c echo.Context) error {
 	return RespondSuccess(c, result)
 }
 
+// GetRecipientCandidates godoc
+// @Summary      Кандидаты в получатели заявки
+// @Description  Пользователи, которых автор может добавить получателем заявки: коллеги по организации и компании плюс руководители. Доступно любому авторизованному - выбор получателя есть у всех, кто подаёт заявку, а список людей своей организации и так открыт (/organizations/{id}/users).
+// @Tags         users
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {array}  models.RecipientCandidate
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /users/recipient-candidates [get]
+func (h *UsersHandler) GetRecipientCandidates(c echo.Context) error {
+	username, _ := c.Get("username").(string)
+	result, err := h.service.GetRecipientCandidates(c.Request().Context(), username)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, result)
+}
+
 // UpdateType godoc
 // @Summary      Обновление типа пользователя
 // @Tags         users
@@ -111,10 +130,39 @@ func (h *UsersHandler) UpdatePassword(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.UpdatePassword(c.Request().Context(), userID, username, req); err != nil {
+	if err := h.service.UpdatePassword(c.Request().Context(), userID, username, req, requestMeta(c)); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Password updated successfully")
+}
+
+// ChangeOwnPassword godoc
+// @Summary      Смена собственного пароля
+// @Description  Меняет пароль текущего пользователя по подтверждению текущим паролем. Права не требуются.
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body models.ChangeOwnPasswordRequest true "Текущий и новый пароль"
+// @Success      200 {string} string "Password changed successfully"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      429 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /users/me/password [put]
+func (h *UsersHandler) ChangeOwnPassword(c echo.Context) error {
+	userID, _ := c.Get("user_id").(int)
+	if userID == 0 {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Пользователь не авторизован")
+	}
+	var req models.ChangeOwnPasswordRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if err := h.service.ChangeOwnPassword(c.Request().Context(), userID, req, requestMeta(c)); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Password changed successfully")
 }
 
 // UpdateInfo godoc

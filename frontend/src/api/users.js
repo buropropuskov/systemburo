@@ -32,6 +32,21 @@ export async function updateUserPassword(username, password) {
   return res.json();
 }
 
+/**
+ * Смена СВОЕГО пароля. Учётка берётся из маркера доступа, имени в запросе нет.
+ * Возвращает сырой Response: вызывающему нужен текст ошибки сервера
+ * (неверный текущий пароль, нарушение политики, превышение числа попыток).
+ * @param {string} currentPassword
+ * @param {string} newPassword
+ * @returns {Promise<Response>}
+ */
+export async function changeOwnPassword(currentPassword, newPassword) {
+  return apiRequest('/users/me/password', {
+    method: 'PUT',
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+}
+
 export async function updateUserInfo(username, data) {
   const res = await apiRequest(`/users/${username}/info`, {
     method: 'PUT',

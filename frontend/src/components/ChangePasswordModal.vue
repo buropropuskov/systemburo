@@ -1,0 +1,232 @@
+<template>
+  <BaseModal
+    :show="show"
+    title="Смена пароля"
+    width="420px"
+    content-testid="change-password-modal"
+    @close="$emit('close')"
+  >
+    <form
+      class="cp-form"
+      @submit.prevent="submit"
+    >
+      <label class="cp-field">
+        <span class="cp-label">Текущий пароль</span>
+        <PasswordInput
+          v-model="currentPassword"
+          autocomplete="current-password"
+          placeholder="Введите текущий пароль"
+          data-testid="cp-current"
+        />
+      </label>
+
+      <label class="cp-field">
+        <span class="cp-label">Новый пароль</span>
+        <PasswordInput
+          v-model="newPassword"
+          placeholder="Придумайте новый пароль"
+          data-testid="cp-new"
+        />
+      </label>
+
+      <label class="cp-field">
+        <span class="cp-label">Новый пароль ещё раз</span>
+        <PasswordInput
+          v-model="repeatPassword"
+          placeholder="Повторите новый пароль"
+          data-testid="cp-repeat"
+        />
+      </label>
+
+      <ul
+        class="cp-rules"
+        data-testid="cp-rules"
+      >
+        <li
+          v-for="rule in rules"
+          :key="rule.key"
+          :class="{ 'cp-rule--ok': rule.ok }"
+        >
+          <span aria-hidden="true">{{ rule.ok ? '✓' : '○' }}</span>
+          {{ rule.label }}
+        </li>
+        <li :class="{ 'cp-rule--ok': repeatMatches }">
+          <span aria-hidden="true">{{ repeatMatches ? '✓' : '○' }}</span>
+          Пароли совпадают
+        </li>
+      </ul>
+
+      <p class="cp-note">
+        После смены пароля вход на всех устройствах потребуется выполнить заново.
+      </p>
+    </form>
+
+    <template #actions>
+      <button
+        type="button"
+        class="lk-button lk-button--ghost"
+        :disabled="saving"
+        @click="$emit('close')"
+      >
+        Отмена
+      </button>
+      <button
+        type="button"
+        class="lk-button lk-button--primary"
+        :disabled="!canSubmit"
+        data-testid="cp-submit"
+        @click="submit"
+      >
+        {{ saving ? 'Сохраняем...' : 'Сменить пароль' }}
+      </button>
+    </template>
+  </BaseModal>
+</template>
+
+<script>
+import { BaseModal } from '@/components/ui';
+import PasswordInput from './ui/PasswordInput.vue';
+import { changeOwnPassword } from '@/api/users';
+import { getPasswordPolicy } from '@/api/settings';
+import { DEFAULT_PASSWORD_POLICY, evaluatePassword, passwordMeetsPolicy } from '@/utils/passwordPolicy';
+import { useDeletionsStore } from '@/stores/deletions';
+import { useAuthStore } from '@/stores/auth';
+
+export default {
+  name: 'ChangePasswordModal',
+  components: { BaseModal, PasswordInput },
+  props: {
+    show: { type: Boolean, required: true },
+  },
+  emits: ['close', 'changed'],
+  data() {
+    return {
+      currentPassword: '',
+      newPassword: '',
+      repeatPassword: '',
+      policy: { ...DEFAULT_PASSWORD_POLICY },
+      saving: false,
+    };
+  },
+  computed: {
+    rules() {
+      return evaluatePassword(this.policy, this.newPassword);
+    },
+    repeatMatches() {
+      return this.newPassword.length > 0 && this.newPassword === this.repeatPassword;
+    },
+    canSubmit() {
+      return !this.saving
+        && this.currentPassword.length > 0
+        && this.repeatMatches
+        && passwordMeetsPolicy(this.policy, this.newPassword);
+    },
+  },
+  watch: {
+    show(opened) {
+      if (opened) {
+        this.reset();
+        this.loadPolicy();
+      }
+    },
+  },
+  methods: {
+    reset() {
+      this.currentPassword = '';
+      this.newPassword = '';
+      this.repeatPassword = '';
+      this.saving = false;
+    },
+    async loadPolicy() {
+      try {
+        this.policy = await getPasswordPolicy();
+      } catch (error) {
+        // Политика - подсказка, а не гейт: настоящую проверку делает сервер.
+        // Упавшая загрузка оставляет дефолтный чеклист, форму не блокирует.
+        console.error('Не удалось загрузить политику паролей:', error);
+      }
+    },
+    async submit() {
+      if (!this.canSubmit) return;
+      this.saving = true;
+      try {
+        const response = await changeOwnPassword(this.currentPassword, this.newPassword);
+        if (response.ok) {
+          useDeletionsStore().notify({ bold: 'Пароль изменён', suffix: ', войдите заново' });
+          this.$emit('changed');
+          // Сервер отозвал все маркеры продления, включая маркер этой вкладки:
+          // держать интерфейс залогиненным нечестно - он умрёт на первом же
+          // продлении. Чистим сессию сами и уводим на вход, как это делает
+          // client.js при истёкшей сессии.
+          useAuthStore().clearTokens();
+          if (this.$router.currentRoute.value.path !== '/') {
+            this.$router.push('/');
+          }
+          return;
+        }
+        const errorData = await response.json().catch(() => ({}));
+        useDeletionsStore().notify({
+          prefix: 'Не удалось сменить пароль: ',
+          bold: errorData.message || 'ошибка',
+          type: 'error',
+        });
+      } catch (error) {
+        console.error('Ошибка сети при смене пароля:', error);
+        useDeletionsStore().notify({
+          prefix: 'Не удалось сменить пароль: ',
+          bold: 'нет связи с сервером',
+          type: 'error',
+        });
+      } finally {
+        this.saving = false;
+      }
+    },
+  },
+};
+</script>
+
+<style scoped>
+.cp-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cp-label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.cp-rules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.cp-rules li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cp-rule--ok {
+  color: var(--success-text);
+}
+
+.cp-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+</style>
