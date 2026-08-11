@@ -1,0 +1,300 @@
+{
+  "comment": "Кадры руководства администратора. Снимаются под учётной записью с признаком администратора (не супер-администратора): у супер-администратора состав разделов и тумблеров другой.",
+  "role": "admin",
+  "shots": [
+    {
+      "id": "admin-nav",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"nav-link-admin\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"nav-link-admin\"]"
+        },
+        {
+          "wait": "[data-testid=\"ob-admin-groups\"]"
+        }
+      ],
+      "clip": {
+        "selector": ".admin-column",
+        "pad": {
+          "x": 420,
+          "y": 50
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"ob-admin-search\"]",
+          "badge": 3
+        },
+        {
+          "selector": "[data-testid=\"ob-admin-groups\"]",
+          "badge": 4,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "admin-users-list",
+      "goto": "/admin/users",
+      "waitFor": "[data-testid=\"ob-users-list\"]",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"users-online-count\"]",
+          "badge": 1
+        },
+        {
+          "selector": ".archive-dropdown",
+          "badge": 2
+        },
+        {
+          "selector": ".header-controls .search-component, .header-controls input",
+          "badge": 3
+        },
+        {
+          "selector": "[data-testid=\"ob-users-create\"]",
+          "badge": 4
+        }
+      ]
+    },
+    {
+      "id": "admin-user-create",
+      "goto": "/admin/users",
+      "waitFor": "[data-testid=\"ob-users-create\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"ob-users-create\"]"
+        },
+        {
+          "wait": ".user-create-modal"
+        }
+      ],
+      "clip": {
+        "selector": ".user-create-modal",
+        "pad": 40
+      },
+      "highlight": [
+        {
+          "selector": ".user-create-modal .input-group",
+          "nth": 0,
+          "badge": 1
+        },
+        {
+          "selector": ".user-create-modal .input-group",
+          "nth": 1,
+          "badge": 2
+        }
+      ]
+    },
+    {
+      "id": "admin-users-bulk",
+      "goto": "/admin/users",
+      "waitFor": "[data-testid=\"ob-users-list\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"users-row-check\"] >> nth=0"
+        },
+        {
+          "click": "[data-testid=\"users-row-check\"] >> nth=1"
+        },
+        {
+          "wait": "[data-testid=\"users-bulk-bar\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"users-bulk-bar\"]",
+        "pad": {
+          "x": 90,
+          "y": 70
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"users-bulk-type\"]",
+          "badge": 2
+        },
+        {
+          "selector": "[data-testid=\"users-bulk-clear\"]",
+          "badge": 3
+        }
+      ]
+    },
+    {
+      "id": "admin-roles-list",
+      "goto": "/admin/roles",
+      "waitFor": "[data-testid=\"ob-admin-roles\"]",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"role-add-btn\"]",
+          "badge": 2
+        },
+        {
+          "selector": ".table-section",
+          "badge": 3,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "admin-groups-list",
+      "goto": "/admin/permission-groups",
+      "waitFor": "[data-testid=\"ob-admin-permission-groups\"]",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"group-add-btn\"]",
+          "badge": 2
+        },
+        {
+          "selector": ".table-section",
+          "badge": 3,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "admin-denials",
+      "goto": "/admin/access-denials",
+      "waitFor": ".denials",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": ".toggle-row",
+          "badge": 1,
+          "badgeInside": true
+        },
+        {
+          "selector": ".filters",
+          "badge": 2,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "admin-user-card",
+      "goto": "/admin/users",
+      "waitFor": "[data-testid=\"ob-users-list\"]",
+      "prepare": [
+        {
+          "fill": [
+            ".header-controls input",
+            "manager32810"
+          ]
+        },
+        {
+          "wait": ".user-item"
+        },
+        {
+          "click": ".user-item",
+          "nth": 0
+        },
+        {
+          "wait": ".user-edit-modal"
+        }
+      ],
+      "clip": {
+        "selector": ".user-edit-modal",
+        "pad": 40
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"user-access\"]",
+          "badge": 4
+        }
+      ]
+    },
+    {
+      "id": "admin-perms-tree",
+      "goto": "/admin/users",
+      "waitFor": "[data-testid=\"ob-users-list\"]",
+      "prepare": [
+        {
+          "fill": [
+            ".header-controls input",
+            "manager32810"
+          ]
+        },
+        {
+          "wait": ".user-item"
+        },
+        {
+          "click": ".user-item",
+          "nth": 0
+        },
+        {
+          "wait": ".user-edit-modal"
+        },
+        {
+          "click": "[data-testid=\"user-access\"]"
+        },
+        {
+          "wait": "[data-testid=\"user-access-modal\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"user-access-modal\"]",
+        "pad": 40
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"admin-toggle\"]",
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"user-permissions-search\"]",
+          "badge": 2
+        }
+      ]
+    },
+    {
+      "id": "admin-role-card",
+      "goto": "/admin/roles",
+      "waitFor": "[data-testid=\"ob-admin-roles\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"role-row\"]",
+          "nth": 0
+        },
+        {
+          "wait": ".details-section"
+        }
+      ],
+      "clip": {
+        "selector": ".details-section",
+        "pad": {
+          "x": 90,
+          "y": 60
+        }
+      },
+      "highlight": [
+        {
+          "selector": ".details-body .lk-input",
+          "nth": 0,
+          "badge": 1
+        },
+        {
+          "selector": ".details-body .lk-input",
+          "nth": 1,
+          "badge": 2
+        },
+        {
+          "selector": ".details-body .lk-textarea",
+          "badge": 3
+        },
+        {
+          "selector": ".manage-perms-btn",
+          "badge": 4
+        }
+      ]
+    }
+  ]
+}
