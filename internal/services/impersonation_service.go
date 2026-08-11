@@ -73,6 +73,13 @@ func (s *impersonationService) Start(ctx context.Context, actorUserID, targetUse
 	if target.IsBanned {
 		return nil, apperr.Validation("Учётная запись заблокирована: войти от её имени нельзя")
 	}
+	// Учётной записи уже велено сменить пароль (#1911): её собственный доступ закрыт
+	// до смены, а смена пароля в режиме запрещена. Сеанс получился бы тупиком - окно
+	// смены пароля поверх пустой системы, - поэтому отказываем сразу и словами.
+	if target.MustChangePassword {
+		return nil, apperr.Validation(
+			"Пользователю назначена обязательная смена пароля: до неё войти от его имени нельзя")
+	}
 
 	if err := s.checkRank(ctx, actor, target); err != nil {
 		return nil, err

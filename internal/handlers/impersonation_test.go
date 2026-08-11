@@ -173,8 +173,9 @@ func TestImpersonate_MorePrivilegedTargetRejected(t *testing.T) {
 	})
 }
 
-// TestImpersonate_DisabledAndBannedTargetRejected: войти от имени отключённой или
-// заблокированной учётной записи нельзя - она не пускает и собственного владельца.
+// TestImpersonate_DisabledAndBannedTargetRejected: войти от имени отключённой,
+// заблокированной или обязанной сменить пароль учётной записи нельзя - она не
+// пускает и собственного владельца, а сеанс вышел бы тупиком.
 func TestImpersonate_DisabledAndBannedTargetRejected(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -196,6 +197,14 @@ func TestImpersonate_DisabledAndBannedTargetRejected(t *testing.T) {
 
 	_, rec = impersonate(t, e, adminToken, bannedID)
 	assert.Equal(t, http.StatusBadRequest, rec.Code, "заблокированная учётная запись закрыта: %s", rec.Body.String())
+
+	testutil.RegisterUser(t, e, "impmustchange", "pass123", 1, td.OrgID, td.CompanyID)
+	mustChangeID := getUserID(t, db, "impmustchange")
+	require.NoError(t, db.Table("users").Where("id = ?", mustChangeID).Update("must_change_password", true).Error)
+
+	_, rec = impersonate(t, e, adminToken, mustChangeID)
+	assert.Equal(t, http.StatusBadRequest, rec.Code,
+		"учётная запись с назначенной сменой пароля закрыта - сеанс был бы тупиком: %s", rec.Body.String())
 }
 
 // TestImpersonate_DangerousActionsBlocked: под режимом закрыты действия, меняющие
@@ -235,6 +244,8 @@ func TestImpersonate_DangerousActionsBlocked(t *testing.T) {
 		{"правка прав", http.MethodPut, fmt.Sprintf("/permissions/user/%d", targetID), `{"permissions":[]}`},
 		{"снятие блокировки входа", http.MethodPost, "/users/impblocktgt/reset-lockout", ""},
 		{"согласие на обработку данных", http.MethodPost, "/consents/accept", ""},
+		{"рассылка нового пароля", http.MethodPost, "/users/impblocktgt/rotate-password", ""},
+		{"смена паролей всем", http.MethodPost, "/settings/password-rotation/run", ""},
 		{"цепочка режимов", http.MethodPost, fmt.Sprintf("/users/%d/impersonate", targetID), ""},
 	}
 	for _, tc := range blocked {
