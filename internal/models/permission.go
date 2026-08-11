@@ -118,14 +118,6 @@ type PermissionUpdate struct {
 	Value string `json:"value" validate:"required,oneof=allow deny read write"`
 }
 
-// PermissionTreeNode -- узел дерева разрешений для админского UI.
-type PermissionTreeNode struct {
-	Key         string               `json:"key"`
-	DisplayName string               `json:"display_name"`
-	Category    string               `json:"category"`
-	Children    []PermissionTreeNode `json:"children,omitempty"`
-}
-
 // AutoGenerateRequest -- запрос на авто-генерацию разрешений для таблицы.
 type AutoGenerateRequest struct {
 	TableID   int    `json:"table_id" validate:"required"`
