@@ -141,7 +141,7 @@ type ApplicationService interface {
 	UpdateApplication(ctx context.Context, username string, applicationID int, req ApplicationUpdateRequest) (*ApplicationUpdateResponse, error)
 
 	// ForwardApplication пересылает заявку ответственным/просматривающим.
-	ForwardApplication(ctx context.Context, username string, applicationID int, req ForwardApplicationRequest) error
+	ForwardApplication(ctx context.Context, username string, applicationID int, isSuperAdmin bool, req ForwardApplicationRequest) error
 
 	// ApproveApplicationByUser согласование/отказ заявки пользователем.
 	ApproveApplicationByUser(ctx context.Context, username string, applicationID int, req UserApprovalRequest) error
@@ -2217,10 +2217,9 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		// Чужие идентификаторы отбрасываем молча - так же, как дубли ответственных
 		// строкой ниже; запрос при этом остаётся валидным и заявка подаётся.
 		//
-		// Закрыт только путь подачи. Тот же INSERT в application_viewers делает
-		// пересылка (ForwardApplication), и там получатель проверяется лишь на
-		// существование - автор заявки по-прежнему может открыть её кому угодно
-		// через /forward. Сводится в срезе be-forward-gate этого эпика.
+		// Тот же список стережёт пересылку (ForwardApplication): второй путь к INSERT
+		// в application_viewers обязан пускать тот же круг, иначе закрытая на подаче
+		// дыра открывается через /forward.
 		allowedReaders, err := recipientCandidateIDs(ctx, tx, *user)
 		if err != nil {
 			tx.Rollback()
