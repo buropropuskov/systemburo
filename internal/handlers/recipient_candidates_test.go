@@ -98,9 +98,11 @@ func TestSubmitCompleteApplication_DropsForeignReader(t *testing.T) {
 
 	senderToken := testutil.RegisterAndLogin(t, e, "rc3_sender", "pass123", 2, td.OrgID, td.CompanyID)
 	testutil.RegisterUser(t, e, "rc3_colleague", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.RegisterManager(t, e, "rc3_boss", otherOrgID, otherCompanyID)
 	strangerToken := testutil.RegisterAndLogin(t, e, "rc3_stranger", "pass123", 1, otherOrgID, otherCompanyID)
 
 	colleagueID := getUserID(t, db, "rc3_colleague")
+	bossID := getUserID(t, db, "rc3_boss")
 	strangerID := getUserID(t, db, "rc3_stranger")
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_rc3", "Cars RC3")
 
@@ -110,7 +112,7 @@ func TestSubmitCompleteApplication_DropsForeignReader(t *testing.T) {
 		"responsible_person": "Test Person",
 		"contact_phone": "+79001234567",
 		"data_approval": true,
-		"readers": [%d, %d],
+		"readers": [%d, %d, %d],
 		"attachments": [{
 			"attachment_type": "cars",
 			"attachment_name": "cars_template",
@@ -122,7 +124,7 @@ func TestSubmitCompleteApplication_DropsForeignReader(t *testing.T) {
 			"entry_time_to": "18:00",
 			"data": { "vehicles": [{ "car_number": "A001AA777", "car_brand": "Toyota" }] }
 		}]
-	}`, colleagueID, strangerID, uaID)
+	}`, colleagueID, bossID, strangerID, uaID)
 
 	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(senderToken))
 	require.Equal(t, http.StatusOK, rec.Code, "чужой читатель отбрасывается молча, подача проходит: %s", rec.Body.String())
@@ -137,6 +139,10 @@ func TestSubmitCompleteApplication_DropsForeignReader(t *testing.T) {
 		viewerIDs[v.UserID] = true
 	}
 	assert.True(t, viewerIDs[colleagueID], "свой коллега остаётся читателем")
+	// Пока фронт не переехал на новый эндпоинт, он шлёт в readers руководителей из
+	// любых организаций (фильтр по типу в ApplicationRecipientsRow). Валидация обязана
+	// их пропускать, иначе этот срез ломает подачу до выхода фронтового.
+	assert.True(t, viewerIDs[bossID], "руководитель из чужой организации остаётся допустимым читателем")
 	assert.False(t, viewerIDs[strangerID], "посторонний в читатели не попадает")
 
 	// И заявку он по-прежнему не видит.

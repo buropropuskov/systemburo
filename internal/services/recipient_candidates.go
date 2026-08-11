@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"sort"
+	"strings"
 
 	"systemburo/internal/models"
 
@@ -44,7 +46,6 @@ func loadRecipientCandidates(ctx context.Context, db *gorm.DB, me models.User) (
 	result := make([]models.RecipientCandidate, 0)
 	err := recipientCandidateScope(db.WithContext(ctx), me).
 		Select("u.id, u.username, u.last_name, u.first_name, u.middle_name, u.position").
-		Order("u.last_name NULLS LAST, u.username").
 		Scan(&result).Error
 	if err != nil {
 		slog.Error("не удалось получить кандидатов в получатели заявки", "error", err, "user_id", me.ID)
@@ -59,7 +60,29 @@ func loadRecipientCandidates(ctx context.Context, db *gorm.DB, me models.User) (
 		maskUserParts(masks, result[i].ID, &result[i].LastName, &result[i].FirstName, &result[i].MiddleName)
 		result[i].PDHidden = true
 	}
+
+	// Сортируем после маскировки и по тому, что видит клиент. Порядок по настоящей
+	// фамилии выдал бы её первую букву: скрытый работник встал бы на своё алфавитное
+	// место между видимыми однофамильцами - ровно то, что маскировка #1567 прячет.
+	sort.SliceStable(result, func(i, j int) bool {
+		return recipientSortKey(result[i]) < recipientSortKey(result[j])
+	})
 	return result, nil
+}
+
+// recipientSortKey - строка, по которой список выглядит упорядоченным для человека:
+// видимое ФИО, а у скрытого работника - его заглушка, уехавшая в конец алфавита.
+func recipientSortKey(c models.RecipientCandidate) string {
+	parts := make([]string, 0, 3)
+	for _, p := range []*string{c.LastName, c.FirstName, c.MiddleName} {
+		if p != nil && *p != "" {
+			parts = append(parts, *p)
+		}
+	}
+	if len(parts) == 0 {
+		return "￿" + c.Username
+	}
+	return strings.Join(parts, " ")
 }
 
 // recipientCandidateIDs - те же кандидаты, но только идентификаторами: для проверки
