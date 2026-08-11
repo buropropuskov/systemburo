@@ -839,6 +839,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.GET("/:id", app.GetApplicationByID)
 	apg.PUT("/:id", app.UpdateApplication)
 	apg.GET("/:id/responsible-users", app.GetApplicationResponsibleUsers)
+	apg.GET("/:id/participants", app.GetApplicationParticipants) // все участники заявки с ролями и контактами
 	apg.GET("/:id/details", app.GetApplicationDetails)
 	apg.GET("/:id/attachments", app.GetApplicationAttachments)
 	apg.GET("/:id/blank", attachmentBlanks.Download) // #183 - скачать заполненный .xlsx

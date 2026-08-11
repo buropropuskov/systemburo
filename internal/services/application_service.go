@@ -194,6 +194,11 @@ type ApplicationService interface {
 	// GetApplicationResponsibleUsers возвращает ответственных пользователей заявки.
 	GetApplicationResponsibleUsers(ctx context.Context, applicationID int) ([]ResponsibleUserInfo, error)
 
+	// GetApplicationParticipants возвращает всех участников заявки одним списком:
+	// отправителя, принявшего в работу, согласующих, ответственных и читателей - с
+	// ролями, контактами и состоянием голоса. Персональные данные маскируются.
+	GetApplicationParticipants(ctx context.Context, applicationID int) ([]ApplicationParticipant, error)
+
 	// GetApplicationHistory возвращает историю заявки.
 	GetApplicationHistory(ctx context.Context, applicationID int) ([]ApplicationHistoryItem, error)
 
