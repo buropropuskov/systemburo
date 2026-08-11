@@ -2211,13 +2211,33 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	// Читатели-получатели заявки (#884): доступ только на просмотр через application_viewers
 	// (как форвард-флоу) - CanAccessApplication пускает их на чтение, но не в согласующие.
 	// Пропускаем тех, кто уже ответственный (у них доступ и так есть).
-	if req.Readers != nil {
+	if req.Readers != nil && len(*req.Readers) > 0 {
+		// Читателем можно назначить только того, кого форма и предлагала выбрать:
+		// иначе подделанный запрос открывал бы заявку любому пользователю системы.
+		// Чужие идентификаторы отбрасываем молча - так же, как дубли ответственных
+		// строкой ниже; запрос при этом остаётся валидным и заявка подаётся.
+		//
+		// Закрыт только путь подачи. Тот же INSERT в application_viewers делает
+		// пересылка (ForwardApplication), и там получатель проверяется лишь на
+		// существование - автор заявки по-прежнему может открыть её кому угодно
+		// через /forward. Сводится в срезе be-forward-gate этого эпика.
+		allowedReaders, err := recipientCandidateIDs(ctx, tx, *user)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+
 		seenViewer := make(map[int]bool, len(responsibleUsers))
 		for _, ru := range responsibleUsers {
 			seenViewer[ru.UserID] = true
 		}
 		for _, readerID := range *req.Readers {
 			if readerID <= 0 || seenViewer[readerID] {
+				continue
+			}
+			if _, allowed := allowedReaders[readerID]; !allowed {
+				slog.Warn("читатель заявки отброшен: вне списка доступных получателей",
+					"application_id", appID, "reader_id", readerID, "author_id", user.ID)
 				continue
 			}
 			seenViewer[readerID] = true

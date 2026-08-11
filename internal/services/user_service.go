@@ -22,10 +22,18 @@ type UserService interface {
 	// GetAll возвращает список пользователей с организацией, компанией и типом.
 	// includeArchived=false отдаёт только активных (is_active=true).
 	GetAll(ctx context.Context, includeArchived bool) ([]models.UserInfoResponse, error)
+	// GetRecipientCandidates возвращает тех, кого автор заявки может добавить получателем:
+	// коллег по организации и компании плюс руководителей. В отличие от GetAll доступен
+	// без прав администратора - выбор получателя есть у любого, кто подаёт заявку.
+	GetRecipientCandidates(ctx context.Context, username string) ([]models.RecipientCandidate, error)
 	// UpdateType обновляет тип пользователя.
 	UpdateType(ctx context.Context, callerUserID int, username string, req models.UpdateUserTypeRequest) error
-	// UpdatePassword обновляет пароль пользователя.
-	UpdatePassword(ctx context.Context, callerUserID int, username string, req models.UpdatePasswordRequest) error
+	// UpdatePassword обновляет пароль пользователя. meta (адрес, клиент) идёт в
+	// историю входов и может быть nil там, где http-контекста нет.
+	UpdatePassword(ctx context.Context, callerUserID int, username string, req models.UpdatePasswordRequest, meta *RequestMeta) error
+	// ChangeOwnPassword меняет пароль ТЕКУЩЕГО пользователя по подтверждению
+	// текущим паролем. Единственный путь смены пароля без права page.admin.users.
+	ChangeOwnPassword(ctx context.Context, userID int, req models.ChangeOwnPasswordRequest, meta *RequestMeta) error
 	// UpdateInfo обновляет ФИО, должность, email и телефон пользователя.
 	UpdateInfo(ctx context.Context, callerUserID int, username string, req models.UpdateUserInfoRequest) error
 	// UpdateOrganization обновляет организацию пользователя.
@@ -324,6 +332,24 @@ func (s *userService) GetAll(ctx context.Context, includeArchived bool) ([]model
 	return result, nil
 }
 
+// GetRecipientCandidates возвращает кандидатов в получатели заявки для текущего
+// пользователя. Пустой список - штатный ответ (человек один в своей организации, и
+// руководителей в системе нет), а не ошибка.
+func (s *userService) GetRecipientCandidates(ctx context.Context, username string) ([]models.RecipientCandidate, error) {
+	var me models.User
+	if err := s.db.WithContext(ctx).
+		Select("id, organization_id, company_id").
+		Where("username = ?", username).
+		First(&me).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, echo.NewHTTPError(http.StatusUnauthorized, "User not found")
+		}
+		slog.Error("не удалось определить пользователя для списка получателей", "error", err, "username", username)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching recipient candidates")
+	}
+	return loadRecipientCandidates(ctx, s.db, me)
+}
+
 // UpdateType обновляет type_id пользователя с проверкой существования типа.
 func (s *userService) UpdateType(ctx context.Context, callerUserID int, username string, req models.UpdateUserTypeRequest) error {
 	// Проверяем существование типа
@@ -360,7 +386,7 @@ func (s *userService) UpdateType(ctx context.Context, callerUserID int, username
 // UpdatePassword хеширует и обновляет пароль пользователя.
 // После смены пароля все refresh_tokens юзера отзываются - иначе старые
 // сессии (возможно скомпрометированные) продолжили бы жить до истечения TTL.
-func (s *userService) UpdatePassword(ctx context.Context, callerUserID int, username string, req models.UpdatePasswordRequest) error {
+func (s *userService) UpdatePassword(ctx context.Context, callerUserID int, username string, req models.UpdatePasswordRequest, meta *RequestMeta) error {
 	if err := ValidatePassword(s.passwordPolicy(), req.Password); err != nil {
 		return err
 	}
@@ -392,9 +418,71 @@ func (s *userService) UpdatePassword(ctx context.Context, callerUserID int, user
 		// вызывающего с целевым (гейт page.admin.users допускает и смену
 		// админом собственного пароля).
 		s.notifyPasswordChanged(ctx, &user, callerUserID)
+
+		// Событие в истории входов. Модель AuthEvent обещает запись при смене
+		// пароля с самого начала, но до этого её не делал никто: человек видел
+		// в своей ленте входы и отказы, а факт подмены пароля - нет.
+		detail := "пароль задан администратором"
+		if callerUserID == user.ID {
+			detail = "смена своего пароля"
+		}
+		s.recordPasswordChangeEvent(ctx, &user, meta, true, detail)
 	}
 
 	return nil
+}
+
+// ChangeOwnPassword меняет пароль текущего пользователя. Требует подтверждения
+// текущим паролем: перехваченная сессия иначе даёт смену пароля, то есть полный
+// захват учётной записи. Дальше переиспользует UpdatePassword - отзыв сессий,
+// аудит и уведомление там уже написаны и должны работать одинаково независимо
+// от того, кто менял пароль.
+func (s *userService) ChangeOwnPassword(ctx context.Context, userID int, req models.ChangeOwnPasswordRequest, meta *RequestMeta) error {
+	var user models.User
+	if err := s.db.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "Пользователь не найден")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error loading user")
+	}
+
+	if !verifyPassword(user.Password, req.CurrentPassword) {
+		// Неудачная попытка тоже попадает в историю: подбор текущего пароля через
+		// эту форму - такой же признак инцидента, как серия неудачных входов.
+		s.recordPasswordChangeEvent(ctx, &user, meta, false, "неверный текущий пароль")
+		return echo.NewHTTPError(http.StatusBadRequest, "Текущий пароль указан неверно")
+	}
+
+	if verifyPassword(user.Password, req.NewPassword) {
+		return echo.NewHTTPError(http.StatusBadRequest, "Новый пароль совпадает с текущим")
+	}
+
+	return s.UpdatePassword(ctx, userID, user.Username, models.UpdatePasswordRequest{Password: req.NewPassword}, meta)
+}
+
+// recordPasswordChangeEvent пишет запись в auth_events. Best-effort по образцу
+// authService.recordAuthEvent: провал журнала не отменяет уже сменённый пароль.
+func (s *userService) recordPasswordChangeEvent(ctx context.Context, user *models.User, meta *RequestMeta, success bool, detail string) {
+	ip, ua := "", ""
+	if meta != nil {
+		ip = meta.IPAddress
+		ua = meta.UserAgent
+	}
+	if len(ua) > 255 {
+		ua = ua[:255]
+	}
+	ev := models.AuthEvent{
+		UserID:    &user.ID,
+		Username:  user.Username,
+		EventType: models.AuthEventPasswordChanged,
+		Success:   success,
+		IPAddress: ip,
+		UserAgent: ua,
+		Detail:    detail,
+	}
+	if err := s.db.WithContext(ctx).Create(&ev).Error; err != nil {
+		slog.Warn("не удалось записать событие смены пароля", "user_id", user.ID, "error", err)
+	}
 }
 
 // notifyPasswordChanged создаёт уведомление о смене пароля. Вызывается

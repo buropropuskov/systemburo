@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"net/http"
+
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
@@ -15,6 +17,15 @@ type SettingsHandler struct {
 	// действовала сразу, а не по истечении TTL кэша гейта (#1567).
 	consentGate  *services.PDConsentGateService
 	consentStats *services.PDConsentStatsService
+	// mail подключается сеттером после конструирования (#1906): почтовый сервис
+	// создаётся позже хендлера, а в тестах его нет вовсе.
+	mail services.MailSender
+}
+
+// SetMailSender подключает почтовый сервис. Без него ручка проверки почты
+// отвечает «почта не настроена» - ровно как при пустом SMTP_HOST.
+func (h *SettingsHandler) SetMailSender(m services.MailSender) {
+	h.mail = m
 }
 
 // NewSettingsHandler создаёт хендлер для управления системными настройками.
@@ -88,3 +99,45 @@ func (h *SettingsHandler) GetPasswordPolicy(c echo.Context) error {
 func (h *SettingsHandler) GetPublicContacts(c echo.Context) error {
 	return RespondSuccess(c, h.service.GetPublicContacts(c.Request().Context()))
 }
+
+// GetMailStatus сообщает, настроена ли отправка почты. Без него администратор
+// включал бы плановую рассылку вслепую и узнавал о ненастроенной почте из отчёта
+// о несостоявшемся прогоне.
+func (h *SettingsHandler) GetMailStatus(c echo.Context) error {
+	return RespondSuccess(c, map[string]bool{"configured": h.mail != nil && h.mail.Enabled()})
+}
+
+// SendTestMail отправляет проверочное письмо на указанный адрес и отвечает
+// синхронно. Настройка чужого почтового сервера без такой кнопки превращается в
+// переписку с поддержкой: администратор не видит ни кода отказа, ни причины.
+func (h *SettingsHandler) SendTestMail(c echo.Context) error {
+	var req models.TestMailRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if h.mail == nil || !h.mail.Enabled() {
+		return echo.NewHTTPError(http.StatusBadRequest,
+			"Почта не настроена: задайте параметры SMTP в файле параметров и перезапустите систему")
+	}
+
+	msg := services.MailMessage{
+		To:           req.To,
+		Subject:      "Проверка почтовой рассылки",
+		Body:         testMailBody,
+		TemplateCode: services.MailTemplateTest,
+	}
+	if err := h.mail.SendNow(c.Request().Context(), msg); err != nil {
+		return echo.NewHTTPError(http.StatusBadGateway, services.ExplainMailError(err))
+	}
+	return RespondSuccess(c, map[string]any{"sent": true, "to": req.To})
+}
+
+// testMailBody - текст проверочного письма. Пишется от лица системы и объясняет
+// получателю, почему письмо пришло: адрес для проверки часто вводят чужой.
+const testMailBody = `Это проверочное письмо системы бюро пропусков.
+
+Оно отправлено вручную из раздела настроек, чтобы убедиться, что почтовый сервер
+принимает письма от системы. Отвечать на него не нужно.
+
+Если письмо попало в папку со спамом, проверьте записи SPF и DKIM у домена
+отправителя: без них письма системы будут теряться у получателей.`

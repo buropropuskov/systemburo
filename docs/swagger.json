@@ -21179,6 +21179,69 @@
                 }
             }
         },
+        "/users/me/password": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Меняет пароль текущего пользователя по подтверждению текущим паролем. Права не требуются.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Смена собственного пароля",
+                "parameters": [
+                    {
+                        "description": "Текущий и новый пароль",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.ChangeOwnPasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Password changed successfully",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/users/me/theme": {
             "get": {
                 "security": [
@@ -21256,6 +21319,46 @@
                         "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/recipient-candidates": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Пользователи, которых автор может добавить получателем заявки: коллеги по организации и компании плюс руководители. Доступно любому авторизованному - выбор получателя есть у всех, кто подаёт заявку, а список людей своей организации и так открыт (/organizations/{id}/users).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Кандидаты в получатели заявки",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.RecipientCandidate"
+                            }
                         }
                     },
                     "401": {
@@ -23146,6 +23249,24 @@
                 }
             }
         },
+        "models.ChangeOwnPasswordRequest": {
+            "type": "object",
+            "required": [
+                "current_password",
+                "new_password"
+            ],
+            "properties": {
+                "current_password": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "new_password": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 6
+                }
+            }
+        },
         "models.Citizenship": {
             "type": "object",
             "properties": {
@@ -24953,6 +25074,33 @@
                 },
                 "last_second_count": {
                     "type": "integer"
+                }
+            }
+        },
+        "models.RecipientCandidate": {
+            "type": "object",
+            "properties": {
+                "first_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "middle_name": {
+                    "type": "string"
+                },
+                "pd_hidden": {
+                    "description": "PDHidden -- ФИО скрыто: работник не дал согласия на обработку ПД (#1567).",
+                    "type": "boolean"
+                },
+                "position": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },

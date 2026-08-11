@@ -13,6 +13,11 @@ type UpdateSettingRequest struct {
 	Value string `json:"value" validate:"required"`
 }
 
+// TestMailRequest - запрос на проверочное письмо при настройке почты (#1906).
+type TestMailRequest struct {
+	To string `json:"to" validate:"required,email"`
+}
+
 // PDConsentSettings -- настройки согласия на обработку персональных данных, которое
 // запрашивается у пользователя при первом входе (#1567). Хранятся тремя ключами в
 // system_settings: legal.pd_consent_text, legal.pd_consent_version,

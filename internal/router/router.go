@@ -96,6 +96,11 @@ type Dependencies struct {
 	// (blank-import, C1C2), сверх общего RateLimit в main.go. nil в тестах - разбор
 	// .xlsx на несколько подтестов подряд не должен упираться в лимит.
 	ImportListLimiter echo.MiddlewareFunc
+	// SelfPasswordLimiter - rate limit на PUT /users/me/password. Форма принимает
+	// текущий пароль, то есть годится для подбора не хуже страницы входа, а лестница
+	// блокировки входа её не прикрывает. nil в тестах - там подряд идут и удачные,
+	// и заведомо неудачные попытки одной учёткой.
+	SelfPasswordLimiter echo.MiddlewareFunc
 	// ConsentGate - PDConsentGate: закрывает API до согласия на обработку ПД
 	// (#1567). nil по умолчанию, в том числе в тестах: иначе каждый тест, где
 	// согласия нет, начал бы получать 403. Тесты самого гейта поднимают
@@ -292,6 +297,18 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// userID из JWT. Права не требуются, оформление доступно любому.
 	protected.GET("/users/me/theme", theme.GetTheme)
 	protected.PUT("/users/me/theme", theme.SetTheme)
+
+	// Смена СВОЕГО пароля (#1915). До этого единственным путём смены был
+	// PUT /users/:username/password под page.admin.users - работник не мог сменить
+	// свой пароль вообще, только через бюро. Права не требуются, личность
+	// подтверждается текущим паролем внутри сервиса.
+	if users != nil {
+		selfPasswordHandlers := []echo.MiddlewareFunc{}
+		if d.SelfPasswordLimiter != nil {
+			selfPasswordHandlers = append(selfPasswordHandlers, d.SelfPasswordLimiter)
+		}
+		protected.PUT("/users/me/password", users.ChangeOwnPassword, selfPasswordHandlers...)
+	}
 
 	// Сквозной поиск по разделам. Гейт эндпоинта -- только авторизация, и это
 	// намеренно: раздел, на который нет права, отсекается отбором провайдеров, а
@@ -579,6 +596,13 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// прохода в единой форме слота (для модалки «Режимы работы» в ЛК). Чтение
 	// любому авторизованному.
 	protected.GET("/work-modes", d.WorkModes.GetWorkModes)
+
+	// Кандидаты в получатели заявки - без права page.admin.users: выбор получателя есть
+	// у любого, кто подаёт заявку, а раздача этого списка через админский /users/all
+	// отбивала форму подачи 403 у арендатора. Отдаёт узкий срез (коллеги по организации
+	// и компании плюс руководители) - не эквивалент списка всех учёток.
+	// Статический сегмент объявлен до /users/:username: в роутинге Echo он приоритетнее.
+	protected.GET("/users/recipient-candidates", users.GetRecipientCandidates)
 
 	// Управление пользователями - page.admin.users (Ф5, ранее service checkAdmin
 	// по type-коду manager/buropropuskov). Тот же ключ, что и у FE-роута раздела.
@@ -960,6 +984,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.GET("/settings/upload", settings.GetUploadSettings)
 	protected.GET("/settings/notifications", settings.GetNotificationSettings)
 	protected.GET("/settings/password-policy", settings.GetPasswordPolicy)
+	// Почта (#1906): состояние настройки и проверочное письмо. Оба под тем же
+	// правом, что и остальные настройки. Конкретные пути объявлены ДО
+	// PUT /settings/:key намеренно - иначе echo увидел бы в "mail" значение
+	// параметра key и попытался бы сохранить настройку с таким именем.
+	protected.GET("/settings/mail/status", settings.GetMailStatus, requireSettings)
+	protected.POST("/settings/mail/test", settings.SendTestMail, requireSettings)
 	protected.PUT("/settings/:key", settings.Update, requireSettings)
 
 	// Новости. Активные (GET "") - всем авторизованным; управление - page.admin
