@@ -130,7 +130,11 @@ async function acceptConsent(apiBase, token) {
   const gate = await fetch(`${apiBase}/consents/gate`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!gate.ok) return;
+  if (!gate.ok) {
+    // Молча выйти нельзя: не спросив состояние, мы не знаем, требуется ли
+    // согласие, и сбой всплыл бы позже невнятной ошибкой в чужом кадре.
+    throw new Error(`не удалось узнать состояние согласия: ${gate.status}`);
+  }
   const body = await gate.json();
   if (!(body.data ?? body)?.required) return;
 

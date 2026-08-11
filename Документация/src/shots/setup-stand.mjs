@@ -194,7 +194,34 @@ async function main() {
   console.log(`Таблица «${carsTable.display_name}»: включён список по факту, заполнена инструкция`);
 
   await fillOverview(apiBase, token);
+  await fillBureauSchedule(apiBase, token);
   await enableConsent(apiBase, token);
+}
+
+/**
+ * Заполняет расписание бюро пропусков.
+ *
+ * Без него окно «Режимы работы» показывает выходной все семь дней и «Закрыто
+ * сейчас» в любое время. Руководство призывает сверяться с этим окном перед
+ * подачей заявки, и снимок, на котором бюро закрыто всегда, читателя только
+ * запутает.
+ */
+async function fillBureauSchedule(apiBase, token) {
+  const existing = unwrap(await api(apiBase, token, 'GET', '/bureau/time-slots')) ?? [];
+  if (existing.length > 0) {
+    console.log(`Расписание бюро: уже задано, промежутков ${existing.length}`);
+    return;
+  }
+  // 0 - понедельник, 6 - воскресенье. Будни целиком, суббота короче,
+  // воскресенье не заводим - в окне оно и будет выходным.
+  const slots = [
+    ...[0, 1, 2, 3, 4].map((day) => ({ day_of_week: day, open_time: '08:00', close_time: '18:00' })),
+    { day_of_week: 5, open_time: '09:00', close_time: '14:00' },
+  ];
+  for (const slot of slots) {
+    await api(apiBase, token, 'POST', '/bureau/time-slots', { ...slot, is_active: true });
+  }
+  console.log(`Расписание бюро: заведено промежутков ${slots.length}`);
 }
 
 /**
@@ -209,40 +236,76 @@ async function main() {
  */
 async function enableConsent(apiBase, token) {
   const current = unwrap(await api(apiBase, token, 'GET', '/settings/pd-consent'));
-  if (current?.required) {
-    console.log('Согласие: запрос уже включён');
-    return;
+  const sameText = (current?.text ?? '').trim() === CONSENT_TEXT.trim();
+
+  if (!sameText) {
+    /*
+     * `require_again` поднимает редакцию, а вместе с ней проставляется дата, с
+     * которой редакция действует. Без него дата остаётся пустой, и в окне
+     * согласия видна одна «РЕДАКЦИЯ 1» - тогда как руководство обещает
+     * читателю номер редакции и дату. Заодно повторный запуск донастройки
+     * доносит до стенда правку текста: сравнение по тексту, а не по признаку
+     * «запрос уже включён».
+     */
+    await api(apiBase, token, 'PUT', '/settings/pd-consent/text', {
+      text: CONSENT_TEXT,
+      require_again: true,
+    });
   }
-  await api(apiBase, token, 'PUT', '/settings/pd-consent/text', {
-    text: CONSENT_TEXT,
-    require_again: false,
-  });
-  await api(apiBase, token, 'PUT', '/settings/pd-consent/required', { required: true });
-  console.log('Согласие: задан текст и включён запрос при входе');
+  /*
+   * Дата редакции проставляется только подъёмом редакции. На стенде, где текст
+   * задали один раз без подъёма, она осталась пустой, и в окне согласия видна
+   * одна «РЕДАКЦИЯ 1» без даты.
+   */
+  if (sameText && !current?.version_at) {
+    await api(apiBase, token, 'POST', '/settings/pd-consent/require-again', {});
+  }
+  if (!current?.required) {
+    await api(apiBase, token, 'PUT', '/settings/pd-consent/required', { required: true });
+  }
+  console.log('Согласие: текст, дата редакции и запрос при входе настроены');
 }
 
 /** Наполняет страницу «Обзор и новости»: новости, объявление, документы. */
 async function fillOverview(apiBase, token) {
+  /*
+   * Донастройка обязана быть повторяемой: каждая заведённая новость и каждый
+   * документ рассылают уведомления всем работникам, и повторный прогон со
+   * сносом-пересозданием засыпал бы съёмочную учётную запись дубликатами - в
+   * кадре списка уведомлений это сразу видно. Поэтому сверяем по заголовку и
+   * трогаем только то, чего нет.
+   */
   const existingNews = unwrap(await api(apiBase, token, 'GET', '/news/all')) ?? [];
+  const newsTitles = new Set(existingNews.map((item) => item.title));
   for (const item of existingNews) {
-    await api(apiBase, token, 'DELETE', `/news/${item.id}`);
+    if (!NEWS.some((wanted) => wanted.title === item.title)) {
+      await api(apiBase, token, 'DELETE', `/news/${item.id}`);
+    }
   }
+  let addedNews = 0;
   for (const item of NEWS) {
+    if (newsTitles.has(item.title)) continue;
     await api(apiBase, token, 'POST', '/news', { ...item, is_active: true });
+    addedNews += 1;
   }
-  console.log(`Новости: заменены на ${NEWS.length}`);
+  console.log(`Новости: было ${existingNews.length}, добавлено ${addedNews}`);
 
   const existingAnnouncements = unwrap(await api(apiBase, token, 'GET', '/announcements/all')) ?? [];
+  let announcement = existingAnnouncements.find((item) => item.title === ANNOUNCEMENT.title);
   for (const item of existingAnnouncements) {
-    await api(apiBase, token, 'DELETE', `/announcements/${item.id}`);
+    if (item.title !== ANNOUNCEMENT.title) {
+      await api(apiBase, token, 'DELETE', `/announcements/${item.id}`);
+    }
   }
-  const created = unwrap(await api(apiBase, token, 'POST', '/announcements', ANNOUNCEMENT));
-  if (created?.id) {
+  if (!announcement) {
+    announcement = unwrap(await api(apiBase, token, 'POST', '/announcements', ANNOUNCEMENT));
+  }
+  if (announcement?.id) {
     await api(apiBase, token, 'POST', '/announcements/set-active', {
-      announcement_id: created.id,
+      announcement_id: announcement.id,
     });
   }
-  console.log('Объявление: заведено и сделано активным');
+  console.log('Объявление: активно');
 
   const existingDocs = unwrap(await api(apiBase, token, 'GET', '/documents')) ?? [];
   const haveTitles = new Set(existingDocs.map((item) => item.title));

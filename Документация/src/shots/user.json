@@ -164,26 +164,37 @@
           "click": "[data-testid=\"header-button-search\"]"
         },
         {
-          "wait": "[data-testid=\"global-search-panel\"] input"
+          "wait": ".gsp__input"
         },
         {
           "fill": [
-            "[data-testid=\"global-search-panel\"] input",
-            "Белов"
+            ".gsp__input",
+            "Регионэкспресс"
           ]
         },
         {
-          "wait": "[data-testid=\"global-search-panel\"] input"
+          "wait": ".gsp__group-title"
         }
       ],
       "clip": {
         "selector": "[data-testid=\"global-search-panel\"]",
         "pad": {
-          "x": 500,
+          "x": 320,
           "y": 20
         }
       },
-      "highlight": []
+      "highlight": [
+        {
+          "selector": ".gsp__input",
+          "badge": 1,
+          "badgeInside": true
+        },
+        {
+          "selector": ".gsp__group-title",
+          "nth": 0,
+          "badge": 2
+        }
+      ]
     },
     {
       "id": "notifications",

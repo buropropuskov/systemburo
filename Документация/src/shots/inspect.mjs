@@ -76,16 +76,25 @@ const DUMP = () => {
 
   document.querySelectorAll('input, textarea, select').forEach((element) => {
     if (!visible(element)) return;
+    /*
+     * Подпись, которую человек видит, и подпись для чтения с экрана - разные
+     * вещи, и путать их нельзя. У поля входа видна подсказка «Логин», а
+     * `aria-label` у него - «Имя пользователя»: в руководство однажды уехало
+     * второе, и текст разошёлся с собственным же снимком экрана. Поэтому
+     * видимая подпись и служебная выводятся раздельно и подписаны.
+     */
     const byFor = element.id ? document.querySelector(`label[for="${CSS.escape(element.id)}"]`) : null;
     const wrapping = element.closest('label');
-    const label =
+    const aria = clean(element.getAttribute('aria-label'));
+    const visible =
       clean(byFor?.textContent) ||
       clean(wrapping?.textContent) ||
-      clean(element.getAttribute('aria-label')) ||
-      '(без подписи)';
+      clean(element.placeholder);
+    const label = visible || (aria ? `(на экране не подписано, для чтения с экрана: ${aria})` : '(без подписи)');
     const attrs = [
       element.tagName === 'INPUT' ? `тип=${element.type}` : element.tagName.toLowerCase(),
       element.placeholder ? `подсказка="${clean(element.placeholder)}"` : '',
+      aria && visible && aria !== visible ? `для чтения с экрана="${aria}"` : '',
       element.required ? 'обязательное' : '',
       element.maxLength > 0 ? `макс=${element.maxLength}` : '',
       element.disabled ? 'неактивно' : '',
@@ -128,7 +137,12 @@ async function main() {
     if (click) {
       await page.locator(click).first().click();
     }
-    // Списки подтягиваются запросами: без паузы разведка видит пустой экран.
+    /*
+     * Здесь пауза уместна, хотя в тестах она запрещена. Разведка не проверяет
+     * заранее известное условие, а перечисляет то, что вообще есть на экране:
+     * ждать конкретный элемент нельзя, ведь его имя и есть искомое. Кадры же
+     * снимает run.mjs, и там ожидание именное - по `waitFor` из манифеста.
+     */
     await page.waitForTimeout(2500);
 
     console.log(`URL: ${page.url()}`);

@@ -136,6 +136,11 @@ export async function drawOutlines(page, targets) {
           ...box,
           badge: target.badge ?? null,
           badgeInside: target.badgeInside === true,
+          // Прямоугольник самого элемента: при посадке номера внутрь он не
+          // считается занятым местом. Поле ввода целиком числится занятым как
+          // элемент ввода, и без этого исключения номер внутрь него не встаёт
+          // вовсе - даже в пустую правую половину.
+          own: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
         });
       }
 
@@ -167,24 +172,33 @@ export async function drawBadges(page, boxes, clip) {
       const placedBadges = [];
 
       /*
-       * Занятые места: всё, что несёт текст или изображение. Проверки «мимо
-       * обведённых элементов» мало - кружок садился на подпись флажка и на
-       * подсказку под ней, то есть ровно на то, что читателю и надо прочесть.
-       * Берутся только листья дерева: у их предков прямоугольники накрывают
-       * пол-экрана, и свободного места не осталось бы вовсе.
+       * Занято ли место - выясняется попаданием в точку, а не перебором
+       * прямоугольников. Перебор считает занятым и то, что лежит под наложенной
+       * панелью: кнопка шапки продолжает занимать свои координаты, хотя поверх
+       * неё выехало окно поиска, и свободного места «не находилось» там, где
+       * оно на самом деле есть. Попадание в точку возвращает только верхний
+       * слой, поэтому перекрытое им не мешает.
+       *
+       * Слой обводки прозрачен для попаданий, так что сам себя не заслоняет.
        */
-      const occupied = [];
-      for (const element of document.body.querySelectorAll('*')) {
+      const busyAt = (x, y, own) => {
+        const element = document.elementFromPoint(x, y);
+        if (!element) return false;
+        if (own) {
+          const rect = element.getBoundingClientRect();
+          const same =
+            Math.abs(rect.left - own.left) < 1 &&
+            Math.abs(rect.top - own.top) < 1 &&
+            Math.abs(rect.width - own.width) < 1 &&
+            Math.abs(rect.height - own.height) < 1;
+          if (same) return false;
+        }
         const bearsText =
           element.children.length === 0 && (element.textContent || '').trim().length > 0;
-        const bearsPicture = ['IMG', 'SVG', 'INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName);
-        if (!bearsText && !bearsPicture) continue;
-        const rect = element.getBoundingClientRect();
-        if (rect.width < 2 || rect.height < 2) continue;
-        const style = getComputedStyle(element);
-        if (style.visibility === 'hidden' || style.opacity === '0') continue;
-        occupied.push(rect);
-      }
+        const bearsPicture = ['IMG', 'INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName) ||
+          element.namespaceURI === 'http://www.w3.org/2000/svg';
+        return bearsText || bearsPicture;
+      };
 
       const insideClip = (cx, cy) =>
         cx - half >= clip.x + gap &&
@@ -198,7 +212,16 @@ export async function drawBadges(page, boxes, clip) {
         cy + half > rect.top - gap &&
         cy - half < rect.top + rect.height + gap;
 
-      const overlapsContent = (cx, cy) => occupied.some((rect) => overlapsRect(cx, cy, rect));
+      // Круг прощупывается центром и восемью точками по окружности: одной точки
+      // мало, кружок задевал бы соседний текст краем.
+      const RING = Array.from({ length: 8 }, (_, index) => {
+        const angle = (index * Math.PI) / 4;
+        return [Math.cos(angle), Math.sin(angle)];
+      });
+
+      const overlapsContent = (cx, cy, own) =>
+        busyAt(cx, cy, own) ||
+        RING.some(([dx, dy]) => busyAt(cx + dx * (half + gap), cy + dy * (half + gap), own));
 
       /*
        * Кружок обязан лечь мимо всех обведённых элементов, а не только мимо
@@ -245,9 +268,14 @@ export async function drawBadges(page, boxes, clip) {
                * Углов и середины мало для вытянутой области: у верхней строки
                * все четыре угла заняты значками, а свободный промежуток лежит
                * между приветствием и часами. Поэтому область прощупывается ещё
-               * и вдоль осей.
+               * и вдоль осей - справа налево.
+               *
+               * Порядок именно такой из-за полей ввода: набранный в поле текст
+               * не отдельный элемент, попаданием в точку его не видно, и слева
+               * кружок сел бы прямо на него. Текст прижат влево всегда, значит
+               * справа безопаснее.
                */
-              ...[0.15, 0.3, 0.5, 0.7, 0.85].flatMap((part) => [
+              ...[0.85, 0.7, 0.5, 0.3, 0.15].flatMap((part) => [
                 [box.left + box.width * part, midY],
                 [midX, box.top + box.height * part],
               ]),
@@ -270,7 +298,7 @@ export async function drawBadges(page, boxes, clip) {
         // собственной обводки, поэтому пересечение с рамками не проверяется -
         // но текст он закрывать не должен так же, как и всякий другой.
         const fits = box.badgeInside
-          ? (cx, cy) => insideClip(cx, cy) && !overlapsContent(cx, cy) && noBadgeNearby(cx, cy)
+          ? (cx, cy) => insideClip(cx, cy) && !overlapsContent(cx, cy, box.own) && noBadgeNearby(cx, cy)
           : free;
 
         let placed = candidates.find(([cx, cy]) => fits(cx, cy));
