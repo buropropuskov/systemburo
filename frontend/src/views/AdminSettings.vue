@@ -408,6 +408,179 @@
               </label>
             </div>
 
+            <h3 class="section-title rotation-title">
+              Плановая смена паролей
+            </h3>
+
+            <div
+              class="rotation-status"
+              data-testid="rotation-status"
+            >
+              <p
+                v-if="!rotationStatus.mail_configured"
+                class="rotation-warning"
+              >
+                Почта не настроена, поэтому плановую смену включить нельзя: новый пароль
+                работнику доставить нечем. Параметры SMTP задаются в файле параметров.
+              </p>
+              <template v-else>
+                <p>
+                  Ближайшая проверка: <b>{{ nextRotationRunText }}</b>.
+                  Под смену подпадает работников: <b>{{ rotationStatus.expired }}</b>.
+                </p>
+                <p>
+                  Учётных записей с почтой: <b>{{ rotationStatus.eligible }}</b>,
+                  без почты: <b>{{ rotationStatus.without_email }}</b>.
+                  <span v-if="rotationStatus.without_email > 0">
+                    Их пароль система не трогает - адреса проставляет бюро.
+                  </span>
+                </p>
+              </template>
+              <div class="rotation-actions">
+                <button
+                  class="btn btn--secondary"
+                  :disabled="testingMail"
+                  data-testid="mail-test-button"
+                  @click="sendTestMail"
+                >
+                  {{ testingMail ? 'Отправляем...' : 'Отправить проверочное письмо' }}
+                </button>
+                <button
+                  v-if="rotationStatus.mail_configured"
+                  class="btn btn--danger"
+                  :disabled="rotationRunning"
+                  data-testid="rotation-run-button"
+                  @click="askRunRotation"
+                >
+                  {{ rotationRunning ? 'Меняем пароли...' : 'Обновить пароль всем работникам' }}
+                </button>
+              </div>
+            </div>
+
+            <BaseModal
+              :show="confirmRotation"
+              title="Сменить пароли всем работникам?"
+              width="440px"
+              content-testid="rotation-confirm"
+              @close="confirmRotation = false"
+            >
+              <p>
+                Пароли сменятся у <b>{{ rotationStatus.eligible }}</b> работников с указанным
+                адресом почты. Каждому уйдёт письмо с новым паролем.
+              </p>
+              <p>
+                Все текущие сессии будут завершены - людям придётся войти заново.
+                <span v-if="rotationStatus.without_email > 0">
+                  Работников без почты ({{ rotationStatus.without_email }}) действие не затронет.
+                </span>
+              </p>
+              <template #actions>
+                <button
+                  class="btn btn--secondary"
+                  @click="confirmRotation = false"
+                >
+                  Отмена
+                </button>
+                <button
+                  class="btn btn--danger"
+                  data-testid="rotation-confirm-button"
+                  @click="runRotationNow"
+                >
+                  Сменить пароли
+                </button>
+              </template>
+            </BaseModal>
+
+            <div class="form-group">
+              <label class="switch-label">
+                <span class="switch-text">
+                  Менять пароли по расписанию
+                  <span
+                    v-if="!rotationStatus.mail_configured"
+                    class="form-hint"
+                  >недоступно без настроенной почты</span>
+                </span>
+                <span
+                  class="switch"
+                  :class="{ 'switch--on': settings.password_rotation_enabled, 'switch--disabled': !rotationStatus.mail_configured }"
+                  role="switch"
+                  :aria-checked="String(settings.password_rotation_enabled)"
+                  :aria-disabled="String(!rotationStatus.mail_configured)"
+                  tabindex="0"
+                  data-testid="rotation-toggle"
+                  @click="toggleRotation"
+                  @keydown.enter="toggleRotation"
+                  @keydown.space.prevent="toggleRotation"
+                >
+                  <span class="switch__thumb" />
+                </span>
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label
+                class="form-label"
+                for="pw-rotation-days"
+              >
+                Срок действия пароля, суток
+              </label>
+              <input
+                id="pw-rotation-days"
+                v-model.number="settings.password_rotation_days"
+                type="number"
+                class="form-input"
+                :min="30"
+                :max="120"
+                :disabled="!settings.password_rotation_enabled"
+              >
+              <span class="form-hint">
+                От 30 до 120 суток. Верхняя граница - требование приказа ФСТЭК России N 21
+                для информационных систем персональных данных.
+              </span>
+            </div>
+
+            <div class="form-group">
+              <label
+                class="form-label"
+                for="pw-rotation-notify"
+              >
+                Предупреждать заранее, суток
+              </label>
+              <input
+                id="pw-rotation-notify"
+                v-model.number="settings.password_rotation_notify_days_before"
+                type="number"
+                class="form-input"
+                :min="0"
+                :max="30"
+                :disabled="!settings.password_rotation_enabled"
+              >
+              <span class="form-hint">0 - не предупреждать</span>
+            </div>
+
+            <div class="form-group">
+              <label class="switch-label">
+                <span class="switch-text">Требовать сменить пароль при первом входе</span>
+                <span
+                  class="switch"
+                  :class="{ 'switch--on': settings.password_force_change_on_next_login, 'switch--disabled': !settings.password_rotation_enabled }"
+                  role="switch"
+                  :aria-checked="String(settings.password_force_change_on_next_login)"
+                  tabindex="0"
+                  data-testid="force-change-toggle"
+                  @click="toggleForceChange"
+                  @keydown.enter="toggleForceChange"
+                  @keydown.space.prevent="toggleForceChange"
+                >
+                  <span class="switch__thumb" />
+                </span>
+              </label>
+              <span class="form-hint">
+                Пароль уходит письмом открытым текстом. Обязательная смена при входе - то,
+                что ограничивает срок его жизни в почтовом ящике.
+              </span>
+            </div>
+
             <button
               class="btn btn--primary"
               :disabled="saving"
@@ -503,7 +676,7 @@
 
 <script>
 import { getSettings, updateSetting } from '@/api/settings';
-import { SkeletonTransition, SkeletonLine, SkeletonBlock } from '@/components/ui';
+import { SkeletonTransition, SkeletonLine, SkeletonBlock, BaseModal } from '@/components/ui';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useContactsStore } from '@/stores/contacts';
@@ -518,6 +691,7 @@ export default {
     SkeletonBlock,
     WorkScheduleTab,
     BaseDropdown,
+    BaseModal,
   },
   data() {
     return {
@@ -532,6 +706,21 @@ export default {
       ],
       loading: false,
       saving: false,
+      testingMail: false,
+      rotationRunning: false,
+      confirmRotation: false,
+      // Состояние плановой смены паролей. Пока не загрузилось - почта считается
+      // ненастроенной: это запирающая сторона, включить смену вслепую нельзя.
+      rotationStatus: {
+        mail_configured: false,
+        enabled: false,
+        rotation_days: 90,
+        eligible: 0,
+        without_email: 0,
+        expired: 0,
+        expiring_soon: 0,
+        next_run_at: null,
+      },
       loadError: null,
       settings: {
         max_file_size: 10 * 1024 * 1024,
@@ -548,6 +737,10 @@ export default {
         password_require_lowercase: false,
         password_require_digit: true,
         password_require_special: false,
+        password_rotation_enabled: false,
+        password_rotation_days: 90,
+        password_rotation_notify_days_before: 7,
+        password_force_change_on_next_login: true,
         bureau_phone: '',
         bureau_email: '',
         approval_reminder_enabled: true,
@@ -570,6 +763,16 @@ export default {
     };
   },
   computed: {
+    /** Дата ближайшей проверки сроков, человеческим языком. */
+    nextRotationRunText() {
+      const raw = this.rotationStatus.next_run_at;
+      if (!raw) return 'после включения';
+      const at = new Date(raw);
+      if (Number.isNaN(at.getTime())) return 'после включения';
+      return at.toLocaleString('ru-RU', {
+        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+      });
+    },
     fileSizeMB() {
       return Math.round(this.settings.max_file_size / (1024 * 1024));
     },
@@ -605,8 +808,112 @@ export default {
   },
   mounted() {
     this.fetchSettings();
+    this.fetchRotationStatus();
   },
   methods: {
+    /**
+     * Состояние плановой смены: настроена ли почта и скольких работников затронет
+     * ближайший прогон. Без этих чисел администратор включает рассылку паролей
+     * вслепую, поэтому блок грузится вместе с экраном, а не по нажатию.
+     */
+    async fetchRotationStatus() {
+      try {
+        const response = await apiRequest('/settings/password-rotation/status');
+        if (!response.ok) return;
+        const json = await response.json();
+        this.rotationStatus = json.data ?? json;
+      } catch (error) {
+        // Состояние справочное: сбой оставляет блок в исходном виде и не мешает
+        // править остальные настройки.
+        console.error('Не удалось загрузить состояние плановой смены паролей:', error);
+      }
+    },
+
+    /**
+     * Ручной прогон: спрашиваем подтверждение с числом затрагиваемых учётных
+     * записей. Действие обрывает сессии всей организации, поэтому кнопка не
+     * должна срабатывать с одного клика.
+     */
+    askRunRotation() {
+      this.confirmRotation = true;
+    },
+
+    async runRotationNow() {
+      this.confirmRotation = false;
+      this.rotationRunning = true;
+      try {
+        const response = await apiRequest('/settings/password-rotation/run', { method: 'POST' });
+        if (response.ok) {
+          useDeletionsStore().notify({
+            bold: 'Смена паролей запущена',
+            suffix: ': письма встают в очередь и уходят по мере отправки',
+          });
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          useDeletionsStore().notify({
+            prefix: 'Не удалось запустить смену: ',
+            bold: errorData.message || 'ошибка',
+            type: 'error',
+          });
+        }
+      } catch (error) {
+        console.error('Ошибка сети при запуске смены паролей:', error);
+        useDeletionsStore().notify({ bold: 'Нет связи с сервером', type: 'error' });
+      } finally {
+        this.rotationRunning = false;
+        await this.fetchRotationStatus();
+      }
+    },
+
+    toggleRotation() {
+      if (!this.rotationStatus.mail_configured) {
+        useDeletionsStore().notify({
+          bold: 'Сначала настройте почту',
+          suffix: ': менять пароли, не имея канала доставки, нельзя',
+          type: 'error',
+        });
+        return;
+      }
+      this.settings.password_rotation_enabled = !this.settings.password_rotation_enabled;
+    },
+
+    toggleForceChange() {
+      if (!this.settings.password_rotation_enabled) return;
+      this.settings.password_force_change_on_next_login = !this.settings.password_force_change_on_next_login;
+    },
+
+    /**
+     * Проверочное письмо: единственный способ убедиться, что чужой почтовый сервер
+     * принимает письма от системы, до того как от него зависят пароли работников.
+     */
+    async sendTestMail() {
+      const to = window.prompt('На какой адрес отправить проверочное письмо?');
+      if (!to) return;
+      this.testingMail = true;
+      try {
+        const response = await apiRequest('/settings/mail/test', {
+          method: 'POST',
+          body: JSON.stringify({ to }),
+        });
+        if (response.ok) {
+          useDeletionsStore().notify({ prefix: 'Проверочное письмо отправлено на ', bold: to });
+          await this.fetchRotationStatus();
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          useDeletionsStore().notify({
+            prefix: 'Письмо не ушло: ',
+            bold: errorData.message || 'ошибка',
+            type: 'error',
+          });
+        }
+      } catch (error) {
+        console.error('Ошибка сети при отправке проверочного письма:', error);
+        useDeletionsStore().notify({ bold: 'Нет связи с сервером', type: 'error' });
+      } finally {
+        this.testingMail = false;
+      }
+    },
+
     async fetchSettings() {
       this.loading = true;
       this.loadError = null;
@@ -666,6 +973,18 @@ export default {
             break;
           case 'password.require_special':
             this.settings.password_require_special = item.value === 'true';
+            break;
+          case 'password.rotation_enabled':
+            this.settings.password_rotation_enabled = item.value === 'true';
+            break;
+          case 'password.rotation_days':
+            this.settings.password_rotation_days = Number(item.value) || 90;
+            break;
+          case 'password.rotation_notify_days_before':
+            this.settings.password_rotation_notify_days_before = Number(item.value) || 0;
+            break;
+          case 'password.force_change_on_next_login':
+            this.settings.password_force_change_on_next_login = item.value === 'true';
             break;
           case 'contacts.bureau_phone':
             this.settings.bureau_phone = item.value || '';
@@ -862,6 +1181,10 @@ export default {
         await updateSetting('password.require_lowercase', String(this.settings.password_require_lowercase));
         await updateSetting('password.require_digit', String(this.settings.password_require_digit));
         await updateSetting('password.require_special', String(this.settings.password_require_special));
+        await updateSetting('password.rotation_enabled', String(this.settings.password_rotation_enabled));
+        await updateSetting('password.rotation_days', String(this.settings.password_rotation_days));
+        await updateSetting('password.rotation_notify_days_before', String(this.settings.password_rotation_notify_days_before));
+        await updateSetting('password.force_change_on_next_login', String(this.settings.password_force_change_on_next_login));
         useDeletionsStore().notify({ prefix: 'Требования к паролю сохранены' });
       } catch (error) {
         console.error('Ошибка сохранения:', error);
@@ -1120,6 +1443,42 @@ export default {
 
 .switch--on {
   background: var(--accent);
+}
+
+/* Блок состояния плановой смены: справочные числа перед тем, как включать
+   рассылку паролей. Тревожная подложка только у предупреждения о почте. */
+.rotation-title {
+  margin-top: 28px;
+}
+
+.rotation-status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.rotation-status p {
+  margin: 0;
+}
+
+.rotation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rotation-warning {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.switch--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .switch__thumb {

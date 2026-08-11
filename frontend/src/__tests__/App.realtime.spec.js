@@ -31,6 +31,10 @@ vi.mock('@/stores/onboarding', () => ({ useOnboardingStore: () => ({ reset: vi.f
 vi.mock('@/stores/pdConsent', () => ({
   usePDConsentStore: () => ({ resolved: false, required: false, refresh: vi.fn(), reset: vi.fn() }),
 }));
+// Гейт смены пароля (#1911) - по той же причине, что и согласие выше.
+vi.mock('@/stores/passwordChange', () => ({
+  usePasswordChangeStore: () => ({ required: false, reset: vi.fn() }),
+}));
 vi.mock('@/stores/theme', () => ({ useThemeStore: () => ({ syncFromServer: vi.fn() }) }));
 vi.mock('@/services/eventStream', () => ({
   default: {

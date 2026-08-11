@@ -88,6 +88,12 @@ const (
 	NotificationTypeUserBanned      = "user_banned"
 	NotificationTypeUserUnbanned    = "user_unbanned"
 	NotificationTypeLoginBlocked    = "login_blocked"
+	// Плановая смена паролей (#1910). Первые два - работнику, третий -
+	// администраторам с правом на настройки: они её включают, им и разбираться
+	// с итогом прогона.
+	NotificationTypePasswordRotated        = "password_rotated"
+	NotificationTypePasswordExpiring       = "password_expiring"
+	NotificationTypePasswordRotationReport = "password_rotation_report"
 )
 
 // Коды типов уведомлений раздела "passage" -- события вокруг прохода по заявке.
@@ -213,6 +219,25 @@ var notificationCatalog = map[string]NotificationMeta{
 		Label:       "Вход временно заблокирован",
 		Description: "Слишком много неудачных попыток входа в вашу учётную запись. Отключить такие уведомления нельзя.",
 		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 40, HiddenInSettings: true,
+	},
+	NotificationTypePasswordRotated: {
+		Code: NotificationTypePasswordRotated, Category: NotificationCategorySecurity,
+		Label:       "Пароль изменён по расписанию",
+		Description: "Система сменила ваш пароль по правилам безопасности. Отключить такие уведомления нельзя.",
+		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 50, HiddenInSettings: true,
+	},
+	NotificationTypePasswordExpiring: {
+		Code: NotificationTypePasswordExpiring, Category: NotificationCategorySecurity,
+		Label:       "Пароль скоро истечёт",
+		Description: "Срок действия пароля подходит к концу, скоро система сменит его сама. Отключить такие уведомления нельзя.",
+		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal, Order: 60, HiddenInSettings: true,
+	},
+	NotificationTypePasswordRotationReport: {
+		Code: NotificationTypePasswordRotationReport, Category: NotificationCategorySecurity,
+		Label:       "Итог плановой смены паролей",
+		Description: "Сводка прошедшего прогона плановой смены паролей. Приходит тем, кто настраивает систему.",
+		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 70, HiddenInSettings: true,
+		Permission: KeyPageAdminSettings,
 	},
 
 	// passage

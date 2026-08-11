@@ -1,8 +1,11 @@
 <template>
   <BaseModal
     :show="show"
-    title="Смена пароля"
+    :title="mandatory ? 'Задайте свой пароль' : 'Смена пароля'"
     width="420px"
+    :closable="!mandatory"
+    :close-on-overlay="!mandatory"
+    :z-index="mandatory ? 25400 : 1000"
     content-testid="change-password-modal"
     @close="$emit('close')"
   >
@@ -10,6 +13,15 @@
       class="cp-form"
       @submit.prevent="submit"
     >
+      <p
+        v-if="mandatory"
+        class="cp-reason"
+        data-testid="cp-reason"
+      >
+        Присланный пароль лежит в почтовом ящике открытым текстом, поэтому действует
+        только до первой смены. Пока свой пароль не задан, разделы системы закрыты.
+      </p>
+
       <label class="cp-field">
         <span class="cp-label">Текущий пароль</span>
         <PasswordInput
@@ -63,12 +75,25 @@
 
     <template #actions>
       <button
+        v-if="!mandatory"
         type="button"
         class="lk-button lk-button--ghost"
         :disabled="saving"
         @click="$emit('close')"
       >
         Отмена
+      </button>
+      <!-- Обязательное окно закрыть нечем, поэтому выход обязан быть внутри него:
+           иначе человек, не нашедший письмо, заперт в форме без единого действия. -->
+      <button
+        v-else
+        type="button"
+        class="lk-button lk-button--ghost"
+        :disabled="saving"
+        data-testid="cp-logout"
+        @click="$emit('logout')"
+      >
+        Выйти
       </button>
       <button
         type="button"
@@ -97,8 +122,12 @@ export default {
   components: { BaseModal, PasswordInput },
   props: {
     show: { type: Boolean, required: true },
+    // Обязательная смена (#1911): окно нельзя закрыть ни крестиком, ни по затемнению,
+    // ни Escape, и отмены у него нет - до смены пароля система всё равно отвечает
+    // отказом, и закрытое окно оставило бы человека перед пустым экраном.
+    mandatory: { type: Boolean, default: false },
   },
-  emits: ['close', 'changed'],
+  emits: ['close', 'changed', 'logout'],
   data() {
     return {
       currentPassword: '',
@@ -228,5 +257,15 @@ export default {
   margin: 0;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.cp-reason {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
 }
 </style>

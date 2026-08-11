@@ -106,6 +106,10 @@ type Dependencies struct {
 	// согласия нет, начал бы получать 403. Тесты самого гейта поднимают
 	// приложение через SetupTestAppWithConsentGate.
 	ConsentGate echo.MiddlewareFunc
+	// MustChangePassword - mw.MustChangePassword: закрывает protected-API
+	// пользователю, обязанному задать свой пароль вместо присланного письмом
+	// (#1911). nil по умолчанию и в тестах - по той же причине, что и ConsentGate.
+	MustChangePassword echo.MiddlewareFunc
 	// TableReportGate - RequireTableVerb(..., "report"): гейт отчётов по проходам
 	// правом table.<name>.report. НЕ опционален для роутов pass-report (main и
 	// testutil обязаны заполнять) - без гейта отчёт открылся бы любому залогиненному.
@@ -204,6 +208,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	maintenanceBlock := d.MaintenanceBlock
 	banCheck := d.BanCheck
 	consentGate := d.ConsentGate
+	mustChangePassword := d.MustChangePassword
 	loginLimiter := d.LoginLimiter
 	lastSeen := d.LastSeen
 	jwtSecret := d.JWTSecret
@@ -274,6 +279,15 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// согласия. Супер-админ и роуты из PDConsentWhitelist проходят. nil в тестах.
 	if consentGate != nil {
 		protected.Use(consentGate)
+	}
+	// MustChangePassword - после гейта согласия: согласие спрашивается раньше всего
+	// остального, а сменить пароль до него всё равно не дают (смены нет в белом
+	// списке согласия). Пропускает только MustChangePasswordWhitelist, остальное -
+	// 403 с кодом PASSWORD_CHANGE_REQUIRED. nil в тестах: иначе каждый тест, где
+	// флаг поднят сидом, начал бы получать 403 вместо своего ответа. Тесты самого
+	// гейта поднимают приложение через SetupTestAppWithPasswordGate.
+	if mustChangePassword != nil {
+		protected.Use(mustChangePassword)
 	}
 	// LastSeen - после JWTAuth (нужен user_id). Обновляет users.last_seen для
 	// учёта онлайна (#632), с in-memory троттлингом и асинхронной записью.
@@ -611,6 +625,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.GET("/users/all", users.GetAll, requireUsers)
 	protected.PUT("/users/:username/type", users.UpdateType, requireUsers)
 	protected.PUT("/users/:username/password", users.UpdatePassword, requireUsers)
+	// Смена пароля с отправкой письмом (#1910) - под тем же правом, что и ручная
+	// установка пароля: это её замена, а не новое полномочие.
+	protected.POST("/users/:username/rotate-password", users.RotatePassword, requireUsers)
 	protected.PUT("/users/:username/info", users.UpdateInfo, requireUsers)
 	protected.PUT("/users/:username/organization", users.UpdateOrganization, requireUsers)
 	protected.PUT("/users/:username/company", users.UpdateCompany, requireUsers)
@@ -990,6 +1007,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// параметра key и попытался бы сохранить настройку с таким именем.
 	protected.GET("/settings/mail/status", settings.GetMailStatus, requireSettings)
 	protected.POST("/settings/mail/test", settings.SendTestMail, requireSettings)
+	protected.GET("/settings/password-rotation/status", settings.GetPasswordRotationStatus, requireSettings)
+	protected.GET("/settings/password-rotation/last", settings.GetPasswordRotationLast, requireSettings)
+	// Ручной прогон - под своим правом, а не под настройками: сброс паролей всей
+	// организации весит больше, чем правка телефона бюро (#1910).
+	protected.POST("/settings/password-rotation/run", settings.RunPasswordRotation,
+		mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionRotatePasswords))
 	protected.PUT("/settings/:key", settings.Update, requireSettings)
 
 	// Новости. Активные (GET "") - всем авторизованным; управление - page.admin
