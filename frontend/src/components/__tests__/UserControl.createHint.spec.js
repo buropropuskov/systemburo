@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
@@ -118,5 +120,26 @@ describe('UserControl — подсказка на кнопке «Создать�
     expect(button).not.toBeNull()
     expect(button.disabled).toBe(true)
     expect(button.hasAttribute('data-hint')).toBe(false)
+  })
+})
+
+describe('UserControl - подписи организации и компании в форме создания', () => {
+  it('звёздочка обязательности не стоит ни у организации, ни у компании: достаточно одного поля', () => {
+    const src = readFileSync(
+      resolve(__dirname, '../UserControl.vue'),
+      'utf8',
+    )
+    expect(src).toContain('<label class="input-label">Организация</label>')
+    expect(src).toContain('<label class="input-label">Компания</label>')
+    expect(src).not.toContain('Организация <span class="required">*</span>')
+    expect(src).not.toContain('Компания <span class="required">*</span>')
+  })
+
+  it('вместо двух звёздочек форма объясняет правило одной строкой', () => {
+    const src = readFileSync(
+      resolve(__dirname, '../UserControl.vue'),
+      'utf8',
+    )
+    expect(src).toContain('Заполните организацию или компанию - достаточно одного из двух.')
   })
 })
