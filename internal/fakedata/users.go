@@ -73,8 +73,8 @@ func (usersStep) Name() string { return "пользователи и согла�
 
 func (usersStep) Plan(p Profile) []PlanItem {
 	return []PlanItem{
-		{Entity: models.AuditEntityUser, Title: "Пользователи", Count: p.Users},
-		{Entity: models.AuditEntityApprover, Title: "Принимающие", Count: approverUserCount(p.Users)},
+		{Entity: models.AuditEntityUser, Title: EntityTitle(models.AuditEntityUser), Count: p.Users},
+		{Entity: models.AuditEntityApprover, Title: EntityTitle(models.AuditEntityApprover), Count: approverUserCount(p.Users)},
 	}
 }
 
@@ -125,6 +125,7 @@ func (usersStep) Run(ctx context.Context, env *Env) error {
 	banSvc := services.NewUserBanService(env.DB, resolver, nil, recorder)
 	permSvc := services.NewPermissionGroupService(env.DB, resolver)
 	approverSvc := services.NewApproverService(env.DB)
+	consentSvc := services.NewConsentService(env.DB)
 
 	streams := newUserStreams(env.Seed)
 
@@ -140,6 +141,9 @@ func (usersStep) Run(ctx context.Context, env *Env) error {
 		// пользователя без записи в партии (см. тот же приём в registries.go).
 		if err := env.Batch.Add(ctx, models.AuditEntityUser, cu.id); err != nil {
 			return fmt.Errorf("регистрация пользователя %d в партии: %w", cu.id, err)
+		}
+		if err := grantFakeUserConsent(ctx, consentSvc, env.Consent, cu.id); err != nil {
+			return fmt.Errorf("согласие на обработку ПД пользователю %d: %w", cu.id, err)
 		}
 		created = append(created, cu)
 	}
@@ -460,6 +464,33 @@ func createFakeUser(ctx context.Context, db *gorm.DB, svc services.UserService, 
 		return createdFakeUser{id: id, username: username}, nil
 	}
 	return createdFakeUser{}, fmt.Errorf("не удалось создать пользователя за %d попыток, логин конфликтует: %w", userCreateRetries, lastErr)
+}
+
+// consentUserAgent -- чем записано согласие созданного работника. Живой человек
+// расписывается из браузера, и там в pd_consents ложится его строка агента; здесь
+// подписи не было вовсе, и врать про браузер нельзя -- в истории 152-ФЗ должно быть
+// видно, что согласие проставила наливка стенда.
+const consentUserAgent = "server fake (наливка стенда)"
+
+// consentIP -- адрес, с которого записано согласие. Наливка идёт на самом сервере,
+// поэтому петля, а не выдуманный внешний адрес.
+const consentIP = "127.0.0.1"
+
+// grantFakeUserConsent расписывает созданного работника за согласие на обработку
+// персональных данных (#1567).
+//
+// Без этого стенд с включённым запросом согласия (legal.pd_consent_required) встречает
+// каждого налитого работника окном согласия и до самой системы не пускает: гейт
+// сравнивает принятую редакцию с требуемой, а принятой у него не было ни одной. Данные
+// в списках при этом есть -- проверить их под работником нельзя, и выглядит это не как
+// настройка стенда, а как сломанный вход.
+//
+// Редакция и отпечаток берутся из настроек стенда (Env.Consent): согласие «первой
+// редакции» на стенде, где текст уже правили, гейт не устроит.
+func grantFakeUserConsent(ctx context.Context, svc services.ConsentService, stamp ConsentStamp, userID int) error {
+	_, err := svc.Grant(ctx, userID, models.GrantConsentRequest{ConsentType: services.ConsentTypePDProcessing},
+		consentIP, consentUserAgent, stamp.Version, stamp.Hash)
+	return err
 }
 
 // resolveFakeUserID читает id только что созданного пользователя по username, см.

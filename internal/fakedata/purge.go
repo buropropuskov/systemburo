@@ -14,26 +14,28 @@ import (
 // раньше родителей. Заявка уносит вложения, машины, сотрудников и имущество каскадом
 // (см. constraint:OnDelete:CASCADE в моделях), поэтому отдельными строками они здесь
 // не перечислены -- в партии их и не регистрировали.
+//
+// Название вида берётся из EntityTitle: один список названий на предварительный показ,
+// отчёт о наливке и этот отчёт (см. titles.go).
 var purgeOrder = []struct {
 	entity string
 	table  string
-	title  string
 }{
-	{models.AuditEntityApplication, "applications", "Заявки"},
-	{models.AuditEntityApprover, "application_approvers", "Принимающие"},
-	{models.AuditEntityUniqueCar, "unique_cars", "Машины (реестр)"},
-	{models.AuditEntityUniqueEmployee, "unique_employees", "Сотрудники (реестр)"},
-	{models.AuditEntityVehicleBlacklist, "vehicle_blacklists", "Чёрный список машин"},
-	{models.AuditEntityPersonBlacklist, "person_blacklists", "Чёрный список людей"},
-	{models.AuditEntityUser, "users", "Пользователи"},
-	{models.AuditEntitySystemTable, "system_tables", "Таблицы постов"},
-	{models.AuditEntityUniqueAttachment, "unique_attachments", "Шаблоны вложений"},
-	{models.AuditEntityLicensePlateFormat, "license_plate_formats", "Форматы номеров"},
-	{models.AuditEntityCitizenship, "citizenships", "Гражданства"},
-	{models.AuditEntityMark, "marks", "Марки машин"},
-	{models.AuditEntityUnloadPlace, "unload_places", "Места разгрузки"},
-	{models.AuditEntityCompany, "companies", "Компании"},
-	{models.AuditEntityOrganization, "organizations", "Организации"},
+	{models.AuditEntityApplication, "applications"},
+	{models.AuditEntityApprover, "application_approvers"},
+	{models.AuditEntityUniqueCar, "unique_cars"},
+	{models.AuditEntityUniqueEmployee, "unique_employees"},
+	{models.AuditEntityVehicleBlacklist, "vehicle_blacklists"},
+	{models.AuditEntityPersonBlacklist, "person_blacklists"},
+	{models.AuditEntityUser, "users"},
+	{models.AuditEntitySystemTable, "system_tables"},
+	{models.AuditEntityUniqueAttachment, "unique_attachments"},
+	{models.AuditEntityLicensePlateFormat, "license_plate_formats"},
+	{models.AuditEntityCitizenship, "citizenships"},
+	{models.AuditEntityMark, "marks"},
+	{models.AuditEntityUnloadPlace, "unload_places"},
+	{models.AuditEntityCompany, "companies"},
+	{models.AuditEntityOrganization, "organizations"},
 }
 
 // PurgeLine -- строка отчёта об удалении: что удалено и что пришлось оставить.
@@ -107,7 +109,7 @@ func PurgeBatch(ctx context.Context, db *gorm.DB, label string, apply bool) (Pur
 			tx.Rollback()
 			return result, err
 		}
-		result.Lines = append(result.Lines, PurgeLine{Title: step.title, Deleted: deleted, Kept: kept})
+		result.Lines = append(result.Lines, PurgeLine{Title: EntityTitle(step.entity), Deleted: deleted, Kept: kept})
 	}
 
 	// Перечень партии снимаем последним: пока он есть, удаление можно повторить с той
