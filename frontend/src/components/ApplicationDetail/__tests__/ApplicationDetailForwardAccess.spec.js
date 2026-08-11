@@ -249,10 +249,15 @@ describe('ForwardModal - получатели и роль (#1948)', () => {
 
     const options = wrapper.findAll('[data-testid="forward-modal-user-option"]');
     expect(options).toHaveLength(2);
-    expect(options[0].text()).toContain('Петров Пётр Петрович');
-    expect(options[0].text()).toContain('Кладовщик');
+    // Порядок опций задаёт сравнение строк, а оно зависит от локали окружения -
+    // проверяем состав, а не позиции: с привязкой к индексу тест зеленел локально и
+    // краснел в CI, где скрытый работник вставал первым.
+    const texts = options.map((o) => o.text());
+    const named = texts.find((t) => t.includes('Петров Пётр Петрович'));
+    expect(named, `в списке нет получателя по ФИО: ${texts.join(' | ')}`).toBeTruthy();
+    expect(named).toContain('Кладовщик');
     // ФИО скрытого работника бэк уже заменил - фронт показывает то, что пришло.
-    expect(options[1].text()).toContain('hidden');
+    expect(texts.some((t) => t.includes('hidden'))).toBe(true);
   });
 
   it('читателю тумблеры роли не показываются, получатель уходит на просмотр', async () => {
