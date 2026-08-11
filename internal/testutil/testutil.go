@@ -369,6 +369,11 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	userBanHandler := handlers.NewUserBanHandler(userBanService)
 	consentHandler := handlers.NewConsentHandler(consentService, pdConsentGateService, settingsService, db)
 	settingsHandler := handlers.NewSettingsHandler(settingsService, documentFileService, 10*1024*1024, pdConsentGateService, pdConsentStatsService)
+	// Состояние плановой смены паролей (#1909) - как в бою. Почтовый сервис не
+	// подключаем: в тестах почта не настроена, и ручка обязана честно об этом
+	// сообщать, а не отвечать «сервис недоступен».
+	settingsHandler.SetRotationStatusService(
+		services.NewPasswordRotationStatusService(db, settingsService, nil, time.UTC))
 	// Файловый архив поднимается и в тестах: без него роуты /file-archive не
 	// существуют, и гвард прав сверялся бы с роутером, где их просто нет. Корень
 	// архива - временный каталог теста: запись проверяется на настоящем диске,

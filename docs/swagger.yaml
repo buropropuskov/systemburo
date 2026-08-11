@@ -4734,6 +4734,37 @@ definitions:
     required:
     - comment
     type: object
+  services.PasswordRotationStatus:
+    properties:
+      eligible:
+        description: |-
+          Eligible - активные незаблокированные работники с адресом почты, то есть те,
+          кого механизм в принципе может обслужить.
+        type: integer
+      enabled:
+        type: boolean
+      expired:
+        description: Expired - у скольких срок уже вышел. Это и есть размер ближайшего
+          прогона.
+        type: integer
+      expiring_soon:
+        description: ExpiringSoon - у скольких истечёт в окне предупреждения.
+        type: integer
+      mail_configured:
+        description: MailConfigured - настроена ли отправка почты. Без неё смена не
+          запускается.
+        type: boolean
+      next_run_at:
+        description: NextRunAt - когда планировщик проснётся в следующий раз.
+        type: string
+      rotation_days:
+        type: integer
+      without_email:
+        description: |-
+          WithoutEmail - активные незаблокированные без адреса. Их пароль не трогается,
+          и адреса им должно проставить бюро.
+        type: integer
+    type: object
   services.QuestionAttachmentItem:
     properties:
       display_name:
@@ -15458,6 +15489,51 @@ paths:
       summary: Сквозной поиск по системе
       tags:
       - search
+  /settings/mail/status:
+    get:
+      description: Сообщает, настроена ли отправка писем (задан ли SMTP_HOST).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: boolean
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Состояние настройки почты
+      tags:
+      - settings
+  /settings/password-rotation/status:
+    get:
+      description: Настроена ли почта, когда ближайшая проверка сроков и скольких
+        работников она затронет.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.PasswordRotationStatus'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Состояние плановой смены паролей
+      tags:
+      - settings
   /statistics/insights:
     get:
       description: 'Готовые инсайты за период: пик по часам, сравнение с прошлым периодом,
