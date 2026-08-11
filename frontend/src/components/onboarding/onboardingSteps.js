@@ -229,6 +229,13 @@ export const onboardingSteps = [
     description: 'Мы перешли в ваш Личный кабинет. Вверху - ваши данные: организация, должность, контакты. Они автоматически подставляются в заявки.',
   },
   {
+    id: 'cabinet-password',
+    route: '/personal-cabinet',
+    element: '[data-testid="cabinet-change-password"]',
+    title: 'Смена пароля',
+    description: 'Кнопка «Сменить пароль» в этом же ряду. Понадобится текущий пароль и новый, требования к нему система покажет прямо в окне. После смены нужно будет войти заново.',
+  },
+  {
     id: 'cabinet-applications',
     route: '/personal-cabinet',
     element: '[data-testid="ob-applications"]',
