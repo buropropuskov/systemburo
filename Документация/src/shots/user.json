@@ -1,0 +1,264 @@
+{
+  "comment": "Кадры руководства пользователя. Роль по умолчанию - заявитель без побочных ролей, см. accounts.json.",
+  "role": "user",
+  "shots": [
+    {
+      "id": "login-form",
+      "anon": true,
+      "waitFor": "[data-testid=\"login-form\"]",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": ".login__input",
+          "nth": 0,
+          "badge": 1
+        },
+        {
+          "selector": ".login__input",
+          "nth": 1,
+          "badge": 2
+        },
+        {
+          "selector": "[data-testid=\"login-button-submit\"]",
+          "badge": 3
+        }
+      ]
+    },
+    {
+      "id": "login-recovery",
+      "anon": true,
+      "waitFor": "[data-testid=\"login-form\"]",
+      "prepare": [
+        {
+          "click": ".remember-password"
+        },
+        {
+          "wait": ".recovery-title"
+        }
+      ],
+      "clip": {
+        "selector": ".base-modal",
+        "pad": 50
+      },
+      "highlight": []
+    },
+    {
+      "id": "consent-window",
+      "role": "first-login",
+      "waitFor": "[data-testid=\"pdc-accept\"]",
+      "clip": {
+        "selector": ".pdc-modal",
+        "pad": 40
+      },
+      "highlight": [
+        {
+          "selector": ".pdc-modal__doc",
+          "badge": 1,
+          "badgeInside": true
+        },
+        {
+          "selector": "[data-testid=\"pdc-agree\"]",
+          "badge": 2
+        },
+        {
+          "selector": "[data-testid=\"pdc-accept\"]",
+          "badge": 3
+        }
+      ]
+    },
+    {
+      "id": "screen-layout",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"ob-news\"]",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"ob-nav-rail\"]",
+          "badge": 1,
+          "badgeInside": true,
+          "inset": true
+        },
+        {
+          "selector": "header.header",
+          "badge": 2,
+          "inset": true,
+          "badgeInside": true
+        },
+        {
+          "selector": ".content-wrapper",
+          "badge": 3,
+          "badgeInside": true,
+          "inset": true
+        }
+      ]
+    },
+    {
+      "id": "nav-rail",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"ob-nav-rail\"]",
+      "prepare": [
+        {
+          "hover": "[data-testid=\"ob-nav-rail\"]"
+        },
+        {
+          "wait": "[data-testid=\"nav-link-cars\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"ob-nav-rail\"]",
+        "pad": {
+          "x": 640,
+          "y": 20
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"ob-nav-group-data\"]"
+        }
+      ]
+    },
+    {
+      "id": "header-buttons",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"header-button-search\"]",
+      "clip": {
+        "selector": "header.header",
+        "pad": {
+          "x": 20,
+          "y": 90
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"header-time\"]",
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"ob-header-broadcast\"]",
+          "badge": 2
+        },
+        {
+          "selector": "[data-testid=\"ob-header-notifications\"]",
+          "badge": 3
+        },
+        {
+          "selector": "[data-testid=\"header-button-submit-app\"]",
+          "badge": 4
+        },
+        {
+          "selector": "[data-testid=\"header-button-search\"]",
+          "badge": 5
+        }
+      ]
+    },
+    {
+      "id": "search-panel",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"header-button-search\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"header-button-search\"]"
+        },
+        {
+          "wait": "[data-testid=\"global-search-panel\"] input"
+        },
+        {
+          "fill": [
+            "[data-testid=\"global-search-panel\"] input",
+            "Белов"
+          ]
+        },
+        {
+          "wait": "[data-testid=\"global-search-panel\"] input"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"global-search-panel\"]",
+        "pad": {
+          "x": 500,
+          "y": 20
+        }
+      },
+      "highlight": []
+    },
+    {
+      "id": "notifications",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"ob-header-notifications\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"ob-header-notifications\"]"
+        },
+        {
+          "wait": "[data-testid=\"notif-filter-unread\"]"
+        }
+      ],
+      "clip": {
+        "selector": ".notifications",
+        "pad": 40
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"notif-filter-unread\"]"
+        }
+      ]
+    },
+    {
+      "id": "news-overview",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"ob-news\"]",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"ob-news\"]",
+          "badge": 1,
+          "badgeInside": true
+        },
+        {
+          "selector": "[data-testid=\"ob-guide\"]",
+          "badge": 2,
+          "badgeInside": true
+        },
+        {
+          "selector": "[data-testid=\"ob-announcement\"]",
+          "badge": 3,
+          "badgeInside": true
+        },
+        {
+          "selector": "[data-testid=\"ob-documents\"]",
+          "badge": 4,
+          "badgeInside": true
+        },
+        {
+          "selector": "[data-testid=\"ob-work-modes\"]",
+          "badge": 5,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "work-modes",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"ob-work-modes\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"ob-work-modes\"]"
+        },
+        {
+          "wait": "[data-testid=\"work-modes-modal\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"work-modes-modal\"]",
+        "pad": 40
+      },
+      "highlight": []
+    }
+  ]
+}

@@ -33,6 +33,42 @@ export const TARGET_WIDTH_PX = 1950;
 export const MAX_ASPECT = 1.5;
 
 /**
+ * Ждёт, пока положение элементов перестанет меняться.
+ *
+ * Погашенных переходов мало: выезжающая панель на первом кадре ещё стоит за
+ * краем окна со сдвигом, и снятая в этот момент обводка ложится мимо, а кадр
+ * выходит шириной в остаток экрана. Признак «элемент виден» тут не помогает -
+ * сдвинутый элемент виден. Поэтому ждём именно устойчивых координат.
+ *
+ * @param {import('playwright').Page} page
+ * @param {string[]} selectors
+ */
+export async function waitForStableRects(page, selectors, { tries = 20, pause = 100 } = {}) {
+  if (selectors.length === 0) return;
+  const read = () =>
+    page.evaluate(
+      (list) =>
+        list
+          .map((selector) => {
+            const element = document.querySelector(selector);
+            if (!element) return 'нет';
+            const r = element.getBoundingClientRect();
+            return `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)}`;
+          })
+          .join('|'),
+      selectors,
+    );
+
+  let previous = await read();
+  for (let attempt = 0; attempt < tries; attempt += 1) {
+    await page.waitForTimeout(pause);
+    const current = await read();
+    if (current === previous) return;
+    previous = current;
+  }
+}
+
+/**
  * Считает область снимка: объединяющий прямоугольник целей, расширенный на pad
  * и подрезанный по окну.
  *
@@ -56,6 +92,15 @@ export async function computeClip(page, clipSpec, highlightTargets) {
    * контейнер задаёт минимальную область, а не границу. Кадр, из которого
    * торчит обведённый элемент, - брак при любом раскладе.
    */
+  /*
+   * Обзорный кадр берёт окно целиком: на нём показывают устройство экрана, и
+   * подрезка по содержимому обрубила бы как раз то, ради чего он снят.
+   */
+  if (clipSpec?.full) {
+    const size = page.viewportSize();
+    return { clip: { x: 0, y: 0, width: size.width, height: size.height }, warnings: [] };
+  }
+
   const parts = clipSpec?.selector
     ? [{ selector: clipSpec.selector, nth: clipSpec.nth ?? 0 }, ...highlightTargets]
     : highlightTargets;
@@ -116,10 +161,20 @@ export async function normalize(path) {
    * флагов. Вместо него исключается только отметка времени - она меняется при
    * каждой пересъёмке и засоряет разницу версий.
    */
+  /*
+   * Палитра в 256 цветов уменьшает файл втрое. Снимок интерфейса состоит из
+   * плашек и текста, и разницы не видно даже на фотографическом фоне страницы
+   * входа - проверено сравнением. При двух сотнях кадров на комплект это
+   * разница между двадцатью мегабайтами в хранилище и семьюдесятью.
+   */
   await run('magick', [
     path,
     '-resize',
     `${TARGET_WIDTH_PX}x>`,
+    '-colors',
+    '256',
+    '-dither',
+    'None',
     '-units',
     'PixelsPerInch',
     '-density',

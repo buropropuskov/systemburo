@@ -33,6 +33,95 @@ const POST_INSTRUCTION =
   'Машину, которой нет в таблице, на территорию не пропускать: обратитесь в бюро ' +
   'пропусков по телефону 2-15.';
 
+/**
+ * Содержимое страницы «Обзор и новости». Демонстрационный набор из `cmd/seed`
+ * заводит записи с названиями «Демо-новость» и «Важное демо-объявление» - на
+ * снимке в документе для заказчика такое выглядит недоделкой, поэтому текст
+ * заменяется правдоподобным. Организации и фамилии остаются вымышленными.
+ */
+const NEWS = [
+  {
+    title: 'Изменение режима работы бюро пропусков',
+    description:
+      'С 1 сентября бюро пропусков принимает заявки с 08:00 до 18:00 без перерыва. ' +
+      'Заявки, поданные после 18:00, рассматриваются на следующий рабочий день.',
+  },
+  {
+    title: 'Запуск электронной подачи заявок',
+    description:
+      'Заявки на проход людей, проезд транспорта и внос материальных ценностей ' +
+      'принимаются в системе. Подавать их на бумаге больше не требуется.',
+  },
+];
+
+const ANNOUNCEMENT = {
+  title: 'Ограничение проезда к дебаркадеру №2',
+  description:
+    'С 12 по 16 августа проезд к дебаркадеру №2 закрыт из-за ремонта покрытия. ' +
+    'Разгрузка на это время переносится на площадку «Склад №1».',
+  is_important: true,
+};
+
+/**
+ * Текст согласия на обработку персональных данных. Не образец для заказчика:
+ * настоящий текст готовит юрист и загружает администратор. Здесь он нужен
+ * ровно затем, чтобы окно согласия было чем наполнить на снимке.
+ */
+const CONSENT_TEXT = `<p>Настоящим я даю согласие на обработку моих персональных данных,
+указанных в заявке на пропуск, а также персональных данных лиц, сведения о которых я
+вношу в заявку, действуя с их ведома и согласия.</p>
+<p>Обработка включает сбор, запись, систематизацию, хранение, уточнение, использование,
+передачу сотрудникам службы охраны в объёме, необходимом для организации пропускного
+режима, блокирование, удаление и уничтожение.</p>
+<p>Согласие действует на срок оформления и действия пропуска, а также на срок хранения
+сведений о проходе, установленный на предприятии. Согласие может быть отозвано
+письменным обращением в бюро пропусков.</p>`;
+
+const DOCUMENTS = [
+  { title: 'Правила пропускного режима', description: 'Порядок прохода и проезда на территорию' },
+  { title: 'Образец заявки на ввоз', description: 'Заполненный пример для материальных ценностей' },
+  { title: 'Памятка о согласовании', description: 'Сроки рассмотрения и порядок обжалования отказа' },
+];
+
+/**
+ * Собирает простейший PDF из одной страницы с заголовком.
+ *
+ * Файлы нужны только для того, чтобы блок «Документы» на снимке не был пустым:
+ * заказчик читает про кнопку «Скачать», а пустой блок ничему не учит. Тащить
+ * ради этого генератор PDF незачем, а положить готовые файлы в репозиторий -
+ * значит хранить двоичные вложения, которые никто не откроет. Смещения таблицы
+ * ссылок считаются по факту, поэтому файл валиден и открывается просмотрщиком.
+ */
+function makePdf(title) {
+  const escape = (text) => text.replace(/([\\()])/g, '\\$1');
+  const stream = `BT /F1 18 Tf 72 720 Td (${escape(title)}) Tj ET`;
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] ' +
+      '/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+  ];
+
+  let body = '%PDF-1.4\n';
+  const offsets = [];
+  objects.forEach((object, index) => {
+    offsets.push(body.length);
+    body += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+
+  const xrefAt = body.length;
+  let xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets) {
+    xref += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  }
+  const trailer =
+    `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefAt}\n%%EOF\n`;
+
+  return Buffer.from(body + xref + trailer, 'latin1');
+}
+
 function arg(name, fallback) {
   const found = process.argv.find((value) => value.startsWith(`--${name}=`));
   return found ? found.slice(name.length + 3) : fallback;
@@ -103,6 +192,76 @@ async function main() {
     instruction: POST_INSTRUCTION,
   });
   console.log(`Таблица «${carsTable.display_name}»: включён список по факту, заполнена инструкция`);
+
+  await fillOverview(apiBase, token);
+  await enableConsent(apiBase, token);
+}
+
+/**
+ * Включает запрос согласия на обработку персональных данных при входе.
+ *
+ * Окно согласия видит каждый работник при первом входе, значит оно обязано быть
+ * в руководстве со снимком. На чистом стенде запрос выключен: включить его без
+ * текста система не даёт, а текст никто не задавал.
+ *
+ * Съёмочные учётные записи подтверждают согласие в момент входа (см.
+ * lib/session.mjs), иначе окно перекрывало бы все остальные кадры.
+ */
+async function enableConsent(apiBase, token) {
+  const current = unwrap(await api(apiBase, token, 'GET', '/settings/pd-consent'));
+  if (current?.required) {
+    console.log('Согласие: запрос уже включён');
+    return;
+  }
+  await api(apiBase, token, 'PUT', '/settings/pd-consent/text', {
+    text: CONSENT_TEXT,
+    require_again: false,
+  });
+  await api(apiBase, token, 'PUT', '/settings/pd-consent/required', { required: true });
+  console.log('Согласие: задан текст и включён запрос при входе');
+}
+
+/** Наполняет страницу «Обзор и новости»: новости, объявление, документы. */
+async function fillOverview(apiBase, token) {
+  const existingNews = unwrap(await api(apiBase, token, 'GET', '/news/all')) ?? [];
+  for (const item of existingNews) {
+    await api(apiBase, token, 'DELETE', `/news/${item.id}`);
+  }
+  for (const item of NEWS) {
+    await api(apiBase, token, 'POST', '/news', { ...item, is_active: true });
+  }
+  console.log(`Новости: заменены на ${NEWS.length}`);
+
+  const existingAnnouncements = unwrap(await api(apiBase, token, 'GET', '/announcements/all')) ?? [];
+  for (const item of existingAnnouncements) {
+    await api(apiBase, token, 'DELETE', `/announcements/${item.id}`);
+  }
+  const created = unwrap(await api(apiBase, token, 'POST', '/announcements', ANNOUNCEMENT));
+  if (created?.id) {
+    await api(apiBase, token, 'POST', '/announcements/set-active', {
+      announcement_id: created.id,
+    });
+  }
+  console.log('Объявление: заведено и сделано активным');
+
+  const existingDocs = unwrap(await api(apiBase, token, 'GET', '/documents')) ?? [];
+  const haveTitles = new Set(existingDocs.map((item) => item.title));
+  for (const doc of DOCUMENTS) {
+    if (haveTitles.has(doc.title)) continue;
+    const form = new FormData();
+    form.append('file', new Blob([makePdf(doc.title)], { type: 'application/pdf' }), `${doc.title}.pdf`);
+    form.append('title', doc.title);
+    form.append('description', doc.description);
+    const response = await fetch(`${apiBase}/documents`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+    if (!response.ok) {
+      throw new Error(`загрузка документа «${doc.title}» -> ${response.status}: ${(await response.text()).slice(0, 200)}`);
+    }
+  }
+  console.log(`Документы: всего ${DOCUMENTS.length}`);
 }
 
 main().catch((error) => {

@@ -95,14 +95,24 @@ export async function drawOutlines(page, targets) {
          * ровно на величину отступа. У прямого угла (радиус 0) наружный угол
          * скругляется на величину отступа - это и есть верный контур, а не
          * «скругление на глаз».
+         *
+         * Область, прижатая к краю окна (боковое меню, верхняя строка), наружную
+         * линию за край не вмещает, и на снимке она выходит обрезанной с одной
+         * стороны. Для таких целей линия уводится внутрь: полуоси на ту же
+         * величину уменьшаются, контур остаётся эквидистантой.
          */
-        const grown = corners.map(([x, y]) => [x + OUTLINE_OFFSET, y + OUTLINE_OFFSET]);
+        const inward = target.inset === true ? -1 : 1;
+        const offset = OUTLINE_OFFSET * inward;
+        const grown = corners.map(([x, y]) => [
+          Math.max(0, x + offset),
+          Math.max(0, y + offset),
+        ]);
 
         const box = {
-          left: rect.left - OUTLINE_OFFSET - OUTLINE_WIDTH,
-          top: rect.top - OUTLINE_OFFSET - OUTLINE_WIDTH,
-          width: rect.width + 2 * (OUTLINE_OFFSET + OUTLINE_WIDTH),
-          height: rect.height + 2 * (OUTLINE_OFFSET + OUTLINE_WIDTH),
+          left: rect.left - offset - OUTLINE_WIDTH,
+          top: rect.top - offset - OUTLINE_WIDTH,
+          width: rect.width + 2 * (offset + OUTLINE_WIDTH),
+          height: rect.height + 2 * (offset + OUTLINE_WIDTH),
         };
 
         const outline = document.createElement('div');
@@ -110,8 +120,8 @@ export async function drawOutlines(page, targets) {
           position: 'fixed',
           left: `${box.left}px`,
           top: `${box.top}px`,
-          width: `${rect.width + 2 * OUTLINE_OFFSET}px`,
-          height: `${rect.height + 2 * OUTLINE_OFFSET}px`,
+          width: `${rect.width + 2 * offset}px`,
+          height: `${rect.height + 2 * offset}px`,
           border: `${OUTLINE_WIDTH}px solid ${OUTLINE_COLOR}`,
           borderRadius: grown
             .map(([x]) => `${x}px`)
@@ -122,7 +132,11 @@ export async function drawOutlines(page, targets) {
         });
         layer.appendChild(outline);
 
-        boxes.push({ ...box, badge: target.badge ?? null });
+        boxes.push({
+          ...box,
+          badge: target.badge ?? null,
+          badgeInside: target.badgeInside === true,
+        });
       }
 
       return { boxes, warnings };
@@ -152,6 +166,26 @@ export async function drawBadges(page, boxes, clip) {
       const gap = 4;
       const placedBadges = [];
 
+      /*
+       * Занятые места: всё, что несёт текст или изображение. Проверки «мимо
+       * обведённых элементов» мало - кружок садился на подпись флажка и на
+       * подсказку под ней, то есть ровно на то, что читателю и надо прочесть.
+       * Берутся только листья дерева: у их предков прямоугольники накрывают
+       * пол-экрана, и свободного места не осталось бы вовсе.
+       */
+      const occupied = [];
+      for (const element of document.body.querySelectorAll('*')) {
+        const bearsText =
+          element.children.length === 0 && (element.textContent || '').trim().length > 0;
+        const bearsPicture = ['IMG', 'SVG', 'INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName);
+        if (!bearsText && !bearsPicture) continue;
+        const rect = element.getBoundingClientRect();
+        if (rect.width < 2 || rect.height < 2) continue;
+        const style = getComputedStyle(element);
+        if (style.visibility === 'hidden' || style.opacity === '0') continue;
+        occupied.push(rect);
+      }
+
       const insideClip = (cx, cy) =>
         cx - half >= clip.x + gap &&
         cy - half >= clip.y + gap &&
@@ -164,16 +198,22 @@ export async function drawBadges(page, boxes, clip) {
         cy + half > rect.top - gap &&
         cy - half < rect.top + rect.height + gap;
 
+      const overlapsContent = (cx, cy) => occupied.some((rect) => overlapsRect(cx, cy, rect));
+
       /*
        * Кружок обязан лечь мимо всех обведённых элементов, а не только мимо
        * своего: в ряду соседних кнопок место «слева от третьей» - это ровно
        * вторая кнопка. Мимо уже поставленных кружков - тоже, иначе два номера
        * слипаются в один нечитаемый ком.
        */
+      const noBadgeNearby = (cx, cy) =>
+        !placedBadges.some(([px, py]) => Math.hypot(px - cx, py - cy) < BADGE_SIZE + gap);
+
       const free = (cx, cy) =>
         insideClip(cx, cy) &&
         !boxes.some((other) => overlapsRect(cx, cy, other)) &&
-        !placedBadges.some(([px, py]) => Math.hypot(px - cx, py - cy) < BADGE_SIZE + gap);
+        !overlapsContent(cx, cy) &&
+        noBadgeNearby(cx, cy);
 
       for (const box of boxes) {
         if (box.badge === null) continue;
@@ -182,21 +222,58 @@ export async function drawBadges(page, boxes, clip) {
         const midY = box.top + box.height / 2;
         const outer = half + gap;
 
-        // Сверху и снизу - первыми: в интерфейсе элементы чаще стоят рядами,
-        // и свободное место оказывается над рядом или под ним, а не между
-        // соседями.
-        const candidates = [
-          [midX, box.top - outer],
-          [midX, box.top + box.height + outer],
-          [box.left - outer, midY],
-          [box.left + box.width + outer, midY],
-          [box.left - outer, box.top - outer],
-          [box.left + box.width + outer, box.top - outer],
-          [box.left - outer, box.top + box.height + outer],
-          [box.left + box.width + outer, box.top + box.height + outer],
-        ];
+        /*
+         * Обзорный кадр показывает области экрана целиком, и они занимают его
+         * без остатка: снаружи такой области места нет ни с одной стороны.
+         * Кружок внутри крупной области ничего не заслоняет - в отличие от
+         * кружка внутри кнопки, - поэтому для них место ищется по внутренним
+         * углам. Признак задаётся в манифесте явно, сам снимальщик не решает.
+         */
+        const candidates = box.badgeInside
+          ? [
+              /*
+               * Кружок садится ровно на угол обводки: половина ложится наружу,
+               * в промежуток между блоками, половина - на внутренний отступ
+               * блока. Целиком внутри он наезжал бы на заголовок, целиком
+               * снаружи - на соседний блок.
+               */
+              [box.left, box.top],
+              [box.left + box.width, box.top],
+              [box.left, box.top + box.height],
+              [box.left + box.width, box.top + box.height],
+              /*
+               * Углов и середины мало для вытянутой области: у верхней строки
+               * все четыре угла заняты значками, а свободный промежуток лежит
+               * между приветствием и часами. Поэтому область прощупывается ещё
+               * и вдоль осей.
+               */
+              ...[0.15, 0.3, 0.5, 0.7, 0.85].flatMap((part) => [
+                [box.left + box.width * part, midY],
+                [midX, box.top + box.height * part],
+              ]),
+            ]
+          : [
+              // Сверху и снизу - первыми: в интерфейсе элементы чаще стоят
+              // рядами, и свободное место оказывается над рядом или под ним,
+              // а не между соседями.
+              [midX, box.top - outer],
+              [midX, box.top + box.height + outer],
+              [box.left - outer, midY],
+              [box.left + box.width + outer, midY],
+              [box.left - outer, box.top - outer],
+              [box.left + box.width + outer, box.top - outer],
+              [box.left - outer, box.top + box.height + outer],
+              [box.left + box.width + outer, box.top + box.height + outer],
+            ];
 
-        let placed = candidates.find(([cx, cy]) => free(cx, cy));
+        // У кружка на углу блока свои правила: он намеренно ложится поверх
+        // собственной обводки, поэтому пересечение с рамками не проверяется -
+        // но текст он закрывать не должен так же, как и всякий другой.
+        const fits = box.badgeInside
+          ? (cx, cy) => insideClip(cx, cy) && !overlapsContent(cx, cy) && noBadgeNearby(cx, cy)
+          : free;
+
+        let placed = candidates.find(([cx, cy]) => fits(cx, cy));
         if (!placed) {
           /*
            * Внутрь элемента кружок не ставим: он перекроет содержимое, ради
