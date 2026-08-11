@@ -387,9 +387,10 @@
                       >
                         <img
                           src="@/assets/icons/edit.png"
-                          alt="Редактировать"
+                          alt=""
                           class="edit-icon"
                         >
+                        <span class="action-btn__label">Редактировать</span>
                       </button>
                       <button
                         v-if="showDeleteCar(car)"
@@ -399,9 +400,10 @@
                       >
                         <img
                           src="@/assets/icons/trashcan.png"
-                          alt="Удалить"
+                          alt=""
                           class="delete-icon"
                         >
+                        <span class="action-btn__label">Удалить</span>
                       </button>
                       <span
                         v-if="!showEditCar(car) && !showDeleteCar(car)"
@@ -2159,6 +2161,21 @@ export default {
     opacity: 1;
 }
 
+/* Подпись кнопки действия. На десктопе кнопка остаётся иконкой, поэтому подпись прячем
+   clip-приёмом, а не display: none - она служит доступным именем кнопки (у иконки alt
+   пустой, она декоративная). На мобилке подпись показывается вместо иконки. */
+.action-btn__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 .read-only-text {
     font-size: 12px;
     color: var(--text-muted);
@@ -2747,19 +2764,14 @@ export default {
         text-align: center;
     }
 
-    .card-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
-        height: auto;
-        padding: 16px;
+    /* Отступы страницы по токену --gutter (12px на <=768, 10px на <=480). Хардкод
+       20px съедал 40px ширины: на 320px шапка карточки не помещалась в строку в
+       принципе, из-за чего кнопки и уезжали во вторую. Сама шапка - ниже, в блоке
+       767.98 (переключается вместе с телом таблицы). */
+    .carsview {
+        padding: var(--gutter);
     }
-    
-    .card-header__settings {
-        width: 100%;
-        justify-content: flex-end;
-    }
-    
+
     .cars-card {
         width: 100%;
         flex: none;
@@ -2787,33 +2799,235 @@ export default {
         width: 100%;
     }
     
-    .add-button,
-    .add-button-secondary {
+    /* Кнопка сохранения в модалке машины. Шапка списка со своей компактной
+       геометрией - в блоке 767.98 ниже, поэтому правило скоуплено на модалку:
+       без этого «Добавить» в шапке растягивалось на всю строку. */
+    .format__header .add-button {
         width: 100%;
     }
 }
 
-/* Зазор между карточками машин на мобилке. Отдельным правилом (а не через
-   .rt-row+.rt-row): rt-row навешен на .car-row, вложенный в .car-item
-   (v-for-обёртку), поэтому соседние .rt-row не являются прямыми сиблингами.
-   Брейкпоинт 767.98 - совпадает с активацией card-режима в responsive-tables.css. */
+/* Шапка блока и карточки машин на мобилке. Порог 767.98 - тот же, на котором таблица
+   превращается в карточки (responsive-tables.css) и на котором RefreshButton сворачивается
+   в иконку: шапка и тело переключаются вместе, гибрида на 768.0 нет. Зазор между карточками
+   отдельным правилом (а не через .rt-row+.rt-row): rt-row навешен на .car-row, вложенный в
+   .car-item (v-for-обёртку), поэтому соседние .rt-row не являются прямыми сиблингами. */
 @media (max-width: 767.98px) {
+    /* Шапка одной строкой: заголовок + «Добавить» + «Обновить». Прежний
+       flex-direction: column ронял кнопки во вторую строку и растягивал их по ширине. */
+    .card-header {
+        flex-wrap: nowrap;
+        gap: 8px;
+        height: auto;
+        min-height: 48px;
+        padding: 8px 12px;
+    }
+
+    /* min-width: 0 обязателен: flex-элемент не сжимается ниже min-content, и длинный
+       заголовок («Все машины системы») выдавил бы кнопки за край экрана вместо того,
+       чтобы обрезаться многоточием. */
+    .card-header__title {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .card-title {
+        min-width: 0;
+        overflow: hidden;
+        font-size: 14px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .card-header__settings {
+        flex-shrink: 0;
+        gap: 6px;
+    }
+
+    /* Кнопки шапки остаются ТЕКСТОВЫМИ и просто становятся компактными - прямая
+       просьба для этого экрана (в «Таблицах» просили обратное, сворачивание в иконку).
+       Высота 34px - как у контролов второго ряда шапки Центра. */
+    .card-header__settings .add-button {
+        height: 36px;
+        padding: 0 12px;
+        border-radius: var(--radius-pill);
+        font-size: 12px;
+        white-space: nowrap;
+    }
+
+    /* RefreshButton на этом же пороге сам прячет подпись и сжимается в 36x36 - здесь
+       возвращаем текст. Специфичность (0,3,0) против его собственной (0,2,0), поэтому
+       !important не нужен. Ширина фиксирована под самое широкое состояние: во время
+       перезарядки вместо текста три точки (27px), без фиксации кнопка дёргалась бы. */
+    .card-header__settings :deep(.refresh-btn) {
+        width: 88px;
+        height: 36px;
+        padding: 0;
+        gap: 4px;
+        border-radius: var(--radius-pill);
+    }
+
+    .card-header__settings :deep(.refresh-btn__text) {
+        position: static;
+        width: auto;
+        height: auto;
+        margin: 0;
+        overflow: visible;
+        clip: auto;
+        white-space: nowrap;
+    }
+
+    .card-header__settings :deep(.refresh-btn__icon) {
+        width: 14px;
+        height: 14px;
+    }
+
+    /* Одинаковый зазор вокруг карточек: у .cars-body асимметрия от десктопного
+       скроллбара (padding-right + margin-right по 4px), из-за неё слева карточки
+       упирались в рамку блока, а справа висел отступ 8px. */
+    .cars-body {
+        padding: 8px;
+        margin-right: 0;
+    }
+
     .cars-body .car-item + .car-item {
         margin-top: 8px;
     }
 
-    /* Колонка действий не несёт data-label (не превращается в строку "подпись:значение"),
-       поэтому держала бы desktop-ширину 80px в карточке и обрезала бы "Только просмотр" /
-       кнопки. В card-режиме растягиваем на всю ширину и центрируем. */
+    /* Карточка по образцу среза 2 (ApplicationAttachmentDetail.vue): подписи полей убраны,
+       значения выровнены влево, порядковый номер на мобилке не показываем вовсе.
+       !important обязателен: правило-источник в responsive-tables.css стоит на той же
+       специфичности (0,3,0), а оба view - lazy route-чанки, их scoped-CSS грузится позже
+       глобального, и при равной специфичности исход решал бы порядок загрузки. */
+    .car-row.rt-row > .number-col {
+        display: none !important;
+    }
+
+    .car-row.rt-row > [data-label]::before {
+        display: none !important;
+    }
+
+    /* Исключение из «убрать все подписи»: «Формат номера» без подписи нечитаем (значение
+       вида «Российский» само по себе ни о чём не говорит), а организация и компания идут
+       двумя соседними строками с однотипными названиями - без подписи не различить, где
+       какая. */
+    .car-row.rt-row > .format-col::before,
+    .car-row.rt-row > .org-col::before,
+    .car-row.rt-row > .company-col::before {
+        display: block !important;
+    }
+
+    /* Разделитель полей рисуем СВЕРХУ у ячеек 2..N, а не снизу: последней в строке идёт
+       колонка действий без data-label, глобальное `[data-label]:last-child` до неё не
+       достаёт и пунктир висел бы оторванной чертой над нижним краем карточки.
+       white-space/overflow-wrap - потому что .car-col держит nowrap ради десктопной
+       таблицы, и длинное название организации уезжало бы вправо за край. */
+    .car-row.rt-row > .car-col {
+        justify-content: flex-start !important;
+        border-bottom: none !important;
+        text-align: left !important;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .car-row.rt-row > .car-col ~ .car-col {
+        border-top: 1px dashed color-mix(in srgb, var(--border) 60%, var(--surface));
+    }
+
+    /* Номер строки скрыт, но в DOM он первый - без сброса верхний пунктир достался бы
+       гос. номеру и висел бы отдельной чертой у верхнего края карточки. */
+    .car-row.rt-row > .number-col + .car-col {
+        border-top: none;
+    }
+
+    /* Колонка действий не несёт data-label, поэтому держала бы desktop-ширину 80px и
+       обрезала бы кнопки / «Только просмотр». */
     .car-row.rt-row > .actions-col {
         width: 100% !important;
         min-width: 0 !important;
-        justify-content: center;
+        gap: 8px;
         padding-top: 8px;
+    }
+
+    /* Кнопки-иконки в карточке заменены компактными ТЕКСТОВЫМИ (просьба пользователя):
+       иконка 16px с padding 4px давала 24px под палец. Высота 44px - тач-таргет по
+       умолчанию (WCAG 2.5.5, эталон §8). Классы .lk-button на разметку не вешаем: на
+       десктопе это остаётся безрамочная иконка, поэтому pill-геометрию из forms.css
+       повторяем здесь, в мобильном блоке. */
+    .car-row.rt-row .edit-btn,
+    .car-row.rt-row .delete-btn {
+        height: 44px;
+        margin: 0;
+        padding: 0 14px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-pill);
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+
+    .car-row.rt-row .edit-btn {
+        color: var(--accent-text);
+        border-color: var(--accent);
+    }
+
+    .car-row.rt-row .delete-btn {
+        color: var(--danger-text);
+        border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
+    }
+
+    .car-row.rt-row .edit-icon,
+    .car-row.rt-row .delete-icon {
+        display: none;
+    }
+
+    .car-row.rt-row .action-btn__label {
+        position: static;
+        width: auto;
+        height: auto;
+        margin: 0;
+        overflow: visible;
+        clip: auto;
+        white-space: nowrap;
     }
 
     .car-row.rt-row > .actions-col .read-only-text {
         white-space: normal;
+    }
+}
+
+/* Очень узкие телефоны (--bp-mobile-sm = 480px): ужимаем шапку, чтобы «Мои автомобили»
+   вместе с обеими кнопками помещались одной строкой уже на 320px. Замер в chromium с
+   живым Montserrat: при padding 12 / gap 8 / «Обновить» 88px под заголовок оставалось
+   87px при нужных 127 - обрезало на 40px; после ужатия свободно 121px против 118, а на
+   390px влезают и длинные варианты («Машины организации» - 158px). Иконку «Обновить»
+   убираем: для этих двух экранов просили текстовые кнопки, подпись важнее декоративной
+   иконки (alt пустой, скринридер её и так не читает). */
+@media (max-width: 480px) {
+    .card-header {
+        gap: 6px;
+        padding: 8px;
+    }
+
+    .card-title {
+        font-size: 13px;
+    }
+
+    .card-header__settings {
+        gap: 4px;
+    }
+
+    .card-header__settings .add-button {
+        padding: 0 9px;
+    }
+
+    .card-header__settings :deep(.refresh-btn) {
+        width: 72px;
+    }
+
+    .card-header__settings :deep(.refresh-btn__icon) {
+        display: none;
     }
 }
 </style>
