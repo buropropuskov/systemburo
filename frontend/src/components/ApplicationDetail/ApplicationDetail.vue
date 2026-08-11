@@ -191,6 +191,7 @@
             :current-user-id="currentUserId"
             :responsible-users="responsibleUsers"
             :approvers="approvers"
+            :is-approver="isApprover"
             :mode="mode"
             :processing="processingApplication"
             :updating-confirmation="updatingConfirmation"

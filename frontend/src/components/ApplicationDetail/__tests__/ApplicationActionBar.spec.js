@@ -396,3 +396,26 @@ describe('ApplicationActionBar - hover кнопок принятия', () => {
     expect(shared).not.toContain('transition: all');
   });
 });
+
+describe('ApplicationActionBar - роль принимающего приходит признаком, а не списком', () => {
+  const props = {
+    application: { id: 1, confirmation: 'Согласовано', status: 'В обработке' },
+    currentUserId: 7,
+    responsibleUsers: [],
+  };
+
+  it('принимающий без прав администратора видит "Принять": состав принимающих ему не отдаётся', () => {
+    const wrapper = mountBar({ ...props, approvers: [], isApprover: true });
+    expect(wrapper.find(TAKE).exists()).toBe(true);
+  });
+
+  it('без признака и без состава кнопок приёма нет', () => {
+    const wrapper = mountBar({ ...props, approvers: [], isApprover: false });
+    expect(wrapper.find(TAKE).exists()).toBe(false);
+  });
+
+  it('администратору роль по-прежнему видна из загруженного состава', () => {
+    const wrapper = mountBar({ ...props, approvers: [{ user_id: 7 }], isApprover: false });
+    expect(wrapper.find(TAKE).exists()).toBe(true);
+  });
+});
