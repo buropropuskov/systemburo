@@ -184,6 +184,27 @@ func TestCreateUser_NoPasswordRejectedByAPI(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "пароль")
 }
 
+// TestUsersTable_MustChangePasswordDefaultsFalse: учётная запись, заведённая мимо
+// сервиса прямым INSERT, признака обязательной смены не получает.
+//
+// Так заводится супер-администратор при установке (`cmd/seed`): столбца в его
+// INSERT нет, значение берётся из умолчания схемы. Поменяй кто-нибудь умолчание на
+// true - и свежепоставленная система встретила бы владельца требованием сменить
+// пароль, а помочь ему было бы некому: других учётных записей ещё нет.
+func TestUsersTable_MustChangePasswordDefaultsFalse(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	require.NoError(t, db.Exec(
+		`INSERT INTO users (username, password, type_id, organization_id, company_id, is_super_admin)
+		 VALUES ('seed_like_admin', 'хэш', 1, ?, ?, true)`, td.OrgID, td.CompanyID).Error)
+
+	assert.False(t, fetchUser(t, db, "seed_like_admin").MustChangePassword,
+		"учётная запись установки не должна упираться в требование сменить пароль")
+}
+
 // TestUpdatePassword_ByAdmin_SendsThatPassword: администратор задал пароль руками -
 // работник получает письмом именно его, а не придуманный заново.
 func TestUpdatePassword_ByAdmin_SendsThatPassword(t *testing.T) {

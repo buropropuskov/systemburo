@@ -73,6 +73,10 @@ func TestChangeOwnPassword_MovesChangedAt(t *testing.T) {
 
 // TestCreateUser_SetsPasswordChangedAt: новый работник получает отсчёт срока с
 // момента заведения учётной записи, иначе он попадёт под первую же плановую смену.
+//
+// Заодно фиксируется правило про первый вход: пароль заводимой учётной записи
+// придумывает либо система, либо администратор - в обоих случаях не сам работник,
+// поэтому свой он задаёт при первом входе. Раньше признак здесь не поднимался.
 func TestCreateUser_SetsPasswordChangedAt(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
