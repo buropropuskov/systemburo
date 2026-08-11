@@ -122,9 +122,13 @@
           </div>
           <div class="toggle-row">
             <label class="switch">
+              <!-- Подпись лежит соседним span, поэтому имя контрола задаём явно:
+                   иначе тумблер, вернувшийся в порядок обхода, объявляется безымянным
+                   и в списке из нескольких ответственных неразличим. -->
               <input
                 v-model="user.required_approval"
                 type="checkbox"
+                :aria-label="`Обязательное согласование: ${getUserDisplayName(user)}`"
                 @change="updateUserRequiredApproval(user)"
               >
               <span class="slider" />
@@ -844,8 +848,24 @@ export default {
   flex-shrink: 0;
 }
 
+/* Инпут прячем визуально, но оставляем в порядке обхода: display:none выбрасывал
+   тумблер из tab-order, и переключить его с клавиатуры было нельзя (эталоны
+   SwitchToggle/ToggleSwitch прячут так же). */
 .switch input {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
+}
+
+/* Кольцо фокуса рисует дорожка - у скрытого инпута его не видно. */
+.switch input:focus-visible + .slider {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .slider {
