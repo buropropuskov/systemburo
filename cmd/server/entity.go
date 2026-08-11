@@ -828,6 +828,11 @@ func printPurgeResult(res entityarchive.PurgeResult) {
 		fmt.Println(padRight("Отпечаток манифеста", 34), res.ManifestSHA256)
 	}
 
+	for _, w := range res.Warnings {
+		fmt.Println()
+		fmt.Println("Внимание:", w)
+	}
+
 	fmt.Println()
 	switch {
 	case res.Apply:

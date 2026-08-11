@@ -43,13 +43,10 @@ import (
 	"sort"
 	"strings"
 
+	"systemburo/internal/models"
+
 	"gorm.io/gorm"
 )
-
-// auditActionPurged - действие audit_log при физическом сносе (реально применённом, не
-// пробном). Отдельная константа от auditActionExported/"imported" - это третий, последний
-// шаг жизненного цикла пакета, и различать его в журнале нужно по своему action.
-const auditActionPurged = "purged"
 
 // PurgeOptions - параметры сноса.
 type PurgeOptions struct {
@@ -92,6 +89,12 @@ type PurgeResult struct {
 	Apply          bool
 	Tables         []PurgeTableCount
 	Files          int
+	// Warnings - то, что оператор обязан увидеть, но что не мешает сносу (тот же приём,
+	// что у AnonymizeResult.Warnings): общие шаблоны отчётов, чьи авторы входят в снос -
+	// report_templates уже узел графа и удаляется штатно (счётчик, пакет, audit_log), но
+	// is_shared делает шаблон видимым чужим пользователям, и они не подавали заявку на
+	// снос своего шаблона.
+	Warnings []string
 }
 
 // TotalRows - сколько строк удалено (или удалилось бы) во всём графе.
@@ -167,6 +170,17 @@ func Purge(ctx context.Context, db *gorm.DB, entityType string, id int, dir stri
 	}
 	res.Files = len(files)
 
+	// Считается ДО удаления и попадает в результат независимо от Apply - оператор обязан
+	// увидеть предупреждение в пробном прогоне, раньше, чем нажмёт -apply, а не узнать о
+	// нём постфактум из уже необратимого сноса.
+	warning, err := sharedReportTemplateWarning(ctx, db, id)
+	if err != nil {
+		return res, err
+	}
+	if warning != "" {
+		res.Warnings = append(res.Warnings, warning)
+	}
+
 	if !opt.Apply {
 		res.Tables = toPurgeTableCounts(graph.Tables)
 		return res, nil
@@ -205,7 +219,7 @@ func Purge(ctx context.Context, db *gorm.DB, entityType string, id int, dir stri
 		details := purgeAuditDetails{
 			Package: dir, ManifestSHA256: fingerprint, Tables: deleted, Rows: sumRows(deleted), Files: len(files),
 		}
-		return opt.Recorder.Record(ctx, tx, entityType, &entityID, auditActionPurged, opt.ActorID, details)
+		return opt.Recorder.Record(ctx, tx, entityType, &entityID, models.OrganizationActionPurged, opt.ActorID, details)
 	})
 	if txErr != nil {
 		return res, fmt.Errorf("снос %s #%d: %w", entityType, id, txErr)
@@ -335,6 +349,31 @@ func removeApplicationFiles(uploadPath string, files []appFileRow) error {
 		return errors.New(strings.Join(failed, "; "))
 	}
 	return nil
+}
+
+// sharedReportTemplateWarning предупреждает про общие шаблоны отчётов (report_templates,
+// is_shared), чьи авторы входят в снос. Таблица - обычный узел графа (registry.go) и
+// удаляется штатно вместе со своим владельцем (OwnerUserID, FK OnDelete:CASCADE), данные
+// не теряются молча - но is_shared делает шаблон видимым ВСЕМ, кто им пользуется, не
+// только автору: снос организации заберёт его и у чужих пользователей, которые заявку на
+// снос не подавали. Предикат берётся из nodeWhere("report_templates") - тот же, по
+// которому deleteNode ниже реально сотрёт строки, а не переписывается заново.
+func sharedReportTemplateWarning(ctx context.Context, exec *gorm.DB, id int) (string, error) {
+	where, err := nodeWhere("report_templates")
+	if err != nil {
+		return "", err
+	}
+	var count int64
+	q := "SELECT COUNT(*) FROM report_templates WHERE " + where + " AND is_shared = true"
+	if err := exec.WithContext(ctx).Raw(q, sql.Named("org", id)).Scan(&count).Error; err != nil {
+		return "", fmt.Errorf("подсчёт общих шаблонов отчётов: %w", err)
+	}
+	if count == 0 {
+		return "", nil
+	}
+	return fmt.Sprintf("среди сносимых пользователей есть авторы общих шаблонов отчётов (report_templates, "+
+		"is_shared, сейчас %d шт.) - общий шаблон виден ВСЕМ, кто им пользуется, не только автору, и снос "+
+		"заберёт его вместе с автором у всех остальных", count), nil
 }
 
 func toPurgeTableCounts(in []TableCount) []PurgeTableCount {
