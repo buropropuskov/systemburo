@@ -36,6 +36,13 @@ const (
 	// историю обычной архивации организации.
 	OrganizationActionRetired        = "retired"
 	OrganizationActionRetireRestored = "retire_restored"
+
+	// OrganizationActionAnonymized - необратимое обезличивание персональных полей
+	// сотрудников и пользователей организации через консольную команду entity anonymize
+	// (internal/entityarchive, срез 5). В отличие от Retired/RetireRestored выше действие
+	// НЕ обратимо и не имеет своей restore-команды: запись в истории хранит только факт и
+	// счётчики затронутых строк по таблицам, без исходных значений.
+	OrganizationActionAnonymized = "anonymized"
 )
 
 // OrganizationHistoryItem - запись истории с именем актора для API (LEFT JOIN users).
