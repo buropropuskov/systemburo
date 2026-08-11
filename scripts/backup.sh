@@ -54,6 +54,11 @@ BACKUP_KEEP_WEEKLY="${BACKUP_KEEP_WEEKLY:-4}"
 BACKUP_KEEP_MONTHLY="${BACKUP_KEEP_MONTHLY:-6}"
 BACKUP_UPLOADS_MODE="${BACKUP_UPLOADS_MODE:-weekly}"
 BACKUP_AGE_RECIPIENT="${BACKUP_AGE_RECIPIENT:-}"
+# Единственный способ получить незашифрованную копию - выставить это в yes.
+# Значение читается и из окружения, и из .env: разовый запуск без правки файла
+# параметров тоже должен быть возможен.
+BACKUP_ALLOW_UNENCRYPTED="${BACKUP_ALLOW_UNENCRYPTED:-}"
+if [ -n "$BACKUP_AGE_RECIPIENT" ]; then ENCRYPTED=true; else ENCRYPTED=false; fi
 BACKUP_S3_REMOTE="${BACKUP_S3_REMOTE:-}"
 BACKUP_S3_BUCKET="${BACKUP_S3_BUCKET:-}"
 DB_NAME="${DB_NAME:-auto_registry}"
@@ -99,6 +104,7 @@ write_status() {
   "result": "$result",
   "stamp": "$STAMP",
   "size_bytes": $size,
+  "encrypted": $ENCRYPTED,
   "reason": "$FAIL_REASON"
 }
 EOF
@@ -113,6 +119,38 @@ on_error() {
   exit "$code"
 }
 trap on_error ERR
+
+# Проверка ключа идёт до первого обращения к базе: смысл в том, чтобы не создать
+# незашифрованную выгрузку вовсе, а не удалять её потом. Раньше здесь была строка
+# в журнале - но журнал открывают уже при разборе аварии, когда копии с ФИО,
+# паспортными данными и номерами патентов год как лежат в открытом виде.
+if [ -z "$BACKUP_AGE_RECIPIENT" ] && [ "$BACKUP_ALLOW_UNENCRYPTED" != "yes" ]; then
+  FAIL_REASON="не задан BACKUP_AGE_RECIPIENT: копия содержала бы персональные данные в открытом виде"
+  log "ОТКАЗ: $FAIL_REASON"
+  write_status "failed"
+  cat >&2 <<'EOF'
+
+Копирование не выполнено: не задан ключ шифрования копий.
+
+Выгрузка базы и архив бланков содержат персональные данные - ФИО, паспортные
+данные, номера патентов. Без ключа они лягут на диск и уедут во внешнее
+хранилище в открытом виде: кража архива будет равносильна краже базы.
+
+Исправить одним из двух способов.
+
+1. Завести ключ (так правильно):
+     age-keygen -o buro-backup.key
+   Закрытую часть унести с сервера в хранилище секретов организации, открытую
+   (строка вида age1...) вписать в .env рядом со скриптом:
+     BACKUP_AGE_RECIPIENT=age1...
+
+2. Осознанно согласиться на незашифрованные копии - тогда за их сохранность
+   отвечает то место, где они лежат:
+     BACKUP_ALLOW_UNENCRYPTED=yes
+
+EOF
+  exit 1
+fi
 
 WORK_DIR="$(mktemp -d "${BACKUP_DIR}/.work-XXXXXX")"
 
@@ -141,8 +179,8 @@ suffix() {
 }
 
 log "начало копирования, контур $ENVIRONMENT"
-if [ -z "$BACKUP_AGE_RECIPIENT" ]; then
-  log "ВНИМАНИЕ: BACKUP_AGE_RECIPIENT не задан, копия не шифруется и содержит персональные данные"
+if [ "$ENCRYPTED" = false ]; then
+  log "ВНИМАНИЕ: копия НЕ шифруется по явному разрешению BACKUP_ALLOW_UNENCRYPTED=yes и содержит персональные данные в открытом виде"
 fi
 
 # --- база данных ---

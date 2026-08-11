@@ -127,8 +127,12 @@ VITE_API_BASE_URL=${API_URL}
 # Сроки хранения и режим архивации файлов описаны в .env.example.
 # Ключ шифрования копий заводится отдельно: age-keygen -o buro-backup.key,
 # сюда вписывается ОТКРЫТАЯ часть, закрытая хранится вне сервера.
+# Пока строка пуста, копирование останавливается с ошибкой и копию не создаёт:
+# в выгрузке базы и архиве бланков персональные данные. Снимать копии без
+# шифрования осознанно - BACKUP_ALLOW_UNENCRYPTED=yes.
 BACKUP_DIR=/var/backups/systemburo
 BACKUP_AGE_RECIPIENT=
+BACKUP_ALLOW_UNENCRYPTED=
 BACKUP_KEEP_DAILY=7
 BACKUP_KEEP_WEEKLY=4
 BACKUP_KEEP_MONTHLY=6
