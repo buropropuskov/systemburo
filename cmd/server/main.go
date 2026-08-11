@@ -356,12 +356,13 @@ func main() {
 		slog.Warn("неверный RESET_TIMEZONE, используем UTC", "timezone", cfg.ResetTimezone, "error", err)
 		resetLoc = time.UTC
 	}
-	// Состояние плановой смены паролей для экрана настроек (#1909): считается по
-	// тем же условиям, по которым будет отбирать работников сам прогон.
+	// Состояние проверки сроков действия паролей для экрана настроек (#1909):
+	// считается по тем же условиям, по которым будет отбирать работников сам прогон.
 	settingsHandler.SetRotationStatusService(
 		services.NewPasswordRotationStatusService(db, settingsService, mailService, resetLoc))
 
-	// Сам прогон плановой смены (#1910). Базовый адрес системы для писем берём из
+	// Прогоны по паролям (#1910): плановая проверка сроков и ручное обновление.
+	// Базовый адрес системы для писем берём из
 	// списка разрешённых источников: отдельного параметра под адрес нет, а ссылка
 	// на localhost в письме у получателя всё равно не откроется - сервис такую
 	// отбрасывает сам.
@@ -628,7 +629,7 @@ func main() {
 	// завершается сразу: очередь тогда и не наполняется.
 	go startMailWorker(ctxSig, mailService, cfg.MailWorkerTick)
 
-	// Плановая смена паролей (#1910): раз в сутки в 04:00 по рабочей зоне. 03:00
+	// Проверка сроков действия паролей (#1910): раз в сутки в 04:00 по рабочей зоне. 03:00
 	// занят сверкой файлового архива, 06:00 - сбросом территориальных статусов.
 	go startPasswordRotationScheduler(ctxSig, passwordRotationService, resetLoc)
 
@@ -714,12 +715,13 @@ func startRetentionWorker(ctx context.Context, db *gorm.DB, tokenDays, notificat
 // не отправили (#1721): заявитель выбрал документы и закрыл форму. Ходит чаще
 // суток, потому что такие файлы занимают место, ни на что не влияя.
 // startPasswordRotationScheduler раз в сутки в 04:00 по location проверяет сроки
-// действия паролей: сначала предупреждает тех, у кого срок подходит, затем меняет
-// пароли тем, у кого он вышел. Выключенная настройка делает оба шага пустыми -
-// решение сервиса, а не планировщика.
+// действия паролей: сначала предупреждает тех, у кого срок подходит, затем помечает
+// истёкшими пароли тех, у кого он вышел. Выключенная настройка делает оба шага
+// пустыми - решение сервиса, а не планировщика.
 //
-// Идемпотентность бесплатная: после смены дата последней смены сдвинута, и
-// повторный проход того же дня никого не выберет.
+// Паролей прогон не придумывает и писем с ними не шлёт: помеченный работник входит
+// своим прежним паролем, а дальше формы смены его не пускает гейт. Повторный проход
+// того же дня никого не выберет - уже помеченные из отбора исключены.
 func startPasswordRotationScheduler(ctx context.Context, svc *services.PasswordRotationService, location *time.Location) {
 	if svc == nil {
 		return
@@ -731,7 +733,7 @@ func startPasswordRotationScheduler(ctx context.Context, svc *services.PasswordR
 	}
 	timer := time.NewTimer(time.Until(next))
 	defer timer.Stop()
-	slog.Info("планировщик плановой смены паролей запущен", "next_run", next.Format(time.RFC3339))
+	slog.Info("планировщик сроков действия паролей запущен", "next_run", next.Format(time.RFC3339))
 
 	run := func() {
 		svc.NotifyExpiring(ctx)
@@ -740,7 +742,7 @@ func startPasswordRotationScheduler(ctx context.Context, svc *services.PasswordR
 
 	select {
 	case <-ctx.Done():
-		slog.Info("планировщик плановой смены паролей остановлен до первого срабатывания")
+		slog.Info("планировщик сроков действия паролей остановлен до первого срабатывания")
 		return
 	case <-timer.C:
 	}
@@ -751,7 +753,7 @@ func startPasswordRotationScheduler(ctx context.Context, svc *services.PasswordR
 	for {
 		select {
 		case <-ctx.Done():
-			slog.Info("планировщик плановой смены паролей остановлен")
+			slog.Info("планировщик сроков действия паролей остановлен")
 			return
 		case <-ticker.C:
 			run()

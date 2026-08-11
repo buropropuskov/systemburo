@@ -10,23 +10,26 @@ import (
 	"gorm.io/gorm"
 )
 
-// PasswordRotationStatus - состояние плановой смены паролей для экрана настроек.
-// Включать смену вслепую нельзя: администратор должен видеть, настроена ли почта
-// и скольких работников затронет ближайший прогон.
+// PasswordRotationStatus - состояние плановой проверки сроков для экрана настроек.
+// Включать проверку вслепую нельзя: администратор должен видеть, скольких
+// работников затронет ближайший прогон и уйдут ли предупреждения о скором
+// истечении.
 type PasswordRotationStatus struct {
-	// MailConfigured - настроена ли отправка почты. Без неё смена не запускается.
+	// MailConfigured - настроена ли отправка почты. Плановой проверке она не нужна,
+	// от неё зависят предупреждения заранее и ручное обновление паролей.
 	MailConfigured bool `json:"mail_configured"`
 	Enabled        bool `json:"enabled"`
 	RotationDays   int  `json:"rotation_days"`
 	// Eligible - активные незаблокированные работники с адресом почты, то есть те,
-	// кого механизм в принципе может обслужить.
+	// кому ручное обновление может выслать новый пароль.
 	Eligible int `json:"eligible"`
-	// WithoutEmail - активные незаблокированные без адреса. Их пароль не трогается,
-	// и адреса им должно проставить бюро.
+	// WithoutEmail - активные незаблокированные без адреса. Плановая проверка их
+	// берёт наравне со всеми, а вот предупреждение и новый пароль слать им некуда.
 	WithoutEmail int `json:"without_email"`
 	// Expired - у скольких срок уже вышел. Это и есть размер ближайшего прогона.
 	Expired int `json:"expired"`
-	// ExpiringSoon - у скольких истечёт в окне предупреждения.
+	// ExpiringSoon - скольким уйдёт предупреждение в окне перед истечением. Считается
+	// только по тем, у кого есть адрес: предупреждение - это письмо.
 	ExpiringSoon int `json:"expiring_soon"`
 	// NextRunAt - когда планировщик проснётся в следующий раз.
 	NextRunAt time.Time `json:"next_run_at"`
@@ -66,7 +69,7 @@ func (s *PasswordRotationStatusService) Get(ctx context.Context) (PasswordRotati
 	}
 
 	// Базовое условие: работник в системе и может войти. Архивных и заблокированных
-	// плановая смена не касается - им и входить некуда.
+	// плановая проверка не касается - им и входить некуда.
 	base := s.db.WithContext(ctx).Model(&models.User{}).
 		Where("is_active = ?", true).
 		Where("is_banned = ?", false)
@@ -81,8 +84,11 @@ func (s *PasswordRotationStatusService) Get(ctx context.Context) (PasswordRotati
 		return status, fmt.Errorf("count users without email: %w", err)
 	}
 
+	// Истёкшие считаем без оглядки на почту и на уже поднятый признак смены: на
+	// экране это ответ на вопрос «у скольких работников срок вышел», а не «сколько
+	// строк тронет ближайший прогон».
 	deadline := time.Now().AddDate(0, 0, -policy.RotationDays)
-	if err := base.Session(&gorm.Session{}).Where(hasEmail).
+	if err := base.Session(&gorm.Session{}).
 		Where("password_changed_at IS NOT NULL AND password_changed_at < ?", deadline).
 		Count(&expired).Error; err != nil {
 		return status, fmt.Errorf("count expired passwords: %w", err)
