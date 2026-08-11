@@ -44,11 +44,18 @@
           data-testid="grid-toggle"
           @update:model-value="$emit('update:grid', $event)"
         />
-        <RefreshButton
-          :loading="refreshing"
-          @refresh="loadData"
-        />
       </div>
+      <!-- «Обновить» - прямой ребёнок шапки, а не часть .card-header__settings:
+           на мобилке (#1097 S6) заголовок и «Обновить» обязаны остаться в одной
+           строке, а счётчик с тумблерами уезжают ниже. Десктоп не меняется -
+           .card-header__settings прижат вправо margin-left: auto, кнопка идёт
+           сразу за ним с тем же зазором. -->
+      <RefreshButton
+        v-if="!preview"
+        class="card-header__refresh"
+        :loading="refreshing"
+        @refresh="loadData"
+      />
     </div>
 
     <!-- Панель групповых операций (#1194) - оверлей поверх .card-header (не
@@ -635,7 +642,7 @@ import LoaderSpinner from './ui/LoaderSpinner.vue';
 import AnimatedCounter from './ui/AnimatedCounter.vue';
 import ExcelJS from 'exceljs';
 import { bulkMoveEmployeesTable, bulkAddEmployeesTable, bulkUnbindEmployeesTable } from '@/api/employees';
-import { pickOverflowFields, columnMinWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
+import { pickOverflowFields, columnMinWidth, measureRowAvailableWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
 
 const ENLARGED_KEY_PREFIX = 'enlarged-mode:people:';
 
@@ -1553,9 +1560,14 @@ export default {
       const reserved = SERVICE_COLUMNS_WIDTH.passage
         + (this.can('entity.employees.delete') ? SERVICE_COLUMNS_WIDTH.actions : 0)
         + SERVICE_COLUMNS_WIDTH.expand;
+      // Мерим строку заголовков, а не всю область: её ширина уже без отступов и
+      // зазоров между ячейками (#1097 S8 волна 4). Ноль означает, что шапка
+      // скрыта - на мобилке строки идут карточками, там остаётся прежний
+      // источник ширины, и набор скрытых столбцов не меняется.
+      const measured = measureRowAvailableWidth(host.querySelector('.header-row'));
       this.overflowFields = pickOverflowFields({
         fields: this.configuredFields(),
-        available: host.clientWidth,
+        available: measured || host.clientWidth,
         priorities: this.fieldPriorities,
         orders: this.fieldOrders,
         reserved,
@@ -1893,12 +1905,18 @@ export default {
   gap: 12px;
 }
 
+/* Прижат вправо явным auto-margin, а не justify-content: space-between шапки:
+   после выноса «Обновить» отдельным элементом (#1097 S6) между ними распределялось
+   бы свободное место и настройки уехали бы в середину. Слот .card-header__actions
+   со своим margin-left: auto здесь не конкурирует - он живёт только в preview,
+   где .card-header__settings не рендерится вовсе. */
 .card-header__settings {
   display: flex;
   gap: 12px;
   align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
+  margin-left: auto;
 }
 
 .card-title {
@@ -2364,17 +2382,39 @@ export default {
     height: auto;
   }
 
+  /* Заголовок и «Обновить» - одной строкой (#1097 S6), счётчик и тумблеры
+     переносятся ниже: .card-header__settings занимает всю ширину и попадает на
+     вторую строку, «Обновить» держится за заголовком через order. Колоночной
+     шапку больше не делаем - в ней заголовок оставался один в строке. */
   .card-header {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 12px;
     height: auto;
     padding: 16px;
   }
 
-  /* Шапка стала колоночной auto-высоты - фиксированный оверлей .bulk-bar (50px)
-     накрыл бы только верх, хвост торчал бы под ним. Возвращаем панель в поток
-     (образец CompaniesManagement, #1194). */
+  /* flex-basis именно 0, а не auto: перенос строк во flex считается по
+     ГИПОТЕТИЧЕСКИМ размерам элементов, до применения flex-shrink. При auto
+     гипотетический размер заголовка равен его тексту (замер на 320: 230px), и
+     230 + 12 gap + 36 кнопки не влезали в 246 доступных (320 - 40 padding
+     страницы - 2 рамки карточки - 32 padding шапки) - «Обновить» уезжала на
+     вторую строку, хотя ellipsis у заголовка есть. С basis 0 строка не ломается,
+     заголовок дорастает остатком (198px) и ужимается многоточием. */
+  .card-header__title {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .card-header__refresh {
+    order: 1;
+    flex-shrink: 0;
+  }
+
+  /* Шапка занимает несколько строк и растёт по контенту - фиксированный оверлей
+     .bulk-bar (50px) накрыл бы только верх, хвост торчал бы под ним. Возвращаем
+     панель в поток (образец CompaniesManagement, #1194). */
   .bulk-bar {
     position: static;
     height: auto;
@@ -2392,7 +2432,9 @@ export default {
 
   .card-header__settings,
   .card-header__actions {
+    order: 2;
     width: 100%;
+    margin-left: 0;
     justify-content: flex-end;
   }
 
@@ -2419,6 +2461,124 @@ export default {
     display: none !important;
   }
 
+  /* #1097 S9. Обёртку полосы заголовков убираем целиком, а не только её внутренний ряд:
+     глобальный `rt-head-row` прячет `.header-row`, а `.items-header` остаётся в потоке
+     со своим `border-bottom` и рисует лишнюю линию в 1px перед первой карточкой
+     (замер: height 1 при вьюпорте 320 и 390). Ловушка описана в эталоне, §8.
+
+     Селектор длиннее собственного `.items-header`, чтобы исход не зависел от порядка
+     правил: базовое правило стоит выше по файлу, но при равной специфичности его хватило
+     бы перенести ниже, чтобы линия вернулась. Закреплению полосы это не мешает - оно
+     живёт в `@media (min-width: 768px)` и сюда не достаёт. */
+  .selected-table-card .items-header {
+    display: none;
+  }
+
+  /* #1097 S9. Карточка по образцу заявки (ApplicationAttachmentDetail.vue): подписи
+     полей убраны, значения выровнены влево, разделитель рисуется сверху.
+
+     Кнопки прохода при этом стояли двумя отдельными строками, и слева от каждой висела
+     дублирующая подпись - "Вход" подписью и "Вход" кнопкой в одной строке. Поэтому
+     карточка переведена из колонки в строку с переносом, а перенос во флексе держит
+     БАЗИС, а не ширина.
+
+     Специфичность выше правил-источников и `!important` обязательны: те объявлены с
+     `!important` сами, и более коротким селектором их не перебить. */
+  .selected-table-card .item-data.rt-row {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    column-gap: 8px;
+    row-gap: 0;
+  }
+
+  /* Доли столбцов заданы через `flex: N 0 0`, то есть с базисом 0. В колонке базис
+     управлял высотой и не мешал, а в строке он и есть ширина: `width: 100%` из
+     responsive-tables.css при нулевом базисе не считается вовсе, и ячейки делят одну
+     строку по табличным долям - кнопка прохода в своей 14-пиксельной ячейке при этом
+     вылезает за неё и накрывает соседей. Базис задаём явно: своя строка каждой ячейке.
+
+     Правило целит во ВСЕ дочерние ячейки, а не в `[data-label]`: колонка без подписи
+     (действия, "Подробнее") иначе осталась бы со своей табличной долей и уехала бы в
+     ряд к кнопкам. Из этого правила выходят только сами кнопки прохода - ниже. */
+  .selected-table-card .rt-row > * {
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* Разделитель полей рисуем сверху у ячеек 2..N, а не снизу: последней в строке идёт
+     колонка действий без data-label, глобальное `[data-label]:last-child` до неё не
+     достаёт, и пунктир висел бы оторванной чертой над нижним краем карточки. */
+  .selected-table-card .rt-row > [data-label] {
+    justify-content: flex-start !important;
+    text-align: left !important;
+    border-bottom: none !important;
+  }
+
+  .selected-table-card .rt-row > [data-label] ~ [data-label] {
+    border-top: 1px dashed color-mix(in srgb, var(--border) 60%, var(--surface));
+  }
+
+  /* Ячейки прохода делят верхнюю строку пополам - единственные, кто выходит из
+     «своя строка каждому». Пунктир им не нужен: между кнопками одного ряда он лёг бы
+     вертикальной чертой посреди строки, а поле под ними свой верхний пунктир
+     сохраняет - он и отделяет ряд действий от данных. */
+  .selected-table-card .rt-row > .entry-col,
+  .selected-table-card .rt-row > .exit-col {
+    width: auto !important;
+    flex: 1 1 0 !important;
+    padding: 5px 0 !important;
+    border-top: none !important;
+  }
+
+  .selected-table-card .rt-row > .entry-col .action-btn,
+  .selected-table-card .rt-row > .exit-col .action-btn {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* «Подробнее» и корзина - двумя последними строками карточки, в этом порядке.
+     Порядок задаём обоим служебным столбцам, а не правим один: их разметочные `order`
+     (9997 и 9999) соседствуют с порядком статуса (9998), и шеврон оказывался ПЕРЕД
+     статусом, то есть посреди карточки - между именем и бейджем. Пара заведомо больших
+     чисел уводит оба в конец независимо от настроек столбцов. */
+  .selected-table-card .rt-row > .expand-col {
+    order: 10000 !important;
+  }
+
+  .selected-table-card .rt-row > .actions-col {
+    order: 10001 !important;
+  }
+
+  /* И делят её между собой: своя строка каждой отдавала 88px карточки под две
+     44-пиксельные кнопки, причём шеврон висел один посреди пустой полосы. Ширина по
+     содержимому - второе и последнее исключение из «своя строка каждому». */
+  .selected-table-card .rt-row > .expand-col,
+  .selected-table-card .rt-row > .actions-col {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    padding-top: 8px;
+  }
+
+  .selected-table-card .rt-row > [data-label]::before {
+    display: none !important;
+  }
+
+  /* Исключение из "убрать все подписи": значение, которое без подписи не отличить от
+     соседнего такого же. Организация и компания идут двумя строками с однотипными
+     названиями; должность, гражданство, номер заявки, дата и время прохода - голые
+     значения, которые сами себя не называют. Фамилия, имя и отчество стоят подряд
+     вверху карточки и читаются как ФИО, бейдж статуса говорит за себя. */
+  .selected-table-card .rt-row > .position-col::before,
+  .selected-table-card .rt-row > .citizenship-col::before,
+  .selected-table-card .rt-row > .organization-col::before,
+  .selected-table-card .rt-row > .company-col::before,
+  .selected-table-card .rt-row > .application-col::before,
+  .selected-table-card .rt-row > .date-col::before,
+  .selected-table-card .rt-row > .time-col::before {
+    display: block !important;
+  }
+
   /* Тач-таргет >=44px (WCAG) для кнопок Вход/Выход/удаления/раскрытия. */
   .action-btn {
     min-width: 70px;
@@ -2431,9 +2591,63 @@ export default {
     height: 44px;
   }
 
-  .expand-btn {
+  /* #1097 S9. Селектор с карточкой обязателен, а не просто `.expand-btn`: базовое
+     правило `.expand-btn { width: 22px; height: 22px }` стоит НИЖЕ этого медиазапроса,
+     специфичность у них равная (медиазапрос её не поднимает), и побеждало позднее -
+     тач-таргет 44px был мёртвым, шеврон оставался 22px на любой мобилке. Упростишь
+     селектор обратно - правило снова перестанет применяться, молча. */
+  .selected-table-card .expand-btn {
     width: 44px;
     height: 44px;
+  }
+}
+
+/* Полоса заголовков столбцов не уезжает при прокрутке страницы (#1097 S8 волна 4).
+   Список прокручивается и внутри карточки (.items-body), но саму карточку на
+   планшете видно не целиком - страница прокручивается вместе с ней, и статичная
+   полоса уходила за верх экрана: столбцы оставались без подписей.
+
+   Карточка и её содержимое режутся `clip`, а не `hidden`: `hidden` делает предка
+   скроллпортом, и sticky внутри него замирает на месте (прилипать не к чему).
+   `clip` обрезает ровно так же - скругление 30px цело, - но скроллпорта не
+   создаёт, поэтому отсчёт идёт от прокрутки документа. Там же живут шапка
+   приложения и шапки списков (эталон: все закреплённые полосы в одной системе
+   отсчёта). Браузер без поддержки `clip` просто оставит прежний `hidden` и
+   прежнее поведение.
+
+   Фон обязателен и обязан быть непрозрачным - строки уходят ПОД полосу;
+   --surface в обеих палитрах задан hex-ом, без альфы. z-index 3: выше оверлея
+   обновления (2) и .items-container (position: relative, идёт следом в разметке),
+   ниже панели групповых операций (6).
+
+   На мобилке правило не действует - там шапка скрыта (rt-head-row), строки
+   показываются карточками. */
+@media (min-width: 768px) {
+  /* min-height здесь не украшение: `hidden` заодно обнулял автоминимум flex-элемента
+     (оба - карточка в колоночном .tables__content и .card-content в карточке), и
+     без него потолок 575px проиграл бы содержимому - min всегда бьёт max. Задаём
+     нулевой минимум явно, чтобы высота не зависела от того, как браузер трактует
+     автоминимум при `clip`. */
+  .selected-table-card,
+  .card-content {
+    overflow: clip;
+    min-height: 0;
+  }
+
+  .items-header {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--surface);
+  }
+}
+
+/* Ровно на 768 (планшет в портрете) шапка приложения ещё закреплена - её
+   медиазапрос max-width: 768px, высота = токен. Полоса заголовков встаёт под
+   неё, иначе прилипает к верху экрана и прячется за шапкой (z-index 100). */
+@media (min-width: 768px) and (max-width: 768px) {
+  .items-header {
+    top: var(--mobile-header-height);
   }
 }
 
