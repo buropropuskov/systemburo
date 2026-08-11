@@ -139,7 +139,7 @@
         <span class="bim__problems-count">{{ problemRows.length }}</span>
       </h4>
       <p class="bim__problems-hint">
-        Поправьте поля прямо здесь и отметьте строку - она добавится вместе с остальными.
+        Поправьте поля прямо здесь и нажмите «Добавить» - строка уйдёт в список.
         Причину с пометкой «Только вручную» здесь не снять (чёрный список, дубль внутри
         файла, паспорт, патент, должность) - такую строку заводят обычной формой.
       </p>
@@ -159,18 +159,15 @@
               :variant="rowFixable(row) ? 'warning' : 'danger'"
               :label="rowFixable(row) ? 'Можно исправить' : 'Только вручную'"
             />
-            <label
-              class="bim__include"
-              :class="{ 'bim__include--off': !canIncludeRow(row) }"
+            <button
+              type="button"
+              class="lk-button lk-button--secondary lk-button--sm bim__row-add"
+              :disabled="!canIncludeRow(row)"
+              :data-testid="`bim-include-${row.rowNumber}`"
+              @click="addProblemRow(row)"
             >
-              <input
-                v-model="row.included"
-                type="checkbox"
-                :disabled="!canIncludeRow(row)"
-                :data-testid="`bim-include-${row.rowNumber}`"
-              >
-              <span>Добавить</span>
-            </label>
+              Добавить
+            </button>
           </div>
 
           <ul class="bim__reasons">
@@ -418,13 +415,10 @@ export default {
       const passageOk = !this.passageTablesRequired || this.selectedPassageTables.length > 0;
       return unloadOk && passageOk;
     },
-    includedFixedRows() {
-      return this.problemRows.filter((r) => r.included && this.canIncludeRow(r));
-    },
-    // Принятые строки уже стоят в списке предварительными, поэтому считаем их оттуда:
-    // сколько человек оставил, столько и добавится.
+    // Исправленная строка уходит в список сразу по кнопке в своей карточке, поэтому к
+    // моменту общего «Добавить» всё добавляемое уже стоит предварительным.
     addableCount() {
-      return this.pendingCount + this.includedFixedRows.length;
+      return this.pendingCount;
     },
     canSubmit() {
       return this.placesReady && this.addableCount > 0;
@@ -455,18 +449,6 @@ export default {
         this.resetState();
       },
     },
-    // Отметка снимается, как только строка перестала годиться: человек мог поправить
-    // номер, отметить строку и снова его испортить - галочка оставалась стоять на
-    // негодной строке. В заявку она и так не уходила (счёт и отправка перепроверяют),
-    // но выглядело это как обещание добавить.
-    problemRows: {
-      deep: true,
-      handler(rows) {
-        rows.forEach((row) => {
-          if (row.included && !this.canIncludeRow(row)) row.included = false;
-        });
-      },
-    },
   },
   methods: {
     fieldVisible(key) {
@@ -484,7 +466,6 @@ export default {
         .map((r) => ({
           rowNumber: r.row_number,
           errors: r.errors || [],
-          included: false,
           original: r,
           fields: this.isPeople
             ? {
@@ -667,17 +648,28 @@ export default {
         isExisting: false,
       };
     },
-    // «Добавить»: принятые строки уже в списке (их родитель только раскатывает местами и
-    // делает обычными), а вручную исправленные проблемные строки заводятся этим событием.
+    /**
+     * «Добавить» в самой карточке: исправленная строка уходит в список сразу, как
+     * остальные разобранные, и исчезает из перечня ошибок. Раньше тут стояла галочка,
+     * и строка ждала общей кнопки - было непонятно, случилось ли что-то от клика.
+     */
+    addProblemRow(row) {
+      if (!this.canIncludeRow(row)) return;
+      const built = this.isPeople
+        ? this.buildEmployeeFromRow(row, true)
+        : this.buildVehicleFromRow(row, true);
+      this.$emit('stage', { attachmentType: this.attachmentType, rows: [built] });
+      this.problemRows = this.problemRows.filter((r) => r.rowNumber !== row.rowNumber);
+    },
+
+    // «Добавить в заявку»: всё добавляемое уже стоит в списке предварительным, родителю
+    // остаётся раскатать места и сделать строки обычными.
     onSubmit() {
       if (!this.canSubmit) return;
-      const build = this.isPeople
-        ? (row) => this.buildEmployeeFromRow(row, true)
-        : (row) => this.buildVehicleFromRow(row, true);
       this.$emit('import', {
         attachmentType: this.attachmentType,
         places: this.placesPatch,
-        rows: this.includedFixedRows.map((row) => build(row)),
+        rows: [],
       });
     },
     async downloadErrors() {
@@ -901,32 +893,9 @@ export default {
   color: var(--text);
 }
 
-.bim__include {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  font-size: 13px;
-  color: var(--text);
-  cursor: pointer;
-  user-select: none;
-}
 
-.bim__include input {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  accent-color: var(--accent);
-}
 
-.bim__include--off {
-  color: var(--text-muted);
-  cursor: default;
-}
 
-.bim__include--off input {
-  cursor: not-allowed;
-}
 
 .bim__reasons {
   display: flex;
@@ -1002,15 +971,9 @@ export default {
     font-size: 16px;
   }
 
-  .bim__include {
-    margin-left: 0;
-    flex-basis: 100%;
+  /* Тач-таргет кнопки добавления строки: у --sm высота меньше нормы WCAG 2.5.5. */
+  .bim__row-add {
     min-height: 44px;
-  }
-
-  .bim__include input {
-    width: 20px;
-    height: 20px;
   }
 
   .bim__problems-list {

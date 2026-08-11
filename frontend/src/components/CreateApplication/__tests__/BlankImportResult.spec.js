@@ -218,7 +218,7 @@ describe('BlankImportResult - номер обязан лечь в формат',
     expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeDefined();
   });
 
-  it('отметка снимается, если номер снова испортили', async () => {
+  it('кнопка снова блокируется, если номер испортили после правки', async () => {
     const wrapper = mountPanel({
       attachmentType: 'cars',
       rows: [CAR_BAD_PLATE_ROW],
@@ -229,16 +229,10 @@ describe('BlankImportResult - номер обязан лечь в формат',
     const input = wrapper.find('[data-testid="bim-problem-row-4"] input.bim__cell-input');
     await input.setValue('А123ВС777');
     await flushPromises();
-
-    const checkbox = wrapper.find('[data-testid="bim-include-4"]');
-    await checkbox.setValue(true);
-    await flushPromises();
-    expect(wrapper.vm.problemRows[0].included).toBe(true);
+    expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeUndefined();
 
     await input.setValue('снова мусор');
     await flushPromises();
-
-    expect(wrapper.vm.problemRows[0].included).toBe(false);
     expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeDefined();
   });
 
@@ -341,31 +335,29 @@ describe('BlankImportResult (blank-import D1D2)', () => {
     expect(emitted[0][0].rows).toEqual([]);
   });
 
-  it('правка проблемной строки на месте делает её добавляемой и включённой в payload', async () => {
+  it('правка строки и кнопка «Добавить» уводят её из ошибок прямо в список', async () => {
     const wrapper = mountPanel({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
     await flushPromises();
-    await wrapper.findAll('.passage__item')[0].trigger('click');
 
     const row6 = wrapper.find('[data-testid="bim-problem-row-6"]');
     const inputs = row6.findAll('input.bim__cell-input');
     await inputs[0].setValue('Петров');
     await inputs[1].setValue('Пётр');
 
-    const checkbox = wrapper.find('[data-testid="bim-include-6"]');
-    expect(checkbox.attributes('disabled')).toBeUndefined();
-    await checkbox.setValue(true);
+    const addBtn = wrapper.find('[data-testid="bim-include-6"]');
+    expect(addBtn.attributes('disabled')).toBeUndefined();
+    await addBtn.trigger('click');
+    await flushPromises();
 
-    await wrapper.find('[data-testid="bim-submit"]').trigger('click');
-
-    const payload = wrapper.emitted('import')[0][0];
-    // Принятая строка уже в списке предварительной, исправленная приходит этим событием.
-    expect(payload.rows).toHaveLength(1);
-    expect(payload.rows[0]).toMatchObject({
-      lastName: 'Петров', firstName: 'Пётр', isExisting: false, targetTables: [10],
-    });
+    // Строка ушла в список сразу - последним событием stage, и исчезла из перечня ошибок.
+    const staged = wrapper.emitted('stage');
+    const last = staged[staged.length - 1][0];
+    expect(last.rows).toHaveLength(1);
+    expect(last.rows[0]).toMatchObject({ lastName: 'Петров', firstName: 'Пётр', isExisting: false });
+    expect(wrapper.find('[data-testid="bim-problem-row-6"]').exists()).toBe(false);
   });
 
-  it('незаполненную обязательную часть строки (пустое имя) нельзя отметить галочкой', async () => {
+  it('незаполненную обязательную часть строки (пустое имя) добавить нельзя', async () => {
     const wrapper = mountPanel({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
     await flushPromises();
 
@@ -390,7 +382,7 @@ describe('BlankImportResult (blank-import D1D2)', () => {
     expect(wrapper.find('[data-testid="bim-include-7"]').attributes('disabled')).toBeUndefined();
   });
 
-  it('машина с пустым номером чинится правкой на месте и попадает в payload', async () => {
+  it('машина с пустым номером чинится правкой и уходит в список по кнопке', async () => {
     const wrapper = mountPanel({
       attachmentType: 'cars',
       rows: CAR_ROWS,
@@ -403,15 +395,16 @@ describe('BlankImportResult (blank-import D1D2)', () => {
     const problemRow = wrapper.find('[data-testid="bim-problem-row-3"]');
     await problemRow.findAll('input.bim__cell-input')[0].setValue('В777ВВ177');
 
-    const checkbox = wrapper.find('[data-testid="bim-include-3"]');
-    expect(checkbox.attributes('disabled')).toBeUndefined();
-    await checkbox.setValue(true);
+    const addBtn = wrapper.find('[data-testid="bim-include-3"]');
+    expect(addBtn.attributes('disabled')).toBeUndefined();
+    await addBtn.trigger('click');
+    await flushPromises();
 
-    await wrapper.find('[data-testid="bim-submit"]').trigger('click');
-
-    const payload = wrapper.emitted('import')[0][0];
-    expect(payload.rows).toHaveLength(1);
-    expect(payload.rows[0].plateNumber).toBe('В777ВВ177');
+    const staged = wrapper.emitted('stage');
+    const last = staged[staged.length - 1][0];
+    expect(last.rows).toHaveLength(1);
+    expect(last.rows[0].plateNumber).toBe('В777ВВ177');
+    expect(wrapper.find('[data-testid="bim-problem-row-3"]').exists()).toBe(false);
   });
 
   it('машины: принятая строка уходит наверх сразу, места разгрузки и проезд - на «Добавить»', async () => {
