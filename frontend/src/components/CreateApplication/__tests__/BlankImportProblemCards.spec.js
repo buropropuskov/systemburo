@@ -148,6 +148,7 @@ describe('BlankImportResult - карточки строк с ошибками', 
     expect(mobile).toMatch(/\.bim__fields\s*{[^}]*grid-template-columns:\s*1fr/);
     expect(mobile).toMatch(/\.bim__cell-input\s*{[^}]*min-height:\s*44px/);
     expect(mobile).toMatch(/\.bim__row-add\s*{[^}]*min-height:\s*44px/);
+    expect(mobile).toMatch(/\.bim__format :deep\(\.base-dropdown__button\)\s*{[^}]*min-height:\s*44px/);
   });
 
   it('подсказка резервирует высоту независимо от видимости, список ошибок не сужается скроллбаром', () => {

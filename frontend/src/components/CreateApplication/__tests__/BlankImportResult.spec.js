@@ -92,6 +92,9 @@ function mountPanel(props = {}) {
       fieldConfig: {},
       ...props,
     },
+    // Меню выбора формата телепортится в body (список карточек прокручиваемый, иначе
+    // меню обрезалось бы его краем) - в тесте разворачиваем телепорт на месте.
+    global: { stubs: { teleport: true } },
   });
 }
 
@@ -195,6 +198,17 @@ async function fillPlateCells(wrapper, rowNumber, parts) {
   }
 }
 
+// Выбор формата в списке строки: кнопка дропдауна проекта, пункт по названию. Номер,
+// не подошедший ни одному формату при разборе, оставляет список пустым - ячейки
+// появляются только после выбора, поэтому тесты правки номера начинают с него.
+async function chooseFormat(wrapper, rowNumber, name) {
+  const picker = wrapper.find(`[data-testid="bim-format-${rowNumber}"]`);
+  await picker.find('.base-dropdown__button').trigger('click');
+  const item = picker.findAll('.base-dropdown__item').find((node) => node.text() === name);
+  await item.trigger('click');
+  await flushPromises();
+}
+
 describe('BlankImportResult - номер вводится по ячейкам формата, обязан в него лечь', () => {
   beforeEach(() => {
     notifyMock.mockReset();
@@ -202,7 +216,7 @@ describe('BlankImportResult - номер вводится по ячейкам ф
     listCitizenshipsMock.mockResolvedValue(CITIZENSHIPS);
   });
 
-  it('ячейки рисуются по формату по умолчанию, негодный номер оставляет их пустыми и кнопку заблокированной', async () => {
+  it('негодный номер не даёт ни формата, ни ячеек - они появляются после выбора формата', async () => {
     const wrapper = mountPanel({
       attachmentType: 'cars',
       rows: [CAR_BAD_PLATE_ROW],
@@ -210,8 +224,17 @@ describe('BlankImportResult - номер вводится по ячейкам ф
     });
     await flushPromises();
 
-    // "Писька" не раскладывается по ячейкам РФ-формата - ячейки стартуют пустыми,
-    // а не мусорным текстом (см. buildRowNumberParts).
+    // "Писька" не раскладывается ни по одному формату справочника - определять
+    // нечего, список остаётся без выбора, ячеек нет вовсе (см. buildCarFields).
+    const row = wrapper.find('[data-testid="bim-problem-row-4"]');
+    expect(row.findAll('input.bim__plate-cell')).toHaveLength(0);
+    expect(row.find('.bim__plate-empty').text()).toBe('Выберите формат номера');
+    expect(row.text()).toContain('Выберите формат номера, чтобы отметить строку.');
+    expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeDefined();
+
+    await chooseFormat(wrapper, 4, 'Россия');
+
+    // Ячейки выбранного формата - пустые, а не мусорным текстом из файла.
     const cells = wrapper.find('[data-testid="bim-problem-row-4"]').findAll('input.bim__plate-cell');
     expect(cells).toHaveLength(4);
     expect(cells.map((c) => c.element.value)).toEqual(['', '', '', '']);
@@ -226,6 +249,7 @@ describe('BlankImportResult - номер вводится по ячейкам ф
       summary: { read: 1, accepted: 0, rejected: 1 },
     });
     await flushPromises();
+    await chooseFormat(wrapper, 4, 'Россия');
 
     await fillPlateCells(wrapper, 4, ['А', '123', 'ВС']);
     await flushPromises();
@@ -243,6 +267,7 @@ describe('BlankImportResult - номер вводится по ячейкам ф
       summary: { read: 1, accepted: 0, rejected: 1 },
     });
     await flushPromises();
+    await chooseFormat(wrapper, 4, 'Россия');
 
     const cells = wrapper.find('[data-testid="bim-problem-row-4"]').findAll('input.bim__plate-cell');
     // "Ы" не входит в разрешённый ГОСТ-алфавит букв номера - та же фильтрация,
@@ -261,6 +286,7 @@ describe('BlankImportResult - номер вводится по ячейкам ф
       summary: { read: 1, accepted: 0, rejected: 1 },
     });
     await flushPromises();
+    await chooseFormat(wrapper, 4, 'Россия');
 
     await fillPlateCells(wrapper, 4, ['А', '123', 'ВС', '777']);
     await flushPromises();
@@ -272,18 +298,18 @@ describe('BlankImportResult - номер вводится по ячейкам ф
     expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeDefined();
   });
 
-  it('смена формата в select-е перестраивает ячейки под новый формат', async () => {
+  it('смена формата в списке перестраивает ячейки под новый формат', async () => {
     const wrapper = mountPanel({
       attachmentType: 'cars',
       rows: [CAR_BAD_PLATE_ROW],
       summary: { read: 1, accepted: 0, rejected: 1 },
     });
     await flushPromises();
+    await chooseFormat(wrapper, 4, 'Россия');
 
     expect(wrapper.find('[data-testid="bim-problem-row-4"]').findAll('input.bim__plate-cell')).toHaveLength(4);
 
-    await wrapper.find('[data-testid="bim-format-4"]').setValue(String(TRAILER_FORMAT.format.id));
-    await flushPromises();
+    await chooseFormat(wrapper, 4, 'Прицеп');
 
     // Формат "Прицеп" короче (2 ячейки вместо 4) - набор инпутов пересобрался,
     // старые части не переносятся (как и при смене формата в VehicleForm).
@@ -292,19 +318,25 @@ describe('BlankImportResult - номер вводится по ячейкам ф
     expect(cells.map((c) => c.element.value)).toEqual(['', '']);
   });
 
-  it('«Определить автоматически» проверяет номер по всем активным форматам, а не по одному', async () => {
+  it('номер проверяется по ВЫБРАННОМУ формату, а не перебором по справочнику', async () => {
     const wrapper = mountPanel({
       attachmentType: 'cars',
       rows: [CAR_BAD_PLATE_ROW],
       summary: { read: 1, accepted: 0, rejected: 1 },
     });
     await flushPromises();
+    await chooseFormat(wrapper, 4, 'Россия');
 
     await fillPlateCells(wrapper, 4, ['А', '123', 'ВС', '777']);
     await flushPromises();
 
-    expect(wrapper.vm.problemRows[0].fields.formatId).toBe(null);
+    expect(wrapper.vm.problemRows[0].fields.formatId).toBe(RU_FORMAT.format.id);
     expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeUndefined();
+
+    // Тот же номер под "Прицепом" не годится: ячейки чистятся, добавление закрывается -
+    // проверка идёт по одному выбранному формату, а не по всем сразу.
+    await chooseFormat(wrapper, 4, 'Прицеп');
+    expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeDefined();
   });
 
   it('«по факту» показывает одно readonly-поле вместо ячеек и делает строку добавляемой', async () => {
@@ -314,6 +346,7 @@ describe('BlankImportResult - номер вводится по ячейкам ф
       summary: { read: 1, accepted: 0, rejected: 1 },
     });
     await flushPromises();
+    await chooseFormat(wrapper, 4, 'Россия');
 
     const row = wrapper.find('[data-testid="bim-problem-row-4"]');
     await row.find('input[type="checkbox"]').setValue(true);
@@ -336,6 +369,7 @@ describe('BlankImportResult - номер вводится по ячейкам ф
       summary: { read: 1, accepted: 0, rejected: 1 },
     });
     await flushPromises();
+    await chooseFormat(wrapper, 4, 'Россия');
 
     await fillPlateCells(wrapper, 4, ['А', '123', 'ВС', '777']);
     await flushPromises();
@@ -346,7 +380,8 @@ describe('BlankImportResult - номер вводится по ячейкам ф
     const last = staged[staged.length - 1][0];
     // VehicleForm собирает номер как numberParts.join(' ') - тот же вид здесь.
     expect(last.rows[0].plateNumber).toBe('А 123 ВС 777');
-    expect(last.rows[0].formatId).toBe(null);
+    // Формат уезжает со строкой тем же полем, которое VehicleForm читает при правке.
+    expect(last.rows[0].formatId).toBe(RU_FORMAT.format.id);
   });
 });
 
@@ -490,6 +525,8 @@ describe('BlankImportResult (blank-import D1D2)', () => {
     await wrapper.find('[data-testid="bim-unload-places"] .passage__item').trigger('click');
     await wrapper.find('[data-testid="bim-passage-tables"] .passage__item').trigger('click');
 
+    // Номер в файле пустой - формат по нему не определить, человек называет его сам.
+    await chooseFormat(wrapper, 3, 'Россия');
     await fillPlateCells(wrapper, 3, ['В', '777', 'ВВ', '177']);
 
     const addBtn = wrapper.find('[data-testid="bim-include-3"]');
