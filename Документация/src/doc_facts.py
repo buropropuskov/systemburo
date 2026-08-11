@@ -241,6 +241,7 @@ def inventories():
                 "startFileArchiveWorker": "Выгрузка бланков в файловый архив",
                 "startApplicationFileSweeper": "Уборка неотправленных файлов заявок",
                 "startMailWorker": "Разбор очереди писем",
+                "startPasswordRotationScheduler": "Плановая смена паролей",
             },
         },
         {
