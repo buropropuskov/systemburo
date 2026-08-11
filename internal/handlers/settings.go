@@ -108,6 +108,16 @@ func (h *SettingsHandler) GetPublicContacts(c echo.Context) error {
 	return RespondSuccess(c, h.service.GetPublicContacts(c.Request().Context()))
 }
 
+// GetMailStatus godoc
+// @Summary      Состояние настройки почты
+// @Description  Сообщает, настроена ли отправка писем (задан ли SMTP_HOST).
+// @Tags         settings
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} map[string]bool
+// @Failure      403 {object} models.HTTPError
+// @Router       /settings/mail/status [get]
+//
 // GetMailStatus сообщает, настроена ли отправка почты. Без него администратор
 // включал бы плановую рассылку вслепую и узнавал о ненастроенной почте из отчёта
 // о несостоявшемся прогоне.
@@ -150,6 +160,17 @@ const testMailBody = `Это проверочное письмо системы 
 Если письмо попало в папку со спамом, проверьте записи SPF и DKIM у домена
 отправителя: без них письма системы будут теряться у получателей.`
 
+// GetPasswordRotationStatus godoc
+// @Summary      Состояние плановой смены паролей
+// @Description  Настроена ли почта, когда ближайшая проверка сроков и скольких работников она затронет.
+// @Tags         settings
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} services.PasswordRotationStatus
+// @Failure      403 {object} models.HTTPError
+// @Failure      503 {object} models.HTTPError
+// @Router       /settings/password-rotation/status [get]
+//
 // GetPasswordRotationStatus отдаёт состояние плановой смены паролей: настроена ли
 // почта, скольких работников затронет ближайший прогон и у скольких нет адреса.
 // Без этих чисел администратор включал бы рассылку паролей вслепую.
