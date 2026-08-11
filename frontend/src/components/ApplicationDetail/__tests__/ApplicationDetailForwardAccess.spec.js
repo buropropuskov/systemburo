@@ -5,7 +5,8 @@ import { createPinia, setActivePinia } from 'pinia';
 // #1948: переслать заявку вправе любой, у кого есть к ней доступ - супер-админ,
 // принимающий, отправитель, ответственный, согласующий и читатель. Читатель при этом
 // передаёт заявку ТОЛЬКО на просмотр: назначение роли сервер отбивает 403.
-// Кандидаты в получатели приезжают неадминским /users/recipient-candidates.
+// Получатели приезжают из двух источников: носителю page.admin.users - полный
+// /users/all, остальным - неадминские кандидаты (на /users/all у них 403).
 
 import { usePermissionsStore } from '@/stores/permissions';
 import { useAuthStore } from '@/stores/auth';
@@ -47,6 +48,20 @@ const CANDIDATES = [
   },
 ];
 
+// Ответ /users/all шире: у него есть организация, которой у кандидатов нет.
+const ALL_USERS = [
+  ...CANDIDATES,
+  {
+    id: 33,
+    username: 'sidorov',
+    last_name: 'Сидоров',
+    first_name: 'Сидор',
+    middle_name: null,
+    position: 'Логист',
+    organization: 'Чужая организация',
+  },
+];
+
 /** JWT-подобный токен: стор читает is_super_admin из payload. */
 function tokenWith(payload) {
   const body = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600, ...payload }));
@@ -54,14 +69,14 @@ function tokenWith(payload) {
 }
 
 /** Право пересылки выдано - тесты проверяют именно гейт доступа к заявке. */
-function grantForward() {
-  usePermissionsStore().effective = {
-    'action.forward.application': { value: 'allow', source: 'role' },
-  };
+function grant(...keys) {
+  usePermissionsStore().effective = Object.fromEntries(
+    ['action.forward.application', ...keys].map(k => [k, { value: 'allow', source: 'role' }])
+  );
 }
 
-async function mountDetail({ props = {}, data = {}, superAdmin = false } = {}) {
-  grantForward();
+async function mountDetail({ props = {}, data = {}, superAdmin = false, allow = [] } = {}) {
+  grant(...allow);
   if (superAdmin) useAuthStore().token = tokenWith({ is_super_admin: true });
 
   const wrapper = shallowMount(ApplicationDetail, {
@@ -171,30 +186,50 @@ describe('ApplicationDetail - выбор роли получателя закр�
   });
 });
 
-describe('ApplicationDetail - кандидаты в получатели (#1948)', () => {
+describe('ApplicationDetail - источник получателей (#1948)', () => {
+  const callFor = (path) => apiRequest.mock.calls.find(([p]) => p === path);
+  const paths = () => apiRequest.mock.calls.map(([path]) => path);
+
   beforeEach(() => {
     setActivePinia(createPinia());
     apiRequest.mockReset();
-    apiRequest.mockImplementation((path) => Promise.resolve(
-      path === '/users/recipient-candidates' ? okJson(CANDIDATES) : okJson([])
-    ));
+    apiRequest.mockImplementation((path) => {
+      if (path === '/users/recipient-candidates') return Promise.resolve(okJson(CANDIDATES));
+      if (path === '/users/all') return Promise.resolve(okJson(ALL_USERS));
+      return Promise.resolve(okJson([]));
+    });
   });
 
-  it('список берётся из /users/recipient-candidates и уходит в окно пересылки', async () => {
+  it('без права на список пользователей - неадминские кандидаты, уходят в окно пересылки', async () => {
     const wrapper = await mountDetail({ data: { responsibleUsers: [{ id: 1 }] } });
 
-    const paths = apiRequest.mock.calls.map(([path]) => path);
-    expect(paths).toContain('/users/recipient-candidates');
-    expect(paths).not.toContain('/users/all');
+    expect(paths()).toContain('/users/recipient-candidates');
+    expect(paths()).not.toContain('/users/all');
     expect(wrapper.vm.allUsers).toEqual(CANDIDATES);
     expect(wrapper.findComponent(ForwardModal).props('allUsers')).toEqual(CANDIDATES);
   });
 
-  it('в личном кабинете кандидатов не запрашиваем - окна пересылки там нет', async () => {
-    await mountDetail({ props: { mode: 'user' }, data: { responsibleUsers: [{ id: 1 }] } });
+  it('с page.admin.users - полный список пользователей, отказ по-прежнему молчит', async () => {
+    const wrapper = await mountDetail({
+      allow: ['page.admin.users'],
+      data: { responsibleUsers: [{ id: 1 }] },
+    });
 
-    const paths = apiRequest.mock.calls.map(([path]) => path);
-    expect(paths).not.toContain('/users/recipient-candidates');
+    expect(paths()).toContain('/users/all');
+    expect(paths()).not.toContain('/users/recipient-candidates');
+    expect(callFor('/users/all')[1]).toMatchObject({ silent403: true });
+    expect(wrapper.vm.allUsers).toEqual(ALL_USERS);
+  });
+
+  it('в личном кабинете получателей не запрашиваем - окна пересылки там нет', async () => {
+    await mountDetail({
+      props: { mode: 'user' },
+      allow: ['page.admin.users'],
+      data: { responsibleUsers: [{ id: 1 }] },
+    });
+
+    expect(paths()).not.toContain('/users/recipient-candidates');
+    expect(paths()).not.toContain('/users/all');
   });
 });
 

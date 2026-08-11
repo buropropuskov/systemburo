@@ -5,8 +5,10 @@ import { createPinia, setActivePinia } from 'pinia';
 // Данные окна пересылки (кандидаты в получатели и состав принимающих) нужны только в
 // "Центре": в ЛК окна нет, а /application-approvers закрыт правом администратора -
 // рядовой отправитель получил бы 403 и generic-тост при открытии своей же заявки.
-// Кандидаты приезжают неадминским /users/recipient-candidates (#1948): админский
-// /users/all оставлял рядового участника с пустым списком получателей.
+// Источник получателей зависит от права (#1948): без page.admin.users идут неадминские
+// кандидаты - на /users/all такой участник получал 403 и пустой список. Права в этой
+// спеке никому не выданы, поэтому в "Центре" ждём именно кандидатов; выбор источника по
+// праву разобран в ApplicationDetailForwardAccess.spec.js.
 const apiRequest = vi.fn();
 vi.mock('@/api/client', () => ({ apiRequest: (...a) => apiRequest(...a) }));
 vi.mock('@/api/applications', () => ({ markAsRead: vi.fn().mockResolvedValue(undefined) }));
@@ -35,6 +37,7 @@ describe('ApplicationDetail - гейт админ-фетчей по режиму
     await flushPromises();
     const paths = apiRequest.mock.calls.map(c => c[0]);
     expect(paths).not.toContain('/users/recipient-candidates');
+    expect(paths).not.toContain('/users/all');
     expect(paths).not.toContain('/application-approvers');
   });
 
