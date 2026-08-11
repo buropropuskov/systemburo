@@ -169,10 +169,10 @@ func TestUsedPasswords_RotationRecordsIssuedPassword(t *testing.T) {
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 
-	svc, _ := rotationEnv(t, db, 90)
+	svc, _ := rotationEnv(t, db)
 	u := mkRotationUser(t, db, td, "usedpwd_rotation", "rot@example.org", time.Now().AddDate(0, 0, -200))
 
-	result, err := svc.Run(context.Background(), false, 0)
+	result, err := svc.Run(context.Background(), 1)
 	require.NoError(t, err)
 	require.Equal(t, 1, result.Changed)
 
