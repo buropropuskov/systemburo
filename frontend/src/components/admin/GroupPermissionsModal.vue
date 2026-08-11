@@ -54,6 +54,7 @@
             <EffectivePermissionsTree
               :catalog="filteredCatalog"
               :state-by-key="stateByKey"
+              :expand-all="searchActive"
               @toggle="onToggle"
             />
           </div>
@@ -86,6 +87,7 @@
 
 <script>
 import EffectivePermissionsTree from './EffectivePermissionsTree.vue';
+import { filterCatalog, flattenCatalog } from '@/utils/permissionCatalog';
 
 /**
  * Редактор набора точечных прав группы на тумблер-дереве из каталога
@@ -111,12 +113,10 @@ export default {
   },
   computed: {
     flatCatalog() {
-      const flat = [];
-      for (const node of this.catalog) {
-        flat.push(node);
-        for (const child of node.children || []) flat.push(child);
-      }
-      return flat;
+      return flattenCatalog(this.catalog);
+    },
+    searchActive() {
+      return this.search.trim().length > 0;
     },
     stateByKey() {
       const result = {};
@@ -133,20 +133,7 @@ export default {
       return this.selected.size;
     },
     filteredCatalog() {
-      const q = this.search.trim().toLowerCase();
-      if (!q) return this.catalog;
-      const match = (n) =>
-        (n.display_name || '').toLowerCase().includes(q) || (n.key || '').toLowerCase().includes(q);
-      const out = [];
-      for (const node of this.catalog) {
-        const kids = (node.children || []).filter(match);
-        if (match(node) || (node.category || '').toLowerCase().includes(q)) {
-          out.push(node);
-        } else if (kids.length) {
-          out.push({ ...node, children: kids });
-        }
-      }
-      return out;
+      return filterCatalog(this.catalog, this.search);
     },
   },
   watch: {

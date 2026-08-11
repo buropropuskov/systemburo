@@ -316,7 +316,7 @@ func (s *attachmentBlankService) GenerateEmptyBlank(ctx context.Context, uniqueA
 		return nil, "", echo.NewHTTPError(http.StatusInternalServerError,
 			fmt.Sprintf("Не удалось собрать бланк (шаблон %d): %s", template.ID, err.Error()))
 	}
-	return bytes.NewReader(buf.Bytes()), emptyBlankFilename(&ua), nil
+	return bytes.NewReader(buf.Bytes()), emptyBlankFilename(&ua, template.OriginalFileName), nil
 }
 
 // hasListMappings - размечена ли в шаблоне списочная часть.
@@ -329,9 +329,14 @@ func hasListMappings(mappings []models.AttachmentTemplateMapping) bool {
 	return false
 }
 
-// emptyBlankFilename - имя файла пустого бланка. Заявки ещё нет, поэтому от имени
-// заполненного (номер, организация, отправитель) остаётся только тип вложения.
-func emptyBlankFilename(ua *models.UniqueAttachment) string {
+// emptyBlankFilename - имя файла пустого бланка. Владелец ждёт то же имя, под
+// которым шаблон загрузили в систему (OriginalFileName), - служебное "Бланк_<тип>"
+// только для шаблонов без сохранённого оригинального имени (загружены до того, как
+// поле появилось).
+func emptyBlankFilename(ua *models.UniqueAttachment, originalFileName string) string {
+	if trimmed := strings.TrimSpace(originalFileName); trimmed != "" {
+		return sanitizeFilename(trimmed)
+	}
 	name := ""
 	if ua != nil && ua.Name != nil {
 		name = strings.TrimSpace(*ua.Name)

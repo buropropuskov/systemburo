@@ -4863,7 +4863,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Гейт action.import.list, право не super-only. Кривой бланк (не .xlsx, чужой тип вложения, изменённая структура колонок, пустой или слишком длинный список) отлетает целиком с понятным текстом, до разбора отдельных строк - построчный разбор появится следующим срезом.",
+                "description": "Гейт action.import.list, право не super-only. Кривой бланк (не .xlsx, чужой тип вложения, изменённая структура колонок, пустой или слишком длинный список) отлетает целиком с понятным текстом, до разбора отдельных строк. Дальше идёт построчный разбор теми же правилами, что форма подачи: 200 при чистом файле, 207 при частичном успехе - errors/warnings на каждую строку готовым русским текстом.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -4893,6 +4893,12 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.ImportListResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Multi-Status",
                         "schema": {
                             "$ref": "#/definitions/services.ImportListResult"
                         }
@@ -29007,17 +29013,64 @@ const docTemplate = `{
                 }
             }
         },
+        "services.ImportRowError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "$ref": "#/definitions/services.ImportRowErrorCode"
+                },
+                "field": {
+                    "type": "string"
+                },
+                "fixable": {
+                    "type": "boolean"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.ImportRowErrorCode": {
+            "type": "string",
+            "enum": [
+                "field_required",
+                "field_too_long",
+                "citizenship_unknown",
+                "patent_required",
+                "plate_format_unknown",
+                "duplicate_in_file",
+                "blacklisted"
+            ],
+            "x-enum-varnames": [
+                "ImportErrFieldRequired",
+                "ImportErrFieldTooLong",
+                "ImportErrCitizenshipUnknown",
+                "ImportErrPatentRequired",
+                "ImportErrPlateFormat",
+                "ImportErrDuplicateInFile",
+                "ImportErrBlacklisted"
+            ]
+        },
         "services.ImportRowResult": {
             "type": "object",
             "properties": {
+                "employee": {
+                    "$ref": "#/definitions/services.EmployeeInput"
+                },
                 "errors": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/services.ImportRowError"
                     }
+                },
+                "item": {
+                    "$ref": "#/definitions/services.ItemInput"
                 },
                 "row_number": {
                     "type": "integer"
+                },
+                "vehicle": {
+                    "$ref": "#/definitions/services.VehicleInput"
                 },
                 "warnings": {
                     "type": "array",

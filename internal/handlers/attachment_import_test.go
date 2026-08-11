@@ -65,6 +65,15 @@ func seedImportTemplate(t *testing.T, db *gorm.DB, name, attachmentType string, 
 	return importTemplate{uaID: ua.ID, startRow: startRow, listCol: listCol, headerText: headerText}
 }
 
+// templateIDOf - id активного шаблона вложения: нужен, чтобы дописать шаблону
+// ещё одну списочную колонку уже после сидирования.
+func templateIDOf(t *testing.T, db *gorm.DB, uaID int) int {
+	t.Helper()
+	var tpl models.AttachmentTemplate
+	require.NoError(t, db.Where("unique_attachment_id = ? AND is_active = ?", uaID, true).First(&tpl).Error)
+	return tpl.ID
+}
+
 // buildImportUpload собирает байты «заполненного» бланка: тот же заголовок, что у
 // шаблона, и rowsCount непустых строк списка. stampForUA > 0 - подмешать отпечаток
 // другого типа вложения (тест на чужой бланк); 0 - без отпечатка вовсе (структура
@@ -175,6 +184,58 @@ func TestAttachmentImportList(t *testing.T) {
 	t.Run("пустой список отлетает", func(t *testing.T) {
 		data := buildImportUpload(t, tpl.startRow, tpl.listCol, tpl.headerText, 0, 0)
 		rec := postImportFile(t, e, tpl.uaID, "list.xlsx", data, admin)
+		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+		require.Contains(t, rec.Body.String(), "нет ни одной заполненной строки")
+	})
+
+	// Система выдаёт бланк с заранее пронумерованными строками (колонка «№ п/п»
+	// размечена служебным полем row_number). Если считать такую строку
+	// заполненной, скачанный и не тронутый бланк вернётся списком строк с
+	// ошибками вместо честного отказа.
+	t.Run("бланк с одной лишь нумерацией строк считается пустым", func(t *testing.T) {
+		numbered := seedImportTemplate(t, db, "import_numbered", "people", 6, "B", "Фамилия")
+		require.NoError(t, db.Create(&models.AttachmentTemplateMapping{
+			TemplateID: templateIDOf(t, db, numbered.uaID), CellRef: "A6",
+			FieldPath: "employee.row_number", IsListField: true,
+		}).Error)
+
+		f := excelize.NewFile()
+		sheet := f.GetSheetName(0)
+		require.NoError(t, f.SetCellStr(sheet, "B5", "Фамилия"))
+		for i := 0; i < 15; i++ {
+			require.NoError(t, f.SetCellStr(sheet, fmt.Sprintf("A%d", 6+i), fmt.Sprintf("%d", i+1)))
+		}
+		var buf bytes.Buffer
+		_, err := f.WriteTo(&buf)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+
+		rec := postImportFile(t, e, numbered.uaID, "list.xlsx", buf.Bytes(), admin)
+		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+		require.Contains(t, rec.Body.String(), "нет ни одной заполненной строки")
+	})
+
+	// Ниже списка в бланке стоят подписи ("(контактный телефон)", "(дд.мм.гггг)"),
+	// и попадают они как раз в колонку мест разгрузки. Мест в файле нет вовсе -
+	// они задаются на сайте, - поэтому оформительская строка не должна выглядеть
+	// участником.
+	t.Run("подписи бланка ниже списка не считаются строками", func(t *testing.T) {
+		signed := seedImportTemplate(t, db, "import_signed", "cars", 6, "B", "Номер ТС")
+		require.NoError(t, db.Create(&models.AttachmentTemplateMapping{
+			TemplateID: templateIDOf(t, db, signed.uaID), CellRef: "G6",
+			FieldPath: "car.unload_places", IsListField: true,
+		}).Error)
+
+		f := excelize.NewFile()
+		sheet := f.GetSheetName(0)
+		require.NoError(t, f.SetCellStr(sheet, "B5", "Номер ТС"))
+		require.NoError(t, f.SetCellStr(sheet, "G25", "(дд.мм.гггг)"))
+		var buf bytes.Buffer
+		_, err := f.WriteTo(&buf)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+
+		rec := postImportFile(t, e, signed.uaID, "list.xlsx", buf.Bytes(), admin)
 		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 		require.Contains(t, rec.Body.String(), "нет ни одной заполненной строки")
 	})
@@ -348,7 +409,8 @@ func TestAttachmentImportListRows(t *testing.T) {
 
 		result := testutil.ParseResponse[services.ImportListResult](t, rec)
 		require.Equal(t, 1, result.Summary.Rejected)
-		require.Contains(t, result.Rows[0].Errors, `Гражданство "Узбекистн" не найдено в справочнике`)
+		err := errorByCode(t, result.Rows[0].Errors, services.ImportErrCitizenshipUnknown)
+		require.Equal(t, `Гражданство "Узбекистн" не найдено в справочнике`, err.Text)
 	})
 
 	t.Run("патент без разрешения при patent_required гражданства - блокирующая ошибка", func(t *testing.T) {
@@ -361,8 +423,8 @@ func TestAttachmentImportListRows(t *testing.T) {
 		result := testutil.ParseResponse[services.ImportListResult](t, rec)
 		require.Equal(t, 1, result.Summary.Rejected)
 		require.Len(t, result.Rows[0].Errors, 1)
-		require.Contains(t, result.Rows[0].Errors[0], "патент")
-		require.Contains(t, result.Rows[0].Errors[0], "Узбекистан")
+		require.Equal(t, services.ImportErrPatentRequired, result.Rows[0].Errors[0].Code)
+		require.Contains(t, result.Rows[0].Errors[0].Text, "Узбекистан")
 	})
 
 	// Оверрайд "патент обязателен" делает поле обязательным ВСЕГДА, независимо от
@@ -387,7 +449,7 @@ func TestAttachmentImportListRows(t *testing.T) {
 		result := testutil.ParseResponse[services.ImportListResult](t, rec)
 		require.Equal(t, 1, result.Summary.Rejected)
 		require.Len(t, result.Rows[0].Errors, 1)
-		require.Contains(t, result.Rows[0].Errors[0], "патент")
+		require.Equal(t, services.ImportErrPatentRequired, result.Rows[0].Errors[0].Code)
 	})
 
 	t.Run("патент заполненный снимает ошибку по patent_required", func(t *testing.T) {
@@ -408,7 +470,9 @@ func TestAttachmentImportListRows(t *testing.T) {
 
 		result := testutil.ParseResponse[services.ImportListResult](t, rec)
 		require.NotEmpty(t, result.Rows[0].Errors)
-		require.Contains(t, result.Rows[0].Errors[0], "длиннее 100 символов")
+		tooLong := errorByCode(t, result.Rows[0].Errors, services.ImportErrFieldTooLong)
+		require.Equal(t, "last_name", tooLong.Field)
+		require.Contains(t, tooLong.Text, "длиннее 100 символов")
 	})
 
 	t.Run("омоглиф в ФИО - предупреждение с исправленным вариантом, не ошибка", func(t *testing.T) {
@@ -455,8 +519,9 @@ func TestAttachmentImportListRows(t *testing.T) {
 		require.Len(t, result.Rows, 2)
 		require.Empty(t, result.Rows[0].Errors)
 		require.Len(t, result.Rows[1].Errors, 1)
-		require.Contains(t, result.Rows[1].Errors[0], "Дублирует строку 6")
-		require.Contains(t, result.Rows[1].Errors[0], "паспорт")
+		dup := errorByCode(t, result.Rows[1].Errors, services.ImportErrDuplicateInFile)
+		require.Contains(t, dup.Text, "Дублирует строку 6")
+		require.Contains(t, dup.Text, "паспорт")
 	})
 
 	t.Run("чёрный список - точное совпадение блокирует строку", func(t *testing.T) {
@@ -471,8 +536,9 @@ func TestAttachmentImportListRows(t *testing.T) {
 
 		result := testutil.ParseResponse[services.ImportListResult](t, rec)
 		require.Len(t, result.Rows[0].Errors, 1)
-		require.Contains(t, result.Rows[0].Errors[0], "в чёрном списке")
-		require.Contains(t, result.Rows[0].Errors[0], "решение суда")
+		blocked := errorByCode(t, result.Rows[0].Errors, services.ImportErrBlacklisted)
+		require.Contains(t, blocked.Text, "в чёрном списке")
+		require.Contains(t, blocked.Text, "решение суда")
 	})
 
 	t.Run("частичный успех - валидная и невалидная строка вместе отдают 207", func(t *testing.T) {

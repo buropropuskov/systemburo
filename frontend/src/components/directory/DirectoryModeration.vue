@@ -1,17 +1,22 @@
 <template>
   <div
     class="org-moderation"
+    :class="`org-moderation--${variant}`"
     :data-testid="`org-moderation-${kind}`"
   >
     <!-- Статический якорь тура принимающего: сам корень несёт `org-moderation-${kind}`,
-         и по вычисляемому testid шаг тура сослаться не может. -->
+         и по вычисляемому testid шаг тура сослаться не может. Якорь живёт только в
+         карточке заявки - в справочнике тот же шаг подсветил бы чужой экран. -->
     <div
       class="org-moderation__head"
-      data-testid="ob-org-moderation"
+      :data-testid="variant === 'notice' ? 'ob-org-moderation' : null"
     >
-      <span class="org-moderation__badge">На проверке</span>
+      <span
+        v-if="variant === 'notice'"
+        class="org-moderation__badge"
+      >На проверке</span>
       <span class="org-moderation__text">
-        {{ label }} <b>{{ entryName }}</b> заведена этой заявкой и ещё не разобрана.
+        {{ label }} <b>{{ entryName }}</b> {{ originHint }}
       </span>
     </div>
 
@@ -169,22 +174,33 @@ import {
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 
 /**
- * Разбор организации или компании «на проверке» прямо в детали заявки (#1437).
+ * Разбор организации или компании «на проверке» (#1437, #1875).
  *
  * Подача с незнакомым наименованием заводит запись со статусом pending, чтобы у заявки
- * был живой organization_id. Принимающий разбирает её тут же: подтверждает, исправляет
- * наименование или привязывает к существующей записи справочника.
+ * был живой organization_id. Разбирают её в двух местах: принимающий - прямо в детали
+ * заявки, администратор справочника - в карточке записи. Действия одни и те же:
+ * подтвердить, исправить наименование, привязать к существующей записи.
  *
- * Результат уходит наверх событием resolved - деталь и список обязаны показать новое
- * наименование и погасить плашку, не дожидаясь перезагрузки страницы.
+ * Результат уходит наверх событием resolved - потребитель обязан показать новое
+ * наименование и погасить плашку, не дожидаясь перезагрузки страницы. При привязке
+ * разбираемая запись физически удаляется, и `id` в событии - уже цель привязки.
  */
 export default {
-    name: 'ApplicationOrgModeration',
+    name: 'DirectoryModeration',
     props: {
         /** 'organization' либо 'company' - какой справочник разбираем. */
         kind: { type: String, required: true },
         entryId: { type: Number, required: true },
-        entryName: { type: String, default: '' }
+        entryName: { type: String, default: '' },
+        /**
+         * Оформление: 'notice' - самостоятельная плашка на карточке заявки,
+         * 'panel' - вложение в секцию справочника (фон и рамку даёт секция).
+         */
+        variant: {
+            type: String,
+            default: 'notice',
+            validator: (value) => ['notice', 'panel'].includes(value)
+        }
     },
     emits: ['resolved'],
     setup() {
@@ -205,6 +221,13 @@ export default {
     computed: {
         label() {
             return this.kind === 'company' ? 'Компания' : 'Организация';
+        },
+
+        // В справочнике «этой заявкой» указывать не на что - экран о заявках не знает.
+        originHint() {
+            return this.variant === 'panel'
+                ? 'заведена подачей заявки и ещё не разобрана.'
+                : 'заведена этой заявкой и ещё не разобрана.';
         },
 
         filteredTargets() {
@@ -335,6 +358,14 @@ export default {
     background: var(--warning-bg);
     border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
     color: var(--warning-text);
+}
+
+/* В справочнике блок разбора тоже читается как предупреждение - жёлтым, как в карточке
+   заявки: секция вокруг несёт только заголовок раздела. Отступ секции (.card padding
+   16px) держит блок в стороне от её скругления, поэтому рамка не срезается краем.
+   Свой отступ сверху не нужен - его уже дал заголовок секции. */
+.org-moderation--panel {
+    margin-top: 0;
 }
 
 .org-moderation__head {

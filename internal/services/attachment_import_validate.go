@@ -22,6 +22,50 @@ const (
 	maxImportItemNameLen = 255
 )
 
+// ImportRowErrorCode - машинный код причины отказа строки.
+type ImportRowErrorCode string
+
+const (
+	ImportErrFieldRequired      ImportRowErrorCode = "field_required"
+	ImportErrFieldTooLong       ImportRowErrorCode = "field_too_long"
+	ImportErrCitizenshipUnknown ImportRowErrorCode = "citizenship_unknown"
+	ImportErrPatentRequired     ImportRowErrorCode = "patent_required"
+	ImportErrPlateFormat        ImportRowErrorCode = "plate_format_unknown"
+	ImportErrDuplicateInFile    ImportRowErrorCode = "duplicate_in_file"
+	ImportErrBlacklisted        ImportRowErrorCode = "blacklisted"
+)
+
+// ImportRowError - причина, по которой строка не уходит в заявку. Text пишется для
+// человека и переформулируется свободно; Code и Fixable - контракт с интерфейсом.
+//
+// Fixable считает сервер: сводка импорта (BlankImportResult.vue) правит строку прямо
+// в таблице разбора и по этому признаку решает, разблокировать ли галочку. Раньше она
+// выводила его сама, сверяя текст причины с префиксом "Поле «<подпись>»", и каждая
+// формулировка вне шаблона молча блокировала строку навсегда - так галочка перестала
+// работать у номера, не подошедшего ни под один формат.
+type ImportRowError struct {
+	Text    string             `json:"text"`
+	Code    ImportRowErrorCode `json:"code"`
+	Field   string             `json:"field,omitempty"`
+	Fixable bool               `json:"fixable"`
+}
+
+// importInlineFixableFields - ключи реестра полей (attachment_fields_registry.go), у
+// которых в таблице разбора есть своя ячейка правки. Паспорта и патента там нет и не
+// будет (152-ФЗ), должности - нет колонки, поэтому их причины остаются блокирующими:
+// такую строку заводят обычной формой. Список меняется только вместе с колонками
+// таблицы разбора.
+var importInlineFixableFields = map[string]map[string]bool{
+	"people": {"last_name": true, "first_name": true, "middle_name": true, "citizenship": true},
+	"cars":   {"number": true, "mark": true},
+	"items":  {},
+}
+
+// importFieldFixable сообщает, правится ли поле прямо в таблице разбора.
+func importFieldFixable(attachmentType, fieldKey string) bool {
+	return importInlineFixableFields[attachmentType][fieldKey]
+}
+
 // importExcludedEmployeeKeys - ключи реестра, обязательность которых импорт НЕ проверяет
 // построчно: места прохода задаются на сайте на весь список целиком (решение владельца
 // эпика blank-import, см. context.md), а не читаются из файла построчно.
@@ -55,28 +99,28 @@ func mergedFieldByKey(merged []models.MergedField, key string) (models.MergedFie
 // (реестр + оверрайды, а НЕ requiredFieldKeys submit'а - иначе импорт был бы мягче
 // ручного ввода, ключевая находка эпика blank-import) и employeeFieldPresent - тот же
 // предикат, что использует форма подачи.
-func requiredEmployeeErrors(e EmployeeInput, merged []models.MergedField) []string {
-	var errs []string
+func requiredEmployeeErrors(e EmployeeInput, merged []models.MergedField) []ImportRowError {
+	var errs []ImportRowError
 	for _, f := range merged {
 		if !f.Required || importExcludedEmployeeKeys[f.Key] {
 			continue
 		}
 		if !employeeFieldPresent(e, f.Key) {
-			errs = append(errs, fmt.Sprintf("Поле «%s» обязательно для заполнения", f.Label))
+			errs = append(errs, errFieldRequired("people", f.Key, f.Label))
 		}
 	}
 	return errs
 }
 
 // requiredVehicleErrors - зеркало requiredEmployeeErrors для машин.
-func requiredVehicleErrors(v VehicleInput, merged []models.MergedField) []string {
-	var errs []string
+func requiredVehicleErrors(v VehicleInput, merged []models.MergedField) []ImportRowError {
+	var errs []ImportRowError
 	for _, f := range merged {
 		if !f.Required || importExcludedVehicleKeys[f.Key] {
 			continue
 		}
 		if !vehicleFieldPresent(v, f.Key) {
-			errs = append(errs, fmt.Sprintf("Поле «%s» обязательно для заполнения", f.Label))
+			errs = append(errs, errFieldRequired("cars", f.Key, f.Label))
 		}
 	}
 	return errs
@@ -84,17 +128,27 @@ func requiredVehicleErrors(v VehicleInput, merged []models.MergedField) []string
 
 // requiredItemErrors - зеркало requiredEmployeeErrors для ТМЦ, без исключений: у items
 // нет полей, назначаемых на сайте отдельно от файла.
-func requiredItemErrors(i ItemInput, merged []models.MergedField) []string {
-	var errs []string
+func requiredItemErrors(i ItemInput, merged []models.MergedField) []ImportRowError {
+	var errs []ImportRowError
 	for _, f := range merged {
 		if !f.Required {
 			continue
 		}
 		if !itemFieldPresent(i, f.Key) {
-			errs = append(errs, fmt.Sprintf("Поле «%s» обязательно для заполнения", f.Label))
+			errs = append(errs, errFieldRequired("items", f.Key, f.Label))
 		}
 	}
 	return errs
+}
+
+// errFieldRequired - незаполненное обязательное поле.
+func errFieldRequired(attachmentType, fieldKey, label string) ImportRowError {
+	return ImportRowError{
+		Text:    fmt.Sprintf("Поле «%s» обязательно для заполнения", label),
+		Code:    ImportErrFieldRequired,
+		Field:   fieldKey,
+		Fixable: importFieldFixable(attachmentType, fieldKey),
+	}
 }
 
 // patentErrors зеркалит effectivePatentRequired из EmployeeForm.vue: оверрайд
@@ -102,7 +156,7 @@ func requiredItemErrors(i ItemInput, merged []models.MergedField) []string {
 // отсутствии решает признак гражданства patent_required. Проверка работает, лишь пока
 // поле patent видимо в конфиге вложения. citizenship=nil (гражданство не заполнено или
 // не найдено) - об этом сообщает отдельная ошибка резолва гражданства.
-func patentErrors(e EmployeeInput, merged []models.MergedField, citizenship *models.Citizenship) []string {
+func patentErrors(e EmployeeInput, merged []models.MergedField, citizenship *models.Citizenship) []ImportRowError {
 	patentCfg, ok := mergedFieldByKey(merged, "patent")
 	if !ok || !patentCfg.Visible {
 		return nil
@@ -114,10 +168,16 @@ func patentErrors(e EmployeeInput, merged []models.MergedField, citizenship *mod
 	if employeeFieldPresent(e, "patent") {
 		return nil
 	}
+	text := "Нужен номер патента или иное разрешение на работы"
 	if byCitizenship {
-		return []string{fmt.Sprintf("Для гражданства %q нужен номер патента или иное разрешение на работы", citizenship.Name)}
+		text = fmt.Sprintf("Для гражданства %q нужен номер патента или иное разрешение на работы", citizenship.Name)
 	}
-	return []string{"Нужен номер патента или иное разрешение на работы"}
+	return []ImportRowError{{
+		Text:    text,
+		Code:    ImportErrPatentRequired,
+		Field:   "patent",
+		Fixable: importFieldFixable("people", "patent"),
+	}}
 }
 
 // resolveCitizenship сопоставляет сырую строку гражданства из файла со справочником по
@@ -139,16 +199,21 @@ func resolveCitizenship(raw string, byNormalizedName map[string]models.Citizensh
 
 // checkFieldLength проверяет текстовое поле против потолка схемы (size:100): дальше
 // значение молча обрежется на вставке в БД, если пропустить строку как есть.
-func checkFieldLength(label, value string) []string {
-	return checkFieldLengthMax(label, value, maxImportTextFieldLen)
+func checkFieldLength(attachmentType, fieldKey, label, value string) []ImportRowError {
+	return checkFieldLengthMax(attachmentType, fieldKey, label, value, maxImportTextFieldLen)
 }
 
 // checkFieldLengthMax - для полей, у которых свой size в модели (номер машины, ТМЦ).
-func checkFieldLengthMax(label, value string, max int) []string {
+func checkFieldLengthMax(attachmentType, fieldKey, label, value string, max int) []ImportRowError {
 	if utf8.RuneCountInString(value) <= max {
 		return nil
 	}
-	return []string{fmt.Sprintf("Поле «%s» длиннее %d символов - сократите значение", label, max)}
+	return []ImportRowError{{
+		Text:    fmt.Sprintf("Поле «%s» длиннее %d символов - сократите значение", label, max),
+		Code:    ImportErrFieldTooLong,
+		Field:   fieldKey,
+		Fixable: importFieldFixable(attachmentType, fieldKey),
+	}}
 }
 
 // --- Дубли внутри файла ---
@@ -191,6 +256,13 @@ func newEmployeeDedup() *employeeDedup {
 		byFIOAny:        map[string]int{},
 		byFIONoPassport: map[string]int{},
 	}
+}
+
+// errDuplicateInFile - совпадение с более ранней строкой того же файла. Правкой в
+// таблице разбора не снимается: решение "это тот же человек/машина" принято по данным,
+// которых в таблице нет (паспорт), а вторую копию заводить незачем.
+func errDuplicateInFile(text string) ImportRowError {
+	return ImportRowError{Text: text, Code: ImportErrDuplicateInFile}
 }
 
 // checkAndRecord ищет более раннюю совпадающую строку и запоминает текущую для
@@ -249,9 +321,23 @@ func newVehicleDedup() *vehicleDedup {
 
 const vehicleByFactPlate = "по факту"
 
+// vehicleByFactCanonical - написание, которое пишет форма и с которым сравнивают
+// строгим равенством VehicleForm.vue, CreateApplication.vue и UniversalBindingModal.vue.
+// Импорт обязан приводить значение к нему, иначе "ПО ФАКТУ" из файла перестанет
+// опознаваться как спецзначение ниже по цепочке.
+const vehicleByFactCanonical = "По факту"
+
+// isByFactPlate сообщает, является ли номер спецзначением "По факту" - сравнение
+// нормализованное (регистр, пробелы), а не побайтовое: значение как в файле бланка
+// (может прийти "по факту" или "По Факту"), так и введённое вручную (форма всегда
+// пишет каноническое "По факту") обязаны опознаваться одинаково.
+func isByFactPlate(plate string) bool {
+	return normCompactKey(plate) == normCompactKey(vehicleByFactPlate)
+}
+
 func (d *vehicleDedup) checkAndRecord(rowNumber int, plate string) string {
 	key := normCompactKey(plate)
-	if key == "" || normCompactKey(vehicleByFactPlate) == key {
+	if key == "" || isByFactPlate(plate) {
 		return ""
 	}
 	if first, ok := d.byPlate[key]; ok {
@@ -281,8 +367,15 @@ func blacklistVehicleKey(carNumber, markName string) string {
 
 // --- Тексты ошибок/предупреждений ---
 
-func fmtErrCitizenshipNotFound(raw string) string {
-	return fmt.Sprintf("Гражданство %q не найдено в справочнике", strings.TrimSpace(raw))
+// fmtErrCitizenshipNotFound - гражданство из файла не нашлось в справочнике. Исправимо:
+// в таблице разбора гражданство выбирается из того же справочника.
+func fmtErrCitizenshipNotFound(raw string) ImportRowError {
+	return ImportRowError{
+		Text:    fmt.Sprintf("Гражданство %q не найдено в справочнике", strings.TrimSpace(raw)),
+		Code:    ImportErrCitizenshipUnknown,
+		Field:   "citizenship",
+		Fixable: importFieldFixable("people", "citizenship"),
+	}
 }
 
 // joinFIO склеивает непустые части ФИО через один пробел - страхует от лишнего
@@ -297,12 +390,20 @@ func joinFIO(last, first, middle string) string {
 	return strings.Join(parts, " ")
 }
 
-func fmtErrEmployeeBlacklisted(last, first, middle, reason string) string {
-	return fmt.Sprintf("Человек %s в чёрном списке: %s", joinFIO(last, first, middle), reason)
+// Чёрный список правкой в таблице разбора не обходится: решение бюро о человеке или
+// машине не переигрывается сменой написания.
+func fmtErrEmployeeBlacklisted(last, first, middle, reason string) ImportRowError {
+	return ImportRowError{
+		Text: fmt.Sprintf("Человек %s в чёрном списке: %s", joinFIO(last, first, middle), reason),
+		Code: ImportErrBlacklisted,
+	}
 }
 
-func fmtErrVehicleBlacklisted(number, mark, reason string) string {
-	return fmt.Sprintf("Машина %s %s в чёрном списке: %s", number, mark, reason)
+func fmtErrVehicleBlacklisted(number, mark, reason string) ImportRowError {
+	return ImportRowError{
+		Text: fmt.Sprintf("Машина %s %s в чёрном списке: %s", number, mark, reason),
+		Code: ImportErrBlacklisted,
+	}
 }
 
 func fmtWarnLatinFixed(label, original, fixed string) string {
@@ -311,4 +412,23 @@ func fmtWarnLatinFixed(label, original, fixed string) string {
 
 func fmtWarnFullNameSplit(full, last, first, middle string) string {
 	return fmt.Sprintf("ФИО распознано из одного поля %q как %q - проверьте разбор", full, joinFIO(last, first, middle))
+}
+
+// fmtWarnPlateFixed - номер машины разложен по формату с исправлением (раскладка,
+// похожие буквы, дополнение короткой цифровой части) - показ обоих вариантов, а не
+// молчаливая правка (решение владельца, blank-import-ux U2), зеркало fmtWarnLatinFixed.
+func fmtWarnPlateFixed(original, fixed string) string {
+	return fmt.Sprintf("Номер Т/С приведён к формату номера, %q -> %q", strings.TrimSpace(original), fixed)
+}
+
+// fmtErrPlateFormatNotFound - строка из бланка не разложилась ни по одному активному
+// формату номеров (решение владельца, blank-import-ux U2). Номер правится прямо в
+// таблице разбора, поэтому причина исправимая.
+func fmtErrPlateFormatNotFound(raw string) ImportRowError {
+	return ImportRowError{
+		Text:    fmt.Sprintf("Номер Т/С %q не соответствует ни одному формату номеров", strings.TrimSpace(raw)),
+		Code:    ImportErrPlateFormat,
+		Field:   "number",
+		Fixable: importFieldFixable("cars", "number"),
+	}
 }

@@ -67,7 +67,7 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 			c.Response().Header().Set(k, v)
 		}
 		if code >= http.StatusInternalServerError {
-			slog.Error("internal error", "error", err)
+			slog.Error("internal error", "error", err, "path", c.Request().URL.Path, "method", c.Request().Method)
 		}
 	} else if he, ok := err.(*echo.HTTPError); ok {
 		code = he.Code
@@ -78,6 +78,12 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 			msg = m.Error()
 		default:
 			msg = http.StatusText(code)
+		}
+		// 5xx через echo.HTTPError раньше не логировался вовсе: клиент получал
+		// текст, а в логах не оставалось ничего, и такую аварию нельзя было
+		// разобрать постфактум. Путь этот массовый - сервисы отдают 500 именно так.
+		if code >= http.StatusInternalServerError {
+			slog.Error("internal error", "error", err, "path", c.Request().URL.Path, "method", c.Request().Method)
 		}
 	} else {
 		slog.Error("unhandled error", "error", err)

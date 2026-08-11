@@ -134,6 +134,44 @@ func TestAvailableAttachments_AdminAndPermissionGate(t *testing.T) {
 		"носитель page.available видит все подтверждённые вложения")
 }
 
+// TestAvailableAttachments_GuardWithPermissionStillPlaceFiltered — право page.available
+// открывает работнику поста саму страницу, но не снимает фильтр по местам: пост видит
+// только свои. Иначе выдача права роли охраны показывала бы каждому посту вложения всех
+// постов сразу, и «Места доступа» в карточке переставали значить что-либо.
+func TestAvailableAttachments_GuardWithPermissionStillPlaceFiltered(t *testing.T) {
+	h := setupSecurityHTTP(t)
+	w := h.w
+
+	myPlace := w.newUnloadPlace(t, "Склад А", true)
+	otherPlace := w.newUnloadPlace(t, "Склад Б", true)
+	w.assignUnloadPlace(t, myPlace)
+
+	app := w.newApp(t, models.ConfirmationApproved)
+	ownAtt := w.newAttachment(t, app, "cars")
+	w.attachPlace(t, ownAtt, myPlace)
+	foreignAtt := w.newAttachment(t, app, "cars")
+	w.attachPlace(t, foreignAtt, otherPlace)
+
+	// Тому же охраннику выдаём page.available - раньше это делало его «видит всё».
+	guardID := secUserIDByUsername(t, w.db, "guardhttp")
+	require.NoError(t, w.db.Create(&models.UserPermissionOverride{
+		UserID: guardID, PermissionKey: services.KeyPageAvailable, Value: "allow",
+	}).Error)
+
+	rec := testutil.GET(t, h.e, "/applications/available-attachments", testutil.AuthHeader(h.guardToken))
+	require.Equal(t, http.StatusOK, rec.Code, "страница открыта: %s", rec.Body.String())
+	list := testutil.ParseResponse[[]services.AvailableAttachment](t, rec)
+	ids := make([]int, 0, len(list))
+	for _, a := range list {
+		ids = append(ids, a.AttachmentID)
+	}
+	require.Contains(t, ids, ownAtt, "своё место видно")
+	require.NotContains(t, ids, foreignAtt, "чужое место не показывается даже с правом page.available")
+
+	rec = testutil.GET(t, h.e, fmt.Sprintf("/applications/available-attachments/%d", foreignAtt), testutil.AuthHeader(h.guardToken))
+	require.Equal(t, http.StatusForbidden, rec.Code, "деталь чужого места закрыта и с правом")
+}
+
 func TestAvailableAttachments_PaginationMeta(t *testing.T) {
 	h := setupSecurityHTTP(t)
 	w := h.w
