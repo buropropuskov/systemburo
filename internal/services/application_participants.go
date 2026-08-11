@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 )
 
 // Роли участника заявки - машинные ключи. Человекочитаемую подпись рисует фронт:
@@ -170,7 +171,7 @@ func (s *applicationService) GetApplicationParticipants(ctx context.Context, app
 	}
 
 	result := mergeParticipantRows(rows)
-	maskParticipants(ctx, s, result)
+	maskParticipants(ctx, s.db, result)
 	sortParticipants(result)
 	return result, nil
 }
@@ -230,9 +231,9 @@ func mergeParticipantRows(rows []participantRow) []ApplicationParticipant {
 //     тоже убираем контакты: маска ставится ровно затем, чтобы заявитель не знал, кто
 //     именно взял заявку, а личная почта эту анонимность снимает. Маска в приоритете -
 //     она задана осознанно и персональные данные не раскрывает (см. loadNameMasks).
-func maskParticipants(ctx context.Context, s *applicationService, participants []ApplicationParticipant) {
-	consentMasks := loadConsentMasks(ctx, s.db)
-	approverMasks := loadApproverMasks(ctx, s.db)
+func maskParticipants(ctx context.Context, db *gorm.DB, participants []ApplicationParticipant) {
+	consentMasks := loadConsentMasks(ctx, db)
+	approverMasks := loadApproverMasks(ctx, db)
 	if len(consentMasks) == 0 && len(approverMasks) == 0 {
 		return
 	}
