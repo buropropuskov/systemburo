@@ -836,6 +836,1083 @@
       "highlight": []
     },
     {
+      "id": "createapp-overview",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": "[data-testid=\"ob-blank-list\"]",
+      "prepare": [
+        {
+          "click": ".category:has-text(\"СОТРУДНИКИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        }
+      ],
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": ".recipients-chips",
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"ob-app-selector\"]",
+          "badge": 2,
+          "badgeInside": true
+        },
+        {
+          "selector": ".form__message-tc",
+          "badge": 3,
+          "badgeInside": true
+        },
+        {
+          "selector": "[data-testid=\"ob-app-consent\"]",
+          "badge": 4,
+          "badgeInside": true
+        },
+        {
+          "selector": "[data-testid=\"ob-app-orginfo\"]",
+          "badge": 5,
+          "badgeInside": true
+        },
+        {
+          "selector": "[data-testid=\"ob-app-dates\"]",
+          "badge": 6,
+          "badgeInside": true
+        },
+        {
+          "selector": "[data-testid=\"ob-app-formdata\"]",
+          "badge": 7,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "createapp-recipients",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": ".recipients-row",
+      "prepare": [
+        {
+          "click": ".recipients-add__btn"
+        },
+        {
+          "wait": ".recipients-popover--add"
+        }
+      ],
+      "clip": {
+        "selector": ".recipients-row",
+        "pad": {
+          "x": 60,
+          "y": 50
+        }
+      },
+      "highlight": [
+        {
+          "selector": ".recipient-chip",
+          "badge": 1
+        },
+        {
+          "selector": ".recipients-add__btn",
+          "badge": 2
+        },
+        {
+          "selector": ".recipients-search",
+          "badge": 3
+        },
+        {
+          "selector": ".recipients-add-list"
+        }
+      ]
+    },
+    {
+      "id": "createapp-orginfo",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": "[data-testid=\"ob-blank-list\"]",
+      "prepare": [
+        {
+          "click": ".category:has-text(\"СОТРУДНИКИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        },
+        {
+          "wait": ".user-info-row"
+        }
+      ],
+      "clip": {
+        "selector": ".user-info-row",
+        "pad": {
+          "x": 120,
+          "y": 110
+        }
+      },
+      "highlight": [
+        {
+          "selector": ".user-info-row .user__input",
+          "nth": 0,
+          "badge": 1
+        },
+        {
+          "selector": ".user-info-row .user__input",
+          "nth": 1,
+          "badge": 2
+        },
+        {
+          "selector": ".user-info-row .user__input",
+          "nth": 2,
+          "badge": 3
+        },
+        {
+          "selector": ".user-info-row .user__input",
+          "nth": 3,
+          "badge": 4
+        }
+      ]
+    },
+    {
+      "id": "createapp-blanks",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": "[data-testid=\"ob-blank-list\"]",
+      "prepare": [
+        {
+          "click": ".category:has-text(\"СОТРУДНИКИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        },
+        {
+          "click": ".category:has-text(\"АВТОМОБИЛИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"ob-app-selector\"]",
+        "pad": {
+          "x": 430,
+          "y": 60
+        }
+      },
+      "highlight": [
+        {
+          "selector": ".category-title",
+          "nth": 1,
+          "badge": 1
+        },
+        {
+          "selector": ".attachment-count",
+          "nth": 1,
+          "badge": 2
+        },
+        {
+          "selector": ".add-btn",
+          "nth": 1,
+          "badge": 3
+        },
+        {
+          "selector": ".delete-selected",
+          "badge": 4
+        }
+      ]
+    },
+    {
+      "id": "createapp-dates",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": "[data-testid=\"ob-blank-list\"]",
+      "prepare": [
+        {
+          "click": ".category:has-text(\"СОТРУДНИКИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        },
+        {
+          "wait": "[data-testid=\"ob-app-dates\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"ob-app-dates\"]",
+        "pad": {
+          "x": 170,
+          "y": 130
+        }
+      },
+      "highlight": [
+        {
+          "selector": ".date-container",
+          "badge": 1
+        },
+        {
+          "selector": ".one-day",
+          "badge": 2
+        },
+        {
+          "selector": ".time-wrapper",
+          "badge": 3
+        },
+        {
+          "selector": ".additional-options",
+          "badge": 4
+        }
+      ]
+    },
+    {
+      "id": "createapp-quickdate",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": "[data-testid=\"ob-blank-list\"]",
+      "prepare": [
+        {
+          "click": ".category:has-text(\"СОТРУДНИКИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        },
+        {
+          "click": ".qd-trigger"
+        },
+        {
+          "wait": ".qd-menu"
+        }
+      ],
+      "calm": false,
+      "clip": {
+        "selector": ".qd-menu",
+        "pad": {
+          "x": 160,
+          "y": 90
+        }
+      },
+      "highlight": [
+        {
+          "selector": ".qd-trigger"
+        }
+      ]
+    },
+    {
+      "id": "createapp-employee-form",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": "[data-testid=\"ob-blank-list\"]",
+      "prepare": [
+        {
+          "click": ".category:has-text(\"СОТРУДНИКИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        },
+        {
+          "click": ".citizenship__dropdown .dropdown__button"
+        },
+        {
+          "click": ".citizenship__dropdown .dropdown__item:has-text(\"Россия\")"
+        },
+        {
+          "fill": [
+            ".completion__last-name .name__input",
+            "Кузнецов"
+          ]
+        },
+        {
+          "fill": [
+            ".completion__first-name .name__input",
+            "Игорь"
+          ]
+        },
+        {
+          "fill": [
+            ".completion__middle-name .name__input",
+            "Петрович"
+          ]
+        },
+        {
+          "fill": [
+            ".completion__position .name__input",
+            "Водитель"
+          ]
+        },
+        {
+          "fill": [
+            ".completion__passport .name__input",
+            "4517328104"
+          ]
+        }
+      ],
+      "clip": {
+        "selector": ".data__completion",
+        "pad": {
+          "x": 180,
+          "y": 70
+        }
+      },
+      "highlight": [
+        {
+          "selector": ".citizenship__dropdown .dropdown__button",
+          "badge": 1
+        },
+        {
+          "selector": ".completion__last-name .name__input",
+          "badge": 2
+        },
+        {
+          "selector": ".completion__first-name .name__input",
+          "badge": 3
+        },
+        {
+          "selector": ".completion__position .name__input",
+          "badge": 4
+        },
+        {
+          "selector": ".completion__passport .name__input",
+          "badge": 5
+        },
+        {
+          "selector": "[data-testid=\"ob-form-places\"]",
+          "badge": 6,
+          "badgeInside": true
+        },
+        {
+          "selector": ".citizenship-actions .add-button",
+          "badge": 7,
+          "badgeInside": true
+        }
+      ],
+      "viewport": {
+        "height": 1250
+      }
+    },
+    {
+      "id": "createapp-existing-employees",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": "[data-testid=\"ob-blank-list\"]",
+      "prepare": [
+        {
+          "click": ".category:has-text(\"СОТРУДНИКИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        },
+        {
+          "click": "[data-testid=\"ob-form-existing\"]"
+        },
+        {
+          "wait": ".modal-content"
+        },
+        {
+          "click": ".modal-content .table-body .table-row >> nth=0"
+        },
+        {
+          "click": ".modal-content .table-body .table-row >> nth=2"
+        },
+        {
+          "wait": ".selected-counter"
+        }
+      ],
+      "clip": {
+        "selector": ".modal-content",
+        "pad": 40
+      },
+      "highlight": [
+        {
+          "selector": ".modal-content .filter-tabs",
+          "badge": 1,
+          "badgeInside": true
+        },
+        {
+          "selector": ".modal-content .header-right input",
+          "badge": 2
+        },
+        {
+          "selector": ".modal-content .selected-counter",
+          "badge": 3
+        },
+        {
+          "selector": ".modal-content .modal-actions button:last-child",
+          "badge": 4
+        }
+      ]
+    },
+    {
+      "id": "createapp-transfer",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": "[data-testid=\"ob-blank-list\"]",
+      "prepare": [
+        {
+          "click": ".category:has-text(\"СОТРУДНИКИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        },
+        {
+          "click": "[data-testid=\"ob-form-existing\"]"
+        },
+        {
+          "wait": ".modal-content"
+        },
+        {
+          "click": ".modal-content .table-body .table-row >> nth=0"
+        },
+        {
+          "click": ".modal-content .table-body .table-row >> nth=1"
+        },
+        {
+          "click": ".modal-content button:has-text(\"Добавить\")"
+        },
+        {
+          "wait": ".existing-employees-info"
+        }
+      ],
+      "clip": {
+        "selector": ".existing-employees-info",
+        "pad": {
+          "x": 70,
+          "y": 60
+        }
+      },
+      "highlight": [
+        {
+          "selector": ".view-employees-btn",
+          "badge": 1
+        },
+        {
+          "selector": ".existing-employees-actions .add-existing-btn",
+          "badge": 2
+        }
+      ]
+    },
+    {
+      "id": "createapp-employees-list",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": "[data-testid=\"ob-blank-list\"]",
+      "prepare": [
+        {
+          "click": ".category:has-text(\"СОТРУДНИКИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        },
+        {
+          "click": "[data-testid=\"ob-form-places\"] .passage__item >> nth=0"
+        },
+        {
+          "click": "[data-testid=\"ob-form-existing\"]"
+        },
+        {
+          "wait": ".modal-content"
+        },
+        {
+          "click": ".modal-content .table-body .table-row >> nth=0"
+        },
+        {
+          "click": ".modal-content .table-body .table-row >> nth=1"
+        },
+        {
+          "click": ".modal-content button:has-text(\"Добавить\")"
+        },
+        {
+          "wait": ".existing-employees-info"
+        },
+        {
+          "click": ".existing-employees-actions .add-existing-btn"
+        },
+        {
+          "wait": "[data-testid=\"employees-row\"]"
+        },
+        {
+          "hover": ".data__list .header-with-badge"
+        }
+      ],
+      "clip": {
+        "selector": ".data__list",
+        "pad": {
+          "x": 70,
+          "y": 50
+        }
+      },
+      "highlight": [
+        {
+          "selector": ".employees-badge",
+          "badge": 1
+        },
+        {
+          "selector": ".actions-col",
+          "nth": 1,
+          "badge": 2,
+          "badgeInside": true
+        },
+        {
+          "selector": "[data-testid=\"employees-clear-btn\"]",
+          "badge": 3
+        }
+      ]
+    },
+    {
+      "id": "createapp-vehicle-form",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": "[data-testid=\"ob-blank-list\"]",
+      "prepare": [
+        {
+          "click": ".category:has-text(\"АВТОМОБИЛИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        },
+        {
+          "fill": [
+            ".number__field .number__input >> nth=0",
+            "А"
+          ]
+        },
+        {
+          "fill": [
+            ".number__field .number__input >> nth=1",
+            "482"
+          ]
+        },
+        {
+          "fill": [
+            ".number__field .number__input >> nth=2",
+            "ВК"
+          ]
+        },
+        {
+          "fill": [
+            ".number__field .number__input >> nth=3",
+            "77"
+          ]
+        },
+        {
+          "click": ".mark__dropdown-button"
+        },
+        {
+          "fill": [
+            ".mark__search-input",
+            "Volk"
+          ]
+        },
+        {
+          "click": ".mark__dropdown-item >> nth=0"
+        }
+      ],
+      "clip": {
+        "selector": ".completion__fields",
+        "pad": {
+          "x": 230,
+          "y": 45
+        }
+      },
+      "highlight": [
+        {
+          "selector": ".format__dropdown .dropdown__button",
+          "badge": 1
+        },
+        {
+          "selector": ".completion__number .number__field",
+          "badge": 2
+        },
+        {
+          "selector": ".mark__dropdown-button",
+          "badge": 3
+        },
+        {
+          "selector": ".completion__number .fact-switch",
+          "badge": 4,
+          "badgeInside": true
+        }
+      ],
+      "viewport": {
+        "height": 1100
+      }
+    },
+    {
+      "id": "createapp-vehicle-places",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": "[data-testid=\"ob-blank-list\"]",
+      "viewport": {
+        "height": 1250
+      },
+      "prepare": [
+        {
+          "click": ".category:has-text(\"АВТОМОБИЛИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        },
+        {
+          "click": ".unloading__item:has-text(\"Рампа А\")"
+        },
+        {
+          "click": ".passage__item >> nth=0"
+        }
+      ],
+      "clip": {
+        "selector": ".completion__unloading",
+        "pad": {
+          "x": 160,
+          "y": 80
+        }
+      },
+      "highlight": [
+        {
+          "selector": ".completion__unloading",
+          "badge": 1,
+          "badgeInside": true
+        },
+        {
+          "selector": ".completion__passage",
+          "badge": 2,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "createapp-items-form",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": "[data-testid=\"ob-blank-list\"]",
+      "prepare": [
+        {
+          "click": ".category:has-text(\"ЦЕННОСТИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        },
+        {
+          "fill": [
+            ".items-table .table-body .table-row >> nth=0 >> input[type=\"text\"]",
+            "Стеллаж"
+          ]
+        }
+      ],
+      "clip": {
+        "selector": ".data__completion",
+        "pad": {
+          "x": 180,
+          "y": 90
+        }
+      },
+      "highlight": [
+        {
+          "selector": ".items-table .table-body input[type=\"text\"]",
+          "badge": 1,
+          "badgeInside": true
+        },
+        {
+          "selector": ".items-table .table-body input[type=\"number\"]",
+          "badge": 2
+        },
+        {
+          "selector": ".add-row-btn",
+          "badge": 3
+        },
+        {
+          "selector": ".total-items",
+          "badge": 4
+        }
+      ]
+    },
+    {
+      "id": "createapp-places",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": "[data-testid=\"ob-blank-list\"]",
+      "prepare": [
+        {
+          "click": ".category:has-text(\"СОТРУДНИКИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        },
+        {
+          "click": "[data-testid=\"ob-form-places\"] .passage__item >> nth=0"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"ob-form-places\"]",
+        "pad": {
+          "x": 70,
+          "y": 50
+        }
+      },
+      "highlight": []
+    },
+    {
+      "id": "createapp-blacklist",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": "[data-testid=\"ob-blank-list\"]",
+      "prepare": [
+        {
+          "click": ".category:has-text(\"СОТРУДНИКИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        },
+        {
+          "click": ".citizenship__dropdown .dropdown__button"
+        },
+        {
+          "click": ".citizenship__dropdown .dropdown__item:has-text(\"Россия\")"
+        },
+        {
+          "fill": [
+            ".completion__last-name .name__input",
+            "Фролон"
+          ]
+        },
+        {
+          "fill": [
+            ".completion__first-name .name__input",
+            "Пётр"
+          ]
+        },
+        {
+          "fill": [
+            ".completion__middle-name .name__input",
+            "Леонидович"
+          ]
+        },
+        {
+          "wait": "[data-testid=\"person-blacklist-warning\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"person-blacklist-warning\"]",
+        "pad": {
+          "x": 140,
+          "y": 80
+        }
+      },
+      "highlight": [],
+      "viewport": {
+        "height": 1250
+      }
+    },
+    {
+      "id": "createapp-letter",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": "[data-testid=\"ob-blank-list\"]",
+      "prepare": [
+        {
+          "click": ".category:has-text(\"СОТРУДНИКИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        },
+        {
+          "click": ".form__message-tc .editor-content"
+        },
+        {
+          "type": "Просим пропустить бригаду для монтажа стеллажей на складе №1."
+        }
+      ],
+      "clip": {
+        "selector": ".form__message-tc",
+        "pad": {
+          "x": 60,
+          "y": 50
+        }
+      },
+      "highlight": [
+        {
+          "selector": ".form__message-tc .editor-content",
+          "badge": 1,
+          "badgeInside": true
+        },
+        {
+          "selector": ".form__message-tc .editor-toolbar",
+          "badge": 2,
+          "badgeInside": true
+        },
+        {
+          "selector": "[data-testid=\"app-files-add\"]",
+          "badge": 3,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "createapp-submit",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": "[data-testid=\"ob-blank-list\"]",
+      "prepare": [
+        {
+          "click": ".category:has-text(\"СОТРУДНИКИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        },
+        {
+          "wait": "[data-testid=\"create-app-button-submit\"]"
+        },
+        {
+          "hover": "[data-testid=\"create-app-submit-wrapper\"]"
+        },
+        {
+          "wait": ".submit-tooltip"
+        }
+      ],
+      "calm": false,
+      "clip": {
+        "selector": "[data-testid=\"ob-app-consent\"]",
+        "pad": {
+          "x": 60,
+          "y": 50
+        }
+      },
+      "highlight": [
+        {
+          "selector": ".consent-checkbox",
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"create-app-button-submit\"]",
+          "badge": 2
+        },
+        {
+          "selector": ".submit-tooltip",
+          "badge": 3,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "createapp-binding",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": "[data-testid=\"ob-blank-list\"]",
+      "prepare": [
+        {
+          "click": ".category:has-text(\"СОТРУДНИКИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        },
+        {
+          "click": ".citizenship__dropdown .dropdown__button"
+        },
+        {
+          "click": ".citizenship__dropdown .dropdown__item:has-text(\"Россия\")"
+        },
+        {
+          "fill": [
+            ".completion__last-name .name__input",
+            "Кузнецов"
+          ]
+        },
+        {
+          "fill": [
+            ".completion__first-name .name__input",
+            "Игорь"
+          ]
+        },
+        {
+          "fill": [
+            ".completion__middle-name .name__input",
+            "Петрович"
+          ]
+        },
+        {
+          "fill": [
+            ".completion__position .name__input",
+            "Водитель"
+          ]
+        },
+        {
+          "fill": [
+            ".completion__passport .name__input",
+            "4517328104"
+          ]
+        },
+        {
+          "click": ".passage__item >> nth=0"
+        },
+        {
+          "click": ".citizenship-actions .add-button"
+        },
+        {
+          "wait": "[data-testid=\"employees-row\"]"
+        },
+        {
+          "click": ".qd-trigger"
+        },
+        {
+          "click": ".qd-item:has-text(\"Завтра\")"
+        },
+        {
+          "fill": [
+            ".time-input-group .input__time >> nth=0",
+            "08:00"
+          ]
+        },
+        {
+          "fill": [
+            ".time-input-group .input__time >> nth=1",
+            "18:00"
+          ]
+        },
+        {
+          "click": "[data-testid=\"create-app-consent-checkbox\"]"
+        },
+        {
+          "click": "[data-testid=\"create-app-button-submit\"]"
+        },
+        {
+          "wait": ".modal-content"
+        }
+      ],
+      "calm": false,
+      "clip": {
+        "selector": ".modal-content",
+        "pad": 40
+      },
+      "highlight": [
+        {
+          "selector": ".modal-content .items-list",
+          "badge": 1,
+          "badgeInside": true
+        },
+        {
+          "selector": ".modal-content .binding-options",
+          "badge": 2,
+          "badgeInside": true
+        },
+        {
+          "selector": ".modal-content .skip-btn",
+          "badge": 3
+        },
+        {
+          "selector": ".modal-content .confirm-btn",
+          "badge": 4
+        }
+      ]
+    },
+    {
+      "id": "createapp-success",
+      "goto": "/new-application",
+      "clearDraft": true,
+      "waitFor": "[data-testid=\"ob-blank-list\"]",
+      "prepare": [
+        {
+          "click": ".category:has-text(\"СОТРУДНИКИ\") .add-btn"
+        },
+        {
+          "wait": ".data__completion"
+        },
+        {
+          "click": ".citizenship__dropdown .dropdown__button"
+        },
+        {
+          "click": ".citizenship__dropdown .dropdown__item:has-text(\"Россия\")"
+        },
+        {
+          "fill": [
+            ".completion__last-name .name__input",
+            "Кузнецов"
+          ]
+        },
+        {
+          "fill": [
+            ".completion__first-name .name__input",
+            "Игорь"
+          ]
+        },
+        {
+          "fill": [
+            ".completion__middle-name .name__input",
+            "Петрович"
+          ]
+        },
+        {
+          "fill": [
+            ".completion__position .name__input",
+            "Водитель"
+          ]
+        },
+        {
+          "fill": [
+            ".completion__passport .name__input",
+            "4517328104"
+          ]
+        },
+        {
+          "click": ".passage__item >> nth=0"
+        },
+        {
+          "click": ".citizenship-actions .add-button"
+        },
+        {
+          "wait": "[data-testid=\"employees-row\"]"
+        },
+        {
+          "click": ".qd-trigger"
+        },
+        {
+          "click": ".qd-item:has-text(\"Завтра\")"
+        },
+        {
+          "fill": [
+            ".time-input-group .input__time >> nth=0",
+            "08:00"
+          ]
+        },
+        {
+          "fill": [
+            ".time-input-group .input__time >> nth=1",
+            "18:00"
+          ]
+        },
+        {
+          "click": "[data-testid=\"create-app-consent-checkbox\"]"
+        },
+        {
+          "click": "[data-testid=\"create-app-button-submit\"]"
+        },
+        {
+          "wait": ".modal-content"
+        },
+        {
+          "click": ".modal-content button:has-text(\"Отправить без привязки\")"
+        },
+        {
+          "wait": ".application-number"
+        }
+      ],
+      "calm": false,
+      "clip": {
+        "selector": ".modal-content",
+        "pad": 40
+      },
+      "highlight": [
+        {
+          "selector": ".application-number",
+          "badge": 1
+        },
+        {
+          "selector": ".progress-steps",
+          "badge": 2,
+          "badgeInside": true
+        },
+        {
+          "selector": ".modal-body .section-title",
+          "badge": 3
+        }
+      ]
+    },
+    {
       "id": "cabinet-overview",
       "goto": "/personal-cabinet",
       "waitFor": "[data-testid=\"cabinet-page\"]",

@@ -84,7 +84,7 @@ node Документация/src/shots/run.mjs --doc=user --only=createapp-orgi
 ```
 
 `role` - ключ из `accounts.json`. Действия подготовки: `click`, `fill`,
-`select`, `press`, `hover`, `wait`, `waitHidden`, `scrollTo`.
+`select`, `press`, `type`, `hover`, `wait`, `waitHidden`, `scrollTo`.
 
 Поля кадра:
 
@@ -96,6 +96,8 @@ node Документация/src/shots/run.mjs --doc=user --only=createapp-orgi
 | `clip.pad` | воздух по краям: число либо `{x, y}` для узких высоких целей |
 | `clip.full` | кадр во всё окно, для обзорных рисунков |
 | `calm: false` | не убирать всплывшее перед подготовкой |
+| `clearDraft` | стереть черновик заявки до загрузки страницы - для кадров экрана подачи |
+| `viewport.height` | снимать в более высоком окне - для форм, не помещающихся в обычное |
 
 Поля цели обводки:
 

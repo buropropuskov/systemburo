@@ -86,15 +86,17 @@ const DUMP = () => {
     const byFor = element.id ? document.querySelector(`label[for="${CSS.escape(element.id)}"]`) : null;
     const wrapping = element.closest('label');
     const aria = clean(element.getAttribute('aria-label'));
-    const visible =
+    // Не `visible`: этим именем выше названа проверка видимости, и объявление
+    // затеняло бы её во всей функции - проверка падала бы до своего объявления.
+    const shown =
       clean(byFor?.textContent) ||
       clean(wrapping?.textContent) ||
       clean(element.placeholder);
-    const label = visible || (aria ? `(на экране не подписано, для чтения с экрана: ${aria})` : '(без подписи)');
+    const label = shown || (aria ? `(на экране не подписано, для чтения с экрана: ${aria})` : '(без подписи)');
     const attrs = [
       element.tagName === 'INPUT' ? `тип=${element.type}` : element.tagName.toLowerCase(),
       element.placeholder ? `подсказка="${clean(element.placeholder)}"` : '',
-      aria && visible && aria !== visible ? `для чтения с экрана="${aria}"` : '',
+      aria && shown && aria !== shown ? `для чтения с экрана="${aria}"` : '',
       element.required ? 'обязательное' : '',
       element.maxLength > 0 ? `макс=${element.maxLength}` : '',
       element.disabled ? 'неактивно' : '',
