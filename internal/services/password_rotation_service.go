@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// Коды шаблонов писем плановой смены. Хранятся в очереди писем и по ним же
+// Коды шаблонов писем о паролях. Хранятся в очереди писем и по ним же
 // отбираются письма одного вида для отчёта.
 //
 // Значения берутся из кодов уведомлений намеренно: письмо и уведомление - два
@@ -33,18 +33,23 @@ const (
 // строк никто не читает.
 const reportLoginsLimit = 20
 
-// ErrRotationInProgress - прогон уже идёт. Второй одновременный запуск выдал бы
-// работнику два пароля подряд и два письма, из которых рабочим окажется только
-// второе, а первое он успел бы попробовать.
-var ErrRotationInProgress = errors.New("плановая смена паролей уже выполняется")
+// ErrRotationInProgress - прогон уже идёт. Замок общий у проверки сроков и
+// обновления паролей: второй одновременный запуск выдал бы работнику два пароля
+// подряд и два письма, из которых рабочим окажется только второе, а первое он
+// успел бы попробовать.
+var ErrRotationInProgress = errors.New("прогон по паролям уже выполняется")
 
-// ErrRotationMailNotConfigured - почта не настроена. Менять пароли, не имея
-// канала доставки, значит запереть людей снаружи.
-var ErrRotationMailNotConfigured = errors.New("почта не настроена, плановая смена не запускается")
+// ErrRotationMailNotConfigured - почта не настроена. Придумывать пароль за
+// человека, не имея канала доставки, значит запереть его снаружи. Плановой
+// проверки сроков не касается: она паролей не придумывает и писем не шлёт.
+var ErrRotationMailNotConfigured = errors.New("почта не настроена, смена паролей не запускается")
 
-// RotationResult - итог прогона.
+// RotationResult - итог прогона. Плановая проверка и ручное обновление делают
+// разное, поэтому счётчика два: Marked - скольким пароль помечен истёкшим,
+// Changed - скольким пароль сменён и выслан.
 type RotationResult struct {
 	Changed       int       `json:"changed"`
+	Marked        int       `json:"marked"`
 	SkippedNoMail int       `json:"skipped_no_email"`
 	Failed        int       `json:"failed"`
 	NoMailLogins  []string  `json:"no_email_logins"`
@@ -56,7 +61,7 @@ type RotationResult struct {
 	StartedBy int `json:"started_by,omitempty"`
 }
 
-// PasswordRotationService меняет пароли по сроку и по кнопке.
+// PasswordRotationService помечает истёкшие пароли по сроку и меняет их по кнопке.
 type PasswordRotationService struct {
 	db            *gorm.DB
 	settings      SettingsService
@@ -103,14 +108,64 @@ func (s *PasswordRotationService) RunScheduled(ctx context.Context) {
 	if !policy.RotationEnabled {
 		return
 	}
-	if _, err := s.Run(ctx, false, 0); err != nil && !errors.Is(err, ErrRotationInProgress) {
-		slog.Error("плановая смена паролей не выполнена", "error", err)
+	if _, err := s.MarkExpired(ctx); err != nil && !errors.Is(err, ErrRotationInProgress) {
+		slog.Error("плановая проверка сроков паролей не выполнена", "error", err)
 	}
 }
 
-// Run выполняет прогон. manual=true - запуск человеком: тогда условие по сроку не
-// применяется, меняются пароли всем подходящим работникам.
-func (s *PasswordRotationService) Run(ctx context.Context, manual bool, startedBy int) (*RotationResult, error) {
+// MarkExpired - плановый прогон по сроку. Паролей не придумывает и писем не шлёт:
+// тем, у кого срок вышел, поднимается признак обязательной смены. Дальше человек
+// входит своим прежним паролем, а гейт (#1911) не пускает его никуда, кроме формы
+// смены. Так пароль перестал путешествовать по почте открытым текстом - главный
+// риск прежней схемы, когда система придумывала пароль и высылала его письмом.
+//
+// Почта здесь не нужна вовсе, поэтому и работники без адреса больше не
+// пропускаются: адрес требовался только для доставки нового пароля.
+func (s *PasswordRotationService) MarkExpired(ctx context.Context) (*RotationResult, error) {
+	if err := s.begin(); err != nil {
+		return nil, err
+	}
+	defer s.finish()
+
+	policy := s.settings.GetPasswordPolicy()
+	result := &RotationResult{StartedAt: time.Now()}
+
+	targets, err := s.expiredTargets(ctx, policy)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, u := range targets {
+		if ctx.Err() != nil {
+			// Сервер останавливают - прекращаем. Уже помеченные остаются
+			// помеченными, остальных возьмёт следующий прогон.
+			break
+		}
+		if err := s.markOne(ctx, u, policy); err != nil {
+			result.Failed++
+			slog.Error("плановая проверка сроков: пароль не помечен истёкшим",
+				"user_id", u.ID, "username", u.Username, "error", err)
+			continue
+		}
+		result.Marked++
+	}
+
+	result.FinishedAt = time.Now()
+	s.mu.Lock()
+	s.last = result
+	s.mu.Unlock()
+
+	s.reportMarkedToAdmins(ctx, result)
+	slog.Info("плановая проверка сроков паролей завершена",
+		"marked", result.Marked, "failed", result.Failed)
+	return result, nil
+}
+
+// Run - ручное обновление паролей всем работникам. В отличие от планового
+// прогона придумывает пароль и высылает его письмом, поэтому срок действия здесь
+// ни при чём: берутся все действующие работники с адресом почты. Инструмент на
+// случай инцидента, когда прежние пароли нужно обнулить разом.
+func (s *PasswordRotationService) Run(ctx context.Context, startedBy int) (*RotationResult, error) {
 	if err := s.begin(); err != nil {
 		return nil, err
 	}
@@ -118,14 +173,14 @@ func (s *PasswordRotationService) Run(ctx context.Context, manual bool, startedB
 
 	if s.mail == nil || !s.mail.Enabled() {
 		// Громко, а не молча: администратор должен узнать, что прогон не состоялся,
-		// иначе он будет считать, что пароли меняются.
-		s.notifyAdmins(ctx, "Плановая смена паролей не выполнена",
+		// иначе он будет считать, что пароли сменились.
+		s.notifyAdmins(ctx, "Обновление паролей не выполнено",
 			"Почта не настроена, поэтому прогон не начинался. Пароли не менялись.")
 		return nil, ErrRotationMailNotConfigured
 	}
 
 	policy := s.settings.GetPasswordPolicy()
-	result := &RotationResult{StartedAt: time.Now(), Manual: manual, StartedBy: startedBy}
+	result := &RotationResult{StartedAt: time.Now(), Manual: true, StartedBy: startedBy}
 
 	noMail, err := s.loginsWithoutEmail(ctx)
 	if err != nil {
@@ -134,7 +189,7 @@ func (s *PasswordRotationService) Run(ctx context.Context, manual bool, startedB
 	result.SkippedNoMail = len(noMail)
 	result.NoMailLogins = noMail
 
-	targets, err := s.selectTargets(ctx, policy, manual)
+	targets, err := s.selectTargets(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -145,9 +200,9 @@ func (s *PasswordRotationService) Run(ctx context.Context, manual bool, startedB
 			// смененными, письма к ним лежат в очереди.
 			break
 		}
-		if err := s.rotateOne(ctx, u, policy); err != nil {
+		if err := s.rotateOne(ctx, u, policy, "обновление паролей всем работникам"); err != nil {
 			result.Failed++
-			slog.Error("плановая смена: пароль не сменён",
+			slog.Error("обновление паролей: пароль не сменён",
 				"user_id", u.ID, "username", u.Username, "error", err)
 			continue
 		}
@@ -161,9 +216,9 @@ func (s *PasswordRotationService) Run(ctx context.Context, manual bool, startedB
 	s.mu.Unlock()
 
 	s.reportToAdmins(ctx, result)
-	slog.Info("плановая смена паролей завершена",
+	slog.Info("обновление паролей завершено",
 		"changed", result.Changed, "failed", result.Failed,
-		"skipped_no_email", result.SkippedNoMail, "manual", manual)
+		"skipped_no_email", result.SkippedNoMail, "started_by", startedBy)
 	return result, nil
 }
 
@@ -192,31 +247,65 @@ func (s *PasswordRotationService) IsRunning() bool {
 	return s.running
 }
 
-// selectTargets отбирает работников. Условия те же, по которым считает экран
-// настроек: действующая незаблокированная учётная запись с адресом почты.
-// Архивных и заблокированных смена не касается - им и входить некуда.
-func (s *PasswordRotationService) selectTargets(ctx context.Context, policy models.PasswordPolicy, manual bool) ([]models.User, error) {
-	q := s.db.WithContext(ctx).
-		Where("is_active = ? AND is_banned = ?", true, false).
-		Where("email IS NOT NULL AND email <> ''")
-
-	if !manual {
-		// Плановый прогон берёт только тех, у кого срок вышел. Пустая дата смены
-		// сюда не попадает намеренно: она означает учётную запись, заведённую до
-		// появления столбца, и такие получили дату при миграции.
-		deadline := time.Now().AddDate(0, 0, -policy.RotationDays)
-		q = q.Where("password_changed_at IS NOT NULL AND password_changed_at < ?", deadline)
-	}
-
+// selectTargets отбирает работников для ручного обновления. Условия те же, по
+// которым считает экран настроек: действующая незаблокированная учётная запись с
+// адресом почты - придуманный пароль надо куда-то выслать. Архивных и
+// заблокированных обновление не касается - им и входить некуда.
+func (s *PasswordRotationService) selectTargets(ctx context.Context) ([]models.User, error) {
 	var users []models.User
-	if err := q.Order("id").Find(&users).Error; err != nil {
+	err := s.db.WithContext(ctx).
+		Where("is_active = ? AND is_banned = ?", true, false).
+		Where("email IS NOT NULL AND email <> ''").
+		Order("id").Find(&users).Error
+	if err != nil {
 		return nil, fmt.Errorf("отбор работников для смены пароля: %w", err)
 	}
 	return users, nil
 }
 
+// expiredTargets отбирает тех, у кого срок действия пароля вышел. Адрес почты в
+// условии не участвует: плановый прогон писем не шлёт. Архивных и заблокированных
+// не берём - им и входить некуда.
+//
+// Уже помеченные исключены, и на этом держится идемпотентность: пометка даты
+// смены пароля не двигает, поэтому без этого условия прогон следующих суток
+// перечислял бы тех же людей заново и врал бы в отчёте.
+//
+// Пустая дата смены сюда не попадает намеренно: она означает учётную запись,
+// заведённую до появления столбца, и такие получили дату при миграции.
+func (s *PasswordRotationService) expiredTargets(ctx context.Context, policy models.PasswordPolicy) ([]models.User, error) {
+	deadline := time.Now().AddDate(0, 0, -policy.RotationDays)
+	var users []models.User
+	err := s.db.WithContext(ctx).
+		Where("is_active = ? AND is_banned = ?", true, false).
+		Where("must_change_password = ?", false).
+		Where("password_changed_at IS NOT NULL AND password_changed_at < ?", deadline).
+		Order("id").Find(&users).Error
+	if err != nil {
+		return nil, fmt.Errorf("отбор работников с истёкшим паролем: %w", err)
+	}
+	return users, nil
+}
+
+// markOne помечает пароль одного работника истёкшим. Сессии здесь не обрываются,
+// в отличие от смены пароля: гейт висит на каждом защищённом запросе, поэтому уже
+// открытая вкладка упирается в форму смены на первом же обращении к серверу, а
+// маркер продления после смены пароля отзовётся сам.
+func (s *PasswordRotationService) markOne(ctx context.Context, u models.User, policy models.PasswordPolicy) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.User{}).Where("id = ?", u.ID).
+			Update("must_change_password", true).Error; err != nil {
+			return fmt.Errorf("отметка истёкшего пароля: %w", err)
+		}
+		s.recorder.Log(ctx, tx, models.AuditEntityUser, &u.ID, models.UserActionPasswordExpired, nil,
+			map[string]any{"rotation_days": policy.RotationDays})
+		return nil
+	})
+}
+
 // loginsWithoutEmail собирает логины действующих работников без адреса почты.
-// Их пароль не трогаем: сменить его - значит запереть человека снаружи.
+// Ручное обновление их пропускает: придуманный пароль выслать некуда, а сменить
+// его молча - значит запереть человека снаружи.
 func (s *PasswordRotationService) loginsWithoutEmail(ctx context.Context) ([]string, error) {
 	var logins []string
 	err := s.db.WithContext(ctx).Model(&models.User{}).
@@ -232,8 +321,9 @@ func (s *PasswordRotationService) loginsWithoutEmail(ctx context.Context) ([]str
 
 // rotateOne меняет пароль одному работнику. Пароль и письмо о нём попадают на
 // диск одной транзакцией: иначе сбой между ними оставит человека с паролем,
-// которого он не видел.
-func (s *PasswordRotationService) rotateOne(ctx context.Context, u models.User, policy models.PasswordPolicy) error {
+// которого он не видел. reason попадает в журнал действий - обновление всем и
+// сброс из карточки выглядят там одинаково, различает их только он.
+func (s *PasswordRotationService) rotateOne(ctx context.Context, u models.User, policy models.PasswordPolicy, reason string) error {
 	password := GeneratePassword(policy)
 	hashed := hashPassword(password)
 	now := time.Now()
@@ -258,7 +348,7 @@ func (s *PasswordRotationService) rotateOne(ctx context.Context, u models.User, 
 		}
 
 		s.recorder.Log(ctx, tx, models.AuditEntityUser, &u.ID, models.UserActionPasswordReset, nil,
-			map[string]any{"reason": "плановая смена"})
+			map[string]any{"reason": reason})
 
 		email := ""
 		if u.Email != nil {
@@ -315,16 +405,59 @@ func (s *PasswordRotationService) notifyRotated(ctx context.Context, u models.Us
 	}
 	data := string(payload)
 	if err := s.notifications.CreateForUser(ctx, u.ID, NotificationTypePasswordRotated,
-		"Пароль изменён по расписанию",
+		"Пароль изменён",
 		"Система сменила ваш пароль по правилам безопасности и отправила новый на вашу почту.",
 		&data); err != nil {
-		slog.Warn("плановая смена: уведомление не создано", "user_id", u.ID, "error", err)
+		slog.Warn("обновление паролей: уведомление не создано", "user_id", u.ID, "error", err)
 	}
 }
 
-// reportToAdmins рассылает итог прогона тем, кто отвечает за настройки.
+// reportMarkedToAdmins рассылает итог плановой проверки сроков. Письмо уходит,
+// только если почта настроена: сам прогон в ней не нуждается, и без неё
+// администратор получит один лишь отчёт внутри системы.
+func (s *PasswordRotationService) reportMarkedToAdmins(ctx context.Context, r *RotationResult) {
+	message := fmt.Sprintf("Помечено истёкшими паролей: %d. При следующем входе система попросит этих работников задать новый пароль.", r.Marked)
+	if r.Failed > 0 {
+		message += fmt.Sprintf(" Не удалось пометить: %d.", r.Failed)
+	}
+	s.notifyAdmins(ctx, "Плановая проверка сроков паролей выполнена", message)
+
+	if s.mail == nil || !s.mail.Enabled() {
+		return
+	}
+	for _, admin := range s.adminUsers(ctx) {
+		if admin.Email == nil || *admin.Email == "" {
+			continue
+		}
+		letter := MailMessage{
+			To:           *admin.Email,
+			Subject:      "Плановая проверка сроков паролей: итог прогона",
+			Body:         s.markReportLetterBody(r),
+			TemplateCode: MailTemplateRotationReport,
+			UserID:       &admin.ID,
+		}
+		if err := s.mail.Enqueue(ctx, nil, letter); err != nil {
+			slog.Warn("плановая проверка сроков: отчёт администратору не поставлен в очередь",
+				"user_id", admin.ID, "error", err)
+		}
+	}
+}
+
+func (s *PasswordRotationService) markReportLetterBody(r *RotationResult) string {
+	var b strings.Builder
+	b.WriteString("Плановая проверка сроков действия паролей завершена.\n\n")
+	fmt.Fprintf(&b, "  Помечено истёкшими: %d\n", r.Marked)
+	fmt.Fprintf(&b, "  Не удалось пометить: %d\n\n", r.Failed)
+	b.WriteString("Пароли этих работников не менялись и письмами не рассылались: каждый\n")
+	b.WriteString("входит своим прежним паролем, после чего система просит задать новый и\n")
+	b.WriteString("до этого никуда не пускает.\n")
+	return b.String()
+}
+
+// reportToAdmins рассылает итог ручного обновления паролей тем, кто отвечает за
+// настройки.
 func (s *PasswordRotationService) reportToAdmins(ctx context.Context, r *RotationResult) {
-	title := "Плановая смена паролей выполнена"
+	title := "Обновление паролей выполнено"
 	message := fmt.Sprintf("Сменено паролей: %d.", r.Changed)
 	if r.SkippedNoMail > 0 {
 		message += fmt.Sprintf(" Без адреса почты пропущено: %d.", r.SkippedNoMail)
@@ -341,13 +474,13 @@ func (s *PasswordRotationService) reportToAdmins(ctx context.Context, r *Rotatio
 		}
 		letter := MailMessage{
 			To:           *admin.Email,
-			Subject:      "Плановая смена паролей: итог прогона",
+			Subject:      "Обновление паролей: итог прогона",
 			Body:         s.reportLetterBody(r),
 			TemplateCode: MailTemplateRotationReport,
 			UserID:       &admin.ID,
 		}
 		if err := s.mail.Enqueue(ctx, nil, letter); err != nil {
-			slog.Warn("плановая смена: отчёт администратору не поставлен в очередь",
+			slog.Warn("обновление паролей: отчёт администратору не поставлен в очередь",
 				"user_id", admin.ID, "error", err)
 		}
 	}
@@ -355,7 +488,7 @@ func (s *PasswordRotationService) reportToAdmins(ctx context.Context, r *Rotatio
 
 func (s *PasswordRotationService) reportLetterBody(r *RotationResult) string {
 	var b strings.Builder
-	b.WriteString("Прогон плановой смены паролей завершён.\n\n")
+	b.WriteString("Прогон обновления паролей завершён.\n\n")
 	fmt.Fprintf(&b, "  Сменено паролей: %d\n", r.Changed)
 	fmt.Fprintf(&b, "  Не удалось сменить: %d\n", r.Failed)
 	fmt.Fprintf(&b, "  Пропущено без адреса почты: %d\n\n", r.SkippedNoMail)
@@ -372,9 +505,9 @@ func (s *PasswordRotationService) reportLetterBody(r *RotationResult) string {
 		if len(r.NoMailLogins) > len(shown) {
 			fmt.Fprintf(&b, "  ... и ещё %d\n", len(r.NoMailLogins)-len(shown))
 		}
-		b.WriteString("\nИм нужно указать адрес в карточке работника, иначе плановая смена\n")
-		b.WriteString("будет обходить их и дальше. Полный список - в разделе «Пользователи»,\n")
-		b.WriteString("режим «Без почты».\n")
+		b.WriteString("\nИм нужно указать адрес в карточке работника, иначе обновление паролей\n")
+		b.WriteString("будет обходить их и дальше: высылать придуманный пароль некуда. Полный\n")
+		b.WriteString("список - в разделе «Пользователи», режим «Без почты».\n")
 	}
 	return b.String()
 }
@@ -432,10 +565,11 @@ func (s *PasswordRotationService) RotateOne(ctx context.Context, username string
 	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&u).Error; err != nil {
 		return fmt.Errorf("работник %q не найден: %w", username, err)
 	}
-	// Архивные и заблокированные исключены здесь так же, как в прогоне: входить им
-	// некуда, а смена пароля отправила бы человеку письмо с доступом, которого у
-	// него нет. В интерфейсе кнопка у таких учётных записей и не показывается, но
-	// проверка нужна и на стороне сервера - иначе она обходится прямым запросом.
+	// Архивные и заблокированные исключены здесь так же, как в прогоне обновления:
+	// входить им некуда, а смена пароля отправила бы человеку письмо с доступом,
+	// которого у него нет. В интерфейсе кнопка у таких учётных записей и не
+	// показывается, но проверка нужна и на стороне сервера - иначе она обходится
+	// прямым запросом.
 	if !u.IsActive {
 		return fmt.Errorf("учётная запись %q в архиве, пароль не меняется", username)
 	}
@@ -446,7 +580,7 @@ func (s *PasswordRotationService) RotateOne(ctx context.Context, username string
 		return fmt.Errorf("у работника %q не указан адрес почты, отправить новый пароль некуда", username)
 	}
 	policy := s.settings.GetPasswordPolicy()
-	if err := s.rotateOne(ctx, u, policy); err != nil {
+	if err := s.rotateOne(ctx, u, policy, "сброс пароля из карточки работника"); err != nil {
 		return err
 	}
 	s.notifyRotated(ctx, u)
@@ -457,6 +591,9 @@ func (s *PasswordRotationService) RotateOne(ctx context.Context, username string
 // NotifyExpiring предупреждает тех, у кого срок истекает в ближайшие
 // rotation_notify_days_before суток. Письмо без пароля: оно уходит заранее и
 // может пролежать в ящике неделю.
+//
+// Адрес почты обязателен - это и есть канал предупреждения. Работник без адреса
+// узнает об истечении на входе, когда система попросит задать новый пароль.
 func (s *PasswordRotationService) NotifyExpiring(ctx context.Context) {
 	policy := s.settings.GetPasswordPolicy()
 	if !policy.RotationEnabled || policy.RotationNotifyDaysBefore <= 0 {
@@ -496,7 +633,7 @@ func (s *PasswordRotationService) NotifyExpiring(ctx context.Context) {
 			continue
 		}
 		if s.notifications != nil {
-			msg := fmt.Sprintf("Срок действия пароля истекает %s. Смените его сами, чтобы система не меняла его за вас.",
+			msg := fmt.Sprintf("Срок действия пароля истекает %s. Смените его заранее, иначе при следующем входе система попросит сделать это сразу.",
 				expiresAt.Format("02.01.2006"))
 			if err := s.notifications.CreateForUser(ctx, u.ID, NotificationTypePasswordExpiring,
 				"Пароль скоро истечёт", msg, nil); err != nil {
@@ -526,9 +663,10 @@ func (s *PasswordRotationService) alreadyWarned(ctx context.Context, userID int)
 func (s *PasswordRotationService) expiringLetterBody(u models.User, expiresAt time.Time) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Здравствуйте, %s.\n\n", addressee(u))
-	fmt.Fprintf(&b, "Срок действия вашего пароля истекает %s. После этого система сменит\n", expiresAt.Format("02.01.2006"))
-	b.WriteString("его сама и пришлёт новый письмом.\n\n")
-	b.WriteString("Чтобы этого не произошло, смените пароль заранее: личный кабинет,\n")
+	fmt.Fprintf(&b, "Срок действия вашего пароля истекает %s. После этого система при\n", expiresAt.Format("02.01.2006"))
+	b.WriteString("следующем входе попросит задать новый пароль и до тех пор никуда\n")
+	b.WriteString("не пустит. Прежний пароль остаётся рабочим - им вы и войдёте.\n\n")
+	b.WriteString("Чтобы не делать это на бегу, смените пароль заранее: личный кабинет,\n")
 	b.WriteString("кнопка «Сменить пароль». Отсчёт срока начнётся заново.\n")
 	if s.baseURL != "" {
 		fmt.Fprintf(&b, "\nАдрес системы: %s\n", s.baseURL)

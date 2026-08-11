@@ -133,21 +133,22 @@ func TestRotationStatus_CountsUsers(t *testing.T) {
 	mk("rot_expired_two", "two@example.org", longAgo, true, false)
 	mk("rot_fresh", "three@example.org", recent, true, false)
 	mk("rot_no_email", "", longAgo, true, false)
-	// Архивный и заблокированный не должны попасть никуда: плановая смена их не
+	// Архивный и заблокированный не должны попасть никуда: плановая проверка их не
 	// касается, им и входить некуда.
 	mk("rot_archived", "four@example.org", longAgo, false, false)
 	mk("rot_banned", "five@example.org", longAgo, true, true)
 
 	after := readStatus()
 
-	assert.Equal(t, 2, num(after, "expired")-num(before, "expired"),
-		"под смену подпадают только двое просроченных активных с почтой")
+	assert.Equal(t, 3, num(after, "expired")-num(before, "expired"),
+		"срок вышел у троих действующих, адрес почты тут ни при чём - писем прогон не шлёт")
 	assert.Equal(t, 1, num(after, "without_email")-num(before, "without_email"))
 	assert.Equal(t, 3, num(after, "eligible")-num(before, "eligible"),
-		"активные с почтой: два просроченных и один свежий")
+		"ручному обновлению доступны активные с почтой: два просроченных и один свежий")
 
-	// Почта в тестовом приложении не настроена - значит включать смену нельзя, и
-	// интерфейс обязан это знать.
+	// Почта в тестовом приложении не настроена. Плановой проверке она не нужна, но
+	// интерфейс обязан знать, что предупреждения заранее и ручное обновление
+	// паролей сейчас недоступны.
 	assert.Equal(t, false, after["mail_configured"])
 	assert.NotEmpty(t, after["next_run_at"])
 }
@@ -173,7 +174,7 @@ func TestRotationStatus_NextRunIsFuture(t *testing.T) {
 	testutil.CleanDB(t, db)
 
 	// Конфигурация нужна сервису настроек для дефолтов загрузки файлов; для
-	// плановой смены важны только ключи password.*, они не из конфигурации.
+	// проверки сроков важны только ключи password.*, они не из конфигурации.
 	cfg := &config.Config{UploadMaxFileSize: 10485760}
 	svc := services.NewPasswordRotationStatusService(db, services.NewSettingsService(db, cfg), nil, time.UTC)
 	status, err := svc.Get(t.Context())

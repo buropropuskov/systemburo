@@ -97,6 +97,16 @@ type Config struct {
 	// выгрузка на диск не могла уронить подачу заявки.
 	ArchiveSweepInterval time.Duration `env:"ARCHIVE_SWEEP_INTERVAL" envDefault:"5m"`
 
+	// EntityExportPath - корень пакетов консольной выгрузки данных по сущности
+	// (server entity export). Пусто по умолчанию намеренно: в пакете лежат все
+	// персональные данные организации разом, и подставлять ему каталог «по
+	// умолчанию» рядом с кодом нельзя - место хранения выбирает тот, кто
+	// разворачивает систему. Пока значение не задано, команда выгрузки отказывает
+	// с подсказкой, а не пишет пакет наугад.
+	//
+	// Каталог обязан лежать вне UploadPath по той же причине, что и ARCHIVE_PATH.
+	EntityExportPath string `env:"ENTITY_EXPORT_PATH" envDefault:""`
+
 	// CookieSecure управляет флагом Secure на refresh-cookie. На staging/prod
 	// всегда true (HTTPS). На локальной разработке (http://localhost) - false,
 	// иначе браузер не отправит cookie.
@@ -269,6 +279,9 @@ func (c *Config) Validate() error {
 	if err := validateArchiveOutsideUploads(c.ArchivePath, c.UploadPath); err != nil {
 		return err
 	}
+	if err := validateExportOutsideUploads(c.EntityExportPath, c.UploadPath); err != nil {
+		return err
+	}
 	if (c.VAPIDPublicKey == "") != (c.VAPIDPrivateKey == "") {
 		return fmt.Errorf("VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be set together (both empty disables push)")
 	}
@@ -319,6 +332,35 @@ func validateArchiveOutsideUploads(archivePath, uploadPath string) error {
 		return fmt.Errorf("ARCHIVE_PATH (%s) must not be inside UPLOAD_PATH (%s): uploads are served without authorization, blanks contain personal data", archiveAbs, uploadAbs)
 	case isInside(uploadAbs, archiveAbs):
 		return fmt.Errorf("UPLOAD_PATH (%s) must not be inside ARCHIVE_PATH (%s)", uploadAbs, archiveAbs)
+	}
+	return nil
+}
+
+// validateExportOutsideUploads держит каталог пакетов выгрузки вне каталога загрузок.
+//
+// Та же защита, что у архива бланков, и по той же причине: загрузки раздаются статикой
+// до проверки авторизации. Разница в цене ошибки - в пакете лежит весь набор данных
+// организации сразу, включая файлы заявок, поэтому каталог внутри загрузок означал бы
+// выдачу всей выгрузки по прямой ссылке.
+func validateExportOutsideUploads(exportPath, uploadPath string) error {
+	if exportPath == "" || uploadPath == "" {
+		return nil
+	}
+
+	exportAbs, err := resolvePath(exportPath)
+	if err != nil {
+		return fmt.Errorf("ENTITY_EXPORT_PATH: %w", err)
+	}
+	uploadAbs, err := resolvePath(uploadPath)
+	if err != nil {
+		return fmt.Errorf("UPLOAD_PATH: %w", err)
+	}
+
+	switch {
+	case exportAbs == uploadAbs, isInside(exportAbs, uploadAbs):
+		return fmt.Errorf("ENTITY_EXPORT_PATH (%s) must be outside UPLOAD_PATH (%s): uploads are served without authorization, an export package holds the whole personal data set of an entity", exportAbs, uploadAbs)
+	case isInside(uploadAbs, exportAbs):
+		return fmt.Errorf("UPLOAD_PATH (%s) must not be inside ENTITY_EXPORT_PATH (%s)", uploadAbs, exportAbs)
 	}
 	return nil
 }
