@@ -53,6 +53,19 @@ type User struct {
 	// LastFailedLoginAt - момент последней неудачной попытки. Держит окно
 	// накопления счётчика и точку отсчёта для затухания ступени.
 	LastFailedLoginAt *time.Time `json:"-"`
+	// PasswordChangedAt - когда пароль менялся в последний раз (#1907). От неё
+	// считается срок действия при плановой смене: график индивидуальный, у каждого
+	// свой отсчёт. Существующим учётным записям проставлена дата внедрения, а не
+	// дата создания - иначе в день включения ротации истекли бы разом все старые.
+	PasswordChangedAt *time.Time `gorm:"index" json:"-"`
+	// MustChangePassword - при следующем входе система потребует задать свой пароль.
+	// Ставится плановой сменой: перехваченное письмо тогда даёт доступ только до
+	// того, как войдёт владелец.
+	MustChangePassword bool `gorm:"default:false;index" json:"-"`
+	// PasswordRotatedAt - когда пароль в последний раз менялся ПЛАНОВО, самой
+	// системой. Отличается от PasswordChangedAt, которую двигает и обычная смена:
+	// по ней видно, дошла ли ротация до конкретного человека.
+	PasswordRotatedAt *time.Time `json:"-"`
 	// OnboardingCompletedVersion - версия онбординг-тура, которую прошёл юзер.
 	// null = не проходил. Хранится per-user (а не per-browser), чтобы тур не
 	// сбрасывался при смене устройства; при подъёме версии шагов тур показывается заново.
@@ -188,7 +201,15 @@ type RecipientCandidate struct {
 	FirstName  *string `json:"first_name"`
 	MiddleName *string `json:"middle_name"`
 	Position   *string `json:"position"`
+	// Organization и Company названы как в UserInfoResponse, а не organization_name
+	// соседних ответов: окно пересылки получает оба ответа в ОДИН проп allUsers
+	// (носителю page.admin.users - /users/all, остальным - кандидатов), и второе имя
+	// того же поля потребовало бы развилки в каждом месте, где окно его читает.
+	Organization *string `json:"organization"`
+	Company      *string `json:"company"`
 	// PDHidden -- ФИО скрыто: работник не дал согласия на обработку ПД (#1567).
+	// Организацию и компанию согласие не закрывает: это данные работодателя, а не
+	// работника, и в администраторском списке они видны у скрытого работника тоже.
 	PDHidden bool `json:"pd_hidden"`
 }
 

@@ -248,18 +248,32 @@ func (s *userService) Create(ctx context.Context, callerUserID int, req models.R
 		return err
 	}
 
+	// Адрес почты проверяется на формат и занятость (#1908) - тем же кодом, что и
+	// при правке карточки, иначе мусор заезжал бы через форму создания.
+	if req.Email != nil {
+		normalized, err := validateUserEmail(ctx, s.db, *req.Email, 0)
+		if err != nil {
+			return err
+		}
+		req.Email = &normalized
+	}
+
+	// Отсчёт срока действия пароля начинается с момента заведения учётной записи
+	// (#1907): иначе новый работник попадал бы под первую же плановую смену.
+	passwordSetAt := time.Now()
 	user := models.User{
-		Username:       req.Username,
-		Password:       hashPassword(req.Password),
-		OrganizationID: intPtrOrNil(req.OrganizationID),
-		CompanyID:      intPtrOrNil(req.CompanyID),
-		TypeID:         req.TypeID,
-		LastName:       req.LastName,
-		FirstName:      req.FirstName,
-		MiddleName:     req.MiddleName,
-		Position:       req.Position,
-		Email:          req.Email,
-		Phone:          req.Phone,
+		Username:          req.Username,
+		Password:          hashPassword(req.Password),
+		PasswordChangedAt: &passwordSetAt,
+		OrganizationID:    intPtrOrNil(req.OrganizationID),
+		CompanyID:         intPtrOrNil(req.CompanyID),
+		TypeID:            req.TypeID,
+		LastName:          req.LastName,
+		FirstName:         req.FirstName,
+		MiddleName:        req.MiddleName,
+		Position:          req.Position,
+		Email:             req.Email,
+		Phone:             req.Phone,
 	}
 	if err := s.db.WithContext(ctx).Create(&user).Error; err != nil {
 		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
@@ -393,10 +407,17 @@ func (s *userService) UpdatePassword(ctx context.Context, callerUserID int, user
 
 	hashed := hashPassword(req.Password)
 
+	// Дата смены двигается вместе с паролем (#1907): от неё считается срок
+	// действия при плановой смене. Требование задать свой пароль снимается здесь
+	// же - человек только что его и задал.
 	if err := s.db.WithContext(ctx).
 		Table("users").
 		Where("username = ?", username).
-		Update("password", hashed).Error; err != nil {
+		Updates(map[string]any{
+			"password":             hashed,
+			"password_changed_at":  time.Now(),
+			"must_change_password": false,
+		}).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating password")
 	}
 
@@ -566,7 +587,13 @@ func (s *userService) UpdateInfo(ctx context.Context, callerUserID int, username
 	// Контакты скрываются вместе с ФИО, и правило для них то же: нет поля в
 	// запросе - не трогаем, пустая строка по-прежнему очищает.
 	if req.Email != nil {
-		updates["email"] = *req.Email
+		// Адрес проверяется на формат и на занятость (#1908): он стал каналом
+		// доставки паролей, и опечатка в нём означает пароль в никуда.
+		normalized, err := validateUserEmail(ctx, s.db, *req.Email, s.targetUserID(ctx, username))
+		if err != nil {
+			return err
+		}
+		updates["email"] = normalized
 	}
 	if req.Phone != nil {
 		updates["phone"] = *req.Phone

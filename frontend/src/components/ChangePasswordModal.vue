@@ -1,8 +1,12 @@
 <template>
   <BaseModal
     :show="show"
-    title="Смена пароля"
-    width="420px"
+    :title="mandatory ? 'Задайте свой пароль' : 'Смена пароля'"
+    width="480px"
+    radius="30px"
+    :closable="!mandatory"
+    :close-on-overlay="!mandatory"
+    :z-index="mandatory ? 25400 : 1000"
     content-testid="change-password-modal"
     @close="$emit('close')"
   >
@@ -10,6 +14,15 @@
       class="cp-form"
       @submit.prevent="submit"
     >
+      <p
+        v-if="mandatory"
+        class="cp-reason"
+        data-testid="cp-reason"
+      >
+        Присланный пароль лежит в почтовом ящике открытым текстом, поэтому действует
+        только до первой смены. Пока свой пароль не задан, разделы системы закрыты.
+      </p>
+
       <label class="cp-field">
         <span class="cp-label">Текущий пароль</span>
         <PasswordInput
@@ -38,23 +51,36 @@
         />
       </label>
 
-      <ul
-        class="cp-rules"
-        data-testid="cp-rules"
-      >
-        <li
-          v-for="rule in rules"
-          :key="rule.key"
-          :class="{ 'cp-rule--ok': rule.ok }"
+      <div class="cp-checklist">
+        <span class="cp-checklist__title">Требования к паролю</span>
+        <ul
+          class="cp-rules"
+          data-testid="cp-rules"
         >
-          <span aria-hidden="true">{{ rule.ok ? '✓' : '○' }}</span>
-          {{ rule.label }}
-        </li>
-        <li :class="{ 'cp-rule--ok': repeatMatches }">
-          <span aria-hidden="true">{{ repeatMatches ? '✓' : '○' }}</span>
-          Пароли совпадают
-        </li>
-      </ul>
+          <li
+            v-for="rule in rules"
+            :key="rule.key"
+            class="cp-rule"
+            :class="{ 'cp-rule--ok': rule.ok }"
+          >
+            <span
+              class="cp-rule__mark"
+              aria-hidden="true"
+            >{{ rule.ok ? '✓' : '' }}</span>
+            {{ rule.label }}
+          </li>
+          <li
+            class="cp-rule"
+            :class="{ 'cp-rule--ok': repeatMatches }"
+          >
+            <span
+              class="cp-rule__mark"
+              aria-hidden="true"
+            >{{ repeatMatches ? '✓' : '' }}</span>
+            Пароли совпадают
+          </li>
+        </ul>
+      </div>
 
       <p class="cp-note">
         После смены пароля вход на всех устройствах потребуется выполнить заново.
@@ -63,12 +89,25 @@
 
     <template #actions>
       <button
+        v-if="!mandatory"
         type="button"
         class="lk-button lk-button--ghost"
         :disabled="saving"
         @click="$emit('close')"
       >
         Отмена
+      </button>
+      <!-- Обязательное окно закрыть нечем, поэтому выход обязан быть внутри него:
+           иначе человек, не нашедший письмо, заперт в форме без единого действия. -->
+      <button
+        v-else
+        type="button"
+        class="lk-button lk-button--ghost"
+        :disabled="saving"
+        data-testid="cp-logout"
+        @click="$emit('logout')"
+      >
+        Выйти
       </button>
       <button
         type="button"
@@ -97,8 +136,12 @@ export default {
   components: { BaseModal, PasswordInput },
   props: {
     show: { type: Boolean, required: true },
+    // Обязательная смена (#1911): окно нельзя закрыть ни крестиком, ни по затемнению,
+    // ни Escape, и отмены у него нет - до смены пароля система всё равно отвечает
+    // отказом, и закрытое окно оставило бы человека перед пустым экраном.
+    mandatory: { type: Boolean, default: false },
   },
-  emits: ['close', 'changed'],
+  emits: ['close', 'changed', 'logout'],
   data() {
     return {
       currentPassword: '',
@@ -189,17 +232,36 @@ export default {
 .cp-form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 .cp-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
 }
 
 .cp-label {
   font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* Требования - отдельной карточкой, а не хвостом формы: человек читает их, пока
+   набирает пароль, и они не должны сливаться с полями. */
+.cp-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.cp-checklist__title {
+  font-size: 12px;
+  font-weight: 500;
   color: var(--text-muted);
 }
 
@@ -207,26 +269,59 @@ export default {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 6px 14px;
   font-size: 13px;
-  color: var(--text-muted);
 }
 
-.cp-rules li {
+.cp-rule {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  color: var(--text-muted);
+  transition: color 0.15s ease;
+}
+
+/* Кружок-заглушка и галочка занимают одно место, поэтому строка не дёргается,
+   когда требование выполняется. */
+.cp-rule__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  line-height: 1;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .cp-rule--ok {
-  color: var(--success-text);
+  color: var(--text);
+}
+
+.cp-rule--ok .cp-rule__mark {
+  background: var(--success);
+  border-color: var(--success);
+  color: #fff;
 }
 
 .cp-note {
   margin: 0;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.cp-reason {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
 }
 </style>

@@ -65,14 +65,6 @@ test.describe('Misc API endpoints', () => {
     expect(Array.isArray(data)).toBeTruthy();
   });
 
-  test('GET /permissions/tree возвращает дерево прав', async ({ request }) => {
-    const token = await loginAsSuperAdmin(request);
-    const res = await request.get(`${API_BASE}/permissions/tree`, { headers: headers(token) });
-    expect(res.ok()).toBeTruthy();
-    const data = (await res.json()).data;
-    expect(data).toBeTruthy();
-  });
-
   test('GET /permissions/my отдаёт режим super для суперадмина (bypass)', async ({ request }) => {
     const token = await loginAsSuperAdmin(request);
     const res = await request.get(`${API_BASE}/permissions/my`, { headers: headers(token) });

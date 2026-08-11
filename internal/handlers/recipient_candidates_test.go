@@ -25,6 +25,19 @@ func usernamesOf(list []map[string]any) map[string]bool {
 	return found
 }
 
+// candidateBy достаёт кандидата по логину: порядок в ответе задаёт сортировка по
+// видимому ФИО, и опираться на позицию в списке нельзя.
+func candidateBy(t *testing.T, list []map[string]any, username string) map[string]any {
+	t.Helper()
+	for _, item := range list {
+		if login, _ := item["username"].(string); login == username {
+			return item
+		}
+	}
+	t.Fatalf("кандидат %s не найден в ответе", username)
+	return nil
+}
+
 func seedOrgAndCompany(t *testing.T, db *gorm.DB, name string) (int, int) {
 	t.Helper()
 	org := models.Organization{Name: name + " Org"}
@@ -84,6 +97,59 @@ func TestRecipientCandidates_SkipsArchivedAndBanned(t *testing.T) {
 	assert.True(t, found["rc2_active"], "активный коллега на месте")
 	assert.False(t, found["rc2_archived"], "архивный не предлагается")
 	assert.False(t, found["rc2_banned"], "заблокированный не предлагается")
+}
+
+// TestRecipientCandidates_CarryOrganization: кандидат приезжает с названием организации
+// и компании. Окно пересылки рисует организацию строкой под именем и ищет по ней; пока
+// получатели брались из админского /users/all, она приходила оттуда, и после перехода на
+// кандидатов строка пропала, а поиск по названию перестал что-либо находить.
+func TestRecipientCandidates_CarryOrganization(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	otherOrgID, otherCompanyID := seedOrgAndCompany(t, db, "Manager")
+
+	tenantToken := testutil.RegisterAndLogin(t, e, "rc4_tenant", "pass123", 2, td.OrgID, td.CompanyID)
+	testutil.RegisterUser(t, e, "rc4_colleague", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.RegisterManager(t, e, "rc4_boss", otherOrgID, otherCompanyID)
+
+	rec := testutil.GET(t, e, "/users/recipient-candidates", testutil.AuthHeader(tenantToken))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	list := testutil.ParseSlice(t, rec)
+
+	colleague := candidateBy(t, list, "rc4_colleague")
+	assert.Equal(t, "Test Organization", colleague["organization"], "организация коллеги приезжает вместе с ним")
+	assert.Equal(t, "Test Company", colleague["company"], "компания коллеги - тоже")
+
+	boss := candidateBy(t, list, "rc4_boss")
+	assert.Equal(t, "Manager Org", boss["organization"], "у руководителя показывается его собственная организация")
+}
+
+// TestRecipientCandidates_MaskedKeepsOrganization: у работника без согласия на обработку
+// ПД скрыто ФИО, но не организация - её маскировка #1567 не закрывает ни здесь, ни в
+// администраторском списке, и без неё «@логин» в выборе получателя не с чем сопоставить.
+func TestRecipientCandidates_MaskedKeepsOrganization(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	enableConsent(t, e, admin, "<p>Согласие</p>")
+
+	tenantToken := testutil.RegisterAndLogin(t, e, "rc5_tenant", "pass123", 2, td.OrgID, td.CompanyID)
+	testutil.RegisterUser(t, e, "rc5_silent", "pass123", 1, td.OrgID, td.CompanyID)
+	setUserName(t, db, "rc5_silent", "Молчанов", "Пётр", "Петрович")
+	// Запрашивающий согласие дал: без него гейт не пустит его дальше формы согласия.
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(tenantToken)).Code)
+
+	rec := testutil.GET(t, e, "/users/recipient-candidates", testutil.AuthHeader(tenantToken))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	silent := candidateBy(t, testutil.ParseSlice(t, rec), "rc5_silent")
+	assert.Nil(t, silent["last_name"], "ФИО работника без согласия по-прежнему скрыто")
+	assert.Equal(t, true, silent["pd_hidden"], "признак скрытых данных на месте")
+	assert.Equal(t, "Test Organization", silent["organization"], "организация видна и у скрытого работника")
 }
 
 // TestSubmitCompleteApplication_DropsForeignReader: подделанный readers не открывает

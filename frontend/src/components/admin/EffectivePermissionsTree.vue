@@ -108,14 +108,13 @@
 
 <script>
 import EffectivePermissionRow from './EffectivePermissionRow.vue';
-import { parseTablePermission } from '@/utils/permissionCatalog';
+import { parseTableKey, parseTablePermission } from '@/utils/permissionCatalog';
 
 /**
  * Презентационный правый столбец модалки прав: дерево эффективных прав из каталога
  * с бейджем источника (роль/группа/лично/админ) и тумблером на каждое право.
  * Вся бизнес-логика (режим/наследование/override) считается в UserAccessModal и
- * приходит готовой в stateByKey -- здесь только отрисовка. Изолирован от
- * PermissionTree.vue (тот шарится с AdminPermissionGroups в checkbox-виде).
+ * приходит готовой в stateByKey -- здесь только отрисовка.
  *
  * Права системных таблиц (table.<slug>.<verb>) собираются во второй уровень: на
  * таблицу их приходит десяток, и плоским списком один пост занимал 20 строк
@@ -163,39 +162,54 @@ export default {
     /**
      * Строки секции: право таблицы уходит в группу по слагу (позицию занимает
      * первое право этой таблицы), всё остальное остаётся строкой верхнего уровня.
+     *
+     * Группа собирается по слагу из ключа, а не по успеху полного разбора: право
+     * с глаголом вне словаря (в базе живут legacy `table.<slug>.edit`) иначе
+     * висело бы отдельной строкой рядом со своей же таблицей, и администратор
+     * читал бы её как поломку. Такому праву достаётся пустая подпись -- строка
+     * покажет display_name от бэкенда, единственный источник смысла для
+     * незнакомого глагола. Слаг из ключа не выводится -- строка остаётся наверху.
      */
     buildEntries(nodes) {
       const entries = [];
       const groups = new Map();
       for (const node of nodes) {
-        const table = parseTablePermission(node);
-        if (!table) {
+        const parsed = parseTableKey(node.key);
+        if (!parsed) {
           entries.push({ type: 'node', id: node.key, node });
           continue;
         }
-        let group = groups.get(table.slug);
+        const table = parseTablePermission(node);
+        let group = groups.get(parsed.slug);
         if (!group) {
           group = {
             type: 'table',
-            id: `table::${table.slug}`,
-            domId: `ep-group-${table.slug.replace(/[^a-zA-Z0-9_-]/g, '-')}`,
-            slug: table.slug,
-            name: table.tableName,
+            id: `table::${parsed.slug}`,
+            domId: `ep-group-${parsed.slug.replace(/[^a-zA-Z0-9_-]/g, '-')}`,
+            slug: parsed.slug,
+            name: '',
             nodes: [],
           };
-          groups.set(table.slug, group);
+          groups.set(parsed.slug, group);
           entries.push(group);
         }
-        group.nodes.push({ node, label: table.verbTitle });
+        if (!group.name && table) group.name = table.tableName;
+        group.nodes.push({ node, label: table ? table.verbTitle : '' });
       }
-      for (const group of groups.values()) this.countGroup(group);
+      for (const group of groups.values()) {
+        // Ни одно право таблицы не разобралось целиком -- живого имени взять
+        // неоткуда, показываем слаг: он хотя бы совпадает с ключами внутри.
+        if (!group.name) group.name = group.slug;
+        this.countGroup(group);
+      }
       return entries;
     },
     /**
      * Счётчик группы. Заблокированные права идут в «выдано» (они действуют, просто
-     * приходят из роли или группы), но не в число переключаемых. Считается по тем
-     * узлам, что реально пришли в catalog: при активном поиске это отфильтрованный
-     * набор, и счётчик описывает ровно видимые строки, а не всю таблицу.
+     * приходят из роли или группы), но не в число переключаемых. Знаменатель --
+     * число прав этой таблицы, реально пришедших в catalog, а не длина словаря
+     * глаголов: новый глагол на бэкенде увеличивает его сам, а при активном поиске
+     * счётчик описывает ровно видимые строки, а не всю таблицу.
      */
     countGroup(group) {
       let granted = 0;

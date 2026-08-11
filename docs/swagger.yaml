@@ -1581,6 +1581,8 @@ definitions:
     type: object
   models.RecipientCandidate:
     properties:
+      company:
+        type: string
       first_name:
         type: string
       id:
@@ -1589,9 +1591,18 @@ definitions:
         type: string
       middle_name:
         type: string
+      organization:
+        description: |-
+          Organization и Company названы как в UserInfoResponse, а не organization_name
+          соседних ответов: окно пересылки получает оба ответа в ОДИН проп allUsers
+          (носителю page.admin.users - /users/all, остальным - кандидатов), и второе имя
+          того же поля потребовало бы развилки в каждом месте, где окно его читает.
+        type: string
       pd_hidden:
-        description: 'PDHidden -- ФИО скрыто: работник не дал согласия на обработку
-          ПД (#1567).'
+        description: |-
+          PDHidden -- ФИО скрыто: работник не дал согласия на обработку ПД (#1567).
+          Организацию и компанию согласие не закрывает: это данные работодателя, а не
+          работника, и в администраторском списке они видны у скрытого работника тоже.
         type: boolean
       position:
         type: string
@@ -4733,6 +4744,37 @@ definitions:
         type: integer
     required:
     - comment
+    type: object
+  services.PasswordRotationStatus:
+    properties:
+      eligible:
+        description: |-
+          Eligible - активные незаблокированные работники с адресом почты, то есть те,
+          кого механизм в принципе может обслужить.
+        type: integer
+      enabled:
+        type: boolean
+      expired:
+        description: Expired - у скольких срок уже вышел. Это и есть размер ближайшего
+          прогона.
+        type: integer
+      expiring_soon:
+        description: ExpiringSoon - у скольких истечёт в окне предупреждения.
+        type: integer
+      mail_configured:
+        description: MailConfigured - настроена ли отправка почты. Без неё смена не
+          запускается.
+        type: boolean
+      next_run_at:
+        description: NextRunAt - когда планировщик проснётся в следующий раз.
+        type: string
+      rotation_days:
+        type: integer
+      without_email:
+        description: |-
+          WithoutEmail - активные незаблокированные без адреса. Их пароль не трогается,
+          и адреса им должно проставить бюро.
+        type: integer
     type: object
   services.QuestionAttachmentItem:
     properties:
@@ -15458,6 +15500,81 @@ paths:
       summary: Сквозной поиск по системе
       tags:
       - search
+  /settings/mail/status:
+    get:
+      description: Сообщает, настроена ли отправка писем (задан ли SMTP_HOST).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: boolean
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Состояние настройки почты
+      tags:
+      - settings
+  /settings/password-rotation/run:
+    post:
+      description: 'Ручной прогон плановой смены: меняет пароли всем действующим работникам
+        с адресом почты, не дожидаясь срока. Возвращает управление сразу, письма ставятся
+        в очередь.'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "412":
+          description: Precondition Failed
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Сменить пароли всем работникам
+      tags:
+      - settings
+  /settings/password-rotation/status:
+    get:
+      description: Настроена ли почта, когда ближайшая проверка сроков и скольких
+        работников она затронет.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.PasswordRotationStatus'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Состояние плановой смены паролей
+      tags:
+      - settings
   /statistics/insights:
     get:
       description: 'Готовые инсайты за период: пик по часам, сравнение с прошлым периодом,
@@ -19594,6 +19711,40 @@ paths:
       security:
       - BearerAuth: []
       summary: Восстановление пользователя из архива
+      tags:
+      - users
+  /users/{username}/rotate-password:
+    post:
+      description: Генерирует пароль по действующей политике, меняет его и отправляет
+        работнику на почту. Требует настроенной почты и указанного адреса.
+      parameters:
+      - description: Имя пользователя
+        in: path
+        name: username
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Password rotated
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "412":
+          description: Precondition Failed
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Сменить пароль работнику и отправить письмом
       tags:
       - users
   /users/{username}/tables:

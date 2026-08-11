@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"systemburo/internal/models"
@@ -12,6 +13,14 @@ import (
 // UsersHandler — HTTP-обработчики управления пользователями (admin-only).
 type UsersHandler struct {
 	service services.UserService
+	// rotation - смена пароля с отправкой письмом (#1910). Подключается сеттером:
+	// сервис создаётся позже хендлера, а в тестах его может не быть.
+	rotation *services.PasswordRotationService
+}
+
+// SetRotationService подключает сервис смены пароля с отправкой письмом.
+func (h *UsersHandler) SetRotationService(s *services.PasswordRotationService) {
+	h.rotation = s
 }
 
 // NewUsersHandler создаёт новый экземпляр обработчика пользователей.
@@ -530,4 +539,35 @@ func (h *UsersHandler) SetUserTables(c echo.Context) error {
 		return err
 	}
 	return RespondMessage(c, "Tables updated successfully")
+}
+
+// RotatePassword godoc
+// @Summary      Сменить пароль работнику и отправить письмом
+// @Description  Генерирует пароль по действующей политике, меняет его и отправляет работнику на почту. Требует настроенной почты и указанного адреса.
+// @Tags         users
+// @Produce      json
+// @Security     BearerAuth
+// @Param        username path string true "Имя пользователя"
+// @Success      200 {string} string "Password rotated"
+// @Failure      400 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      412 {object} models.HTTPError
+// @Router       /users/{username}/rotate-password [post]
+//
+// RotatePassword меняет пароль работнику и отправляет его письмом. Закрывает
+// случай «работник потерял пароль»: до этого пароль придумывали руками и
+// диктовали по телефону, то есть он проходил через третьи уши.
+func (h *UsersHandler) RotatePassword(c echo.Context) error {
+	if h.rotation == nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "Смена пароля с отправкой письмом недоступна")
+	}
+	username := c.Param("username")
+	if err := h.rotation.RotateOne(c.Request().Context(), username, GetUserID(c)); err != nil {
+		if errors.Is(err, services.ErrRotationMailNotConfigured) {
+			return echo.NewHTTPError(http.StatusPreconditionFailed,
+				"Почта не настроена: отправить новый пароль нечем")
+		}
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	return RespondMessage(c, "Password rotated")
 }

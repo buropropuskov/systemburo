@@ -14,8 +14,9 @@ vi.mock('@/router', () => ({
   },
 }));
 
-import { apiRequest, apiRequestRaw, createExtendedTimeoutSignal, _resetDedup403 } from '../client';
+import { apiRequest, apiRequestRaw, createExtendedTimeoutSignal, _resetDedup403, SILENT_403_PREFIXES } from '../client';
 import { usePDConsentStore } from '@/stores/pdConsent';
+import { usePasswordChangeStore } from '@/stores/passwordChange';
 
 function okJson(body, init = {}) {
   return new Response(JSON.stringify(body), {
@@ -332,6 +333,49 @@ describe('403 handling', () => {
     expect(notifyMock).toHaveBeenCalled();
   });
 
+  // #1911: гейт обязательной смены пароля отбивает запросы 403 с кодом
+  // PASSWORD_CHANGE_REQUIRED. Клиент поднимает флаг и молчит - иначе вместо окна
+  // смены человек получает стену «Недостаточно прав» и не понимает, что от него ждут.
+  it('код PASSWORD_CHANGE_REQUIRED в теле поднимает флаг смены пароля и не тостит', async () => {
+    fetchMock.mockResolvedValueOnce(errJson({ success: false, code: 'PASSWORD_CHANGE_REQUIRED' }, 403));
+
+    await apiRequest('/applications', { method: 'POST' });
+
+    expect(notifyMock).not.toHaveBeenCalled();
+    expect(usePasswordChangeStore().required).toBe(true);
+  });
+
+  it('маркер смены пароля в заголовке распознаётся так же, как в теле', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('', {
+      status: 403,
+      headers: { 'Content-Type': 'application/json', 'X-Password-Change-Required': '1' },
+    }));
+
+    await apiRequest('/notifications');
+
+    expect(notifyMock).not.toHaveBeenCalled();
+    expect(usePasswordChangeStore().required).toBe(true);
+  });
+
+  it('обычный 403 без маркера флаг смены пароля не трогает', async () => {
+    fetchMock.mockResolvedValueOnce(errJson({ banned: false }, 403));
+
+    await apiRequest('/applications/1/confirm-pass', { method: 'POST' });
+
+    expect(usePasswordChangeStore().required).toBe(false);
+    expect(notifyMock).toHaveBeenCalled();
+  });
+
+  // Гейт согласия стоит на сервере раньше, и его маркер не должен путаться с этим:
+  // иначе окно согласия подменилось бы окном смены пароля.
+  it('маркер согласия не поднимает флаг смены пароля', async () => {
+    fetchMock.mockResolvedValueOnce(errJson({ success: false, consent_required: true }, 403));
+
+    await apiRequest('/applications', { method: 'POST' });
+
+    expect(usePasswordChangeStore().required).toBe(false);
+  });
+
   it('не вызывает notify для билета real-time потока (/events/ticket)', async () => {
     fetchMock.mockResolvedValueOnce(errJson({ banned: false }, 403));
 
@@ -372,6 +416,19 @@ describe('403 handling', () => {
     fetchMock.mockResolvedValueOnce(errJson({ banned: false }, 403));
 
     await apiRequest('/unique-cars/lookup?q=test');
+
+    await Promise.resolve();
+    expect(notifyMock).not.toHaveBeenCalled();
+  });
+
+  // Список тихих путей пополняется по мере того, как фоновые запросы упираются в
+  // право (подсказки справочников, билет потока, сквозной поиск). Ходим по нему
+  // целиком: перечисленные руками пути покрывают лишь часть, и новый префикс
+  // приезжает без проверки.
+  it.each(SILENT_403_PREFIXES)('не вызывает notify для тихого пути %s', async (prefix) => {
+    fetchMock.mockResolvedValueOnce(errJson({ banned: false }, 403));
+
+    await apiRequest(prefix);
 
     await Promise.resolve();
     expect(notifyMock).not.toHaveBeenCalled();

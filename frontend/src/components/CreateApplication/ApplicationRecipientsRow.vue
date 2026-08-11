@@ -86,8 +86,10 @@
         </transition>
       </div>
 
-      <!-- Добавить читателя (только Руководители) -->
+      <!-- Добавить читателя. Кнопки нет, когда добавлять некого: коллег и
+           руководителей не нашлось или список не пришёл. -->
       <div
+        v-if="canAddRecipients"
         ref="addRef"
         class="recipients-add"
       >
@@ -113,7 +115,7 @@
             >
             <div class="recipients-add-list">
               <button
-                v-for="u in availableManagers"
+                v-for="u in availableCandidates"
                 :key="u.userId"
                 class="recipients-add-item"
                 type="button"
@@ -124,9 +126,13 @@
                   v-if="u.position"
                   class="recipients-add-item__pos"
                 >{{ u.position }}</span>
+                <span
+                  v-if="u.pdHidden"
+                  class="recipients-add-item__masked"
+                >ФИО скрыто до согласия на обработку данных</span>
               </button>
               <div
-                v-if="!availableManagers.length"
+                v-if="!availableCandidates.length"
                 class="recipients-add-empty"
               >
                 Пользователей нет
@@ -165,7 +171,7 @@ export default {
   emits: ['update:readers'],
   data() {
     return {
-      managerUsers: [],
+      candidateUsers: [],
       search: '',
       showAdd: false,
       showOverflow: false,
@@ -201,15 +207,23 @@ export default {
     overflowChips() {
       return this.allChips.slice(this.maxVisible)
     },
-    availableManagers() {
+    // Кандидаты за вычетом тех, кто уже в строке. Поиск сюда не входит намеренно:
+    // по нему гейтится кнопка, и пустая выдача поиска прятала бы её вместе с полем ввода.
+    assignableCandidates() {
       const taken = new Set([
         ...this.approvers.map(a => a.user_id),
         ...this.readers.map(r => r.user_id)
       ])
+      return this.candidateUsers.filter(u => !taken.has(u.userId))
+    },
+    availableCandidates() {
       const q = this.search.trim().toLowerCase()
-      return this.managerUsers
-        .filter(u => !taken.has(u.userId))
-        .filter(u => !q || u.name.toLowerCase().includes(q) || (u.position || '').toLowerCase().includes(q))
+      if (!q) return this.assignableCandidates
+      return this.assignableCandidates
+        .filter(u => u.name.toLowerCase().includes(q) || (u.position || '').toLowerCase().includes(q))
+    },
+    canAddRecipients() {
+      return this.assignableCandidates.length > 0
     }
   },
   watch: {
@@ -218,6 +232,14 @@ export default {
     'overflowChips.length'(count) {
       if (!count && this.showOverflow) {
         this.showOverflow = false
+        this.syncPopover(false)
+      }
+    },
+    // Последнего кандидата забрали в читатели - кнопка пропадает вместе с открытым
+    // окном, и закрыть его по клику вне уже некому (ref размонтирован).
+    canAddRecipients(can) {
+      if (!can && this.showAdd) {
+        this.showAdd = false
         this.syncPopover(false)
       }
     },
@@ -230,7 +252,7 @@ export default {
     }
   },
   mounted() {
-    this.fetchManagers()
+    this.fetchCandidates()
     document.addEventListener('mousedown', this.handleOutside)
     this.initNarrowWatcher()
   },
@@ -244,21 +266,29 @@ export default {
     }
   },
   methods: {
-    async fetchManagers() {
+    /**
+     * Кандидаты в получатели: коллеги по организации и компании плюс руководители.
+     * Кого пускать - решает бэк (#1921), тем же предикатом он потом проверяет readers
+     * при подаче; клиентского фильтра по типу здесь нет намеренно, иначе форма
+     * предлагала бы людей, которых подача молча выбросит.
+     *
+     * silent403: отказ гасит кнопку «+ получатель», и тост об этом лишний - выбор
+     * получателей не действие пользователя, а фоновая загрузка при открытии формы.
+     */
+    async fetchCandidates() {
       try {
-        const response = await apiRequest('/users/all', {})
+        const response = await apiRequest('/users/recipient-candidates', { silent403: true })
         if (!response.ok) return
         const users = await response.json()
-        this.managerUsers = (users || [])
-          .filter(u => u.user_type === 'Руководитель')
-          .map(u => ({
-            userId: u.id,
-            name: this.displayName(u),
-            username: u.username,
-            position: u.position || ''
-          }))
+        this.candidateUsers = (users || []).map(u => ({
+          userId: u.id,
+          name: this.displayName(u),
+          username: u.username,
+          position: u.position || '',
+          pdHidden: !!u.pd_hidden
+        }))
       } catch (error) {
-        console.error('Ошибка загрузки руководителей:', error)
+        console.error('Ошибка загрузки кандидатов в получатели:', error)
       }
     },
 
@@ -638,6 +668,14 @@ export default {
 .recipients-add-item__pos {
   font-size: 0.65rem;
   color: var(--text-muted);
+}
+
+/* Подпись «почему вместо ФИО логин» - своим классом: должность рядом с ней остаётся
+   должностью, и стиль одной не тянет за собой другую. */
+.recipients-add-item__masked {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 .recipients-add-empty {

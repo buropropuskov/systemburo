@@ -31,9 +31,17 @@ vi.mock('@/stores/auth', () => ({
 
 const push = vi.fn()
 
-function mountModal() {
+// Стаб объявляет ВСЕ пробрасываемые пропсы: обязательный режим (#1911) выражается
+// именно ими (closable/closeOnOverlay), и не объявленные тут они утекли бы в attrs,
+// где проверить их нечем.
+const BaseModalStub = {
+  template: '<div><slot /><slot name="actions" /></div>',
+  props: ['show', 'title', 'width', 'contentTestid', 'closable', 'closeOnOverlay', 'zIndex'],
+}
+
+function mountModal(props = {}) {
   return mount(ChangePasswordModal, {
-    props: { show: false },
+    props: { show: false, ...props },
     global: {
       mocks: {
         $router: { push, currentRoute: { value: { path: '/personal-cabinet' } } },
@@ -41,10 +49,7 @@ function mountModal() {
       stubs: {
         // BaseModal телепортирует в body - в jsdom проще подменить оболочкой,
         // содержимое слотов при этом остаётся в дереве компонента.
-        BaseModal: {
-          template: '<div><slot /><slot name="actions" /></div>',
-          props: ['show', 'title', 'width', 'contentTestid'],
-        },
+        BaseModal: BaseModalStub,
       },
     },
   })
@@ -130,5 +135,47 @@ describe('ChangePasswordModal', () => {
     expect(rules.find((r) => r.key === 'min_length').ok).toBe(true)
     expect(rules.find((r) => r.key === 'digit').ok).toBe(false)
     expect(rules.some((r) => r.key === 'special')).toBe(false)
+  })
+})
+
+// Обязательная смена пароля (#1911): пока флаг поднят, сервер отвечает отказом на
+// всё, кроме самой смены. Закрываемое окно оставило бы человека перед пустым
+// экраном, поэтому закрыть его нечем - но выход обязан остаться.
+describe('ChangePasswordModal в обязательном режиме', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  it('окно не закрывается ни крестиком, ни по затемнению, ни Escape', async () => {
+    const wrapper = mountModal({ show: true, mandatory: true })
+    await flushPromises()
+
+    const modal = wrapper.findComponent(BaseModalStub)
+    // closable=false снимает и крестик, и обработчик Escape внутри BaseModal.
+    expect(modal.props('closable')).toBe(false)
+    expect(modal.props('closeOnOverlay')).toBe(false)
+  })
+
+  it('вместо отмены показывает выход и объясняет причину', async () => {
+    const wrapper = mountModal({ show: true, mandatory: true })
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('Отмена')
+    expect(wrapper.find('[data-testid="cp-reason"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="cp-logout"]').trigger('click')
+    expect(wrapper.emitted('logout')).toHaveLength(1)
+  })
+
+  it('в обычном режиме окно закрываемо и выхода в нём нет', async () => {
+    const wrapper = mountModal({ show: true })
+    await flushPromises()
+
+    const modal = wrapper.findComponent(BaseModalStub)
+    expect(modal.props('closable')).toBe(true)
+    expect(modal.props('closeOnOverlay')).toBe(true)
+    expect(wrapper.find('[data-testid="cp-logout"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="cp-reason"]').exists()).toBe(false)
   })
 })

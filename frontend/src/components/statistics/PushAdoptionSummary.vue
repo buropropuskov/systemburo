@@ -280,4 +280,24 @@ onMounted(load);
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ===== МОБИЛКА (<=768) ===== */
+@media (max-width: 768px) {
+  /* Чип-пояснение не переносился и торчал за правый край панели (289px рядом с
+     заголовком при 364 доступных на 390): шапке разрешаем вторую строку, чипу -
+     перенос текста, линейка добирает остаток. Правило то же, что у шапок групп
+     дашборда (StatisticsDashboard, тот же блок). */
+  .push-summary__head {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .push-summary__chip {
+    white-space: normal;
+  }
+
+  .push-summary__rule {
+    min-width: 24px;
+  }
+}
 </style>

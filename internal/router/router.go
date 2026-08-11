@@ -82,6 +82,7 @@ type Dependencies struct {
 	BlankArchive        *handlers.BlankArchiveHandler
 	BlankArchiveStats   *handlers.BlankArchiveStatsHandler
 	ArchiveDownload     *handlers.ArchiveDownloadHandler
+	Impersonation       *handlers.ImpersonationHandler
 
 	// Services (для middleware и audit)
 	PermResolver *services.PermissionResolver
@@ -106,6 +107,10 @@ type Dependencies struct {
 	// согласия нет, начал бы получать 403. Тесты самого гейта поднимают
 	// приложение через SetupTestAppWithConsentGate.
 	ConsentGate echo.MiddlewareFunc
+	// MustChangePassword - mw.MustChangePassword: закрывает protected-API
+	// пользователю, обязанному задать свой пароль вместо присланного письмом
+	// (#1911). nil по умолчанию и в тестах - по той же причине, что и ConsentGate.
+	MustChangePassword echo.MiddlewareFunc
 	// TableReportGate - RequireTableVerb(..., "report"): гейт отчётов по проходам
 	// правом table.<name>.report. НЕ опционален для роутов pass-report (main и
 	// testutil обязаны заполнять) - без гейта отчёт открылся бы любому залогиненному.
@@ -204,6 +209,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	maintenanceBlock := d.MaintenanceBlock
 	banCheck := d.BanCheck
 	consentGate := d.ConsentGate
+	mustChangePassword := d.MustChangePassword
 	loginLimiter := d.LoginLimiter
 	lastSeen := d.LastSeen
 	jwtSecret := d.JWTSecret
@@ -275,12 +281,25 @@ func Setup(e *echo.Echo, d Dependencies) {
 	if consentGate != nil {
 		protected.Use(consentGate)
 	}
+	// MustChangePassword - после гейта согласия: согласие спрашивается раньше всего
+	// остального, а сменить пароль до него всё равно не дают (смены нет в белом
+	// списке согласия). Пропускает только MustChangePasswordWhitelist, остальное -
+	// 403 с кодом PASSWORD_CHANGE_REQUIRED. nil в тестах: иначе каждый тест, где
+	// флаг поднят сидом, начал бы получать 403 вместо своего ответа. Тесты самого
+	// гейта поднимают приложение через SetupTestAppWithPasswordGate.
+	if mustChangePassword != nil {
+		protected.Use(mustChangePassword)
+	}
 	// LastSeen - после JWTAuth (нужен user_id). Обновляет users.last_seen для
 	// учёта онлайна (#632), с in-memory троттлингом и асинхронной записью.
 	// nil в тестах, где БД-запись не нужна.
 	if lastSeen != nil {
 		protected.Use(lastSeen)
 	}
+	// Гейт опасных действий в режиме «войти как пользователь» (#1912). Без условия
+	// и без зависимостей: список закрытого статичен, а необязательный гейт означал бы,
+	// что в тестах смена пароля из чужой учётной записи проходит.
+	protected.Use(mw.DenyUnderImpersonation())
 
 	protected.POST("/logout", auth.Logout)
 	protected.POST("/logout-all", auth.LogoutAll)
@@ -611,6 +630,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.GET("/users/all", users.GetAll, requireUsers)
 	protected.PUT("/users/:username/type", users.UpdateType, requireUsers)
 	protected.PUT("/users/:username/password", users.UpdatePassword, requireUsers)
+	// Смена пароля с отправкой письмом (#1910) - под тем же правом, что и ручная
+	// установка пароля: это её замена, а не новое полномочие.
+	protected.POST("/users/:username/rotate-password", users.RotatePassword, requireUsers)
 	protected.PUT("/users/:username/info", users.UpdateInfo, requireUsers)
 	protected.PUT("/users/:username/organization", users.UpdateOrganization, requireUsers)
 	protected.PUT("/users/:username/company", users.UpdateCompany, requireUsers)
@@ -822,6 +844,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.GET("/:id", app.GetApplicationByID)
 	apg.PUT("/:id", app.UpdateApplication)
 	apg.GET("/:id/responsible-users", app.GetApplicationResponsibleUsers)
+	apg.GET("/:id/participants", app.GetApplicationParticipants) // все участники заявки с ролями и контактами
 	apg.GET("/:id/details", app.GetApplicationDetails)
 	apg.GET("/:id/attachments", app.GetApplicationAttachments)
 	apg.GET("/:id/blank", attachmentBlanks.Download) // #183 - скачать заполненный .xlsx
@@ -907,7 +930,6 @@ func Setup(e *echo.Echo, d Dependencies) {
 	permGroup.GET("/user/:id", permissions.GetUserPermissions, auditManage)
 	permGroup.GET("/user/:id/effective", permissions.GetUserEffectivePermissions, auditManage)
 	permGroup.PUT("/user/:id", permissions.UpdateUserPermissions, auditManage)
-	permGroup.GET("/tree", permissions.GetPermissionTree)
 	permGroup.GET("/catalog", permissions.GetCatalog)
 	// Генерация прав для таблицы. Фронт напрямую не дёргает - права создаются
 	// автоматически внутри создания таблицы (system_table_service). Прямой роут
@@ -961,6 +983,16 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.POST("/users/bulk/ban", userBan.BulkBan, banUser)
 	protected.POST("/users/bulk/unban", userBan.BulkUnban, banUser)
 
+	// Режим «войти как пользователь» (#1912) - замена практике «администратор знает
+	// пароль работника». Вход гейтится правом, возврат в свою учётную запись - нет:
+	// его делает тот, кто уже в режиме, и отказать ему значило бы запереть человека
+	// в чужой учётной записи до истечения маркера.
+	if d.Impersonation != nil {
+		requireImpersonate := mw.RequirePermissionV2(permResolver, denialLog, services.KeyUserImpersonate)
+		protected.POST("/users/:id/impersonate", d.Impersonation.Start, requireImpersonate)
+		protected.POST("/impersonation/stop", d.Impersonation.Stop)
+	}
+
 	// Согласие на обработку ПД (152-ФЗ)
 	consents := protected.Group("/consents")
 	// Состояние согласия и его подтверждение при первом входе (#1567). Доступны
@@ -990,6 +1022,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// параметра key и попытался бы сохранить настройку с таким именем.
 	protected.GET("/settings/mail/status", settings.GetMailStatus, requireSettings)
 	protected.POST("/settings/mail/test", settings.SendTestMail, requireSettings)
+	protected.GET("/settings/password-rotation/status", settings.GetPasswordRotationStatus, requireSettings)
+	protected.GET("/settings/password-rotation/last", settings.GetPasswordRotationLast, requireSettings)
+	// Ручной прогон - под своим правом, а не под настройками: сброс паролей всей
+	// организации весит больше, чем правка телефона бюро (#1910).
+	protected.POST("/settings/password-rotation/run", settings.RunPasswordRotation,
+		mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionRotatePasswords))
 	protected.PUT("/settings/:key", settings.Update, requireSettings)
 
 	// Новости. Активные (GET "") - всем авторизованным; управление - page.admin

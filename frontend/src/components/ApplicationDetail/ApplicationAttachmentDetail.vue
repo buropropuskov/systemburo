@@ -1723,20 +1723,57 @@ export default {
         display: none;
     }
 
+    /* Карточки строк уже несут рамку, фон и скругление, поэтому лента остаётся без
+       своих: иначе рамка идёт вторым контуром вплотную к карточке (замер: лента 334px
+       против карточки 332px), а её скруглённый низ упирается в прямой верх подвала. */
+    .el-table {
+        border: none;
+        border-radius: 0;
+        background: transparent;
+    }
+
+    .el-foot {
+        margin-top: 8px;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+    }
+
+    /* Подписи полей в карточке не показываем: значение говорит само за себя, а колонка
+       меток съедала ширину гос. номера и ФИО. Правило-источник в responsive-tables.css
+       стоит на той же специфичности, поэтому !important - иначе исход решает порядок
+       загрузки чанков. */
+    .el-row .el-cell::before {
+        display: none !important;
+    }
+
+    /* Разделитель полей рисуем сверху, а не снизу: у машин и сотрудников последней в
+       строке стоит колонка действий без подписи, поэтому глобальное
+       `[data-label]:last-child` не снимало пунктир с последнего поля и он висел
+       оторванной чертой над нижним краем карточки. */
+    .el-row .el-cell {
+        justify-content: flex-start !important;
+        text-align: left !important;
+        border-bottom: none !important;
+    }
+
+    .el-row .el-cell ~ .el-cell {
+        border-top: 1px dashed color-mix(in srgb, var(--border) 60%, var(--surface));
+    }
+
     .el-row .chips {
         flex-wrap: wrap;
-        justify-content: flex-end;
+        justify-content: flex-start;
         overflow: visible;
     }
 
     .el-row .val,
     .val-sub {
         white-space: normal;
-        text-align: right;
+        text-align: left;
     }
 
-    /* В карточке ячейка - ряд «подпись : значение». Метке дополнения даём свою строку
-       под значением, иначе она сжимает ФИО и гос. номер до многоточия. */
+    /* Метке дополнения даём свою строку под значением, иначе она сжимает ФИО и
+       гос. номер до многоточия. */
     .el-row .el-cell--key {
         flex-wrap: wrap;
     }

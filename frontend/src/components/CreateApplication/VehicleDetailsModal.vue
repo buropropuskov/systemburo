@@ -158,7 +158,7 @@
                     </p>
                     <p class="warning-details">
                       Действует до: {{ formatDate(activeInfo.entry_date_to) }} {{ formatTime(activeInfo.entry_time_to) }}<br>
-                      Заявка №{{ activeInfo.application_number }}<br>
+                      Заявка {{ activeInfo.application_number }}<br>
                       Организация: {{ activeInfo.organization_name || 'Не указана' }}<br>
                       Компания: {{ activeInfo.company_name || 'Не указана' }}
                     </p>

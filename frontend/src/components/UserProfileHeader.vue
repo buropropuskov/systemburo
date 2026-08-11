@@ -60,11 +60,11 @@
         </div>
       </div>
       
-      <!-- Дополнительные данные -->
-      <div
-        v-if="hasContactDetails"
-        class="user-details-row"
-      >
+      <!-- Контакты и действия. Ряд показывается всегда: в нём живут постоянные
+           элементы - кнопка смены пароля и предупреждение о неуказанной почте, -
+           поэтому прежнее условие «есть хоть один контакт» скрывало бы их у
+           работника с пустой карточкой. -->
+      <div class="user-details-row">
         <div
           v-if="position"
           class="user-detail"
@@ -82,6 +82,7 @@
         <div
           v-if="email"
           class="user-detail"
+          :title="emailOwnerHint"
           @click="copyEmail"
         >
           <span
@@ -157,6 +158,7 @@
           <button
             type="button"
             class="detail-badge password-badge clickable"
+            title="Сменить пароль"
             data-testid="cabinet-change-password"
             @click="passwordModalOpen = true"
           >
@@ -167,7 +169,7 @@
               >
                 <path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z" />
               </svg>
-              <span class="badge-text">Сменить пароль</span>
+              <span class="badge-text">Пароль</span>
             </span>
           </button>
         </div>
@@ -186,6 +188,7 @@ import { listMyConsents, revokeMyConsent } from '@/api/pdConsent';
 import { usePDConsentStore } from '@/stores/pdConsent';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
+import { useContactsStore } from '@/stores/contacts';
 import ChangePasswordModal from './ChangePasswordModal.vue';
 
 /** Вид согласия, которое спрашивают при первом входе. */
@@ -244,13 +247,21 @@ export default {
       }
       return 'П';
     },
-    hasContactDetails() {
-      // Бейдж согласия переехал в ряд над именем, ряд остаётся контактным.
-      return this.position || this.email || this.phone;
-    },
-
     consentBadgeLabel() {
       return this.consentRevoking ? 'Отзываем...' : 'Согласие на обработку данных';
+    },
+
+    // Адрес почты работник не меняет сам: на него система шлёт новые пароли при
+    // плановой смене, поэтому канал доставки ведёт бюро. Подсказка объясняет,
+    // куда обращаться, и подставляет контакты из системных настроек.
+    bureauContactsSuffix() {
+      const contacts = useContactsStore();
+      const parts = [contacts.phone, contacts.email].filter(Boolean);
+      return parts.length ? ` (${parts.join(', ')})` : '';
+    },
+
+    emailOwnerHint() {
+      return `Адрес меняет бюро пропусков${this.bureauContactsSuffix}`;
     },
 
     consentTitle() {
@@ -288,6 +299,8 @@ export default {
     }
   },
   mounted() {
+    // Контакты бюро нужны подсказке про почту; стор кэширует запрос.
+    useContactsStore().fetch();
     this.$nextTick(() => {
       this.updateBadgeWidths();
     });
@@ -669,12 +682,19 @@ export default {
    зелёный и жёлтый рядом уже заняты почтой и телефоном, третий цвет читался бы
    как ещё один вид контакта. font-family и line-height - как у consent-badge:
    у button они свои и не наследуются. */
+/* Единственный бейдж-действие в ряду контактов, поэтому нейтральная подложка:
+   зелёный и жёлтый рядом заняты почтой и телефоном, третий цвет читался бы как
+   ещё один вид контакта. font-family и line-height - как у consent-badge:
+   у button они свои и не наследуются. Подпись короткая намеренно: с полной
+   «Сменить пароль» бейдж выдавливал ряд контактов на вторую строку. */
 .password-badge {
   font-family: inherit;
   line-height: inherit;
   background: var(--surface-2);
   color: var(--text);
   border-color: var(--border);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .detail-badge .icon {

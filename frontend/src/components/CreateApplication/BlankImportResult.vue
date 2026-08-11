@@ -227,36 +227,81 @@
               </label>
             </template>
             <template v-else>
-              <label class="bim__field">
-                <span class="bim__field-label">Номер Т/С</span>
-                <input
-                  v-model="row.fields.plateNumber"
-                  type="text"
-                  class="lk-input bim__cell-input"
+              <!-- Номер по ячейкам - тот же принцип, что в VehicleForm (посегментный ввод
+                   с валидацией/доформатированием по cell), только компактнее: короткая
+                   пилюля вместо отдельной строки поля, свой тумблер "по факту" рядом
+                   с подписью. -->
+              <div class="bim__field bim__field--plate">
+                <div class="bim__plate-head">
+                  <span class="bim__field-label">Номер Т/С</span>
+                  <label class="bim__fact-toggle">
+                    <input
+                      v-model="row.fields.isByFact"
+                      type="checkbox"
+                      class="bim__fact-checkbox"
+                      @change="handleRowFactChange(row)"
+                    >
+                    <span
+                      class="bim__fact-switch"
+                      aria-hidden="true"
+                    />
+                    <span class="bim__fact-text">по факту</span>
+                  </label>
+                </div>
+                <div
+                  v-if="row.fields.isByFact"
+                  class="bim__plate-field bim__plate-field--fact"
                 >
-              </label>
-              <!-- Формат номера - явный выбор рядом с полем номера (доводка владельца):
-                   по умолчанию перебор всех активных форматов, конкретный формат сужает
-                   проверку до него одного. Для людей выбора формата нет и не должно быть. -->
-              <label class="bim__field">
-                <span class="bim__field-label">Формат номера</span>
-                <select
-                  v-model="row.fields.formatId"
-                  class="lk-select bim__cell-input"
-                  :data-testid="`bim-format-${row.rowNumber}`"
-                >
-                  <option :value="null">
-                    Определить автоматически
-                  </option>
-                  <option
-                    v-for="fmt in plateFormats"
-                    :key="fmt.format.id"
-                    :value="fmt.format.id"
+                  <input
+                    class="bim__plate-fact-input"
+                    value="По факту"
+                    readonly
                   >
-                    {{ fmt.format.name }}
-                  </option>
-                </select>
-              </label>
+                </div>
+                <div
+                  v-else-if="rowPlateFormat(row)"
+                  class="bim__plate-field"
+                >
+                  <input
+                    v-for="(cell, index) in rowPlateFormat(row).cells"
+                    :key="index"
+                    :ref="(el) => setPlateCellRef(row.rowNumber, index, el)"
+                    v-model="row.fields.numberParts[index]"
+                    class="bim__plate-cell"
+                    :placeholder="getPlaceholder(cell)"
+                    :maxlength="cell.max_length"
+                    :style="{ width: getInputWidth(cell) }"
+                    @input="validatePlatePart(row, index, $event, cell)"
+                    @blur="formatPlatePart(row, index, cell)"
+                  >
+                </div>
+                <div
+                  v-else
+                  class="bim__plate-empty"
+                >
+                  Выберите формат номера
+                </div>
+              </div>
+              <!-- Формат номера - явный выбор рядом с полем номера (доводка владельца).
+                   Пункта "определить автоматически" здесь нет: ячейки ввода нельзя
+                   нарисовать "вообще", они всегда принадлежат конкретному формату, и
+                   подпись обязана называть тот же формат, по которому нарисованы ячейки.
+                   Дропдаун проекта, а не нативный select: телепорт нужен ещё и по делу -
+                   список карточек прокручиваемый (.bim__problems-list), меню внутри него
+                   обрезалось бы по краю. Для людей выбора формата нет и не должно быть. -->
+              <div class="bim__field">
+                <span class="bim__field-label">Формат номера</span>
+                <BaseDropdown
+                  class="bim__format"
+                  :model-value="row.fields.formatId"
+                  :options="formatOptions"
+                  :menu-min-width="220"
+                  placeholder="Выберите формат"
+                  teleport
+                  :data-testid="`bim-format-${row.rowNumber}`"
+                  @update:model-value="(id) => selectFormat(row, id)"
+                />
+              </div>
               <label class="bim__field">
                 <span class="bim__field-label">Марка</span>
                 <input
@@ -301,15 +346,25 @@
       >
         Загрузить другой файл
       </button>
-      <button
-        type="button"
-        class="lk-button lk-button--primary bim__submit"
-        data-testid="bim-submit"
-        :disabled="!canSubmit"
-        @click="onSubmit"
+      <!-- Подсказка висит на ОБЁРТКЕ: заблокированная кнопка событий мыши не получает,
+           :hover на ней не наступает никогда. Причина нужна именно здесь - рядом стоят
+           карточки с ошибками, и серую кнопку без объяснения человек связывает с ними,
+           хотя ошибочные строки её не блокируют (мест в бланке нет, их выбирают тут). -->
+      <span
+        class="hint-anchor bim__submit-wrap"
+        :data-hint="submitHint"
+        data-testid="bim-submit-hint"
       >
-        Добавить в заявку ({{ addableCount }})
-      </button>
+        <button
+          type="button"
+          class="lk-button lk-button--primary bim__submit"
+          data-testid="bim-submit"
+          :disabled="!canSubmit"
+          @click="onSubmit"
+        >
+          Добавить в заявку ({{ addableCount }})
+        </button>
+      </span>
     </div>
   </div>
 </template>
@@ -317,11 +372,14 @@
 <script>
 import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vue';
 import Badge from '@/components/ui/Badge.vue';
+import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { listCitizenships } from '@/api/citizenships';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useFieldConfig } from '@/composables/useFieldConfig';
 import { employeeLabel, vehicleLabel } from '@/utils/applicationDuplicates';
-import { matchNumberToFormat } from '@/composables/useNumberFormat';
+import {
+  matchNumberToFormat, validatePartValue, formatPartValue, initializeNumberParts,
+} from '@/composables/useNumberFormat';
 import { apiRequest } from '@/api/client';
 
 // Спецзначение номера: конкретную машину не опознаёт, формату не подчиняется.
@@ -347,7 +405,7 @@ const VEHICLE_BY_FACT = 'По факту';
  */
 export default {
   name: 'BlankImportResult',
-  components: { TargetTablesGrid, Badge },
+  components: { TargetTablesGrid, Badge, BaseDropdown },
   props: {
     attachmentType: {
       type: String,
@@ -380,6 +438,9 @@ export default {
       selectedUnloadPlaces: [],
       selectedPassageTables: [],
       problemRows: [],
+      // Ссылки на инпуты ячеек номера по строке (rowNumber -> [input,...]) - нужны для
+      // автопрыжка фокуса в следующую ячейку, как в VehicleForm.
+      plateCellRefs: {},
     };
   },
   computed: {
@@ -434,6 +495,11 @@ export default {
         },
       }));
     },
+    // Пункты выпадающего списка форматов: справочник как есть, без синтетических
+    // значений - выбран может быть только реально существующий формат.
+    formatOptions() {
+      return this.plateFormats.map((f) => ({ id: f.format.id, name: f.format.name }));
+    },
     placesReady() {
       if (this.isPeople) {
         return !this.targetTablesRequired || this.selectedTargetTables.length > 0;
@@ -449,6 +515,54 @@ export default {
     },
     canSubmit() {
       return this.placesReady && this.addableCount > 0;
+    },
+    // Обязательные места, которых не хватает: подпись как на экране плюс признак,
+    // есть ли вообще из чего выбирать - "выберите то, чего в справочнике нет" было бы
+    // издевательством, а состояние это реальное (грид тогда пишет "Нет доступных...").
+    missingPlaces() {
+      const fields = this.isPeople
+        ? [{
+          label: 'места прохода',
+          required: this.targetTablesRequired,
+          chosen: this.selectedTargetTables,
+          options: this.targetTablesOptions,
+        }]
+        : [
+          {
+            label: 'места разгрузки',
+            required: this.unloadPlacesRequired,
+            chosen: this.selectedUnloadPlaces,
+            options: this.unloadPlacesOptions,
+          },
+          {
+            label: 'проезд',
+            required: this.passageTablesRequired,
+            chosen: this.selectedPassageTables,
+            options: this.passageTablesOptions,
+          },
+        ];
+      return fields
+        .filter((f) => f.required && !f.chosen.length)
+        .map((f) => ({ label: f.label, available: f.options.length > 0 }));
+    },
+    /**
+     * Почему «Добавить в заявку» заблокирована - причина словами, а не серая кнопка
+     * молчком. Пустая строка гасит подсказку целиком (см. hints.css), поэтому на
+     * рабочей кнопке ничего не всплывает.
+     */
+    submitHint() {
+      if (this.canSubmit) return '';
+      if (!this.addableCount) {
+        return 'Готовых строк пока нет: поправьте строки с ошибками или загрузите другой файл.';
+      }
+      const absent = this.missingPlaces.filter((p) => !p.available);
+      if (absent.length) {
+        return `Не из чего выбрать: ${absent.map((p) => p.label).join(' и ')}. Обратитесь в бюро пропусков.`;
+      }
+      if (this.missingPlaces.length) {
+        return `Выберите ${this.missingPlaces.map((p) => p.label).join(' и ')}, чтобы добавить строки в заявку.`;
+      }
+      return '';
     },
     // Места в файле не приходят и раскатываются на всю пачку разом - патч полей строки
     // собираем здесь, применяет его родитель ко всем предварительным строкам.
@@ -488,38 +602,55 @@ export default {
       this.selectedTargetTables = [];
       this.selectedUnloadPlaces = [];
       this.selectedPassageTables = [];
+      this.plateCellRefs = {};
+      // Справочник ждём ДО построения карточек ошибок: людям он нужен, чтобы
+      // citizenshipName собрался при подаче, машинам - чтобы определить формат строки
+      // и нарисовать его ячейки сразу, а не мигать пустым полем номера.
+      if (this.isPeople && !this.citizenships.length) {
+        await this.loadCitizenships();
+      }
+      if (!this.isPeople && !this.plateFormats.length) {
+        await this.loadPlateFormats();
+      }
       this.problemRows = this.rows
         .filter((r) => r.errors && r.errors.length)
         .map((r) => ({
           rowNumber: r.row_number,
           errors: r.errors || [],
           original: r,
-          fields: this.isPeople
-            ? {
-              lastName: (r.employee && r.employee.last_name) || '',
-              firstName: (r.employee && r.employee.first_name) || '',
-              middleName: (r.employee && r.employee.middle_name) || '',
-              citizenshipId: (r.employee && r.employee.citizenship_id) || null,
-            }
-            : {
-              plateNumber: (r.vehicle && r.vehicle.car_number) || '',
-              mark: (r.vehicle && r.vehicle.car_brand) || '',
-              // null = «Определить автоматически» (перебор всех активных форматов,
-              // поведение по умолчанию) - см. plateAccepted.
-              formatId: null,
-            },
+          fields: this.isPeople ? this.buildPeopleFields(r) : this.buildCarFields(r),
         }));
-      // Справочник ждём ДО передачи строк наверх: citizenshipName собирается по нему,
-      // и без него в списке и в карточке строки гражданство осталось бы пустым навсегда.
-      if (this.isPeople && !this.citizenships.length) {
-        await this.loadCitizenships();
-      }
-      // Форматы номеров нужны, чтобы отличать исправленный номер от такого же
-      // негодного: без них галочка разблокировалась бы по одной непустоте поля.
-      if (!this.isPeople && !this.plateFormats.length) {
-        await this.loadPlateFormats();
-      }
       this.stageAcceptedRows();
+    },
+
+    buildPeopleFields(r) {
+      return {
+        lastName: (r.employee && r.employee.last_name) || '',
+        firstName: (r.employee && r.employee.first_name) || '',
+        middleName: (r.employee && r.employee.middle_name) || '',
+        citizenshipId: (r.employee && r.employee.citizenship_id) || null,
+      };
+    },
+
+    // Формат строки система определяет сама - тем же перебором, что и проверка номера
+    // (matchNumberToFormat) - и он сразу стоит выбранным в списке: подпись формата и
+    // ячейки под ней всегда об одном и том же. Номер из файла раскладывается по этим
+    // ячейкам, чтобы годную часть не пришлось перепечатывать.
+    // Не лёг ни в один формат - выбора нет, ячеек нет: человек называет формат сам,
+    // как это делает форма подачи при непонятном номере (VehicleForm,
+    // applyEditedVehicleNumber). Подставлять сюда дефолтный формат значило бы утверждать
+    // на экране то, чего система не определяла.
+    buildCarFields(r) {
+      const raw = (r.vehicle && r.vehicle.car_number) || '';
+      // matchNumberToFormat отдаёт ЗАПИСЬ справочника ({format, cells}), а не сам
+      // format - id лежит на уровень глубже.
+      const matched = matchNumberToFormat(raw, this.plateFormats);
+      return {
+        numberParts: matched ? [...matched.parts] : [],
+        mark: (r.vehicle && r.vehicle.car_brand) || '',
+        formatId: matched ? matched.format.format.id : null,
+        isByFact: false,
+      };
     },
 
     // Принятые бэком строки уходят в список сразу после разбора - предварительными.
@@ -604,7 +735,19 @@ export default {
         }
         return true;
       }
-      return this.plateAccepted(row.fields.plateNumber, row.fields.formatId);
+      return this.plateAccepted(this.rowPlateValue(row), row.fields.formatId);
+    },
+
+    // Формат строки - ровно тот, что выбран в её списке: и ячейки ввода, и проверка
+    // номера (plateAccepted) идут от него одного. Пусто - формат не выбран, ячеек нет.
+    rowPlateFormat(row) {
+      return this.selectedFormatEntry(row.fields.formatId);
+    },
+
+    // Собранный номер - те же части через пробел, что даёт VehicleForm (numberParts.join(' ')).
+    rowPlateValue(row) {
+      if (row.fields.isByFact) return VEHICLE_BY_FACT;
+      return (row.fields.numberParts || []).join(' ');
     },
 
     /**
@@ -617,15 +760,11 @@ export default {
     /** Почему строку пока нельзя отметить - причина конкретная, а не общая просьба. */
     rowNote(row) {
       if (!this.isPeople) {
-        const value = (row.fields.plateNumber || '').trim();
-        if (!value) return 'Введите номер Т/С, чтобы отметить строку.';
         if (!this.plateFormats.length) return 'Справочник форматов номеров недоступен, проверить номер нечем.';
-        if (row.fields.formatId) {
-          const chosen = this.selectedFormatEntry(row.fields.formatId);
-          const name = chosen ? chosen.format.name : '';
-          return `Номер не подходит формату "${name}" - поправьте его или выберите другой формат.`;
-        }
-        return 'Номер не подходит ни под один формат номеров - поправьте его, чтобы отметить строку.';
+        const chosen = this.selectedFormatEntry(row.fields.formatId);
+        if (!chosen) return 'Выберите формат номера, чтобы отметить строку.';
+        if (!this.rowPlateValue(row).trim()) return 'Введите номер Т/С, чтобы отметить строку.';
+        return `Номер не подходит формату "${chosen.format.name}" - поправьте его или выберите другой формат.`;
       }
       if (!row.fields.lastName.trim() || !row.fields.firstName.trim()) {
         return 'Заполните фамилию и имя, чтобы отметить строку.';
@@ -637,21 +776,77 @@ export default {
       return this.plateFormats.find((f) => f.format.id === formatId) || null;
     },
 
+    getPlaceholder(cell) {
+      return cell.cell_type === 'numbers' ? '0'.repeat(cell.max_length) : 'A'.repeat(cell.max_length);
+    },
+
+    // Компактнее, чем в VehicleForm (25px/50px): карточка ошибки - не полноценная
+    // строка формы, ячейкам достаточно места под символы без запаса.
+    getInputWidth(cell) {
+      const baseWidth = 20;
+      const minWidth = 28;
+      return `${Math.max(minWidth, cell.max_length * baseWidth)}px`;
+    },
+
+    setPlateCellRef(rowNumber, index, el) {
+      if (!this.plateCellRefs[rowNumber]) this.plateCellRefs[rowNumber] = [];
+      this.plateCellRefs[rowNumber][index] = el;
+    },
+
+    validatePlatePart(row, index, event, cell) {
+      const value = validatePartValue(event.target.value, cell);
+      row.fields.numberParts[index] = value;
+      event.target.value = value;
+      this.advancePlateFocus(row, index, value, cell);
+    },
+
+    // Клетка заполнена до предела - фокус сам прыгает в следующую (см. VehicleForm.advanceCellFocus).
+    advancePlateFocus(row, index, value, cell) {
+      if (!value || value.length < cell.max_length) return;
+      const format = this.rowPlateFormat(row);
+      if (!format || index >= format.cells.length - 1) return;
+      this.$nextTick(() => {
+        const next = (this.plateCellRefs[row.rowNumber] || [])[index + 1];
+        if (next && !next.disabled) next.focus();
+      });
+    },
+
+    formatPlatePart(row, index, cell) {
+      if (row.fields.numberParts[index]) {
+        const formatted = formatPartValue(row.fields.numberParts[index], cell);
+        if (formatted !== row.fields.numberParts[index]) {
+          row.fields.numberParts[index] = formatted;
+        }
+      }
+    },
+
+    // Смена формата очищает ячейки, как это делает форма ручного ввода (VehicleForm,
+    // selectFormat). Подставлять сюда исходное значение из файла нельзя: человек мог
+    // уже поправить номер руками, и переключение формата молча вернуло бы то, что
+    // пришло в бланке. Разбор исходного номера остаётся только при первом показе строки.
+    selectFormat(row, formatId) {
+      row.fields.formatId = formatId;
+      row.fields.numberParts = initializeNumberParts(this.rowPlateFormat(row));
+    },
+
+    handleRowFactChange(row) {
+      row.fields.numberParts = row.fields.isByFact
+        ? []
+        : initializeNumberParts(this.rowPlateFormat(row));
+    },
+
     /**
-     * formatId null/не выбран - "Определить автоматически": перебор ВСЕХ активных
-     * форматов, как и раньше. Конкретный формат выбран рядом с полем номера (доводка
-     * владельца) - номер проверяется ТОЛЬКО по нему, автоподбор не подключается.
+     * Номер проверяется ТОЛЬКО по выбранному формату - тому же, чьими ячейками он
+     * набран. Формат не выбран (номер не лёг ни в один при разборе и человек ещё не
+     * назвал свой) - проверять не по чему, строка не добавляется. "По факту" формату
+     * не подчиняется и принимается при любом выборе.
      */
     plateAccepted(raw, formatId) {
       const value = (raw || '').trim();
       if (!value) return false;
       if (value.toLowerCase() === VEHICLE_BY_FACT.toLowerCase()) return true;
-      if (!this.plateFormats.length) return false;
-      if (formatId) {
-        const chosen = this.selectedFormatEntry(formatId);
-        return !!chosen && !!matchNumberToFormat(value, [chosen]);
-      }
-      return !!matchNumberToFormat(value, this.plateFormats);
+      const chosen = this.selectedFormatEntry(formatId);
+      return !!chosen && !!matchNumberToFormat(value, [chosen]);
     },
     buildEmployeeFromRow(row, isFixed) {
       const emp = row.original ? row.original.employee : row.employee;
@@ -680,8 +875,10 @@ export default {
     },
     buildVehicleFromRow(row, isFixed) {
       const veh = row.original ? row.original.vehicle : row.vehicle;
+      // Собранный номер строки правки - части ячеек через пробел, тот же вид, что
+      // отдаёт VehicleForm (numberParts.join(' ')) - см. rowPlateValue.
       const fields = isFixed
-        ? row.fields
+        ? { plateNumber: this.rowPlateValue(row), mark: row.fields.mark, formatId: row.fields.formatId }
         : { plateNumber: veh.car_number, mark: veh.car_brand, formatId: null };
       const mark = (fields.mark || '').trim() || null;
       return {
@@ -692,10 +889,10 @@ export default {
         unloadingPlace: this.formatSelectedNames(this.selectedUnloadPlaces, this.unloadPlacesOptions),
         unloadPlaces: [...this.selectedUnloadPlaces],
         passage_tables: [...this.selectedPassageTables],
-        // Формат, выбранный в карточке ошибки (или null - «Определить автоматически»),
-        // уезжает вместе со строкой в то же поле, которым пользуется VehicleForm при
-        // ручном добавлении/правке (см. applyEditedVehicleNumber) - второго поля под
-        // это заводить не нужно.
+        // Формат, выбранный в карточке ошибки, уезжает вместе со строкой в то же поле,
+        // которым пользуется VehicleForm при ручном добавлении/правке (см.
+        // applyEditedVehicleNumber) - второго поля под это заводить не нужно. У строки
+        // "по факту" формата может не быть - там номер и не разбирается.
         formatId: fields.formatId || null,
         isExisting: false,
       };
@@ -779,9 +976,14 @@ export default {
 }
 
 /* Основное действие панели - на всю её ширину, вспомогательные остаются по размеру
-   содержимого строкой выше. */
-.bim__submit {
+   содержимого строкой выше. Ширину держит обёртка-якорь подсказки, кнопка тянется
+   по ней: flex-свойства на самой кнопке обёртка бы съела. */
+.bim__submit-wrap {
   flex: 1 0 100%;
+}
+
+.bim__submit {
+  width: 100%;
 }
 
 /* Счётчики разбора - блок карточкой, как остальные блоки формы: цифры на голом фоне
@@ -1007,6 +1209,156 @@ export default {
   font-size: 13px;
 }
 
+/* Выпадающий список форматов - общий BaseDropdown, ужатый до размеров карточки:
+   штатные 30px пилюлей и шрифт 14px рассчитаны на строку формы, а здесь таких
+   карточек десяток подряд. Метрики берём у соседнего поля марки (.bim__cell-input),
+   чтобы в одном ряду сетки они стояли вровень, а скругление - карточное (radius-md),
+   как у ячеек номера, а не пилюля формы. Меню телепортится в body, до него это
+   правило не достаёт - и не должно: оно висит поверх, карточку не распирает. */
+.bim__format :deep(.base-dropdown__button) {
+  min-height: 34px;
+  padding: 0 10px;
+  gap: 6px;
+  border-radius: var(--radius-md);
+}
+
+.bim__format :deep(.base-dropdown__text) {
+  font-size: 13px;
+  font-weight: 400;
+}
+
+/* Номер по ячейкам - компактный аналог VehicleForm.number__field: та же пилюля с
+   внутренними разделителями, но ниже (34px против 40px) и без фиксированной ширины -
+   сумма ширин ячеек формата, не растянутая колонка. Занимает всю ширину карточки
+   (bim__field--plate), а не одну колонку grid-а: иначе узкие 150px-колонки бы
+   растянулись под самое длинное поле и раздули формат/марку рядом. */
+.bim__field--plate {
+  grid-column: 1 / -1;
+}
+
+.bim__plate-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.bim__plate-field {
+  display: inline-flex;
+  max-width: 100%;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.bim__plate-cell {
+  border: none;
+  outline: none;
+  height: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  text-align: center;
+  font-size: 13px;
+  background: transparent;
+  color: var(--color-text);
+}
+
+.bim__plate-cell:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
+
+.bim__plate-cell:focus {
+  background: var(--surface-2);
+}
+
+.bim__plate-cell::placeholder {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.bim__plate-field--fact {
+  width: 100%;
+}
+
+.bim__plate-fact-input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 0 10px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.bim__plate-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+/* Тумблер "по факту" - тот же механизм, что VehicleForm.fact-toggle (нативный чекбокс
+   спрятан, но остаётся в потоке для фокуса с клавиатуры), только меньше: здесь это
+   вспомогательный переключатель внутри карточки ошибки, а не элемент полноценной формы. */
+.bim__fact-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.bim__fact-checkbox {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.bim__fact-switch {
+  position: relative;
+  display: inline-block;
+  width: 26px;
+  height: 15px;
+  border-radius: var(--radius-pill);
+  background: var(--border);
+  transition: background-color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.bim__fact-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--surface);
+  transition: transform 0.2s ease;
+}
+
+.bim__fact-checkbox:checked + .bim__fact-switch {
+  background: var(--color-primary);
+}
+
+.bim__fact-checkbox:checked + .bim__fact-switch::after {
+  transform: translateX(11px);
+}
+
+.bim__fact-checkbox:focus-visible + .bim__fact-switch {
+  box-shadow: var(--shadow-focus);
+}
+
 /* Высота зарезервирована на 2 строки текста (line-height того же блока подсказок
    .bim__problems-hint - 1.45) независимо от того, показана подсказка сейчас или нет:
    иначе карточка меняет высоту по мере ввода, у списка карточек то появляется, то
@@ -1025,6 +1377,29 @@ export default {
 }
 
 @media (max-width: 768px) {
+  /* Одна строка счётчиков сохраняется (требование владельца), но на 320 колонка
+     сжимается до 59px, и в неё не влезает ни четырёхзначное число (74px при 28px
+     кегля), ни слово «добавлению» - текст вылезал поверх разделителя в соседний
+     счётчик. Меньше кегль, поля и разделители - колонка становится 72px, и всё
+     помещается. Переносить счётчик на вторую строку по-прежнему нельзя. */
+  .bim__counters {
+    padding: 10px;
+  }
+
+  .bim__counter + .bim__counter {
+    margin-left: 6px;
+    padding-left: 6px;
+  }
+
+  .bim__counter-value {
+    font-size: 22px;
+  }
+
+  .bim__counter-label {
+    font-size: 11px;
+    line-height: 1.25;
+  }
+
   /* На телефоне карточка идёт одним столбцом: поля во всю ширину, отметка -
      полноценная строка-цель, а не 16px квадрат в углу. */
   .bim__fields {
@@ -1034,6 +1409,25 @@ export default {
   .bim__cell-input {
     min-height: 44px;
     font-size: 16px;
+  }
+
+  /* Тач-таргет кнопки выбора формата: WCAG 2.5.5. */
+  .bim__format :deep(.base-dropdown__button) {
+    min-height: 44px;
+  }
+
+  /* Тач-таргет ячеек номера и тумблера "по факту": WCAG 2.5.5. */
+  .bim__plate-field {
+    height: 44px;
+  }
+
+  .bim__plate-cell,
+  .bim__plate-fact-input {
+    font-size: 16px;
+  }
+
+  .bim__fact-toggle {
+    min-height: 44px;
   }
 
   /* Тач-таргет кнопки добавления строки: у --sm высота меньше нормы WCAG 2.5.5. */

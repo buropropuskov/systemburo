@@ -26,6 +26,16 @@ const (
 	OrganizationActionResponsiblesChanged = "responsibles_changed"
 	OrganizationActionUnloadPlacesChanged = "unload_places_changed"
 	OrganizationActionTablesChanged       = "tables_changed"
+
+	// OrganizationActionRetired / OrganizationActionRetireRestored - обратимый офбординг
+	// через консольную команду entity retire/restore (internal/entityarchive), отдельно
+	// от Archived/Restored выше: те архивируют ОДНУ организацию через админку и
+	// блокируются активными пользователями, эти гасят организацию И её пользователей
+	// одним действием и не блокируются ничем. Restore читает ПОСЛЕДНЮЮ запись с одним из
+	// этих двух action - разными значениями, а не Archived/Restored, чтобы не подхватить
+	// историю обычной архивации организации.
+	OrganizationActionRetired        = "retired"
+	OrganizationActionRetireRestored = "retire_restored"
 )
 
 // OrganizationHistoryItem - запись истории с именем актора для API (LEFT JOIN users).

@@ -50,7 +50,20 @@ function mountPanel(props = {}) {
       fieldConfig: {},
       ...props,
     },
+    // Меню выбора формата телепортится в body - разворачиваем его на месте, чтобы
+    // искать пункты в обёртке теста.
+    global: { stubs: { teleport: true } },
   });
+}
+
+// Номер, не подошедший ни одному формату при разборе, оставляет список форматов
+// пустым: ячейки появляются только после того, как человек назвал формат.
+async function chooseFormat(wrapper, rowNumber, name) {
+  const picker = wrapper.find(`[data-testid="bim-format-${rowNumber}"]`);
+  await picker.find('.base-dropdown__button').trigger('click');
+  const item = picker.findAll('.base-dropdown__item').find((node) => node.text() === name);
+  await item.trigger('click');
+  await flushPromises();
 }
 
 // Признак «правится прямо здесь» приходит с сервера полем fixable у каждой причины
@@ -122,7 +135,13 @@ describe('BlankImportResult - исправимость причины прихо
 
     const row = wrapper.find('[data-testid="bim-problem-row-4"]');
     expect(row.exists()).toBe(true);
-    await row.findAll('input.bim__cell-input')[0].setValue('В777ВВ177');
+    await chooseFormat(wrapper, 4, 'Россия');
+
+    const cells = wrapper.find('[data-testid="bim-problem-row-4"]').findAll('input.bim__plate-cell');
+    await cells[0].setValue('В');
+    await cells[1].setValue('777');
+    await cells[2].setValue('ВВ');
+    await cells[3].setValue('177');
 
     expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeUndefined();
   });
@@ -132,7 +151,11 @@ describe('BlankImportResult - исправимость причины прихо
     await flushPromises();
 
     const row = wrapper.find('[data-testid="bim-problem-row-5"]');
-    await row.findAll('input.bim__cell-input')[0].setValue('В777ВВ177');
+    const cells = row.findAll('input.bim__plate-cell');
+    await cells[0].setValue('В');
+    await cells[1].setValue('777');
+    await cells[2].setValue('ВВ');
+    await cells[3].setValue('177');
 
     expect(wrapper.find('[data-testid="bim-include-5"]').attributes('disabled')).toBeDefined();
   });

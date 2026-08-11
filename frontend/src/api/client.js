@@ -3,6 +3,7 @@ import { useMaintenanceStore } from '@/stores/maintenance'
 import { useDeletionsStore } from '@/stores/deletions'
 import { usePermissionsStore } from '@/stores/permissions'
 import { usePDConsentStore } from '@/stores/pdConsent'
+import { usePasswordChangeStore } from '@/stores/passwordChange'
 import router from '@/router'
 import { buildBugContext, saveBugContext } from '@/composables/useBugReport'
 
@@ -14,7 +15,10 @@ const AUTH_ENDPOINTS = ['/login', '/refresh-token', '/logout']
 
 // Пути, на которых 403 не показывает уведомление: фоновые/ожидаемые запросы,
 // где 403 — штатный ответ (нет прав или сессия не авторизована).
-const SILENT_403_PREFIXES = [
+// Экспортируется для замка adminEndpointsFromUserFlows.spec.js: он сверяет вызовы
+// с пользовательских экранов с гейтами роутов бэкенда, и список тихих путей ему
+// нужен тем же, что и клиенту, - вторая копия разъехалась бы первой же правкой.
+export const SILENT_403_PREFIXES = [
   '/permissions/my',
   '/permissions/catalog',
   '/users/me',
@@ -97,6 +101,23 @@ async function isConsentRequired(response) {
   try {
     const body = await response.clone().json()
     return Boolean(body?.consent_required)
+  } catch {
+    return false
+  }
+}
+
+// Гейт обязательной смены пароля (#1911) отбивает protected-запросы 403 с кодом
+// PASSWORD_CHANGE_REQUIRED. Опознаём по маркеру ОТВЕТА по той же причине, что и
+// требование согласия: устаревший флаг стора заглушил бы настоящие отказы в правах.
+// Подняв флаг, показываем окно смены пароля вместо стены тостов - иначе человек
+// видит только «недостаточно прав» и не понимает, что от него хотят.
+const PASSWORD_CHANGE_REQUIRED_CODE = 'PASSWORD_CHANGE_REQUIRED'
+
+async function isPasswordChangeRequired(response) {
+  if (response.headers.get('X-Password-Change-Required') === '1') return true
+  try {
+    const body = await response.clone().json()
+    return body?.code === PASSWORD_CHANGE_REQUIRED_CODE
   } catch {
     return false
   }
@@ -266,6 +287,14 @@ async function baseRequest(path, options = {}) {
       }
       return response
     }
+    if (await isPasswordChangeRequired(response)) {
+      try {
+        usePasswordChangeStore().markRequiredFromResponse()
+      } catch {
+        // pinia ещё не активна на раннем запросе -- окно поднимет следующий отказ
+      }
+      return response
+    }
     if (!options.silent403 && !shouldSilence403(path) && !(await isBanContext(response))) {
       show403Notify('Недостаточно прав для этого действия.')
     }
@@ -290,6 +319,20 @@ async function baseRequest(path, options = {}) {
     if (!options.silent) {
       show429Notify(Number.isFinite(retryAfterSec) ? retryAfterSec : 0)
     }
+    return response
+  }
+
+  // Маркер режима «войти как пользователь» истёк (#1912). Обновлять сессию здесь
+  // нельзя: cookie осталась администраторской, и обновление вернуло бы его
+  // собственный маркер - запросы пошли бы уже от администратора, а полоса на
+  // экране продолжала бы называть чужое имя. Честный исход - закрыть режим и
+  // сказать об этом; неудавшийся запрос не повторяем, его делал другой человек.
+  if (response.status === 401 && !isAuthEndpoint(path) && authStore.isImpersonating) {
+    await authStore.endImpersonation({ recordExit: false })
+    useDeletionsStore().notify({
+      prefix: 'Сеанс работы от имени другого пользователя истёк',
+      type: 'warning',
+    })
     return response
   }
 

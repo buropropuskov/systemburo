@@ -15003,6 +15003,121 @@ const docTemplate = `{
                 }
             }
         },
+        "/settings/mail/status": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Сообщает, настроена ли отправка писем (задан ли SMTP_HOST).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Состояние настройки почты",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "boolean"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/settings/password-rotation/run": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Ручной прогон плановой смены: меняет пароли всем действующим работникам с адресом почты, не дожидаясь срока. Возвращает управление сразу, письма ставятся в очередь.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Сменить пароли всем работникам",
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "412": {
+                        "description": "Precondition Failed",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/settings/password-rotation/status": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Настроена ли почта, когда ближайшая проверка сроков и скольких работников она затронет.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Состояние плановой смены паролей",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.PasswordRotationStatus"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/statistics/insights": {
             "get": {
                 "security": [
@@ -22003,6 +22118,58 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{username}/rotate-password": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Генерирует пароль по действующей политике, меняет его и отправляет работнику на почту. Требует настроенной почты и указанного адреса.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Сменить пароль работнику и отправить письмом",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Имя пользователя",
+                        "name": "username",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Password rotated",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "412": {
+                        "description": "Precondition Failed",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{username}/tables": {
             "get": {
                 "security": [
@@ -25086,6 +25253,9 @@ const docTemplate = `{
         "models.RecipientCandidate": {
             "type": "object",
             "properties": {
+                "company": {
+                    "type": "string"
+                },
                 "first_name": {
                     "type": "string"
                 },
@@ -25098,8 +25268,12 @@ const docTemplate = `{
                 "middle_name": {
                     "type": "string"
                 },
+                "organization": {
+                    "description": "Organization и Company названы как в UserInfoResponse, а не organization_name\nсоседних ответов: окно пересылки получает оба ответа в ОДИН проп allUsers\n(носителю page.admin.users - /users/all, остальным - кандидатов), и второе имя\nтого же поля потребовало бы развилки в каждом месте, где окно его читает.",
+                    "type": "string"
+                },
                 "pd_hidden": {
-                    "description": "PDHidden -- ФИО скрыто: работник не дал согласия на обработку ПД (#1567).",
+                    "description": "PDHidden -- ФИО скрыто: работник не дал согласия на обработку ПД (#1567).\nОрганизацию и компанию согласие не закрывает: это данные работодателя, а не\nработника, и в администраторском списке они видны у скрытого работника тоже.",
                     "type": "boolean"
                 },
                 "position": {
@@ -29682,6 +29856,41 @@ const docTemplate = `{
                 "flag_id": {
                     "type": "integer",
                     "minimum": 1
+                }
+            }
+        },
+        "services.PasswordRotationStatus": {
+            "type": "object",
+            "properties": {
+                "eligible": {
+                    "description": "Eligible - активные незаблокированные работники с адресом почты, то есть те,\nкого механизм в принципе может обслужить.",
+                    "type": "integer"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "expired": {
+                    "description": "Expired - у скольких срок уже вышел. Это и есть размер ближайшего прогона.",
+                    "type": "integer"
+                },
+                "expiring_soon": {
+                    "description": "ExpiringSoon - у скольких истечёт в окне предупреждения.",
+                    "type": "integer"
+                },
+                "mail_configured": {
+                    "description": "MailConfigured - настроена ли отправка почты. Без неё смена не запускается.",
+                    "type": "boolean"
+                },
+                "next_run_at": {
+                    "description": "NextRunAt - когда планировщик проснётся в следующий раз.",
+                    "type": "string"
+                },
+                "rotation_days": {
+                    "type": "integer"
+                },
+                "without_email": {
+                    "description": "WithoutEmail - активные незаблокированные без адреса. Их пароль не трогается,\nи адреса им должно проставить бюро.",
+                    "type": "integer"
                 }
             }
         },

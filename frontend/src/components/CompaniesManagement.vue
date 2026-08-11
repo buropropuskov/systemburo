@@ -386,7 +386,7 @@
                   maxlength="100"
                   placeholder="Введите название компании"
                   autocomplete="off"
-                  :disabled="!selectedCompany.is_active || isSavingName"
+                  :disabled="!selectedCompany.is_active || isSavingName || isNameLockedByModeration"
                   data-testid="companies-detail-name"
                   @keyup.enter="saveSelectedName"
                 >
@@ -405,6 +405,14 @@
                 />
               </div>
             </div>
+
+            <p
+              v-if="nameLockHint"
+              class="lock-note"
+              data-testid="companies-name-lock-hint"
+            >
+              {{ nameLockHint }}
+            </p>
 
             <div
               v-if="detailError"
@@ -425,7 +433,7 @@
               >
                 Сохранить
               </button>
-              <span class="muted-hint">Имя и тип сохраняются вместе</span>
+              <span class="muted-hint">{{ saveHint }}</span>
             </div>
           </div>
 
@@ -849,6 +857,28 @@ export default {
     // (иначе «видно, но 403», уроки #976/#1083).
     canModerate() {
       return usePermissionsStore().hasPermission('application.organization.moderate');
+    },
+    // Наименование неразобранной записи правится ТОЛЬКО разбором (#1876): обычный
+    // PUT оставляет moderation_status=pending, админ видел «сохранено» и тот же
+    // бейдж «На проверке». Тип не блокируем - он к разбору отношения не имеет.
+    isNameLockedByModeration() {
+      return !!this.selectedCompany && this.isPendingModeration(this.selectedCompany);
+    },
+    // Подсказка обязана следовать за состоянием: без права разбора блок разбора не
+    // отрисован, и отсылать к нему бессмысленно - человеку нужен адрес, куда идти.
+    nameLockHint() {
+      if (!this.isNameLockedByModeration) return '';
+      if (!this.canModerate) {
+        return 'Запись ещё не разобрана, а права на разбор у вас нет: '
+          + 'наименование исправит сотрудник, которому разбор доступен.';
+      }
+      return 'Запись ещё не разобрана, поэтому наименование правится только действием '
+        + '«Исправить наименование» в блоке «Разбор записи» выше.';
+    },
+    saveHint() {
+      return this.isNameLockedByModeration
+        ? 'Пока запись не разобрана, сохраняется только тип'
+        : 'Имя и тип сохраняются вместе';
     },
     countLabel() {
       if (this.listMode === 'archive') return 'В архиве';
@@ -2101,6 +2131,15 @@ export default {
   text-transform: uppercase;
   display: block;
   margin-bottom: 6px;
+}
+
+/* Объяснение к заблокированному наименованию. Лежит под сеткой полей, а не внутри
+   ячейки: у .basic align-items:end, и выросшая ячейка утащила бы дропдаун типа вниз. */
+.lock-note {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 0.85em;
+  line-height: 1.45;
 }
 
 .save-actions {

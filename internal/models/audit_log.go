@@ -161,6 +161,14 @@ const (
 	// Отдельно от AuditActionSupplementCancelled: там раунд снимает система при закрытии
 	// заявки (актор пустой, «Система»), здесь - человек своей волей.
 	AuditActionSupplementCancelledByAuthor = "supplement_cancelled_by_author"
+	// AuditActionImpersonateStart / AuditActionImpersonateStop - вход администратора в
+	// режим «войти как пользователь» и возврат в свою учётную запись (#1912). Пишутся на
+	// того, от чьего имени открыт сеанс (entity_type=user, entity_id - его id), актор -
+	// инициатор. Пара записей задаёт окно, внутри которого действия учётной записи
+	// принадлежат не её владельцу; сами действия внутри окна помечены полем
+	// details.impersonated_by (его дописывает рекордер аудита).
+	AuditActionImpersonateStart = "impersonate_start"
+	AuditActionImpersonateStop  = "impersonate_stop"
 	// AuditActionEmployeesBulkAdded - сводная запись «добавлено N сотрудников» на заявку
 	// (entity_type=application), одна на вложение people при подаче (blank-import, срез
 	// A2A3). Каждый сотрудник ПРОДОЛЖАЕТ получать свою собственную запись create

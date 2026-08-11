@@ -459,6 +459,16 @@
               Права доступа
             </button>
             <button
+              v-if="canImpersonate"
+              class="lk-button lk-button--secondary"
+              data-testid="user-impersonate"
+              :disabled="impersonating"
+              title="Открыть систему глазами этого пользователя. Действие пишется в журнал."
+              @click="impersonateUser(selectedUser)"
+            >
+              {{ impersonating ? 'Входим…' : 'Войти как пользователь' }}
+            </button>
+            <button
               v-if="selectedUserIsSecurity"
               class="lk-button lk-button--secondary"
               data-testid="user-access-places"
@@ -745,6 +755,26 @@
             </div>
           </div>
 
+          <!-- Смена пароля с отправкой письмом (#1910): закрывает случай
+               «работник потерял пароль». До этого пароль придумывали руками и
+               диктовали по телефону, то есть он проходил через третьи уши. -->
+          <div
+            v-if="selectedUser.is_active !== false"
+            class="rotate-row"
+          >
+            <button
+              class="lk-button lk-button--secondary"
+              :disabled="rotatingPassword"
+              data-testid="user-rotate-password"
+              @click="rotateUserPassword(selectedUser)"
+            >
+              {{ rotatingPassword ? 'Отправляем...' : 'Сменить пароль и отправить письмом' }}
+            </button>
+            <span class="rotate-row__hint">
+              Система придумает пароль по действующим требованиям и отправит его работнику на почту.
+            </span>
+          </div>
+
           <div
             v-if="selectedUser.is_active !== false"
             class="danger-zone"
@@ -815,7 +845,7 @@
             </ul>
           </div>
           <div class="input-group half">
-            <label class="input-label">Организация <span class="required">*</span></label>
+            <label class="input-label">Организация</label>
             <BaseDropdown
               :model-value="newUser.organization_id"
               :options="orgOptionsWithNone"
@@ -827,7 +857,7 @@
             />
           </div>
           <div class="input-group half">
-            <label class="input-label">Компания <span class="required">*</span></label>
+            <label class="input-label">Компания</label>
             <BaseDropdown
               :model-value="newUser.company_id"
               :options="companyOptionsWithNone"
@@ -838,6 +868,9 @@
               @update:model-value="onSelectNewUserCompany"
             />
           </div>
+          <p class="input-group full org-company-hint">
+            Заполните организацию или компанию - достаточно одного из двух.
+          </p>
           <div class="input-group full">
             <label class="input-label">Тип пользователя <span class="required">*</span></label>
             <BaseDropdown
@@ -1077,6 +1110,9 @@ import UserAccessModal from './admin/UserAccessModal.vue';
 import UserAccessPlacesModal from './admin/UserAccessPlacesModal.vue';
 import UserBulkOperationsModal from './UserBulkOperationsModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
+import { usePermissionsStore } from '@/stores/permissions';
+import { useAuthStore } from '@/stores/auth';
+import { startImpersonation } from '@/api/impersonation';
 import { useUiStore } from '@/stores/ui';
 import { resetOnboardingForUser } from '@/api/onboarding';
 import { TOURS } from '@/components/onboarding/tours';
@@ -1148,9 +1184,14 @@ export default {
       // bulk-операций у активных и архивных разные, поэтому режим один на всё,
       // а не отдельный тумблер «онлайн» поверх архива.
       listMode: 'active',
+      rotatingPassword: false,
       archiveOptions: [
         { value: 'active', label: 'Активные' },
         { value: 'online', label: 'В сети' },
+        // Без почты (#1908): плановая смена паролей такого работника пропускает,
+        // и бюро должно видеть эти учётные записи до первого прогона, а не из
+        // отчёта после него.
+        { value: 'no_email', label: 'Без почты' },
         { value: 'archive', label: 'Архив' },
       ],
       // presenceNow - тикающее «сейчас» для колонки присутствия. Держим в data, а не
@@ -1158,6 +1199,7 @@ export default {
       // никогда не гаснет без перезагрузки.
       presenceNow: Date.now(),
       lockoutResetting: false,
+      impersonating: false,
       presenceTimer: null,
       presencePollTimer: null,
       showNewPass: false,
@@ -1184,6 +1226,21 @@ export default {
   },
   computed: {
     ...mapState(useOrganizationsStore, { organizations: 'items' }),
+    // Кнопка режима «войти как пользователь» (#1912). Право - не единственное
+    // условие: от имени самого себя входить некуда, а архивная и заблокированная
+    // учётные записи не пускают и собственного владельца.
+    canImpersonate() {
+      if (!usePermissionsStore().hasPermission('user.impersonate')) return false;
+      const user = this.selectedUser;
+      if (!user || user.is_active === false || user.is_banned) return false;
+      const auth = useAuthStore();
+      if (user.username === auth.username) return false;
+      // Заведомо закрытые случаи прячем, чтобы кнопка не обещала невозможного.
+      // Полное правило - на бэкенде: набор прав цели клиенту неизвестен, и
+      // именно бэкенд остаётся тем, кто отказывает.
+      if (user.is_super_admin) return false;
+      return !user.is_admin || auth.isSuperAdmin;
+    },
     ...mapState(useCompaniesStore, { companies: 'items' }),
     showArchive() {
       return this.listMode === 'archive';
@@ -1191,10 +1248,14 @@ export default {
     onlineOnly() {
       return this.listMode === 'online';
     },
+    noEmailOnly() {
+      return this.listMode === 'no_email';
+    },
     // Подпись футера идёт от режима списка: «Всего пользователей» под отфильтрованным
     // числом читалось бы как «в системе всего один», хотя это только те, кто в сети.
     countLabel() {
       if (this.showArchive) return 'В архиве';
+      if (this.noEmailOnly) return 'Без почты';
       return this.onlineOnly ? 'В сети' : 'Всего пользователей';
     },
     // Счётчик шапки считается по всем учёткам, а не по видимым: он отвечает на
@@ -1254,6 +1315,7 @@ export default {
       return this.allUsers
         .filter(user => (this.showArchive ? user.is_active === false : user.is_active !== false))
         .filter(user => !this.onlineOnly || isOnline(user, this.presenceNow))
+        .filter(user => !this.noEmailOnly || !user.email)
         .filter(user => matchesSearch(
           `${user.username} ${user.organization || ''} ${user.company || ''} `
           + `${user.user_type || ''} ${user.position || ''} ${this.formatUserName(user)}`,
@@ -1762,6 +1824,32 @@ export default {
       }
     },
 
+    /**
+     * Открывает сеанс работы от имени выбранного пользователя (#1912) и уводит на
+     * стартовый экран: дальше администратор видит систему его глазами, а полоса
+     * внизу напоминает, от чьего имени он действует.
+     *
+     * @param {{ id: number, username: string }} user
+     */
+    async impersonateUser(user) {
+      if (this.impersonating) return;
+      this.impersonating = true;
+      try {
+        const session = await startImpersonation(user.id);
+        await useAuthStore().beginImpersonation(session);
+        useDeletionsStore().notify({ prefix: 'Вы работаете от имени ', bold: session.target.full_name });
+        this.$router.push('/news').catch(() => {});
+      } catch (error) {
+        useDeletionsStore().notify({
+          prefix: 'Не удалось войти от имени пользователя: ',
+          bold: error?.message || 'ошибка',
+          type: 'error',
+        });
+      } finally {
+        this.impersonating = false;
+      }
+    },
+
     openHistory(user) {
       this.historyForUser = user;
     },
@@ -1998,11 +2086,14 @@ export default {
         // ни ФИО, ни рабочих контактов. Отправить пустые поля значило бы стереть
         // настоящие данные правкой соседнего: без ключей сервер их не трогает.
         if (!user.pd_hidden) {
-          payload.last_name = user.last_name || null;
-          payload.first_name = user.first_name || null;
-          payload.middle_name = user.middle_name || null;
-          payload.email = user.email || null;
-          payload.phone = user.phone || null;
+          // Пустая строка, а не null: сервер трактует отсутствие ключа как «не
+          // трогай поле», поэтому `|| null` делал очистку невозможной - стереть
+          // почту или телефон в карточке было нельзя, значение просто возвращалось.
+          payload.last_name = user.last_name ?? '';
+          payload.first_name = user.first_name ?? '';
+          payload.middle_name = user.middle_name ?? '';
+          payload.email = user.email ?? '';
+          payload.phone = user.phone ?? '';
         }
         const response = await apiRequest(`/users/${user.username}/info`,
           {
@@ -2168,6 +2259,36 @@ export default {
       }
     },
     
+    /**
+     * Смена пароля работнику с отправкой письмом. Пароль в интерфейсе не
+     * показывается намеренно: он уходит владельцу учётной записи, а не тому,
+     * кто нажал кнопку.
+     */
+    async rotateUserPassword(user) {
+      this.rotatingPassword = true;
+      try {
+        const response = await apiRequest(`/users/${user.username}/rotate-password`, { method: 'POST' });
+        if (response.ok) {
+          useDeletionsStore().notify({
+            prefix: 'Новый пароль отправлен на почту работника ',
+            bold: user.username,
+          });
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          useDeletionsStore().notify({
+            prefix: 'Не удалось сменить пароль: ',
+            bold: errorData.message || 'ошибка',
+            type: 'error',
+          });
+        }
+      } catch (error) {
+        console.error('Ошибка сети при смене пароля с отправкой письмом:', error);
+        useDeletionsStore().notify({ bold: 'Нет связи с сервером', type: 'error' });
+      } finally {
+        this.rotatingPassword = false;
+      }
+    },
+
     async changeUserPassword(user) {
       if (!user.newPassword) {
         useDeletionsStore().notify({ bold: 'Введите новый пароль', type: 'error' });
@@ -2935,6 +3056,21 @@ export default {
 }
 
 /* Опасное действие внизу "Профиля" */
+.rotate-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.rotate-row__hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex: 1;
+  min-width: 200px;
+}
+
 .danger-zone {
   display: flex;
   align-items: center;
@@ -2993,6 +3129,12 @@ export default {
 
 .input-group.full {
   flex: 1 1 100%;
+}
+
+.org-company-hint {
+  margin: -4px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .input-label {
