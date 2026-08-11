@@ -121,7 +121,7 @@ var tables = []string{
 	"citizenships",
 	"companies_users", "organization_users",
 	"user_onboarding_progress",
-	"auth_events", "refresh_tokens", "users",
+	"auth_events", "refresh_tokens", "used_passwords", "users",
 	"roles",
 	"companies", "organizations", "user_types",
 }
