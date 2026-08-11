@@ -12,6 +12,7 @@
       :existing-approvers="approvers"
       :existing-viewers="viewers"
       :attachments="attachments"
+      :reader-only="isForwardReaderOnly"
       :is-sending="isForwarding"
       @close="closeForwardModal"
       @send="sendForwardRequest"
@@ -643,6 +644,7 @@ import { useDeletionsStore } from '@/stores/deletions'
 import { useUiStore } from '@/stores/ui'
 import { SUPPLEMENT_APPROVED } from '@/utils/supplementStatuses'
 import { usePermissionsStore } from '@/stores/permissions'
+import { useAuthStore } from '@/stores/auth'
 import ApplicationAttachments from './ApplicationAttachments.vue'
 import ApplicationFiles from './ApplicationFiles.vue'
 import ApplicationConfirmation from './ApplicationConfirmation.vue'
@@ -800,6 +802,11 @@ export default {
             return useUiStore().tourActive;
         },
 
+        /** Супер-администратор: доступ к заявке и пересылка ему открыты безусловно. */
+        isSuperAdmin() {
+            return useAuthStore().isSuperAdmin;
+        },
+
         /** Бланки к заявке настроены и их выгрузка этому режиму/праву доступна. */
         canDownloadBlank() {
             return Boolean(this.applicationData.has_blank_template)
@@ -953,11 +960,40 @@ export default {
             return this.isResponsibleUser || this.isApprover;
         },
 
-        // Зеркалит BE-проверку canForward (sender OR responsible). Согласующего не включаем
-        // сознательно: isApprover - глобальная роль, видит все заявки, и на чужой forward
-        // вернул бы 403. Отправителя тоже нет - в режиме "Центр" у него нет UI-пути к кнопке.
+        /**
+         * Доступ к заявке: зеркало CanAccessApplication на бэке. Супер-админ и
+         * принимающий (оператор бюро) видят любую заявку, остальные - свою по роли
+         * на ней: отправитель, ответственный, согласующий (он же строка в
+         * responsible_users) и читатель.
+         */
+        hasApplicationAccess() {
+            const a = this.applicationData;
+            if (!a) return false;
+            if (this.isSuperAdmin) return true;
+            return this.isApprover || this.isResponsibleUser || this.isViewer ||
+                a.sender_user_id === this.currentUserId;
+        },
+
+        /**
+         * Переслать заявку вправе любой, у кого есть к ней доступ (#1948): гейт
+         * пересылки на бэке = гейт доступа. Прежнее «только ответственный» осталось от
+         * #680 и отсекало отправителя, принимающего и читателя, хотя сервер их пускает.
+         * Отозванную заявку сервер отбивает checkNotWithdrawn - действий по ней нет.
+         */
         canForwardApplication() {
-            return this.isResponsibleUser && this.applicationData.status !== 'Отозвана';
+            return this.hasApplicationAccess && this.applicationData.status !== 'Отозвана';
+        },
+
+        /**
+         * Заявка доступна только на просмотр: тогда и переслать её можно лишь на
+         * просмотр - назначение согласующего или ответственного сервер отбивает 403.
+         * Зеркало forwardAuthority.readerOnly: супер-админ и принимающий проходят
+         * раньше проверки роли на заявке, дальше решают отправитель/ответственный.
+         */
+        isForwardReaderOnly() {
+            if (this.isSuperAdmin || this.isApprover) return false;
+            if (this.applicationData?.sender_user_id === this.currentUserId) return false;
+            return !this.isResponsibleUser;
         },
 
         hasUserVoted() {
@@ -1293,12 +1329,11 @@ export default {
                     this.viewers = newViewers;
                 }
 
-                // Списки всех пользователей и согласующих нужны только в "Центре заявок"
-                // (пересылка, определение согласующего). Рядовому отправителю в ЛК их не
-                // отдают (403) - не дёргаем админ-эндпоинты, иначе всплывает generic-тост
-                // "Недостаточно прав для этого действия" при открытии своей же заявки.
+                // Кандидаты в получатели и состав принимающих нужны окну пересылки, а
+                // оно живёт только в "Центре заявок". В личном кабинете кнопки пересылки
+                // нет, поэтому и запросов не делаем.
                 if (this.mode === 'center') {
-                    await this.fetchAllUsers();
+                    await this.fetchRecipientCandidates();
                     await this.fetchApprovers();
                 }
 
@@ -1315,15 +1350,26 @@ export default {
             }
         },
 
-        async fetchAllUsers() {
+        /**
+         * Кандидаты в получатели пересылки: коллеги по организации и компании плюс
+         * руководители - тот же круг, который бэк потом и проверяет при пересылке.
+         *
+         * Раньше список брался из /users/all, а он под правом администратора: рядовой
+         * участник заявки получал 403 и пустой выбор в окне пересылки. У супер-админа и
+         * принимающего ограничения на получателей нет вовсе, но и им этого списка
+         * достаточно - расширять его отдельной админской ручкой не за чем.
+         *
+         * silent403 оставлен на всякий отказ: окно пересылки деградирует до пустого
+         * списка, тост о недостатке прав здесь лишний - запроса пользователь не делал.
+         */
+        async fetchRecipientCandidates() {
             try {
-                // silent403 - на случай контекста без права: без пугающего тоста, деградируем тихо.
-                const response = await apiRequest("/users/all", { silent403: true });
+                const response = await apiRequest("/users/recipient-candidates", { silent403: true });
                 if (response.ok) {
-                    this.allUsers = await response.json();
+                    this.allUsers = (await response.json()) || [];
                 }
             } catch (error) {
-                console.error("Error fetching users:", error);
+                console.error("Error fetching recipient candidates:", error);
             }
         },
 
