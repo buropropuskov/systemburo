@@ -50,6 +50,12 @@
             :key="participant.user_id"
             class="participant"
             data-testid="app-participants-row"
+            role="button"
+            tabindex="0"
+            :aria-label="`Открыть карточку: ${displayName(participant)}`"
+            @click="$emit('select', participant)"
+            @keydown.enter.prevent="$emit('select', participant)"
+            @keydown.space.prevent="$emit('select', participant)"
           >
             <div class="participant__head">
               <span
@@ -138,7 +144,10 @@ export default {
       default: null,
     },
   },
-  emits: ['close'],
+  // select - клик по строке. Карточку участника рисует не окно, а родитель: из
+  // блока согласования её открывают тем же компонентом, и два экземпляра
+  // разошлись бы состоянием - что открыто и поверх чего.
+  emits: ['close', 'select'],
   // Словарь голосов общий с согласованием заявки и раундами дополнения: у всех трёх
   // списков одни и те же три состояния.
   setup() {
@@ -243,6 +252,18 @@ export default {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 15px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.participant:hover {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.participant:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .participant__head {
