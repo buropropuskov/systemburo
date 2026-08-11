@@ -25253,6 +25253,9 @@ const docTemplate = `{
         "models.RecipientCandidate": {
             "type": "object",
             "properties": {
+                "company": {
+                    "type": "string"
+                },
                 "first_name": {
                     "type": "string"
                 },
@@ -25265,8 +25268,12 @@ const docTemplate = `{
                 "middle_name": {
                     "type": "string"
                 },
+                "organization": {
+                    "description": "Organization и Company названы как в UserInfoResponse, а не organization_name\nсоседних ответов: окно пересылки получает оба ответа в ОДИН проп allUsers\n(носителю page.admin.users - /users/all, остальным - кандидатов), и второе имя\nтого же поля потребовало бы развилки в каждом месте, где окно его читает.",
+                    "type": "string"
+                },
                 "pd_hidden": {
-                    "description": "PDHidden -- ФИО скрыто: работник не дал согласия на обработку ПД (#1567).",
+                    "description": "PDHidden -- ФИО скрыто: работник не дал согласия на обработку ПД (#1567).\nОрганизацию и компанию согласие не закрывает: это данные работодателя, а не\nработника, и в администраторском списке они видны у скрытого работника тоже.",
                     "type": "boolean"
                 },
                 "position": {

@@ -551,6 +551,16 @@ export default {
             type: Array,
             default: () => []
         },
+        /**
+         * «Текущий пользователь - принимающий». Приходит из ответа про себя
+         * (/application-approvers/me), потому что полный состав принимающих
+         * отдаётся только администратору: выводить роль из него значило бы
+         * прятать кнопки приёма от рядового принимающего (#1685).
+         */
+        isApprover: {
+            type: Boolean,
+            default: false
+        },
         mode: {
             type: String,
             default: 'center'
@@ -646,6 +656,9 @@ export default {
         },
 
         isApproverUser() {
+            if (this.isApprover) return true;
+            // Состав принимающих приходит только администратору - для него это тот
+            // же ответ, просто из уже загруженных данных.
             if (!this.currentUserId || !this.approvers.length) return false;
             return this.approvers.some(approver => approver.user_id === this.currentUserId);
         },

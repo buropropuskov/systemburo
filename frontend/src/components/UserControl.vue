@@ -845,7 +845,7 @@
             </ul>
           </div>
           <div class="input-group half">
-            <label class="input-label">Организация <span class="required">*</span></label>
+            <label class="input-label">Организация</label>
             <BaseDropdown
               :model-value="newUser.organization_id"
               :options="orgOptionsWithNone"
@@ -857,7 +857,7 @@
             />
           </div>
           <div class="input-group half">
-            <label class="input-label">Компания <span class="required">*</span></label>
+            <label class="input-label">Компания</label>
             <BaseDropdown
               :model-value="newUser.company_id"
               :options="companyOptionsWithNone"
@@ -868,6 +868,9 @@
               @update:model-value="onSelectNewUserCompany"
             />
           </div>
+          <p class="input-group full org-company-hint">
+            Заполните организацию или компанию - достаточно одного из двух.
+          </p>
           <div class="input-group full">
             <label class="input-label">Тип пользователя <span class="required">*</span></label>
             <BaseDropdown
@@ -3126,6 +3129,12 @@ export default {
 
 .input-group.full {
   flex: 1 1 100%;
+}
+
+.org-company-hint {
+  margin: -4px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .input-label {

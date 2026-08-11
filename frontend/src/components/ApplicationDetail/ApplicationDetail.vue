@@ -18,6 +18,13 @@
       @send="sendForwardRequest"
     />
 
+    <!-- Получатели заявки (#1952) -->
+    <ApplicationParticipantsModal
+      :show="showParticipantsModal"
+      :application-id="Number(applicationData.id)"
+      @close="showParticipantsModal = false"
+    />
+
     <!-- Дополнение поданной заявки (#1685) -->
     <SupplementModal
       :show="showSupplementModal"
@@ -125,6 +132,40 @@
               </svg>
               <span class="detail-download-btn__text">Скачать</span>
             </button>
+            <!-- Получатели (#1952): кто видит заявку и кто по ней голосует. Своего
+                 гейта у кнопки нет - метод отдаёт список тому, кому видна сама
+                 заявка, а она уже открыта. -->
+            <!-- aria-label дублирует подпись: на мобилке текст скрыт, и без него
+                 кнопка остаётся безымянным кружком для скринридера. -->
+            <button
+              class="participants-btn"
+              data-testid="app-detail-button-participants"
+              aria-label="Получатели"
+              @click="showParticipantsModal = true"
+            >
+              <svg
+                class="participants-btn__icon"
+                width="17"
+                height="17"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle
+                  cx="9"
+                  cy="7"
+                  r="4"
+                />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+              <span class="participants-btn__text">Получатели</span>
+            </button>
           </div>
         </div>
         <div class="detail-header-right">
@@ -150,6 +191,7 @@
             :current-user-id="currentUserId"
             :responsible-users="responsibleUsers"
             :approvers="approvers"
+            :is-approver="isApprover"
             :mode="mode"
             :processing="processingApplication"
             :updating-confirmation="updatingConfirmation"
@@ -661,6 +703,7 @@ import Badge from '@/components/ui/Badge.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import { sanitizeHtml } from '@/utils/sanitize'
 import ApplicationMessageModal from './ApplicationMessageModal.vue'
+import ApplicationParticipantsModal from './ApplicationParticipantsModal.vue'
 import DirectoryModeration from '@/components/directory/DirectoryModeration.vue'
 import eventStream from '@/services/eventStream'
 import { ref } from 'vue'
@@ -690,6 +733,7 @@ export default {
         Badge,
         BaseDropdown,
         ApplicationMessageModal,
+        ApplicationParticipantsModal,
         DirectoryModeration,
         SupplementModal,
         SupplementPanel
@@ -771,6 +815,7 @@ export default {
             supplementsError: '',
             supplementsSeq: 0,
             showForwardModal: false,
+            showParticipantsModal: false,
             isForwarding: false,
             allUsers: [],
             approvers: [],
@@ -2233,6 +2278,31 @@ export default {
     background: var(--accent-hover);
 }
 
+/* Получатели (#1952) - вторичное действие рядом с "Переслать": та же пилюля и та
+   же высота, но контурная, чтобы не спорить с основным действием шапки. */
+.participants-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 18px;
+    border-radius: 50px;
+    border: 1px solid var(--accent);
+    background: var(--surface);
+    color: var(--accent-text);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.participants-btn:hover {
+    background: var(--accent-tint);
+}
+
+.participants-btn__icon {
+    flex-shrink: 0;
+}
+
 .detail-header-right {
     display: flex;
     align-items: center;
@@ -2830,6 +2900,22 @@ export default {
 
     .forward-btn__icon {
         display: inline-block;
+    }
+
+    /* "Получатели" сворачивается в такой же круг: ряд заголовка на 390 несёт дату
+       и кнопки-иконки, и пилюля с подписью выдавила бы их на лишнюю строку. */
+    .participants-btn {
+        width: 30px;
+        height: 30px;
+        min-width: 30px;
+        padding: 0;
+        gap: 0;
+        border-radius: 50%;
+        justify-content: center;
+    }
+
+    .participants-btn__text {
+        display: none;
     }
 
 
