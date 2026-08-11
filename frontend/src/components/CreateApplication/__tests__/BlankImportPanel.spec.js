@@ -44,6 +44,18 @@ const RESULT = {
     },
     errors: [],
     warnings: [],
+  }, {
+    // Отклонённая строка приходит в rows вместе с принятыми - счётчик «с ошибками»
+    // считает их карточки, а не число из summary (то оставалось снимком разбора и
+    // спорило с соседним счётчиком, когда строку чинили).
+    row_number: 3,
+    employee: {
+      last_name: '', first_name: 'Мария', middle_name: '',
+      citizenship_id: 1, position: '', passport_series_number: '',
+      patent_number: null, other_permission: null, target_tables: [],
+    },
+    errors: [{ text: 'Поле «Фамилия» обязательно для заполнения', code: 'field_required', field: 'last_name', fixable: true }],
+    warnings: [],
   }],
   summary: { read: 7, accepted: 6, rejected: 1 },
 };
@@ -118,8 +130,11 @@ describe('BlankImportPanel (U4)', () => {
 
   // Средний счётчик с U5 приходит от родителя: принятые строки уже лежат в списке
   // предварительными, и удаление одной обязано отразиться здесь же.
-  it('после разбора на месте области загрузки стоит сводка с ответом сервера', () => {
+  it('после разбора на месте области загрузки стоит сводка с ответом сервера', async () => {
     const wrapper = mountPanel({ result: RESULT, pendingCount: 6 });
+    // Карточки строк строятся после справочника гражданств - до промисов их нет,
+    // а с ними считается счётчик ошибок.
+    await flushPromises();
 
     expect(wrapper.find('[data-testid="import-dropzone"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="download-blank-template-btn"]').exists()).toBe(false);

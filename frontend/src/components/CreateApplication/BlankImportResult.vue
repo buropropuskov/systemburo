@@ -21,11 +21,18 @@
         >{{ pendingCount }}</span>
         <span class="bim__counter-label">готово к добавлению</span>
       </div>
+      <!-- Тоже из живого состояния, а не из разбора: исправленная строка уходит из
+           карточек в список, и снимок summary.rejected начинал спорить с соседним
+           счётчиком - 15 прочитано при 14 готовых и 2 с ошибками. Заголовок блока
+           ниже всегда считал карточки, поэтому расхождение было видно на одном экране. -->
       <div
-        v-if="hasResult && summary.rejected"
+        v-if="hasResult && problemRows.length"
         class="bim__counter bim__counter--error"
       >
-        <span class="bim__counter-value">{{ summary.rejected || 0 }}</span>
+        <span
+          class="bim__counter-value"
+          data-testid="bim-error-count"
+        >{{ problemRows.length }}</span>
         <span class="bim__counter-label">с ошибками</span>
       </div>
     </div>
