@@ -34,7 +34,7 @@
     <ConfirmDialog />
     <DirtyConfirmModal />
     <DeleteNotifications />
-    <OnboardingTour v-if="isAuthenticated && !consentBlocking" />
+    <OnboardingTour v-if="isAuthenticated && !consentBlocking && !passwordChangeBlocking" />
     <GlobalSearchPanel
       v-if="isAuthenticated"
       :show="searchOpen"

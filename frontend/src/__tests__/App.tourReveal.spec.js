@@ -29,6 +29,7 @@ const consentState = reactive({
   reset: vi.fn(),
 });
 const onboardingState = reactive({ revealOpen: null, reset: vi.fn() });
+const passwordChangeState = reactive({ required: false, reset: vi.fn() });
 
 vi.mock('@/api/client', () => ({
   apiRequest: vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }),
@@ -36,6 +37,9 @@ vi.mock('@/api/client', () => ({
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => authState }));
 vi.mock('@/stores/permissions', () => ({ usePermissionsStore: () => permissionsState }));
 vi.mock('@/stores/pdConsent', () => ({ usePDConsentStore: () => consentState }));
+// Гейт смены пароля (#1911) читает свой стор из тех же computed; спека монтируется
+// без Pinia, поэтому стор мокаем - смена пароля тут не проверяется.
+vi.mock('@/stores/passwordChange', () => ({ usePasswordChangeStore: () => passwordChangeState }));
 vi.mock('@/stores/onboarding', () => ({ useOnboardingStore: () => onboardingState }));
 vi.mock('@/stores/theme', () => ({ useThemeStore: () => ({ syncFromServer: vi.fn() }) }));
 vi.mock('@/services/eventStream', () => ({
