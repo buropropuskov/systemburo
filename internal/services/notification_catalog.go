@@ -88,8 +88,8 @@ const (
 	NotificationTypeUserBanned      = "user_banned"
 	NotificationTypeUserUnbanned    = "user_unbanned"
 	NotificationTypeLoginBlocked    = "login_blocked"
-	// Плановая смена паролей (#1910). Первые два - работнику, третий -
-	// администраторам с правом на настройки: они её включают, им и разбираться
+	// Сроки действия паролей (#1910). Первые два - работнику, третий -
+	// администраторам с правом на настройки: они их настраивают, им и разбираться
 	// с итогом прогона.
 	NotificationTypePasswordRotated        = "password_rotated"
 	NotificationTypePasswordExpiring       = "password_expiring"
@@ -222,20 +222,20 @@ var notificationCatalog = map[string]NotificationMeta{
 	},
 	NotificationTypePasswordRotated: {
 		Code: NotificationTypePasswordRotated, Category: NotificationCategorySecurity,
-		Label:       "Пароль изменён по расписанию",
-		Description: "Система сменила ваш пароль по правилам безопасности. Отключить такие уведомления нельзя.",
+		Label:       "Пароль изменён системой",
+		Description: "Система сменила ваш пароль по правилам безопасности и выслала новый письмом. Отключить такие уведомления нельзя.",
 		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 50, HiddenInSettings: true,
 	},
 	NotificationTypePasswordExpiring: {
 		Code: NotificationTypePasswordExpiring, Category: NotificationCategorySecurity,
 		Label:       "Пароль скоро истечёт",
-		Description: "Срок действия пароля подходит к концу, скоро система сменит его сама. Отключить такие уведомления нельзя.",
+		Description: "Срок действия пароля подходит к концу, скоро система попросит задать новый. Отключить такие уведомления нельзя.",
 		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityNormal, Order: 60, HiddenInSettings: true,
 	},
 	NotificationTypePasswordRotationReport: {
 		Code: NotificationTypePasswordRotationReport, Category: NotificationCategorySecurity,
-		Label:       "Итог плановой смены паролей",
-		Description: "Сводка прошедшего прогона плановой смены паролей. Приходит тем, кто настраивает систему.",
+		Label:       "Итог прогона по паролям",
+		Description: "Сводка плановой проверки сроков или ручного обновления паролей. Приходит тем, кто настраивает систему.",
 		Mandatory:   true, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 70, HiddenInSettings: true,
 		Permission: KeyPageAdminSettings,
 	},
