@@ -51,6 +51,11 @@ type UserService interface {
 	SetBanCache(banCache *BanCheckService)
 	// SetPasswordPolicyProvider подключает источник политики паролей.
 	SetPasswordPolicyProvider(p PasswordPolicyProvider)
+	// SetMailSender подключает отправку писем: о заведённой учётной записи и о
+	// пароле, заданном администратором. Без него письма просто не уходят.
+	SetMailSender(m MailSender)
+	// SetPublicBaseURL задаёт адрес системы для писем.
+	SetPublicBaseURL(url string)
 
 	// GetUserUnloadPlaces возвращает активные места разгрузки, привязанные к охраннику.
 	GetUserUnloadPlaces(ctx context.Context, username string) ([]models.UnloadPlace, error)
@@ -83,6 +88,8 @@ type PasswordPolicyProvider interface {
 }
 
 type userService struct {
+	mail                MailSender
+	baseURL             string
 	db                  *gorm.DB
 	notificationService NotificationService
 	recorder            AuditRecorder
@@ -113,6 +120,17 @@ func (s *userService) SetBanCache(banCache *BanCheckService) {
 // после конструирования - settingsService в main.go создаётся позже userService).
 func (s *userService) SetPasswordPolicyProvider(p PasswordPolicyProvider) {
 	s.policy = p
+}
+
+// SetMailSender подключает отправку писем (опционально, как и остальные зависимости
+// после конструирования).
+func (s *userService) SetMailSender(m MailSender) {
+	s.mail = m
+}
+
+// SetPublicBaseURL задаёт адрес системы, который подставляется в письма.
+func (s *userService) SetPublicBaseURL(url string) {
+	s.baseURL = normalizeBaseURL(url)
 }
 
 // passwordPolicy возвращает активную политику, либо безопасный дефолт, если
@@ -244,18 +262,33 @@ func (s *userService) Create(ctx context.Context, callerUserID int, req models.R
 		return echo.NewHTTPError(http.StatusBadRequest, "Необходимо указать организацию или компанию (хотя бы одно)")
 	}
 
-	if err := ValidatePassword(s.passwordPolicy(), req.Password); err != nil {
-		return err
-	}
-
 	// Адрес почты проверяется на формат и занятость (#1908) - тем же кодом, что и
-	// при правке карточки, иначе мусор заезжал бы через форму создания.
+	// при правке карточки, иначе мусор заезжал бы через форму создания. Проверка
+	// идёт первой: от наличия адреса зависит, кто придумывает пароль.
 	if req.Email != nil {
 		normalized, err := validateUserEmail(ctx, s.db, *req.Email, 0)
 		if err != nil {
 			return err
 		}
 		req.Email = &normalized
+	}
+
+	// Пароль придумывает система, когда есть куда его отправить. Администратор
+	// задаёт пароль руками только для работника без адреса почты: там письмо
+	// послать некуда, и пароль сообщают лично.
+	hasEmail := req.Email != nil && *req.Email != ""
+	generated := ""
+	if req.Password == "" {
+		if !hasEmail {
+			return echo.NewHTTPError(http.StatusBadRequest,
+				"Укажите адрес почты, чтобы система отправила пароль работнику, либо задайте пароль вручную")
+		}
+		generated = GeneratePassword(s.passwordPolicy())
+		req.Password = generated
+	}
+
+	if err := ValidatePassword(s.passwordPolicy(), req.Password); err != nil {
+		return err
 	}
 
 	// Отсчёт срока действия пароля начинается с момента заведения учётной записи
@@ -265,15 +298,20 @@ func (s *userService) Create(ctx context.Context, callerUserID int, req models.R
 		Username:          req.Username,
 		Password:          hashPassword(req.Password),
 		PasswordChangedAt: &passwordSetAt,
-		OrganizationID:    intPtrOrNil(req.OrganizationID),
-		CompanyID:         intPtrOrNil(req.CompanyID),
-		TypeID:            req.TypeID,
-		LastName:          req.LastName,
-		FirstName:         req.FirstName,
-		MiddleName:        req.MiddleName,
-		Position:          req.Position,
-		Email:             req.Email,
-		Phone:             req.Phone,
+		// Пароль, который работник не выбирал сам, годится ровно на один вход:
+		// сгенерированный проходит через почтовый ящик, заданный администратором -
+		// через самого администратора. В обоих случаях он не должен оставаться
+		// постоянным, поэтому смена при первом входе обязательна всегда.
+		MustChangePassword: true,
+		OrganizationID:     intPtrOrNil(req.OrganizationID),
+		CompanyID:          intPtrOrNil(req.CompanyID),
+		TypeID:             req.TypeID,
+		LastName:           req.LastName,
+		FirstName:          req.FirstName,
+		MiddleName:         req.MiddleName,
+		Position:           req.Position,
+		Email:              req.Email,
+		Phone:              req.Phone,
 	}
 	if err := s.db.WithContext(ctx).Create(&user).Error; err != nil {
 		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
@@ -286,6 +324,13 @@ func (s *userService) Create(ctx context.Context, callerUserID int, req models.R
 		"username": user.Username,
 		"type_id":  user.TypeID,
 	})
+
+	// Письмо о заведённой учётной записи. Уходит только когда пароль придумала
+	// система: пароль, заданный администратором вручную, он и сообщает работнику
+	// сам - обычно при выдаче пропуска, из рук в руки.
+	if generated != "" {
+		s.sendAccountCreatedLetter(ctx, &user, generated)
+	}
 
 	// Новый пользователь получает базовую роль "Пользователь" по умолчанию -- так роль
 	// выдаёт стартовый набор прав (ТЗ). Best-effort: отсутствие базовой роли не валит создание.
@@ -407,16 +452,27 @@ func (s *userService) UpdatePassword(ctx context.Context, callerUserID int, user
 
 	hashed := hashPassword(req.Password)
 
+	// Пароль, заданный администратором другому человеку, проходит через третьи
+	// руки, поэтому жить постоянным он не должен: требование сменить его при входе
+	// поднимается. Когда администратор меняет пароль себе, требование снимается -
+	// пароль выбрал сам владелец учётной записи.
+	targetIsCaller := false
+	{
+		var target models.User
+		if err := s.db.WithContext(ctx).Select("id").Where("username = ?", username).First(&target).Error; err == nil {
+			targetIsCaller = target.ID == callerUserID
+		}
+	}
+
 	// Дата смены двигается вместе с паролем (#1907): от неё считается срок
-	// действия при плановой смене. Требование задать свой пароль снимается здесь
-	// же - человек только что его и задал.
+	// действия при плановой смене.
 	if err := s.db.WithContext(ctx).
 		Table("users").
 		Where("username = ?", username).
 		Updates(map[string]any{
 			"password":             hashed,
 			"password_changed_at":  time.Now(),
-			"must_change_password": false,
+			"must_change_password": !targetIsCaller,
 		}).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating password")
 	}
@@ -439,6 +495,13 @@ func (s *userService) UpdatePassword(ctx context.Context, callerUserID int, user
 		// вызывающего с целевым (гейт page.admin.users допускает и смену
 		// админом собственного пароля).
 		s.notifyPasswordChanged(ctx, &user, callerUserID)
+
+		// Пароль, заданный администратором, работник узнаёт письмом: иначе его
+		// пришлось бы диктовать по телефону, то есть провести через третьи уши.
+		// Себе администратор пароль не пересылает - он его и придумал.
+		if !targetIsCaller {
+			s.sendPasswordSetLetter(ctx, nil, &user, req.Password)
+		}
 
 		// Событие в истории входов. Модель AuthEvent обещает запись при смене
 		// пароля с самого начала, но до этого её не делал никто: человек видел
@@ -879,4 +942,41 @@ func (s *userService) SetUserTables(ctx context.Context, username string, req mo
 		}
 		return nil
 	})
+}
+
+// sendAccountCreatedLetter отправляет письмо о заведённой учётной записи с
+// логином и первым паролем. Best-effort: провал письма не отменяет уже созданную
+// учётную запись, иначе администратор увидел бы ошибку и завёл работника второй раз.
+func (s *userService) sendAccountCreatedLetter(ctx context.Context, u *models.User, password string) {
+	if s.mail == nil || !s.mail.Enabled() || u.Email == nil || *u.Email == "" {
+		return
+	}
+	if err := s.mail.Enqueue(ctx, nil, MailMessage{
+		To:           *u.Email,
+		Subject:      "Учётная запись в системе бюро пропусков",
+		Body:         accountCreatedLetterBody(u, password, s.baseURL),
+		TemplateCode: MailTemplateAccountCreated,
+		UserID:       &u.ID,
+	}); err != nil {
+		slog.Error("письмо о заведённой учётной записи не поставлено в очередь",
+			"user_id", u.ID, "error", err)
+	}
+}
+
+// sendPasswordSetLetter отправляет работнику пароль, заданный администратором.
+// Отдельное письмо от того, что уходит при заведении: там человек узнаёт о самой
+// учётной записи, здесь - что прежний пароль больше не действует.
+func (s *userService) sendPasswordSetLetter(ctx context.Context, exec *gorm.DB, u *models.User, password string) {
+	if s.mail == nil || !s.mail.Enabled() || u.Email == nil || *u.Email == "" {
+		return
+	}
+	if err := s.mail.Enqueue(ctx, exec, MailMessage{
+		To:           *u.Email,
+		Subject:      "Новый пароль в системе бюро пропусков",
+		Body:         passwordSetLetterBody(u, password, s.baseURL),
+		TemplateCode: MailTemplatePasswordSetByAdmin,
+		UserID:       &u.ID,
+	}); err != nil {
+		slog.Error("письмо с новым паролем не поставлено в очередь", "user_id", u.ID, "error", err)
+	}
 }

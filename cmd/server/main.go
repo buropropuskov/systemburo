@@ -373,6 +373,10 @@ func main() {
 		db, settingsService, mailService, notificationServiceEarly, permissionResolver, publicBaseURL)
 	settingsHandler.SetRotationService(passwordRotationService)
 	usersHandler.SetRotationService(passwordRotationService)
+	// Письма о заведённой учётной записи и о пароле, заданном администратором
+	// (#1905, план владельца). Без почтового сервиса просто не отправляются.
+	userService.SetMailSender(mailService)
+	userService.SetPublicBaseURL(publicBaseURL)
 
 	archivePathService := services.NewArchivePathService(db, resetLoc)
 	// Место и квота файлового архива (#1615, срез B2): сводка занятого места и

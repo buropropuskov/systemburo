@@ -89,7 +89,10 @@ func TestCreateUser_SetsPasswordChangedAt(t *testing.T) {
 	require.NoError(t, db.Where("username = ?", "freshly_created_user").First(&created).Error)
 	require.NotNil(t, created.PasswordChangedAt, "дата смены пароля должна проставляться при создании")
 	assert.WithinDuration(t, time.Now(), *created.PasswordChangedAt, time.Minute)
-	assert.False(t, created.MustChangePassword)
+	// Пароль при заведении учётной записи выбирает не сам работник: его придумала
+	// система или задал администратор. В обоих случаях он годится на один вход,
+	// поэтому требование сменить его поднимается всегда.
+	assert.True(t, created.MustChangePassword)
 }
 
 // TestBackfillPasswordChangedAt_FillsOnlyEmpty: учётным записям, заведённым до
