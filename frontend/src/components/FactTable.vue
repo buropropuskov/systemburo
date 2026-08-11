@@ -411,7 +411,7 @@ import FactPassModal from './FactPassModal.vue';
 import ExcelJS from 'exceljs';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { idFilterSet } from '@/utils/idFilter';
-import { pickOverflowFields, columnMinWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
+import { pickOverflowFields, columnMinWidth, measureRowAvailableWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
 
 export default {
   name: 'FactTable',
@@ -658,9 +658,14 @@ export default {
       if (!host) return;
       const reserved = SERVICE_COLUMNS_WIDTH.passage
         + SERVICE_COLUMNS_WIDTH.actions;
+      // Мерим строку заголовков, а не всю область: её ширина уже без отступов и
+      // зазоров между ячейками (#1097 S8 волна 4). Ноль означает, что шапка
+      // скрыта - на мобилке строки идут карточками, там остаётся прежний
+      // источник ширины, и набор скрытых столбцов не меняется.
+      const measured = measureRowAvailableWidth(host.querySelector('.header-row'));
       this.overflowFields = pickOverflowFields({
         fields: this.configuredFields(),
-        available: host.clientWidth,
+        available: measured || host.clientWidth,
         priorities: this.fieldPriorities,
         orders: this.fieldOrders,
         reserved,
@@ -1580,17 +1585,38 @@ export default {
     max-height: none;
   }
 
+  /* Заголовок и «Обновить» - одной строкой (#1097 S6). В настройках шапки здесь
+     только сама кнопка, поэтому выносить её отдельным элементом, как в
+     CarsTable/PeopleTable, не нужно - хватает направления строки. */
   .card-header {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 12px;
     height: auto;
     padding: 16px;
   }
 
+  /* flex-basis именно 0, а не auto: перенос строк во flex считается по
+     ГИПОТЕТИЧЕСКИМ размерам элементов, до применения flex-shrink. При auto
+     гипотетический размер заголовка равен его тексту (замер на 320: 230px), и
+     230 + 12 gap + 36 кнопки не влезали в 246 доступных (320 - 40 padding
+     страницы - 2 рамки карточки - 32 padding шапки) - «Обновить» уезжала на
+     вторую строку, хотя ellipsis у заголовка есть. С basis 0 строка не ломается,
+     заголовок дорастает остатком (198px) и ужимается многоточием. */
+  .card-header__title {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .card-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .card-header__settings {
-    width: 100%;
-    justify-content: flex-end;
+    flex-shrink: 0;
   }
 
   /* rt-row (#1097 S8) сидит на .fact-row, а не на v-for-корне .fact-item -
@@ -1606,6 +1632,103 @@ export default {
     white-space: normal;
     overflow: visible;
     text-overflow: clip;
+  }
+
+  /* #1097 S9. Обёртку полосы заголовков убираем целиком, а не только её внутренний ряд:
+     глобальный `rt-head-row` прячет `.header-row`, а `.fact-header` остаётся в потоке
+     со своим `border-bottom` и рисует лишнюю линию в 1px перед первой карточкой
+     (замер: height 1 при вьюпорте 320 и 390). Ловушка описана в эталоне, §8.
+
+     Селектор длиннее собственного `.fact-header`, чтобы исход не зависел от порядка
+     правил: базовое правило стоит выше по файлу, но при равной специфичности его хватило
+     бы перенести ниже, чтобы линия вернулась. Закреплению полосы это не мешает - оно
+     живёт в `@media (min-width: 768px)` и сюда не достаёт. */
+  .fact-table-card .fact-header {
+    display: none;
+  }
+
+  /* #1097 S9. Карточка по образцу заявки (ApplicationAttachmentDetail.vue): подписи
+     полей убраны, значения выровнены влево, разделитель рисуется сверху.
+
+     Кнопки прохода при этом стояли двумя отдельными строками, и слева от каждой висела
+     дублирующая подпись - "Въезд" подписью и "Въезд" кнопкой в одной строке. Поэтому
+     карточка переведена из колонки в строку с переносом, а перенос во флексе держит
+     БАЗИС, а не ширина. В таблице людей кнопок прохода нет - там просто нечему делить
+     строку, и карточка остаётся прежним стеком полей.
+
+     Специфичность выше правил-источников и `!important` обязательны: те объявлены с
+     `!important` сами, и более коротким селектором их не перебить. */
+  .fact-table-card .fact-row.rt-row {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    column-gap: 8px;
+    row-gap: 0;
+  }
+
+  /* Доли столбцов заданы через `flex: N 0 0`, то есть с базисом 0. В колонке базис
+     управлял высотой и не мешал, а в строке он и есть ширина: `width: 100%` из
+     responsive-tables.css при нулевом базисе не считается вовсе, и ячейки делят одну
+     строку по табличным долям - кнопка прохода в своей 14-пиксельной ячейке при этом
+     вылезает за неё и накрывает соседей. Базис задаём явно: своя строка каждой ячейке.
+
+     Правило целит во ВСЕ дочерние ячейки, а не в `[data-label]`: колонка действий
+     подписи не несёт и иначе осталась бы со своей табличной долей, уехав в ряд к
+     кнопкам. Из этого правила выходят только сами кнопки прохода - ниже. */
+  .fact-table-card .rt-row > * {
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* Разделитель полей рисуем сверху у ячеек 2..N, а не снизу: последней в строке идёт
+     колонка действий без data-label, глобальное `[data-label]:last-child` до неё не
+     достаёт, и пунктир висел бы оторванной чертой над нижним краем карточки. */
+  .fact-table-card .rt-row > [data-label] {
+    justify-content: flex-start !important;
+    text-align: left !important;
+    border-bottom: none !important;
+  }
+
+  .fact-table-card .rt-row > [data-label] ~ [data-label] {
+    border-top: 1px dashed color-mix(in srgb, var(--border) 60%, var(--surface));
+  }
+
+  /* Ячейки прохода делят верхнюю строку пополам - единственные, кто выходит из
+     «своя строка каждому». Пунктир им не нужен: между кнопками одного ряда он лёг бы
+     вертикальной чертой посреди строки, а поле под ними свой верхний пунктир
+     сохраняет - он и отделяет ряд действий от данных. */
+  .fact-table-card .rt-row > .entry-col,
+  .fact-table-card .rt-row > .exit-col {
+    width: auto !important;
+    flex: 1 1 0 !important;
+    padding: 5px 0 !important;
+    border-top: none !important;
+  }
+
+  .fact-table-card .rt-row > .entry-col .action-btn,
+  .fact-table-card .rt-row > .exit-col .action-btn {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .fact-table-card .rt-row > [data-label]::before {
+    display: none !important;
+  }
+
+  /* Исключение из "убрать все подписи": значение, которое без подписи не отличить от
+     соседнего такого же. Организация и компания идут двумя строками с однотипными
+     названиями; должность, гражданство, номер заявки, место разгрузки, дата и время -
+     голые значения, которые сами себя не называют. Номер Т/С, марка и бейдж статуса
+     говорят за себя, фамилия с именем и отчеством стоят подряд и читаются как ФИО. */
+  .fact-table-card .rt-row > .organization-col::before,
+  .fact-table-card .rt-row > .company-col::before,
+  .fact-table-card .rt-row > .application-col::before,
+  .fact-table-card .rt-row > .place-col::before,
+  .fact-table-card .rt-row > .position-col::before,
+  .fact-table-card .rt-row > .citizenship-col::before,
+  .fact-table-card .rt-row > .date-col::before,
+  .fact-table-card .rt-row > .time-col::before {
+    display: block !important;
   }
 
   /* Тач-таргет >=44px (WCAG) для кнопок Въезд/Выезд/удаления. */
@@ -1631,6 +1754,52 @@ export default {
   align-items: center;
   justify-content: center;
   gap: 12px;
+}
+
+/* Полоса заголовков столбцов не уезжает при прокрутке страницы (#1097 S8 волна 4).
+   Список прокручивается и внутри карточки (.fact-body), но саму карточку на
+   планшете видно не целиком - страница прокручивается вместе с ней, и статичная
+   полоса уходила за верх экрана: столбцы оставались без подписей.
+
+   Карточка режется `clip`, а не `hidden`: `hidden` делает предка скроллпортом,
+   и sticky внутри него замирает на месте (прилипать не к чему). `clip` обрезает
+   ровно так же - скругление 30px цело, - но скроллпорта не создаёт, поэтому
+   отсчёт идёт от прокрутки документа. Там же живут шапка приложения и шапки
+   списков (эталон: все закреплённые полосы в одной системе отсчёта). Браузер без
+   поддержки `clip` просто оставит прежний `hidden` и прежнее поведение.
+
+   Фон обязателен и обязан быть непрозрачным - строки уходят ПОД полосу;
+   --surface в обеих палитрах задан hex-ом, без альфы. z-index 3 - выше
+   .fact-container, который идёт следом в разметке.
+
+   На мобилке правило не действует - там шапка скрыта (rt-head-row), строки
+   показываются карточками. */
+@media (min-width: 768px) {
+  /* min-width здесь не украшение: карточка - flex-элемент строки .fact-section
+     (рядом карточка-подсказка), и `hidden` заодно обнулял её автоминимум по
+     главной оси. Без него широкая таблица распирала бы секцию. Задаём нулевой
+     минимум явно, чтобы ширина не зависела от того, как браузер трактует
+     автоминимум при `clip`. */
+  .fact-table-card {
+    overflow: clip;
+    min-width: 0;
+  }
+
+  .fact-header {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--surface);
+  }
+}
+
+/* Ровно на 768 (планшет в портрете) шапка приложения ещё закреплена - её
+   медиазапрос max-width: 768px, высота = токен. Полоса заголовков встаёт под
+   неё, иначе прилипает к верху экрана и прячется за шапкой (z-index 100). */
+@media (min-width: 768px) and (max-width: 768px) {
+  .fact-header {
+    top: var(--mobile-header-height);
+  }
 }
 
 /* #345 PR-B: размер шрифта строк через CSS-переменную (только тело). */
