@@ -200,7 +200,9 @@ function statusLabel(status) {
 // удалена» в первом случае значит соврать про живую заявку.
 function applicationLabel(item) {
   if (item.application_number === undefined) return `№${item.application_id}`;
-  return item.application_number ? `№${item.application_number}` : 'Заявка удалена';
+  // Номер печатается как есть: бэк собирает его уже со знаком номера
+  // (application_service.go), свой знак давал «№№ 20260808/027».
+  return item.application_number || 'Заявка удалена';
 }
 
 // Что за файл в строке. У бланка это наименование вложения из справочника, у
