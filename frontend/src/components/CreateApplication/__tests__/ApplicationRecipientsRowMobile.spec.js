@@ -10,8 +10,15 @@ const zoom = { value: 1 };
 vi.mock('@/utils/viewportScale', () => ({
   getViewportZoom: () => zoom.value,
 }));
+// Кандидат в ответе нужен, чтобы кнопка «+ получатель» отрисовалась: без единого
+// кандидата она скрыта (срез fe-recipients).
 vi.mock('@/api/client', () => ({
-  apiRequest: vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue([]) }),
+  apiRequest: vi.fn().mockResolvedValue({
+    ok: true,
+    json: vi.fn().mockResolvedValue([
+      { id: 9, username: 'cand9', last_name: 'Кандидатов', first_name: 'Кандидат', position: 'Руководитель' },
+    ]),
+  }),
 }));
 
 import ApplicationRecipientsRow from '../ApplicationRecipientsRow.vue';
