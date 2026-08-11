@@ -40,7 +40,7 @@ func (postsStep) Plan(Profile) []PlanItem {
 	// сколько реально создастся, зависит от того, что уже есть на стенде, а Plan
 	// по контракту пакета базу не читает.
 	return []PlanItem{
-		{Entity: models.AuditEntitySystemTable, Title: "Таблицы постов", Count: len(postCandidates)},
+		{Entity: models.AuditEntitySystemTable, Title: EntityTitle(models.AuditEntitySystemTable), Count: len(postCandidates)},
 	}
 }
 

@@ -34,8 +34,8 @@ func (registriesStep) Name() string { return "реестры сотрудник�
 
 func (registriesStep) Plan(p Profile) []PlanItem {
 	return []PlanItem{
-		{Entity: models.AuditEntityUniqueEmployee, Title: "Сотрудники (реестр)", Count: p.Employees},
-		{Entity: models.AuditEntityUniqueCar, Title: "Машины (реестр)", Count: p.Cars},
+		{Entity: models.AuditEntityUniqueEmployee, Title: EntityTitle(models.AuditEntityUniqueEmployee), Count: p.Employees},
+		{Entity: models.AuditEntityUniqueCar, Title: EntityTitle(models.AuditEntityUniqueCar), Count: p.Cars},
 	}
 }
 

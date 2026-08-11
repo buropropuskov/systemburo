@@ -41,8 +41,8 @@ func (blacklistsStep) Name() string { return "чёрные списки маши
 
 func (blacklistsStep) Plan(p Profile) []PlanItem {
 	return []PlanItem{
-		{Entity: models.AuditEntityVehicleBlacklist, Title: "Записи чёрного списка (машины)", Count: p.Blacklists},
-		{Entity: models.AuditEntityPersonBlacklist, Title: "Записи чёрного списка (люди)", Count: p.Blacklists},
+		{Entity: models.AuditEntityVehicleBlacklist, Title: EntityTitle(models.AuditEntityVehicleBlacklist), Count: p.Blacklists},
+		{Entity: models.AuditEntityPersonBlacklist, Title: EntityTitle(models.AuditEntityPersonBlacklist), Count: p.Blacklists},
 	}
 }
 

@@ -317,3 +317,34 @@ func TestFakePassages_StayWithinPermitWindow(t *testing.T) {
 		WHERE c.territory_status = 1 AND t.entry_date_to::date < CURRENT_DATE`, batch.ID()).Scan(&staleInside).Error)
 	require.Zero(t, staleInside, "на территории осталась машина с истёкшим пропуском")
 }
+
+// Отчёт о наливке обязан показать отметки прохода числом. Раньше их не было ни в одной
+// строке отчёта: предпоказ обещал отметки, а «Создано» о них молчало -- разница между
+// обещанным и показанным объяснялась только чтением исходников.
+func TestFakePassages_ReportedAsMarksNotRecords(t *testing.T) {
+	_, db, _ := testutil.SetupTestApp(t)
+	ctx := context.Background()
+	testutil.CleanDB(t, db)
+	seedFakeAdmin(t, db)
+
+	profile, err := fakedata.ProfileByName("small")
+	require.NoError(t, err)
+	batch, err := fakedata.OpenBatch(ctx, db, uniq("fake-passage-marks"), 9292, profile.Name)
+	require.NoError(t, err)
+	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 9292}))
+
+	marks := batch.Marks()
+	require.Positive(t, marks[models.AuditEntityCar], "отмеченные машины должны попасть в отчёт")
+	require.Positive(t, marks[models.AuditEntityEmployee], "отмеченные сотрудники должны попасть в отчёт")
+
+	// Отметка -- действие над записью заявки, а не новая запись: в перечень партии
+	// (и, значит, в объём удаления) она попадать не должна.
+	counts := batch.Counts()
+	require.Zero(t, counts[models.AuditEntityCar])
+	require.Zero(t, counts[models.AuditEntityEmployee])
+
+	require.Equal(t, len(readBatchCarPassages(t, db, batch.ID())), marks[models.AuditEntityCar],
+		"в отчёте столько же отмеченных машин, сколько их реально в базе")
+	require.Equal(t, len(readBatchEmployeePassages(t, db, batch.ID())), marks[models.AuditEntityEmployee],
+		"в отчёте столько же отмеченных сотрудников, сколько их реально в базе")
+}
