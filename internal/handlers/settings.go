@@ -171,7 +171,7 @@ const testMailBody = `Это проверочное письмо системы 
 отправителя: без них письма системы будут теряться у получателей.`
 
 // GetPasswordRotationStatus godoc
-// @Summary      Состояние плановой смены паролей
+// @Summary      Состояние проверки сроков действия паролей
 // @Description  Настроена ли почта, когда ближайшая проверка сроков и скольких работников она затронет.
 // @Tags         settings
 // @Produce      json
@@ -181,12 +181,12 @@ const testMailBody = `Это проверочное письмо системы 
 // @Failure      503 {object} models.HTTPError
 // @Router       /settings/password-rotation/status [get]
 //
-// GetPasswordRotationStatus отдаёт состояние плановой смены паролей: настроена ли
-// почта, скольких работников затронет ближайший прогон и у скольких нет адреса.
-// Без этих чисел администратор включал бы рассылку паролей вслепую.
+// GetPasswordRotationStatus отдаёт состояние проверки сроков: у скольких работников
+// пароль уже истёк, скольким уйдёт предупреждение и настроена ли почта. Без этих
+// чисел администратор включал бы проверку вслепую.
 func (h *SettingsHandler) GetPasswordRotationStatus(c echo.Context) error {
 	if h.rotationStatus == nil {
-		return echo.NewHTTPError(http.StatusServiceUnavailable, "Состояние плановой смены паролей недоступно")
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "Состояние проверки сроков паролей недоступно")
 	}
 	status, err := h.rotationStatus.Get(c.Request().Context())
 	if err != nil {
@@ -197,7 +197,7 @@ func (h *SettingsHandler) GetPasswordRotationStatus(c echo.Context) error {
 
 // RunPasswordRotation godoc
 // @Summary      Сменить пароли всем работникам
-// @Description  Ручной прогон плановой смены: меняет пароли всем действующим работникам с адресом почты, не дожидаясь срока. Возвращает управление сразу, письма ставятся в очередь.
+// @Description  Ручное обновление: придумывает новый пароль всем действующим работникам с адресом почты и высылает его письмом. Возвращает управление сразу, письма ставятся в очередь.
 // @Tags         settings
 // @Produce      json
 // @Security     BearerAuth
@@ -207,12 +207,12 @@ func (h *SettingsHandler) GetPasswordRotationStatus(c echo.Context) error {
 // @Failure      412 {object} models.HTTPError
 // @Router       /settings/password-rotation/run [post]
 //
-// RunPasswordRotation запускает смену паролей вручную. Ответ отдаётся сразу:
+// RunPasswordRotation запускает обновление паролей вручную. Ответ отдаётся сразу:
 // ждать в интерфейсе, пока разойдутся сотни писем, нельзя, а сама смена идёт
 // быстро - письма разбирает почтовый воркер по своему темпу.
 func (h *SettingsHandler) RunPasswordRotation(c echo.Context) error {
 	if h.rotation == nil {
-		return echo.NewHTTPError(http.StatusServiceUnavailable, "Плановая смена паролей недоступна")
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "Обновление паролей недоступно")
 	}
 	if h.rotation.IsRunning() {
 		// 409, а не молчаливый второй прогон: двойной клик выдал бы работнику два
@@ -230,7 +230,7 @@ func (h *SettingsHandler) RunPasswordRotation(c echo.Context) error {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
 		defer cancel()
-		if _, err := h.rotation.Run(ctx, true, userID); err != nil {
+		if _, err := h.rotation.Run(ctx, userID); err != nil {
 			slog.Error("ручная смена паролей завершилась ошибкой", "error", err, "started_by", userID)
 		}
 	}()

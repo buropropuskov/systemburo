@@ -409,33 +409,35 @@
             </div>
 
             <h3 class="section-title rotation-title">
-              Плановая смена паролей
+              Срок действия паролей
             </h3>
 
             <div
               class="rotation-status"
               data-testid="rotation-status"
             >
+              <p>
+                Ближайшая проверка: <b>{{ nextRotationRunText }}</b>.
+                Срок действия пароля вышел у работников: <b>{{ rotationStatus.expired }}</b>.
+                Пароли им не меняются и письмами не рассылаются: каждый входит своим
+                прежним паролем, а система просит задать новый и до этого никуда не пускает.
+              </p>
+              <p>
+                Учётных записей с почтой: <b>{{ rotationStatus.eligible }}</b>,
+                без почты: <b>{{ rotationStatus.without_email }}</b>.
+                <span v-if="rotationStatus.without_email > 0">
+                  Проверки сроков это не касается, но предупредить их заранее не получится -
+                  адреса проставляет бюро.
+                </span>
+              </p>
               <p
                 v-if="!rotationStatus.mail_configured"
                 class="rotation-warning"
               >
-                Почта не настроена, поэтому плановую смену включить нельзя: новый пароль
-                работнику доставить нечем. Параметры SMTP задаются в файле параметров.
+                Почта не настроена. Проверке сроков она не нужна, но предупреждения о скором
+                истечении отправлять нечем, и обновить пароль всем работникам нельзя - новый
+                пароль доставить некуда. Параметры SMTP задаются в файле параметров.
               </p>
-              <template v-else>
-                <p>
-                  Ближайшая проверка: <b>{{ nextRotationRunText }}</b>.
-                  Под смену подпадает работников: <b>{{ rotationStatus.expired }}</b>.
-                </p>
-                <p>
-                  Учётных записей с почтой: <b>{{ rotationStatus.eligible }}</b>,
-                  без почты: <b>{{ rotationStatus.without_email }}</b>.
-                  <span v-if="rotationStatus.without_email > 0">
-                    Их пароль система не трогает - адреса проставляет бюро.
-                  </span>
-                </p>
-              </template>
               <div class="rotation-actions">
                 <button
                   class="btn btn--secondary"
@@ -493,19 +495,12 @@
 
             <div class="form-group">
               <label class="switch-label">
-                <span class="switch-text">
-                  Менять пароли по расписанию
-                  <span
-                    v-if="!rotationStatus.mail_configured"
-                    class="form-hint"
-                  >недоступно без настроенной почты</span>
-                </span>
+                <span class="switch-text">Требовать смену пароля по истечении срока</span>
                 <span
                   class="switch"
-                  :class="{ 'switch--on': settings.password_rotation_enabled, 'switch--disabled': !rotationStatus.mail_configured }"
+                  :class="{ 'switch--on': settings.password_rotation_enabled }"
                   role="switch"
                   :aria-checked="String(settings.password_rotation_enabled)"
-                  :aria-disabled="String(!rotationStatus.mail_configured)"
                   tabindex="0"
                   data-testid="rotation-toggle"
                   @click="toggleRotation"
@@ -515,6 +510,10 @@
                   <span class="switch__thumb" />
                 </span>
               </label>
+              <span class="form-hint">
+                Раз в сутки система отбирает работников с истёкшим сроком и просит их
+                задать новый пароль при следующем входе.
+              </span>
             </div>
 
             <div class="form-group">
@@ -576,8 +575,10 @@
                 </span>
               </label>
               <span class="form-hint">
-                Пароль уходит письмом открытым текстом. Обязательная смена при входе - то,
-                что ограничивает срок его жизни в почтовом ящике.
+                Относится к паролям, которые придумывает сама система: обновление всем
+                работникам и сброс из карточки. Такой пароль уходит письмом открытым
+                текстом, и обязательная смена при входе ограничивает срок его жизни в
+                почтовом ящике. По истечении срока смена требуется всегда.
               </span>
             </div>
 
@@ -709,8 +710,9 @@ export default {
       testingMail: false,
       rotationRunning: false,
       confirmRotation: false,
-      // Состояние плановой смены паролей. Пока не загрузилось - почта считается
-      // ненастроенной: это запирающая сторона, включить смену вслепую нельзя.
+      // Состояние сроков действия паролей. Пока не загрузилось - почта считается
+      // ненастроенной: это запирающая сторона, кнопка обновления паролей до ответа
+      // сервера не показывается.
       rotationStatus: {
         mail_configured: false,
         enabled: false,
@@ -812,9 +814,9 @@ export default {
   },
   methods: {
     /**
-     * Состояние плановой смены: настроена ли почта и скольких работников затронет
-     * ближайший прогон. Без этих чисел администратор включает рассылку паролей
-     * вслепую, поэтому блок грузится вместе с экраном, а не по нажатию.
+     * Состояние сроков: у скольких работников пароль истёк, скольким уйдёт
+     * предупреждение и настроена ли почта. Без этих чисел администратор включает
+     * проверку вслепую, поэтому блок грузится вместе с экраном, а не по нажатию.
      */
     async fetchRotationStatus() {
       try {
@@ -865,15 +867,12 @@ export default {
       }
     },
 
+    /**
+     * Проверка сроков включается независимо от почты: она ничего не рассылает, а
+     * лишь требует сменить пароль на входе. Запрет без почты стоит у ручного
+     * обновления, где придуманный пароль надо кому-то выслать.
+     */
     toggleRotation() {
-      if (!this.rotationStatus.mail_configured) {
-        useDeletionsStore().notify({
-          bold: 'Сначала настройте почту',
-          suffix: ': менять пароли, не имея канала доставки, нельзя',
-          type: 'error',
-        });
-        return;
-      }
       this.settings.password_rotation_enabled = !this.settings.password_rotation_enabled;
     },
 
@@ -1445,8 +1444,8 @@ export default {
   background: var(--accent);
 }
 
-/* Блок состояния плановой смены: справочные числа перед тем, как включать
-   рассылку паролей. Тревожная подложка только у предупреждения о почте. */
+/* Блок состояния сроков: справочные числа перед тем, как включать проверку.
+   Тревожная подложка только у предупреждения о почте. */
 .rotation-title {
   margin-top: 28px;
 }
