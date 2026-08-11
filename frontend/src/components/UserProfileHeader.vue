@@ -79,29 +79,6 @@
             {{ position }}
           </span>
         </div>
-        <!-- Почта не указана: с плановой сменой паролей (#1905) это значит, что
-             новый пароль работнику доставить некуда, поэтому молчать нельзя.
-             Адрес правит бюро, сам работник его не меняет. -->
-        <div
-          v-if="!email"
-          class="user-detail"
-        >
-          <span
-            class="detail-badge email-missing"
-            :title="noEmailHint"
-            data-testid="cabinet-email-missing"
-          >
-            <span class="badge-content">
-              <svg
-                class="icon"
-                viewBox="0 0 24 24"
-              >
-                <path d="M22 6C22 4.9 21.1 4 20 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6M20 6L12 11L4 6H20M20 18H4V8L12 13L20 8V18Z" />
-              </svg>
-              <span class="badge-text">Почта не указана</span>
-            </span>
-          </span>
-        </div>
         <div
           v-if="email"
           class="user-detail"
@@ -181,6 +158,7 @@
           <button
             type="button"
             class="detail-badge password-badge clickable"
+            title="Сменить пароль"
             data-testid="cabinet-change-password"
             @click="passwordModalOpen = true"
           >
@@ -191,7 +169,7 @@
               >
                 <path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z" />
               </svg>
-              <span class="badge-text">Сменить пароль</span>
+              <span class="badge-text">Пароль</span>
             </span>
           </button>
         </div>
@@ -280,10 +258,6 @@ export default {
       const contacts = useContactsStore();
       const parts = [contacts.phone, contacts.email].filter(Boolean);
       return parts.length ? ` (${parts.join(', ')})` : '';
-    },
-
-    noEmailHint() {
-      return `На почту приходят новые пароли при плановой смене. Чтобы указать адрес, обратитесь в бюро пропусков${this.bureauContactsSuffix}`;
     },
 
     emailOwnerHint() {
@@ -708,23 +682,19 @@ export default {
    зелёный и жёлтый рядом уже заняты почтой и телефоном, третий цвет читался бы
    как ещё один вид контакта. font-family и line-height - как у consent-badge:
    у button они свои и не наследуются. */
-/* Отсутствие почты - предупреждение, а не контакт: подложка нейтрально-тревожная,
-   курсор обычный (копировать нечего). */
-.email-missing {
-  font-family: inherit;
-  line-height: inherit;
-  background: var(--warning-bg);
-  color: var(--warning-text);
-  border-color: color-mix(in srgb, var(--warning) 30%, var(--surface));
-  cursor: default;
-}
-
+/* Единственный бейдж-действие в ряду контактов, поэтому нейтральная подложка:
+   зелёный и жёлтый рядом заняты почтой и телефоном, третий цвет читался бы как
+   ещё один вид контакта. font-family и line-height - как у consent-badge:
+   у button они свои и не наследуются. Подпись короткая намеренно: с полной
+   «Сменить пароль» бейдж выдавливал ряд контактов на вторую строку. */
 .password-badge {
   font-family: inherit;
   line-height: inherit;
   background: var(--surface-2);
   color: var(--text);
   border-color: var(--border);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .detail-badge .icon {

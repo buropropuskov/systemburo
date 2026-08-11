@@ -2083,11 +2083,14 @@ export default {
         // ни ФИО, ни рабочих контактов. Отправить пустые поля значило бы стереть
         // настоящие данные правкой соседнего: без ключей сервер их не трогает.
         if (!user.pd_hidden) {
-          payload.last_name = user.last_name || null;
-          payload.first_name = user.first_name || null;
-          payload.middle_name = user.middle_name || null;
-          payload.email = user.email || null;
-          payload.phone = user.phone || null;
+          // Пустая строка, а не null: сервер трактует отсутствие ключа как «не
+          // трогай поле», поэтому `|| null` делал очистку невозможной - стереть
+          // почту или телефон в карточке было нельзя, значение просто возвращалось.
+          payload.last_name = user.last_name ?? '';
+          payload.first_name = user.first_name ?? '';
+          payload.middle_name = user.middle_name ?? '';
+          payload.email = user.email ?? '';
+          payload.phone = user.phone ?? '';
         }
         const response = await apiRequest(`/users/${user.username}/info`,
           {

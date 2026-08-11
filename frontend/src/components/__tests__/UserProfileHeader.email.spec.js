@@ -27,43 +27,36 @@ describe('UserProfileHeader: адрес почты', () => {
     vi.clearAllMocks()
   })
 
-  it('без адреса показывает предупреждение, а не пустое место', async () => {
+  it('без адреса ряд контактов не показывает предупреждений', async () => {
     const wrapper = mountHeader({ email: '' })
     await flushPromises()
 
-    const badge = wrapper.find('[data-testid="cabinet-email-missing"]')
-    expect(badge.exists()).toBe(true)
-    expect(badge.text()).toContain('Почта не указана')
+    // Владелец попросил убрать бейдж «Почта не указана»: пустая почта - обычное
+    // состояние карточки, а не проблема, о которой надо кричать работнику.
+    expect(wrapper.text()).not.toContain('Почта не указана')
   })
 
-  it('с адресом предупреждения нет', async () => {
+  it('с адресом показывает его и подсказку про бюро', async () => {
     const wrapper = mountHeader({ email: 'ivanov@example.org' })
-    await flushPromises()
-
-    expect(wrapper.find('[data-testid="cabinet-email-missing"]').exists()).toBe(false)
-    expect(wrapper.text()).toContain('ivanov@example.org')
-  })
-
-  it('подсказка отправляет в бюро и подставляет его контакты', async () => {
-    const wrapper = mountHeader({ email: '' })
     const contacts = useContactsStore()
     contacts.phone = '+7 900 000-00-00'
     contacts.email = 'buro@example.org'
     await flushPromises()
 
-    expect(wrapper.vm.noEmailHint).toContain('обратитесь в бюро пропусков')
-    expect(wrapper.vm.noEmailHint).toContain('+7 900 000-00-00')
-    expect(wrapper.vm.noEmailHint).toContain('buro@example.org')
+    expect(wrapper.text()).toContain('ivanov@example.org')
+    expect(wrapper.vm.emailOwnerHint).toContain('бюро пропусков')
+    expect(wrapper.vm.emailOwnerHint).toContain('+7 900 000-00-00')
   })
 
   it('без настроенных контактов подсказка остаётся осмысленной', async () => {
-    const wrapper = mountHeader({ email: '' })
+    const wrapper = mountHeader({ email: 'ivanov@example.org' })
     const contacts = useContactsStore()
     contacts.phone = ''
     contacts.email = ''
     await flushPromises()
 
-    expect(wrapper.vm.noEmailHint).toContain('обратитесь в бюро пропусков')
-    expect(wrapper.vm.noEmailHint).not.toContain('()')
+    expect(wrapper.vm.emailOwnerHint).toContain('бюро пропусков')
+    expect(wrapper.vm.emailOwnerHint).not.toContain('()')
   })
 })
+
