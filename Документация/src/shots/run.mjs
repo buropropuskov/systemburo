@@ -18,8 +18,8 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import { drawOutlines, drawBadges, clearOutlines } from './lib/highlight.mjs';
-import { computeClip, normalize, waitForStableRects } from './lib/capture.mjs';
-import { openBrowser, newContext, signIn, calmPage } from './lib/session.mjs';
+import { computeClip, cropToClip, normalize, waitForStableRects } from './lib/capture.mjs';
+import { openBrowser, newContext, signIn, calmPage, SCALE } from './lib/session.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DOCS_ROOT = path.resolve(HERE, '..', '..');
@@ -80,9 +80,15 @@ async function shoot(page, shot, outDir) {
 
   const badgeWarnings = await drawBadges(page, boxes, clip);
 
+  /*
+   * Снимается всё окно, область вырезается потом: съёмка области силами
+   * браузера приносит в кадр отражённые куски того, что лежит за наложенным
+   * окном (см. cropToClip).
+   */
   const file = path.join(outDir, `${shot.id}.png`);
-  await page.screenshot({ path: file, clip, animations: 'disabled' });
+  await page.screenshot({ path: file, animations: 'disabled' });
   await clearOutlines(page);
+  await cropToClip(file, clip, SCALE);
   await normalize(file);
 
   return [...outlineWarnings, ...clipWarnings, ...badgeWarnings].map(

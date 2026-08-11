@@ -193,8 +193,15 @@ export async function drawBadges(page, boxes, clip) {
             Math.abs(rect.height - own.height) < 1;
           if (same) return false;
         }
-        const bearsText =
-          element.children.length === 0 && (element.textContent || '').trim().length > 0;
+        /*
+         * Текст ищется в собственных узлах элемента, а не в его потомках:
+         * подпись поля лежит в теге, внутри которого есть ещё и звёздочка
+         * обязательности, - по признаку «нет потомков» такая подпись читалась
+         * как свободное место, и кружок садился прямо на слово.
+         */
+        const bearsText = Array.from(element.childNodes).some(
+          (node) => node.nodeType === 3 && (node.textContent || '').trim().length > 0,
+        );
         const bearsPicture = ['IMG', 'INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName) ||
           element.namespaceURI === 'http://www.w3.org/2000/svg';
         return bearsText || bearsPicture;

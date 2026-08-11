@@ -148,6 +148,24 @@ export async function computeClip(page, clipSpec, highlightTargets) {
 }
 
 /**
+ * Вырезает область кадра из снимка всего окна.
+ *
+ * Браузер умеет снимать область сам, но снятая им область приходит с браком:
+ * содержимое за наложенным окном попадает в кадр отражённым по вертикали.
+ * Снимок всего окна в том же состоянии выходит чистым, поэтому область
+ * вырезается уже из готового файла. Клип задан в единицах вёрстки, а снимок
+ * идёт в двойном масштабе - отсюда умножение.
+ *
+ * @param {string} path путь к PNG, файл перезаписывается на месте
+ * @param {{x:number,y:number,width:number,height:number}} clip
+ * @param {number} scale масштаб съёмки
+ */
+export async function cropToClip(path, clip, scale) {
+  const box = [clip.width, clip.height, clip.x, clip.y].map((value) => Math.round(value * scale));
+  await run('magick', [path, '-crop', `${box[0]}x${box[1]}+${box[2]}+${box[3]}`, '+repage', path]);
+}
+
+/**
  * Приводит снимок к печатному размеру. Снимается в двойном масштабе и
  * уменьшается: текст после уменьшения чище, чем при съёмке сразу в целевом
  * размере, а файл выходит вдвое легче.
