@@ -52,9 +52,22 @@ const STILL_CSS = `
   html { scroll-behavior: auto !important; }
 `;
 
-/** @returns {Promise<{browser: import('playwright').Browser, context: import('playwright').BrowserContext}>} */
+/** @returns {Promise<import('playwright').Browser>} */
 export async function openBrowser() {
-  const browser = await chromium.launch();
+  return chromium.launch();
+}
+
+/**
+ * Создаёт отдельное окружение браузера.
+ *
+ * Каждой роли - своё: сеанс продлевается по признаку в хранилище браузера, и в
+ * общем окружении вход второй учётной записи проходил бы поверх сеанса первой -
+ * страница входа даже не показывалась бы.
+ *
+ * @param {import('playwright').Browser} browser
+ * @returns {Promise<import('playwright').BrowserContext>}
+ */
+export async function newContext(browser) {
   const context = await browser.newContext({
     viewport: VIEWPORT,
     deviceScaleFactor: SCALE,
@@ -83,7 +96,7 @@ export async function openBrowser() {
     else document.addEventListener('DOMContentLoaded', apply, { once: true });
   }, STILL_CSS);
 
-  return { browser, context };
+  return context;
 }
 
 /**
@@ -102,6 +115,36 @@ async function markToursDone(apiBase, token) {
     if (!response.ok) {
       throw new Error(`не удалось отметить тур ${tour}: ${response.status}`);
     }
+  }
+}
+
+/**
+ * Подтверждает согласие на обработку персональных данных.
+ *
+ * Запрос согласия на стенде включён намеренно - окно надо снять для
+ * руководства, - но всем прочим кадрам оно мешает: пока согласие не дано,
+ * оверлей перекрывает страницу. Кадр самого окна снимается учётной записью,
+ * которая через это ещё не проходила.
+ */
+async function acceptConsent(apiBase, token) {
+  const gate = await fetch(`${apiBase}/consents/gate`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!gate.ok) {
+    // Молча выйти нельзя: не спросив состояние, мы не знаем, требуется ли
+    // согласие, и сбой всплыл бы позже невнятной ошибкой в чужом кадре.
+    throw new Error(`не удалось узнать состояние согласия: ${gate.status}`);
+  }
+  const body = await gate.json();
+  if (!(body.data ?? body)?.required) return;
+
+  const response = await fetch(`${apiBase}/consents/accept`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({}),
+  });
+  if (!response.ok) {
+    throw new Error(`не удалось подтвердить согласие: ${response.status}`);
   }
 }
 
@@ -128,9 +171,17 @@ export async function apiLogin(apiBase, username, password) {
  * @param {{username: string, password: string}} account
  * @param {{baseUrl: string, apiBase: string, clockAt: Date|null}} options
  */
-export async function signIn(context, account, { baseUrl, apiBase, clockAt }) {
+export async function signIn(context, account, { baseUrl, apiBase, clockAt, keepConsent }) {
   const token = await apiLogin(apiBase, account.username, account.password);
-  await markToursDone(apiBase, token);
+  /*
+   * Пока согласие не дано, шлюз отвечает 403 на все защищённые методы, включая
+   * отметку туров. Учётной записи для кадра окна согласия туры и не нужны: тур
+   * не запускается, пока согласие не подтверждено.
+   */
+  if (!keepConsent) {
+    await acceptConsent(apiBase, token);
+    await markToursDone(apiBase, token);
+  }
 
   const page = await context.newPage();
 
