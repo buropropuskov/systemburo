@@ -210,6 +210,20 @@ export async function getApplicationSupplements(id) {
 }
 
 /**
+ * Участники заявки одним списком (#1952): отправитель, принимающий, согласующие,
+ * ответственные и читатели, по одной записи на человека с набором его ролей.
+ * Доступны всем, кому видна заявка - гейт метода равен гейту доступа к ней.
+ * @param {number} id ID заявки
+ * @returns {Promise<object[]>}
+ */
+export async function getApplicationParticipants(id) {
+  const res = await apiRequest(`/applications/${id}/participants`);
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.message || 'Не удалось загрузить получателей заявки');
+  return body || [];
+}
+
+/**
  * Разбор ответа по раунду дополнения (#1685). Код держим на ошибке рядом с текстом:
  * 409 («голосование закрыто», «заявка в статусе X») отличается от 403 только им.
  * @param {Response} res
