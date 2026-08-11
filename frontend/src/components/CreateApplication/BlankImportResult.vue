@@ -346,15 +346,25 @@
       >
         Загрузить другой файл
       </button>
-      <button
-        type="button"
-        class="lk-button lk-button--primary bim__submit"
-        data-testid="bim-submit"
-        :disabled="!canSubmit"
-        @click="onSubmit"
+      <!-- Подсказка висит на ОБЁРТКЕ: заблокированная кнопка событий мыши не получает,
+           :hover на ней не наступает никогда. Причина нужна именно здесь - рядом стоят
+           карточки с ошибками, и серую кнопку без объяснения человек связывает с ними,
+           хотя ошибочные строки её не блокируют (мест в бланке нет, их выбирают тут). -->
+      <span
+        class="hint-anchor bim__submit-wrap"
+        :data-hint="submitHint"
+        data-testid="bim-submit-hint"
       >
-        Добавить в заявку ({{ addableCount }})
-      </button>
+        <button
+          type="button"
+          class="lk-button lk-button--primary bim__submit"
+          data-testid="bim-submit"
+          :disabled="!canSubmit"
+          @click="onSubmit"
+        >
+          Добавить в заявку ({{ addableCount }})
+        </button>
+      </span>
     </div>
   </div>
 </template>
@@ -505,6 +515,54 @@ export default {
     },
     canSubmit() {
       return this.placesReady && this.addableCount > 0;
+    },
+    // Обязательные места, которых не хватает: подпись как на экране плюс признак,
+    // есть ли вообще из чего выбирать - "выберите то, чего в справочнике нет" было бы
+    // издевательством, а состояние это реальное (грид тогда пишет "Нет доступных...").
+    missingPlaces() {
+      const fields = this.isPeople
+        ? [{
+          label: 'места прохода',
+          required: this.targetTablesRequired,
+          chosen: this.selectedTargetTables,
+          options: this.targetTablesOptions,
+        }]
+        : [
+          {
+            label: 'места разгрузки',
+            required: this.unloadPlacesRequired,
+            chosen: this.selectedUnloadPlaces,
+            options: this.unloadPlacesOptions,
+          },
+          {
+            label: 'проезд',
+            required: this.passageTablesRequired,
+            chosen: this.selectedPassageTables,
+            options: this.passageTablesOptions,
+          },
+        ];
+      return fields
+        .filter((f) => f.required && !f.chosen.length)
+        .map((f) => ({ label: f.label, available: f.options.length > 0 }));
+    },
+    /**
+     * Почему «Добавить в заявку» заблокирована - причина словами, а не серая кнопка
+     * молчком. Пустая строка гасит подсказку целиком (см. hints.css), поэтому на
+     * рабочей кнопке ничего не всплывает.
+     */
+    submitHint() {
+      if (this.canSubmit) return '';
+      if (!this.addableCount) {
+        return 'Готовых строк пока нет: поправьте строки с ошибками или загрузите другой файл.';
+      }
+      const absent = this.missingPlaces.filter((p) => !p.available);
+      if (absent.length) {
+        return `Не из чего выбрать: ${absent.map((p) => p.label).join(' и ')}. Обратитесь в бюро пропусков.`;
+      }
+      if (this.missingPlaces.length) {
+        return `Выберите ${this.missingPlaces.map((p) => p.label).join(' и ')}, чтобы добавить строки в заявку.`;
+      }
+      return '';
     },
     // Места в файле не приходят и раскатываются на всю пачку разом - патч полей строки
     // собираем здесь, применяет его родитель ко всем предварительным строкам.
@@ -918,9 +976,14 @@ export default {
 }
 
 /* Основное действие панели - на всю её ширину, вспомогательные остаются по размеру
-   содержимого строкой выше. */
-.bim__submit {
+   содержимого строкой выше. Ширину держит обёртка-якорь подсказки, кнопка тянется
+   по ней: flex-свойства на самой кнопке обёртка бы съела. */
+.bim__submit-wrap {
   flex: 1 0 100%;
+}
+
+.bim__submit {
+  width: 100%;
 }
 
 /* Счётчики разбора - блок карточкой, как остальные блоки формы: цифры на голом фоне
