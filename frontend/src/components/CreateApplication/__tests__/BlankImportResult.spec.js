@@ -12,7 +12,9 @@ vi.mock('@/stores/deletions', () => ({
 }));
 
 // Справочник форматов номеров: по нему сводка решает, стал ли поправленный номер
-// годным. Один формат РФ-вида - буквы и цифры, как в реальном справочнике.
+// годным. РФ-формат (дефолтный, буквы и цифры, как в реальном справочнике) плюс
+// второй формат другой формы - им проверяется смена формата в select-е и пересборка
+// ячеек под него.
 const RU_FORMAT = {
   format: { id: 1, name: 'Россия', is_default: true },
   cells: [
@@ -22,8 +24,15 @@ const RU_FORMAT = {
     { cell_order: 4, cell_type: 'numbers', min_length: 2, max_length: 3 },
   ],
 };
+const TRAILER_FORMAT = {
+  format: { id: 2, name: 'Прицеп', is_default: false },
+  cells: [
+    { cell_order: 1, cell_type: 'letters', min_length: 2, max_length: 2, alphabet_type: 'latin' },
+    { cell_order: 2, cell_type: 'numbers', min_length: 4, max_length: 4 },
+  ],
+};
 vi.mock('@/api/client', () => ({
-  apiRequest: vi.fn(async () => ({ ok: true, json: async () => [RU_FORMAT] })),
+  apiRequest: vi.fn(async () => ({ ok: true, json: async () => [RU_FORMAT, TRAILER_FORMAT] })),
 }));
 
 const saveBlobAsMock = vi.fn();
@@ -177,14 +186,23 @@ const CAR_BAD_PLATE_ROW = {
   warnings: [],
 };
 
-describe('BlankImportResult - номер обязан лечь в формат', () => {
+// Заполняет ячейки номера строки (в порядке рендера) значениями parts - тот же принцип
+// ввода, что в VehicleForm: по инпуту на ячейку выбранного формата.
+async function fillPlateCells(wrapper, rowNumber, parts) {
+  const cells = wrapper.find(`[data-testid="bim-problem-row-${rowNumber}"]`).findAll('input.bim__plate-cell');
+  for (let i = 0; i < parts.length; i += 1) {
+    await cells[i].setValue(parts[i]);
+  }
+}
+
+describe('BlankImportResult - номер вводится по ячейкам формата, обязан в него лечь', () => {
   beforeEach(() => {
     notifyMock.mockReset();
     listCitizenshipsMock.mockReset();
     listCitizenshipsMock.mockResolvedValue(CITIZENSHIPS);
   });
 
-  it('строку с негодным номером нельзя отметить, пока номер не исправлен', async () => {
+  it('ячейки рисуются по формату по умолчанию, негодный номер оставляет их пустыми и кнопку заблокированной', async () => {
     const wrapper = mountPanel({
       attachmentType: 'cars',
       rows: [CAR_BAD_PLATE_ROW],
@@ -192,18 +210,33 @@ describe('BlankImportResult - номер обязан лечь в формат',
     });
     await flushPromises();
 
-    const checkbox = wrapper.find('[data-testid="bim-include-4"]');
-    expect(checkbox.attributes('disabled')).toBeDefined();
-    expect(wrapper.find('[data-testid="bim-problem-row-4"]').text()).toContain('не подходит ни под один формат');
+    // "Писька" не раскладывается по ячейкам РФ-формата - ячейки стартуют пустыми,
+    // а не мусорным текстом (см. buildRowNumberParts).
+    const cells = wrapper.find('[data-testid="bim-problem-row-4"]').findAll('input.bim__plate-cell');
+    expect(cells).toHaveLength(4);
+    expect(cells.map((c) => c.element.value)).toEqual(['', '', '', '']);
+    expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('[data-testid="bim-problem-row-4"]').text()).toContain('Введите номер Т/С');
+  });
 
-    const input = wrapper.find('[data-testid="bim-problem-row-4"] input.bim__cell-input');
-    await input.setValue('А123ВС777');
+  it('заполнение всех ячеек по формату разблокирует кнопку, неполное - нет', async () => {
+    const wrapper = mountPanel({
+      attachmentType: 'cars',
+      rows: [CAR_BAD_PLATE_ROW],
+      summary: { read: 1, accepted: 0, rejected: 1 },
+    });
     await flushPromises();
 
+    await fillPlateCells(wrapper, 4, ['А', '123', 'ВС']);
+    await flushPromises();
+    expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeDefined();
+
+    await fillPlateCells(wrapper, 4, ['А', '123', 'ВС', '777']);
+    await flushPromises();
     expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeUndefined();
   });
 
-  it('мусор вместо номера не проходит и после правки на такой же мусор', async () => {
+  it('буква не из разрешённого алфавита фильтруется при вводе и не заполняет ячейку', async () => {
     const wrapper = mountPanel({
       attachmentType: 'cars',
       rows: [CAR_BAD_PLATE_ROW],
@@ -211,14 +244,17 @@ describe('BlankImportResult - номер обязан лечь в формат',
     });
     await flushPromises();
 
-    const input = wrapper.find('[data-testid="bim-problem-row-4"] input.bim__cell-input');
-    await input.setValue('ЫЫЫЫЫ');
+    const cells = wrapper.find('[data-testid="bim-problem-row-4"]').findAll('input.bim__plate-cell');
+    // "Ы" не входит в разрешённый ГОСТ-алфавит букв номера - та же фильтрация,
+    // что и в VehicleForm.validatePart.
+    await cells[0].setValue('Ы');
     await flushPromises();
 
+    expect(cells[0].element.value).toBe('');
     expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeDefined();
   });
 
-  it('кнопка снова блокируется, если номер испортили после правки', async () => {
+  it('кнопка снова блокируется, если заполненную ячейку очистили', async () => {
     const wrapper = mountPanel({
       attachmentType: 'cars',
       rows: [CAR_BAD_PLATE_ROW],
@@ -226,17 +262,17 @@ describe('BlankImportResult - номер обязан лечь в формат',
     });
     await flushPromises();
 
-    const input = wrapper.find('[data-testid="bim-problem-row-4"] input.bim__cell-input');
-    await input.setValue('А123ВС777');
+    await fillPlateCells(wrapper, 4, ['А', '123', 'ВС', '777']);
     await flushPromises();
     expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeUndefined();
 
-    await input.setValue('снова мусор');
+    const cells = wrapper.find('[data-testid="bim-problem-row-4"]').findAll('input.bim__plate-cell');
+    await cells[3].setValue('');
     await flushPromises();
     expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeDefined();
   });
 
-  it('«По факту» остаётся допустимым значением', async () => {
+  it('смена формата в select-е перестраивает ячейки под новый формат', async () => {
     const wrapper = mountPanel({
       attachmentType: 'cars',
       rows: [CAR_BAD_PLATE_ROW],
@@ -244,11 +280,73 @@ describe('BlankImportResult - номер обязан лечь в формат',
     });
     await flushPromises();
 
-    const input = wrapper.find('[data-testid="bim-problem-row-4"] input.bim__cell-input');
-    await input.setValue('По факту');
+    expect(wrapper.find('[data-testid="bim-problem-row-4"]').findAll('input.bim__plate-cell')).toHaveLength(4);
+
+    await wrapper.find('[data-testid="bim-format-4"]').setValue(String(TRAILER_FORMAT.format.id));
     await flushPromises();
 
+    // Формат "Прицеп" короче (2 ячейки вместо 4) - набор инпутов пересобрался,
+    // старые части не переносятся (как и при смене формата в VehicleForm).
+    const cells = wrapper.find('[data-testid="bim-problem-row-4"]').findAll('input.bim__plate-cell');
+    expect(cells).toHaveLength(2);
+    expect(cells.map((c) => c.element.value)).toEqual(['', '']);
+  });
+
+  it('«Определить автоматически» проверяет номер по всем активным форматам, а не по одному', async () => {
+    const wrapper = mountPanel({
+      attachmentType: 'cars',
+      rows: [CAR_BAD_PLATE_ROW],
+      summary: { read: 1, accepted: 0, rejected: 1 },
+    });
+    await flushPromises();
+
+    await fillPlateCells(wrapper, 4, ['А', '123', 'ВС', '777']);
+    await flushPromises();
+
+    expect(wrapper.vm.problemRows[0].fields.formatId).toBe(null);
     expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeUndefined();
+  });
+
+  it('«по факту» показывает одно readonly-поле вместо ячеек и делает строку добавляемой', async () => {
+    const wrapper = mountPanel({
+      attachmentType: 'cars',
+      rows: [CAR_BAD_PLATE_ROW],
+      summary: { read: 1, accepted: 0, rejected: 1 },
+    });
+    await flushPromises();
+
+    const row = wrapper.find('[data-testid="bim-problem-row-4"]');
+    await row.find('input[type="checkbox"]').setValue(true);
+    await flushPromises();
+
+    expect(row.findAll('input.bim__plate-cell')).toHaveLength(0);
+    expect(row.find('input[readonly]').element.value).toBe('По факту');
+    expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeUndefined();
+
+    // Выключение тумблера возвращает пустые ячейки текущего формата, а не старое значение.
+    await row.find('input[type="checkbox"]').setValue(false);
+    await flushPromises();
+    expect(row.findAll('input.bim__plate-cell')).toHaveLength(4);
+  });
+
+  it('собранный номер и формат уходят в строку в том же виде, что и в форме подачи', async () => {
+    const wrapper = mountPanel({
+      attachmentType: 'cars',
+      rows: [CAR_BAD_PLATE_ROW],
+      summary: { read: 1, accepted: 0, rejected: 1 },
+    });
+    await flushPromises();
+
+    await fillPlateCells(wrapper, 4, ['А', '123', 'ВС', '777']);
+    await flushPromises();
+    await wrapper.find('[data-testid="bim-include-4"]').trigger('click');
+    await flushPromises();
+
+    const staged = wrapper.emitted('stage');
+    const last = staged[staged.length - 1][0];
+    // VehicleForm собирает номер как numberParts.join(' ') - тот же вид здесь.
+    expect(last.rows[0].plateNumber).toBe('А 123 ВС 777');
+    expect(last.rows[0].formatId).toBe(null);
   });
 });
 
@@ -392,8 +490,7 @@ describe('BlankImportResult (blank-import D1D2)', () => {
     await wrapper.find('[data-testid="bim-unload-places"] .passage__item').trigger('click');
     await wrapper.find('[data-testid="bim-passage-tables"] .passage__item').trigger('click');
 
-    const problemRow = wrapper.find('[data-testid="bim-problem-row-3"]');
-    await problemRow.findAll('input.bim__cell-input')[0].setValue('В777ВВ177');
+    await fillPlateCells(wrapper, 3, ['В', '777', 'ВВ', '177']);
 
     const addBtn = wrapper.find('[data-testid="bim-include-3"]');
     expect(addBtn.attributes('disabled')).toBeUndefined();
@@ -403,7 +500,7 @@ describe('BlankImportResult (blank-import D1D2)', () => {
     const staged = wrapper.emitted('stage');
     const last = staged[staged.length - 1][0];
     expect(last.rows).toHaveLength(1);
-    expect(last.rows[0].plateNumber).toBe('В777ВВ177');
+    expect(last.rows[0].plateNumber).toBe('В 777 ВВ 177');
     expect(wrapper.find('[data-testid="bim-problem-row-3"]').exists()).toBe(false);
   });
 

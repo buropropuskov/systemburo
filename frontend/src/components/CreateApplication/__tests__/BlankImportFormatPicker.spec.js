@@ -111,9 +111,12 @@ describe('BlankImportResult - выбор формата номера на каж
 
     await wrapper.find('[data-testid="bim-format-4"]').setValue(String(FORMAT_A.format.id));
 
+    // "1234" под ячейки "России" (буква первой) не раскладывается - ячейки формата
+    // пересобираются пустыми (см. handleRowFormatChange), человек печатает заново.
     const include = wrapper.find('[data-testid="bim-include-4"]');
     expect(include.attributes('disabled')).toBeDefined();
-    expect(wrapper.find('[data-testid="bim-problem-row-4"]').text()).toContain('не подходит формату "Россия"');
+    expect(wrapper.find('[data-testid="bim-problem-row-4"]').findAll('input.bim__plate-cell').map((c) => c.element.value)).toEqual(['', '', '', '']);
+    expect(wrapper.find('[data-testid="bim-problem-row-4"]').text()).toContain('Введите номер Т/С');
   });
 
   it('явный выбор подходящего формата включает добавление', async () => {
@@ -142,7 +145,9 @@ describe('BlankImportResult - выбор формата номера на каж
     await flushPromises();
 
     await wrapper.find('[data-testid="bim-format-4"]').setValue(String(FORMAT_A.format.id));
-    await wrapper.find('[data-testid="bim-problem-row-4"] input.bim__cell-input').setValue('По факту');
+    // Компактный тумблер "по факту" (перенесён из VehicleForm) - вместо ячеек, не
+    // отдельное текстовое значение, которое раньше нужно было впечатать вручную.
+    await wrapper.find('[data-testid="bim-problem-row-4"] input[type="checkbox"]').setValue(true);
 
     expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeUndefined();
   });
