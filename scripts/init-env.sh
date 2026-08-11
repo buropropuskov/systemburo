@@ -27,6 +27,11 @@ if [[ -f "$ENV_FILE" ]]; then
     exit 1
 fi
 
+# В файле пароль базы, оба ключа подписи токенов и ключ шифрования персональных
+# данных. umask ставится до создания, чтобы файл не успел побыть общедоступным даже
+# на время записи; chmod ниже закрепляет права, если umask перекрыт извне.
+umask 077
+
 # --- Генерация секретов ---
 DB_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=')
 JWT_SECRET=$(openssl rand -base64 48 | tr -d '/+=')
@@ -91,8 +96,8 @@ RATE_LIMIT_WINDOW_SEC=60
 PAGINATION_MAX_LIMIT=100
 
 # === Уведомления в браузер при закрытом сайте (Web Push) ===
-# Пара ключей подписи: сгенерировать командой `make staging-vapid` (или
-# `make deploy-vapid`) и вставить сюда. Пока обе строки пусты, доставка вне
+# Пара ключей подписи: сгенерировать командой "make staging-vapid" (или
+# "make deploy-vapid") и вставить сюда. Пока обе строки пусты, доставка вне
 # системы выключена: интерфейс честно сообщает об этом, остальное работает.
 # Заполнять ОБЕ или ни одной - одна без второй считается опечаткой, и сервер
 # откажется стартовать.
@@ -132,15 +137,24 @@ BACKUP_S3_REMOTE=
 BACKUP_S3_BUCKET=
 EOF
 
+chmod 600 "$ENV_FILE"
+
 echo ""
 echo "=== .env создан для ${ENV} (${DOMAIN}) ==="
+echo "  файл:   $(pwd)/${ENV_FILE}"
+echo "  права:  $(stat -c %a "$ENV_FILE") - читает только владелец"
 echo ""
-echo "Сохраните эти данные:"
-echo "  DB_PASSWORD:     ${DB_PASSWORD}"
-echo "  PGADMIN:         admin@${DOMAIN} / ${PGADMIN_PASSWORD}"
+# Значения не печатаются намеренно: этот скрипт запускается в том числе по ssh из
+# конвейера выпуска, и всё, что он выводит, оседает в журнале запуска и в истории
+# терминала - то есть там, где права 600 на файл уже ничего не значат.
+echo "Сгенерированы (значения смотреть в самом файле):"
+echo "  DB_PASSWORD, JWT_SECRET, JWT_REFRESH_SECRET, DATA_ENCRYPTION_KEY"
 if [[ "$ENV" == "staging" ]]; then
-    echo "  Basic Auth:      ${BASIC_AUTH_USER} / ${BASIC_AUTH_PASS}"
-    echo "  pgAdmin URL:     https://${DOMAIN}/pgadmin"
+    echo "  PGADMIN_PASSWORD, BASIC_AUTH_PASS"
+    echo ""
+    echo "Доступ к pgAdmin: https://${DOMAIN}/pgadmin, вход admin@${DOMAIN}"
+    echo "Пароль:           grep '^PGADMIN_PASSWORD=' ${ENV_FILE}"
+    echo "Basic Auth:       grep '^BASIC_AUTH_' ${ENV_FILE}"
 fi
 echo ""
 echo "Резервное копирование настраивается отдельно:"
