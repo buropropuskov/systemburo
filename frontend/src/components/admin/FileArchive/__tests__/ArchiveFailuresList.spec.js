@@ -14,7 +14,9 @@ import { useDeletionsStore } from '@/stores/deletions'
 
 const ROW = (over = {}) => ({
   id: 1, application_id: 10, attachment_id: 1, status: 'failed',
-  application_number: '20260731-010', attachment_name: 'Автозаявка',
+  // Бэк собирает номер уже со знаком номера (application_service.go), фикстура
+  // повторяет боевой формат - иначе дубль «№№» тестом не ловится.
+  application_number: '№ 20260731-010', attachment_name: 'Автозаявка',
   last_error: 'диск переполнен', updated_at: '2026-07-31T10:00:00Z', ...over,
 })
 
@@ -36,7 +38,8 @@ describe('ArchiveFailuresList', () => {
 
     expect(api.listArchiveItems).toHaveBeenCalledWith({ status: '', page: 1, perPage: 20 })
     // Номер заявки, а не внутренний идентификатор: по «№10» её не найти.
-    expect(w.text()).toContain('№20260731-010')
+    expect(w.text()).toContain('№ 20260731-010')
+    expect(w.text()).not.toContain('№№')
     expect(w.text()).toContain('диск переполнен')
   })
 
