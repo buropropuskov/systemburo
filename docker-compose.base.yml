@@ -55,6 +55,23 @@ services:
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       PUSH_SUBSCRIPTION_RETENTION_DAYS: ${PUSH_SUBSCRIPTION_RETENTION_DAYS:-180}
+      # Почтовая рассылка (#1906, #1936). Тот же класс, что и с ключами доставки
+      # уведомлений выше: параметры лежали в файле параметров и в приложении Б, а
+      # до контейнера не доходили - оператор заполнял SMTP_*, перезапускал систему
+      # и не получал ничего, потому что внутри адрес сервера оставался пустым, а
+      # пустой адрес это штатное "почта не настроена", без единой ошибки в журнале.
+      # Пустой SMTP_HOST по умолчанию сохраняет прежнее поведение: почта выключена.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Бюро пропусков}
+      SMTP_TLS_MODE: ${SMTP_TLS_MODE:-starttls}
+      SMTP_TIMEOUT_SEC: ${SMTP_TIMEOUT_SEC:-15}
+      SMTP_RATE_PER_HOUR: ${SMTP_RATE_PER_HOUR:-400}
+      MAIL_RETRY_ATTEMPTS: ${MAIL_RETRY_ATTEMPTS:-5}
+      MAIL_WORKER_TICK: ${MAIL_WORKER_TICK:-15s}
     volumes:
       - uploads:/app/uploads
       # Файловый архив бланков (#1615) - каталог хоста, а не именованный том.
