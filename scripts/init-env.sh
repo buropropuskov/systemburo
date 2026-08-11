@@ -113,6 +113,7 @@ if [[ "$ENV" == "staging" ]]; then
     # Стенд разворачивается в каталоге установки: отдельный раздел под архив там
     # не выделяют, а данные на нём демонстрационные.
     ARCHIVE_HOST_PATH="./archive"
+    ENTITY_EXPORT_HOST_PATH="./entity-export"
     REQUIRE_ENCRYPTION="false"
     PGADMIN_PASSWORD=$(openssl rand -base64 12 | tr -d '/+=')
     BASIC_AUTH_USER="admin"
@@ -123,6 +124,7 @@ else
     # только на чтение и включить в резервное копирование. Подробности в
     # docs/DEPLOYMENT.md, подраздел про файловый архив бланков.
     ARCHIVE_HOST_PATH="/srv/systemburo/archive"
+    ENTITY_EXPORT_HOST_PATH="/srv/systemburo/entity-export"
     REQUIRE_ENCRYPTION="true"
 fi
 CORS_ORIGINS="https://${DOMAIN}"
@@ -177,6 +179,9 @@ UPLOAD_PATH=/app/uploads
 # Каталог создать до первого запуска, владелец uid и gid 1001 - иначе docker
 # создаст его от суперпользователя и служба не сможет туда писать.
 ARCHIVE_HOST_PATH=${ARCHIVE_HOST_PATH}
+# Каталог пакетов выгрузки по идентификатору сущности. Условия те же, что у
+# архива: вне каталога загрузок и с владельцем uid и gid 1001 до первого запуска.
+ENTITY_EXPORT_HOST_PATH=${ENTITY_EXPORT_HOST_PATH}
 # Открытый ключ той стороны, которая читает бланки. Пока он не известен, здесь
 # стоит открытая часть ключа самой системы: файлы лежат зашифрованными и система
 # их читает. Когда ключ внешней стороны появится, строку заменить - записанные
@@ -336,9 +341,10 @@ if [[ "$ENV" == "staging" ]]; then
     echo "Basic Auth:       grep '^BASIC_AUTH_' ${ENV_FILE}"
 fi
 echo ""
-echo "Каталог файлового архива создать до первого запуска:"
-echo "  mkdir -p ${ARCHIVE_HOST_PATH}"
-echo "  chown -R 1001:1001 ${ARCHIVE_HOST_PATH} && chmod 750 ${ARCHIVE_HOST_PATH}"
+echo "Каталоги файлового архива и пакетов выгрузки создать до первого запуска:"
+echo "  mkdir -p ${ARCHIVE_HOST_PATH} ${ENTITY_EXPORT_HOST_PATH}"
+echo "  chown -R 1001:1001 ${ARCHIVE_HOST_PATH} ${ENTITY_EXPORT_HOST_PATH}"
+echo "  chmod 750 ${ARCHIVE_HOST_PATH} ${ENTITY_EXPORT_HOST_PATH}"
 echo ""
 echo "Закрытую часть ключа архива (ARCHIVE_AGE_IDENTITY) скопировать в хранилище"
 echo "секретов: при её потере зашифрованные бланки не прочитать."

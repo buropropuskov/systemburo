@@ -1,4 +1,4 @@
-.PHONY: up down build test logs restart lint swagger bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage archive staging-archive deploy-archive fake staging-fake vapid staging-vapid deploy-vapid backup staging-backup deploy-backup backup-status staging-backup-status deploy-backup-status backup-verify staging-backup-verify deploy-backup-verify deploy-restore restore staging-restore
+.PHONY: up down build test logs restart lint swagger bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage archive staging-archive deploy-archive entity staging-entity deploy-entity fake staging-fake vapid staging-vapid deploy-vapid backup staging-backup deploy-backup backup-status staging-backup-status deploy-backup-status backup-verify staging-backup-verify deploy-backup-verify deploy-restore restore staging-restore
 
 up:
 	docker compose up -d
@@ -143,6 +143,18 @@ staging-archive:
 
 deploy-archive:
 	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec backend ./server archive $(ARGS)
+
+# Работа с данными по идентификатору сущности: снять пакет, проверить его и развернуть на
+# другом стенде. Без ARGS печатает справку. Примеры: make entity ARGS="export -type=organization -id=42"
+#                                                     make deploy-entity ARGS="export -type=organization -id=42 -apply"
+entity:
+	docker compose exec go-backend go run ./cmd/server entity $(ARGS)
+
+staging-entity:
+	docker compose -f docker-compose.base.yml -f docker-compose.staging.yml exec backend ./server entity $(ARGS)
+
+deploy-entity:
+	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec backend ./server entity $(ARGS)
 
 # Наполнение проверочного стенда вымышленными данными. Без ARGS показывает план и
 # ничего не создаёт. Справка: make fake ARGS=-help
