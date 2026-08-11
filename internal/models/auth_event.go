@@ -27,6 +27,7 @@ const (
 	AuthEventTokenReuseDetected = "token_reuse_detected"
 	AuthEventAccountLocked      = "account_locked"
 	AuthEventLockoutReset       = "lockout_reset"
+	AuthEventPasswordChanged    = "password_changed"
 )
 
 // AuthEventCategory - UI-категории фильтра истории входов. Каждая категория
@@ -35,8 +36,9 @@ const (
 	AuthCategoryLogin   = "login"   // login_success
 	AuthCategoryLogout  = "logout"  // logout
 	AuthCategoryFailed  = "failed"  // login_failed
-	AuthCategoryLocked  = "locked"  // login_locked, account_locked, lockout_reset
-	AuthCategorySession = "session" // refresh, token_reuse_detected
+	AuthCategoryLocked   = "locked"   // login_locked, account_locked, lockout_reset
+	AuthCategorySession  = "session"  // refresh, token_reuse_detected
+	AuthCategoryPassword = "password" // password_changed
 )
 
 // AuthEventCategoryTypes раскрывает UI-категорию фильтра в набор event_type.
@@ -53,6 +55,8 @@ func AuthEventCategoryTypes(category string) []string {
 		return []string{AuthEventLoginLocked, AuthEventAccountLocked, AuthEventLockoutReset}
 	case AuthCategorySession:
 		return []string{AuthEventRefresh, AuthEventTokenReuseDetected}
+	case AuthCategoryPassword:
+		return []string{AuthEventPasswordChanged}
 	default:
 		return nil
 	}

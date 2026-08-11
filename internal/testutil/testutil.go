@@ -74,6 +74,11 @@ var tables = []string{
 	"request_logs_daily", "request_log", "request_logs", "notifications", "user_notification_preferences",
 	// Подписки Web Push (#974): такая же прямая FK на users, что и у настроек уведомлений.
 	"push_subscriptions",
+	// Очередь исходящих писем (#1906). Внешний ключ на users стоит с ON DELETE SET
+	// NULL, поэтому чистка пользователей строки не уносит: письмо прошлого прогона
+	// оставалось в очереди, и следующий тест находил по адресу чужую строку - уже
+	// отправленную. Ровно тот же класс, что blank_exports и fake_batches выше.
+	"email_messages",
 	"news", "announcements",
 	// analytics_cache и user_ban_histories тоже живут без внешних ключей: кэш отдаёт
 	// тесту цифры прошлого прогона, история банов копится вечно.

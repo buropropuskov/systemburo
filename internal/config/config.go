@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/mail"
 	"path/filepath"
 	"strings"
 	"time"
@@ -155,6 +156,36 @@ type Config struct {
 	// не пользуется (ушёл в другой браузер, не отписавшись). 180 дней - половина года без
 	// единого успеха, заведомо больше типового цикла смены браузера или устройства.
 	PushSubscriptionRetentionDays int `env:"PUSH_SUBSCRIPTION_RETENTION_DAYS" envDefault:"180"`
+
+	// Почтовая рассылка (#1906). Система не поднимает свой почтовый сервер, а
+	// подключается клиентом к чужому: Джино, Яндекс 360, почтовый сервер
+	// организации - параметры одни и те же. Пустой SMTP_HOST - штатный режим
+	// "почта не настроена": письма не ставятся в очередь, а всё, что от неё
+	// зависит, отказывается стартовать явно, а не молча копит недоставленное.
+	SMTPHost string `env:"SMTP_HOST" envDefault:""`
+	SMTPPort int    `env:"SMTP_PORT" envDefault:"587"`
+	// SMTPUsername обычно совпадает с полным адресом ящика.
+	SMTPUsername string `env:"SMTP_USERNAME" envDefault:""`
+	SMTPPassword string `env:"SMTP_PASSWORD" envDefault:""`
+	// SMTPFrom обязан совпадать с ящиком аутентификации: почтовые серверы
+	// отвергают чужого отправителя ошибкой 550, и настройка выглядит рабочей
+	// ровно до первого письма.
+	SMTPFrom     string `env:"SMTP_FROM" envDefault:""`
+	SMTPFromName string `env:"SMTP_FROM_NAME" envDefault:"Бюро пропусков"`
+	// SMTPTLSMode: starttls (587), tls (465, шифрование с первого байта) или none.
+	// none оставлен для внутреннего почтового сервера в закрытом контуре, где
+	// шифрование снимает сама сеть; наружу так ходить нельзя.
+	SMTPTLSMode    string `env:"SMTP_TLS_MODE" envDefault:"starttls"`
+	SMTPTimeoutSec int    `env:"SMTP_TIMEOUT_SEC" envDefault:"15"`
+	// SMTPRatePerHour - потолок отправки, заведомо ниже лимита провайдера
+	// (у Джино 500 писем в час на обычной отправке). Упереться в чужой лимит
+	// хуже, чем растянуть рассылку: сервер начинает отвечать отказом всем подряд.
+	SMTPRatePerHour int `env:"SMTP_RATE_PER_HOUR" envDefault:"400"`
+	// MailRetryAttempts - сколько раз пытаться доставить письмо, прежде чем
+	// признать доставку несостоявшейся и позвать администратора.
+	MailRetryAttempts int `env:"MAIL_RETRY_ATTEMPTS" envDefault:"5"`
+	// MailWorkerTick - как часто разбирается очередь писем.
+	MailWorkerTick time.Duration `env:"MAIL_WORKER_TICK" envDefault:"15s"`
 }
 
 func Load() (*Config, error) {
@@ -254,6 +285,9 @@ func (c *Config) Validate() error {
 	if c.PushSubscriptionRetentionDays <= 0 {
 		return fmt.Errorf("PUSH_SUBSCRIPTION_RETENTION_DAYS must be positive (got %d)", c.PushSubscriptionRetentionDays)
 	}
+	if err := c.validateMail(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -335,4 +369,52 @@ func isInside(child, parent string) bool {
 		return false
 	}
 	return !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// MailEnabled сообщает, настроена ли отправка почты. Пустой SMTP_HOST выключает
+// её целиком - тем же способом, что пустые VAPID-ключи выключают push.
+func (c *Config) MailEnabled() bool {
+	return c.SMTPHost != ""
+}
+
+// validateMail проверяет параметры почты. Полуготовая настройка (хост есть,
+// отправителя нет) не должна доживать до первого письма: там она превратится в
+// отказ 550 посреди рассылки, когда пароли уже сменены.
+func (c *Config) validateMail() error {
+	if !c.MailEnabled() {
+		// Почта выключена: остальные параметры не важны, стенд без неё работает.
+		return nil
+	}
+	switch c.SMTPTLSMode {
+	case "starttls", "tls", "none":
+	default:
+		return fmt.Errorf("SMTP_TLS_MODE must be one of: starttls, tls, none (got %q)", c.SMTPTLSMode)
+	}
+	if c.SMTPPort <= 0 || c.SMTPPort > 65535 {
+		return fmt.Errorf("SMTP_PORT must be between 1 and 65535 (got %d)", c.SMTPPort)
+	}
+	if c.SMTPFrom == "" {
+		return fmt.Errorf("SMTP_FROM is required when SMTP_HOST is set")
+	}
+	if _, err := mail.ParseAddress(c.SMTPFrom); err != nil {
+		return fmt.Errorf("SMTP_FROM must be a valid email address (got %q)", c.SMTPFrom)
+	}
+	// Пароль без логина и наоборот - почти всегда опечатка в файле параметров:
+	// сервер ответит 535, а выглядеть это будет как "письма не приходят".
+	if (c.SMTPUsername == "") != (c.SMTPPassword == "") {
+		return fmt.Errorf("SMTP_USERNAME and SMTP_PASSWORD must be set together (both empty means server without authentication)")
+	}
+	if c.SMTPTimeoutSec <= 0 {
+		return fmt.Errorf("SMTP_TIMEOUT_SEC must be positive (got %d)", c.SMTPTimeoutSec)
+	}
+	if c.SMTPRatePerHour <= 0 {
+		return fmt.Errorf("SMTP_RATE_PER_HOUR must be positive (got %d)", c.SMTPRatePerHour)
+	}
+	if c.MailRetryAttempts <= 0 {
+		return fmt.Errorf("MAIL_RETRY_ATTEMPTS must be positive (got %d)", c.MailRetryAttempts)
+	}
+	if c.MailWorkerTick <= 0 {
+		return fmt.Errorf("MAIL_WORKER_TICK must be positive (got %s)", c.MailWorkerTick)
+	}
+	return nil
 }

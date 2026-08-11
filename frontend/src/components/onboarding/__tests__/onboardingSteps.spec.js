@@ -223,6 +223,7 @@ describe('cross-page конфигурация (cabinet)', () => {
     const cabinetSeg = collectSegment(onboardingSteps, firstCabinet, '/personal-cabinet');
     expect(cabinetSeg.map((s) => s.id)).toEqual([
       'cabinet-profile',
+      'cabinet-password',
       'cabinet-applications',
       'cabinet-search',
       'cabinet-download',
