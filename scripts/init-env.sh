@@ -70,9 +70,14 @@ if [[ -z "$ARCHIVE_AGE_IDENTITY" ]]; then
     if ! AGE_KEYPAIR="$(generate_age_keypair)"; then
         AGE_KEYPAIR=""
     fi
-    ARCHIVE_AGE_IDENTITY="$(printf '%s\n' "$AGE_KEYPAIR" | grep '^AGE-SECRET-KEY-' | head -1)"
+    # Разбор только через sed: он отдаёт ноль и когда ничего не нашёл. grep на
+    # пустом вводе возвращает единицу, а под set -e с pipefail это обрывало
+    # скрипт прямо здесь - ровно там, где ключи создать не удалось и ниже ждёт
+    # разбор причины. Оператор не видел ни строчки объяснения. Команда q в конце
+    # избавляет от head и от закрытой трубы под тем же pipefail.
+    ARCHIVE_AGE_IDENTITY="$(printf '%s\n' "$AGE_KEYPAIR" | sed -n '/^AGE-SECRET-KEY-/{p;q;}')"
     if [[ -z "$ARCHIVE_AGE_RECIPIENT" ]]; then
-        ARCHIVE_AGE_RECIPIENT="$(printf '%s\n' "$AGE_KEYPAIR" | sed -n 's/^# public key: //p' | head -1)"
+        ARCHIVE_AGE_RECIPIENT="$(printf '%s\n' "$AGE_KEYPAIR" | sed -n '/^# public key: /{s/^# public key: //;p;q;}')"
     fi
 fi
 
@@ -320,7 +325,9 @@ echo ""
 # терминала - то есть там, где права 600 на файл уже ничего не значат.
 echo "Сгенерированы (значения смотреть в самом файле):"
 echo "  DB_PASSWORD, JWT_SECRET, JWT_REFRESH_SECRET, DATA_ENCRYPTION_KEY"
-echo "  ARCHIVE_AGE_RECIPIENT, ARCHIVE_AGE_IDENTITY"
+if [[ -n "$ARCHIVE_AGE_IDENTITY" ]]; then
+    echo "  ARCHIVE_AGE_RECIPIENT, ARCHIVE_AGE_IDENTITY"
+fi
 if [[ "$ENV" == "staging" ]]; then
     echo "  PGADMIN_PASSWORD, BASIC_AUTH_PASS"
     echo ""

@@ -49,9 +49,14 @@ fi
 echo
 
 if [ -f "$STATUS_FILE" ]; then
-  RESULT="$(grep -o '"result": *"[^"]*"' "$STATUS_FILE" | cut -d'"' -f4)"
-  FINISHED="$(grep -o '"finished_at": *"[^"]*"' "$STATUS_FILE" | cut -d'"' -f4)"
-  REASON="$(grep -o '"reason": *"[^"]*"' "$STATUS_FILE" | cut -d'"' -f4)"
+  # Подавление здесь не прячет сбой, а наоборот: без него grep, не нашедший поля,
+  # возвращает единицу, pipefail поднимает её наверх, и set -e убивает разбор на
+  # полуслове. Файл состояния может быть оборван записью на кончившемся диске -
+  # то есть ровно тогда, когда эти строки и читают. Пустое значение ниже честно
+  # печатается как «причина не записана».
+  RESULT="$(grep -o '"result": *"[^"]*"' "$STATUS_FILE" | cut -d'"' -f4 || true)"
+  FINISHED="$(grep -o '"finished_at": *"[^"]*"' "$STATUS_FILE" | cut -d'"' -f4 || true)"
+  REASON="$(grep -o '"reason": *"[^"]*"' "$STATUS_FILE" | cut -d'"' -f4 || true)"
   AGE_SEC=$(( $(date +%s) - $(date -d "$FINISHED" +%s 2>/dev/null || echo 0) ))
   AGE_HOURS=$(( AGE_SEC / 3600 ))
   # Часы и минуты, а не одни часы: «0 ч назад» не отличает копию пятиминутной
