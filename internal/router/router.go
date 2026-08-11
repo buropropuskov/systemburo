@@ -82,6 +82,7 @@ type Dependencies struct {
 	BlankArchive        *handlers.BlankArchiveHandler
 	BlankArchiveStats   *handlers.BlankArchiveStatsHandler
 	ArchiveDownload     *handlers.ArchiveDownloadHandler
+	Impersonation       *handlers.ImpersonationHandler
 
 	// Services (для middleware и audit)
 	PermResolver *services.PermissionResolver
@@ -295,6 +296,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 	if lastSeen != nil {
 		protected.Use(lastSeen)
 	}
+	// Гейт опасных действий в режиме «войти как пользователь» (#1912). Без условия
+	// и без зависимостей: список закрытого статичен, а необязательный гейт означал бы,
+	// что в тестах смена пароля из чужой учётной записи проходит.
+	protected.Use(mw.DenyUnderImpersonation())
 
 	protected.POST("/logout", auth.Logout)
 	protected.POST("/logout-all", auth.LogoutAll)
@@ -977,6 +982,16 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.POST("/users/:id/unban", userBan.Unban, banUser)
 	protected.POST("/users/bulk/ban", userBan.BulkBan, banUser)
 	protected.POST("/users/bulk/unban", userBan.BulkUnban, banUser)
+
+	// Режим «войти как пользователь» (#1912) - замена практике «администратор знает
+	// пароль работника». Вход гейтится правом, возврат в свою учётную запись - нет:
+	// его делает тот, кто уже в режиме, и отказать ему значило бы запереть человека
+	// в чужой учётной записи до истечения маркера.
+	if d.Impersonation != nil {
+		requireImpersonate := mw.RequirePermissionV2(permResolver, denialLog, services.KeyUserImpersonate)
+		protected.POST("/users/:id/impersonate", d.Impersonation.Start, requireImpersonate)
+		protected.POST("/impersonation/stop", d.Impersonation.Stop)
+	}
 
 	// Согласие на обработку ПД (152-ФЗ)
 	consents := protected.Group("/consents")

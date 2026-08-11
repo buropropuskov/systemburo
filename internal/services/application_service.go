@@ -141,7 +141,7 @@ type ApplicationService interface {
 	UpdateApplication(ctx context.Context, username string, applicationID int, req ApplicationUpdateRequest) (*ApplicationUpdateResponse, error)
 
 	// ForwardApplication пересылает заявку ответственным/просматривающим.
-	ForwardApplication(ctx context.Context, username string, applicationID int, req ForwardApplicationRequest) error
+	ForwardApplication(ctx context.Context, username string, applicationID int, isSuperAdmin bool, req ForwardApplicationRequest) error
 
 	// ApproveApplicationByUser согласование/отказ заявки пользователем.
 	ApproveApplicationByUser(ctx context.Context, username string, applicationID int, req UserApprovalRequest) error
@@ -2217,10 +2217,9 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		// Чужие идентификаторы отбрасываем молча - так же, как дубли ответственных
 		// строкой ниже; запрос при этом остаётся валидным и заявка подаётся.
 		//
-		// Закрыт только путь подачи. Тот же INSERT в application_viewers делает
-		// пересылка (ForwardApplication), и там получатель проверяется лишь на
-		// существование - автор заявки по-прежнему может открыть её кому угодно
-		// через /forward. Сводится в срезе be-forward-gate этого эпика.
+		// Тот же список стережёт пересылку (ForwardApplication): второй путь к INSERT
+		// в application_viewers обязан пускать тот же круг, иначе закрытая на подаче
+		// дыра открывается через /forward.
 		allowedReaders, err := recipientCandidateIDs(ctx, tx, *user)
 		if err != nil {
 			tx.Rollback()
@@ -2291,7 +2290,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 					pendingVehicleFlags = append(pendingVehicleFlags, pendingVehicleFlag{carID: carID, carNumber: v.CarNumber})
 
 					carCreateComment := fmt.Sprintf("Автомобиль %s %s создан", v.CarNumber, v.CarBrand)
-					entry, err := buildAuditLogEntry(models.AuditEntityCar, &carID, "create", &user.ID, carAuditDetails{Comment: &carCreateComment})
+					entry, err := buildAuditLogEntry(ctx, models.AuditEntityCar, &carID, "create", &user.ID, carAuditDetails{Comment: &carCreateComment})
 					if err != nil {
 						slog.Error("не удалось подготовить аудит создания машины (submit)", "car_id", carID, "error", err)
 					} else {
@@ -2382,7 +2381,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 						empID: empID, lastName: e.LastName, firstName: e.FirstName, middleName: empMiddle,
 					})
 					empComment := fmt.Sprintf("Сотрудник %s создан", strings.TrimSpace(strings.Join([]string{e.LastName, e.FirstName, empMiddle}, " ")))
-					entry, err := buildAuditLogEntry(models.AuditEntityEmployee, &empID, "create", &user.ID, carAuditDetails{Comment: &empComment})
+					entry, err := buildAuditLogEntry(ctx, models.AuditEntityEmployee, &empID, "create", &user.ID, carAuditDetails{Comment: &empComment})
 					if err != nil {
 						slog.Error("не удалось подготовить аудит создания сотрудника (submit)", "employee_id", empID, "error", err)
 					} else {

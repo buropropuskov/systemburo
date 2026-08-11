@@ -1,0 +1,17 @@
+{
+  "api/applicationFiles.js::deleteApplicationFile": {
+    "gate": "Крестик на плитке файла рисуется по can('page.admin') (ApplicationDetail.canRemoveFiles), тем же правом, что закрывает роут удаления"
+  },
+  "api/applications.js::createSupplement": {
+    "gate": "Окно дополнения открывает кнопка в шапке заявки, а она рисуется по can('action.supplement.application') (ApplicationDetail.canSupplementApplication)"
+  },
+  "api/blankImport.js::downloadBlankTemplate": {
+    "gate": "Кнопка живёт в панели импорта, а панель открывается только при action.import.list (CreateApplication.canImportList проброшен в списки как can-import)"
+  },
+  "api/blankImport.js::uploadImportList": {
+    "gate": "Загрузка идёт из той же панели импорта, что и скачивание бланка, - режим включается только при action.import.list"
+  },
+  "api/feedback.js::getFeedbackStats": {
+    "gate": "NavMenu.fetchNewFeedbackCount выходит до запроса, если нет page.admin.feedback - счётчик обращений тогда просто ноль"
+  }
+}

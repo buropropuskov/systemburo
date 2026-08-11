@@ -459,6 +459,16 @@
               Права доступа
             </button>
             <button
+              v-if="canImpersonate"
+              class="lk-button lk-button--secondary"
+              data-testid="user-impersonate"
+              :disabled="impersonating"
+              title="Открыть систему глазами этого пользователя. Действие пишется в журнал."
+              @click="impersonateUser(selectedUser)"
+            >
+              {{ impersonating ? 'Входим…' : 'Войти как пользователь' }}
+            </button>
+            <button
               v-if="selectedUserIsSecurity"
               class="lk-button lk-button--secondary"
               data-testid="user-access-places"
@@ -1097,6 +1107,9 @@ import UserAccessModal from './admin/UserAccessModal.vue';
 import UserAccessPlacesModal from './admin/UserAccessPlacesModal.vue';
 import UserBulkOperationsModal from './UserBulkOperationsModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
+import { usePermissionsStore } from '@/stores/permissions';
+import { useAuthStore } from '@/stores/auth';
+import { startImpersonation } from '@/api/impersonation';
 import { useUiStore } from '@/stores/ui';
 import { resetOnboardingForUser } from '@/api/onboarding';
 import { TOURS } from '@/components/onboarding/tours';
@@ -1183,6 +1196,7 @@ export default {
       // никогда не гаснет без перезагрузки.
       presenceNow: Date.now(),
       lockoutResetting: false,
+      impersonating: false,
       presenceTimer: null,
       presencePollTimer: null,
       showNewPass: false,
@@ -1209,6 +1223,21 @@ export default {
   },
   computed: {
     ...mapState(useOrganizationsStore, { organizations: 'items' }),
+    // Кнопка режима «войти как пользователь» (#1912). Право - не единственное
+    // условие: от имени самого себя входить некуда, а архивная и заблокированная
+    // учётные записи не пускают и собственного владельца.
+    canImpersonate() {
+      if (!usePermissionsStore().hasPermission('user.impersonate')) return false;
+      const user = this.selectedUser;
+      if (!user || user.is_active === false || user.is_banned) return false;
+      const auth = useAuthStore();
+      if (user.username === auth.username) return false;
+      // Заведомо закрытые случаи прячем, чтобы кнопка не обещала невозможного.
+      // Полное правило - на бэкенде: набор прав цели клиенту неизвестен, и
+      // именно бэкенд остаётся тем, кто отказывает.
+      if (user.is_super_admin) return false;
+      return !user.is_admin || auth.isSuperAdmin;
+    },
     ...mapState(useCompaniesStore, { companies: 'items' }),
     showArchive() {
       return this.listMode === 'archive';
@@ -1789,6 +1818,32 @@ export default {
         useDeletionsStore().notify({ prefix: 'Не удалось снять блокировку: ', bold: error?.message || 'ошибка', type: 'error' });
       } finally {
         this.lockoutResetting = false;
+      }
+    },
+
+    /**
+     * Открывает сеанс работы от имени выбранного пользователя (#1912) и уводит на
+     * стартовый экран: дальше администратор видит систему его глазами, а полоса
+     * внизу напоминает, от чьего имени он действует.
+     *
+     * @param {{ id: number, username: string }} user
+     */
+    async impersonateUser(user) {
+      if (this.impersonating) return;
+      this.impersonating = true;
+      try {
+        const session = await startImpersonation(user.id);
+        await useAuthStore().beginImpersonation(session);
+        useDeletionsStore().notify({ prefix: 'Вы работаете от имени ', bold: session.target.full_name });
+        this.$router.push('/news').catch(() => {});
+      } catch (error) {
+        useDeletionsStore().notify({
+          prefix: 'Не удалось войти от имени пользователя: ',
+          bold: error?.message || 'ошибка',
+          type: 'error',
+        });
+      } finally {
+        this.impersonating = false;
       }
     },
 

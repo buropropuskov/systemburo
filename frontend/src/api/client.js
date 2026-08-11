@@ -15,7 +15,10 @@ const AUTH_ENDPOINTS = ['/login', '/refresh-token', '/logout']
 
 // Пути, на которых 403 не показывает уведомление: фоновые/ожидаемые запросы,
 // где 403 — штатный ответ (нет прав или сессия не авторизована).
-const SILENT_403_PREFIXES = [
+// Экспортируется для замка adminEndpointsFromUserFlows.spec.js: он сверяет вызовы
+// с пользовательских экранов с гейтами роутов бэкенда, и список тихих путей ему
+// нужен тем же, что и клиенту, - вторая копия разъехалась бы первой же правкой.
+export const SILENT_403_PREFIXES = [
   '/permissions/my',
   '/permissions/catalog',
   '/users/me',
@@ -316,6 +319,20 @@ async function baseRequest(path, options = {}) {
     if (!options.silent) {
       show429Notify(Number.isFinite(retryAfterSec) ? retryAfterSec : 0)
     }
+    return response
+  }
+
+  // Маркер режима «войти как пользователь» истёк (#1912). Обновлять сессию здесь
+  // нельзя: cookie осталась администраторской, и обновление вернуло бы его
+  // собственный маркер - запросы пошли бы уже от администратора, а полоса на
+  // экране продолжала бы называть чужое имя. Честный исход - закрыть режим и
+  // сказать об этом; неудавшийся запрос не повторяем, его делал другой человек.
+  if (response.status === 401 && !isAuthEndpoint(path) && authStore.isImpersonating) {
+    await authStore.endImpersonation({ recordExit: false })
+    useDeletionsStore().notify({
+      prefix: 'Сеанс работы от имени другого пользователя истёк',
+      type: 'warning',
+    })
     return response
   }
 

@@ -286,27 +286,85 @@ describe('EffectivePermissionsTree: «выбрать все» по таблиц�
   });
 });
 
-describe('EffectivePermissionsTree: что в группу не попадает', () => {
-  it('право с незнакомым глаголом остаётся строкой верхнего уровня', () => {
-    const catalog = [
-      ...tableNodes('kpp_4', 'КПП №4'),
-      { key: 'table.kpp_4.merge', display_name: 'КПП №4: Слияние', category: 'Таблицы' },
-    ];
+/*
+ * Право с глаголом вне словаря -- не выдумка: в базе живут legacy `table.<slug>.edit`
+ * с подписью чужого формата («Редактирование таблицы kpp_4»). Раньше такое право
+ * висело отдельной строкой рядом со своей же таблицей, и владелец прочитал её как
+ * поломку. Терять права нельзя, поэтому строка не выбрасывается, а уходит в группу
+ * по слагу из ключа.
+ */
+describe('EffectivePermissionsTree: глагол вне словаря', () => {
+  const legacyEdit = {
+    key: 'table.kpp_4.edit',
+    display_name: 'Редактирование таблицы kpp_4',
+    category: 'Таблицы',
+  };
+
+  it('уходит в группу своей таблицы с подписью от бэкенда', () => {
+    const catalog = [...tableNodes('kpp_4', 'КПП №4'), legacyEdit];
     const wrapper = mountTree({ catalog, stateByKey: buildState(catalog) });
 
-    const row = wrapper.get('[data-key="table.kpp_4.merge"]');
-    expect(row.classes()).not.toContain('ep-row--verb');
-    expect(row.element.parentElement.classList.contains('ep-group__inner')).toBe(false);
-    expect(group(wrapper, 'kpp_4').get('.ep-group__count').text()).toBe('0 из 10');
+    expect(wrapper.findAll('.ep-group')).toHaveLength(1);
+    const row = wrapper.get('[data-key="table.kpp_4.edit"]');
+    expect(row.classes()).toContain('ep-row--verb');
+    expect(row.element.parentElement.classList.contains('ep-group__inner')).toBe(true);
+    // Короткой подписи действия для незнакомого глагола нет -- показываем то
+    // единственное, что о нём известно.
+    expect(row.get('.ep-row__label').text()).toBe('Редактирование таблицы kpp_4');
+    expect(group(wrapper, 'kpp_4').get('.ep-group__name').text()).toBe('КПП №4');
   });
 
-  it('право с чужим форматом display_name остаётся строкой верхнего уровня', () => {
+  it('входит в знаменатель: счёт по фактическим правам, а не по длине словаря глаголов', () => {
+    const catalog = [...tableNodes('kpp_4', 'КПП №4'), legacyEdit];
+    const wrapper = mountTree({
+      catalog,
+      stateByKey: buildState(catalog, {
+        'table.kpp_4.view': { on: true, source: 'override', locked: false },
+        'table.kpp_4.edit': { on: true, source: 'role', locked: true },
+      }),
+    });
+    const kpp = group(wrapper, 'kpp_4');
+    expect(kpp.get('.ep-group__count').text()).toBe(`2 из ${TABLE_VERB_ORDER.length + 1}`);
+    expect(kpp.get('.ep-group__toggle').attributes('aria-label')).toBe(
+      `КПП №4: выдано 2 из ${TABLE_VERB_ORDER.length + 1}`,
+    );
+  });
+
+  it('«выбрать все» переключает и его', async () => {
+    const catalog = [...tableNodes('kpp_4', 'КПП №4'), legacyEdit];
+    const wrapper = mountTree({ catalog, stateByKey: buildState(catalog) });
+
+    await group(wrapper, 'kpp_4').get('.ep-group__all').trigger('click');
+    expect(wrapper.emitted('toggle').map(([key]) => key)).toContain('table.kpp_4.edit');
+  });
+
+  it('таблица из одних неразобранных прав озаглавлена слагом', () => {
     const catalog = [
       { key: 'table.kpp_4.export', display_name: 'Экспорт КПП №4', category: 'Таблицы' },
+      legacyEdit,
     ];
     const wrapper = mountTree({ catalog, stateByKey: buildState(catalog) });
+    // Живого имени взять неоткуда: подпись ни одного права не разобралась.
+    expect(group(wrapper, 'kpp_4').get('.ep-group__name').text()).toBe('kpp_4');
+    expect(group(wrapper, 'kpp_4').get('.ep-group__count').text()).toBe('0 из 2');
+  });
+});
+
+describe('EffectivePermissionsTree: что в группу не попадает', () => {
+  it('право без разбираемого слага остаётся строкой верхнего уровня', () => {
+    const catalog = [
+      { key: 'table.view', display_name: 'Таблицы: Доступ', category: 'Таблицы' },
+      { key: 'table.kpp_4.', display_name: 'КПП №4: хвост', category: 'Таблицы' },
+      { key: 'page.cars', display_name: 'Автомобили', category: 'Навигация' },
+    ];
+    const wrapper = mountTree({ catalog, stateByKey: buildState(catalog) });
+
     expect(wrapper.findAll('.ep-group')).toHaveLength(0);
-    expect(wrapper.get('[data-key="table.kpp_4.export"]').exists()).toBe(true);
+    for (const key of ['table.view', 'table.kpp_4.', 'page.cars']) {
+      const row = wrapper.get(`[data-key="${key}"]`);
+      expect(row.classes()).not.toContain('ep-row--verb');
+      expect(row.element.parentElement.classList.contains('ep-group__inner')).toBe(false);
+    }
   });
 
   it('пустой каталог даёт заглушку', () => {

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { filterCatalog, flattenCatalog, parseTablePermission } from '../permissionCatalog';
+import {
+  filterCatalog,
+  flattenCatalog,
+  parseTableKey,
+  parseTablePermission,
+} from '../permissionCatalog';
 
 describe('flattenCatalog', () => {
   it('разворачивает детей следом за родителем', () => {
@@ -51,6 +56,22 @@ describe('filterCatalog', () => {
   });
 });
 
+describe('parseTableKey', () => {
+  it('достаёт слаг и глагол, не сверяясь со словарём глаголов', () => {
+    expect(parseTableKey('table.kpp_4.edit')).toEqual({ slug: 'kpp_4', verb: 'edit' });
+    expect(parseTableKey('table.kpp.4.trash')).toEqual({ slug: 'kpp.4', verb: 'trash' });
+  });
+
+  it('ключ без слага или без глагола не разбирается', () => {
+    expect(parseTableKey('table.view')).toBeNull();
+    expect(parseTableKey('table.kpp_4.')).toBeNull();
+    expect(parseTableKey('table..view')).toBeNull();
+    expect(parseTableKey('page.cars')).toBeNull();
+    expect(parseTableKey('')).toBeNull();
+    expect(parseTableKey(undefined)).toBeNull();
+  });
+});
+
 describe('parseTablePermission', () => {
   it('разбирает ключ и отрезает суффикс действия от имени таблицы', () => {
     expect(
@@ -74,7 +95,9 @@ describe('parseTablePermission', () => {
     expect(parsed).toMatchObject({ slug: 'kpp.4', verb: 'trash' });
   });
 
-  it('незнакомый глагол не разбирается -- узел останется на верхнем уровне', () => {
+  // Имени таблицы и короткой подписи действия отсюда не следует; отнести право к
+  // своей таблице всё равно можно -- по parseTableKey.
+  it('незнакомый глагол не разбирается', () => {
     expect(parseTablePermission({ key: 'table.kpp_4.merge', display_name: 'КПП №4: Слияние' })).toBeNull();
   });
 

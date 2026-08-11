@@ -74,6 +74,16 @@ const (
 	// достаться каждому, кто может поменять первое.
 	KeyActionRotatePasswords = "action.password.rotate_all"
 
+	// KeyUserImpersonate - вход в систему от имени другого пользователя (#1912):
+	// разбор проблемной учётной записи без знания её пароля. Не super-only
+	// намеренно: администраторы и так меняют работникам пароли (PUT
+	// /users/:username/password), то есть уже могут войти под чужим именем - только
+	// молча и с потерей следа в журнале. Сделать право недоступным администратору
+	// значило бы оставить их на этой практике. Рядовому пользователю право не
+	// достаётся, пока его не выдадут явно, а войти от имени более полномочного не
+	// даёт сам сервис.
+	KeyUserImpersonate = "user.impersonate"
+
 	// KeyActionManageFileArchive - правка настроек файлового архива: рубильник,
 	// шаблоны раскладки, пороги места. Отделено от просмотра раздела: смотреть
 	// состояние выгрузки полезно и дежурному, а менять раскладку - нет, сменённый
@@ -182,6 +192,7 @@ func staticCatalog() []CatalogNode {
 		{Key: KeyAuditRead, DisplayName: "Журнал отказов в доступе", Category: CatAdmin},
 		{Key: KeyAuditManage, DisplayName: "Управление ролями и группами", Category: CatAdmin},
 		{Key: KeyActionBanUser, DisplayName: "Блокировка пользователей", Category: CatAdmin},
+		{Key: KeyUserImpersonate, DisplayName: "Вход от имени пользователя", Category: CatAdmin},
 		{Key: KeyActionGrantAdmin, DisplayName: "Выдача прав администратора", Category: CatAdmin, SuperOnly: true},
 		{Key: KeyActionRotatePasswords, DisplayName: "Смена паролей всем работникам", Category: CatAdmin},
 		{Key: KeyPageSystemControl, DisplayName: "Режим техработ", Category: CatAdmin, SuperOnly: true},

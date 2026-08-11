@@ -122,9 +122,13 @@
           </div>
           <div class="toggle-row">
             <label class="switch">
+              <!-- Подпись лежит соседним span, поэтому имя контрола задаём явно:
+                   иначе тумблер, вернувшийся в порядок обхода, объявляется безымянным
+                   и в списке из нескольких ответственных неразличим. -->
               <input
                 v-model="user.required_approval"
                 type="checkbox"
+                :aria-label="`Обязательное согласование: ${getUserDisplayName(user)}`"
                 @change="updateUserRequiredApproval(user)"
               >
               <span class="slider" />
@@ -690,8 +694,11 @@ export default {
   transition: background-color 0.2s ease;
 }
 
+/* Подсветка строки списка - тот же токен, что у пунктов BaseDropdown. Раньше здесь
+   стоял --surface-2, то есть ровно фон чипов внутри строки, и при наведении чипы
+   должности с организацией пропадали (#1894). */
 .user-dropdown-item:hover {
-  background-color: var(--surface-2);
+  background-color: var(--row-hover);
 }
 
 .user-dropdown-item:last-child {
@@ -730,12 +737,16 @@ export default {
   gap: 4px;
 }
 
+/* Чип на полупрозрачном акценте, а не на непрозрачном слое: строка под ним меняет
+   цвет при наведении, и только примесь к подложке даёт одинаковый отрыв в обоих
+   состояниях и в обеих палитрах. Текст --text, а не --text-muted: на тонированном
+   чипе поверх подсвеченной строки приглушённый давал 4.2 в тёмной теме. */
 .user-tag {
   font-size: 0.65rem;
   padding: 1px 6px;
   border-radius: 6px;
-  background: var(--surface-2);
-  color: var(--text-muted);
+  background: var(--accent-tint);
+  color: var(--text);
   white-space: nowrap;
 }
 
@@ -844,8 +855,24 @@ export default {
   flex-shrink: 0;
 }
 
+/* Инпут прячем визуально, но оставляем в порядке обхода: display:none выбрасывал
+   тумблер из tab-order, и переключить его с клавиатуры было нельзя (эталоны
+   SwitchToggle/ToggleSwitch прячут так же). */
 .switch input {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
+}
+
+/* Кольцо фокуса рисует дорожка - у скрытого инпута его не видно. */
+.switch input:focus-visible + .slider {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .slider {
