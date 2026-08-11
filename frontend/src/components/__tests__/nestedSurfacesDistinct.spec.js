@@ -23,7 +23,11 @@ const tokensCss = readFileSync(join(srcDir, 'assets/tokens.css'), 'utf8');
 
 const THEMES = ['light', 'dark'];
 
-/** [элемент, его фактический родитель по разметке] в пределах одного файла. */
+/**
+ * [элемент, его фактический родитель по разметке]. Обычно оба селектора лежат в
+ * одном файле; четвёртым элементом задаётся файл родителя, когда элемент - корень
+ * дочернего компонента, вложенного в чужую секцию.
+ */
 const PAIRS = [
   ['components/OrganizationsManagement.vue', '.card', '.details-column'],
   ['components/OrganizationsManagement.vue', '.count-badge', '.card'],
@@ -52,6 +56,11 @@ const PAIRS = [
 
   ['components/SelectTables.vue', '.select-tables-container', '.card'],
   ['components/SelectUnloadPlaces.vue', '.unload-places-container', '.card'],
+
+  // Жёлтый блок разбора лежит в секции `.card` справочника - у обоих хозяев своя.
+  // Селектор базовый: вариант --panel правит только отступ, заливку несёт корень.
+  ['components/directory/DirectoryModeration.vue', '.org-moderation', '.card', 'components/OrganizationsManagement.vue'],
+  ['components/directory/DirectoryModeration.vue', '.org-moderation', '.card', 'components/CompaniesManagement.vue'],
 ];
 
 const stripComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
@@ -98,18 +107,18 @@ const sourceOf = (file) => {
 };
 
 describe('вложенный слой отличается от того, на чём лежит', () => {
-  it.each(PAIRS)('%s: %s и %s объявляют фон', (file, child, parent) => {
-    const src = sourceOf(file);
-    expect(backgroundOf(src, child), `${file}: у ${child} нет фона`).toBeTruthy();
-    expect(backgroundOf(src, parent), `${file}: у ${parent} нет фона`).toBeTruthy();
+  it.each(PAIRS)('%s: %s и %s объявляют фон', (file, child, parent, parentFile) => {
+    const host = parentFile || file;
+    expect(backgroundOf(sourceOf(file), child), `${file}: у ${child} нет фона`).toBeTruthy();
+    expect(backgroundOf(sourceOf(host), parent), `${host}: у ${parent} нет фона`).toBeTruthy();
   });
 
   it.each(THEMES)('%s: ни одна пара не сливается', (theme) => {
     const vars = palette(theme);
     const merged = [];
-    for (const [file, child, parent] of PAIRS) {
-      const src = sourceOf(file);
-      const [a, b] = [backgroundOf(src, child), backgroundOf(src, parent)];
+    for (const [file, child, parent, parentFile] of PAIRS) {
+      const a = backgroundOf(sourceOf(file), child);
+      const b = backgroundOf(sourceOf(parentFile || file), parent);
       if (!a || !b) continue;
       const [ra, rb] = [resolveVars(a, vars), resolveVars(b, vars)];
       // Совпасть могут и записи, и разные токены с одним значением палитры.
