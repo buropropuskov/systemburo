@@ -178,6 +178,20 @@ type UserInfoResponse struct {
 	LockoutLevel int `json:"lockout_level"`
 }
 
+// RecipientCandidate — пользователь, которого автор может добавить получателем заявки.
+// Узкий срез полей: форме нужно показать человека и отличить однофамильцев по должности,
+// остальное (контакты, роль, признаки администратора) к выбору получателя отношения не имеет.
+type RecipientCandidate struct {
+	ID         int     `json:"id"`
+	Username   string  `json:"username"`
+	LastName   *string `json:"last_name"`
+	FirstName  *string `json:"first_name"`
+	MiddleName *string `json:"middle_name"`
+	Position   *string `json:"position"`
+	// PDHidden -- ФИО скрыто: работник не дал согласия на обработку ПД (#1567).
+	PDHidden bool `json:"pd_hidden"`
+}
+
 // UpdateUserTypeRequest — запрос на обновление типа пользователя.
 type UpdateUserTypeRequest struct {
 	TypeID int `json:"type_id" validate:"gte=1"`

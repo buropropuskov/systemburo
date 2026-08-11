@@ -580,6 +580,13 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// любому авторизованному.
 	protected.GET("/work-modes", d.WorkModes.GetWorkModes)
 
+	// Кандидаты в получатели заявки - без права page.admin.users: выбор получателя есть
+	// у любого, кто подаёт заявку, а раздача этого списка через админский /users/all
+	// отбивала форму подачи 403 у арендатора. Отдаёт узкий срез (коллеги по организации
+	// и компании плюс руководители) - не эквивалент списка всех учёток.
+	// Статический сегмент объявлен до /users/:username: в роутинге Echo он приоритетнее.
+	protected.GET("/users/recipient-candidates", users.GetRecipientCandidates)
+
 	// Управление пользователями - page.admin.users (Ф5, ранее service checkAdmin
 	// по type-коду manager/buropropuskov). Тот же ключ, что и у FE-роута раздела.
 	requireUsers := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminUsers)

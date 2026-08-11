@@ -2212,12 +2212,27 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	// (как форвард-флоу) - CanAccessApplication пускает их на чтение, но не в согласующие.
 	// Пропускаем тех, кто уже ответственный (у них доступ и так есть).
 	if req.Readers != nil {
+		// Читателем можно назначить только того, кого форма и предлагала выбрать:
+		// иначе подделанный запрос открывал бы заявку любому пользователю системы.
+		// Чужие идентификаторы отбрасываем молча - так же, как дубли ответственных
+		// строкой ниже; запрос при этом остаётся валидным и заявка подаётся.
+		allowedReaders, err := recipientCandidateIDs(ctx, tx, *user)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+
 		seenViewer := make(map[int]bool, len(responsibleUsers))
 		for _, ru := range responsibleUsers {
 			seenViewer[ru.UserID] = true
 		}
 		for _, readerID := range *req.Readers {
 			if readerID <= 0 || seenViewer[readerID] {
+				continue
+			}
+			if _, allowed := allowedReaders[readerID]; !allowed {
+				slog.Warn("читатель заявки отброшен: вне списка доступных получателей",
+					"application_id", appID, "reader_id", readerID, "author_id", user.ID)
 				continue
 			}
 			seenViewer[readerID] = true
