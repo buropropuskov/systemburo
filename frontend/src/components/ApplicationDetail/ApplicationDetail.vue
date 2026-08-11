@@ -23,6 +23,18 @@
       :show="showParticipantsModal"
       :application-id="Number(applicationData.id)"
       @close="showParticipantsModal = false"
+      @select="openParticipantFromList"
+    />
+
+    <!-- Карточка участника (#1952). Одна на оба входа - строку списка получателей
+         и согласующего в блоке согласования: два экземпляра разошлись бы тем,
+         кто открыт и поверх чего лежит. -->
+    <ApplicationParticipantCard
+      :show="showParticipantCard"
+      :participant="selectedParticipant"
+      :loading="participantCardLoading"
+      :error="participantCardError"
+      @close="showParticipantCard = false"
     />
 
     <!-- Дополнение поданной заявки (#1685) -->
@@ -605,6 +617,7 @@
               :responsible-users="responsibleUsers"
               :current-user-id="currentUserId"
               :updating-confirmation="updatingConfirmation"
+              @select-user="openParticipantByUser"
             />
           </div>
 
@@ -681,7 +694,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
-import { markAsRead, getApplicationSupplements } from '@/api/applications'
+import { markAsRead, getApplicationSupplements, getApplicationParticipants } from '@/api/applications'
 import { useDeletionsStore } from '@/stores/deletions'
 import { useUiStore } from '@/stores/ui'
 import { SUPPLEMENT_APPROVED } from '@/utils/supplementStatuses'
@@ -704,6 +717,7 @@ import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import { sanitizeHtml } from '@/utils/sanitize'
 import ApplicationMessageModal from './ApplicationMessageModal.vue'
 import ApplicationParticipantsModal from './ApplicationParticipantsModal.vue'
+import ApplicationParticipantCard from './ApplicationParticipantCard.vue'
 import DirectoryModeration from '@/components/directory/DirectoryModeration.vue'
 import eventStream from '@/services/eventStream'
 import { ref } from 'vue'
@@ -734,6 +748,7 @@ export default {
         BaseDropdown,
         ApplicationMessageModal,
         ApplicationParticipantsModal,
+        ApplicationParticipantCard,
         DirectoryModeration,
         SupplementModal,
         SupplementPanel
@@ -816,6 +831,23 @@ export default {
             supplementsSeq: 0,
             showForwardModal: false,
             showParticipantsModal: false,
+            // Карточка участника (#1952). Список участников тянем ЛЕНИВО и держим до
+            // следующего обновления детали: из блока согласования контактов и ролей
+            // нет вовсе, а платить запросом за каждое открытие карточки не за что.
+            // Тот, кто карточку ни разу не открыл, за неё и не платит.
+            showParticipantCard: false,
+            selectedParticipant: null,
+            participantCardLoading: false,
+            participantCardError: '',
+            // Кого открывают прямо сейчас: пока летит запрос, человек успевает
+            // кликнуть соседа, и ответ на прошлый клик не должен подменить карточку.
+            participantCardUserId: null,
+            participants: [],
+            participantsLoadedFor: null,
+            participantsInflight: null,
+            // Поколение списка: деталь перечитывают по live-сигналу, и ответ,
+            // стартовавший до этого, не должен осесть в памяти как свежий.
+            participantsGeneration: 0,
             isForwarding: false,
             allUsers: [],
             approvers: [],
@@ -1253,6 +1285,101 @@ export default {
         },
 
         /**
+         * Карточка участника по строке списка получателей (#1952). Запись уже
+         * загружена окном - открытие бесплатно.
+         * @param {object} participant
+         */
+        openParticipantFromList(participant) {
+            this.participantCardUserId = Number(participant?.user_id) || null;
+            this.participantCardLoading = false;
+            this.participantCardError = '';
+            this.selectedParticipant = participant;
+            this.showParticipantCard = true;
+        },
+
+        /**
+         * Карточка участника по клику в блоке «Ответственные за согласование»
+         * (#1952). У блока есть только ФИО, должность и голос - контакты, место
+         * работы и остальные роли лежат в ответе про участников, поэтому его и
+         * подтягиваем: один раз на заявку, дальше из памяти.
+         * @param {{id: number}} user строка responsible_users
+         */
+        async openParticipantByUser(user) {
+            const userId = Number(user?.id);
+            this.participantCardUserId = userId;
+            this.selectedParticipant = null;
+            this.participantCardError = '';
+            this.participantCardLoading = true;
+            this.showParticipantCard = true;
+            try {
+                const list = await this.ensureParticipants();
+                if (this.participantCardUserId !== userId) return;
+                const found = (list || []).find(p => Number(p.user_id) === userId);
+                if (found) {
+                    this.selectedParticipant = found;
+                } else {
+                    this.participantCardError = 'Не нашли этого человека среди получателей заявки.';
+                }
+            } catch (error) {
+                if (this.participantCardUserId !== userId) return;
+                this.participantCardError = error.message || 'Не удалось загрузить данные участника';
+            } finally {
+                if (this.participantCardUserId === userId) this.participantCardLoading = false;
+            }
+        },
+
+        /**
+         * Список участников заявки: из памяти, если он уже загружен для этой заявки,
+         * иначе одним запросом. Пока запрос летит, второй клик присоединяется к нему -
+         * дедуп безопасен, потому что заявка у обоих кликов одна и та же и проверяется
+         * при записи: ответ по чужой заявке (успели переключить) не сохраняем.
+         * @returns {Promise<Array>}
+         */
+        ensureParticipants() {
+            const id = Number(this.applicationData.id);
+            if (!id) return Promise.resolve([]);
+            if (this.participantsLoadedFor === id) return Promise.resolve(this.participants);
+            if (this.participantsInflight && this.participantsInflight.id === id) {
+                return this.participantsInflight.promise;
+            }
+
+            const generation = this.participantsGeneration;
+            const promise = getApplicationParticipants(id)
+                .then((list) => {
+                    const fresh = Array.isArray(list) ? list : [];
+                    // Пока ответ летел, деталь перечитали или заявку сменили: показать
+                    // его тому, кто кликнул, ещё можно, а запоминать уже нельзя -
+                    // следующий клик обязан спросить заново.
+                    if (generation === this.participantsGeneration && Number(this.applicationData.id) === id) {
+                        this.participants = fresh;
+                        this.participantsLoadedFor = id;
+                    }
+                    return fresh;
+                })
+                .finally(() => {
+                    // Сверяем по самому промису: после сброса кэша в поле уже может
+                    // лежать запрос следующего клика по той же заявке.
+                    if (this.participantsInflight && this.participantsInflight.promise === promise) {
+                        this.participantsInflight = null;
+                    }
+                });
+            this.participantsInflight = { id, promise };
+            return promise;
+        },
+
+        /**
+         * Сбросить память об участниках: заявку сменили или её деталь перечитали.
+         * Голоса согласующих меняются вместе с деталью, и карточка обязана
+         * показывать то же, что блок согласования за ней.
+         */
+        resetParticipantsCache() {
+            this.participantsGeneration += 1;
+            this.participants = [];
+            this.participantsLoadedFor = null;
+            this.participantsInflight = null;
+        },
+
+        /**
          * Дополнение принято (#1685): перечитываем карточку, чтобы новые строки появились
          * в составе вложения, а признак открытого раунда (open_supplement) обновился и
          * погасил кнопку. Ленту истории двигаем тем же заходом - раунд пишется в неё.
@@ -1325,6 +1452,11 @@ export default {
                         ...this.applicationData,
                         ...appData
                     };
+
+                    // Деталь перечитана - вместе с ней могли смениться голоса
+                    // согласующих, поэтому карточка участника берёт список заново
+                    // при следующем открытии (#1952).
+                    this.resetParticipantsCache();
 
                     // Раунды дополнения (#1685) - отдельной ручкой, признак их наличия
                     // приезжает только что вместе с деталью. Без await: у панели свой
