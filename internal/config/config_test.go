@@ -643,3 +643,108 @@ func TestValidate_MailServerWithoutAuth(t *testing.T) {
 	c.SMTPPassword = ""
 	require.NoError(t, c.Validate())
 }
+
+// TestValidate_ExportMustBeOutsideUploads - зеркало проверки архива для каталога пакетов
+// выгрузки. Цена ошибки здесь выше: в пакете лежит весь набор данных организации сразу,
+// а загрузки раздаются статикой до проверки авторизации.
+func TestValidate_ExportMustBeOutsideUploads(t *testing.T) {
+	root := t.TempDir()
+	uploads := filepath.Join(root, "uploads")
+
+	cases := []struct {
+		name    string
+		export  string
+		upload  string
+		wantErr string
+	}{
+		{
+			name:    "выгрузка внутри загрузок",
+			export:  filepath.Join(uploads, "packages"),
+			upload:  uploads,
+			wantErr: "must be outside UPLOAD_PATH",
+		},
+		{
+			name:    "выгрузка глубоко внутри загрузок",
+			export:  filepath.Join(uploads, "a", "b", "packages"),
+			upload:  uploads,
+			wantErr: "must be outside UPLOAD_PATH",
+		},
+		{
+			name:    "тот же каталог",
+			export:  uploads,
+			upload:  uploads,
+			wantErr: "must be outside UPLOAD_PATH",
+		},
+		{
+			name:    "загрузки внутри выгрузки",
+			export:  root,
+			upload:  uploads,
+			wantErr: "must not be inside ENTITY_EXPORT_PATH",
+		},
+		{
+			name:    "путь с обходом вверх всё равно попадает внутрь загрузок",
+			export:  filepath.Join(uploads, "sub", "..", "packages"),
+			upload:  uploads,
+			wantErr: "must be outside UPLOAD_PATH",
+		},
+		{
+			name:   "соседние каталоги",
+			export: filepath.Join(root, "packages"),
+			upload: uploads,
+		},
+		{
+			name:   "похожее имя не считается вложенностью",
+			export: uploads + "-packages",
+			upload: uploads,
+		},
+		{
+			name:   "каталог не задан - проверять нечего",
+			export: "",
+			upload: uploads,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := validConfig()
+			cfg.EntityExportPath = tc.export
+			cfg.UploadPath = tc.upload
+
+			err := cfg.Validate()
+			if tc.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			require.Error(t, err, "конфигурация с утечкой обязана валить старт")
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
+// TestValidate_ExportSymlinkedIntoUploads - обход проверки ссылкой: лексически пути
+// разные, физически пакеты лягут в публично раздаваемый каталог.
+func TestValidate_ExportSymlinkedIntoUploads(t *testing.T) {
+	root := t.TempDir()
+	uploads := filepath.Join(root, "uploads")
+	require.NoError(t, os.MkdirAll(filepath.Join(uploads, "inner"), 0o750))
+
+	link := filepath.Join(root, "packages-link")
+	require.NoError(t, os.Symlink(filepath.Join(uploads, "inner"), link))
+
+	cfg := validConfig()
+	cfg.EntityExportPath = link
+	cfg.UploadPath = uploads
+
+	require.ErrorContains(t, cfg.Validate(), "must be outside UPLOAD_PATH")
+}
+
+// TestLoad_EntityExportPathHasNoDefault: у каталога пакетов намеренно нет значения по
+// умолчанию. Дефолт означал бы, что выгрузка персональных данных ложится в каталог,
+// который никто не выбирал, - место хранения задаёт тот, кто разворачивает систему.
+func TestLoad_EntityExportPathHasNoDefault(t *testing.T) {
+	setValidEnv(t)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Empty(t, cfg.EntityExportPath)
+}

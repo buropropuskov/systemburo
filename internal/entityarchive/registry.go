@@ -1,5 +1,7 @@
 package entityarchive
 
+import "fmt"
+
 // Пакет собирает граф данных, связанных с одной сущностью (v1 - организация): какие
 // таблицы и сколько строк принадлежат цели. Только чтение: ничего не удаляет и не пишет
 // в журналы.
@@ -103,4 +105,34 @@ var directOrgRoots = map[string]bool{
 	"organization_users":         true,
 	"organization_tables":        true,
 	"organization_unload_places": true,
+}
+
+// allowedNodeTables - множество имён таблиц, легитимных для графа сущности entityType.
+//
+// Единственная сверка манифеста пакета со схемой базы (verifySchema в verify.go)
+// доказывает лишь «такая таблица и такие колонки где-то в этой базе есть» - подменённый
+// манифест может назвать ЛЮБУЮ реальную таблицу схемы (настройки, роли, права) и пройти её
+// чисто. Этот список - независимый от схемы якорь: то, что реально входит в граф entityType,
+// а не то, что просто существует в базе. Verify и Import обязаны сверяться с ним ОБА
+// (см. комментарий пакета в import.go) - каждый как со своим гейтом, не полагаясь на то,
+// что второй вызов уже проверил.
+func allowedNodeTables(entityType string) (map[string]bool, error) {
+	if entityType != TypeOrganization {
+		return nil, fmt.Errorf("тип %q не поддерживается (v1: только %s)", entityType, TypeOrganization)
+	}
+	set := make(map[string]bool)
+	for _, n := range organizationNodes() {
+		set[n.Table] = true
+	}
+	return set, nil
+}
+
+// CheckSupportedType сообщает, поддерживается ли entityType, не строя карту таблиц графа -
+// команде entity нужен только сам факт. Тонкая обёртка над allowedNodeTables: список
+// поддерживаемых типов задаётся там и только там, чтобы не разъезжались две копии одной
+// проверки. Вызывается из cmd/server до подключения к базе и настройки шифрования - опечатка
+// в -type видна сразу, а не после того, как открылось соединение.
+func CheckSupportedType(entityType string) error {
+	_, err := allowedNodeTables(entityType)
+	return err
 }
