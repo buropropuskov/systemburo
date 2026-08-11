@@ -356,6 +356,19 @@ func main() {
 	settingsHandler.SetRotationStatusService(
 		services.NewPasswordRotationStatusService(db, settingsService, mailService, resetLoc))
 
+	// Сам прогон плановой смены (#1910). Базовый адрес системы для писем берём из
+	// списка разрешённых источников: отдельного параметра под адрес нет, а ссылка
+	// на localhost в письме у получателя всё равно не откроется - сервис такую
+	// отбрасывает сам.
+	publicBaseURL := ""
+	if len(cfg.CORSAllowedOrigins) > 0 {
+		publicBaseURL = cfg.CORSAllowedOrigins[0]
+	}
+	passwordRotationService := services.NewPasswordRotationService(
+		db, settingsService, mailService, notificationServiceEarly, permissionResolver, publicBaseURL)
+	settingsHandler.SetRotationService(passwordRotationService)
+	usersHandler.SetRotationService(passwordRotationService)
+
 	archivePathService := services.NewArchivePathService(db, resetLoc)
 	// Место и квота файлового архива (#1615, срез B2): сводка занятого места и
 	// порог, останавливающий очередь выгрузки при нехватке места. Поднимается
@@ -605,6 +618,10 @@ func main() {
 	// завершается сразу: очередь тогда и не наполняется.
 	go startMailWorker(ctxSig, mailService, cfg.MailWorkerTick)
 
+	// Плановая смена паролей (#1910): раз в сутки в 04:00 по рабочей зоне. 03:00
+	// занят сверкой файлового архива, 06:00 - сбросом территориальных статусов.
+	go startPasswordRotationScheduler(ctxSig, passwordRotationService, resetLoc)
+
 	// Файловый архив бланков (#1615, B1): разбор очереди enqueue, подметатель
 	// повторов и ежесуточная сверка реестра с диском в 03:00 по resetLoc. nil,
 	// если каталог архива не поднялся - startFileArchiveWorker сама это проверяет
@@ -686,6 +703,52 @@ func startRetentionWorker(ctx context.Context, db *gorm.DB, tokenDays, notificat
 // startApplicationFileSweeper убирает файлы, загруженные к заявке, которую так и
 // не отправили (#1721): заявитель выбрал документы и закрыл форму. Ходит чаще
 // суток, потому что такие файлы занимают место, ни на что не влияя.
+// startPasswordRotationScheduler раз в сутки в 04:00 по location проверяет сроки
+// действия паролей: сначала предупреждает тех, у кого срок подходит, затем меняет
+// пароли тем, у кого он вышел. Выключенная настройка делает оба шага пустыми -
+// решение сервиса, а не планировщика.
+//
+// Идемпотентность бесплатная: после смены дата последней смены сдвинута, и
+// повторный проход того же дня никого не выберет.
+func startPasswordRotationScheduler(ctx context.Context, svc *services.PasswordRotationService, location *time.Location) {
+	if svc == nil {
+		return
+	}
+	now := time.Now().In(location)
+	next := time.Date(now.Year(), now.Month(), now.Day(), services.RotationRunHour, 0, 0, 0, location)
+	if !next.After(now) {
+		next = next.Add(24 * time.Hour)
+	}
+	timer := time.NewTimer(time.Until(next))
+	defer timer.Stop()
+	slog.Info("планировщик плановой смены паролей запущен", "next_run", next.Format(time.RFC3339))
+
+	run := func() {
+		svc.NotifyExpiring(ctx)
+		svc.RunScheduled(ctx)
+	}
+
+	select {
+	case <-ctx.Done():
+		slog.Info("планировщик плановой смены паролей остановлен до первого срабатывания")
+		return
+	case <-timer.C:
+	}
+	run()
+
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("планировщик плановой смены паролей остановлен")
+			return
+		case <-ticker.C:
+			run()
+		}
+	}
+}
+
 // startMailWorker разбирает очередь исходящих писем: раз в tick забирает пачку
 // ожидающих отправки и шлёт её одним SMTP-соединением. Ненастроенная почта
 // завершает горутину сразу - при пустом SMTP_HOST письма в очередь не попадают.

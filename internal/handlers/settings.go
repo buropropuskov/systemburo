@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"context"
+	"log/slog"
 	"net/http"
+	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -23,6 +26,13 @@ type SettingsHandler struct {
 	// rotationStatus - состояние плановой смены паролей (#1909), подключается
 	// тем же способом и по той же причине.
 	rotationStatus *services.PasswordRotationStatusService
+	// rotation - сам прогон плановой смены (#1910).
+	rotation *services.PasswordRotationService
+}
+
+// SetRotationService подключает сервис плановой смены паролей.
+func (h *SettingsHandler) SetRotationService(s *services.PasswordRotationService) {
+	h.rotation = s
 }
 
 // SetRotationStatusService подключает счётчик состояния плановой смены паролей.
@@ -183,4 +193,63 @@ func (h *SettingsHandler) GetPasswordRotationStatus(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось посчитать состояние плановой смены")
 	}
 	return RespondSuccess(c, status)
+}
+
+// RunPasswordRotation godoc
+// @Summary      Сменить пароли всем работникам
+// @Description  Ручной прогон плановой смены: меняет пароли всем действующим работникам с адресом почты, не дожидаясь срока. Возвращает управление сразу, письма ставятся в очередь.
+// @Tags         settings
+// @Produce      json
+// @Security     BearerAuth
+// @Success      202 {object} map[string]any
+// @Failure      403 {object} models.HTTPError
+// @Failure      409 {object} models.HTTPError
+// @Failure      412 {object} models.HTTPError
+// @Router       /settings/password-rotation/run [post]
+//
+// RunPasswordRotation запускает смену паролей вручную. Ответ отдаётся сразу:
+// ждать в интерфейсе, пока разойдутся сотни писем, нельзя, а сама смена идёт
+// быстро - письма разбирает почтовый воркер по своему темпу.
+func (h *SettingsHandler) RunPasswordRotation(c echo.Context) error {
+	if h.rotation == nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "Плановая смена паролей недоступна")
+	}
+	if h.rotation.IsRunning() {
+		// 409, а не молчаливый второй прогон: двойной клик выдал бы работнику два
+		// пароля подряд, и рабочим оказался бы только последний.
+		return echo.NewHTTPError(http.StatusConflict, "Смена паролей уже выполняется")
+	}
+	if h.mail == nil || !h.mail.Enabled() {
+		return echo.NewHTTPError(http.StatusPreconditionFailed,
+			"Почта не настроена: менять пароли, не имея канала доставки, нельзя")
+	}
+
+	userID := GetUserID(c)
+	// Контекст запроса здесь не годится: он умирает вместе с ответом, а прогон
+	// продолжается. Берём фоновый со своим сроком.
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+		defer cancel()
+		if _, err := h.rotation.Run(ctx, true, userID); err != nil {
+			slog.Error("ручная смена паролей завершилась ошибкой", "error", err, "started_by", userID)
+		}
+	}()
+
+	return c.JSON(http.StatusAccepted, map[string]any{
+		"success": true,
+		"data":    map[string]any{"started": true},
+	})
+}
+
+// GetPasswordRotationLast отдаёт итог последнего прогона в этом процессе.
+// Перезапуск сервера его забывает - это осознанно: сведения справочные, ради них
+// заводить таблицу прогонов незачем, а факты смены и так лежат в журнале действий.
+func (h *SettingsHandler) GetPasswordRotationLast(c echo.Context) error {
+	if h.rotation == nil {
+		return RespondSuccess(c, map[string]any{"last": nil})
+	}
+	return RespondSuccess(c, map[string]any{
+		"running": h.rotation.IsRunning(),
+		"last":    h.rotation.LastResult(),
+	})
 }

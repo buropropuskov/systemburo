@@ -137,3 +137,71 @@ describe('AdminSettings: плановая смена паролей', () => {
     expect(wrapper.vm.nextRotationRunText).toMatch(/\d{2}\.\d{2}\.\d{4}/)
   })
 })
+
+describe('AdminSettings: ручной прогон смены паролей', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  it('кнопка прогона видна только при настроенной почте', async () => {
+    const withMail = await mountSettings({ mail_configured: true })
+    expect(withMail.find('[data-testid="rotation-run-button"]').exists()).toBe(true)
+
+    const withoutMail = await mountSettings({ mail_configured: false })
+    expect(withoutMail.find('[data-testid="rotation-run-button"]').exists()).toBe(false)
+  })
+
+  it('первый клик открывает подтверждение, а не запускает смену', async () => {
+    const wrapper = await mountSettings({ mail_configured: true })
+
+    await wrapper.find('[data-testid="rotation-run-button"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.vm.confirmRotation).toBe(true)
+    // Ни одного запроса на запуск: действие обрывает сессии всей организации и
+    // не должно срабатывать с одного клика.
+    const runCalls = apiRequest.mock.calls.filter(([path]) => path === '/settings/password-rotation/run')
+    expect(runCalls).toHaveLength(0)
+  })
+
+  it('подтверждение запускает прогон и сообщает об очереди писем', async () => {
+    const wrapper = await mountSettings({ mail_configured: true })
+    apiRequest.mockImplementation((path) => {
+      if (path === '/settings/password-rotation/status') return Promise.resolve(statusResponse({ mail_configured: true }))
+      if (path === '/settings/password-rotation/run') return Promise.resolve({ ok: true, json: vi.fn().mockResolvedValue({}) })
+      return Promise.resolve({ ok: true, json: vi.fn().mockResolvedValue({}) })
+    })
+
+    await wrapper.vm.runRotationNow()
+    await flushPromises()
+
+    const runCalls = apiRequest.mock.calls.filter(([path]) => path === '/settings/password-rotation/run')
+    expect(runCalls).toHaveLength(1)
+    expect(runCalls[0][1]).toMatchObject({ method: 'POST' })
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ bold: 'Смена паролей запущена' }))
+    expect(wrapper.vm.confirmRotation).toBe(false)
+  })
+
+  it('отказ сервера показывается текстом, а не молча', async () => {
+    const wrapper = await mountSettings({ mail_configured: true })
+    apiRequest.mockImplementation((path) => {
+      if (path === '/settings/password-rotation/status') return Promise.resolve(statusResponse({ mail_configured: true }))
+      if (path === '/settings/password-rotation/run') {
+        return Promise.resolve({
+          ok: false,
+          json: vi.fn().mockResolvedValue({ message: 'Смена паролей уже выполняется' }),
+        })
+      }
+      return Promise.resolve({ ok: true, json: vi.fn().mockResolvedValue({}) })
+    })
+
+    await wrapper.vm.runRotationNow()
+    await flushPromises()
+
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({
+      bold: 'Смена паролей уже выполняется',
+      type: 'error',
+    }))
+  })
+})
