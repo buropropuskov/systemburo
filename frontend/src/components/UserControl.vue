@@ -1172,6 +1172,10 @@ export default {
       archiveOptions: [
         { value: 'active', label: 'Активные' },
         { value: 'online', label: 'В сети' },
+        // Без почты (#1908): плановая смена паролей такого работника пропускает,
+        // и бюро должно видеть эти учётные записи до первого прогона, а не из
+        // отчёта после него.
+        { value: 'no_email', label: 'Без почты' },
         { value: 'archive', label: 'Архив' },
       ],
       // presenceNow - тикающее «сейчас» для колонки присутствия. Держим в data, а не
@@ -1212,10 +1216,14 @@ export default {
     onlineOnly() {
       return this.listMode === 'online';
     },
+    noEmailOnly() {
+      return this.listMode === 'no_email';
+    },
     // Подпись футера идёт от режима списка: «Всего пользователей» под отфильтрованным
     // числом читалось бы как «в системе всего один», хотя это только те, кто в сети.
     countLabel() {
       if (this.showArchive) return 'В архиве';
+      if (this.noEmailOnly) return 'Без почты';
       return this.onlineOnly ? 'В сети' : 'Всего пользователей';
     },
     // Счётчик шапки считается по всем учёткам, а не по видимым: он отвечает на
@@ -1275,6 +1283,7 @@ export default {
       return this.allUsers
         .filter(user => (this.showArchive ? user.is_active === false : user.is_active !== false))
         .filter(user => !this.onlineOnly || isOnline(user, this.presenceNow))
+        .filter(user => !this.noEmailOnly || !user.email)
         .filter(user => matchesSearch(
           `${user.username} ${user.organization || ''} ${user.company || ''} `
           + `${user.user_type || ''} ${user.position || ''} ${this.formatUserName(user)}`,
