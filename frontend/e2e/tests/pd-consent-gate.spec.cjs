@@ -22,7 +22,12 @@ const TEST_USER = {
   // e2eName, а не Date.now(): ретрай перезапускает весь serial-блок вместе с
   // beforeAll, и то же имя упёрлось бы в конфликт с недоудалённой учёткой.
   username: e2eName('consent'),
-  password: 'ConsentE2E-pass-9137',
+  // Пароль, заданный администратором, система считает временным: до смены она
+  // отвечает 403 на защищённые методы. Учётная запись меняет его на свой сразу
+  // после заведения, дальше в спеке используется только password. Значения
+  // обязаны различаться - прежний пароль система повторно не примет.
+  initialPassword: 'ConsentE2E-init-9137',
+  password: 'ConsentE2E-own-4271',
 };
 
 let adminToken = null;
@@ -76,7 +81,7 @@ test.describe.serial('Гейт согласия на обработку ПД (#1
       headers: { Authorization: `Bearer ${adminToken}` },
       data: {
         username: TEST_USER.username,
-        password: TEST_USER.password,
+        password: TEST_USER.initialPassword,
         type_id: 1,
         last_name: 'E2E',
         first_name: 'Consent',
@@ -86,6 +91,22 @@ test.describe.serial('Гейт согласия на обработку ПД (#1
     });
     expect(created.ok(), await created.text()).toBeTruthy();
     userCreated = true;
+
+    // Первый вход: работник задаёт свой пароль взамен временного. Делается до
+    // включения согласия - иначе гейт согласия закроет и смену пароля.
+    const firstLogin = await request.post(`${API_BASE}/login`, {
+      data: { username: TEST_USER.username, password: TEST_USER.initialPassword },
+    });
+    expect(firstLogin.ok(), await firstLogin.text()).toBeTruthy();
+    const firstToken = unwrap(await firstLogin.json()).token;
+    const changed = await request.put(`${API_BASE}/users/me/password`, {
+      headers: { Authorization: `Bearer ${firstToken}` },
+      data: {
+        current_password: TEST_USER.initialPassword,
+        new_password: TEST_USER.password,
+      },
+    });
+    expect(changed.ok(), await changed.text()).toBeTruthy();
 
     // Гасим онбординг-тур: после подтверждения согласия он стартует и его оверлей
     // перехватывает клики, а проверяем мы здесь не тур.
