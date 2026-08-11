@@ -295,6 +295,85 @@
           "badge": 4
         }
       ]
+    },
+    {
+      "id": "admin-orgs-list",
+      "goto": "/admin/organizations",
+      "waitFor": "[data-testid=\"orgs-row\"]",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": ".management-title",
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"orgs-list-mode\"]",
+          "badge": 2
+        },
+        {
+          "selector": "[data-testid=\"orgs-type-filter\"]",
+          "badge": 3
+        },
+        {
+          "selector": ".header-controls input",
+          "badge": 4
+        },
+        {
+          "selector": "[data-testid=\"orgs-add-btn\"]",
+          "badge": 5
+        }
+      ]
+    },
+    {
+      "id": "admin-org-card",
+      "goto": "/admin/organizations",
+      "waitFor": "[data-testid=\"orgs-row\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"orgs-row\"]",
+          "nth": 1
+        },
+        {
+          "wait": ".details-column"
+        }
+      ],
+      "clip": {
+        "selector": ".details-column",
+        "pad": {
+          "x": 90,
+          "y": 60
+        }
+      },
+      "highlight": [
+        {
+          "selector": ".details-column .card",
+          "nth": 0,
+          "badge": 1,
+          "badgeInside": true
+        },
+        {
+          "selector": ".details-column .card",
+          "nth": 1,
+          "badge": 2,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "admin-blacklist",
+      "goto": "/admin/blacklist",
+      "waitFor": "[data-testid=\"filter-tab-vehicles\"]",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"filter-tab-vehicles\"]",
+          "badge": 1
+        }
+      ]
     }
   ]
 }
