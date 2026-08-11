@@ -193,9 +193,63 @@ async function main() {
   });
   console.log(`Таблица «${carsTable.display_name}»: включён список по факту, заполнена инструкция`);
 
+  await bindGuardPlaces(apiBase, token, guard.username, active);
+  await grantRolePermissions(apiBase, token, list, accounts);
+
   await fillOverview(apiBase, token);
   await fillBureauSchedule(apiBase, token);
   await enableConsent(apiBase, token);
+}
+
+/**
+ * Выдаёт согласующему и принимающему права, без которых их сценарии не
+ * открываются.
+ *
+ * Наливка расставляет признаки ролей в данных (обязательное согласование в
+ * организации, запись в справочнике принимающих), но правами не занимается: в
+ * работе их выдаёт администратор. Без «Центра заявок» согласующий упирается в
+ * страницу отказа, и снимать в его руководстве нечего.
+ */
+async function grantRolePermissions(apiBase, token, users, accounts) {
+  const grants = {
+    approver: ['page.center', 'action.approve.application', 'action.forward.application'],
+    acceptor: ['page.center', 'action.approve.application', 'center.archive', 'action.supplement.application'],
+  };
+
+  for (const [role, keys] of Object.entries(grants)) {
+    const account = accounts.roles[role];
+    const user = users.find((item) => item.username === account.username);
+    if (!user) throw new Error(`${role} ${account.username} не найден`);
+    await api(apiBase, token, 'PUT', `/permissions/user/${user.id}`, {
+      permissions: keys.map((key) => ({ key, value: 'allow' })),
+    });
+    console.log(`${account.username} (${role}): выдано разрешений ${keys.length}`);
+  }
+}
+
+/**
+ * Привязывает охраннику места доступа: таблицы постов и места разгрузки.
+ *
+ * Права на таблицы открывают сами таблицы, но раздел «Доступные мне» устроен
+ * иначе: он показывает вложения согласованных заявок, места которых
+ * пересекаются с местами работника. Без привязки раздел пуст, и снимок в
+ * руководстве охранника показывал бы пустой экран.
+ */
+async function bindGuardPlaces(apiBase, token, username, tables) {
+  const tableIDs = tables.map((table) => table.id);
+  await api(apiBase, token, 'PUT', `/users/${username}/tables`, { table_ids: tableIDs });
+
+  const places = unwrap(await api(apiBase, token, 'GET', '/unload-places')) ?? [];
+  const placeIDs = places
+    .filter((place) => place.is_active !== false)
+    .map((place) => place.id);
+  await api(apiBase, token, 'PUT', `/users/${username}/unload-places`, {
+    unload_place_ids: placeIDs,
+  });
+
+  console.log(
+    `Охраннику ${username} привязано мест доступа: таблиц ${tableIDs.length}, мест разгрузки ${placeIDs.length}`,
+  );
 }
 
 /**

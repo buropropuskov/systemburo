@@ -1,0 +1,146 @@
+{
+  "comment": "Кадры руководства согласующего. Роль - работник, чей голос требуется для одобрения заявки, см. accounts.json. Заявка 14 - непрочитанная, голос ещё не отдан; заявка 127 несёт пометку возможного обхода чёрного списка.",
+  "role": "approver",
+  "shots": [
+    {
+      "id": "approver-center",
+      "goto": "/center",
+      "waitFor": "[data-testid=\"ob-center-list\"]",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"center-badge-unread\"]",
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"center-filter-confirmations\"]",
+          "badge": 2
+        },
+        {
+          "selector": "[data-testid=\"ob-center-blacklist-tag\"]",
+          "badge": 3
+        }
+      ]
+    },
+    {
+      "id": "approver-detail",
+      "goto": "/center",
+      "waitFor": "[data-testid=\"center-row-14\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"center-row-14\"]"
+        },
+        {
+          "wait": "[data-testid=\"ob-detail-card\"]"
+        }
+      ],
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"ob-detail-actions\"]",
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"application-questions\"]",
+          "badge": 2
+        }
+      ]
+    },
+    {
+      "id": "approver-vote",
+      "goto": "/center",
+      "waitFor": "[data-testid=\"center-row-14\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"center-row-14\"]"
+        },
+        {
+          "wait": "[data-testid=\"app-detail-button-approve\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"ob-detail-actions\"]",
+        "pad": {
+          "x": 120,
+          "y": 90
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"app-detail-button-approve\"]",
+          "badge": 1
+        }
+      ]
+    },
+    {
+      "id": "approver-confirmation",
+      "goto": "/center",
+      "waitFor": "[data-testid=\"center-row-14\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"center-row-14\"]"
+        },
+        {
+          "wait": ".confirmation-section"
+        }
+      ],
+      "clip": {
+        "selector": ".confirmation-section",
+        "pad": 40
+      },
+      "highlight": []
+    },
+    {
+      "id": "approver-question",
+      "goto": "/center",
+      "waitFor": "[data-testid=\"center-row-14\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"center-row-14\"]"
+        },
+        {
+          "wait": "[data-testid=\"question-ask-button\"]"
+        },
+        {
+          "click": "[data-testid=\"question-ask-button\"]"
+        },
+        {
+          "wait": ".ask-question-modal, .base-modal"
+        }
+      ],
+      "clip": {
+        "selector": ".ask-question-modal, .base-modal",
+        "pad": 40
+      },
+      "highlight": []
+    },
+    {
+      "id": "approver-blacklist",
+      "goto": "/center",
+      "waitFor": "[data-testid=\"center-row-127\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"center-row-127\"]"
+        },
+        {
+          "wait": "[data-testid=\"blacklist-override-btn\"]"
+        },
+        {
+          "click": "[data-testid=\"blacklist-override-btn\"]"
+        },
+        {
+          "wait": ".base-modal, .modal-content"
+        }
+      ],
+      "clip": {
+        "selector": ".base-modal, .modal-content",
+        "pad": 40
+      },
+      "highlight": []
+    }
+  ]
+}
