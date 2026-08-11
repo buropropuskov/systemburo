@@ -97,15 +97,20 @@ describe('Пустое состояние живёт внутри таблицы
     });
 });
 
-describe('«Очистить» стоит у таблицы, а не в шапке рядом с Experimental', () => {
-    it('машины: кнопка в строке действий таблицы, шапка несёт только импорт', () => {
+// Кнопка «Очистить» жила в отдельной строке-тулбаре под шапкой (.list-toolbar) -
+// на коротком списке (нет поиска/пейджера, showToolbar=false) эта строка всё равно
+// рисовалась ради одной кнопки и давала пустой пробел между шапкой и таблицей
+// (претензия владельца). Теперь очистка живёт в самой строке шапки, а строка
+// поиска/пейджера рисуется только когда в ней реально есть что показывать.
+describe('«Очистить» стоит в шапке списка - тулбар не создаёт пустую строку', () => {
+    it('машины: кнопка в строке шапки, отдельного тулбара под коротким списком нет', () => {
         const w = mountList(VehiclesList, {
             vehicles: [{ id: 1, plateNumber: 'А001АА777', mark: 'Volvo' }],
             canImport: true,
         });
 
-        expect(w.find('.header-with-badge [data-testid="vehicles-clear-btn"]').exists()).toBe(false);
-        expect(w.find('.list-toolbar [data-testid="vehicles-clear-btn"]').exists()).toBe(true);
+        expect(w.find('.header-with-badge [data-testid="vehicles-clear-btn"]').exists()).toBe(true);
+        expect(w.find('.list-toolbar').exists()).toBe(false);
         // Бейдж Experimental остаётся рядом с кнопкой импорта - он про импорт.
         expect(w.find('.header-with-badge .import-entry .badge').text()).toBe('Experimental');
     });
@@ -116,8 +121,33 @@ describe('«Очистить» стоит у таблицы, а не в шапк
             canImport: true,
         });
 
-        expect(w.find('.header-with-badge [data-testid="employees-clear-btn"]').exists()).toBe(false);
-        expect(w.find('.list-toolbar [data-testid="employees-clear-btn"]').exists()).toBe(true);
+        expect(w.find('.header-with-badge [data-testid="employees-clear-btn"]').exists()).toBe(true);
+        expect(w.find('.list-toolbar').exists()).toBe(false);
         expect(w.find('.header-with-badge .import-entry .badge').text()).toBe('Experimental');
+    });
+
+    it('машины: без права на импорт кнопка всё равно остаётся в шапке', () => {
+        const w = mountList(VehiclesList, {
+            vehicles: [{ id: 1, plateNumber: 'А001АА777', mark: 'Volvo' }],
+        });
+
+        expect(w.find('.header-with-badge [data-testid="vehicles-clear-btn"]').exists()).toBe(true);
+        expect(w.find('.list-toolbar').exists()).toBe(false);
+    });
+
+    it('машины: длинный список рисует тулбар поиска отдельно, очистка остаётся в шапке', () => {
+        const w = mountList(VehiclesList, { vehicles: manyVehicles(60) });
+
+        expect(w.find('.list-toolbar [data-testid="vehicles-search"]').exists()).toBe(true);
+        expect(w.find('.list-toolbar [data-testid="vehicles-clear-btn"]').exists()).toBe(false);
+        expect(w.find('.header-with-badge [data-testid="vehicles-clear-btn"]').exists()).toBe(true);
+    });
+
+    it('пустой список: ни очистки, ни тулбара, ни лишней строки в шапке', () => {
+        const w = mountList(VehiclesList, { vehicles: [] });
+
+        expect(w.find('[data-testid="vehicles-clear-btn"]').exists()).toBe(false);
+        expect(w.find('.list-toolbar').exists()).toBe(false);
+        expect(w.find('.header-actions').exists()).toBe(false);
     });
 });

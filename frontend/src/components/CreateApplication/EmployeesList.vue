@@ -3,10 +3,12 @@
     <div class="header-with-badge">
       <h4>Список сотрудников</h4>
       <span class="employees-badge">{{ employees.length }}</span>
-      <!-- В шапке живёт только вход в импорт: бейдж Experimental стоит рядом с ним и
-           относится к нему. «Очистить» - действие над содержимым таблицы, оно ниже. -->
+      <!-- Действия шапки: вход в импорт (когда доступен) и очистка списка (когда есть,
+           что чистить) - обе живут в шапке справа, а не в отдельной полосе тулбара под
+           ней: иначе при коротком списке (нет поиска/пейджера) тулбар оставался пустой
+           строкой под кнопку и раздувал пробел между шапкой и таблицей. -->
       <div
-        v-if="canImport"
+        v-if="canImport || employees.length"
         class="header-actions"
       >
         <div
@@ -33,17 +35,26 @@
             {{ importActive ? 'Закрыть импорт' : 'Импорт' }}
           </button>
         </div>
+        <button
+          v-if="employees.length"
+          type="button"
+          class="lk-button lk-button--danger lk-button--sm list-toolbar__clear"
+          data-testid="employees-clear-btn"
+          @click="showClearConfirm = true"
+        >
+          Очистить
+        </button>
       </div>
     </div>
 
-    <!-- Строка действий самой таблицы: поиск с пейджером (импорт бланком может занести
-         до 2000 строк, обычной ручной подаче они не нужны) и очистка её содержимого. -->
+    <!-- Поиск с пейджером - только когда список длинный (импорт бланком может занести
+         до 2000 строк, обычной ручной подаче они не нужны). Короткий список этой
+         строки не занимает вовсе. -->
     <div
-      v-if="showToolbar || employees.length"
+      v-if="showToolbar"
       class="list-toolbar"
     >
       <input
-        v-if="showToolbar"
         v-model="searchQuery"
         type="text"
         class="lk-input list-search"
@@ -51,7 +62,7 @@
         data-testid="employees-search"
       >
       <Pager
-        v-if="showToolbar && totalPages > 1"
+        v-if="totalPages > 1"
         class="list-pager"
         :page="currentPage"
         :total-pages="totalPages"
@@ -59,15 +70,6 @@
         page-prefix="Стр. "
         @update:page="goToPage"
       />
-      <button
-        v-if="employees.length"
-        type="button"
-        class="lk-button lk-button--danger lk-button--sm list-toolbar__clear"
-        data-testid="employees-clear-btn"
-        @click="showClearConfirm = true"
-      >
-        Очистить
-      </button>
     </div>
 
     <div class="employees-table rt-table">
@@ -418,10 +420,11 @@ export default {
     line-height: 1.2;
 }
 
+/* Только поиск+пейджер - рисуется исключительно у длинных списков (showToolbar),
+   иначе строки в раскладке нет вовсе (см. header-actions выше для очистки). */
 .list-toolbar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     flex-wrap: wrap;
     gap: 8px;
     padding-bottom: 10px;
@@ -441,11 +444,8 @@ export default {
     color: var(--text-muted);
 }
 
-/* Очистка прижата к правому краю строки действий таблицы и держится там же, когда
-   поиска с пейджером ещё нет (короткий список). */
 .list-toolbar__clear {
     flex-shrink: 0;
-    margin-left: auto;
 }
 
 .employees-table {
