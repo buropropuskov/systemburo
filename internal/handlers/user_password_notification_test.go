@@ -41,6 +41,7 @@ func TestUserService_UpdatePassword_AdminChange_CreatesNotification(t *testing.T
 		callerUserID,
 		target.Username,
 		models.UpdatePasswordRequest{Password: "newpassword12345"},
+		nil,
 	)
 	require.NoError(t, err)
 
@@ -90,6 +91,7 @@ func TestUserService_UpdatePassword_SelfChange_Notification(t *testing.T) {
 		target.ID, // сам себе сменил
 		target.Username,
 		models.UpdatePasswordRequest{Password: "newpassword12345"},
+		nil,
 	)
 	require.NoError(t, err)
 
