@@ -29,18 +29,32 @@ const ROUTER_FILE = path.resolve(
  */
 const EXTRA_GATE_FLAGS = ['requiresSuperAdmin', 'requiresSecurityOrAdmin'];
 
-/** @returns {Array<{ path: string, permission: string|null, extraGate: string|null }>} роуты с requiresAuth */
+/**
+ * @returns {Array<{ path: string, permission: string|null, extraGate: string|null, component: string|null }>}
+ *   роуты с requiresAuth; `component` - путь импорта, если его удалось прочитать
+ */
 function parseAuthRoutes() {
   const src = fs.readFileSync(ROUTER_FILE, 'utf8');
+  // Компоненты роутов объявлены двумя способами: ленивым import() прямо в объекте
+  // роута и статическим импортом по имени в шапке файла.
+  const staticImports = {};
+  for (const m of src.matchAll(/import\s+(\w+)\s+from\s+'([^']+)'/g)) staticImports[m[1]] = m[2];
+
   const marks = [...src.matchAll(/path:\s*'([^']+)'/g)];
   const routes = [];
   marks.forEach((m, i) => {
     const chunk = src.slice(m.index, i + 1 < marks.length ? marks[i + 1].index : src.length);
     if (!/requiresAuth:\s*true/.test(chunk)) return;
+    const lazy = chunk.match(/component:\s*\(\)\s*=>\s*import\('([^']+)'\)/)?.[1];
+    const named = chunk.match(/component:\s*(\w+)/)?.[1];
     routes.push({
       path: m[1],
       permission: chunk.match(/permission:\s*'([^']+)'/)?.[1] ?? null,
+      // Гейт бывает и функцией (`(to) => \`table.${to.params.tableName}.view\``) -
+      // ключа в тексте нет, но страница закрыта, и считать её открытой нельзя.
+      gated: /permission:/.test(chunk),
       extraGate: EXTRA_GATE_FLAGS.find((f) => new RegExp(`${f}:\\s*true`).test(chunk)) ?? null,
+      component: lazy ?? staticImports[named] ?? null,
     });
   });
   return routes;
@@ -71,4 +85,16 @@ export function routeGate(routePath) {
  */
 export function routeExtraGate(routePath) {
   return authRoutes.find((r) => r.path === routePath)?.extraGate ?? null;
+}
+
+/**
+ * Пути импорта компонентов, чьи страницы открыты любому вошедшему: ни `permission`,
+ * ни дополнительного мета-флага. С них и начинается граф пользовательских экранов в
+ * замке `api/__tests__/adminEndpointsFromUserFlows.spec.js` - разбирать `router.js`
+ * во второй раз незачем, разошлись бы списком дополнительных флагов.
+ *
+ * @returns {string[]}
+ */
+export function ungatedRouteComponents() {
+  return authRoutes.filter((r) => !r.gated && !r.extraGate && r.component).map((r) => r.component);
 }
