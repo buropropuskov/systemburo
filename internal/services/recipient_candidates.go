@@ -42,10 +42,18 @@ func recipientCandidateScope(db *gorm.DB, me models.User) *gorm.DB {
 
 // loadRecipientCandidates отдаёт кандидатов с маскировкой персональных данных: работник
 // без согласия на обработку ПД (#1567) виден заглушкой, а не настоящим ФИО.
+//
+// Организация и компания приезжают джойнами здесь, а не в recipientCandidateScope:
+// проверке присланных клиентом читателей они не нужны, и лишние таблицы в её запросе
+// были бы работой впустую. Отбор кандидатов от них не зависит - джойны левые, человек
+// без организации из списка не пропадает.
 func loadRecipientCandidates(ctx context.Context, db *gorm.DB, me models.User) ([]models.RecipientCandidate, error) {
 	result := make([]models.RecipientCandidate, 0)
 	err := recipientCandidateScope(db.WithContext(ctx), me).
-		Select("u.id, u.username, u.last_name, u.first_name, u.middle_name, u.position").
+		Joins("LEFT JOIN organizations o ON u.organization_id = o.id").
+		Joins("LEFT JOIN companies c ON u.company_id = c.id").
+		Select(`u.id, u.username, u.last_name, u.first_name, u.middle_name, u.position,
+			o.name as organization, c.name as company`).
 		Scan(&result).Error
 	if err != nil {
 		slog.Error("не удалось получить кандидатов в получатели заявки", "error", err, "user_id", me.ID)

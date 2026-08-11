@@ -25,8 +25,8 @@ import ForwardModal from '../ForwardModal.vue';
 
 const FORWARD = '[data-testid="app-detail-button-forward"]';
 
-// Ответ эндпоинта кандидатов - поля из models.RecipientCandidate (organization он не
-// отдаёт, поэтому в списке её и не будет).
+// Ответ эндпоинта кандидатов - поля из models.RecipientCandidate. Организация названа
+// как в /users/all: оба ответа приезжают в один и тот же проп allUsers.
 const CANDIDATES = [
   {
     id: 21,
@@ -35,6 +35,8 @@ const CANDIDATES = [
     first_name: 'Пётр',
     middle_name: 'Петрович',
     position: 'Кладовщик',
+    organization: 'ООО Ромашка',
+    company: 'Ромашка-Сервис',
     pd_hidden: false,
   },
   {
@@ -44,11 +46,14 @@ const CANDIDATES = [
     first_name: null,
     middle_name: null,
     position: null,
+    // Согласие на обработку ПД закрывает ФИО, но не организацию работодателя.
+    organization: 'ООО Ромашка',
+    company: 'Ромашка-Сервис',
     pd_hidden: true,
   },
 ];
 
-// Ответ /users/all шире: у него есть организация, которой у кандидатов нет.
+// Ответ /users/all шире по составу людей: администратору доступны и чужие организации.
 const ALL_USERS = [
   ...CANDIDATES,
   {
@@ -256,8 +261,25 @@ describe('ForwardModal - получатели и роль (#1948)', () => {
     const named = texts.find((t) => t.includes('Петров Пётр Петрович'));
     expect(named, `в списке нет получателя по ФИО: ${texts.join(' | ')}`).toBeTruthy();
     expect(named).toContain('Кладовщик');
+    // Организация - вторая строка под именем; кандидаты её отдают наравне с /users/all.
+    expect(named).toContain('ООО Ромашка');
     // ФИО скрытого работника бэк уже заменил - фронт показывает то, что пришло.
     expect(texts.some((t) => t.includes('hidden'))).toBe(true);
+  });
+
+  it('поиск находит получателя по названию организации', async () => {
+    const wrapper = await mountOpened();
+    await wrapper.find('[data-testid="forward-modal-search"]').setValue('Ромашка');
+
+    const texts = wrapper.findAll('[data-testid="forward-modal-user-option"]').map((o) => o.text());
+    expect(texts.some((t) => t.includes('Петров Пётр Петрович'))).toBe(true);
+  });
+
+  it('поиск по чужой организации получателя не находит', async () => {
+    const wrapper = await mountOpened();
+    await wrapper.find('[data-testid="forward-modal-search"]').setValue('Одуванчик');
+
+    expect(wrapper.findAll('[data-testid="forward-modal-user-option"]')).toHaveLength(0);
   });
 
   it('читателю тумблеры роли не показываются, получатель уходит на просмотр', async () => {
