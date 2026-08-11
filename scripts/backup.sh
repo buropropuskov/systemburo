@@ -46,6 +46,11 @@ if [ ! -f .env ]; then
   echo "Файл параметров .env не найден в $(pwd)" >&2
   exit 1
 fi
+# Разрешение снимать копию без шифрования запоминается ДО чтения .env: строка
+# ниже перекрывает окружение, и разовый запуск с BACKUP_ALLOW_UNENCRYPTED=yes
+# молча терялся бы о пустую строку в файле параметров. Тот же приём применён в
+# backup-status.sh для BACKUP_DIR.
+ALLOW_UNENCRYPTED_ARG="${BACKUP_ALLOW_UNENCRYPTED:-}"
 set -a; . ./.env; set +a
 
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/systemburo}"
@@ -55,9 +60,9 @@ BACKUP_KEEP_MONTHLY="${BACKUP_KEEP_MONTHLY:-6}"
 BACKUP_UPLOADS_MODE="${BACKUP_UPLOADS_MODE:-weekly}"
 BACKUP_AGE_RECIPIENT="${BACKUP_AGE_RECIPIENT:-}"
 # Единственный способ получить незашифрованную копию - выставить это в yes.
-# Значение читается и из окружения, и из .env: разовый запуск без правки файла
-# параметров тоже должен быть возможен.
-BACKUP_ALLOW_UNENCRYPTED="${BACKUP_ALLOW_UNENCRYPTED:-}"
+# Окружение имеет приоритет над файлом параметров: разовый запуск без правки
+# .env тоже должен быть возможен.
+BACKUP_ALLOW_UNENCRYPTED="${ALLOW_UNENCRYPTED_ARG:-${BACKUP_ALLOW_UNENCRYPTED:-}}"
 if [ -n "$BACKUP_AGE_RECIPIENT" ]; then ENCRYPTED=true; else ENCRYPTED=false; fi
 BACKUP_S3_REMOTE="${BACKUP_S3_REMOTE:-}"
 BACKUP_S3_BUCKET="${BACKUP_S3_BUCKET:-}"
