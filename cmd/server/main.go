@@ -450,6 +450,9 @@ func main() {
 	// Гейт согласия на обработку ПД (#1567). Пока тумблер выключен или текст пуст,
 	// пропускает всех - включается настройкой, а не деплоем.
 	consentGate := mw.PDConsentGate(pdConsentGateService)
+	// Обязательная смена пароля из письма (#1911). Флаг читается из базы, а не из
+	// маркера доступа: маркер живёт до 15 минут и версии пароля не несёт.
+	mustChangePassword := mw.MustChangePassword(services.NewPasswordChangeGateService(db, 30*time.Second))
 	lastSeen := mw.LastSeen(db)
 
 	// Routes
@@ -530,6 +533,7 @@ func main() {
 		MaintenanceBlock:    maintenanceBlock,
 		BanCheck:            banCheck,
 		ConsentGate:         consentGate,
+		MustChangePassword:  mustChangePassword,
 		LoginLimiter:        loginLimiter,
 		ImportListLimiter:   importListLimiter,
 		SelfPasswordLimiter: selfPasswordLimiter,

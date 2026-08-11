@@ -3,6 +3,7 @@ import { useMaintenanceStore } from '@/stores/maintenance'
 import { useDeletionsStore } from '@/stores/deletions'
 import { usePermissionsStore } from '@/stores/permissions'
 import { usePDConsentStore } from '@/stores/pdConsent'
+import { usePasswordChangeStore } from '@/stores/passwordChange'
 import router from '@/router'
 import { buildBugContext, saveBugContext } from '@/composables/useBugReport'
 
@@ -97,6 +98,23 @@ async function isConsentRequired(response) {
   try {
     const body = await response.clone().json()
     return Boolean(body?.consent_required)
+  } catch {
+    return false
+  }
+}
+
+// Гейт обязательной смены пароля (#1911) отбивает protected-запросы 403 с кодом
+// PASSWORD_CHANGE_REQUIRED. Опознаём по маркеру ОТВЕТА по той же причине, что и
+// требование согласия: устаревший флаг стора заглушил бы настоящие отказы в правах.
+// Подняв флаг, показываем окно смены пароля вместо стены тостов - иначе человек
+// видит только «недостаточно прав» и не понимает, что от него хотят.
+const PASSWORD_CHANGE_REQUIRED_CODE = 'PASSWORD_CHANGE_REQUIRED'
+
+async function isPasswordChangeRequired(response) {
+  if (response.headers.get('X-Password-Change-Required') === '1') return true
+  try {
+    const body = await response.clone().json()
+    return body?.code === PASSWORD_CHANGE_REQUIRED_CODE
   } catch {
     return false
   }
@@ -263,6 +281,14 @@ async function baseRequest(path, options = {}) {
         usePDConsentStore().markRequiredFromResponse()
       } catch {
         // pinia ещё не активна на раннем запросе -- окно поднимет App при загрузке
+      }
+      return response
+    }
+    if (await isPasswordChangeRequired(response)) {
+      try {
+        usePasswordChangeStore().markRequiredFromResponse()
+      } catch {
+        // pinia ещё не активна на раннем запросе -- окно поднимет следующий отказ
       }
       return response
     }
