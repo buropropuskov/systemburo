@@ -439,6 +439,10 @@ func main() {
 	// Приём файла массового импорта (blank-import, C1C2) разбирает .xlsx на до 2000
 	// строк - дороже обычной ручки, поэтому сверх общего лимита свой, per-user/IP.
 	importListLimiter := mw.RateLimit(10, 60)
+	// Смена своего пароля (#1915): форма принимает текущий пароль, значит годится
+	// для подбора. Лестница блокировки входа сюда не достаёт - она считает неудачные
+	// логины, - поэтому свой лимит: пять попыток за пять минут на пользователя.
+	selfPasswordLimiter := mw.RateLimit(5, 300)
 	maintenanceBlock := mw.MaintenanceBlock(maintenanceService)
 	banCheck := mw.BanCheck(banCheckService)
 	// Гейт согласия на обработку ПД (#1567). Пока тумблер выключен или текст пуст,
@@ -526,6 +530,7 @@ func main() {
 		ConsentGate:         consentGate,
 		LoginLimiter:        loginLimiter,
 		ImportListLimiter:   importListLimiter,
+		SelfPasswordLimiter: selfPasswordLimiter,
 		LastSeen:            lastSeen,
 		TableReportGate:     mw.RequireTableVerb(db, permissionResolver, accessDenialService, "report"),
 		TableVersionsGate:   mw.RequireTableVerb(db, permissionResolver, accessDenialService, "versions"),
