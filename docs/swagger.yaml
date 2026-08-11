@@ -15510,6 +15510,36 @@ paths:
       summary: Состояние настройки почты
       tags:
       - settings
+  /settings/password-rotation/run:
+    post:
+      description: 'Ручной прогон плановой смены: меняет пароли всем действующим работникам
+        с адресом почты, не дожидаясь срока. Возвращает управление сразу, письма ставятся
+        в очередь.'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "412":
+          description: Precondition Failed
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Сменить пароли всем работникам
+      tags:
+      - settings
   /settings/password-rotation/status:
     get:
       description: Настроена ли почта, когда ближайшая проверка сроков и скольких
@@ -19670,6 +19700,40 @@ paths:
       security:
       - BearerAuth: []
       summary: Восстановление пользователя из архива
+      tags:
+      - users
+  /users/{username}/rotate-password:
+    post:
+      description: Генерирует пароль по действующей политике, меняет его и отправляет
+        работнику на почту. Требует настроенной почты и указанного адреса.
+      parameters:
+      - description: Имя пользователя
+        in: path
+        name: username
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Password rotated
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "412":
+          description: Precondition Failed
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Сменить пароль работнику и отправить письмом
       tags:
       - users
   /users/{username}/tables:
