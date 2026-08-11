@@ -362,6 +362,12 @@ func (s *userService) createWithWelcomeLetter(ctx context.Context, user *models.
 		if err := tx.Create(user).Error; err != nil {
 			return err
 		}
+		// Первый пароль запоминается вместе с учётной записью: запрет на повтор
+		// сравнивает новый пароль с прежними, и без этой строки работник смог бы
+		// «сменить» выданный ему пароль на него же.
+		if err := recordUsedPassword(ctx, tx, user.ID, user.Password); err != nil {
+			return err
+		}
 		if !sendLetter {
 			return nil
 		}
@@ -494,13 +500,20 @@ func (s *userService) UpdatePasswordKeepingSession(ctx context.Context, callerUs
 		return err
 	}
 
-	hashed := hashPassword(req.Password)
-
-	// Целевую запись читаем до обновления: от неё зависит и признак обязательной
-	// смены, и адрес, на который уйдёт письмо с новым паролем. Not-found =
-	// пользователь не найден; обновление по username тогда просто не тронет строк.
+	// Целевую запись читаем до обновления: от неё зависит признак обязательной
+	// смены, адрес для письма с новым паролем и перечень прежних паролей - он
+	// живёт по id, а сюда приходит логин. Not-found = пользователь не найден;
+	// обновление по username тогда просто не тронет строк.
 	var user models.User
 	found := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error == nil
+
+	if found {
+		if err := ensurePasswordNotReused(ctx, s.db, user.ID, req.Password); err != nil {
+			return err
+		}
+	}
+
+	hashed := hashPassword(req.Password)
 
 	// Пароль, заданный администратором, работник обязан сменить при первом входе:
 	// его придумал не он, а если у работника есть адрес - пароль ещё и лежит
@@ -510,9 +523,10 @@ func (s *userService) UpdatePasswordKeepingSession(ctx context.Context, callerUs
 	sendLetter := adminSet && s.mailReady() && user.Email != nil && *user.Email != ""
 
 	// Дата смены двигается вместе с паролем (#1907): от неё считается срок
-	// действия при плановой смене. Письмо о новом пароле ставится в очередь той же
-	// транзакцией - иначе сбой между записями оставит работника с паролем,
-	// которого он не видел.
+	// действия при плановой смене. Письмо о новом пароле и отпечаток пароля в
+	// перечне прежних пишутся той же транзакцией - иначе сбой между записями
+	// оставит работника с паролем, которого он не видел, либо запрет на пароль,
+	// который не сохранился.
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Table("users").
 			Where("username = ?", username).
@@ -522,6 +536,11 @@ func (s *userService) UpdatePasswordKeepingSession(ctx context.Context, callerUs
 				"must_change_password": adminSet,
 			}).Error; err != nil {
 			return err
+		}
+		if found {
+			if err := recordUsedPassword(ctx, tx, user.ID, hashed); err != nil {
+				return err
+			}
 		}
 		if !sendLetter {
 			return nil
