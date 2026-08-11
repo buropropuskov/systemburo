@@ -432,6 +432,16 @@ func (s *PasswordRotationService) RotateOne(ctx context.Context, username string
 	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&u).Error; err != nil {
 		return fmt.Errorf("работник %q не найден: %w", username, err)
 	}
+	// Архивные и заблокированные исключены здесь так же, как в прогоне: входить им
+	// некуда, а смена пароля отправила бы человеку письмо с доступом, которого у
+	// него нет. В интерфейсе кнопка у таких учётных записей и не показывается, но
+	// проверка нужна и на стороне сервера - иначе она обходится прямым запросом.
+	if !u.IsActive {
+		return fmt.Errorf("учётная запись %q в архиве, пароль не меняется", username)
+	}
+	if u.IsBanned {
+		return fmt.Errorf("учётная запись %q заблокирована, пароль не меняется", username)
+	}
 	if u.Email == nil || *u.Email == "" {
 		return fmt.Errorf("у работника %q не указан адрес почты, отправить новый пароль некуда", username)
 	}

@@ -201,7 +201,15 @@ type RecipientCandidate struct {
 	FirstName  *string `json:"first_name"`
 	MiddleName *string `json:"middle_name"`
 	Position   *string `json:"position"`
+	// Organization и Company названы как в UserInfoResponse, а не organization_name
+	// соседних ответов: окно пересылки получает оба ответа в ОДИН проп allUsers
+	// (носителю page.admin.users - /users/all, остальным - кандидатов), и второе имя
+	// того же поля потребовало бы развилки в каждом месте, где окно его читает.
+	Organization *string `json:"organization"`
+	Company      *string `json:"company"`
 	// PDHidden -- ФИО скрыто: работник не дал согласия на обработку ПД (#1567).
+	// Организацию и компанию согласие не закрывает: это данные работодателя, а не
+	// работника, и в администраторском списке они видны у скрытого работника тоже.
 	PDHidden bool `json:"pd_hidden"`
 }
 

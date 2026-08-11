@@ -23,6 +23,12 @@ const FACT_ROUTE_STUB = '/table/selector-lock';
 
 const routeEntries = coverage.routes;
 const permissionEntries = coverage.permissions;
+// Элементы интерфейса, у которых нет ни своего роута, ни своего права: кнопка,
+// открытая всем, кто и так видит экран. Полноту такого раздела автоматически не
+// проверить (перечня «всех кнопок системы» не существует), но решение по каждому
+// заведённому элементу проверяется наравне с остальными - иначе запись превращается
+// в необязательный комментарий.
+const elementEntries = coverage.elements ?? {};
 const stepIds = new Set(allTourSteps().map((s) => s.id));
 const tourKeys = new Set(TOURS.map((t) => t.key));
 const navPaths = [...MAIN_SECTIONS, ...ADMIN_GROUPS.flatMap((g) => g.items)].map((i) => i.path);
@@ -42,7 +48,7 @@ describe('реестр покрытия туров - форма записей',
     expect(Object.keys(permissionEntries).length).toBeGreaterThan(40);
   });
 
-  const all = Object.entries({ ...routeEntries, ...permissionEntries });
+  const all = Object.entries({ ...routeEntries, ...permissionEntries, ...elementEntries });
 
   it('каждая запись - либо ссылка на шаг, либо skip с причиной, но не то и другое', () => {
     for (const [key, entry] of all) {

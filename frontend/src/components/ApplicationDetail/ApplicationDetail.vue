@@ -12,9 +12,17 @@
       :existing-approvers="approvers"
       :existing-viewers="viewers"
       :attachments="attachments"
+      :reader-only="isForwardReaderOnly"
       :is-sending="isForwarding"
       @close="closeForwardModal"
       @send="sendForwardRequest"
+    />
+
+    <!-- Получатели заявки (#1952) -->
+    <ApplicationParticipantsModal
+      :show="showParticipantsModal"
+      :application-id="Number(applicationData.id)"
+      @close="showParticipantsModal = false"
     />
 
     <!-- Дополнение поданной заявки (#1685) -->
@@ -123,6 +131,40 @@
                 />
               </svg>
               <span class="detail-download-btn__text">Скачать</span>
+            </button>
+            <!-- Получатели (#1952): кто видит заявку и кто по ней голосует. Своего
+                 гейта у кнопки нет - метод отдаёт список тому, кому видна сама
+                 заявка, а она уже открыта. -->
+            <!-- aria-label дублирует подпись: на мобилке текст скрыт, и без него
+                 кнопка остаётся безымянным кружком для скринридера. -->
+            <button
+              class="participants-btn"
+              data-testid="app-detail-button-participants"
+              aria-label="Получатели"
+              @click="showParticipantsModal = true"
+            >
+              <svg
+                class="participants-btn__icon"
+                width="17"
+                height="17"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle
+                  cx="9"
+                  cy="7"
+                  r="4"
+                />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+              <span class="participants-btn__text">Получатели</span>
             </button>
           </div>
         </div>
@@ -643,6 +685,7 @@ import { useDeletionsStore } from '@/stores/deletions'
 import { useUiStore } from '@/stores/ui'
 import { SUPPLEMENT_APPROVED } from '@/utils/supplementStatuses'
 import { usePermissionsStore } from '@/stores/permissions'
+import { useAuthStore } from '@/stores/auth'
 import ApplicationAttachments from './ApplicationAttachments.vue'
 import ApplicationFiles from './ApplicationFiles.vue'
 import ApplicationConfirmation from './ApplicationConfirmation.vue'
@@ -659,6 +702,7 @@ import Badge from '@/components/ui/Badge.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import { sanitizeHtml } from '@/utils/sanitize'
 import ApplicationMessageModal from './ApplicationMessageModal.vue'
+import ApplicationParticipantsModal from './ApplicationParticipantsModal.vue'
 import DirectoryModeration from '@/components/directory/DirectoryModeration.vue'
 import eventStream from '@/services/eventStream'
 import { ref } from 'vue'
@@ -688,6 +732,7 @@ export default {
         Badge,
         BaseDropdown,
         ApplicationMessageModal,
+        ApplicationParticipantsModal,
         DirectoryModeration,
         SupplementModal,
         SupplementPanel
@@ -769,6 +814,7 @@ export default {
             supplementsError: '',
             supplementsSeq: 0,
             showForwardModal: false,
+            showParticipantsModal: false,
             isForwarding: false,
             allUsers: [],
             approvers: [],
@@ -798,6 +844,11 @@ export default {
          */
         tourOnlyActions() {
             return useUiStore().tourActive;
+        },
+
+        /** Супер-администратор: доступ к заявке и пересылка ему открыты безусловно. */
+        isSuperAdmin() {
+            return useAuthStore().isSuperAdmin;
         },
 
         /** Бланки к заявке настроены и их выгрузка этому режиму/праву доступна. */
@@ -953,11 +1004,40 @@ export default {
             return this.isResponsibleUser || this.isApprover;
         },
 
-        // Зеркалит BE-проверку canForward (sender OR responsible). Согласующего не включаем
-        // сознательно: isApprover - глобальная роль, видит все заявки, и на чужой forward
-        // вернул бы 403. Отправителя тоже нет - в режиме "Центр" у него нет UI-пути к кнопке.
+        /**
+         * Доступ к заявке: зеркало CanAccessApplication на бэке. Супер-админ и
+         * принимающий (оператор бюро) видят любую заявку, остальные - свою по роли
+         * на ней: отправитель, ответственный, согласующий (он же строка в
+         * responsible_users) и читатель.
+         */
+        hasApplicationAccess() {
+            const a = this.applicationData;
+            if (!a) return false;
+            if (this.isSuperAdmin) return true;
+            return this.isApprover || this.isResponsibleUser || this.isViewer ||
+                a.sender_user_id === this.currentUserId;
+        },
+
+        /**
+         * Переслать заявку вправе любой, у кого есть к ней доступ (#1948): гейт
+         * пересылки на бэке = гейт доступа. Прежнее «только ответственный» осталось от
+         * #680 и отсекало отправителя, принимающего и читателя, хотя сервер их пускает.
+         * Отозванную заявку сервер отбивает checkNotWithdrawn - действий по ней нет.
+         */
         canForwardApplication() {
-            return this.isResponsibleUser && this.applicationData.status !== 'Отозвана';
+            return this.hasApplicationAccess && this.applicationData.status !== 'Отозвана';
+        },
+
+        /**
+         * Заявка доступна только на просмотр: тогда и переслать её можно лишь на
+         * просмотр - назначение согласующего или ответственного сервер отбивает 403.
+         * Зеркало forwardAuthority.readerOnly: супер-админ и принимающий проходят
+         * раньше проверки роли на заявке, дальше решают отправитель/ответственный.
+         */
+        isForwardReaderOnly() {
+            if (this.isSuperAdmin || this.isApprover) return false;
+            if (this.applicationData?.sender_user_id === this.currentUserId) return false;
+            return !this.isResponsibleUser;
         },
 
         hasUserVoted() {
@@ -1293,12 +1373,11 @@ export default {
                     this.viewers = newViewers;
                 }
 
-                // Списки всех пользователей и согласующих нужны только в "Центре заявок"
-                // (пересылка, определение согласующего). Рядовому отправителю в ЛК их не
-                // отдают (403) - не дёргаем админ-эндпоинты, иначе всплывает generic-тост
-                // "Недостаточно прав для этого действия" при открытии своей же заявки.
+                // Получатели и состав принимающих нужны окну пересылки, а оно живёт
+                // только в "Центре заявок". В личном кабинете кнопки пересылки нет,
+                // поэтому и запросов не делаем.
                 if (this.mode === 'center') {
-                    await this.fetchAllUsers();
+                    await this.fetchForwardRecipients();
                     await this.fetchApprovers();
                 }
 
@@ -1315,15 +1394,30 @@ export default {
             }
         },
 
-        async fetchAllUsers() {
+        /**
+         * Получатели для окна пересылки - из двух источников, по праву на список
+         * пользователей.
+         *
+         * Узкий круг кандидатов (коллеги по организации и компании плюс руководители) -
+         * это ограничение бэка для рядового участника заявки, а не общее правило:
+         * forwardAuthority не сужает получателей ни супер-админу, ни принимающему -
+         * маршрутизация заявок по чужим организациям и есть работа оператора бюро.
+         * Поэтому носителю page.admin.users оставляем полный /users/all, как было, а
+         * остальным даём неадминских кандидатов: на /users/all они получали 403 и
+         * пустой выбор в окне.
+         *
+         * silent403 на обеих ветках: окно деградирует до пустого списка молча - тост
+         * "Недостаточно прав" здесь лишний, запроса пользователь не делал.
+         */
+        async fetchForwardRecipients() {
+            const path = this.can('page.admin.users') ? "/users/all" : "/users/recipient-candidates";
             try {
-                // silent403 - на случай контекста без права: без пугающего тоста, деградируем тихо.
-                const response = await apiRequest("/users/all", { silent403: true });
+                const response = await apiRequest(path, { silent403: true });
                 if (response.ok) {
-                    this.allUsers = await response.json();
+                    this.allUsers = (await response.json()) || [];
                 }
             } catch (error) {
-                console.error("Error fetching users:", error);
+                console.error("Error fetching forward recipients:", error);
             }
         },
 
@@ -2183,6 +2277,31 @@ export default {
     background: var(--accent-hover);
 }
 
+/* Получатели (#1952) - вторичное действие рядом с "Переслать": та же пилюля и та
+   же высота, но контурная, чтобы не спорить с основным действием шапки. */
+.participants-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 18px;
+    border-radius: 50px;
+    border: 1px solid var(--accent);
+    background: var(--surface);
+    color: var(--accent-text);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.participants-btn:hover {
+    background: var(--accent-tint);
+}
+
+.participants-btn__icon {
+    flex-shrink: 0;
+}
+
 .detail-header-right {
     display: flex;
     align-items: center;
@@ -2780,6 +2899,22 @@ export default {
 
     .forward-btn__icon {
         display: inline-block;
+    }
+
+    /* "Получатели" сворачивается в такой же круг: ряд заголовка на 390 несёт дату
+       и кнопки-иконки, и пилюля с подписью выдавила бы их на лишнюю строку. */
+    .participants-btn {
+        width: 30px;
+        height: 30px;
+        min-width: 30px;
+        padding: 0;
+        gap: 0;
+        border-radius: 50%;
+        justify-content: center;
+    }
+
+    .participants-btn__text {
+        display: none;
     }
 
 

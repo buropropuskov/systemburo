@@ -191,6 +191,30 @@ var ownedCleanups = map[string][]struct{ what, query string }{
 		{"временные окна поста", `DELETE FROM system_table_time_slots WHERE table_id IN (?)`},
 		{"предупреждения поста", `DELETE FROM system_table_warning_windows WHERE table_id IN (?)`},
 		{"фотографии поста", `DELETE FROM system_table_photos WHERE table_id IN (?)`},
+		// Привязки видимости к посту -- зеркало строк ниже, но со стороны поста, а не
+		// заявки. Пост заводит первая партия, а пользуются им и следующие: удаление
+		// первой уносило пост, а привязки живых машин и сотрудников второй оставались
+		// смотреть в пустоту -- внешних ключей у них нет, держать пост нечем.
+		{"привязки машин к посту", `DELETE FROM car_target_tables WHERE table_id IN (?)`},
+		{"привязки сотрудников к посту", `DELETE FROM employee_target_tables WHERE table_id IN (?)`},
+		// Права поста (table.<слаг>.<глагол>) заводит SystemTableService.Create вместе с
+		// самим постом -- без них пост нельзя выдать ни одной роли. Ссылок на permissions
+		// в базе нет ни одной: выдачи и переопределения держат ключ строкой, поэтому
+		// удаление поста не задевало ни права, ни выдачи. На стенде это копилось по
+		// десять прав на пост с каждой наливкой, и разобрать их через интерфейс уже
+		// нельзя -- таблицы, которой они принадлежат, не существует.
+		//
+		// Порядок обязателен: ссылающиеся строки ищут ключ в permissions, поэтому сами
+		// права снимаются последними.
+		{"выдачи прав поста ролям", `DELETE FROM role_permission_grants WHERE permission_key IN (
+			SELECT key FROM permissions WHERE category = 'table' AND entity_id IN (?))`},
+		{"выдачи прав поста группам", `DELETE FROM permission_group_grants WHERE permission_key IN (
+			SELECT key FROM permissions WHERE category = 'table' AND entity_id IN (?))`},
+		{"переопределения прав поста", `DELETE FROM user_permission_overrides WHERE permission_key IN (
+			SELECT key FROM permissions WHERE category = 'table' AND entity_id IN (?))`},
+		{"личные права поста", `DELETE FROM user_permissions WHERE permission_key IN (
+			SELECT key FROM permissions WHERE category = 'table' AND entity_id IN (?))`},
+		{"права поста", `DELETE FROM permissions WHERE category = 'table' AND entity_id IN (?)`},
 	},
 	// Машины и сотрудники заявки уходят с ней каскадом, а их привязки к постам -- нет:
 	// у car_target_tables/employee_target_tables внешних ключей нет вовсе. После
@@ -203,6 +227,14 @@ var ownedCleanups = map[string][]struct{ what, query string }{
 		{"привязки сотрудников к постам", `DELETE FROM employee_target_tables WHERE employee_id IN (
 			SELECT e.id FROM employees e JOIN attachments a ON a.id = e.attachment_id
 			WHERE a.application_id IN (?))`},
+		// Пометки о возможном обходе чёрного списка и решения "всё равно пропустить" по
+		// ним -- снимок момента подачи ЭТОЙ заявки. Внешних ключей у них нет намеренно:
+		// пометка переживает правку и удаление самого элемента и записи чёрного списка.
+		// Но читают их только по application_id, поэтому вместе с заявкой они перестают
+		// быть чем-либо, кроме мусора. Решение снимается раньше пометки: оно ссылается
+		// на неё.
+		{"решения по пометкам чёрного списка", `DELETE FROM application_blacklist_overrides WHERE application_id IN (?)`},
+		{"пометки чёрного списка", `DELETE FROM application_blacklist_flags WHERE application_id IN (?)`},
 	},
 }
 
