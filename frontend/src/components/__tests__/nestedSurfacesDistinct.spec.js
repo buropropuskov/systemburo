@@ -53,6 +53,9 @@ const PAIRS = [
   ['components/ResponsibleUsersSection.vue', '.tag-neutral', '.resp-item'],
   ['components/ResponsibleUsersSection.vue', '.user-tag', '.user-dropdown'],
   ['components/ResponsibleUsersSection.vue', '.user-dropdown-item:hover', '.user-dropdown'],
+  // Строка меняет фон при наведении, поэтому чип сверяется с обоими её состояниями:
+  // на одном --surface-2 у чипа и у подсветки он пропадал при наведении (#1894).
+  ['components/ResponsibleUsersSection.vue', '.user-tag', '.user-dropdown-item:hover'],
 
   ['components/SelectTables.vue', '.select-tables-container', '.card'],
   ['components/SelectUnloadPlaces.vue', '.unload-places-container', '.card'],

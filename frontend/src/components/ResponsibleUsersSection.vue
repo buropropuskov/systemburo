@@ -694,8 +694,11 @@ export default {
   transition: background-color 0.2s ease;
 }
 
+/* Подсветка строки списка - тот же токен, что у пунктов BaseDropdown. Раньше здесь
+   стоял --surface-2, то есть ровно фон чипов внутри строки, и при наведении чипы
+   должности с организацией пропадали (#1894). */
 .user-dropdown-item:hover {
-  background-color: var(--surface-2);
+  background-color: var(--row-hover);
 }
 
 .user-dropdown-item:last-child {
@@ -734,12 +737,16 @@ export default {
   gap: 4px;
 }
 
+/* Чип на полупрозрачном акценте, а не на непрозрачном слое: строка под ним меняет
+   цвет при наведении, и только примесь к подложке даёт одинаковый отрыв в обоих
+   состояниях и в обеих палитрах. Текст --text, а не --text-muted: на тонированном
+   чипе поверх подсвеченной строки приглушённый давал 4.2 в тёмной теме. */
 .user-tag {
   font-size: 0.65rem;
   padding: 1px 6px;
   border-radius: 6px;
-  background: var(--surface-2);
-  color: var(--text-muted);
+  background: var(--accent-tint);
+  color: var(--text);
   white-space: nowrap;
 }
 
