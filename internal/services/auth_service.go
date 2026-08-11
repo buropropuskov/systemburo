@@ -109,6 +109,15 @@ func intPtrOrNil(v int) *int {
 
 // --- Password Hashing (Argon2id, compatible with Rust argon2 crate) ---
 
+// HashPassword - публичная точка хеширования для кода вне пакета: сидов,
+// вспомогательных команд и тестовых помощников. До неё каждый из них нёс
+// собственную копию параметров Argon2id, и правка параметров здесь молча
+// оставляла бы тех троих со старыми - тестовые учётные записи переставали бы
+// логиниться, а причина была бы неочевидна.
+func HashPassword(password string) string {
+	return hashPassword(password)
+}
+
 func hashPassword(password string) string {
 	salt := generateSalt()
 	// Argon2id with default params matching Rust argon2 0.5.3 defaults:
