@@ -19,7 +19,7 @@ import path from 'node:path';
 
 import { drawOutlines, drawBadges, clearOutlines } from './lib/highlight.mjs';
 import { computeClip, cropToClip, normalize, waitForStableRects } from './lib/capture.mjs';
-import { openBrowser, newContext, signIn, calmPage, SCALE } from './lib/session.mjs';
+import { openBrowser, newContext, signIn, calmPage, SCALE, VIEWPORT } from './lib/session.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DOCS_ROOT = path.resolve(HERE, '..', '..');
@@ -48,6 +48,9 @@ async function prepare(page, steps) {
     else if (step.fill) await page.locator(step.fill[0]).fill(step.fill[1]);
     else if (step.select) await page.locator(step.select[0]).selectOption(step.select[1]);
     else if (step.press) await page.keyboard.press(step.press);
+    // Набор с клавиатуры - для областей редактирования, куда нельзя подставить
+    // значение полем ввода: у редактора письма это не input, а разметка.
+    else if (step.type) await page.keyboard.type(step.type);
     else if (step.hover) await page.locator(step.hover).nth(step.nth ?? 0).hover();
     else if (step.wait) await page.locator(step.wait).first().waitFor({ state: 'visible' });
     else if (step.waitHidden) await page.locator(step.waitHidden).first().waitFor({ state: 'hidden' });
@@ -55,6 +58,22 @@ async function prepare(page, steps) {
       await page.locator(step.scrollTo).first().scrollIntoViewIfNeeded();
     } else throw new Error(`неизвестное действие подготовки: ${JSON.stringify(step)}`);
   }
+}
+
+/**
+ * Стирает черновик заявки до загрузки приложения.
+ *
+ * Форма подачи хранит набранное в хранилище браузера, а окружение у роли одно на
+ * всю пачку: без очистки кадр экрана подачи показывал бы вложения, добавленные
+ * предыдущим кадром, и пересъёмка одного кадра давала бы не то, что пересъёмка
+ * всей пачки. Ключи те же, что чистит сама форма после отправки заявки.
+ */
+async function clearDraft(page) {
+  await page.addInitScript(() => {
+    for (const key of Object.keys(localStorage)) {
+      if (/draft|attachment|application/i.test(key)) localStorage.removeItem(key);
+    }
+  });
 }
 
 async function shoot(page, shot, outDir) {
@@ -154,6 +173,16 @@ async function main() {
       let shotWarnings;
       try {
         if (clockAt) await page.clock.setFixedTime(clockAt);
+        if (shot.clearDraft) await clearDraft(page);
+        /*
+         * Высокое окно - для форм, которые в обычное не помещаются целиком.
+         * Снимок берётся с видимой области, поэтому у длинной формы низ просто
+         * не попадал в кадр, а выноскам не хватало места. Ширина не меняется:
+         * от неё зависит раскладка, и узкое окно перевело бы её в мобильную.
+         */
+        if (shot.viewport?.height) {
+          await page.setViewportSize({ width: VIEWPORT.width, height: shot.viewport.height });
+        }
         await page.goto(`${baseUrl}${shot.goto ?? '/'}`);
         shotWarnings = await shoot(page, shot, outDir);
       } catch (error) {

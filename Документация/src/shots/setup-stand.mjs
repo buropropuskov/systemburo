@@ -195,6 +195,8 @@ async function main() {
 
   await bindGuardPlaces(apiBase, token, guard.username, active);
   await grantRolePermissions(apiBase, token, list, accounts);
+  await tidyAttachmentKinds(apiBase, token);
+  await acceptConsentForRecipients(apiBase, accounts);
 
   await fillOverview(apiBase, token);
   await fillBureauSchedule(apiBase, token);
@@ -225,6 +227,130 @@ async function grantRolePermissions(apiBase, token, users, accounts) {
     });
     console.log(`${account.username} (${role}): выдано разрешений ${keys.length}`);
   }
+}
+
+/**
+ * Подтверждает согласие на обработку данных за тех, кто попадает в строку
+ * получателей заявки.
+ *
+ * Работник без согласия виден в системе заглушкой вместо фамилии (#1567), и на
+ * съёмочном стенде согласия нет ни у кого: наливка его не спрашивает. В кадре
+ * экрана подачи из-за этого стоял бы логин вместо человека, а раздел про
+ * получателей учил бы читателя по вырожденному случаю.
+ *
+ * Согласие даёт сам работник, поэтому оно и подтверждается входом под его
+ * учётной записью, а не правкой базы от имени администратора. Пароль у всех
+ * заведённых наливкой один и записан в accounts.json.
+ */
+async function acceptConsentForRecipients(apiBase, accounts) {
+  // Список кандидатов зависит от того, кто спрашивает: это коллеги заявителя и
+  // руководители. Значит и спрашивать надо от его имени, а не от администратора,
+  // у которого коллеги свои.
+  const applicant = unwrap(
+    await api(apiBase, null, 'POST', '/login', {
+      username: accounts.roles.user.username,
+      password: accounts.password,
+    }),
+  );
+  const candidates = unwrap(
+    await api(apiBase, applicant.token, 'GET', '/users/recipient-candidates'),
+  );
+
+  /*
+   * Строка получателей набирается из двух разных списков: кандидаты в читатели
+   * приходят своим методом, а согласующие по умолчанию - перечнем работников
+   * организации и компании. Расшифровать надо оба, иначе в кадре останется
+   * логин там, где должна стоять фамилия согласующего.
+   */
+  const profile = unwrap(await api(apiBase, applicant.token, 'GET', '/user-data'));
+  const colleagues = [];
+  for (const [id, endpoint] of [
+    [profile.organization_id, 'organizations'],
+    [profile.company_id, 'companies'],
+  ]) {
+    if (!id) continue;
+    const users = unwrap(await api(apiBase, applicant.token, 'GET', `/${endpoint}/${id}/users`));
+    colleagues.push(...(Array.isArray(users) ? users : []));
+  }
+
+  const list = [...(Array.isArray(candidates) ? candidates : []), ...colleagues];
+  let accepted = 0;
+
+  for (const candidate of list) {
+    // Скрытого работника видно по тому же признаку, что и на экране: фамилии нет.
+    if (!candidate.pd_hidden && candidate.last_name) continue;
+    const personal = await api(apiBase, null, 'POST', '/login', {
+      username: candidate.username,
+      password: accounts.password,
+    }).catch(() => null);
+    const personalToken = unwrap(personal)?.token;
+    if (!personalToken) continue;
+    await api(apiBase, personalToken, 'POST', '/consents/accept', {});
+    accepted += 1;
+  }
+
+  console.log(`Согласие получателей: подтверждено за ${accepted} из ${list.length}`);
+}
+
+/**
+ * Приводит виды вложений к одному набору из трёх.
+ *
+ * Наливка и демонстрационный набор заводят каждый свои виды, и на экране подачи
+ * получается шесть колонок: «АВТОМОБИЛИ» рядом с «Автомобили», и так трижды.
+ * Заказчик увидел бы на снимке недоделку, а описать порядок «выберите колонку»
+ * по такому экрану нельзя. Оставляем по одному виду на тип - тот, которым
+ * заполнены заявки стенда, - и называем его так, как назвал бы администратор.
+ *
+ * Скрытые виды удаляются мягко (is_active = false), поэтому вложения уже
+ * поданных заявок на них по-прежнему ссылаются и в карточках заявок ничего не
+ * пропадает.
+ */
+const ATTACHMENT_KINDS = {
+  people: { name: 'people', display_name: 'Сотрудники', title: 'СОТРУДНИКИ' },
+  cars: { name: 'cars', display_name: 'Автомобили', title: 'АВТОМОБИЛИ' },
+  items: { name: 'items', display_name: 'Материальные ценности', title: 'ЦЕННОСТИ' },
+};
+
+async function tidyAttachmentKinds(apiBase, token) {
+  const kinds = unwrap(await api(apiBase, token, 'GET', '/attachments/all')) ?? [];
+  const byType = new Map();
+  const extra = [];
+
+  // Первым по каждому типу берём тот вид, что завела наливка: на него ссылаются
+  // сотни вложений уже поданных заявок, и именно он попадает в кадры кабинета.
+  for (const kind of [...kinds].sort((a, b) => a.id - b.id)) {
+    if (byType.has(kind.attachment_type)) {
+      if (kind.is_active !== false) extra.push(kind);
+      continue;
+    }
+    byType.set(kind.attachment_type, kind);
+  }
+
+  for (const [type, kind] of byType) {
+    const wanted = ATTACHMENT_KINDS[type];
+    if (!wanted) continue;
+    const same =
+      kind.name === wanted.name &&
+      kind.display_name === wanted.display_name &&
+      kind.title === wanted.title &&
+      kind.is_active !== false;
+    if (same) continue;
+    if (kind.is_active === false) {
+      await api(apiBase, token, 'PUT', `/attachments/${kind.id}/restore`, {});
+    }
+    await api(apiBase, token, 'PUT', `/attachments/${kind.id}`, {
+      attachment_type: type,
+      ...wanted,
+    });
+  }
+
+  for (const kind of extra) {
+    await api(apiBase, token, 'DELETE', `/attachments/${kind.id}`);
+  }
+
+  console.log(
+    `Виды вложений: оставлено ${byType.size}, скрыто дублей ${extra.length}`,
+  );
 }
 
 /**
