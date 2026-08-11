@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"flag"
 	"fmt"
 	"io"
@@ -12,21 +10,17 @@ import (
 	"systemburo/internal/database"
 	"systemburo/internal/models"
 	"systemburo/internal/normalize"
+	"systemburo/internal/services"
 
-	"golang.org/x/crypto/argon2"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
+// hashPassword хеширует пароль тем же кодом, что и рабочий сервис (#1907).
+// Своя копия параметров Argon2id здесь была источником тихого расхождения:
+// правка параметров в auth_service оставляла сид со старыми.
 func hashPassword(password string) string {
-	salt := make([]byte, 16)
-	if _, err := rand.Read(salt); err != nil {
-		log.Fatalf("failed to generate salt: %v", err)
-	}
-	hash := argon2.IDKey([]byte(password), salt, 2, 19456, 1, 32)
-	saltB64 := base64.RawStdEncoding.EncodeToString(salt)
-	hashB64 := base64.RawStdEncoding.EncodeToString(hash)
-	return fmt.Sprintf("$argon2id$v=%d$m=19456,t=2,p=1$%s$%s", argon2.Version, saltB64, hashB64)
+	return services.HashPassword(password)
 }
 
 // defaultPassword - пароль супер-администратора, когда его не задали. Не секрет:

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   DEFAULT_PASSWORD_POLICY,
   evaluatePassword,
@@ -35,5 +35,42 @@ describe('generatePassword', () => {
       const pw = generatePassword(policy)
       expect(passwordMeetsPolicy(policy, pw)).toBe(true)
     }
+  })
+})
+
+describe('generatePassword: источник случайности и наборы символов', () => {
+  it('не использует Math.random', () => {
+    // Замок на регрессию: пароль от кнопки «Генерировать» - учётные данные
+    // человека, и предсказуемый источник равносилен отсутствию пароля.
+    const spy = vi.spyOn(Math, 'random')
+    generatePassword({ min_length: 16, require_letter: true, require_digit: true })
+    expect(spy).not.toHaveBeenCalled()
+    spy.mockRestore()
+  })
+
+  it('не выдаёт визуально неоднозначные символы', () => {
+    for (let i = 0; i < 200; i += 1) {
+      const pwd = generatePassword({
+        min_length: 24,
+        require_letter: true,
+        require_uppercase: true,
+        require_lowercase: true,
+        require_digit: true,
+        require_special: true,
+      })
+      expect(pwd).not.toMatch(/[0O1lI]/)
+    }
+  })
+
+  it('держит нижний предел длины 12 даже при короткой политике', () => {
+    expect(generatePassword({ min_length: 6 }).length).toBeGreaterThanOrEqual(12)
+  })
+
+  it('выдаёт разные пароли подряд', () => {
+    const seen = new Set()
+    for (let i = 0; i < 100; i += 1) {
+      seen.add(generatePassword({ min_length: 12, require_letter: true, require_digit: true }))
+    }
+    expect(seen.size).toBe(100)
   })
 })
