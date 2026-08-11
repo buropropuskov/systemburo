@@ -1,7 +1,10 @@
 <template>
   <div class="data__list">
     <div class="header-with-badge">
-      <h4>Список транспортных средств</h4>
+      <h4>
+        <span class="list-title__full">Список транспортных средств</span>
+        <span class="list-title__short">Транспорт</span>
+      </h4>
       <span class="vehicles-badge">{{ vehicles.length }}</span>
       <!-- Действия шапки: вход в импорт (когда доступен) и очистка списка (когда есть,
            что чистить) - обе живут в шапке справа, а не в отдельной полосе тулбара под
@@ -545,6 +548,12 @@ export default {
     gap: 8px;
 }
 
+/* Короткая подпись списка для телефона - отдельный класс, а не модификатор общего:
+   видимость не должна зависеть от порядка правил при правке media-блока. */
+.list-title__short {
+    display: none;
+}
+
 @media (max-width: 768px) {
     .import-entry__btn,
     .list-toolbar__clear {
@@ -963,6 +972,54 @@ h4 {
    Подписи полей не выводим - решение по эпику: карточки без лейблов, как в Центре;
    номер и марка читаются сами по себе. Брейкпоинт 767.98 - как у инфраструктуры. */
 @media (max-width: 767.98px) {
+    /* Шапка списка перестаёт разваливаться на стопку. Замер на 320 (ряд шапки - 274px):
+       одна подпись «Список транспортных средств» занимала 261px и выталкивала действия
+       на свою строку, где они ломались ещё раз - выходило четыре ряда. После сжатия
+       подпись 85px, а группа действий укладывается в 249px одной строкой. */
+    .header-with-badge {
+        gap: 6px;
+    }
+
+    h4 {
+        min-width: 0;
+        font-size: 15px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .list-title__full {
+        display: none;
+    }
+
+    .list-title__short {
+        display: inline;
+    }
+
+    .vehicles-badge {
+        flex: 0 0 auto;
+    }
+
+    .header-actions,
+    .import-entry {
+        gap: 6px;
+    }
+
+    /* Бейдж режима остаётся, но кеглем и полями поменьше. Специфичность (0,3,0) взята
+       выше scoped-правила самого Badge (0,2,0) намеренно: при равной побеждает чанк,
+       загруженный позже, а его порядок на проде не совпадает с dev (#1097 S9a). */
+    .import-entry .hint-anchor :deep(.badge--sm) {
+        font-size: 10px;
+        padding: 2px 6px;
+    }
+
+    /* Ужимаем только горизонтальные поля - высота 44px под палец остаётся. */
+    .import-entry__btn,
+    .list-toolbar__clear {
+        padding: 4px 10px;
+        font-size: 12px;
+    }
+
     .vehicles-table {
         border: none;
         border-radius: 0;
@@ -1057,6 +1114,31 @@ h4 {
         width: 20px;
         height: 20px;
         opacity: 0.75;
+    }
+}
+
+/* Узкие телефоны: те же элементы шапки ещё плотнее. На 320 доступной ширины ряда 274px,
+   и группе действий с очисткой её хватает только при этих полях. */
+@media (max-width: 480px) {
+    .header-with-badge,
+    .header-actions,
+    .import-entry {
+        gap: 4px;
+    }
+
+    /* Подпись 14px, а не 15: тот же кегль, что у соседнего списка сотрудников, где на
+       320 пяти пикселей не хватало, чтобы действия остались в строке заголовка. */
+    h4 {
+        font-size: 14px;
+    }
+
+    .import-entry .hint-anchor :deep(.badge--sm) {
+        padding: 2px 5px;
+    }
+
+    .import-entry__btn,
+    .list-toolbar__clear {
+        padding: 4px 8px;
     }
 }
 </style>

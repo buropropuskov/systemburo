@@ -1,7 +1,10 @@
 <template>
   <div class="data__list">
     <div class="header-with-badge">
-      <h4>Список сотрудников</h4>
+      <h4>
+        <span class="list-title__full">Список сотрудников</span>
+        <span class="list-title__short">Сотрудники</span>
+      </h4>
       <span class="employees-badge">{{ employees.length }}</span>
       <!-- Действия шапки: вход в импорт (когда доступен) и очистка списка (когда есть,
            что чистить) - обе живут в шапке справа, а не в отдельной полосе тулбара под
@@ -400,6 +403,12 @@ export default {
     gap: 8px;
 }
 
+/* Короткая подпись списка для телефона - отдельный класс, а не модификатор общего:
+   видимость не должна зависеть от порядка правил при правке media-блока. */
+.list-title__short {
+    display: none;
+}
+
 @media (max-width: 768px) {
     .import-entry__btn,
     .list-toolbar__clear {
@@ -686,6 +695,54 @@ h4 {
    полей не выводим - решение по эпику: карточки без лейблов, как в Центре; ФИО
    читается само. Брейкпоинт 767.98 - как у инфраструктуры. */
 @media (max-width: 767.98px) {
+    /* Шапка списка перестаёт разваливаться на стопку. Замер на 320 (ряд шапки - 274px):
+       полная подпись занимала 176px, бейдж режима 95px, и пара «Импорт»+«Очистить»
+       требовала 280px - действия уезжали на свою строку, а там ломались ещё раз. После
+       сжатия группа действий укладывается в 249px и остаётся одной строкой. */
+    .header-with-badge {
+        gap: 6px;
+    }
+
+    h4 {
+        min-width: 0;
+        font-size: 15px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .list-title__full {
+        display: none;
+    }
+
+    .list-title__short {
+        display: inline;
+    }
+
+    .employees-badge {
+        flex: 0 0 auto;
+    }
+
+    .header-actions,
+    .import-entry {
+        gap: 6px;
+    }
+
+    /* Бейдж режима остаётся, но кеглем и полями поменьше. Специфичность (0,3,0) взята
+       выше scoped-правила самого Badge (0,2,0) намеренно: при равной побеждает чанк,
+       загруженный позже, а его порядок на проде не совпадает с dev (#1097 S9a). */
+    .import-entry .hint-anchor :deep(.badge--sm) {
+        font-size: 10px;
+        padding: 2px 6px;
+    }
+
+    /* Ужимаем только горизонтальные поля - высота 44px под палец остаётся. */
+    .import-entry__btn,
+    .list-toolbar__clear {
+        padding: 4px 10px;
+        font-size: 12px;
+    }
+
     .employees-table {
         border: none;
         border-radius: 0;
@@ -770,6 +827,31 @@ h4 {
         width: 20px;
         height: 20px;
         opacity: 0.75;
+    }
+}
+
+/* Узкие телефоны: те же элементы шапки ещё плотнее. На 320 доступной ширины ряда 274px,
+   и группе действий с очисткой её хватает только при этих полях. */
+@media (max-width: 480px) {
+    .header-with-badge,
+    .header-actions,
+    .import-entry {
+        gap: 4px;
+    }
+
+    /* Подпись 14px, а не 15: на 320 ряд с «Сотрудники» + счётчик + бейдж + «Импорт»
+       требовал 279px при доступных 274 и переносил действия на вторую строку. */
+    h4 {
+        font-size: 14px;
+    }
+
+    .import-entry .hint-anchor :deep(.badge--sm) {
+        padding: 2px 5px;
+    }
+
+    .import-entry__btn,
+    .list-toolbar__clear {
+        padding: 4px 8px;
     }
 }
 </style>
