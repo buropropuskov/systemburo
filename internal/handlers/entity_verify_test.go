@@ -355,3 +355,48 @@ func TestEntityVerify_SchemaMissingColumnFails(t *testing.T) {
 	require.False(t, res.OK)
 	require.Contains(t, problemsText(res), "не_существующая_колонка")
 }
+
+// TestEntityVerify_ForgedEncryptedFlagFails - находка ревью среза purge (12.08): манифест
+// НЕ под конвертом (обычный открытый manifest.json из buildVerifyFixture), но его ТЕЛО
+// заявляет "encrypted": true. Раньше решение "зашифрован ли пакет" бралось ровно из этого
+// поля - открытый пакет с подделанным флагом проходил бы гейт "пакет обязан быть
+// зашифрован" (Purge), не будучи зашифрованным ни единым байтом. checkEncryptionConsistency
+// обязана поймать расхождение между заявленным полем и тем, каким файлом манифест реально
+// лежал на диске - раньше её не было.
+func TestEntityVerify_ForgedEncryptedFlagFails(t *testing.T) {
+	_, db, uploadDir, cleanup := testutil.SetupTestAppWithUploads(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	dir, _ := buildVerifyFixture(t, db, uploadDir)
+	mutateManifest(t, dir, func(m *entityarchive.Manifest) { m.Encrypted = true })
+
+	res, err := entityarchive.Verify(context.Background(), db, dir, nil, "", 0)
+	require.NoError(t, err)
+	require.False(t, res.OK, "открытый манифест с подделанным encrypted=true не должен пройти проверку")
+	require.False(t, res.ManifestEncrypted, "факт остаётся честным независимо от подделанного поля тела манифеста")
+	require.Contains(t, problemsText(res), "расхождение")
+}
+
+// TestEntityVerify_ManifestEncryptedReflectsRealFile: зеркало теста выше на честном
+// зашифрованном пакете - ManifestEncrypted обязан быть true, когда манифест РЕАЛЬНО лежит
+// конвертом, а не только когда об этом просят поверить полю Manifest.Encrypted.
+func TestEntityVerify_ManifestEncryptedReflectsRealFile(t *testing.T) {
+	_, db, uploadDir, cleanup := testutil.SetupTestAppWithUploads(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	f := setupExportFixture(t, db, uploadDir)
+	crypt := testExportCrypto(t)
+	res, err := entityarchive.Export(context.Background(), db, entityarchive.TypeOrganization, f.org.ID,
+		entityarchive.ExportOptions{
+			Root: t.TempDir(), UploadPath: uploadDir, Crypto: crypt,
+			Recorder: services.NewAuditRecorder(db), Now: time.Now(),
+		})
+	require.NoError(t, err)
+
+	vres, err := entityarchive.Verify(context.Background(), db, res.Dir, crypt, "", 0)
+	require.NoError(t, err)
+	require.True(t, vres.OK, "problems: %v", vres.Problems)
+	require.True(t, vres.ManifestEncrypted)
+}
