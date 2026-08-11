@@ -341,6 +341,9 @@
       "tour": "admin",
       "step": "admin-permission-groups"
     },
+    "user.impersonate": {
+      "skip": "вход от имени пользователя: разбор одной проблемной учётной записи внутри уже названного раздела «Пользователи», к тому же режим сам себя объясняет полосой с кнопкой возврата"
+    },
     "page.admin.system_control": {
       "tour": "admin",
       "step": "admin-settings"

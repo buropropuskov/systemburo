@@ -54,6 +54,11 @@ type Claims struct {
 	UserID       int  `json:"user_id"`
 	TypeID       int  `json:"type_id"`
 	IsSuperAdmin bool `json:"is_super_admin"`
+	// ImpersonatedBy - идентификатор администратора, открывшего сеанс «войти как
+	// пользователь» (#1912). У маркеров обычного входа поле пустое и, благодаря
+	// omitempty, вовсе не попадает в полезную нагрузку: их вид и разбор не меняются.
+	// Заполнено только у маркеров, выданных ImpersonationService.
+	ImpersonatedBy *int `json:"impersonated_by,omitempty"`
 	jwt.RegisteredClaims
 }
 

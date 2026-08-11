@@ -21,6 +21,10 @@ const GLOBAL_DIALOGS = [
   'SessionExpiredModal.vue',
   'BanOverlay.vue',
   'PDConsentOverlay.vue',
+  // Полоса режима «войти как пользователь» (#1912) - не диалог, но такой же
+  // глобальный слой из App.vue: она обязана оставаться видимой поверх любой
+  // открытой модалки, иначе администратор забудет, от чьего имени действует.
+  'ImpersonationBanner.vue',
 ];
 
 const srcDir = resolve(__dirname, '../..');

@@ -293,8 +293,13 @@ func main() {
 	guideService := services.NewGuideService(db, permissionResolver)
 	statisticsService := services.NewStatisticsService(db, time.Duration(cfg.AnalyticsCacheRefreshSec)*time.Second)
 
+	// Режим «войти как пользователь» (#1912). Тот же секрет подписи, что у обычного
+	// входа: проверка маркера в middleware остаётся одна на всех.
+	impersonationService := services.NewImpersonationService(db, cfg.JWTSecret, permissionResolver, auditRecorder)
+
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authService, maintenanceService, cfg.CookieSecure, cfg.JWTRefreshTTL)
+	impersonationHandler := handlers.NewImpersonationHandler(impersonationService)
 	userTypesHandler := handlers.NewUserTypesHandler(userTypeService)
 	lpfHandler := handlers.NewLicensePlateFormatHandler(lpfService)
 	attachmentHandler := handlers.NewAttachmentHandler(attachmentService)
@@ -560,6 +565,7 @@ func main() {
 		TableVersionsGate:   mw.RequireTableVerb(db, permissionResolver, accessDenialService, "versions"),
 		TableTrashGate:      mw.RequireTableVerb(db, permissionResolver, accessDenialService, "trash"),
 		TablePassGate:       mw.RequireTablePassVerb(db, permissionResolver, accessDenialService),
+		Impersonation:       impersonationHandler,
 		JWTSecret:           []byte(cfg.JWTSecret),
 		UploadPath:          cfg.UploadPath,
 	})

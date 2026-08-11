@@ -322,6 +322,20 @@ async function baseRequest(path, options = {}) {
     return response
   }
 
+  // Маркер режима «войти как пользователь» истёк (#1912). Обновлять сессию здесь
+  // нельзя: cookie осталась администраторской, и обновление вернуло бы его
+  // собственный маркер - запросы пошли бы уже от администратора, а полоса на
+  // экране продолжала бы называть чужое имя. Честный исход - закрыть режим и
+  // сказать об этом; неудавшийся запрос не повторяем, его делал другой человек.
+  if (response.status === 401 && !isAuthEndpoint(path) && authStore.isImpersonating) {
+    await authStore.endImpersonation({ recordExit: false })
+    useDeletionsStore().notify({
+      prefix: 'Сеанс работы от имени другого пользователя истёк',
+      type: 'warning',
+    })
+    return response
+  }
+
   if (response.status !== 401 || isAuthEndpoint(path) || options._retried) {
     return response
   }
