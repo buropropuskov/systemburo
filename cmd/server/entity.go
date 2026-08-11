@@ -30,18 +30,19 @@ import (
 const entityHelp = `Работа с данными по идентификатору сущности.
 
 Использование:
-  server entity show    -type=organization -id=N            Показать граф связанных данных
-  server entity export  -type=organization -id=N [-apply]   Снять пакет с графа
-  server entity verify  -pkg=<путь> [-type=... -id=N]       Проверить снятый пакет
-  server entity import  -pkg=<путь> [-apply]                Развернуть пакет на этот стенд
-  server entity retire  -type=organization -id=N [-apply]   Погасить организацию и её пользователей
-  server entity restore -type=organization -id=N [-apply]   Откатить последний retire
-  server entity anonymize -type=organization -id=N [-apply] Необратимо затереть персональные поля
+  server entity show      -type=organization -id=N                      Показать граф связанных данных
+  server entity export    -type=organization -id=N [-apply]             Снять пакет с графа
+  server entity verify    -pkg=<путь> [-type=... -id=N]                 Проверить снятый пакет
+  server entity import    -pkg=<путь> [-apply]                          Развернуть пакет на этот стенд
+  server entity retire    -type=organization -id=N [-apply]             Погасить организацию и её пользователей
+  server entity restore   -type=organization -id=N [-apply]             Откатить последний retire
+  server entity anonymize -type=organization -id=N [-apply]             Необратимо затереть персональные поля
+  server entity purge     -type=organization -id=N -pkg=<путь> [-apply] Снести данные по пакету
 
-Общие флаги (show, export, retire, restore, anonymize):
+Общие флаги (show, export, retire, restore, anonymize, purge):
   -type   Тип сущности. Пока поддерживается только organization
   -id     Идентификатор сущности (> 0)
-  -apply  Только для retire/restore/anonymize: выполнить изменение. Без флага - только показ
+  -apply  Для retire/restore/anonymize/purge: выполнить изменение. Без флага - только показ
 
 Флаги export:
   -apply       Записать пакет. Без него команда только считает
@@ -51,6 +52,11 @@ const entityHelp = `Работа с данными по идентификато
   -pkg    Путь к каталогу пакета (тому, что вывела export как "Каталог")
   -type   Необязательно: сверить тип сущности в манифесте. Несовпадение - отказ
   -id     Необязательно: сверить идентификатор сущности в манифесте. Несовпадение - отказ
+
+Флаги purge:
+  -pkg    Путь к каталогу пакета - обязан быть зашифрован и проверен под теми же -type/-id
+  -apply  Физически удалить строки графа и файлы заявок. Без него команда только проверяет
+          пакет и сверяет покрытие текущего состояния
 
 Флаги import:
   -pkg     Путь к каталогу пакета
@@ -112,6 +118,23 @@ refresh-токены обезличенных пользователей - вх�
 anonymize не трогает физически и явно предупреждает об обоих - это тоже персональные данные,
 но решение по ним отдельное, за владельцем системы.
 
+purge - необратимый физический снос: удаляет строки графа из базы и файлы заявок с диска.
+Сначала сам вызывает verify по тому же пакету С УКАЗАНИЕМ -type/-id - пакет для другой
+сущности или не прошедший проверку отклоняется сразу. Пакет ОБЯЗАН быть зашифрован: опись
+открытого пакета сверяется сама с собой, и снос по такому пакету запрещён без исключений
+(флага-обхода, в отличие от export -plaintext, здесь нет). Дальше purge сверяет счётчики
+строк из описи пакета с текущим состоянием графа - если данные организации менялись после
+снятия копии (что-то добавили или удалили), команда отказывает: копия устарела, и снос по
+ней уничтожил бы то, чего в пакете нет. У активной организации это будет срабатывать часто и
+по мелочам (открыли заявку - уже появилась отметка прочтения) - это ожидаемо, а не повод
+искать обход. Рабочий порядок для необратимого сноса: entity retire -apply (гасит
+организацию и её пользователей, дальше её данные не меняются) -> entity export -apply по уже
+погашенной организации -> entity verify по свежему пакету -> entity purge -apply по нему же.
+Без -apply purge - это всё, что он делает: проверка и подсчёт. С -apply удаление и запись в
+audit_log идут одной транзакцией (строки без следа в журнале не считаются удалёнными), файлы
+заявок снимаются с диска ПОСЛЕ того, как транзакция зафиксирована. Запись в audit_log
+переживает сам снос - журнал не входит в граф организации.
+
 Примеры:
   server entity show    -type=organization -id=42
   server entity export  -type=organization -id=42
@@ -124,6 +147,8 @@ anonymize не трогает физически и явно предупреж�
   server entity restore -type=organization -id=42 -apply
   server entity anonymize -type=organization -id=42
   server entity anonymize -type=organization -id=42 -apply
+  server entity purge   -type=organization -id=42 -pkg=/var/entity-export/organization-42-20260811-120000
+  server entity purge   -type=organization -id=42 -pkg=/var/entity-export/organization-42-20260811-120000 -apply
 `
 
 // runEntity разбирает подкоманду и возвращает код возврата процесса.
@@ -150,6 +175,8 @@ func runEntity(args []string) int {
 		return entityRestore(args[1:])
 	case "anonymize":
 		return entityAnonymize(args[1:])
+	case "purge":
+		return entityPurge(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "неизвестная подкоманда %q\n\n", args[0])
 		fmt.Print(entityHelp)
@@ -715,5 +742,97 @@ func printAnonymizeResult(res entityarchive.AnonymizeResult, applied bool) {
 	for _, w := range res.Warnings {
 		fmt.Println()
 		fmt.Println("Внимание:", w)
+	}
+}
+
+// entityPurge физически сносит данные цели по проверенному пакету. Гейты (Verify по
+// -type/-id, обязательность шифрования, сверка покрытия текущего состояния) живут внутри
+// entityarchive.Purge - здесь только разбор флагов, подключение ключей и печать результата.
+func entityPurge(args []string) int {
+	fs := flag.NewFlagSet("entity purge", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	fs.Usage = func() { fmt.Fprint(os.Stderr, entityHelp) }
+	entityType := fs.String("type", entityarchive.TypeOrganization, "тип сущности")
+	id := fs.Int("id", 0, "идентификатор сущности")
+	pkg := fs.String("pkg", "", "путь к каталогу пакета")
+	apply := fs.Bool("apply", false, "физически удалить данные, а не только проверить")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if err := entityarchive.CheckSupportedType(*entityType); err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 2
+	}
+	if *id <= 0 {
+		fmt.Fprintln(os.Stderr, "Ошибка: укажите -id больше нуля")
+		return 2
+	}
+	if strings.TrimSpace(*pkg) == "" {
+		fmt.Fprintln(os.Stderr, "Ошибка: укажите -pkg с путём к каталогу пакета")
+		return 2
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка: параметры не загружены:", err)
+		return 1
+	}
+	crypt, err := services.NewArchiveCrypto(cfg.ArchiveAgeRecipient, cfg.ArchiveAgeIdentity)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 1
+	}
+	// Тот же приём, что в entityVerify/entityImport: nil-интерфейс, а не типизированный
+	// nil-указатель, иначе проверка на dec != nil внутри Verify всегда была бы истинной.
+	var dec entityarchive.Decryptor
+	if crypt != nil {
+		dec = crypt
+	}
+
+	db, err := openCleanupDB()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 1
+	}
+
+	opt := entityarchive.PurgeOptions{
+		UploadPath: cfg.UploadPath,
+		Decrypt:    dec,
+		Recorder:   services.NewAuditRecorder(db),
+		Apply:      *apply,
+	}
+	res, err := entityarchive.Purge(context.Background(), db, *entityType, *id, *pkg, opt)
+	printPurgeResult(res)
+	if err != nil {
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 1
+	}
+	return 0
+}
+
+func printPurgeResult(res entityarchive.PurgeResult) {
+	fmt.Println()
+	fmt.Printf("Пакет: %s #%d\n\n", res.Type, res.ID)
+	if len(res.Tables) > 0 {
+		fmt.Println(" ", padRight("Таблица", 34), padLeft("Строк", 10))
+		for _, t := range res.Tables {
+			fmt.Println(" ", padRight(t.Table, 34), padLeft(strconv.FormatInt(t.Rows, 10), 10))
+		}
+		fmt.Println()
+	}
+	fmt.Println(padRight("Всего строк", 34), res.TotalRows())
+	fmt.Println(padRight("Файлов заявок", 34), res.Files)
+	fmt.Println(padRight("Пакет", 34), res.Package)
+	if res.ManifestSHA256 != "" {
+		fmt.Println(padRight("Отпечаток манифеста", 34), res.ManifestSHA256)
+	}
+
+	fmt.Println()
+	switch {
+	case res.Apply:
+		fmt.Println("Снос выполнен. Данные удалены физически и необратимо.")
+	default:
+		fmt.Println("Пробный прогон, ничего не удалено. Повторите с -apply.")
 	}
 }
