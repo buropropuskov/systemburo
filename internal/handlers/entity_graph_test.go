@@ -1,4 +1,4 @@
-package entityarchive_test
+package handlers_test
 
 import (
 	"context"
@@ -8,6 +8,11 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 )
+
+// Сборщик графа данных сущности (server entity show). Тесты живут здесь, а не рядом с
+// пакетом entityarchive: тестовая база одна на прогон, а AutoMigrate идёт один раз на
+// бинарь. Второй бинарь, работающий с той же базой, мигрирует её одновременно с этим -
+// `go test -p 4 ./...` (так гоняет CI) падает на `tuple concurrently updated`.
 
 // TestCollect_RunsEveryNodePredicate прогоняет весь граф против настоящей схемы: Collect
 // считает строки КАЖДОГО узла, поэтому битое имя таблицы или столбца в предикате всплыло
