@@ -94,7 +94,7 @@ describe('ChangePasswordModal', () => {
     expect(wrapper.vm.canSubmit).toBe(false)
   })
 
-  it('после успешной смены чистит сессию и уводит на вход', async () => {
+  it('после успешной смены оставляет человека в системе', async () => {
     changeOwnPassword.mockResolvedValue({ ok: true })
     const wrapper = mountModal()
     await fillForm(wrapper, { current: 'oldpass12345', next: 'newpass12345' })
@@ -104,8 +104,12 @@ describe('ChangePasswordModal', () => {
     await flushPromises()
 
     expect(changeOwnPassword).toHaveBeenCalledWith('oldpass12345', 'newpass12345')
-    expect(clearTokens).toHaveBeenCalled()
-    expect(push).toHaveBeenCalledWith('/')
+    // Сервер оставляет живой ту сессию, из которой шла смена: человек только что
+    // подтвердил личность текущим паролем, и выкидывать его на форму входа -
+    // раздражение без выигрыша в безопасности. Остальные устройства он отключил сам.
+    expect(clearTokens).not.toHaveBeenCalled()
+    expect(push).not.toHaveBeenCalled()
+    expect(wrapper.emitted('close')).toBeTruthy()
   })
 
   it('показывает текст ошибки сервера и оставляет сессию живой', async () => {

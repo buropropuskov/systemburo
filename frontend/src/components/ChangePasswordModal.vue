@@ -49,6 +49,11 @@
           placeholder="Повторите новый пароль"
           data-testid="cp-repeat"
         />
+        <span
+          v-if="repeatPassword && !repeatMatches"
+          class="cp-mismatch"
+          data-testid="cp-mismatch"
+        >Пароли не совпадают</span>
       </label>
 
       <div class="cp-checklist">
@@ -69,21 +74,11 @@
             >{{ rule.ok ? '✓' : '' }}</span>
             {{ rule.label }}
           </li>
-          <li
-            class="cp-rule"
-            :class="{ 'cp-rule--ok': repeatMatches }"
-          >
-            <span
-              class="cp-rule__mark"
-              aria-hidden="true"
-            >{{ repeatMatches ? '✓' : '' }}</span>
-            Пароли совпадают
-          </li>
         </ul>
       </div>
 
       <p class="cp-note">
-        После смены пароля вход на всех устройствах потребуется выполнить заново.
+        Здесь вы останетесь в системе. На других устройствах вход потребуется выполнить заново.
       </p>
     </form>
 
@@ -129,7 +124,6 @@ import { changeOwnPassword } from '@/api/users';
 import { getPasswordPolicy } from '@/api/settings';
 import { DEFAULT_PASSWORD_POLICY, evaluatePassword, passwordMeetsPolicy } from '@/utils/passwordPolicy';
 import { useDeletionsStore } from '@/stores/deletions';
-import { useAuthStore } from '@/stores/auth';
 
 export default {
   name: 'ChangePasswordModal',
@@ -195,16 +189,13 @@ export default {
       try {
         const response = await changeOwnPassword(this.currentPassword, this.newPassword);
         if (response.ok) {
-          useDeletionsStore().notify({ bold: 'Пароль изменён', suffix: ', войдите заново' });
+          useDeletionsStore().notify({ bold: 'Пароль изменён' });
           this.$emit('changed');
-          // Сервер отозвал все маркеры продления, включая маркер этой вкладки:
-          // держать интерфейс залогиненным нечестно - он умрёт на первом же
-          // продлении. Чистим сессию сами и уводим на вход, как это делает
-          // client.js при истёкшей сессии.
-          useAuthStore().clearTokens();
-          if (this.$router.currentRoute.value.path !== '/') {
-            this.$router.push('/');
-          }
+          // Не разлогиниваем: сервер оставил живой ту сессию, из которой шла
+          // смена, и выкидывать человека на форму входа незачем - он только что
+          // подтвердил личность текущим паролем. Остальные устройства сервер
+          // отключил сам.
+          this.$emit('close');
           return;
         }
         const errorData = await response.json().catch(() => ({}));
@@ -232,7 +223,12 @@ export default {
 .cp-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
+  /* Тело BaseModal объявлено с padding: 0 - отступы задаёт само окно. Без этого
+     поля и подписи упирались в края, и окно выглядело незавершённым. Значения
+     совпадают с шапкой и подвалом окна (20px по бокам), чтобы всё стояло по
+     одной вертикали. */
+  padding: 18px 20px 6px;
 }
 
 .cp-field {
@@ -313,6 +309,13 @@ export default {
   margin: 0;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* Расхождение показываем прямо под полем повтора и только когда человек уже
+   начал его заполнять: подсказка на пустом поле читается как ошибка на ровном месте. */
+.cp-mismatch {
+  font-size: 12px;
+  color: var(--danger-text);
 }
 
 .cp-reason {
