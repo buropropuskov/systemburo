@@ -106,6 +106,10 @@ type Dependencies struct {
 	// согласия нет, начал бы получать 403. Тесты самого гейта поднимают
 	// приложение через SetupTestAppWithConsentGate.
 	ConsentGate echo.MiddlewareFunc
+	// MustChangePassword - mw.MustChangePassword: закрывает protected-API
+	// пользователю, обязанному задать свой пароль вместо присланного письмом
+	// (#1911). nil по умолчанию и в тестах - по той же причине, что и ConsentGate.
+	MustChangePassword echo.MiddlewareFunc
 	// TableReportGate - RequireTableVerb(..., "report"): гейт отчётов по проходам
 	// правом table.<name>.report. НЕ опционален для роутов pass-report (main и
 	// testutil обязаны заполнять) - без гейта отчёт открылся бы любому залогиненному.
@@ -204,6 +208,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	maintenanceBlock := d.MaintenanceBlock
 	banCheck := d.BanCheck
 	consentGate := d.ConsentGate
+	mustChangePassword := d.MustChangePassword
 	loginLimiter := d.LoginLimiter
 	lastSeen := d.LastSeen
 	jwtSecret := d.JWTSecret
@@ -274,6 +279,15 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// согласия. Супер-админ и роуты из PDConsentWhitelist проходят. nil в тестах.
 	if consentGate != nil {
 		protected.Use(consentGate)
+	}
+	// MustChangePassword - после гейта согласия: согласие спрашивается раньше всего
+	// остального, а сменить пароль до него всё равно не дают (смены нет в белом
+	// списке согласия). Пропускает только MustChangePasswordWhitelist, остальное -
+	// 403 с кодом PASSWORD_CHANGE_REQUIRED. nil в тестах: иначе каждый тест, где
+	// флаг поднят сидом, начал бы получать 403 вместо своего ответа. Тесты самого
+	// гейта поднимают приложение через SetupTestAppWithPasswordGate.
+	if mustChangePassword != nil {
+		protected.Use(mustChangePassword)
 	}
 	// LastSeen - после JWTAuth (нужен user_id). Обновляет users.last_seen для
 	// учёта онлайна (#632), с in-memory троттлингом и асинхронной записью.

@@ -14,7 +14,7 @@
         class="theheader"
       />
       <router-view
-        v-if="!consentBlocking"
+        v-if="!consentBlocking && !passwordChangeBlocking"
         v-slot="{ Component }"
       >
         <transition
@@ -34,7 +34,7 @@
     <ConfirmDialog />
     <DirtyConfirmModal />
     <DeleteNotifications />
-    <OnboardingTour v-if="isAuthenticated && !consentBlocking" />
+    <OnboardingTour v-if="isAuthenticated && !consentBlocking && !passwordChangeBlocking" />
     <GlobalSearchPanel
       v-if="isAuthenticated"
       :show="searchOpen"
@@ -47,6 +47,12 @@
       :active="consentBlocking"
       @logout="logout"
     />
+    <ChangePasswordModal
+      :show="passwordChangeBlocking"
+      mandatory
+      @changed="onPasswordChanged"
+      @logout="logout"
+    />
   </div>
 </template>
 
@@ -56,6 +62,7 @@ import { useAuthStore } from '@/stores/auth'
 import { usePermissionsStore } from '@/stores/permissions'
 import { useOnboardingStore } from '@/stores/onboarding'
 import { usePDConsentStore } from '@/stores/pdConsent'
+import { usePasswordChangeStore } from '@/stores/passwordChange'
 import { useThemeStore } from '@/stores/theme'
 import { isShellHiddenPath } from '@/utils/shellPaths'
 import eventStream from '@/services/eventStream'
@@ -71,6 +78,7 @@ import GlobalSearchPanel from './components/GlobalSearchPanel.vue';
 import OnboardingTour from './components/onboarding/OnboardingTour.vue';
 import BanOverlay from './components/BanOverlay.vue';
 import PDConsentOverlay from './components/PDConsentOverlay.vue';
+import ChangePasswordModal from './components/ChangePasswordModal.vue';
 
 export default {
   name: "App",
@@ -85,6 +93,7 @@ export default {
     OnboardingTour,
     BanOverlay,
     PDConsentOverlay,
+    ChangePasswordModal,
   },
   data() {
     return {
@@ -121,7 +130,8 @@ export default {
     showChrome() {
       return this.isAuthenticated
         && !isShellHiddenPath(this.$route.path)
-        && !this.consentBlocking;
+        && !this.consentBlocking
+        && !this.passwordChangeBlocking;
     },
     /**
      * Согласие на обработку ПД ещё не дано, а без него доступа нет (#1567):
@@ -141,6 +151,22 @@ export default {
         && !this.isBanned
         && consent.resolved
         && consent.required
+        && !isShellHiddenPath(this.$route.path);
+    },
+    /**
+     * Система обязала задать свой пароль вместо присланного письмом (#1911):
+     * шапка, навигация, страница и тур не монтируются, поверх стоит несъёмное окно
+     * смены пароля. Флаг поднимается маркером отказа из api/client.js - серверный
+     * гейт всё равно отвечает 403 на всё, кроме смены пароля, и без окна человек
+     * видел бы пустой экран.
+     *
+     * Забаненному показываем блокировку, а не смену пароля: менять пароль ему
+     * незачем, и серверная проверка блокировки стоит раньше гейта.
+     */
+    passwordChangeBlocking() {
+      return this.isAuthenticated
+        && !this.isBanned
+        && usePasswordChangeStore().required
         && !isShellHiddenPath(this.$route.path);
     },
     isBanned() {
@@ -268,6 +294,14 @@ export default {
       }
       this.banSubUserId = null
     },
+    /**
+     * Пароль задан: окно само чистит сессию и уводит на вход (смена отзывает все
+     * продления). Снимаем требование, иначе оно всплыло бы поверх формы входа.
+     */
+    onPasswordChanged() {
+      usePasswordChangeStore().reset()
+    },
+
     handleSuccessfulLogin(tokenData) {
       const authStore = useAuthStore()
       authStore.setTokens(tokenData.token)
@@ -314,6 +348,9 @@ export default {
         // Иначе окно согласия предыдущего юзера осталось бы висеть поверх формы
         // входа, а следующий увидел бы чужую редакцию текста.
         usePDConsentStore().reset()
+        // Иначе требование сменить пароль вышедшего осталось бы висеть окном
+        // поверх формы входа и досталось бы следующему на этом устройстве.
+        usePasswordChangeStore().reset()
         if (this.$route.path !== '/') {
           this.$router.push("/");
         }
