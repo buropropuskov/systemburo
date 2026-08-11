@@ -21,10 +21,11 @@ import (
 //
 // Сейчас команда умеет читать граф данных цели (show), снять с него пакет (export),
 // проверить уже снятый пакет (verify), развернуть проверенный пакет на текущий стенд
-// (import) и обратимо погасить организацию вместе с её пользователями (retire/restore).
-// Обезличивание и физический снос добавляются отдельными срезами и здесь ещё не
-// реализованы. Веб-интерфейса у команды нет намеренно - как у cleanup и archive: доступ к
-// операции равен доступу к консоли сервера, а не к учётной записи в системе.
+// (import), обратимо погасить организацию вместе с её пользователями (retire/restore) и
+// необратимо затереть их персональные поля (anonymize). Физический снос добавляется
+// отдельным срезом и здесь ещё не реализован. Веб-интерфейса у команды нет намеренно -
+// как у cleanup и archive: доступ к операции равен доступу к консоли сервера, а не к
+// учётной записи в системе.
 
 const entityHelp = `Работа с данными по идентификатору сущности.
 
@@ -35,11 +36,12 @@ const entityHelp = `Работа с данными по идентификато
   server entity import  -pkg=<путь> [-apply]                Развернуть пакет на этот стенд
   server entity retire  -type=organization -id=N [-apply]   Погасить организацию и её пользователей
   server entity restore -type=organization -id=N [-apply]   Откатить последний retire
+  server entity anonymize -type=organization -id=N [-apply] Необратимо затереть персональные поля
 
-Общие флаги (show, export, retire, restore):
+Общие флаги (show, export, retire, restore, anonymize):
   -type   Тип сущности. Пока поддерживается только organization
   -id     Идентификатор сущности (> 0)
-  -apply  Только для retire/restore: выполнить изменение. Без флага - только показ
+  -apply  Только для retire/restore/anonymize: выполнить изменение. Без флага - только показ
 
 Флаги export:
   -apply       Записать пакет. Без него команда только считает
@@ -88,6 +90,28 @@ retire без -apply показывает, что погасло бы (is_active
 предшествующего retire (или если он уже откачен) restore отказывает - подряд включать всё
 неактивное он не умеет и не должен.
 
+anonymize необратимо затирает ФИО, документы (паспорт, патент - вместе с их отпечатками) и
+контакты сотрудников и пользователей организации, ФИО и телефон инициатора из шапки подачи
+каждой заявки (initiator_name/contact_phone - там может быть указан не отправитель, а другой
+человек), а также нормализованное ФИО своего сотрудника в предупреждениях о совпадении с
+чёрным списком (application_blacklist_flags/overrides.element_normalized) - но только у
+element_type=employee: у element_type=car это номер машины, и его команда не трогает.
+Значение записи чёрного списка, с которой сравнили элемент (matched_value/matched_reason/
+comment) - данные ЧУЖОГО человека, попавшего в список не этой организацией, и не
+затирается. Побочный эффект: после этого подавление повторных предупреждений "всё равно
+пропустить" по этой паре элемент/запись перестанет работать - для обезличенной организации
+это не важно (её состав больше не подаётся). В отличие от retire связи, история, должности,
+номера машин, счётчики и даты сущностей не трогаются - под затирание попадают только
+перечисленные поля, и без -apply команда только показывает их список и число затронутых
+строк. У anonymize нет restore: действие необратимо, откатывать нечего. Супер-администратора
+организации команда не трогает (тот же запрет, что у retire) и отзывает активные
+refresh-токены обезличенных пользователей - вход под прежним логином станет невозможен сразу,
+а не только когда истечёт срок уже открытой сессии. Файлы, приложенные к заявкам (сканы
+документов), и слепки бланков в файловом архиве (заявка.json, ARCHIVE_PATH - тот же
+паспорт/патент, а также ФИО и телефон инициатора открытым текстом на момент выпуска бланка)
+anonymize не трогает физически и явно предупреждает об обоих - это тоже персональные данные,
+но решение по ним отдельное, за владельцем системы.
+
 Примеры:
   server entity show    -type=organization -id=42
   server entity export  -type=organization -id=42
@@ -98,6 +122,8 @@ retire без -apply показывает, что погасло бы (is_active
   server entity import  -pkg=/var/entity-export/organization-42-20260811-120000 -apply
   server entity retire  -type=organization -id=42 -apply
   server entity restore -type=organization -id=42 -apply
+  server entity anonymize -type=organization -id=42
+  server entity anonymize -type=organization -id=42 -apply
 `
 
 // runEntity разбирает подкоманду и возвращает код возврата процесса.
@@ -122,6 +148,8 @@ func runEntity(args []string) int {
 		return entityRetire(args[1:])
 	case "restore":
 		return entityRestore(args[1:])
+	case "anonymize":
+		return entityAnonymize(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "неизвестная подкоманда %q\n\n", args[0])
 		fmt.Print(entityHelp)
@@ -620,4 +648,72 @@ func printRestoreResult(res entityarchive.RestoreResult, applied bool) {
 	fmt.Println(" ", padRight("users", 34), padLeft(strconv.Itoa(len(res.Users)), 10))
 	fmt.Println()
 	fmt.Printf("Всего строк: %d\n", res.Total())
+}
+
+// entityAnonymize необратимо затирает персональные поля организации. Флаги общие с
+// retire/restore (-type/-id/-apply) - тот же parseEntityMutationFlags.
+func entityAnonymize(args []string) int {
+	entityType, id, apply, code := parseEntityMutationFlags("entity anonymize", args)
+	if code >= 0 {
+		return code
+	}
+
+	db, err := openCleanupDB()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 1
+	}
+
+	res, err := entityarchive.Anonymize(context.Background(), db, services.NewAuditRecorder(db), entityType, id, nil, apply)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 1
+	}
+	printAnonymizeResult(res, apply)
+	return 0
+}
+
+// printAnonymizeResult печатает перечень затираемых полей ПЕРЕД счётчиками строк -
+// оператор обязан увидеть, что именно уйдёт под затирание, до того как решится на
+// -apply, а не только сколько строк это затронет.
+func printAnonymizeResult(res entityarchive.AnonymizeResult, applied bool) {
+	fmt.Println()
+	fmt.Printf("Обезличивание: %s #%d\n\n", res.Type, res.ID)
+	fmt.Println("Действие НЕОБРАТИМО - затёртые значения не восстанавливаются, у команды нет restore.")
+	fmt.Println()
+
+	fmt.Println("Поля, которые будут затёрты:")
+	for _, t := range res.Tables {
+		fmt.Printf("  %s:\n", t.Table)
+		for _, f := range t.Fields {
+			fmt.Printf("    - %s\n", f)
+		}
+	}
+	fmt.Println()
+
+	if applied {
+		fmt.Println("Затёрто:")
+	} else {
+		fmt.Println("Будет затёрто (показ, повторите с -apply):")
+	}
+	fmt.Println(" ", padRight("Таблица", 34), padLeft("Строк", 10))
+	for _, t := range res.Tables {
+		fmt.Println(" ", padRight(t.Table, 34), padLeft(strconv.Itoa(t.Rows), 10))
+	}
+	fmt.Println()
+	fmt.Printf("Всего строк: %d\n", res.Total())
+
+	// Молчать нельзя: без этой строки обезличивание выглядит полным, а супер-администратор
+	// организации на самом деле сохраняет и ФИО, и прежний логин (тот же приём, что у
+	// printRetireResult - см. комментарий там).
+	if len(res.SkippedSuperAdmins) > 0 {
+		fmt.Println()
+		fmt.Printf("Внимание: супер-администратор организации (id %v) НЕ обезличен и сохраняет "+
+			"прежний логин - anonymize намеренно не трогает учётную запись владельца системы.\n", res.SkippedSuperAdmins)
+	}
+
+	for _, w := range res.Warnings {
+		fmt.Println()
+		fmt.Println("Внимание:", w)
+	}
 }
