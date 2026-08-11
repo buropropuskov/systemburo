@@ -351,6 +351,11 @@ func main() {
 		slog.Warn("неверный RESET_TIMEZONE, используем UTC", "timezone", cfg.ResetTimezone, "error", err)
 		resetLoc = time.UTC
 	}
+	// Состояние плановой смены паролей для экрана настроек (#1909): считается по
+	// тем же условиям, по которым будет отбирать работников сам прогон.
+	settingsHandler.SetRotationStatusService(
+		services.NewPasswordRotationStatusService(db, settingsService, mailService, resetLoc))
+
 	archivePathService := services.NewArchivePathService(db, resetLoc)
 	// Место и квота файлового архива (#1615, срез B2): сводка занятого места и
 	// порог, останавливающий очередь выгрузки при нехватке места. Поднимается

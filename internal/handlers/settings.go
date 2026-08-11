@@ -20,6 +20,14 @@ type SettingsHandler struct {
 	// mail подключается сеттером после конструирования (#1906): почтовый сервис
 	// создаётся позже хендлера, а в тестах его нет вовсе.
 	mail services.MailSender
+	// rotationStatus - состояние плановой смены паролей (#1909), подключается
+	// тем же способом и по той же причине.
+	rotationStatus *services.PasswordRotationStatusService
+}
+
+// SetRotationStatusService подключает счётчик состояния плановой смены паролей.
+func (h *SettingsHandler) SetRotationStatusService(s *services.PasswordRotationStatusService) {
+	h.rotationStatus = s
 }
 
 // SetMailSender подключает почтовый сервис. Без него ручка проверки почты
@@ -141,3 +149,17 @@ const testMailBody = `Это проверочное письмо системы 
 
 Если письмо попало в папку со спамом, проверьте записи SPF и DKIM у домена
 отправителя: без них письма системы будут теряться у получателей.`
+
+// GetPasswordRotationStatus отдаёт состояние плановой смены паролей: настроена ли
+// почта, скольких работников затронет ближайший прогон и у скольких нет адреса.
+// Без этих чисел администратор включал бы рассылку паролей вслепую.
+func (h *SettingsHandler) GetPasswordRotationStatus(c echo.Context) error {
+	if h.rotationStatus == nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "Состояние плановой смены паролей недоступно")
+	}
+	status, err := h.rotationStatus.Get(c.Request().Context())
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось посчитать состояние плановой смены")
+	}
+	return RespondSuccess(c, status)
+}

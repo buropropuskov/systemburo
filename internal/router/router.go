@@ -990,6 +990,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// параметра key и попытался бы сохранить настройку с таким именем.
 	protected.GET("/settings/mail/status", settings.GetMailStatus, requireSettings)
 	protected.POST("/settings/mail/test", settings.SendTestMail, requireSettings)
+	protected.GET("/settings/password-rotation/status", settings.GetPasswordRotationStatus, requireSettings)
 	protected.PUT("/settings/:key", settings.Update, requireSettings)
 
 	// Новости. Активные (GET "") - всем авторизованным; управление - page.admin
