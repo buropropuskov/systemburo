@@ -43,11 +43,10 @@ func (r *auditRecorder) Record(ctx context.Context, exec *gorm.DB, entityType st
 	if exec == nil {
 		exec = r.db
 	}
-	entry, err := buildAuditLogEntry(entityType, entityID, action, actorID, details)
+	entry, err := buildAuditLogEntry(ctx, entityType, entityID, action, actorID, details)
 	if err != nil {
 		return err
 	}
-	entry.Details = withImpersonatorDetails(ctx, entry.Details)
 	if err := exec.WithContext(ctx).Create(&entry).Error; err != nil {
 		return fmt.Errorf("insert audit log (%s/%s): %w", entityType, action, err)
 	}
@@ -57,7 +56,10 @@ func (r *auditRecorder) Record(ctx context.Context, exec *gorm.DB, entityType st
 // buildAuditLogEntry строит запись audit_log без записи в БД: общая точка сборки для
 // одиночных Record/Log и пакетных путей (массовая подача, срез A2A3 blank-import),
 // которые копят строки в срез и вставляют одним CreateInBatches вместо N отдельных Create.
-func buildAuditLogEntry(entityType string, entityID *int, action string, actorID *int, details interface{}) (models.AuditLog, error) {
+//
+// ctx нужен ради отметки инициатора режима «войти как пользователь» (#1912): она
+// ставится здесь, в единственной точке сборки, - на пакетном пути её иначе не было бы.
+func buildAuditLogEntry(ctx context.Context, entityType string, entityID *int, action string, actorID *int, details interface{}) (models.AuditLog, error) {
 	var raw json.RawMessage
 	if details != nil {
 		b, err := json.Marshal(details)
@@ -71,7 +73,7 @@ func buildAuditLogEntry(entityType string, entityID *int, action string, actorID
 		EntityID:    entityID,
 		Action:      action,
 		ActorUserID: actorID,
-		Details:     raw,
+		Details:     withImpersonatorDetails(ctx, raw),
 	}, nil
 }
 

@@ -2291,7 +2291,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 					pendingVehicleFlags = append(pendingVehicleFlags, pendingVehicleFlag{carID: carID, carNumber: v.CarNumber})
 
 					carCreateComment := fmt.Sprintf("Автомобиль %s %s создан", v.CarNumber, v.CarBrand)
-					entry, err := buildAuditLogEntry(models.AuditEntityCar, &carID, "create", &user.ID, carAuditDetails{Comment: &carCreateComment})
+					entry, err := buildAuditLogEntry(ctx, models.AuditEntityCar, &carID, "create", &user.ID, carAuditDetails{Comment: &carCreateComment})
 					if err != nil {
 						slog.Error("не удалось подготовить аудит создания машины (submit)", "car_id", carID, "error", err)
 					} else {
@@ -2382,7 +2382,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 						empID: empID, lastName: e.LastName, firstName: e.FirstName, middleName: empMiddle,
 					})
 					empComment := fmt.Sprintf("Сотрудник %s создан", strings.TrimSpace(strings.Join([]string{e.LastName, e.FirstName, empMiddle}, " ")))
-					entry, err := buildAuditLogEntry(models.AuditEntityEmployee, &empID, "create", &user.ID, carAuditDetails{Comment: &empComment})
+					entry, err := buildAuditLogEntry(ctx, models.AuditEntityEmployee, &empID, "create", &user.ID, carAuditDetails{Comment: &empComment})
 					if err != nil {
 						slog.Error("не удалось подготовить аудит создания сотрудника (submit)", "employee_id", empID, "error", err)
 					} else {
