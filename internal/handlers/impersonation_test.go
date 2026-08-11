@@ -234,6 +234,7 @@ func TestImpersonate_DangerousActionsBlocked(t *testing.T) {
 		{"роль", http.MethodPut, fmt.Sprintf("/users/%d/role", targetID), `{"role_id":1}`},
 		{"правка прав", http.MethodPut, fmt.Sprintf("/permissions/user/%d", targetID), `{"permissions":[]}`},
 		{"снятие блокировки входа", http.MethodPost, "/users/impblocktgt/reset-lockout", ""},
+		{"согласие на обработку данных", http.MethodPost, "/consents/accept", ""},
 		{"цепочка режимов", http.MethodPost, fmt.Sprintf("/users/%d/impersonate", targetID), ""},
 	}
 	for _, tc := range blocked {

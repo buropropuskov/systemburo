@@ -42,6 +42,7 @@
       @update:query="searchQuery = $event"
       @close="closeGlobalSearch"
     />
+    <ImpersonationBanner v-if="isAuthenticated" />
     <BanOverlay @logout="logout" />
     <PDConsentOverlay
       :active="consentBlocking"
@@ -76,6 +77,7 @@ import DirtyConfirmModal from './components/DirtyConfirmModal.vue';
 import DeleteNotifications from './components/DeleteNotifications.vue';
 import GlobalSearchPanel from './components/GlobalSearchPanel.vue';
 import OnboardingTour from './components/onboarding/OnboardingTour.vue';
+import ImpersonationBanner from './components/ImpersonationBanner.vue';
 import BanOverlay from './components/BanOverlay.vue';
 import PDConsentOverlay from './components/PDConsentOverlay.vue';
 import ChangePasswordModal from './components/ChangePasswordModal.vue';
@@ -91,6 +93,7 @@ export default {
     DeleteNotifications,
     GlobalSearchPanel,
     OnboardingTour,
+    ImpersonationBanner,
     BanOverlay,
     PDConsentOverlay,
     ChangePasswordModal,
