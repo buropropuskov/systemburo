@@ -297,3 +297,62 @@ func TestRotation_ExpiringWarningWithoutPassword(t *testing.T) {
 		Count(&letters).Error)
 	assert.EqualValues(t, 1, letters, "предупреждение шлётся раз в сутки")
 }
+
+// TestRotateOne_RefusesArchivedAndBanned: точечная смена пароля из карточки не
+// должна трогать архивные и заблокированные учётные записи. В интерфейсе кнопка
+// у них не показывается, но проверка нужна и на сервере - иначе она обходится
+// прямым запросом к ручке.
+func TestRotateOne_RefusesArchivedAndBanned(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	svc, _ := rotationEnv(t, db, 90)
+
+	archived := mkRotationUser(t, db, td, "rot_one_archived", "arch1@example.org", time.Now().AddDate(0, 0, -200))
+	banned := mkRotationUser(t, db, td, "rot_one_banned", "ban1@example.org", time.Now().AddDate(0, 0, -200))
+	// is_active=false и is_banned=true дописываем отдельным обновлением: нулевое
+	// значение при default:true gorm при вставке пропускает.
+	require.NoError(t, db.Model(&models.User{}).Where("id = ?", archived.ID).
+		Update("is_active", false).Error)
+	require.NoError(t, db.Model(&models.User{}).Where("id = ?", banned.ID).
+		Update("is_banned", true).Error)
+
+	err := svc.RotateOne(context.Background(), "rot_one_archived", 1)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "архиве")
+
+	err = svc.RotateOne(context.Background(), "rot_one_banned", 1)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "заблокирован")
+
+	// Пароли не тронуты, писем не поставлено.
+	for _, id := range []int{archived.ID, banned.ID} {
+		var after models.User
+		require.NoError(t, db.First(&after, id).Error)
+		assert.Equal(t, "старый-хэш", after.Password)
+	}
+	var letters int64
+	require.NoError(t, db.Model(&models.EmailMessage{}).
+		Where("template_code = ?", services.MailTemplatePasswordRotated).Count(&letters).Error)
+	assert.EqualValues(t, 0, letters, "письма недействующим учётным записям не ставятся")
+}
+
+// TestRotateOne_WorksForActive: действующему работнику точечная смена по-прежнему
+// доступна - проверка не должна закрыть основной сценарий.
+func TestRotateOne_WorksForActive(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	svc, _ := rotationEnv(t, db, 90)
+	u := mkRotationUser(t, db, td, "rot_one_active", "active1@example.org", time.Now().AddDate(0, 0, -1))
+
+	require.NoError(t, svc.RotateOne(context.Background(), "rot_one_active", 1))
+
+	var after models.User
+	require.NoError(t, db.First(&after, u.ID).Error)
+	assert.NotEqual(t, "старый-хэш", after.Password)
+}

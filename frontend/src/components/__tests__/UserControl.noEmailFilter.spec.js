@@ -86,3 +86,44 @@ describe('UserControl: режим «Без почты»', () => {
     expect(wrapper.vm.countLabel).toBe('Без почты')
   })
 })
+
+describe('UserControl: очистка контактов', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  it('пустая почта уходит на сервер строкой, а не null', async () => {
+    // `|| null` делал очистку невозможной: сервер трактует отсутствие ключа как
+    // «не трогай поле», и стёртый адрес возвращался обратно при перезагрузке.
+    const { apiRequest } = await import('@/api/client')
+    const wrapper = mountUserControl()
+    await flushPromises()
+
+    await wrapper.vm.updateUserInfo({
+      username: 'with_mail', pd_hidden: false, email: '', phone: '', position: 'Инженер',
+    })
+    await flushPromises()
+
+    const call = apiRequest.mock.calls.find(([path]) => path === '/users/with_mail/info')
+    expect(call).toBeTruthy()
+    const payload = JSON.parse(call[1].body)
+    expect(payload.email).toBe('')
+    expect(payload.phone).toBe('')
+  })
+
+  it('скрытые до согласия контакты не отправляются вовсе', async () => {
+    const { apiRequest } = await import('@/api/client')
+    const wrapper = mountUserControl()
+    await flushPromises()
+
+    await wrapper.vm.updateUserInfo({
+      username: 'without_mail', pd_hidden: true, email: '', position: 'Инженер',
+    })
+    await flushPromises()
+
+    const call = apiRequest.mock.calls.find(([path]) => path === '/users/without_mail/info')
+    const payload = JSON.parse(call[1].body)
+    expect(payload).not.toHaveProperty('email')
+  })
+})
