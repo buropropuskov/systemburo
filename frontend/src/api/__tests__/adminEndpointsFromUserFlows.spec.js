@@ -17,6 +17,16 @@ import registry from './adminEndpointRegistry.json';
 
 const relative = (file) => path.relative(SRC_ROOT, file).split(path.sep).join('/');
 
+/**
+ * Вызовы, у которых путь приходит переменной-параметром и статически не читается.
+ * Каждый разобран руками; список растёт - разбирать новый, иначе замок перестаёт
+ * видеть часть запросов экрана и молчит про них как про чистые.
+ */
+const OPAQUE_CALLS = {
+  'components/CreateApplication/CreateApplication.vue:1410':
+    'loadDefaultApprovers гоняет общий collect(url) по /organizations/:id/users и /companies/:id/users - оба открыты любому вошедшему',
+};
+
 function silenced(call) {
   if (/silent403/.test(call.args)) return true;
   return SILENT_403_PREFIXES.some((p) => call.path === p || call.path.startsWith(`${p}/`));
@@ -43,7 +53,7 @@ function gatedApiFunctions() {
     marks.forEach((mark, i) => {
       const body = text.slice(mark.index, i + 1 < marks.length ? marks[i + 1].index : text.length);
       const gates = [...new Set(apiCallsIn(body)
-        .filter((call) => !silenced(call))
+        .filter((call) => call.path && !silenced(call))
         .flatMap((call) => gatesForPath(call.path, call.method)))];
       if (gates.length) found.set(`api/${name}::${mark[1]}`, gates);
     });
@@ -74,11 +84,27 @@ describe('вызовы закрытых правом методов с поль�
     expect(modules.some((f) => relative(f) === 'components/CreateApplication/CreateApplication.vue')).toBe(true);
   });
 
+  it('запрос с непрозрачным путём разобран руками', () => {
+    const opaque = [];
+    for (const file of modules) {
+      for (const call of apiCallsIn(fs.readFileSync(file, 'utf8'))) {
+        if (call.path) continue;
+        const key = `${relative(file)}:${call.line}`;
+        if (!OPAQUE_CALLS[key]) opaque.push(`${key} -> apiRequest(${call.expression})`);
+      }
+    }
+    expect(opaque, [
+      'Путь запроса собран в переменной и статически не читается - проверить, куда он ведёт,',
+      'и описать в OPAQUE_CALLS (либо передать путь литералом).',
+    ].join('\n')).toEqual([]);
+  });
+
   it('прямой запрос в закрытый метод либо не делается, либо молчит про 403', () => {
     const loud = [];
     for (const file of modules) {
       const text = fs.readFileSync(file, 'utf8');
       for (const call of apiCallsIn(text)) {
+        if (!call.path) continue;
         const gates = gatesForPath(call.path, call.method);
         if (!gates.length || silenced(call)) continue;
         loud.push(`${relative(file)}:${call.line} ${call.method} ${call.path} (закрыт: ${gates.join(', ')})`);

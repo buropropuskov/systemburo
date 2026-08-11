@@ -1,14 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ungatedRouteComponents } from '../../../components/onboarding/__tests__/routerGates.js';
 
 /**
  * Модули, которые исполняются на экранах, открытых любому вошедшему.
  *
  * Точки входа - компоненты роутов без `meta.permission` и без дополнительного
- * мета-флага (их читаем из `router.js` тем же способом, что `routerGates.js`), плюс
- * `App.vue` и `NavMenu.vue`: эти двое живут на каждой странице. Дальше идём по
- * импортам.
+ * мета-флага (их отдаёт `routerGates.js`), плюс `App.vue` и `NavMenu.vue`: эти двое
+ * живут на каждой странице. Дальше идём по импортам.
  *
  * Обёртки `src/api/**` в обход НЕ включаются: модуль там - словарь запросов, и факт
  * импорта ничего не говорит о том, какие из них зовёт экран. Их разбирает второй
@@ -20,28 +20,6 @@ export const SRC_ROOT = path.resolve(HERE, '../../..');
 const ROUTER_FILE = path.join(SRC_ROOT, 'router.js');
 
 const ALWAYS_MOUNTED = ['App.vue', 'components/NavMenu.vue'];
-
-/** @returns {string[]} импортные пути компонентов роутов, открытых любому вошедшему */
-function ungatedRouteComponents() {
-  const src = fs.readFileSync(ROUTER_FILE, 'utf8');
-  // Компоненты роутов объявлены двумя способами: ленивым import() прямо в объекте
-  // роута и статическим импортом по имени в шапке файла.
-  const staticImports = {};
-  for (const m of src.matchAll(/import\s+(\w+)\s+from\s+'([^']+)'/g)) staticImports[m[1]] = m[2];
-
-  const marks = [...src.matchAll(/path:\s*'([^']+)'/g)];
-  const specs = [];
-  marks.forEach((mark, i) => {
-    const chunk = src.slice(mark.index, i + 1 < marks.length ? marks[i + 1].index : src.length);
-    if (!/requiresAuth:\s*true/.test(chunk)) return;
-    if (/permission:/.test(chunk) || /requires(SuperAdmin|SecurityOrAdmin):\s*true/.test(chunk)) return;
-    const lazy = chunk.match(/component:\s*\(\)\s*=>\s*import\('([^']+)'\)/);
-    if (lazy) { specs.push(lazy[1]); return; }
-    const named = chunk.match(/component:\s*(\w+)/);
-    if (named && staticImports[named[1]]) specs.push(staticImports[named[1]]);
-  });
-  return specs;
-}
 
 /**
  * @param {string} spec путь импорта (`@/...`, `./...`)
@@ -92,25 +70,58 @@ export function userFlowModules() {
   return [...seen].filter((f) => /\.(vue|js)$/.test(f) && !isApiWrapper(f));
 }
 
+const PATH_LITERAL_RE = /`([^`]*)`|'([^']*)'|"([^"]*)"/g;
+
+/** @param {string} literal @returns {string} путь с `:x` вместо подставляемых значений */
+function normalizePath(literal) {
+  return literal.replace(/\$\{[^}]*\}/g, ':x').split('?')[0];
+}
+
 /**
- * Вызовы `apiRequest`/`apiRequestRaw` с литеральным путём: путь с `:x` вместо
- * подставляемых значений, метод и полный текст аргументов (в нём ищем `silent403`).
+ * Пути, которые может принять переменная, переданная в `apiRequest` вместо литерала.
+ * Собираем строковые литералы из её объявлений (`const endpoint = ...`, в том числе
+ * из тернарника): без этого вызов через переменную выглядит как «пути нет», а
+ * закрытый правом запрос проезжает мимо замка.
+ *
+ * @param {string} text
+ * @param {string} name
+ * @returns {string[]}
+ */
+function pathsOfVariable(text, name) {
+  const paths = [];
+  for (const decl of text.matchAll(new RegExp(`\\b(?:const|let|var)\\s+${name}\\s*=([^;\\n]*(?:\\n\\s*[^;\\n]*)*?);`, 'g'))) {
+    for (const literal of decl[1].matchAll(PATH_LITERAL_RE)) {
+      const value = literal[1] ?? literal[2] ?? literal[3];
+      if (value.startsWith('/')) paths.push(normalizePath(value));
+    }
+  }
+  return [...new Set(paths)];
+}
+
+/**
+ * Вызовы `apiRequest`/`apiRequestRaw`: путь, метод и полный текст аргументов (в нём
+ * ищем `silent403`). У вызова через неразобранную переменную `path` равен null -
+ * такие спека перечисляет отдельно, чтобы «не смог прочитать» не читалось как
+ * «проверено и чисто».
  *
  * @param {string} text исходник модуля
- * @returns {Array<{ path: string, method: string, args: string, line: number }>}
+ * @returns {Array<{ path: string|null, expression: string, method: string, args: string, line: number }>}
  */
 export function apiCallsIn(text) {
   const calls = [];
-  const re = /apiRequest(?:Raw)?\(\s*(?:`([^`]*)`|'([^']*)'|"([^"]*)")/g;
-  for (const m of text.matchAll(re)) {
-    const raw = m[1] ?? m[2] ?? m[3];
-    const args = argumentsAfter(text, m.index + m[0].indexOf('('));
-    calls.push({
-      path: raw.replace(/\$\{[^}]*\}/g, ':x').split('?')[0],
-      method: args.match(/method:\s*['"](\w+)['"]/)?.[1] ?? 'GET',
-      args,
-      line: text.slice(0, m.index).split('\n').length,
-    });
+  for (const m of text.matchAll(/apiRequest(?:Raw)?\(/g)) {
+    const args = argumentsAfter(text, m.index + m[0].length - 1);
+    const first = args.trim().split(',')[0].trim();
+    const line = text.slice(0, m.index).split('\n').length;
+    const method = args.match(/method:\s*['"](\w+)['"]/)?.[1] ?? 'GET';
+
+    const literal = first.match(/^(?:`([^`]*)`|'([^']*)'|"([^"]*)")$/);
+    const paths = literal
+      ? [normalizePath(literal[1] ?? literal[2] ?? literal[3])]
+      : (/^\w+$/.test(first) ? pathsOfVariable(text, first) : []);
+
+    if (!paths.length) { calls.push({ path: null, expression: first, method, args, line }); continue; }
+    paths.forEach((p) => calls.push({ path: p, expression: first, method, args, line }));
   }
   return calls;
 }
