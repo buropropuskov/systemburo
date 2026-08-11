@@ -165,28 +165,52 @@ func deleteEntities(ctx context.Context, tx *gorm.DB, table, entity string, ids 
 	return deleted, kept, nil
 }
 
-// ownedLinkTables -- связки, которые принадлежат самой удаляемой записи и уходят
-// вместе с ней. Членство пользователя в организации или компании существует только
-// ради него: пока строка есть, пользователь не удаляется, а смысла отдельно от него
-// она не имеет.
+// ownedCleanups -- строки, которые принадлежат самой удаляемой записи и уходят вместе
+// с ней. Ключ -- таблица удаляемой записи, значение -- запросы, снимающие принадлежащее
+// ей, с единственным параметром «идентификаторы удаляемых».
 //
 // Список намеренно короткий и ведётся руками. Снимать любые ссылки, найденные по схеме,
 // нельзя: на шаблон вложений ссылается вложение чужой партии, и «освобождение» шаблона
 // снесло бы её данные. Всё, чего здесь нет, работает наоборот -- ссылка извне оставляет
 // запись на месте, и она попадает в отчёт как оставленная.
-var ownedLinkTables = map[string][]struct{ table, column string }{
+var ownedCleanups = map[string][]struct{ what, query string }{
+	// Членство пользователя в организации или компании существует только ради него:
+	// пока строка есть, пользователь не удаляется, а смысла отдельно от него она не имеет.
 	"users": {
-		{"organization_users", "user_id"},
-		{"companies_users", "user_id"},
+		{"членство в организациях", `DELETE FROM organization_users WHERE user_id IN (?)`},
+		{"членство в компаниях", `DELETE FROM companies_users WHERE user_id IN (?)`},
+	},
+	// Столбцы, окна и фотографии поста -- части самого поста. Связь объявлена у
+	// SystemTable перечнями (Fields/FactFields/TimeSlots/WarningWindows/Photos) без
+	// правила удаления, поэтому в базе она без каскада: пост не удалялся, пока живы его
+	// собственные столбцы. В отчёте это выглядело как «оставлено: на них ссылаются
+	// данные вне партии» -- неправда, ссылались его же строки.
+	"system_tables": {
+		{"столбцы поста", `DELETE FROM table_fields WHERE table_id IN (?)`},
+		{"столбцы фактического прохода", `DELETE FROM table_field_facts WHERE table_id IN (?)`},
+		{"временные окна поста", `DELETE FROM system_table_time_slots WHERE table_id IN (?)`},
+		{"предупреждения поста", `DELETE FROM system_table_warning_windows WHERE table_id IN (?)`},
+		{"фотографии поста", `DELETE FROM system_table_photos WHERE table_id IN (?)`},
+	},
+	// Машины и сотрудники заявки уходят с ней каскадом, а их привязки к постам -- нет:
+	// у car_target_tables/employee_target_tables внешних ключей нет вовсе. После
+	// удаления партии строки оставались висеть на несуществующих машинах и держали
+	// посты той же партии, то есть мусор копился с каждой наливкой.
+	"applications": {
+		{"привязки машин к постам", `DELETE FROM car_target_tables WHERE car_id IN (
+			SELECT c.id FROM cars c JOIN attachments a ON a.id = c.attachment_id
+			WHERE a.application_id IN (?))`},
+		{"привязки сотрудников к постам", `DELETE FROM employee_target_tables WHERE employee_id IN (
+			SELECT e.id FROM employees e JOIN attachments a ON a.id = e.attachment_id
+			WHERE a.application_id IN (?))`},
 	},
 }
 
-// clearOwnedLinks снимает связки владения перед удалением самих записей.
+// clearOwnedLinks снимает принадлежащее удаляемым записям перед их удалением.
 func clearOwnedLinks(ctx context.Context, tx *gorm.DB, table string, ids []int) error {
-	for _, link := range ownedLinkTables[table] {
-		q := fmt.Sprintf(`DELETE FROM %s WHERE %s IN (?)`, link.table, link.column)
-		if err := tx.WithContext(ctx).Exec(q, ids).Error; err != nil {
-			return fmt.Errorf("снятие связки %s.%s: %w", link.table, link.column, err)
+	for _, cleanup := range ownedCleanups[table] {
+		if err := tx.WithContext(ctx).Exec(cleanup.query, ids).Error; err != nil {
+			return fmt.Errorf("снятие связки (%s): %w", cleanup.what, err)
 		}
 	}
 	return nil

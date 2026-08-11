@@ -163,3 +163,47 @@ func TestFakePurge_KeepsSharedRecordsUsedByOtherBatch(t *testing.T) {
 	require.Positive(t, templatesLeft,
 		"шаблоны вложений нужны заявкам второй партии и удалению вместе с первой не подлежат")
 }
+
+// Партия обязана унести и посты со своими столбцами, и привязки машин/сотрудников к
+// постам. Раньше пост партии удалить не удавалось (его держали его же столбцы, у связи
+// нет каскада), отчёт писал «оставлено: на них ссылаются данные вне партии», а привязки
+// оставались висеть на удалённых машинах -- у car_target_tables внешних ключей нет вовсе,
+// и мусор копился с каждой наливкой.
+func TestFakePurge_RemovesPostsWithColumnsAndTargetLinks(t *testing.T) {
+	_, db, _ := testutil.SetupTestApp(t)
+	ctx := context.Background()
+	testutil.CleanDB(t, db)
+	seedFakeAdmin(t, db)
+
+	tables := []string{"system_tables", "table_fields", "table_field_facts",
+		"car_target_tables", "employee_target_tables"}
+	before := make(map[string]int64, len(tables))
+	for _, tbl := range tables {
+		before[tbl] = countTableRows(t, db, tbl)
+	}
+
+	profile, err := fakedata.ProfileByName("small")
+	require.NoError(t, err)
+	label := uniq("fake-purge-posts")
+	batch, err := fakedata.OpenBatch(ctx, db, label, 6161, profile.Name)
+	require.NoError(t, err)
+	require.NoError(t, fakedata.Run(ctx, &fakedata.Env{DB: db, Batch: batch, Profile: profile, Seed: 6161}))
+
+	require.Greater(t, countTableRows(t, db, "car_target_tables"), before["car_target_tables"],
+		"наливка обязана была привязать машины к постам -- иначе проверять нечего")
+
+	res, err := fakedata.PurgeBatch(ctx, db, label, true)
+	require.NoError(t, err)
+	require.Zero(t, res.TotalKept(), "оставлять нечего: все посты партии её собственные")
+
+	for _, tbl := range tables {
+		require.Equal(t, before[tbl], countTableRows(t, db, tbl),
+			"таблица %s должна вернуться к тому, что было до партии", tbl)
+	}
+
+	var orphans int64
+	require.NoError(t, db.Raw(`
+		SELECT COUNT(*) FROM car_target_tables ctt
+		LEFT JOIN cars c ON c.id = ctt.car_id WHERE c.id IS NULL`).Scan(&orphans).Error)
+	require.Zero(t, orphans, "привязки к постам не должны переживать свои машины")
+}
