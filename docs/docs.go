@@ -21342,6 +21342,46 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/recipient-candidates": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Пользователи, которых автор может добавить получателем заявки: коллеги по организации и компании плюс руководители. Доступно любому авторизованному - выбор получателя есть у всех, кто подаёт заявку, а список людей своей организации и так открыт (/organizations/{id}/users).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Кандидаты в получатели заявки",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.RecipientCandidate"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{username}": {
             "delete": {
                 "security": [
@@ -25040,6 +25080,33 @@ const docTemplate = `{
                 },
                 "last_second_count": {
                     "type": "integer"
+                }
+            }
+        },
+        "models.RecipientCandidate": {
+            "type": "object",
+            "properties": {
+                "first_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "middle_name": {
+                    "type": "string"
+                },
+                "pd_hidden": {
+                    "description": "PDHidden -- ФИО скрыто: работник не дал согласия на обработку ПД (#1567).",
+                    "type": "boolean"
+                },
+                "position": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },
