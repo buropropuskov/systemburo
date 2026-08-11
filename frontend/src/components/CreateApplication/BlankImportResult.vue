@@ -793,18 +793,18 @@ export default {
       }
     },
 
-    // Смена формата в select-е меняет набор ячеек - старые части ему могут не
-    // соответствовать (другая длина/тип), поэтому номер пересобирается заново из
-    // исходного импортного значения под НОВЫЙ формат (пусто, если оно под него не
-    // раскладывается) - не из того, что человек уже успел напечатать поверх старого.
+    // Смена формата очищает ячейки, как это делает форма ручного ввода (VehicleForm,
+    // selectFormat). Подставлять сюда исходное значение из файла нельзя: человек мог
+    // уже поправить номер руками, и переключение формата молча вернуло бы то, что
+    // пришло в бланке. Разбор исходного номера остаётся только при первом показе строки.
     handleRowFormatChange(row) {
-      row.fields.numberParts = this.buildRowNumberParts(this.rowOriginalPlate(row), this.rowPlateFormat(row));
+      row.fields.numberParts = initializeNumberParts(this.rowPlateFormat(row));
     },
 
     handleRowFactChange(row) {
       row.fields.numberParts = row.fields.isByFact
         ? []
-        : this.buildRowNumberParts(this.rowOriginalPlate(row), this.rowPlateFormat(row));
+        : initializeNumberParts(this.rowPlateFormat(row));
     },
 
     /**

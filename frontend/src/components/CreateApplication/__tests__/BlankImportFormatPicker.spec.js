@@ -80,6 +80,16 @@ function mountPanel(props = {}) {
   });
 }
 
+
+// Смена формата очищает ячейки, как в форме ручного ввода, поэтому после переключения
+// номер вводится заново - тесты ниже делают это явно.
+async function typePlate(wrapper, rowNumber, parts) {
+  const cells = wrapper.findAll(`[data-testid="bim-problem-row-${rowNumber}"] .bim__plate-cell`);
+  for (let i = 0; i < parts.length; i += 1) {
+    await cells[i].setValue(parts[i]);
+  }
+}
+
 describe('BlankImportResult - выбор формата номера на каждую строку', () => {
   beforeEach(() => {
     listCitizenshipsMock.mockReset();
@@ -124,6 +134,7 @@ describe('BlankImportResult - выбор формата номера на каж
     await flushPromises();
 
     await wrapper.find('[data-testid="bim-format-4"]').setValue(String(FORMAT_B.format.id));
+    await typePlate(wrapper, 4, ['1234']);
 
     expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeUndefined();
   });
@@ -137,6 +148,7 @@ describe('BlankImportResult - выбор формата номера на каж
     expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeDefined();
 
     await select.setValue('');
+    await typePlate(wrapper, 4, ['1234']);
     expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeUndefined();
   });
 
@@ -157,12 +169,29 @@ describe('BlankImportResult - выбор формата номера на каж
     await flushPromises();
 
     await wrapper.find('[data-testid="bim-format-4"]').setValue(String(FORMAT_B.format.id));
+    await typePlate(wrapper, 4, ['1234']);
     await wrapper.find('[data-testid="bim-include-4"]').trigger('click');
     await flushPromises();
 
     const staged = wrapper.emitted('stage');
     const last = staged[staged.length - 1][0];
     expect(last.rows[0]).toMatchObject({ plateNumber: '1234', formatId: FORMAT_B.format.id });
+  });
+
+  // Ветка, которую ревью отметило непокрытой: исходный номер из файла раскладывается
+  // под недефолтный формат, и при первом показе строки ячейки уже заполнены им - человеку
+  // не приходится перепечатывать корректный номер. При РУЧНОЙ смене формата ячейки,
+  // наоборот, очищаются, как в форме подачи.
+  it('исходный номер подставляется в ячейки при первом показе, но не при смене формата', async () => {
+    const wrapper = mountPanel({ rows: [TRANSIT_ONLY_ROW] });
+    await flushPromises();
+
+    const cells = wrapper.findAll('[data-testid="bim-problem-row-4"] .bim__plate-cell');
+    expect(cells.map((c) => c.element.value).join('')).toBe('1234');
+
+    await wrapper.find('[data-testid="bim-format-4"]').setValue(String(FORMAT_A.format.id));
+    const afterSwitch = wrapper.findAll('[data-testid="bim-problem-row-4"] .bim__plate-cell');
+    expect(afterSwitch.every((c) => c.element.value === '')).toBe(true);
   });
 
   it('строка без правки формата (автоподбор) уходит в список с formatId null', async () => {
