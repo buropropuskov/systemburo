@@ -960,6 +960,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.GET("/settings/upload", settings.GetUploadSettings)
 	protected.GET("/settings/notifications", settings.GetNotificationSettings)
 	protected.GET("/settings/password-policy", settings.GetPasswordPolicy)
+	// Почта (#1906): состояние настройки и проверочное письмо. Оба под тем же
+	// правом, что и остальные настройки. Конкретные пути объявлены ДО
+	// PUT /settings/:key намеренно - иначе echo увидел бы в "mail" значение
+	// параметра key и попытался бы сохранить настройку с таким именем.
+	protected.GET("/settings/mail/status", settings.GetMailStatus, requireSettings)
+	protected.POST("/settings/mail/test", settings.SendTestMail, requireSettings)
 	protected.PUT("/settings/:key", settings.Update, requireSettings)
 
 	// Новости. Активные (GET "") - всем авторизованным; управление - page.admin

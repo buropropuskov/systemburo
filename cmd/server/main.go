@@ -338,6 +338,10 @@ func main() {
 	userBanHandler := handlers.NewUserBanHandler(userBanService)
 	consentHandler := handlers.NewConsentHandler(consentService, pdConsentGateService, settingsService, db)
 	settingsHandler := handlers.NewSettingsHandler(settingsService, documentFileService, cfg.UploadMaxFileSize, pdConsentGateService, pdConsentStatsService)
+	// Почтовая рассылка (#1906). Сервис создаётся всегда: при пустом SMTP_HOST он
+	// отвечает "почта не настроена" и не даёт молча копить недоставленное.
+	mailService := services.NewMailService(db, cfg)
+	settingsHandler.SetMailSender(mailService)
 	// Рабочая таймзона суточных операций: по ней же считается каталог дня в файловом
 	// архиве, иначе заявка, поданная поздним вечером, легла бы в папку следующего дня.
 	resetLoc, err := time.LoadLocation(cfg.ResetTimezone)
@@ -585,6 +589,10 @@ func main() {
 	// Уборка файлов, загруженных к заявке, которую так и не отправили (#1721).
 	go startApplicationFileSweeper(ctxSig, applicationFileService, cfg.ApplicationFileDraftTTL, time.Hour)
 
+	// Разбор очереди исходящих писем (#1906). При пустом SMTP_HOST горутина
+	// завершается сразу: очередь тогда и не наполняется.
+	go startMailWorker(ctxSig, mailService, cfg.MailWorkerTick)
+
 	// Файловый архив бланков (#1615, B1): разбор очереди enqueue, подметатель
 	// повторов и ежесуточная сверка реестра с диском в 03:00 по resetLoc. nil,
 	// если каталог архива не поднялся - startFileArchiveWorker сама это проверяет
@@ -666,6 +674,34 @@ func startRetentionWorker(ctx context.Context, db *gorm.DB, tokenDays, notificat
 // startApplicationFileSweeper убирает файлы, загруженные к заявке, которую так и
 // не отправили (#1721): заявитель выбрал документы и закрыл форму. Ходит чаще
 // суток, потому что такие файлы занимают место, ни на что не влияя.
+// startMailWorker разбирает очередь исходящих писем: раз в tick забирает пачку
+// ожидающих отправки и шлёт её одним SMTP-соединением. Ненастроенная почта
+// завершает горутину сразу - при пустом SMTP_HOST письма в очередь не попадают.
+func startMailWorker(ctx context.Context, svc services.MailSender, tick time.Duration) {
+	if svc == nil || !svc.Enabled() {
+		slog.Info("почта не настроена, воркер очереди писем не запущен")
+		return
+	}
+	run := func() {
+		sent, failed := svc.ProcessQueue(ctx)
+		if sent > 0 || failed > 0 {
+			slog.Info("почта: очередь разобрана", "sent", sent, "failed", failed)
+		}
+	}
+	run()
+	ticker := time.NewTicker(tick)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("почта: воркер очереди остановлен")
+			return
+		case <-ticker.C:
+			run()
+		}
+	}
+}
+
 func startApplicationFileSweeper(ctx context.Context, svc services.ApplicationFileService, ttl, interval time.Duration) {
 	run := func() {
 		removed, err := svc.SweepOrphans(ctx, ttl)
