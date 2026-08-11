@@ -24,6 +24,7 @@ type Batch struct {
 	db     *gorm.DB
 	record models.FakeBatch
 	counts map[string]int
+	marks  map[string]int
 }
 
 // OpenBatch заводит партию. Пустая метка означает «назвать по моменту запуска».
@@ -42,7 +43,7 @@ func OpenBatch(ctx context.Context, db *gorm.DB, label string, seed int64, profi
 	if err := db.WithContext(ctx).Create(&record).Error; err != nil {
 		return nil, fmt.Errorf("не удалось завести партию %q: %w", label, err)
 	}
-	return &Batch{db: db, record: record, counts: make(map[string]int)}, nil
+	return &Batch{db: db, record: record, counts: make(map[string]int), marks: make(map[string]int)}, nil
 }
 
 // ID партии.
@@ -83,6 +84,29 @@ func (b *Batch) Counts() map[string]int {
 	return out
 }
 
+// Mark считает ДЕЙСТВИЯ шага над уже существующими записями -- отметки въезда и выезда
+// (passagesStep). В перечень партии они не идут: удалять там нечего, машина и сотрудник
+// принадлежат заявке и уходят вместе с ней, а сама отметка живёт в журнале.
+//
+// Считать их всё равно надо: без этого предварительный показ обещал отметки прохода, а
+// отчёт о наливке молчал о них вовсе -- и человек видел «создастся 1465, создано 963»
+// без объяснения, куда делась разница.
+func (b *Batch) Mark(entity string, n int) {
+	if n <= 0 {
+		return
+	}
+	b.marks[entity] += n
+}
+
+// Marks -- сколько записей каких видов отмечено (не создано).
+func (b *Batch) Marks() map[string]int {
+	out := make(map[string]int, len(b.marks))
+	for entity, n := range b.marks {
+		out[entity] = n
+	}
+	return out
+}
+
 // Total -- сколько записей создано всего.
 func (b *Batch) Total() int {
 	total := 0
@@ -93,6 +117,11 @@ func (b *Batch) Total() int {
 }
 
 // Close записывает сводку партии.
+//
+// В сводку идут только созданные записи: по ней считается объём партии в перечне
+// (-list), а он должен совпадать с тем, что удалится. Отметки прохода (Mark) в неё не
+// попадают -- они не записи партии, показываются в отчёте о наливке отдельной таблицей
+// и остаются в журнале.
 func (b *Batch) Close(ctx context.Context) error {
 	payload, err := json.Marshal(b.counts)
 	if err != nil {

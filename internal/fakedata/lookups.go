@@ -32,10 +32,10 @@ func (lookupsStep) Plan(Profile) []PlanItem {
 	// контракту пакета (см. generator.go) не имеет доступа к базе, чтобы
 	// посчитать точный остаток.
 	return []PlanItem{
-		{Entity: models.AuditEntityUnloadPlace, Title: "Места разгрузки", Count: len(unloadPlaceCandidates)},
-		{Entity: models.AuditEntityMark, Title: "Марки машин", Count: len(markCandidates)},
-		{Entity: models.AuditEntityCitizenship, Title: "Гражданства", Count: len(citizenshipCandidates)},
-		{Entity: models.AuditEntityLicensePlateFormat, Title: "Форматы номеров", Count: len(plateFormatCandidates)},
+		{Entity: models.AuditEntityUnloadPlace, Title: EntityTitle(models.AuditEntityUnloadPlace), Count: len(unloadPlaceCandidates)},
+		{Entity: models.AuditEntityMark, Title: EntityTitle(models.AuditEntityMark), Count: len(markCandidates)},
+		{Entity: models.AuditEntityCitizenship, Title: EntityTitle(models.AuditEntityCitizenship), Count: len(citizenshipCandidates)},
+		{Entity: models.AuditEntityLicensePlateFormat, Title: EntityTitle(models.AuditEntityLicensePlateFormat), Count: len(plateFormatCandidates)},
 	}
 }
 

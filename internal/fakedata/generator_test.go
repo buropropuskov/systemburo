@@ -64,19 +64,55 @@ func TestPlan_DictionariesAndPostsAreFixedRegardlessOfProfile(t *testing.T) {
 	}
 }
 
-// PlanTotal суммирует ровно то, что напечатает предварительный показ -- сумма
-// строк плана, не больше и не меньше.
-func TestPlanTotal_SumsAllItems(t *testing.T) {
+// PlanTotal суммирует ровно то, что создастся: строки создаваемых записей, без строк
+// отметок на уже существующих.
+func TestPlanTotal_SumsCreatedItemsOnly(t *testing.T) {
 	profile, err := fakedata.ProfileByName("small")
 	require.NoError(t, err)
 
 	items := fakedata.Plan(profile)
 	var want int
 	for _, item := range items {
+		if item.Mark {
+			continue
+		}
 		want += item.Count
 	}
 	require.Equal(t, want, fakedata.PlanTotal(items))
 	require.Positive(t, fakedata.PlanTotal(items))
+}
+
+// Отметки прохода не должны попадать в «всего создастся»: они ставятся на уже созданных
+// машинах и сотрудниках. Пока они входили в итог, предпоказ обещал 1465 записей, а отчёт
+// о наливке показывал 963 -- разница объяснялась только чтением исходников.
+func TestPlan_PassageMarksAreSeparatedFromCreatedRecords(t *testing.T) {
+	profile, err := fakedata.ProfileByName("medium")
+	require.NoError(t, err)
+
+	items := fakedata.Plan(profile)
+	marks := fakedata.PlanMarks(items)
+	require.Len(t, marks, 2, "отметки проезда машин и прохода сотрудников")
+
+	var markTotal int
+	for _, item := range marks {
+		require.True(t, item.Mark)
+		markTotal += item.Count
+	}
+	require.Positive(t, markTotal)
+
+	records := fakedata.PlanRecords(items)
+	require.Len(t, records, len(items)-len(marks))
+	require.Equal(t, len(items), len(records)+len(marks), "строка плана либо создаётся, либо отмечается")
+	require.Equal(t, fakedata.PlanTotal(items)+markTotal, planItemsSum(items),
+		"итог создаваемого плюс отметки -- это вся таблица плана")
+}
+
+func planItemsSum(items []fakedata.PlanItem) int {
+	var sum int
+	for _, item := range items {
+		sum += item.Count
+	}
+	return sum
 }
 
 func planCounts(items []fakedata.PlanItem) map[string]int {

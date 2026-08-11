@@ -18,6 +18,13 @@
 # В контейнеры они не передаются - скрипт работает снаружи.
 set -euo pipefail
 
+# Права на каталог копий ставились и раньше, а режим самих файлов оставался за
+# umask оператора, обычно 644. Внутри каталога с правами 700 это незаметно, но
+# режим уезжает вместе с файлом: во внешнее хранилище, на съёмный носитель и на
+# другой сервер при переносе. Ставится до создания чего бы то ни было, заодно
+# закрывая журнал и файл состояния.
+umask 077
+
 ENVIRONMENT="${1:-local}"
 # Метка попадает в имя файла: «buro-db-2026-08-01-1612-pered-obnovleniem.dump».
 # Без неё копии различаются только временем, и найти среди них ту, что снята
@@ -39,6 +46,11 @@ if [ ! -f .env ]; then
   echo "Файл параметров .env не найден в $(pwd)" >&2
   exit 1
 fi
+# Разрешение снимать копию без шифрования запоминается ДО чтения .env: строка
+# ниже перекрывает окружение, и разовый запуск с BACKUP_ALLOW_UNENCRYPTED=yes
+# молча терялся бы о пустую строку в файле параметров. Тот же приём применён в
+# backup-status.sh для BACKUP_DIR.
+ALLOW_UNENCRYPTED_ARG="${BACKUP_ALLOW_UNENCRYPTED:-}"
 set -a; . ./.env; set +a
 
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/systemburo}"
@@ -47,6 +59,11 @@ BACKUP_KEEP_WEEKLY="${BACKUP_KEEP_WEEKLY:-4}"
 BACKUP_KEEP_MONTHLY="${BACKUP_KEEP_MONTHLY:-6}"
 BACKUP_UPLOADS_MODE="${BACKUP_UPLOADS_MODE:-weekly}"
 BACKUP_AGE_RECIPIENT="${BACKUP_AGE_RECIPIENT:-}"
+# Единственный способ получить незашифрованную копию - выставить это в yes.
+# Окружение имеет приоритет над файлом параметров: разовый запуск без правки
+# .env тоже должен быть возможен.
+BACKUP_ALLOW_UNENCRYPTED="${ALLOW_UNENCRYPTED_ARG:-${BACKUP_ALLOW_UNENCRYPTED:-}}"
+if [ -n "$BACKUP_AGE_RECIPIENT" ]; then ENCRYPTED=true; else ENCRYPTED=false; fi
 BACKUP_S3_REMOTE="${BACKUP_S3_REMOTE:-}"
 BACKUP_S3_BUCKET="${BACKUP_S3_BUCKET:-}"
 DB_NAME="${DB_NAME:-auto_registry}"
@@ -92,6 +109,7 @@ write_status() {
   "result": "$result",
   "stamp": "$STAMP",
   "size_bytes": $size,
+  "encrypted": $ENCRYPTED,
   "reason": "$FAIL_REASON"
 }
 EOF
@@ -106,6 +124,38 @@ on_error() {
   exit "$code"
 }
 trap on_error ERR
+
+# Проверка ключа идёт до первого обращения к базе: смысл в том, чтобы не создать
+# незашифрованную выгрузку вовсе, а не удалять её потом. Раньше здесь была строка
+# в журнале - но журнал открывают уже при разборе аварии, когда копии с ФИО,
+# паспортными данными и номерами патентов год как лежат в открытом виде.
+if [ -z "$BACKUP_AGE_RECIPIENT" ] && [ "$BACKUP_ALLOW_UNENCRYPTED" != "yes" ]; then
+  FAIL_REASON="не задан BACKUP_AGE_RECIPIENT: копия содержала бы персональные данные в открытом виде"
+  log "ОТКАЗ: $FAIL_REASON"
+  write_status "failed"
+  cat >&2 <<'EOF'
+
+Копирование не выполнено: не задан ключ шифрования копий.
+
+Выгрузка базы и архив бланков содержат персональные данные - ФИО, паспортные
+данные, номера патентов. Без ключа они лягут на диск и уедут во внешнее
+хранилище в открытом виде: кража архива будет равносильна краже базы.
+
+Исправить одним из двух способов.
+
+1. Завести ключ (так правильно):
+     age-keygen -o buro-backup.key
+   Закрытую часть унести с сервера в хранилище секретов организации, открытую
+   (строка вида age1...) вписать в .env рядом со скриптом:
+     BACKUP_AGE_RECIPIENT=age1...
+
+2. Осознанно согласиться на незашифрованные копии - тогда за их сохранность
+   отвечает то место, где они лежат:
+     BACKUP_ALLOW_UNENCRYPTED=yes
+
+EOF
+  exit 1
+fi
 
 WORK_DIR="$(mktemp -d "${BACKUP_DIR}/.work-XXXXXX")"
 
@@ -134,8 +184,8 @@ suffix() {
 }
 
 log "начало копирования, контур $ENVIRONMENT"
-if [ -z "$BACKUP_AGE_RECIPIENT" ]; then
-  log "ВНИМАНИЕ: BACKUP_AGE_RECIPIENT не задан, копия не шифруется и содержит персональные данные"
+if [ "$ENCRYPTED" = false ]; then
+  log "ВНИМАНИЕ: копия НЕ шифруется по явному разрешению BACKUP_ALLOW_UNENCRYPTED=yes и содержит персональные данные в открытом виде"
 fi
 
 # --- база данных ---
@@ -175,8 +225,11 @@ ARCHIVE_FILE=""
 pack_files() {
   local out="$1" volume="$2" host_dir="$3"
   if [ -n "$volume" ]; then
+    # umask задаётся внутри контейнера: маска процесса-хозяина на процесс в
+    # контейнере не распространяется, и без этой строки архив тома ложился бы
+    # с правами 644 при закрытых остальных файлах копии.
     docker run --rm -v "$volume":/data:ro -v "$WORK_DIR":/out alpine:3.20 \
-      tar czf "/out/$(basename "$out")" -C /data .
+      sh -c "umask 077 && tar czf '/out/$(basename "$out")' -C /data ."
   else
     tar czf "$out" -C "$host_dir" .
   fi
