@@ -930,7 +930,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 	permGroup.GET("/user/:id", permissions.GetUserPermissions, auditManage)
 	permGroup.GET("/user/:id/effective", permissions.GetUserEffectivePermissions, auditManage)
 	permGroup.PUT("/user/:id", permissions.UpdateUserPermissions, auditManage)
-	permGroup.GET("/catalog", permissions.GetCatalog)
+	// Каталог - полный перечень ключей системы с человеческими названиями, то есть
+	// карта устройства доступа. Читают его только редакторы прав (модалка прав
+	// пользователя, роли, группы), поэтому гейтим как остальную группу (#1967).
+	permGroup.GET("/catalog", permissions.GetCatalog, auditManage)
 	// Генерация прав для таблицы. Фронт напрямую не дёргает - права создаются
 	// автоматически внутри создания таблицы (system_table_service). Прямой роут
 	// закрыт тем же правом, что и конструктор, чтобы обычный юзер не мог плодить

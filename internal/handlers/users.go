@@ -168,7 +168,14 @@ func (h *UsersHandler) ChangeOwnPassword(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.ChangeOwnPassword(c.Request().Context(), userID, req, requestMeta(c)); err != nil {
+	// Маркер продления текущей сессии: она переживёт смену пароля, остальные
+	// погаснут. Без cookie (запрос мимо браузера) сохранять нечего - тогда
+	// отзываются все, как и раньше.
+	keep := ""
+	if cookie, err := c.Cookie(refreshCookieName); err == nil && cookie != nil {
+		keep = cookie.Value
+	}
+	if err := h.service.ChangeOwnPassword(c.Request().Context(), userID, req, requestMeta(c), keep); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Password changed successfully")

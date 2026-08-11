@@ -452,6 +452,7 @@
               </template>
             </BaseDropdown>
             <button
+              v-if="canManageAccess"
               class="lk-button lk-button--secondary"
               data-testid="user-access"
               @click="openAccess(selectedUser)"
@@ -1240,6 +1241,13 @@ export default {
       // именно бэкенд остаётся тем, кто отказывает.
       if (user.is_super_admin) return false;
       return !user.is_admin || auth.isSuperAdmin;
+    },
+    // Окно прав доступа целиком стоит на permission.audit.manage: этим правом на
+    // бэкенде закрыты и каталог ключей, и эффективные права цели, и роли с
+    // группами. Без права окно открывалось бы пустым и с чередой отказов, поэтому
+    // прячем сам вход в него.
+    canManageAccess() {
+      return usePermissionsStore().hasPermission('permission.audit.manage');
     },
     ...mapState(useCompaniesStore, { companies: 'items' }),
     showArchive() {
