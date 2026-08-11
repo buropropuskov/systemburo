@@ -14,7 +14,7 @@ vi.mock('@/router', () => ({
   },
 }));
 
-import { apiRequest, apiRequestRaw, createExtendedTimeoutSignal, _resetDedup403 } from '../client';
+import { apiRequest, apiRequestRaw, createExtendedTimeoutSignal, _resetDedup403, SILENT_403_PREFIXES } from '../client';
 import { usePDConsentStore } from '@/stores/pdConsent';
 
 function okJson(body, init = {}) {
@@ -372,6 +372,19 @@ describe('403 handling', () => {
     fetchMock.mockResolvedValueOnce(errJson({ banned: false }, 403));
 
     await apiRequest('/unique-cars/lookup?q=test');
+
+    await Promise.resolve();
+    expect(notifyMock).not.toHaveBeenCalled();
+  });
+
+  // Список тихих путей пополняется по мере того, как фоновые запросы упираются в
+  // право (подсказки справочников, билет потока, сквозной поиск). Ходим по нему
+  // целиком: перечисленные руками пути покрывают лишь часть, и новый префикс
+  // приезжает без проверки.
+  it.each(SILENT_403_PREFIXES)('не вызывает notify для тихого пути %s', async (prefix) => {
+    fetchMock.mockResolvedValueOnce(errJson({ banned: false }, 403));
+
+    await apiRequest(prefix);
 
     await Promise.resolve();
     expect(notifyMock).not.toHaveBeenCalled();
