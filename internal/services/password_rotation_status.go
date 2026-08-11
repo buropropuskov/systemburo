@@ -26,7 +26,9 @@ type PasswordRotationStatus struct {
 	// WithoutEmail - активные незаблокированные без адреса. Плановая проверка их
 	// берёт наравне со всеми, а вот предупреждение и новый пароль слать им некуда.
 	WithoutEmail int `json:"without_email"`
-	// Expired - у скольких срок уже вышел. Это и есть размер ближайшего прогона.
+	// Expired - у скольких срок уже вышел. Часть из них прогон мог пометить в
+	// прошлые сутки, поэтому это ответ на вопрос «сколько людей упрётся в форму
+	// смены», а не размер ближайшего прогона.
 	Expired int `json:"expired"`
 	// ExpiringSoon - скольким уйдёт предупреждение в окне перед истечением. Считается
 	// только по тем, у кого есть адрес: предупреждение - это письмо.
@@ -52,7 +54,7 @@ func NewPasswordRotationStatusService(db *gorm.DB, settings SettingsService, mai
 	return &PasswordRotationStatusService{db: db, settings: settings, mail: mail, location: loc}
 }
 
-// RotationRunHour - час, в который просыпается планировщик плановой смены.
+// RotationRunHour - час, в который просыпается планировщик проверки сроков.
 // 03:00 занят сверкой файлового архива, 06:00 - сбросом территориальных статусов,
 // поэтому 04:00.
 const RotationRunHour = 4
