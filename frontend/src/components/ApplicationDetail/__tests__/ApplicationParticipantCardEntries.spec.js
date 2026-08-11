@@ -198,6 +198,36 @@ describe('Карточка участника - вход из блока сог�
     expect(card(wrapper).props('participant')).toEqual(READER);
   });
 
+  it('деталь перечитали, пока список летел - ответ показан, но в память не осел', async () => {
+    const wrapper = mountDetail();
+    await flushPromises();
+    vi.clearAllMocks();
+
+    let resolveList;
+    getApplicationParticipants.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveList = resolve; })
+    );
+
+    wrapper.findComponent(ApplicationConfirmation).vm.$emit('select-user', { id: 5 });
+    await wrapper.vm.$nextTick();
+
+    // Живой сигнал по заявке: голоса согласующих могли смениться.
+    wrapper.vm.resetParticipantsCache();
+    resolveList([APPROVER, READER]);
+    await flushPromises();
+
+    expect(card(wrapper).props('participant')).toEqual(APPROVER);
+
+    // Следующий клик обязан спросить заново, а не показать то, что приехало до
+    // обновления детали.
+    getApplicationParticipants.mockResolvedValueOnce([{ ...APPROVER, approval_status: 'rejected' }]);
+    wrapper.findComponent(ApplicationConfirmation).vm.$emit('select-user', { id: 5 });
+    await flushPromises();
+
+    expect(getApplicationParticipants).toHaveBeenCalledTimes(2);
+    expect(card(wrapper).props('participant').approval_status).toBe('rejected');
+  });
+
   it('человека нет в списке участников - говорим об этом, а не показываем пустую карточку', async () => {
     const wrapper = mountDetail();
     await flushPromises();

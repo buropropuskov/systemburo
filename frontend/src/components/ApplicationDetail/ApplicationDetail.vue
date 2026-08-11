@@ -844,6 +844,9 @@ export default {
             participants: [],
             participantsLoadedFor: null,
             participantsInflight: null,
+            // Поколение списка: деталь перечитывают по live-сигналу, и ответ,
+            // стартовавший до этого, не должен осесть в памяти как свежий.
+            participantsGeneration: 0,
             isForwarding: false,
             allUsers: [],
             approvers: [],
@@ -1339,15 +1342,23 @@ export default {
                 return this.participantsInflight.promise;
             }
 
+            const generation = this.participantsGeneration;
             const promise = getApplicationParticipants(id)
                 .then((list) => {
-                    if (Number(this.applicationData.id) !== id) return [];
-                    this.participants = Array.isArray(list) ? list : [];
-                    this.participantsLoadedFor = id;
-                    return this.participants;
+                    const fresh = Array.isArray(list) ? list : [];
+                    // Пока ответ летел, деталь перечитали или заявку сменили: показать
+                    // его тому, кто кликнул, ещё можно, а запоминать уже нельзя -
+                    // следующий клик обязан спросить заново.
+                    if (generation === this.participantsGeneration && Number(this.applicationData.id) === id) {
+                        this.participants = fresh;
+                        this.participantsLoadedFor = id;
+                    }
+                    return fresh;
                 })
                 .finally(() => {
-                    if (this.participantsInflight && this.participantsInflight.id === id) {
+                    // Сверяем по самому промису: после сброса кэша в поле уже может
+                    // лежать запрос следующего клика по той же заявке.
+                    if (this.participantsInflight && this.participantsInflight.promise === promise) {
                         this.participantsInflight = null;
                     }
                 });
@@ -1361,6 +1372,7 @@ export default {
          * показывать то же, что блок согласования за ней.
          */
         resetParticipantsCache() {
+            this.participantsGeneration += 1;
             this.participants = [];
             this.participantsLoadedFor = null;
             this.participantsInflight = null;
