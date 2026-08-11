@@ -169,11 +169,26 @@ mount /dev/mapper/systemburo-archive /srv/systemburo/archive
 
 ### Бэкапы
 
-```bash
-# Бэкап PostgreSQL
-docker compose -f docker-compose.prod.yml exec db pg_dump -U postgres auto_registry > backup.sql
+Штатная процедура - скрипты `scripts/backup*.sh` и `scripts/restore.sh`: копия включает выгрузку базы, том загрузок и каталог файлового архива, шифруется ключом age, раскладывается по срокам хранения и раз в месяц проверяется на восстановимость. Ручной `pg_dump` ниже сохранён как разовый приём для отладки: он берёт только базу, не шифрует её и оставляет вложения заявок за бортом.
 
-# Восстановление
+```bash
+# Разово: ключ, расписание, проверка
+age-keygen -o buro-backup.key           # закрытую часть унести с сервера
+# открытую часть вписать в BACKUP_AGE_RECIPIENT в .env
+sudo ./scripts/backup-install.sh production
+
+# Вручную
+make deploy-backup                      # снять копию
+make deploy-backup-status               # свежесть, состав, шифрование
+AGE_IDENTITY=./buro-backup.key make deploy-backup-verify
+AGE_IDENTITY=./buro-backup.key make deploy-restore ARGS="/var/backups/systemburo/daily/<файл>"
+```
+
+Без `BACKUP_AGE_RECIPIENT` копирование отказывается работать и копию не создаёт: в выгрузке и бланках персональные данные. Осознанный отказ от шифрования - `BACKUP_ALLOW_UNENCRYPTED=yes`. Развёрнутый порядок с разбором сбоев - в руководстве по развёртыванию и сопровождению, раздел 11.
+
+```bash
+# Разовый дамп для отладки (без шифрования, без файлов)
+docker compose -f docker-compose.prod.yml exec db pg_dump -U postgres auto_registry > backup.sql
 docker compose -f docker-compose.prod.yml exec -i db psql -U postgres auto_registry < backup.sql
 ```
 
