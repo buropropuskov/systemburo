@@ -20,7 +20,6 @@ type PermissionService interface {
 	GetMyPermissions(ctx context.Context, username string) ([]models.UserPermissionResponse, error)
 	GetUserPermissions(ctx context.Context, userID int) ([]models.UserPermissionResponse, error)
 	UpdateUserPermissions(ctx context.Context, isSuperAdmin bool, actorID int, userID int, req models.UpdatePermissionsRequest) error
-	GetPermissionTree(ctx context.Context) ([]models.PermissionTreeNode, error)
 	GetCatalog(ctx context.Context) ([]CatalogNode, error)
 	AutoGenerateForTable(ctx context.Context, tableID int, tableName string) error
 	ReconcileAllTablePermissions(ctx context.Context) error
@@ -177,39 +176,6 @@ func (s *permissionService) UpdateUserPermissions(ctx context.Context, isSuperAd
 	})
 }
 
-// GetPermissionTree возвращает дерево разрешений с группировкой по родительским ключам.
-func (s *permissionService) GetPermissionTree(ctx context.Context) ([]models.PermissionTreeNode, error) {
-	var permissions []models.Permission
-	if err := s.db.WithContext(ctx).Order("category, key").Find(&permissions).Error; err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения разрешений")
-	}
-
-	tableByID, tableBySlug, err := s.tableNameMaps(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// Build tree: group by parent_key
-	byParent := make(map[string][]models.Permission)
-	var roots []models.Permission
-
-	for _, p := range permissions {
-		if p.ParentKey == nil {
-			roots = append(roots, p)
-		} else {
-			byParent[*p.ParentKey] = append(byParent[*p.ParentKey], p)
-		}
-	}
-
-	tree := make([]models.PermissionTreeNode, 0, len(roots))
-	for _, r := range roots {
-		node := s.buildTreeNode(r, byParent, tableByID, tableBySlug)
-		tree = append(tree, node)
-	}
-
-	return tree, nil
-}
-
 // GetCatalog возвращает полный каталог прав: статическое дерево (Catalog) плюс
 // динамические права таблиц (table.<slug>.*) из БД под категорией "Таблицы".
 // Права таблиц, ушедших в архив или удалённых насовсем, из выдачи убраны
@@ -267,28 +233,6 @@ func (s *permissionService) GetCatalog(ctx context.Context) ([]CatalogNode, erro
 		nodes = append(nodes, e.node)
 	}
 	return nodes, nil
-}
-
-func (s *permissionService) buildTreeNode(p models.Permission, byParent map[string][]models.Permission, tableByID map[int]string, tableBySlug map[string]string) models.PermissionTreeNode {
-	displayName := p.DisplayName
-	if p.Category == "table" {
-		displayName, _, _ = tablePermLabel(p, tableByID, tableBySlug)
-	}
-	node := models.PermissionTreeNode{
-		Key:         p.Key,
-		DisplayName: displayName,
-		Category:    p.Category,
-	}
-
-	children, ok := byParent[p.Key]
-	if ok {
-		node.Children = make([]models.PermissionTreeNode, 0, len(children))
-		for _, child := range children {
-			node.Children = append(node.Children, s.buildTreeNode(child, byParent, tableByID, tableBySlug))
-		}
-	}
-
-	return node
 }
 
 // tableVerbs -- набор прав, генерируемых для каждой системной таблицы.

@@ -15,7 +15,7 @@ type PermissionHandler struct {
 
 // NewPermissionHandler создаёт новый экземпляр обработчика разрешений.
 // resolver используется для GetMyPermissions (новая система прав #187),
-// service остаётся для legacy /permissions/tree, /user/:id и auto-generate.
+// service остаётся для /catalog, /user/:id и auto-generate.
 func NewPermissionHandler(service services.PermissionService, resolver *services.PermissionResolver) *PermissionHandler {
 	return &PermissionHandler{service: service, resolver: resolver}
 }
@@ -108,15 +108,6 @@ func (h *PermissionHandler) UpdateUserPermissions(c echo.Context) error {
 	// Сбрасываем кэш резолвера (TTL 30s), чтобы выданные права применились сразу.
 	h.resolver.Invalidate(userID)
 	return RespondMessage(c, "ok")
-}
-
-// GetPermissionTree возвращает дерево разрешений для админского UI.
-func (h *PermissionHandler) GetPermissionTree(c echo.Context) error {
-	tree, err := h.service.GetPermissionTree(c.Request().Context())
-	if err != nil {
-		return err
-	}
-	return RespondSuccess(c, tree)
 }
 
 // GetCatalog возвращает каталог прав (статика + динамические table.*) для UI настройки.

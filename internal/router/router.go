@@ -930,7 +930,6 @@ func Setup(e *echo.Echo, d Dependencies) {
 	permGroup.GET("/user/:id", permissions.GetUserPermissions, auditManage)
 	permGroup.GET("/user/:id/effective", permissions.GetUserEffectivePermissions, auditManage)
 	permGroup.PUT("/user/:id", permissions.UpdateUserPermissions, auditManage)
-	permGroup.GET("/tree", permissions.GetPermissionTree)
 	permGroup.GET("/catalog", permissions.GetCatalog)
 	// Генерация прав для таблицы. Фронт напрямую не дёргает - права создаются
 	// автоматически внутри создания таблицы (system_table_service). Прямой роут
