@@ -33,10 +33,20 @@
     >
       <h5>Ответственные за согласование ({{ sortedResponsibleUsers.length }}):</h5>
       <div class="users-list">
+        <!-- Строка согласующего открывает его карточку (#1952). Роль и клавиатура
+             заданы руками: <button> сюда не годится - внутри блочная разметка с
+             бейджами и комментарием, которую кнопке иметь нельзя. -->
         <div
           v-for="user in sortedResponsibleUsers"
           :key="user.id"
           class="user-item"
+          data-testid="app-confirmation-user"
+          role="button"
+          tabindex="0"
+          :aria-label="`Открыть карточку: ${getUserDisplayName(user)}`"
+          @click="$emit('select-user', user)"
+          @keydown.enter.prevent="$emit('select-user', user)"
+          @keydown.space.prevent="$emit('select-user', user)"
         >
           <!-- ФИО -->
           <div class="user-name-block">
@@ -126,6 +136,9 @@ export default {
             default: false
         }
     },
+    // select-user - клик по согласующему. Карточку открывает родитель: контакты и
+    // роли лежат в ответе /applications/:id/participants, которого у этого блока нет.
+    emits: ['select-user'],
     // Словарь голосов согласующих общий с панелью раундов дополнения (#1685) -
     // getStatusText/getStatusClass приходят оттуда под теми же именами, что были методами.
     setup() {
@@ -322,11 +335,17 @@ export default {
     transition: all 0.2s ease;
     gap: 3px;
     position: relative;
+    cursor: pointer;
 }
 
 .user-item:hover {
     border-color: var(--accent);
     background: var(--accent-tint);
+}
+
+.user-item:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
 .user-name-block {
