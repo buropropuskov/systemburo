@@ -120,6 +120,17 @@ describe('RolePermissionsModal', () => {
     expect(lastSave(w).directKeys).toEqual(['entity.cars.read']);
   });
 
+  it('право архивной таблицы каталог не показывает, но сохранение его не теряет', async () => {
+    // Таблица в архиве -> её права не приходят в каталоге (#1881), поэтому строки
+    // в дереве нет. Отфильтровать такой ключ на сохранении значило бы снять права
+    // архивных таблиц у роли молча и безвозвратно: таблицу вернут из архива, а
+    // права уже не будет.
+    const w = mountModal({ initialDirectKeys: ['entity.cars.read', 'table.kpp_old.view'] });
+    expect(toggle(w, 'table.kpp_old.view').exists()).toBe(false);
+    await save(w);
+    expect([...lastSave(w).directKeys].sort()).toEqual(['entity.cars.read', 'table.kpp_old.view']);
+  });
+
   it('super_only-право заблокировано и не попадает в directKeys', async () => {
     const w = mountModal();
     const su = toggle(w, 'page.admin.system_control');

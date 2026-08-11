@@ -32,6 +32,13 @@ export const TABLE_VERB_TITLES = {
 export const TABLE_VERB_ORDER = Object.keys(TABLE_VERB_TITLES);
 
 /**
+ * Префикс ключей прав системных таблиц. Зеркало PrefixTable из
+ * internal/services/permission_keys.go: бэкенд считает валидным для назначения
+ * любой ключ с этим префиксом, не сверяясь с каталогом.
+ */
+export const TABLE_KEY_PREFIX = 'table.';
+
+/**
  * Плоский список узлов каталога вместе с детьми (один уровень вложенности --
  * глубже бэкенд не отдаёт).
  * @param {Array} catalog

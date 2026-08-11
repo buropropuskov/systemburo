@@ -237,6 +237,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := backfillCarTargetTables(db); err != nil {
 		return err
 	}
+	if err := BackfillPasswordChangedAt(db); err != nil {
+		return err
+	}
 	if err := BackfillApplicationAcceptedAt(db); err != nil {
 		return err
 	}
@@ -515,6 +518,27 @@ func backfillCarTargetTables(db *gorm.DB) error {
 		  )`
 	if err := db.Exec(q).Error; err != nil {
 		return fmt.Errorf("backfill car_target_tables: %w", err)
+	}
+	return nil
+}
+
+// BackfillPasswordChangedAt проставляет дату последней смены пароля учётным
+// записям, заведённым до появления столбца (#1907).
+//
+// Ставится ТЕКУЩИЙ момент, а не дата создания учётной записи. Дата создания
+// выглядит честнее, но означает, что в день включения плановой смены истекут разом
+// все учётные записи старше срока - то есть залп писем и оборванные сессии у всей
+// организации сразу. Ради этого и выбран индивидуальный график: отсчёт для всех
+// начинается с внедрения и дальше расходится по датам собственных смен.
+//
+// Идемпотентно: заполняет только NULL. Новые записи получают дату при создании.
+func BackfillPasswordChangedAt(db *gorm.DB) error {
+	res := db.Exec(`UPDATE users SET password_changed_at = NOW() WHERE password_changed_at IS NULL`)
+	if res.Error != nil {
+		return fmt.Errorf("backfill password_changed_at: %w", res.Error)
+	}
+	if res.RowsAffected > 0 {
+		slog.Info("проставлена дата последней смены пароля", "rows", res.RowsAffected)
 	}
 	return nil
 }
