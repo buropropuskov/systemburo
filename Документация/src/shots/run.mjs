@@ -18,8 +18,8 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import { drawOutlines, drawBadges, clearOutlines } from './lib/highlight.mjs';
-import { computeClip, normalize } from './lib/capture.mjs';
-import { openBrowser, signIn, calmPage } from './lib/session.mjs';
+import { computeClip, normalize, waitForStableRects } from './lib/capture.mjs';
+import { openBrowser, newContext, signIn, calmPage } from './lib/session.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DOCS_ROOT = path.resolve(HERE, '..', '..');
@@ -58,16 +58,22 @@ async function prepare(page, steps) {
 }
 
 async function shoot(page, shot, outDir) {
-  if (shot.goto) {
-    await page.goto(new URL(shot.goto, page.url()).href);
-  }
   if (shot.waitFor) {
     await page.locator(shot.waitFor).first().waitFor({ state: 'visible', timeout: 20000 });
   }
-  await prepare(page, shot.prepare);
+  /*
+   * Уборка - до подготовки, а не после: она закрывает всплывшее клавишей Esc,
+   * и после подготовки закрывала бы ровно то окно, ради которого кадр и
+   * снимается.
+   */
   if (shot.calm !== false) await calmPage(page);
+  await prepare(page, shot.prepare);
 
   const targets = shot.highlight ?? [];
+  await waitForStableRects(
+    page,
+    [shot.clip?.selector, ...targets.map((target) => target.selector)].filter(Boolean),
+  );
   const { boxes, warnings: outlineWarnings } = await drawOutlines(page, targets);
 
   const { clip, warnings: clipWarnings } = await computeClip(page, shot.clip, targets);
@@ -100,32 +106,60 @@ async function main() {
   const outDir = path.join(DOCS_ROOT, 'src', 'screenshots', doc);
   await mkdir(outDir, { recursive: true });
 
-  const { browser, context } = await openBrowser();
+  const browser = await openBrowser();
   const clockAt = clockMoment();
-  const pages = new Map();
+  const sessions = new Map();
   const warnings = [];
 
   try {
     for (const shot of shots) {
-      const role = shot.role ?? manifest.role;
-      if (!pages.has(role)) {
-        const account = accounts.roles[role];
-        if (!account) throw new Error(`в accounts.json нет роли ${role}`);
-        pages.set(
-          role,
-          await signIn(
+      // Страница входа снимается до входа, поэтому у такого кадра своё
+      // окружение без учётной записи. Отдельный ключ, а не роль: роли в
+      // accounts.json - это работники, а здесь работника ещё нет.
+      const role = shot.anon ? '(без входа)' : (shot.role ?? manifest.role);
+      if (!sessions.has(role)) {
+        const context = await newContext(browser);
+        if (!shot.anon) {
+          const account = accounts.roles[role];
+          if (!account) throw new Error(`в accounts.json нет роли ${role}`);
+          // Вход - через форму на отдельной вкладке; дальше она закрывается,
+          // сеанс остаётся в окружении и продлевается сам.
+          const login = await signIn(
             context,
             { username: account.username, password: accounts.password },
-            { baseUrl, apiBase, clockAt },
-          ),
-        );
+            { baseUrl, apiBase, clockAt, keepConsent: account.keepConsent === true },
+          );
+          await login.close();
+        }
+        sessions.set(role, context);
       }
-      const shotWarnings = await shoot(pages.get(role), shot, outDir);
+
+      /*
+       * Каждому кадру - своя вкладка. Общая вкладка тянет за собой состояние
+       * предыдущего кадра: раскрытая панель, наведённый указатель, положение
+       * прокрутки. Один кадр из-за этого уже перестал сниматься в пачке, хотя
+       * в одиночку снимался. Открыть вкладку дешевле, чем ловить такое.
+       *
+       * Сбой одного кадра не роняет пачку: разбирать замечания по одному,
+       * перезапуская прогон после каждого, - самый долгий путь к чистому
+       * прогону.
+       */
+      const page = await sessions.get(role).newPage();
+      let shotWarnings;
+      try {
+        if (clockAt) await page.clock.setFixedTime(clockAt);
+        await page.goto(`${baseUrl}${shot.goto ?? '/'}`);
+        shotWarnings = await shoot(page, shot, outDir);
+      } catch (error) {
+        shotWarnings = [`${shot.id}: не снялся - ${error.message.split('\n')[0]}`];
+      } finally {
+        await page.close();
+      }
       warnings.push(...shotWarnings);
       console.log(`${shotWarnings.length ? '!' : '+'} ${shot.id}`);
     }
   } finally {
-    await context.close();
+    for (const context of sessions.values()) await context.close();
     await browser.close();
   }
 
