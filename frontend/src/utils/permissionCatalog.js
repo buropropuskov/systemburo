@@ -78,27 +78,42 @@ export function filterCatalog(catalog, query) {
 }
 
 /**
- * Разбор права системной таблицы.
+ * Слаг и глагол из ключа права таблицы -- разбор чисто структурный, состав
+ * глаголов не проверяется. Нужен там, где право надо отнести к своей таблице
+ * даже с незнакомым глаголом: слаг известен из ключа, а подпись возьмётся от
+ * бэкенда.
+ *
+ * @param {string} key
+ * @returns {{slug: string, verb: string}|null}
+ */
+export function parseTableKey(key) {
+  if (!key || !key.startsWith(TABLE_KEY_PREFIX)) return null;
+
+  const rest = key.slice(TABLE_KEY_PREFIX.length);
+  const dot = rest.lastIndexOf('.');
+  if (dot <= 0 || dot === rest.length - 1) return null;
+
+  return { slug: rest.slice(0, dot), verb: rest.slice(dot + 1) };
+}
+
+/**
+ * Полный разбор права системной таблицы.
  *
  * Слаг и глагол берутся из самого ключа, а имя таблицы -- отрезанием от
  * display_name суффикса «: <название действия>». Именно так, а не split по
  * первому двоеточию: в имени таблицы бывает своя пунктуация («ПОСТ №72 (АВТО)»),
  * а суффикс известен точно. Не совпал суффикс или незнаком глагол -- возвращаем
- * null, и узел остаётся обычной строкой секции, ничего не теряя.
+ * null: имя таблицы и короткая подпись действия отсюда не следуют. Отнести такое
+ * право к своей таблице всё равно можно -- по parseTableKey.
  *
  * @param {{key?: string, display_name?: string}} node
  * @returns {{slug: string, verb: string, verbTitle: string, tableName: string}|null}
  */
 export function parseTablePermission(node) {
-  const key = node?.key || '';
-  if (!key.startsWith('table.')) return null;
+  const parsed = parseTableKey(node?.key || '');
+  if (!parsed) return null;
 
-  const rest = key.slice('table.'.length);
-  const dot = rest.lastIndexOf('.');
-  if (dot <= 0 || dot === rest.length - 1) return null;
-
-  const slug = rest.slice(0, dot);
-  const verb = rest.slice(dot + 1);
+  const { slug, verb } = parsed;
   const verbTitle = TABLE_VERB_TITLES[verb];
   if (!verbTitle) return null;
 
