@@ -22,6 +22,10 @@ type UserService interface {
 	// GetAll возвращает список пользователей с организацией, компанией и типом.
 	// includeArchived=false отдаёт только активных (is_active=true).
 	GetAll(ctx context.Context, includeArchived bool) ([]models.UserInfoResponse, error)
+	// GetRecipientCandidates возвращает тех, кого автор заявки может добавить получателем:
+	// коллег по организации и компании плюс руководителей. В отличие от GetAll доступен
+	// без прав администратора - выбор получателя есть у любого, кто подаёт заявку.
+	GetRecipientCandidates(ctx context.Context, username string) ([]models.RecipientCandidate, error)
 	// UpdateType обновляет тип пользователя.
 	UpdateType(ctx context.Context, callerUserID int, username string, req models.UpdateUserTypeRequest) error
 	// UpdatePassword обновляет пароль пользователя.
@@ -322,6 +326,24 @@ func (s *userService) GetAll(ctx context.Context, includeArchived bool) ([]model
 		result[i].PDHidden = true
 	}
 	return result, nil
+}
+
+// GetRecipientCandidates возвращает кандидатов в получатели заявки для текущего
+// пользователя. Пустой список - штатный ответ (человек один в своей организации, и
+// руководителей в системе нет), а не ошибка.
+func (s *userService) GetRecipientCandidates(ctx context.Context, username string) ([]models.RecipientCandidate, error) {
+	var me models.User
+	if err := s.db.WithContext(ctx).
+		Select("id, organization_id, company_id").
+		Where("username = ?", username).
+		First(&me).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, echo.NewHTTPError(http.StatusUnauthorized, "User not found")
+		}
+		slog.Error("не удалось определить пользователя для списка получателей", "error", err, "username", username)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching recipient candidates")
+	}
+	return loadRecipientCandidates(ctx, s.db, me)
 }
 
 // UpdateType обновляет type_id пользователя с проверкой существования типа.
