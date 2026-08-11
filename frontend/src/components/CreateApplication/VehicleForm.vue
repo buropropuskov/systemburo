@@ -1472,11 +1472,14 @@ export default {
             this.selectedExistingCars = [];
         },
 
-        // Раскладывает номер редактируемой строки по ячейкам формата (U3). Строка, добавленная
-        // вручную, несёт formatId - числа частей всегда совпадают, обе стороны собраны этим же
-        // кодом (numberParts.join(' ') при добавлении, split(' ') здесь). Строка из импорта
-        // бланка formatId не несёт вовсе (сервер его туда не кладёт) - формат подбирается по
-        // самой строке номера среди активных форматов. Не подошёл ни один - явно сообщаем об
+        // Раскладывает номер редактируемой строки по ячейкам формата (U3). Строка несёт
+        // formatId в двух случаях: добавлена вручную (numberParts.join(' ') - части через
+        // пробел) или пришла из импорта бланка с явно выбранным форматом (доводка владельца,
+        // BlankImportResult.buildVehicleFromRow) - там строка сырая, без пробелов по границам
+        // ячеек. matchNumberToFormat разбирает оба вида одинаково (сам убирает пробелы и
+        // раскладывает по cells формата), поэтому раскладка идёт через него всегда, а не
+        // прямым split(' '). formatId не пришёл или номер в него не лёг - формат подбирается
+        // по самой строке среди ВСЕХ активных форматов. Не подошёл ни один - явно сообщаем об
         // этом, а не оставляем пустые ячейки под чужим форматом молча.
         async applyEditedVehicleNumber(vehicle) {
             if (!this.availableFormats.length && this.formatsReady) {
@@ -1487,9 +1490,12 @@ export default {
                 : null;
 
             if (knownFormat) {
-                this.selectedFormat = knownFormat;
-                this.numberParts = vehicle.plateNumber.split(' ');
-                return;
+                const matched = matchNumberToFormat(vehicle.plateNumber, [knownFormat]);
+                if (matched) {
+                    this.selectedFormat = knownFormat;
+                    this.numberParts = matched.parts;
+                    return;
+                }
             }
 
             const guessed = matchNumberToFormat(vehicle.plateNumber, this.availableFormats);

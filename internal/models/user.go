@@ -178,6 +178,20 @@ type UserInfoResponse struct {
 	LockoutLevel int `json:"lockout_level"`
 }
 
+// RecipientCandidate — пользователь, которого автор может добавить получателем заявки.
+// Узкий срез полей: форме нужно показать человека и отличить однофамильцев по должности,
+// остальное (контакты, роль, признаки администратора) к выбору получателя отношения не имеет.
+type RecipientCandidate struct {
+	ID         int     `json:"id"`
+	Username   string  `json:"username"`
+	LastName   *string `json:"last_name"`
+	FirstName  *string `json:"first_name"`
+	MiddleName *string `json:"middle_name"`
+	Position   *string `json:"position"`
+	// PDHidden -- ФИО скрыто: работник не дал согласия на обработку ПД (#1567).
+	PDHidden bool `json:"pd_hidden"`
+}
+
 // UpdateUserTypeRequest — запрос на обновление типа пользователя.
 type UpdateUserTypeRequest struct {
 	TypeID int `json:"type_id" validate:"gte=1"`
@@ -186,6 +200,14 @@ type UpdateUserTypeRequest struct {
 // UpdatePasswordRequest — запрос на обновление пароля пользователя.
 type UpdatePasswordRequest struct {
 	Password string `json:"password" validate:"required,min=6,max=255"`
+}
+
+// ChangeOwnPasswordRequest — запрос на смену СВОЕГО пароля. В отличие от
+// UpdatePasswordRequest (админ задаёт пароль другому) требует подтверждения
+// текущим паролем: без него угнанная сессия превращается в захват учётной записи.
+type ChangeOwnPasswordRequest struct {
+	CurrentPassword string `json:"current_password" validate:"required,max=255"`
+	NewPassword     string `json:"new_password" validate:"required,min=6,max=255"`
 }
 
 // UpdateUserInfoRequest — запрос на обновление персональных данных пользователя.

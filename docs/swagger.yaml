@@ -336,6 +336,19 @@ definitions:
       updated_at:
         type: string
     type: object
+  models.ChangeOwnPasswordRequest:
+    properties:
+      current_password:
+        maxLength: 255
+        type: string
+      new_password:
+        maxLength: 255
+        minLength: 6
+        type: string
+    required:
+    - current_password
+    - new_password
+    type: object
   models.Citizenship:
     properties:
       created_at:
@@ -1565,6 +1578,25 @@ definitions:
         type: integer
       last_second_count:
         type: integer
+    type: object
+  models.RecipientCandidate:
+    properties:
+      first_name:
+        type: string
+      id:
+        type: integer
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      pd_hidden:
+        description: 'PDHidden -- ФИО скрыто: работник не дал согласия на обработку
+          ПД (#1567).'
+        type: boolean
+      position:
+        type: string
+      username:
+        type: string
     type: object
   models.RefreshTokenRequest:
     properties:
@@ -20029,6 +20061,47 @@ paths:
       summary: Полный профиль текущего пользователя
       tags:
       - auth
+  /users/me/password:
+    put:
+      consumes:
+      - application/json
+      description: Меняет пароль текущего пользователя по подтверждению текущим паролем.
+        Права не требуются.
+      parameters:
+      - description: Текущий и новый пароль
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.ChangeOwnPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Password changed successfully
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Смена собственного пароля
+      tags:
+      - users
   /users/me/theme:
     get:
       description: Возвращает выбранную тему. null — пользователь тему не выбирал.
@@ -20088,6 +20161,34 @@ paths:
       security:
       - BearerAuth: []
       summary: Выбрать тему оформления
+      tags:
+      - users
+  /users/recipient-candidates:
+    get:
+      description: 'Пользователи, которых автор может добавить получателем заявки:
+        коллеги по организации и компании плюс руководители. Доступно любому авторизованному
+        - выбор получателя есть у всех, кто подаёт заявку, а список людей своей организации
+        и так открыт (/organizations/{id}/users).'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.RecipientCandidate'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Кандидаты в получатели заявки
       tags:
       - users
   /vehicle-blacklist:
