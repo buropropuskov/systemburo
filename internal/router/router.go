@@ -96,6 +96,11 @@ type Dependencies struct {
 	// (blank-import, C1C2), сверх общего RateLimit в main.go. nil в тестах - разбор
 	// .xlsx на несколько подтестов подряд не должен упираться в лимит.
 	ImportListLimiter echo.MiddlewareFunc
+	// SelfPasswordLimiter - rate limit на PUT /users/me/password. Форма принимает
+	// текущий пароль, то есть годится для подбора не хуже страницы входа, а лестница
+	// блокировки входа её не прикрывает. nil в тестах - там подряд идут и удачные,
+	// и заведомо неудачные попытки одной учёткой.
+	SelfPasswordLimiter echo.MiddlewareFunc
 	// ConsentGate - PDConsentGate: закрывает API до согласия на обработку ПД
 	// (#1567). nil по умолчанию, в том числе в тестах: иначе каждый тест, где
 	// согласия нет, начал бы получать 403. Тесты самого гейта поднимают
@@ -292,6 +297,18 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// userID из JWT. Права не требуются, оформление доступно любому.
 	protected.GET("/users/me/theme", theme.GetTheme)
 	protected.PUT("/users/me/theme", theme.SetTheme)
+
+	// Смена СВОЕГО пароля (#1915). До этого единственным путём смены был
+	// PUT /users/:username/password под page.admin.users - работник не мог сменить
+	// свой пароль вообще, только через бюро. Права не требуются, личность
+	// подтверждается текущим паролем внутри сервиса.
+	if users != nil {
+		selfPasswordHandlers := []echo.MiddlewareFunc{}
+		if d.SelfPasswordLimiter != nil {
+			selfPasswordHandlers = append(selfPasswordHandlers, d.SelfPasswordLimiter)
+		}
+		protected.PUT("/users/me/password", users.ChangeOwnPassword, selfPasswordHandlers...)
+	}
 
 	// Сквозной поиск по разделам. Гейт эндпоинта -- только авторизация, и это
 	// намеренно: раздел, на который нет права, отсекается отбором провайдеров, а

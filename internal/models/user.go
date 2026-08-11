@@ -188,6 +188,14 @@ type UpdatePasswordRequest struct {
 	Password string `json:"password" validate:"required,min=6,max=255"`
 }
 
+// ChangeOwnPasswordRequest — запрос на смену СВОЕГО пароля. В отличие от
+// UpdatePasswordRequest (админ задаёт пароль другому) требует подтверждения
+// текущим паролем: без него угнанная сессия превращается в захват учётной записи.
+type ChangeOwnPasswordRequest struct {
+	CurrentPassword string `json:"current_password" validate:"required,max=255"`
+	NewPassword     string `json:"new_password" validate:"required,min=6,max=255"`
+}
+
 // UpdateUserInfoRequest — запрос на обновление персональных данных пользователя.
 type UpdateUserInfoRequest struct {
 	LastName    *string `json:"last_name"`
