@@ -112,8 +112,8 @@ func (applicationsStep) Plan(p Profile) []PlanItem {
 	return []PlanItem{
 		// Верхняя граница -- на чистой базе шаблонов ещё нет, шаг заведёт все три
 		// (см. ensureAttachmentTemplates); Plan по контракту пакета базу не читает.
-		{Entity: models.AuditEntityUniqueAttachment, Title: "Шаблоны вложений", Count: len(appTemplateSpecs)},
-		{Entity: models.AuditEntityApplication, Title: "Заявки", Count: p.Applications},
+		{Entity: models.AuditEntityUniqueAttachment, Title: EntityTitle(models.AuditEntityUniqueAttachment), Count: len(appTemplateSpecs)},
+		{Entity: models.AuditEntityApplication, Title: EntityTitle(models.AuditEntityApplication), Count: p.Applications},
 	}
 }
 
