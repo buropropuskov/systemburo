@@ -248,6 +248,16 @@ func (s *userService) Create(ctx context.Context, callerUserID int, req models.R
 		return err
 	}
 
+	// Адрес почты проверяется на формат и занятость (#1908) - тем же кодом, что и
+	// при правке карточки, иначе мусор заезжал бы через форму создания.
+	if req.Email != nil {
+		normalized, err := validateUserEmail(ctx, s.db, *req.Email, 0)
+		if err != nil {
+			return err
+		}
+		req.Email = &normalized
+	}
+
 	user := models.User{
 		Username:       req.Username,
 		Password:       hashPassword(req.Password),
@@ -566,7 +576,13 @@ func (s *userService) UpdateInfo(ctx context.Context, callerUserID int, username
 	// Контакты скрываются вместе с ФИО, и правило для них то же: нет поля в
 	// запросе - не трогаем, пустая строка по-прежнему очищает.
 	if req.Email != nil {
-		updates["email"] = *req.Email
+		// Адрес проверяется на формат и на занятость (#1908): он стал каналом
+		// доставки паролей, и опечатка в нём означает пароль в никуда.
+		normalized, err := validateUserEmail(ctx, s.db, *req.Email, s.targetUserID(ctx, username))
+		if err != nil {
+			return err
+		}
+		updates["email"] = normalized
 	}
 	if req.Phone != nil {
 		updates["phone"] = *req.Phone

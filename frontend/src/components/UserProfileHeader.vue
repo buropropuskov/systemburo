@@ -60,11 +60,11 @@
         </div>
       </div>
       
-      <!-- Дополнительные данные -->
-      <div
-        v-if="hasContactDetails"
-        class="user-details-row"
-      >
+      <!-- Контакты и действия. Ряд показывается всегда: в нём живут постоянные
+           элементы - кнопка смены пароля и предупреждение о неуказанной почте, -
+           поэтому прежнее условие «есть хоть один контакт» скрывало бы их у
+           работника с пустой карточкой. -->
+      <div class="user-details-row">
         <div
           v-if="position"
           class="user-detail"
@@ -79,9 +79,33 @@
             {{ position }}
           </span>
         </div>
+        <!-- Почта не указана: с плановой сменой паролей (#1905) это значит, что
+             новый пароль работнику доставить некуда, поэтому молчать нельзя.
+             Адрес правит бюро, сам работник его не меняет. -->
+        <div
+          v-if="!email"
+          class="user-detail"
+        >
+          <span
+            class="detail-badge email-missing"
+            :title="noEmailHint"
+            data-testid="cabinet-email-missing"
+          >
+            <span class="badge-content">
+              <svg
+                class="icon"
+                viewBox="0 0 24 24"
+              >
+                <path d="M22 6C22 4.9 21.1 4 20 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6M20 6L12 11L4 6H20M20 18H4V8L12 13L20 8V18Z" />
+              </svg>
+              <span class="badge-text">Почта не указана</span>
+            </span>
+          </span>
+        </div>
         <div
           v-if="email"
           class="user-detail"
+          :title="emailOwnerHint"
           @click="copyEmail"
         >
           <span
@@ -186,6 +210,7 @@ import { listMyConsents, revokeMyConsent } from '@/api/pdConsent';
 import { usePDConsentStore } from '@/stores/pdConsent';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
+import { useContactsStore } from '@/stores/contacts';
 import ChangePasswordModal from './ChangePasswordModal.vue';
 
 /** Вид согласия, которое спрашивают при первом входе. */
@@ -244,13 +269,25 @@ export default {
       }
       return 'П';
     },
-    hasContactDetails() {
-      // Бейдж согласия переехал в ряд над именем, ряд остаётся контактным.
-      return this.position || this.email || this.phone;
-    },
-
     consentBadgeLabel() {
       return this.consentRevoking ? 'Отзываем...' : 'Согласие на обработку данных';
+    },
+
+    // Адрес почты работник не меняет сам: на него система шлёт новые пароли при
+    // плановой смене, поэтому канал доставки ведёт бюро. Подсказка объясняет,
+    // куда обращаться, и подставляет контакты из системных настроек.
+    bureauContactsSuffix() {
+      const contacts = useContactsStore();
+      const parts = [contacts.phone, contacts.email].filter(Boolean);
+      return parts.length ? ` (${parts.join(', ')})` : '';
+    },
+
+    noEmailHint() {
+      return `На почту приходят новые пароли при плановой смене. Чтобы указать адрес, обратитесь в бюро пропусков${this.bureauContactsSuffix}`;
+    },
+
+    emailOwnerHint() {
+      return `Адрес меняет бюро пропусков${this.bureauContactsSuffix}`;
     },
 
     consentTitle() {
@@ -288,6 +325,8 @@ export default {
     }
   },
   mounted() {
+    // Контакты бюро нужны подсказке про почту; стор кэширует запрос.
+    useContactsStore().fetch();
     this.$nextTick(() => {
       this.updateBadgeWidths();
     });
@@ -669,6 +708,17 @@ export default {
    зелёный и жёлтый рядом уже заняты почтой и телефоном, третий цвет читался бы
    как ещё один вид контакта. font-family и line-height - как у consent-badge:
    у button они свои и не наследуются. */
+/* Отсутствие почты - предупреждение, а не контакт: подложка нейтрально-тревожная,
+   курсор обычный (копировать нечего). */
+.email-missing {
+  font-family: inherit;
+  line-height: inherit;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  border-color: color-mix(in srgb, var(--warning) 30%, var(--surface));
+  cursor: default;
+}
+
 .password-badge {
   font-family: inherit;
   line-height: inherit;
