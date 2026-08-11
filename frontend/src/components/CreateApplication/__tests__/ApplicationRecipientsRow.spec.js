@@ -1,21 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount, flushPromises } from '@vue/test-utils';
 import ApplicationRecipientsRow from '../ApplicationRecipientsRow.vue';
+import { apiRequest } from '@/api/client';
 
 // #884: блок получателей-читателей. Дефолтные согласующие неудаляемы, читателей
-// (только Руководители) можно добавить/удалить, переполнение -> дропдаун.
+// можно добавить/удалить, переполнение -> дропдаун.
+// Срез fe-recipients: список приходит из GET /users/recipient-candidates (#1921) -
+// коллеги и руководители, отобранные бэком; клиентского фильтра по типу больше нет.
 
 vi.mock('@/api/client', () => ({
-  apiRequest: vi.fn().mockResolvedValue({
-    ok: true,
-    json: vi.fn().mockResolvedValue([
-      { id: 1, username: 'man1', user_type: 'Руководитель', last_name: 'Иванов', first_name: 'Иван', position: 'Директор' },
-      { id: 2, username: 'man2', user_type: 'Руководитель', last_name: 'Петров', first_name: 'Пётр', position: '' },
-      { id: 3, username: 'usr3', user_type: 'Пользователь', last_name: 'Сидоров', first_name: 'Сидор' },
-      { id: 4, username: 'man4', user_type: 'Руководитель', last_name: 'Кузнецов', first_name: 'Кузьма' },
-    ]),
-  }),
+  apiRequest: vi.fn(),
 }));
+
+// Форма ответа - models.RecipientCandidate: без user_type, с pd_hidden.
+const CANDIDATES = [
+  { id: 1, username: 'man1', last_name: 'Иванов', first_name: 'Иван', position: 'Директор', pd_hidden: false },
+  { id: 2, username: 'man2', last_name: 'Петров', first_name: 'Пётр', position: '', pd_hidden: false },
+  { id: 4, username: 'man4', last_name: 'Кузнецов', first_name: 'Кузьма', position: null, pd_hidden: false },
+];
+
+function okJson(data) {
+  return { ok: true, json: vi.fn().mockResolvedValue(data) };
+}
 
 async function mountRow(props = {}) {
   const w = shallowMount(ApplicationRecipientsRow, {
@@ -27,13 +33,15 @@ async function mountRow(props = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  apiRequest.mockResolvedValue(okJson(CANDIDATES));
 });
 
 describe('ApplicationRecipientsRow (#884)', () => {
-  it('fetchManagers берёт только пользователей с типом Руководитель', async () => {
+  it('список берётся из /users/recipient-candidates без фильтра по типу на клиенте', async () => {
     const w = await mountRow();
-    expect(w.vm.managerUsers.map(u => u.userId).sort()).toEqual([1, 2, 4]);
-    expect(w.vm.managerUsers.find(u => u.userId === 1).name).toBe('Иванов Иван');
+    expect(apiRequest).toHaveBeenCalledWith('/users/recipient-candidates', expect.any(Object));
+    expect(w.vm.candidateUsers.map(u => u.userId)).toEqual([1, 2, 4]);
+    expect(w.vm.candidateUsers.find(u => u.userId === 1).name).toBe('Иванов Иван');
   });
 
   it('addReader эмитит update:readers с добавленным читателем', async () => {
@@ -56,12 +64,12 @@ describe('ApplicationRecipientsRow (#884)', () => {
     expect(ev[0][0]).toEqual([{ user_id: 4, name: 'Кузнецов Кузьма' }]);
   });
 
-  it('availableManagers исключает уже-согласующих и уже-читателей', async () => {
+  it('availableCandidates исключает уже-согласующих и уже-читателей', async () => {
     const w = await mountRow({
       approvers: [{ user_id: 1, name: 'Иванов Иван' }],
       readers: [{ user_id: 2, name: 'Петров Пётр' }],
     });
-    expect(w.vm.availableManagers.map(u => u.userId)).toEqual([4]);
+    expect(w.vm.availableCandidates.map(u => u.userId)).toEqual([4]);
   });
 
   it('согласующие неудаляемы (removable=false), читатели removable=true', async () => {
@@ -85,6 +93,47 @@ describe('ApplicationRecipientsRow (#884)', () => {
     const w = await mountRow({ readers: [{ user_id: 2, name: 'Петров Пётр' }] });
     w.vm.addReader({ userId: 2, name: 'Петров Пётр', username: 'man2' });
     expect(w.emitted('update:readers')).toBeFalsy();
+  });
+});
+
+describe('ApplicationRecipientsRow - гейт кнопки «+ получатель»', () => {
+  it('кандидаты есть - кнопка на месте', async () => {
+    const w = await mountRow();
+    expect(w.find('.recipients-add__btn').exists()).toBe(true);
+  });
+
+  it('кандидатов нет - ни кнопки, ни попытки открыть список', async () => {
+    apiRequest.mockResolvedValue(okJson([]));
+    const w = await mountRow();
+    expect(w.vm.canAddRecipients).toBe(false);
+    expect(w.find('.recipients-add__btn').exists()).toBe(false);
+  });
+
+  it('403: список пуст, кнопки нет, тост подавлен через silent403', async () => {
+    apiRequest.mockResolvedValue({ ok: false, status: 403, json: vi.fn() });
+    const w = await mountRow();
+    expect(apiRequest).toHaveBeenCalledWith('/users/recipient-candidates', { silent403: true });
+    expect(w.vm.candidateUsers).toEqual([]);
+    expect(w.find('.recipients-add__btn').exists()).toBe(false);
+  });
+
+  it('все кандидаты уже в строке - кнопка уходит вместе с открытым окном', async () => {
+    const w = await mountRow({ approvers: [{ user_id: 1, name: 'a' }, { user_id: 2, name: 'b' }] });
+    await w.setData({ showAdd: true });
+    expect(w.find('.recipients-add__btn').exists()).toBe(true);
+
+    await w.setProps({ readers: [{ user_id: 4, name: 'Кузнецов Кузьма' }] });
+    expect(w.vm.showAdd).toBe(false);
+    expect(w.find('.recipients-add__btn').exists()).toBe(false);
+  });
+
+  it('поиск без совпадений не прячет кнопку и поле ввода', async () => {
+    const w = await mountRow();
+    await w.setData({ showAdd: true, search: 'такого нет' });
+    expect(w.vm.availableCandidates).toEqual([]);
+    expect(w.find('.recipients-add__btn').exists()).toBe(true);
+    expect(w.find('.recipients-search').attributes('placeholder')).toBe('Поиск');
+    expect(w.find('.recipients-add-empty').text()).toBe('Пользователей нет');
   });
 });
 
@@ -114,14 +163,14 @@ describe('ApplicationRecipientsRow - доработка отображения',
     expect(chip.classes()).toContain('is-approver');
   });
 
-  it('поиск: placeholder "Поиск"; когда добавить некого -> "Пользователей нет"', async () => {
-    // все руководители (1,2,4) уже согласующие -> availableManagers пуст.
-    const w = await mountRow({
-      approvers: [{ user_id: 1, name: 'a' }, { user_id: 2, name: 'b' }, { user_id: 4, name: 'c' }],
-    });
+  it('скрытые ПД: вместо ФИО логин и подпись, почему имени нет', async () => {
+    apiRequest.mockResolvedValue(okJson([
+      { id: 7, username: 'hidden7', last_name: null, first_name: null, middle_name: null, position: '', pd_hidden: true },
+    ]));
+    const w = await mountRow();
     await w.setData({ showAdd: true });
-    expect(w.find('.recipients-search').attributes('placeholder')).toBe('Поиск');
-    expect(w.find('.recipients-add-empty').text()).toBe('Пользователей нет');
+    expect(w.find('.recipients-add-item__name').text()).toBe('hidden7');
+    expect(w.find('.recipients-add-item__masked').text()).toContain('скрыто до согласия');
   });
 
   it('клик вне "+ получатель" закрывает дропдаун', async () => {
