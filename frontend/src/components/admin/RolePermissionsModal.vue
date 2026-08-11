@@ -124,7 +124,7 @@
 <script>
 import EffectivePermissionsTree from './EffectivePermissionsTree.vue';
 import { useOverlayClose } from '@/composables/useOverlayClose';
-import { filterCatalog, flattenCatalog } from '@/utils/permissionCatalog';
+import { filterCatalog, flattenCatalog, TABLE_KEY_PREFIX } from '@/utils/permissionCatalog';
 
 /**
  * Единый редактор прав роли: дефолтные группы (чекбоксы) + собственные точечные
@@ -245,11 +245,18 @@ export default {
       this.selectedGroupIds = next;
     },
     emitSave() {
-      // Только ключи, реально присутствующие в каталоге: осиротевший ключ (нет в
-      // каталоге) не рендерится и не управляем из UI, а бэкенд SetPermissions отбил
-      // бы весь запрос 400 на первом неизвестном ключе -- отфильтровываем, не тащим.
+      // Ключ, которого нет в каталоге, не рендерится и не управляем из UI, но
+      // причины отсутствия две, и обходятся они по-разному.
+      // Статический осиротевший (право выпилили из каталога) -- отбрасываем:
+      // бэкенд SetPermissions отбил бы весь запрос 400 на первом неизвестном.
+      // table.* -- каталог прячет его, пока таблица в архиве (#1881); бэкенд
+      // такой ключ принимает (IsValidKey пускает весь префикс table.), и он
+      // обязан пережить сохранение: иначе первое же открытие роли молча снимет
+      // права архивных таблиц, а восстановление таблицы их не вернёт.
       this.$emit('save', {
-        directKeys: [...this.selectedDirect].filter((k) => this.catalogKeySet.has(k)),
+        directKeys: [...this.selectedDirect].filter(
+          (k) => this.catalogKeySet.has(k) || k.startsWith(TABLE_KEY_PREFIX),
+        ),
         groupIds: [...this.selectedGroupIds],
       });
     },
