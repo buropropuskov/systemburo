@@ -1,0 +1,29 @@
+{
+  "comment": "Проверочный манифест: три вида скругления в одном прогоне. Кадры не идут ни в один документ, служат для проверки снимальщика после правок.",
+  "role": "user",
+  "shots": [
+    {
+      "id": "probe-header",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"header-button-submit-app\"]",
+      "clip": { "selector": "[data-testid=\"header-time\"]", "pad": 120 },
+      "highlight": [
+        { "selector": "[data-testid=\"header-button-search\"]", "badge": 1 },
+        { "selector": "[data-testid=\"ob-header-notifications\"]", "badge": 2 },
+        { "selector": "[data-testid=\"header-button-submit-app\"]", "badge": 3 }
+      ],
+      "caption": "круглая кнопка, круглый значок и кнопка-пилюля"
+    },
+    {
+      "id": "probe-rail",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"ob-nav-rail\"]",
+      "clip": { "pad": { "x": 420, "y": 50 } },
+      "highlight": [
+        { "selector": "[data-testid=\"nav-link-cars\"]", "badge": 1 },
+        { "selector": "[data-testid=\"nav-link-employees\"]", "badge": 2 }
+      ],
+      "caption": "скруглённый прямоугольник со скруглением 12 пикселей"
+    }
+  ]
+}
