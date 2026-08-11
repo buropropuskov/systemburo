@@ -38,6 +38,40 @@ func (h *ApplicationHandler) GetApplicationResponsibleUsers(c echo.Context) erro
 	return RespondSuccess(c, users)
 }
 
+// GetApplicationParticipants godoc
+// @Summary      Участники заявки
+// @Description  Возвращает всех участников заявки одним списком: отправителя, принявшего
+// @Description  в работу, согласующих, ответственных и читателей. На каждого - роли
+// @Description  машинными ключами, должность, организация, компания и контакты.
+// @Description  Один человек - одна запись, даже если ролей у него несколько.
+// @Tags         applications
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID заявки"
+// @Success      200 {array}  services.ApplicationParticipant
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/participants [get]
+func (h *ApplicationHandler) GetApplicationParticipants(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	username := c.Get("username").(string)
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
+	participants, err := h.service.GetApplicationParticipants(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, participants)
+}
+
 // GetApplicationHistory godoc
 // @Summary      История заявки
 // @Description  Возвращает записи истории заявки в обратном хронологическом порядке.
