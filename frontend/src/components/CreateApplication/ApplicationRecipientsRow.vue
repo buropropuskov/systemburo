@@ -128,7 +128,7 @@
                 >{{ u.position }}</span>
                 <span
                   v-if="u.pdHidden"
-                  class="recipients-add-item__pos"
+                  class="recipients-add-item__masked"
                 >ФИО скрыто до согласия на обработку данных</span>
               </button>
               <div
@@ -668,6 +668,14 @@ export default {
 .recipients-add-item__pos {
   font-size: 0.65rem;
   color: var(--text-muted);
+}
+
+/* Подпись «почему вместо ФИО логин» - своим классом: должность рядом с ней остаётся
+   должностью, и стиль одной не тянет за собой другую. */
+.recipients-add-item__masked {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 .recipients-add-empty {

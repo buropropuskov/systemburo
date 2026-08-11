@@ -132,7 +132,7 @@ describe('ApplicationRecipientsRow - гейт кнопки «+ получате�
     await w.setData({ showAdd: true, search: 'такого нет' });
     expect(w.vm.availableCandidates).toEqual([]);
     expect(w.find('.recipients-add__btn').exists()).toBe(true);
-    expect(w.find('.recipients-search').exists()).toBe(true);
+    expect(w.find('.recipients-search').attributes('placeholder')).toBe('Поиск');
     expect(w.find('.recipients-add-empty').text()).toBe('Пользователей нет');
   });
 });
@@ -170,7 +170,7 @@ describe('ApplicationRecipientsRow - доработка отображения',
     const w = await mountRow();
     await w.setData({ showAdd: true });
     expect(w.find('.recipients-add-item__name').text()).toBe('hidden7');
-    expect(w.find('.recipients-add-item__pos').text()).toContain('скрыто до согласия');
+    expect(w.find('.recipients-add-item__masked').text()).toContain('скрыто до согласия');
   });
 
   it('клик вне "+ получатель" закрывает дропдаун', async () => {
