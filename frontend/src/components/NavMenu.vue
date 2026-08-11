@@ -6,7 +6,7 @@
         v-if="mobileOpen || swipeOffset > 0"
         class="nav-menu__backdrop"
         :class="{ 'nav-menu__backdrop--dragging': swipeDragging }"
-        :style="swipeDragging ? { opacity: swipeOffset / 280 } : null"
+        :style="swipeDragging ? { opacity: swipeBackdropOpacity } : null"
         @click="closeMobile"
       />
     </transition>
@@ -24,7 +24,7 @@
         'nav-menu--dragging': swipeDragging,
         'nav-menu--banned': isBanned,
       }"
-      :style="swipeOffset ? { transform: `translateX(calc(-100% + ${swipeOffset}px))` } : null"
+      :style="swipeOffset ? { transform: `translateX(min(0px, calc(-100% + ${swipeOffset}px)))` } : null"
       @mouseenter="expandMenu"
       @mouseleave="collapseMenu"
     >
@@ -650,6 +650,8 @@ import FeedbackModal from '@/components/FeedbackModal.vue'
 // модалки обратной связи, иначе уезжающая панель (z-index 10000) секунду рисуется
 // поверх появляющегося overlay модалки (9999) и подрезает форму.
 const DRAWER_CLOSE_MS = 300
+// Номинальная ширина drawer'а из мобильного @media: на неё опирается и свайп открытия.
+const DRAWER_WIDTH = 280
 
 export default {
   name: 'NavMenu',
@@ -672,6 +674,7 @@ export default {
     const instance = getCurrentInstance()
     const { isNarrow } = useNarrowScreen()
     const drawerSwipe = useEdgeSwipeOpen(() => instance.proxy.openMobile(), {
+      width: DRAWER_WIDTH,
       // Открытая модалка блокирует прокрутку фона инлайн-стилем - там свайп вправо
       // принадлежит ей (лист, карусель внутри), а не навигации под ней.
       isEnabled: () => isNarrow.value
@@ -742,6 +745,14 @@ export default {
     /** Тумблер в меню: включён на тёмной теме (#1415). */
     isDarkTheme() {
       return this.themeStore.current === 'dark';
+    },
+    /**
+     * Затемнение густеет вместе с вытянутой панелью. Считаем от номинальной ширины
+     * drawer'а: на узком экране он упирается в 85vw и доходит до края раньше, поэтому
+     * значение подрезаем единицей.
+     */
+    swipeBackdropOpacity() {
+      return Math.min(1, this.swipeOffset / DRAWER_WIDTH);
     },
     // Рельс раскрыт если закреплён (пин) или временно по hover. В full-hide
     // не раскрываем - рельс схлопнут в 0. При открытой Админке рельс
