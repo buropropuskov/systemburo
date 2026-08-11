@@ -1,0 +1,991 @@
+<template>
+  <div
+    class="bim"
+    data-testid="blank-import-result"
+  >
+    <!-- Сводка - отдельный блок, а не цифры на голом фоне панели. -->
+    <div class="bim__counters">
+      <div
+        v-if="hasResult"
+        class="bim__counter"
+      >
+        <span class="bim__counter-value">{{ summary.read || 0 }}</span>
+        <span class="bim__counter-label">прочитано строк</span>
+      </div>
+      <!-- Счётчик берём из списка, а не из разбора: удалённая справа строка обязана
+           уйти и отсюда, иначе кнопка обещает добавить то, чего уже нет. -->
+      <div class="bim__counter bim__counter--ok">
+        <span
+          class="bim__counter-value"
+          data-testid="bim-pending-count"
+        >{{ pendingCount }}</span>
+        <span class="bim__counter-label">готово к добавлению</span>
+      </div>
+      <div
+        v-if="hasResult && summary.rejected"
+        class="bim__counter bim__counter--error"
+      >
+        <span class="bim__counter-value">{{ summary.rejected || 0 }}</span>
+        <span class="bim__counter-label">с ошибками</span>
+      </div>
+    </div>
+
+    <p
+      v-if="!hasResult"
+      class="bim__pending-hint"
+    >
+      Строки прошлого бланка ждут в списке серыми. Выберите места и нажмите «Добавить» -
+      или удалите их прямо в списке.
+    </p>
+
+    <!-- Мест прохода/разгрузки/проезда в файле нет и не будет (решение владельца,
+         blank-import) - применяются ко ВСЕМ импортируемым строкам целиком здесь. -->
+    <div
+      v-if="showTargetTables"
+      class="bim__places"
+      data-testid="bim-target-tables"
+    >
+      <label class="input__label">Места прохода <span
+        v-if="targetTablesRequired"
+        class="required"
+      >*</span></label>
+      <div
+        v-if="!targetTablesOptions.length"
+        class="bim__places-empty"
+      >
+        Нет доступных мест прохода
+      </div>
+      <TargetTablesGrid
+        v-else
+        v-model="selectedTargetTables"
+        :tables="targetTablesOptions"
+      />
+    </div>
+
+    <div
+      v-if="showUnloadPlaces"
+      class="bim__places"
+      data-testid="bim-unload-places"
+    >
+      <label class="input__label">Места разгрузки <span
+        v-if="unloadPlacesRequired"
+        class="required"
+      >*</span></label>
+      <div
+        v-if="!unloadPlacesOptions.length"
+        class="bim__places-empty"
+      >
+        Нет доступных мест разгрузки
+      </div>
+      <TargetTablesGrid
+        v-else
+        v-model="selectedUnloadPlaces"
+        :tables="unloadPlacesOptions"
+      />
+    </div>
+
+    <div
+      v-if="showPassageTables"
+      class="bim__places"
+      data-testid="bim-passage-tables"
+    >
+      <label class="input__label">Проезд <span
+        v-if="passageTablesRequired"
+        class="required"
+      >*</span></label>
+      <div
+        v-if="!passageTablesOptions.length"
+        class="bim__places-empty"
+      >
+        Нет доступных мест проезда
+      </div>
+      <TargetTablesGrid
+        v-else
+        v-model="selectedPassageTables"
+        :tables="passageTablesOptions"
+      />
+    </div>
+
+    <!-- Строки, которые система поправила сама (раскладка в номере, омоглифы в ФИО,
+         дополнение номера нулями). Принимаются без вмешательства, но человек должен
+         видеть, что именно изменилось: молчаливая правка данных - худший исход. -->
+    <div
+      v-if="warningRows.length"
+      class="bim__warnings"
+    >
+      <h4 class="bim__problems-title">
+        Система поправила
+      </h4>
+      <ul class="bim__warnings-list">
+        <li
+          v-for="row in warningRows"
+          :key="`warn-${row.row_number}`"
+          class="bim__warnings-item"
+        >
+          <span class="bim__warnings-row">Стр. {{ row.row_number }}</span>
+          <span>{{ row.warnings.join('; ') }}</span>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Строки с ошибками - не таблица, а карточки: причина отказа это фраза целиком,
+         в узкой колонке она рвалась на три строки, а поля правки жались вплотную. -->
+    <div
+      v-if="problemRows.length"
+      class="bim__problems"
+    >
+      <h4 class="bim__problems-title">
+        Строки с ошибками
+        <span class="bim__problems-count">{{ problemRows.length }}</span>
+      </h4>
+      <p class="bim__problems-hint">
+        Поправьте поля прямо здесь и нажмите «Добавить» - строка уйдёт в список.
+        Причину с пометкой «Только вручную» здесь не снять (чёрный список, дубль внутри
+        файла, паспорт, патент, должность) - такую строку заводят обычной формой.
+      </p>
+
+      <ul class="bim__problems-list">
+        <li
+          v-for="row in problemRows"
+          :key="row.rowNumber"
+          class="bim__problem"
+          :class="{ 'bim__problem--blocked': !rowFixable(row) }"
+          :data-testid="`bim-problem-row-${row.rowNumber}`"
+        >
+          <div class="bim__problem-head">
+            <span class="bim__problem-num">Строка {{ row.rowNumber }}</span>
+            <Badge
+              size="sm"
+              :variant="rowFixable(row) ? 'warning' : 'danger'"
+              :label="rowFixable(row) ? 'Можно исправить' : 'Только вручную'"
+            />
+            <button
+              type="button"
+              class="lk-button lk-button--secondary lk-button--sm bim__row-add"
+              :disabled="!canIncludeRow(row)"
+              :data-testid="`bim-include-${row.rowNumber}`"
+              @click="addProblemRow(row)"
+            >
+              Добавить
+            </button>
+          </div>
+
+          <ul class="bim__reasons">
+            <li
+              v-for="(error, index) in row.errors"
+              :key="index"
+              class="bim__reason"
+              :class="{ 'bim__reason--blocking': !error.fixable }"
+            >
+              {{ error.text }}
+            </li>
+          </ul>
+
+          <div class="bim__fields">
+            <template v-if="isPeople">
+              <label class="bim__field">
+                <span class="bim__field-label">Фамилия</span>
+                <input
+                  v-model="row.fields.lastName"
+                  type="text"
+                  class="lk-input bim__cell-input"
+                >
+              </label>
+              <label class="bim__field">
+                <span class="bim__field-label">Имя</span>
+                <input
+                  v-model="row.fields.firstName"
+                  type="text"
+                  class="lk-input bim__cell-input"
+                >
+              </label>
+              <label class="bim__field">
+                <span class="bim__field-label">Отчество</span>
+                <input
+                  v-model="row.fields.middleName"
+                  type="text"
+                  class="lk-input bim__cell-input"
+                >
+              </label>
+              <label class="bim__field">
+                <span class="bim__field-label">Гражданство</span>
+                <select
+                  v-model="row.fields.citizenshipId"
+                  class="lk-select bim__cell-input"
+                >
+                  <option :value="null">
+                    Не выбрано
+                  </option>
+                  <option
+                    v-for="c in citizenships"
+                    :key="c.id"
+                    :value="c.id"
+                  >
+                    {{ c.name }}
+                  </option>
+                </select>
+              </label>
+            </template>
+            <template v-else>
+              <label class="bim__field">
+                <span class="bim__field-label">Номер Т/С</span>
+                <input
+                  v-model="row.fields.plateNumber"
+                  type="text"
+                  class="lk-input bim__cell-input"
+                >
+              </label>
+              <label class="bim__field">
+                <span class="bim__field-label">Марка</span>
+                <input
+                  v-model="row.fields.mark"
+                  type="text"
+                  class="lk-input bim__cell-input"
+                >
+              </label>
+            </template>
+          </div>
+
+          <p
+            v-if="rowFixable(row) && !canIncludeRow(row)"
+            class="bim__problem-note"
+          >
+            {{ rowNote(row) }}
+          </p>
+        </li>
+      </ul>
+    </div>
+
+    <div class="bim__actions">
+      <button
+        v-if="problemRows.length"
+        type="button"
+        class="lk-button lk-button--ghost"
+        data-testid="bim-download-errors"
+        @click="downloadErrors"
+      >
+        Скачать список ошибок
+      </button>
+      <button
+        type="button"
+        class="lk-button lk-button--ghost"
+        data-testid="bim-reset"
+        @click="$emit('reset')"
+      >
+        Загрузить другой файл
+      </button>
+      <button
+        type="button"
+        class="lk-button lk-button--primary bim__submit"
+        data-testid="bim-submit"
+        :disabled="!canSubmit"
+        @click="onSubmit"
+      >
+        Добавить в заявку ({{ addableCount }})
+      </button>
+    </div>
+  </div>
+</template>
+
+<script>
+import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vue';
+import Badge from '@/components/ui/Badge.vue';
+import { listCitizenships } from '@/api/citizenships';
+import { useDeletionsStore } from '@/stores/deletions';
+import { useFieldConfig } from '@/composables/useFieldConfig';
+import { employeeLabel, vehicleLabel } from '@/utils/applicationDuplicates';
+import { matchNumberToFormat } from '@/composables/useNumberFormat';
+import { apiRequest } from '@/api/client';
+
+// Спецзначение номера: конкретную машину не опознаёт, формату не подчиняется.
+const VEHICLE_BY_FACT = 'По факту';
+
+/**
+ * Сводка разбора заполненного бланка (эпик blank-import, срез D1D2; срез U4 перенёс
+ * её из модалки в панель режима импорта - BlankImportPanel.vue). Принятые бэком
+ * строки (без errors) уходят в заявку тем же путём, что ручное добавление -
+ * родитель вызывает handleEmployeesAdded/handleVehiclesAdded с собранным здесь
+ * массивом, без своей логики создания строк списка (см. CreateApplication.vue).
+ *
+ * Места прохода/разгрузки/проезда бэк не читает из файла (решение владельца:
+ * задаются на сайте) - выбор здесь обязателен и применяется ко ВСЕМ строкам разом.
+ *
+ * Строки с ошибками показывают только ФИО/номер и причину - паспорт и патент не
+ * выводятся и не редактируются здесь (152-ФЗ, доб. поля правятся в обычной форме).
+ * Исправима ли причина правкой на месте, решает сервер (ImportRowError.fixable,
+ * internal/services/attachment_import_validate.go) - здесь текст причины только
+ * показывается человеку и никак не разбирается.
+ * "Добавить" по исправленной строке не перепроверяет причину отказа повторно
+ * (чёрный список, дубли) - финальная подача делает это как для любой ручной строки.
+ */
+export default {
+  name: 'BlankImportResult',
+  components: { TargetTablesGrid, Badge },
+  props: {
+    attachmentType: {
+      type: String,
+      default: 'people',
+      validator: (v) => ['people', 'cars'].includes(v),
+    },
+    summary: {
+      type: Object,
+      default: () => ({ read: 0, accepted: 0, rejected: 0 }),
+    },
+    rows: { type: Array, default: () => [] },
+    // Есть ли свежий разбор файла. Сводка открывается и по одним предварительным
+    // строкам (после перезагрузки страницы), и тогда счётчики разбора врали бы нулями.
+    hasResult: { type: Boolean, default: true },
+    // Сколько строк этого вложения сейчас лежит в списке предварительными.
+    pendingCount: { type: Number, default: 0 },
+    // Сырые списки CreateApplication (/system-tables, /unload-places) - те же, что
+    // питают EmployeesList/VehicleForm, переформатируются в {table:{...}} для
+    // TargetTablesGrid по образцу TableBulkTargetModal.availableTables.
+    allPassageTables: { type: Array, default: () => [] },
+    allUnloadingPlaces: { type: Array, default: () => [] },
+    fieldConfig: { type: Object, default: () => ({}) },
+  },
+  emits: ['reset', 'import', 'stage'],
+  data() {
+    return {
+      citizenships: [],
+      plateFormats: [],
+      selectedTargetTables: [],
+      selectedUnloadPlaces: [],
+      selectedPassageTables: [],
+      problemRows: [],
+    };
+  },
+  computed: {
+    isPeople() {
+      return this.attachmentType === 'people';
+    },
+    acceptedRows() {
+      return this.rows.filter((r) => !(r.errors && r.errors.length));
+    },
+    // Строки с предупреждениями показываем отдельно: у отклонённых причина и так видна
+    // в таблице ошибок, а вот принятая строка с исправленным значением иначе уходит
+    // в заявку молча.
+    warningRows() {
+      return this.rows.filter((r) => r.warnings && r.warnings.length
+        && !(r.errors && r.errors.length));
+    },
+    showTargetTables() {
+      return this.isPeople && this.fieldVisible('target_tables');
+    },
+    showUnloadPlaces() {
+      return !this.isPeople && this.fieldVisible('unloading_places');
+    },
+    showPassageTables() {
+      return !this.isPeople && this.fieldVisible('passage_tables');
+    },
+    // Обязательность выбора - ЗЕРКАЛО ручных форм (EmployeeForm.vue:491-492,
+    // VehicleForm.vue:573-574): "видимо И required", а не одно только "видимо".
+    // Видимое необязательное поле грид всё равно рисует (можно выбрать по желанию),
+    // но submit им не блокируется.
+    targetTablesRequired() {
+      return this.showTargetTables && this.fieldRequired('target_tables');
+    },
+    unloadPlacesRequired() {
+      return this.showUnloadPlaces && this.fieldRequired('unloading_places');
+    },
+    passageTablesRequired() {
+      return this.showPassageTables && this.fieldRequired('passage_tables');
+    },
+    targetTablesOptions() {
+      return this.reshapeTables(this.allPassageTables, 'people');
+    },
+    passageTablesOptions() {
+      return this.reshapeTables(this.allPassageTables, 'cars');
+    },
+    unloadPlacesOptions() {
+      return (this.allUnloadingPlaces || []).map((p) => ({
+        table: {
+          id: p.id,
+          display_name: p.name,
+          status: p.status || 'active',
+          status_comment: p.status_comment,
+        },
+      }));
+    },
+    placesReady() {
+      if (this.isPeople) {
+        return !this.targetTablesRequired || this.selectedTargetTables.length > 0;
+      }
+      const unloadOk = !this.unloadPlacesRequired || this.selectedUnloadPlaces.length > 0;
+      const passageOk = !this.passageTablesRequired || this.selectedPassageTables.length > 0;
+      return unloadOk && passageOk;
+    },
+    // Исправленная строка уходит в список сразу по кнопке в своей карточке, поэтому к
+    // моменту общего «Добавить» всё добавляемое уже стоит предварительным.
+    addableCount() {
+      return this.pendingCount;
+    },
+    canSubmit() {
+      return this.placesReady && this.addableCount > 0;
+    },
+    // Места в файле не приходят и раскатываются на всю пачку разом - патч полей строки
+    // собираем здесь, применяет его родитель ко всем предварительным строкам.
+    placesPatch() {
+      if (this.isPeople) {
+        return {
+          targetTables: [...this.selectedTargetTables],
+          passageTables: this.formatSelectedNames(this.selectedTargetTables, this.targetTablesOptions),
+        };
+      }
+      return {
+        unloadPlaces: [...this.selectedUnloadPlaces],
+        unloadingPlace: this.formatSelectedNames(this.selectedUnloadPlaces, this.unloadPlacesOptions),
+        passage_tables: [...this.selectedPassageTables],
+      };
+    },
+  },
+  watch: {
+    rows: {
+      // Панель живёт ровно столько, сколько есть разобранный файл, и монтируется уже
+      // с данными - immediate обязателен. Новая загрузка отдаёт новый массив строк:
+      // выбор мест и правки прошлого файла на неё не переносятся.
+      immediate: true,
+      handler() {
+        this.resetState();
+      },
+    },
+  },
+  methods: {
+    fieldVisible(key) {
+      return useFieldConfig(() => this.fieldConfig).fieldVisible(key);
+    },
+    fieldRequired(key) {
+      return useFieldConfig(() => this.fieldConfig).fieldRequired(key);
+    },
+    async resetState() {
+      this.selectedTargetTables = [];
+      this.selectedUnloadPlaces = [];
+      this.selectedPassageTables = [];
+      this.problemRows = this.rows
+        .filter((r) => r.errors && r.errors.length)
+        .map((r) => ({
+          rowNumber: r.row_number,
+          errors: r.errors || [],
+          original: r,
+          fields: this.isPeople
+            ? {
+              lastName: (r.employee && r.employee.last_name) || '',
+              firstName: (r.employee && r.employee.first_name) || '',
+              middleName: (r.employee && r.employee.middle_name) || '',
+              citizenshipId: (r.employee && r.employee.citizenship_id) || null,
+            }
+            : {
+              plateNumber: (r.vehicle && r.vehicle.car_number) || '',
+              mark: (r.vehicle && r.vehicle.car_brand) || '',
+            },
+        }));
+      // Справочник ждём ДО передачи строк наверх: citizenshipName собирается по нему,
+      // и без него в списке и в карточке строки гражданство осталось бы пустым навсегда.
+      if (this.isPeople && !this.citizenships.length) {
+        await this.loadCitizenships();
+      }
+      // Форматы номеров нужны, чтобы отличать исправленный номер от такого же
+      // негодного: без них галочка разблокировалась бы по одной непустоте поля.
+      if (!this.isPeople && !this.plateFormats.length) {
+        await this.loadPlateFormats();
+      }
+      this.stageAcceptedRows();
+    },
+
+    // Принятые бэком строки уходят в список сразу после разбора - предварительными.
+    // Места к ним приезжают позже, на «Добавить» (в файле их нет и не будет).
+    stageAcceptedRows() {
+      if (!this.acceptedRows.length) return;
+      const build = this.isPeople
+        ? (row) => this.buildEmployeeFromRow(row, false)
+        : (row) => this.buildVehicleFromRow(row, false);
+      this.$emit('stage', {
+        attachmentType: this.attachmentType,
+        rows: this.acceptedRows.map((row) => build(row)),
+      });
+    },
+    async loadPlateFormats() {
+      try {
+        const res = await apiRequest('/license-plate-formats', { method: 'GET' });
+        this.plateFormats = res.ok ? await res.json() : [];
+      } catch (error) {
+        // Без справочника форматов номер проверить нечем. Считаем, что проверка
+        // недоступна, и не пускаем правку строки вслепую - см. plateAccepted.
+        console.error('Ошибка при загрузке форматов номеров:', error);
+        this.plateFormats = [];
+      }
+    },
+    async loadCitizenships() {
+      try {
+        this.citizenships = await listCitizenships();
+      } catch (error) {
+        // Список гражданств нужен только для правки проблемных строк - пустая
+        // заявка на импорт не должна падать из-за недоступности справочника.
+        console.error('Ошибка при загрузке гражданств:', error);
+        this.citizenships = [];
+      }
+    },
+    reshapeTables(list, tableType) {
+      return (list || [])
+        .map((t) => t.table || t)
+        .filter((tbl) => tbl.table_type === tableType)
+        .map((tbl) => ({
+          table: {
+            id: tbl.id,
+            display_name: tbl.display_name || tbl.name,
+            status: tbl.status || 'active',
+            status_comment: tbl.status_comment,
+          },
+        }));
+    },
+    citizenshipName(id) {
+      const c = this.citizenships.find((x) => x.id === id);
+      return c ? c.name : '';
+    },
+    formatSelectedNames(ids, options) {
+      const names = ids
+        .map((id) => {
+          const found = options.find((o) => o.table.id === id);
+          return found ? found.table.display_name : '';
+        })
+        .filter(Boolean);
+      if (names.length > 1) return `${names[0]} и др.`;
+      return names[0] || '';
+    },
+    // Все ли причины строки правятся прямо здесь. Признак приходит с сервера полем
+    // fixable: разбирать текст причины фронтом нельзя - формулировки меняются, и
+    // каждая новая (несовпадение формата номера) молча блокировала строку навсегда.
+    rowFixable(row) {
+      return row.errors.every((error) => !!error.fixable);
+    },
+    // Строка становится добавляемой, только когда ВСЕ её причины исправимы здесь
+    // И минимальные поля реально заполнены - блокирующие причины (ЧС, дубль,
+    // паспорт/патент - полей для них тут нет по 152-ФЗ) чекбокс не разблокируют
+    // никакой правкой ФИО/номера.
+    canIncludeRow(row) {
+      if (!this.rowFixable(row)) return false;
+      if (this.isPeople) {
+        if (!row.fields.lastName.trim() || !row.fields.firstName.trim()) return false;
+        // Гражданство признано исправимым здесь, значит и требовать его надо так же,
+        // как форма: иначе строку с неопознанным гражданством можно включить, ничего
+        // не выбрав, и она отобьётся уже на подаче.
+        if (this.fieldVisible('citizenship') && this.fieldRequired('citizenship')) {
+          return !!row.fields.citizenshipId;
+        }
+        return true;
+      }
+      return this.plateAccepted(row.fields.plateNumber);
+    },
+
+    /**
+     * Номер годится, только когда он ложится в один из форматов справочника - тот же
+     * разбор, которым пользуется форма ручного ввода (matchNumberToFormat). Проверять
+     * одну непустоту нельзя: строка приезжает сюда именно потому, что номер не подошёл
+     * формату, и непустым он был с самого начала - галочка разблокировалась бы без
+     * единой правки, а мусор уехал бы в заявку.
+     */
+    /** Почему строку пока нельзя отметить - причина конкретная, а не общая просьба. */
+    rowNote(row) {
+      if (!this.isPeople) {
+        const value = (row.fields.plateNumber || '').trim();
+        if (!value) return 'Введите номер Т/С, чтобы отметить строку.';
+        if (!this.plateFormats.length) return 'Справочник форматов номеров недоступен, проверить номер нечем.';
+        return 'Номер не подходит ни под один формат номеров - поправьте его, чтобы отметить строку.';
+      }
+      if (!row.fields.lastName.trim() || !row.fields.firstName.trim()) {
+        return 'Заполните фамилию и имя, чтобы отметить строку.';
+      }
+      return 'Выберите гражданство, чтобы отметить строку.';
+    },
+
+    plateAccepted(raw) {
+      const value = (raw || '').trim();
+      if (!value) return false;
+      if (value.toLowerCase() === VEHICLE_BY_FACT.toLowerCase()) return true;
+      if (!this.plateFormats.length) return false;
+      return !!matchNumberToFormat(value, this.plateFormats);
+    },
+    buildEmployeeFromRow(row, isFixed) {
+      const emp = row.original ? row.original.employee : row.employee;
+      const fields = isFixed
+        ? row.fields
+        : {
+          lastName: emp.last_name,
+          firstName: emp.first_name,
+          middleName: emp.middle_name || '',
+          citizenshipId: emp.citizenship_id,
+        };
+      return {
+        lastName: (fields.lastName || '').trim(),
+        firstName: (fields.firstName || '').trim(),
+        middleName: (fields.middleName || '').trim(),
+        position: emp.position || '',
+        citizenshipId: fields.citizenshipId,
+        citizenshipName: this.citizenshipName(fields.citizenshipId),
+        passportSeriesNumber: emp.passport_series_number || '',
+        patentNumber: emp.patent_number || null,
+        otherPermission: emp.other_permission || null,
+        passageTables: this.formatSelectedNames(this.selectedTargetTables, this.targetTablesOptions),
+        targetTables: [...this.selectedTargetTables],
+        isExisting: false,
+      };
+    },
+    buildVehicleFromRow(row, isFixed) {
+      const veh = row.original ? row.original.vehicle : row.vehicle;
+      const fields = isFixed
+        ? row.fields
+        : { plateNumber: veh.car_number, mark: veh.car_brand };
+      const mark = (fields.mark || '').trim() || null;
+      return {
+        plateNumber: (fields.plateNumber || '').trim(),
+        mark,
+        markId: null,
+        markName: mark,
+        unloadingPlace: this.formatSelectedNames(this.selectedUnloadPlaces, this.unloadPlacesOptions),
+        unloadPlaces: [...this.selectedUnloadPlaces],
+        passage_tables: [...this.selectedPassageTables],
+        formatId: null,
+        isExisting: false,
+      };
+    },
+    /**
+     * «Добавить» в самой карточке: исправленная строка уходит в список сразу, как
+     * остальные разобранные, и исчезает из перечня ошибок. Раньше тут стояла галочка,
+     * и строка ждала общей кнопки - было непонятно, случилось ли что-то от клика.
+     */
+    addProblemRow(row) {
+      if (!this.canIncludeRow(row)) return;
+      const built = this.isPeople
+        ? this.buildEmployeeFromRow(row, true)
+        : this.buildVehicleFromRow(row, true);
+      this.$emit('stage', { attachmentType: this.attachmentType, rows: [built] });
+      this.problemRows = this.problemRows.filter((r) => r.rowNumber !== row.rowNumber);
+    },
+
+    // «Добавить в заявку»: всё добавляемое уже стоит в списке предварительным, родителю
+    // остаётся раскатать места и сделать строки обычными.
+    onSubmit() {
+      if (!this.canSubmit) return;
+      this.$emit('import', {
+        attachmentType: this.attachmentType,
+        places: this.placesPatch,
+        rows: [],
+      });
+    },
+    async downloadErrors() {
+      try {
+        const ExcelJS = (await import('exceljs')).default;
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Ошибки импорта');
+        const headers = ['Строка', this.isPeople ? 'ФИО' : 'Номер Т/С', 'Причина'];
+        const headerRow = worksheet.addRow(headers);
+        headerRow.eachCell((cell) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F5BDF' } };
+          cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        });
+        this.rows
+          .filter((r) => r.errors && r.errors.length)
+          .forEach((r) => {
+            const label = this.isPeople
+              ? employeeLabel({
+                lastName: r.employee && r.employee.last_name,
+                firstName: r.employee && r.employee.first_name,
+                middleName: r.employee && r.employee.middle_name,
+              })
+              : vehicleLabel({
+                plateNumber: r.vehicle && r.vehicle.car_number,
+                mark: r.vehicle && r.vehicle.car_brand,
+              });
+            worksheet.addRow([r.row_number, label, r.errors.map((e) => e.text).join('; ')]);
+          });
+        worksheet.columns = [{ width: 10 }, { width: 30 }, { width: 70 }];
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const { saveBlobAs } = await import('@/api/attachment-templates');
+        saveBlobAs(blob, 'oshibki_importa.xlsx');
+      } catch (error) {
+        console.error('Ошибка при выгрузке списка ошибок:', error);
+        useDeletionsStore().notify({ bold: 'Не удалось сформировать список ошибок', type: 'error' });
+      }
+    },
+  },
+};
+</script>
+
+<style scoped>
+.bim {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bim__actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Основное действие панели - на всю её ширину, вспомогательные остаются по размеру
+   содержимого строкой выше. */
+.bim__submit {
+  flex: 1 0 100%;
+}
+
+/* Счётчики разбора - блок карточкой, как остальные блоки формы: цифры на голом фоне
+   читались случайным текстом. */
+.bim__counters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.bim__counter {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* Разделители между счётчиками: смысл у трёх чисел разный, слитной строкой они
+   читаются как одно. */
+.bim__counter + .bim__counter {
+  padding-left: 20px;
+  border-left: 1px solid var(--border);
+}
+
+.bim__counter-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.bim__counter--ok .bim__counter-value {
+  color: var(--color-success, #15803d);
+}
+
+.bim__counter--error .bim__counter-value {
+  color: var(--danger-text);
+}
+
+.bim__counter-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.bim__places-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.bim__pending-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.input__label {
+  font-size: 13px;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.required {
+  color: var(--danger-text);
+}
+
+.bim__problems-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+
+.bim__problems-count {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bim__problems-hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.bim__warnings {
+  margin-bottom: 16px;
+}
+
+.bim__warnings-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 160px;
+  overflow: auto;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.bim__warnings-item {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.bim__warnings-row {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+}
+
+.bim__problems-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 420px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.bim__problem {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+/* Строку, которую здесь не спасти, отделяем цветом рамки, а не только текстом
+   причины: в списке из десятка карточек это единственный быстрый признак. */
+.bim__problem--blocked {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--surface));
+  background: color-mix(in srgb, var(--danger) 4%, var(--surface));
+}
+
+.bim__problem-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.bim__problem-num {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+
+
+
+
+.bim__reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Причина - готовая фраза целиком: своя строка на всю ширину карточки, без переноса
+   в узкую колонку. Исправимая подсвечена как предупреждение, блокирующая - как отказ. */
+.bim__reason {
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font-size: 12.5px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.bim__reason--blocking {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+.bim__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.bim__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bim__field-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.bim__cell-input {
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.bim__problem-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+@media (max-width: 768px) {
+  /* Счётчики переносятся на вторую строку, и разделитель оказался бы у левого края
+     блока - там он читается как обрез, а не как граница между числами. */
+  .bim__counter + .bim__counter {
+    padding-left: 0;
+    border-left: none;
+  }
+
+  /* На телефоне карточка идёт одним столбцом: поля во всю ширину, отметка -
+     полноценная строка-цель, а не 16px квадрат в углу. */
+  .bim__fields {
+    grid-template-columns: 1fr;
+  }
+
+  .bim__cell-input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  /* Тач-таргет кнопки добавления строки: у --sm высота меньше нормы WCAG 2.5.5. */
+  .bim__row-add {
+    min-height: 44px;
+  }
+
+  .bim__problems-list {
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  /* Тач-таргет 44px (WCAG 2.5.5): --sm-модификатора у этих кнопок нет, но базовые
+     8px padding дают 30px высоты. */
+  .bim__actions .lk-button {
+    min-height: 44px;
+    flex: 1 1 auto;
+  }
+}
+</style>

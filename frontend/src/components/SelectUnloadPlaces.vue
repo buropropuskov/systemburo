@@ -230,7 +230,7 @@ export default {
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 16px;
-  background: var(--accent-tint);
+  background: var(--surface-sunken);
 }
 
 .sec-title {

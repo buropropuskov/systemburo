@@ -26,6 +26,7 @@ import sys
 from docx import Document
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT, WD_TAB_LEADER
+from docx.image.image import Image as DocxImage
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Mm, Pt, RGBColor
@@ -332,6 +333,21 @@ CHANGELOGS = {
         ("1.4", "10.08.2026", "Добавлены гриф конфиденциальности и лист "
                               "ограничений на использование документа"),
     ],
+    "user": [
+        ("1.0", "11.08.2026", "Первая редакция"),
+    ],
+    "guard": [
+        ("1.0", "11.08.2026", "Первая редакция"),
+    ],
+    "approver": [
+        ("1.0", "11.08.2026", "Первая редакция"),
+    ],
+    "acceptor": [
+        ("1.0", "11.08.2026", "Первая редакция"),
+    ],
+    "admin": [
+        ("1.0", "11.08.2026", "Первая редакция"),
+    ],
 }
 
 def changelog(cfg):
@@ -387,6 +403,36 @@ DOCS = {
         "title": "КРИТЕРИИ УСПЕШНОГО ЗАВЕРШЕНИЯ ПИЛОТНОГО ПЕРИОДА",
         "subtitle": "Условия проведения, проверяемые сценарии и порядок приёмки",
     },
+    "user": {
+        "key": "user",
+        "file": "Руководство пользователя",
+        "title": "РУКОВОДСТВО ПОЛЬЗОВАТЕЛЯ",
+        "subtitle": "Оформление и подача заявок, свои справочники, личный кабинет",
+    },
+    "guard": {
+        "key": "guard",
+        "file": "Руководство охранника",
+        "title": "РУКОВОДСТВО ОХРАННИКА",
+        "subtitle": "Таблицы поста, отметка прохода, проверка пропуска",
+    },
+    "approver": {
+        "key": "approver",
+        "file": "Руководство согласующего",
+        "title": "РУКОВОДСТВО СОГЛАСУЮЩЕГО",
+        "subtitle": "Рассмотрение заявок, решение по согласованию, вопросы заявителю",
+    },
+    "acceptor": {
+        "key": "acceptor",
+        "file": "Руководство принимающего",
+        "title": "РУКОВОДСТВО ПРИНИМАЮЩЕГО",
+        "subtitle": "Приём заявок в работу, назначение постов и мест, дополнения",
+    },
+    "admin": {
+        "key": "admin",
+        "file": "Руководство администратора",
+        "title": "РУКОВОДСТВО АДМИНИСТРАТОРА",
+        "subtitle": "Учётные записи, права доступа, справочники, настройки и аудит",
+    },
 }
 
 FONT = "Times New Roman"
@@ -406,6 +452,10 @@ CALLOUTS = {
 }
 
 TEXT_WIDTH_CM = 16.5
+# Предельная высота картинки. Поле листа по высоте - 25.7 см (297 минус поля по
+# 20 мм), но рисунок делит страницу с подписью и хотя бы одним абзацем текста,
+# иначе он остаётся на листе один. 20 см оставляют место и на то, и на другое.
+MAX_IMAGE_HEIGHT_CM = 20.0
 HEADING_SIZE = {1: 16, 2: 14, 3: 14, 4: 14}
 CHAR_CM = 0.25
 MONO_CHAR_CM = 0.26
@@ -1243,10 +1293,27 @@ def add_callout(doc, kind, lines):
     set_font(spacer.add_run(""), size=6)
 
 
+def image_size_cm(path):
+    """Размер картинки на листе в сантиметрах.
+
+    Ширина считается от числа точек при печатном разрешении, а не задаётся
+    равной ширине текста: снимок мелкого элемента, растянутый на всю ширину
+    полосы, выглядит размытым, тогда как поставленный в свой размер остаётся
+    чётким. Широкий снимок ужимается до ширины текста, высокий - до предельной
+    высоты, иначе он молча выпирает за поле листа.
+    """
+    image = DocxImage.from_file(path)
+    width = image.px_width / (image.horz_dpi or 72) * 2.54
+    height = image.px_height / (image.vert_dpi or 72) * 2.54
+    scale = min(TEXT_WIDTH_CM / width, MAX_IMAGE_HEIGHT_CM / height, 1.0)
+    return width * scale, height * scale
+
+
 def add_image(doc, path, caption_text):
     if not os.path.exists(path):
         raise FileNotFoundError(f"не найдено изображение: {path}")
-    doc.add_picture(path, width=Cm(TEXT_WIDTH_CM))
+    width_cm, height_cm = image_size_cm(path)
+    doc.add_picture(path, width=Cm(width_cm), height=Cm(height_cm))
     pic = doc.paragraphs[-1]
     pic.alignment = WD_ALIGN_PARAGRAPH.CENTER
     pic.paragraph_format.first_line_indent = Mm(0)

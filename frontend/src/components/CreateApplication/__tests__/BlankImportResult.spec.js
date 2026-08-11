@@ -11,6 +11,21 @@ vi.mock('@/stores/deletions', () => ({
   useDeletionsStore: vi.fn(() => ({ notify: notifyMock })),
 }));
 
+// Справочник форматов номеров: по нему сводка решает, стал ли поправленный номер
+// годным. Один формат РФ-вида - буквы и цифры, как в реальном справочнике.
+const RU_FORMAT = {
+  format: { id: 1, name: 'Россия', is_default: true },
+  cells: [
+    { cell_order: 1, cell_type: 'letters', min_length: 1, max_length: 1, alphabet_type: 'cyrillic' },
+    { cell_order: 2, cell_type: 'numbers', min_length: 3, max_length: 3 },
+    { cell_order: 3, cell_type: 'letters', min_length: 2, max_length: 2, alphabet_type: 'cyrillic' },
+    { cell_order: 4, cell_type: 'numbers', min_length: 2, max_length: 3 },
+  ],
+};
+vi.mock('@/api/client', () => ({
+  apiRequest: vi.fn(async () => ({ ok: true, json: async () => [RU_FORMAT] })),
+}));
+
 const saveBlobAsMock = vi.fn();
 vi.mock('@/api/attachment-templates', () => ({
   saveBlobAs: (...args) => saveBlobAsMock(...args),
@@ -33,7 +48,7 @@ vi.mock('exceljs', () => {
   return { default: { Workbook } };
 });
 
-import BlankImportResultModal from '../BlankImportResultModal.vue';
+import BlankImportResult from '../BlankImportResult.vue';
 
 // Реальная форма /system-tables: double-wrap { table: {...} } - как в
 // TableBulkTargetModal.spec.js, плоская фикстура маскировала бы фильтр по table_type.
@@ -49,19 +64,25 @@ const CITIZENSHIPS = [
   { id: 2, name: 'Узбекистан' },
 ];
 
-function mountModal(props = {}) {
-  return mount(BlankImportResultModal, {
+// Срез U5 развёл два момента: принятые строки уходят наверх событием stage сразу после
+// разбора и живут в списке предварительными, а «Добавить» (событие import) раскатывает
+// по ним места и приносит вручную исправленные строки. Поэтому счётчик готовых сводка
+// берёт от родителя (pendingCount) - здесь моделируем его тем, что родитель и положил бы
+// в список: все строки без ошибок.
+function mountPanel(props = {}) {
+  const stagedRows = (props.rows || []).filter((r) => !(r.errors && r.errors.length));
+  return mount(BlankImportResult, {
     props: {
-      show: true,
       attachmentType: 'people',
+      hasResult: true,
       summary: { read: 2, accepted: 1, rejected: 1 },
       rows: [],
+      pendingCount: stagedRows.length,
       allPassageTables: PASSAGE_TABLES,
       allUnloadingPlaces: UNLOAD_PLACES,
       fieldConfig: {},
       ...props,
     },
-    global: { stubs: { teleport: true } },
   });
 }
 
@@ -87,7 +108,13 @@ const PEOPLE_ROWS = [
       passport_series_number: '', patent_number: null, other_permission: null,
       target_tables: [],
     },
-    errors: ['Поле «Фамилия» обязательно для заполнения', 'Поле «Имя» обязательно для заполнения'],
+    // Причины приходят объектами: текст для человека плюс машинный признак, правится
+    // ли причина прямо в таблице разбора (services.ImportRowError). Фронт текст не
+    // разбирает, поэтому фикстура копирует форму ответа, а не выдумывает свою.
+    errors: [
+      { text: 'Поле «Фамилия» обязательно для заполнения', code: 'field_required', field: 'last_name', fixable: true },
+      { text: 'Поле «Имя» обязательно для заполнения', code: 'field_required', field: 'first_name', fixable: true },
+    ],
     warnings: [],
   },
 ];
@@ -102,7 +129,12 @@ const PEOPLE_UNKNOWN_CITIZENSHIP_ROW = {
     passport_series_number: '', patent_number: null, other_permission: null,
     target_tables: [],
   },
-  errors: ['Гражданство "Узбекистн" не найдено в справочнике'],
+  errors: [{
+    text: 'Гражданство "Узбекистн" не найдено в справочнике',
+    code: 'citizenship_unknown',
+    field: 'citizenship',
+    fixable: true,
+  }],
   warnings: [],
 };
 
@@ -117,22 +149,118 @@ const CAR_ROWS = [
     row_number: 3,
     vehicle: { car_number: '', car_brand: 'Kamaz', mark_id: null, unload_places: [], passage_tables: [] },
     // Текст дословно как его формирует бэк: метка берётся из реестра полей
-    // (attachment_fields_registry.go, Label "Номер ТС"). Своя формулировка во фикстуре
-    // означала бы, что тест сверяет фронт сам с собой.
-    errors: ['Поле «Номер ТС» обязательно для заполнения'],
+    // (attachment_fields_registry.go, Label "Номер ТС"), ключ поля и признак
+    // исправимости - оттуда же. Своя формулировка во фикстуре означала бы, что тест
+    // сверяет фронт сам с собой.
+    errors: [{
+      text: 'Поле «Номер ТС» обязательно для заполнения',
+      code: 'field_required',
+      field: 'number',
+      fixable: true,
+    }],
     warnings: [],
   },
 ];
 
-describe('BlankImportResultModal (blank-import D1D2)', () => {
+// Строка приезжает сюда именно потому, что номер не подошёл формату, и непустым он
+// был с самого начала: проверка на непустоту разблокировала бы галочку без единой
+// правки, и мусорный номер уехал бы в заявку (замечание владельца про «Писька»).
+const CAR_BAD_PLATE_ROW = {
+  row_number: 4,
+  vehicle: { car_number: 'Писька', car_brand: 'Kamaz', mark_id: null, unload_places: [], passage_tables: [] },
+  errors: [{
+    text: 'Номер Т/С "Писька" не соответствует ни одному формату номеров',
+    code: 'plate_format',
+    field: 'number',
+    fixable: true,
+  }],
+  warnings: [],
+};
+
+describe('BlankImportResult - номер обязан лечь в формат', () => {
   beforeEach(() => {
     notifyMock.mockReset();
     listCitizenshipsMock.mockReset();
     listCitizenshipsMock.mockResolvedValue(CITIZENSHIPS);
   });
 
-  it('207 разбирается: счётчики совпадают с summary, проблемная строка показана', async () => {
-    const wrapper = mountModal({
+  it('строку с негодным номером нельзя отметить, пока номер не исправлен', async () => {
+    const wrapper = mountPanel({
+      attachmentType: 'cars',
+      rows: [CAR_BAD_PLATE_ROW],
+      summary: { read: 1, accepted: 0, rejected: 1 },
+    });
+    await flushPromises();
+
+    const checkbox = wrapper.find('[data-testid="bim-include-4"]');
+    expect(checkbox.attributes('disabled')).toBeDefined();
+    expect(wrapper.find('[data-testid="bim-problem-row-4"]').text()).toContain('не подходит ни под один формат');
+
+    const input = wrapper.find('[data-testid="bim-problem-row-4"] input.bim__cell-input');
+    await input.setValue('А123ВС777');
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeUndefined();
+  });
+
+  it('мусор вместо номера не проходит и после правки на такой же мусор', async () => {
+    const wrapper = mountPanel({
+      attachmentType: 'cars',
+      rows: [CAR_BAD_PLATE_ROW],
+      summary: { read: 1, accepted: 0, rejected: 1 },
+    });
+    await flushPromises();
+
+    const input = wrapper.find('[data-testid="bim-problem-row-4"] input.bim__cell-input');
+    await input.setValue('ЫЫЫЫЫ');
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeDefined();
+  });
+
+  it('кнопка снова блокируется, если номер испортили после правки', async () => {
+    const wrapper = mountPanel({
+      attachmentType: 'cars',
+      rows: [CAR_BAD_PLATE_ROW],
+      summary: { read: 1, accepted: 0, rejected: 1 },
+    });
+    await flushPromises();
+
+    const input = wrapper.find('[data-testid="bim-problem-row-4"] input.bim__cell-input');
+    await input.setValue('А123ВС777');
+    await flushPromises();
+    expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeUndefined();
+
+    await input.setValue('снова мусор');
+    await flushPromises();
+    expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeDefined();
+  });
+
+  it('«По факту» остаётся допустимым значением', async () => {
+    const wrapper = mountPanel({
+      attachmentType: 'cars',
+      rows: [CAR_BAD_PLATE_ROW],
+      summary: { read: 1, accepted: 0, rejected: 1 },
+    });
+    await flushPromises();
+
+    const input = wrapper.find('[data-testid="bim-problem-row-4"] input.bim__cell-input');
+    await input.setValue('По факту');
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="bim-include-4"]').attributes('disabled')).toBeUndefined();
+  });
+});
+
+describe('BlankImportResult (blank-import D1D2)', () => {
+  beforeEach(() => {
+    notifyMock.mockReset();
+    listCitizenshipsMock.mockReset();
+    listCitizenshipsMock.mockResolvedValue(CITIZENSHIPS);
+  });
+
+  it('207 разбирается: прочитано и с ошибками из summary, готово - из списка, проблемная строка показана', async () => {
+    const wrapper = mountPanel({
       rows: PEOPLE_ROWS,
       summary: { read: 2, accepted: 1, rejected: 1 },
     });
@@ -143,8 +271,33 @@ describe('BlankImportResultModal (blank-import D1D2)', () => {
     expect(wrapper.find('[data-testid="bim-problem-row-5"]').exists()).toBe(false);
   });
 
+  // Номер с латиницей и короткая числовая часть чинятся сервером автоматически.
+  // Строка при этом принимается, поэтому единственный способ узнать о правке -
+  // увидеть предупреждение в сводке.
+  it('предупреждения принятых строк показаны отдельным блоком', async () => {
+    const fixed = {
+      row_number: 8,
+      employee: {
+        last_name: 'Иванов', first_name: 'Иван', middle_name: '',
+        citizenship_id: 1, position: 'Инженер',
+        passport_series_number: '', patent_number: null, other_permission: null,
+        target_tables: [],
+      },
+      errors: [],
+      warnings: ['Поле «Фамилия»: похожие латинские буквы заменены на русские, "Ивaнов" -> "Иванов"'],
+    };
+    const wrapper = mountPanel({ rows: [fixed], summary: { read: 1, accepted: 1, rejected: 0 } });
+    await flushPromises();
+
+    const block = wrapper.find('.bim__warnings');
+    expect(block.exists()).toBe(true);
+    expect(block.text()).toContain('Стр. 8');
+    expect(block.text()).toContain('заменены на русские');
+    expect(wrapper.find('.bim__problems').exists()).toBe(false);
+  });
+
   it('кнопка добавления заблокирована без выбора мест прохода и разблокируется после выбора', async () => {
-    const wrapper = mountModal({ rows: [PEOPLE_ROWS[0]], summary: { read: 1, accepted: 1, rejected: 0 } });
+    const wrapper = mountPanel({ rows: [PEOPLE_ROWS[0]], summary: { read: 1, accepted: 1, rejected: 0 } });
     await flushPromises();
 
     const submit = wrapper.find('[data-testid="bim-submit"]');
@@ -154,53 +307,58 @@ describe('BlankImportResultModal (blank-import D1D2)', () => {
     expect(wrapper.find('[data-testid="bim-submit"]').attributes('disabled')).toBeUndefined();
   });
 
-  it('принятые строки формируют payload с выбранными местами прохода, отклонённые без правки - нет', async () => {
-    const wrapper = mountModal({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
+  it('принятые строки уходят наверх сразу, отклонённые без правки - нет, места приезжают на «Добавить»', async () => {
+    const wrapper = mountPanel({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
     await flushPromises();
-    await wrapper.findAll('.passage__item')[0].trigger('click');
 
-    await wrapper.find('[data-testid="bim-submit"]').trigger('click');
-
-    const emitted = wrapper.emitted('import');
-    expect(emitted).toHaveLength(1);
-    const payload = emitted[0][0];
-    expect(payload.attachmentType).toBe('people');
-    expect(payload.rows).toHaveLength(1);
-    expect(payload.rows[0]).toMatchObject({
+    const staged = wrapper.emitted('stage');
+    expect(staged).toHaveLength(1);
+    expect(staged[0][0].attachmentType).toBe('people');
+    expect(staged[0][0].rows).toHaveLength(1);
+    expect(staged[0][0].rows[0]).toMatchObject({
       lastName: 'Иванов',
       firstName: 'Иван',
       citizenshipId: 1,
       citizenshipName: 'Россия',
       passportSeriesNumber: '1234 567890',
-      targetTables: [10],
       isExisting: false,
     });
+
+    await wrapper.findAll('.passage__item')[0].trigger('click');
+    await wrapper.find('[data-testid="bim-submit"]').trigger('click');
+
+    const emitted = wrapper.emitted('import');
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0][0].attachmentType).toBe('people');
+    expect(emitted[0][0].places).toMatchObject({ targetTables: [10] });
+    // Принятая строка уже в списке - второй раз её не шлём.
+    expect(emitted[0][0].rows).toEqual([]);
   });
 
-  it('правка проблемной строки на месте делает её добавляемой и включённой в payload', async () => {
-    const wrapper = mountModal({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
+  it('правка строки и кнопка «Добавить» уводят её из ошибок прямо в список', async () => {
+    const wrapper = mountPanel({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
     await flushPromises();
-    await wrapper.findAll('.passage__item')[0].trigger('click');
 
     const row6 = wrapper.find('[data-testid="bim-problem-row-6"]');
     const inputs = row6.findAll('input.bim__cell-input');
     await inputs[0].setValue('Петров');
     await inputs[1].setValue('Пётр');
 
-    const checkbox = wrapper.find('[data-testid="bim-include-6"]');
-    expect(checkbox.attributes('disabled')).toBeUndefined();
-    await checkbox.setValue(true);
+    const addBtn = wrapper.find('[data-testid="bim-include-6"]');
+    expect(addBtn.attributes('disabled')).toBeUndefined();
+    await addBtn.trigger('click');
+    await flushPromises();
 
-    await wrapper.find('[data-testid="bim-submit"]').trigger('click');
-
-    const payload = wrapper.emitted('import')[0][0];
-    expect(payload.rows).toHaveLength(2);
-    const fixed = payload.rows.find((r) => r.lastName === 'Петров');
-    expect(fixed).toMatchObject({ firstName: 'Пётр', isExisting: false, targetTables: [10] });
+    // Строка ушла в список сразу - последним событием stage, и исчезла из перечня ошибок.
+    const staged = wrapper.emitted('stage');
+    const last = staged[staged.length - 1][0];
+    expect(last.rows).toHaveLength(1);
+    expect(last.rows[0]).toMatchObject({ lastName: 'Петров', firstName: 'Пётр', isExisting: false });
+    expect(wrapper.find('[data-testid="bim-problem-row-6"]').exists()).toBe(false);
   });
 
-  it('незаполненную обязательную часть строки (пустое имя) нельзя отметить галочкой', async () => {
-    const wrapper = mountModal({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
+  it('незаполненную обязательную часть строки (пустое имя) добавить нельзя', async () => {
+    const wrapper = mountPanel({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
     await flushPromises();
 
     const checkbox = wrapper.find('[data-testid="bim-include-6"]');
@@ -208,7 +366,7 @@ describe('BlankImportResultModal (blank-import D1D2)', () => {
   });
 
   it('строку с неопознанным гражданством нельзя включить, пока гражданство не выбрано', async () => {
-    const wrapper = mountModal({
+    const wrapper = mountPanel({
       rows: [PEOPLE_ROWS[0], PEOPLE_UNKNOWN_CITIZENSHIP_ROW],
       summary: { read: 2, accepted: 1, rejected: 1 },
     });
@@ -224,8 +382,8 @@ describe('BlankImportResultModal (blank-import D1D2)', () => {
     expect(wrapper.find('[data-testid="bim-include-7"]').attributes('disabled')).toBeUndefined();
   });
 
-  it('машина с пустым номером чинится правкой на месте и попадает в payload', async () => {
-    const wrapper = mountModal({
+  it('машина с пустым номером чинится правкой и уходит в список по кнопке', async () => {
+    const wrapper = mountPanel({
       attachmentType: 'cars',
       rows: CAR_ROWS,
       summary: { read: 2, accepted: 1, rejected: 1 },
@@ -237,24 +395,31 @@ describe('BlankImportResultModal (blank-import D1D2)', () => {
     const problemRow = wrapper.find('[data-testid="bim-problem-row-3"]');
     await problemRow.findAll('input.bim__cell-input')[0].setValue('В777ВВ177');
 
-    const checkbox = wrapper.find('[data-testid="bim-include-3"]');
-    expect(checkbox.attributes('disabled')).toBeUndefined();
-    await checkbox.setValue(true);
+    const addBtn = wrapper.find('[data-testid="bim-include-3"]');
+    expect(addBtn.attributes('disabled')).toBeUndefined();
+    await addBtn.trigger('click');
+    await flushPromises();
 
-    await wrapper.find('[data-testid="bim-submit"]').trigger('click');
-
-    const payload = wrapper.emitted('import')[0][0];
-    expect(payload.rows).toHaveLength(2);
-    expect(payload.rows.some((r) => r.plateNumber === 'В777ВВ177')).toBe(true);
+    const staged = wrapper.emitted('stage');
+    const last = staged[staged.length - 1][0];
+    expect(last.rows).toHaveLength(1);
+    expect(last.rows[0].plateNumber).toBe('В777ВВ177');
+    expect(wrapper.find('[data-testid="bim-problem-row-3"]').exists()).toBe(false);
   });
 
-  it('машины: номер Т/С обязателен, места разгрузки и проезд применяются к payload', async () => {
-    const wrapper = mountModal({
+  it('машины: принятая строка уходит наверх сразу, места разгрузки и проезд - на «Добавить»', async () => {
+    const wrapper = mountPanel({
       attachmentType: 'cars',
       rows: [CAR_ROWS[0]],
       summary: { read: 1, accepted: 1, rejected: 0 },
     });
     await flushPromises();
+
+    expect(wrapper.emitted('stage')[0][0].rows[0]).toMatchObject({
+      plateNumber: 'А001АА777',
+      mark: 'Volvo',
+      isExisting: false,
+    });
 
     await wrapper.find('[data-testid="bim-unload-places"] .passage__item').trigger('click');
     await wrapper.find('[data-testid="bim-passage-tables"] .passage__item').trigger('click');
@@ -262,43 +427,43 @@ describe('BlankImportResultModal (blank-import D1D2)', () => {
 
     const payload = wrapper.emitted('import')[0][0];
     expect(payload.attachmentType).toBe('cars');
-    expect(payload.rows[0]).toMatchObject({
-      plateNumber: 'А001АА777',
-      mark: 'Volvo',
+    expect(payload.places).toEqual({
       unloadPlaces: [30],
+      unloadingPlace: 'Склад 1',
       passage_tables: [20],
-      isExisting: false,
     });
   });
 
-  it('закрытие эмитит close', async () => {
-    const wrapper = mountModal({ rows: [] });
+  it('«Загрузить другой файл» эмитит reset - панель вернётся к области загрузки', async () => {
+    const wrapper = mountPanel({ rows: [] });
     await flushPromises();
-    await wrapper.find('[data-testid="modal-button-close"]').trigger('click');
-    expect(wrapper.emitted('close')).toHaveLength(1);
+    await wrapper.find('[data-testid="bim-reset"]').trigger('click');
+    expect(wrapper.emitted('reset')).toHaveLength(1);
   });
 
-  it('открытие сбрасывает выбор мест и правки предыдущего показа', async () => {
-    const wrapper = mountModal({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
+  // Панель живёт в форме подачи, а не открывается заново: сброс привязан к приходу
+  // новых строк, иначе выбор мест и правки прошлого файла перетекут в следующий.
+  it('новая загрузка сбрасывает выбор мест и правки предыдущего файла', async () => {
+    const wrapper = mountPanel({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
     await flushPromises();
     await wrapper.findAll('.passage__item')[0].trigger('click');
     expect(wrapper.vm.selectedTargetTables).toEqual([10]);
 
-    await wrapper.setProps({ show: false });
-    await wrapper.setProps({ show: true });
+    await wrapper.setProps({ rows: [PEOPLE_ROWS[0]], summary: { read: 1, accepted: 1, rejected: 0 } });
     await flushPromises();
 
     expect(wrapper.vm.selectedTargetTables).toEqual([]);
+    expect(wrapper.vm.problemRows).toEqual([]);
   });
 });
 
-describe('BlankImportResultModal - обязательность мест по fieldConfig (ревью, блокер 1)', () => {
+describe('BlankImportResult - обязательность мест по fieldConfig (ревью, блокер 1)', () => {
   beforeEach(() => {
     notifyMock.mockReset();
   });
 
   it('required:false у visible-поля не блокирует кнопку и не рисует звёздочку - зеркало EmployeeForm/VehicleForm', async () => {
-    const wrapper = mountModal({
+    const wrapper = mountPanel({
       rows: [PEOPLE_ROWS[0]],
       summary: { read: 1, accepted: 1, rejected: 0 },
       fieldConfig: { target_tables: { visible: true, required: false } },
@@ -313,7 +478,7 @@ describe('BlankImportResultModal - обязательность мест по fi
   });
 
   it('required:false для машин (места разгрузки и проезд) не блокирует submit', async () => {
-    const wrapper = mountModal({
+    const wrapper = mountPanel({
       attachmentType: 'cars',
       rows: [CAR_ROWS[0]],
       summary: { read: 1, accepted: 1, rejected: 0 },
@@ -330,7 +495,7 @@ describe('BlankImportResultModal - обязательность мест по fi
   });
 });
 
-describe('BlankImportResultModal - блокирующие причины не обходятся правкой (ревью, блокер 2)', () => {
+describe('BlankImportResult - блокирующие причины не обходятся правкой (ревью, блокер 2)', () => {
   const BLACKLIST_ROW = {
     row_number: 7,
     employee: {
@@ -341,7 +506,7 @@ describe('BlankImportResultModal - блокирующие причины не о
     },
     // ФИО у блокирующей строки заведомо непустое - иначе совпадение по ключу
     // ЧС/дубля не случилось бы (fmtErrEmployeeBlacklisted/"Дублирует строку").
-    errors: ['Человек Сидоров Пётр в чёрном списке: судимость'],
+    errors: [{ text: 'Человек Сидоров Пётр в чёрном списке: судимость', code: 'blacklisted', fixable: false }],
     warnings: [],
   };
   const DUPLICATE_ROW = {
@@ -352,7 +517,7 @@ describe('BlankImportResultModal - блокирующие причины не о
       passport_series_number: '', patent_number: null, other_permission: null,
       target_tables: [],
     },
-    errors: ['Дублирует строку 4: то же ФИО'],
+    errors: [{ text: 'Дублирует строку 4: то же ФИО', code: 'duplicate_in_file', fixable: false }],
     warnings: [],
   };
   const PATENT_ROW = {
@@ -365,12 +530,17 @@ describe('BlankImportResultModal - блокирующие причины не о
     },
     // Патент/паспорт полей в этой таблице нет и не должно быть (152-ФЗ) - косметическая
     // правка ФИО не должна включать такую строку.
-    errors: ['Для гражданства "Узбекистан" нужен номер патента или иное разрешение на работы'],
+    errors: [{
+      text: 'Для гражданства "Узбекистан" нужен номер патента или иное разрешение на работы',
+      code: 'patent_required',
+      field: 'patent',
+      fixable: false,
+    }],
     warnings: [],
   };
 
   it('строку с блокировкой по чёрному списку нельзя отметить даже после правки ФИО', async () => {
-    const wrapper = mountModal({ rows: [BLACKLIST_ROW], summary: { read: 1, accepted: 0, rejected: 1 } });
+    const wrapper = mountPanel({ rows: [BLACKLIST_ROW], summary: { read: 1, accepted: 0, rejected: 1 } });
     await flushPromises();
 
     const row = wrapper.find('[data-testid="bim-problem-row-7"]');
@@ -382,7 +552,7 @@ describe('BlankImportResultModal - блокирующие причины не о
   });
 
   it('строку-дубль внутри файла нельзя отметить даже после правки ФИО', async () => {
-    const wrapper = mountModal({ rows: [DUPLICATE_ROW], summary: { read: 1, accepted: 0, rejected: 1 } });
+    const wrapper = mountPanel({ rows: [DUPLICATE_ROW], summary: { read: 1, accepted: 0, rejected: 1 } });
     await flushPromises();
 
     const row = wrapper.find('[data-testid="bim-problem-row-8"]');
@@ -394,7 +564,7 @@ describe('BlankImportResultModal - блокирующие причины не о
   });
 
   it('строку с ошибкой про патент нельзя отметить косметической правкой ФИО - полей патента здесь нет', async () => {
-    const wrapper = mountModal({ rows: [PATENT_ROW], summary: { read: 1, accepted: 0, rejected: 1 } });
+    const wrapper = mountPanel({ rows: [PATENT_ROW], summary: { read: 1, accepted: 0, rejected: 1 } });
     await flushPromises();
 
     const row = wrapper.find('[data-testid="bim-problem-row-9"]');
@@ -406,7 +576,7 @@ describe('BlankImportResultModal - блокирующие причины не о
   });
 
   it('реально исправимая строка (пустое имя) по-прежнему становится добавляемой', async () => {
-    const wrapper = mountModal({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
+    const wrapper = mountPanel({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
     await flushPromises();
 
     const row = wrapper.find('[data-testid="bim-problem-row-6"]');
@@ -418,7 +588,7 @@ describe('BlankImportResultModal - блокирующие причины не о
   });
 });
 
-describe('BlankImportResultModal - ПДн не выводятся (ревью, замечание 4)', () => {
+describe('BlankImportResult - ПДн не выводятся (ревью, замечание 4)', () => {
   const PASSPORT_VALUE = '4009 112233';
   const ROW_WITH_PASSPORT = {
     row_number: 11,
@@ -428,19 +598,24 @@ describe('BlankImportResultModal - ПДн не выводятся (ревью, �
       passport_series_number: PASSPORT_VALUE, patent_number: null, other_permission: null,
       target_tables: [],
     },
-    errors: ['Поле «Фамилия» обязательно для заполнения'],
+    errors: [{
+      text: 'Поле «Фамилия» обязательно для заполнения',
+      code: 'field_required',
+      field: 'last_name',
+      fixable: true,
+    }],
     warnings: [],
   };
 
   it('паспорт не встречается в тексте таблицы проблемных строк', async () => {
-    const wrapper = mountModal({ rows: [ROW_WITH_PASSPORT], summary: { read: 1, accepted: 0, rejected: 1 } });
+    const wrapper = mountPanel({ rows: [ROW_WITH_PASSPORT], summary: { read: 1, accepted: 0, rejected: 1 } });
     await flushPromises();
 
     expect(wrapper.text()).not.toContain(PASSPORT_VALUE);
   });
 
   it('паспорт не попадает в буфер выгрузки списка ошибок', async () => {
-    const wrapper = mountModal({ rows: [ROW_WITH_PASSPORT], summary: { read: 1, accepted: 0, rejected: 1 } });
+    const wrapper = mountPanel({ rows: [ROW_WITH_PASSPORT], summary: { read: 1, accepted: 0, rejected: 1 } });
     await flushPromises();
 
     await wrapper.find('[data-testid="bim-download-errors"]').trigger('click');
@@ -453,13 +628,13 @@ describe('BlankImportResultModal - ПДн не выводятся (ревью, �
   });
 });
 
-describe('BlankImportResultModal - выгрузка списка ошибок', () => {
+describe('BlankImportResult - выгрузка списка ошибок', () => {
   beforeEach(() => {
     saveBlobAsMock.mockReset();
   });
 
   it('клик по "Скачать список ошибок" собирает Excel-книгу и отдаёт её через saveBlobAs', async () => {
-    const wrapper = mountModal({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
+    const wrapper = mountPanel({ rows: PEOPLE_ROWS, summary: { read: 2, accepted: 1, rejected: 1 } });
     await flushPromises();
 
     await wrapper.find('[data-testid="bim-download-errors"]').trigger('click');

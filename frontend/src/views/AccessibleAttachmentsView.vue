@@ -1162,6 +1162,15 @@ onBeforeUnmount(() => {
   justify-content: flex-start;
 }
 
+/*
+ * «Посмотреть файл» на время загрузки подписывается «Загрузка...», и кнопка
+ * прыгала в ширине. Держим её размер по длинной подписи.
+ */
+.detail-actions .lk-button {
+  min-width: 172px;
+  justify-content: center;
+}
+
 .blank-preview {
   padding: 16px 20px 20px;
 }
