@@ -64,7 +64,7 @@ describe('UserControl: режим «Без почты»', () => {
 
     const shown = wrapper.vm.filteredUsers.map((u) => u.username)
     expect(shown).toEqual(['without_mail', 'null_mail'])
-    // Плановая смена паролей не трогает архивные учётные записи, поэтому и здесь
+    // Прогоны по паролям не трогают архивные учётные записи, поэтому и здесь
     // их быть не должно - иначе бюро будет добивать адреса уволенным.
     expect(shown).not.toContain('archived_no_mail')
   })

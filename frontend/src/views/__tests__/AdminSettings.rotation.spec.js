@@ -25,7 +25,7 @@ vi.mock('@/stores/deletions', () => ({
   useDeletionsStore: () => ({ notify }),
 }))
 
-/** Ответ ручки состояния плановой смены. */
+/** Ответ ручки состояния сроков действия паролей. */
 function statusResponse(overrides = {}) {
   return {
     ok: true,
@@ -58,23 +58,23 @@ async function mountSettings(statusOverrides = {}) {
   return wrapper
 }
 
-describe('AdminSettings: плановая смена паролей', () => {
+describe('AdminSettings: срок действия паролей', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
   })
 
-  it('без настроенной почты не даёт включить смену и объясняет причину', async () => {
+  // Проверка сроков ничего не рассылает - она поднимает требование сменить пароль
+  // на входе. Прежний запрет «без почты не включишь» остался только у ручного
+  // обновления паролей.
+  it('переключатель работает и без настроенной почты', async () => {
     const wrapper = await mountSettings({ mail_configured: false })
 
     wrapper.vm.toggleRotation()
     await flushPromises()
 
-    expect(wrapper.vm.settings.password_rotation_enabled).toBe(false)
-    expect(notify).toHaveBeenCalledWith(expect.objectContaining({
-      bold: 'Сначала настройте почту',
-      type: 'error',
-    }))
+    expect(wrapper.vm.settings.password_rotation_enabled).toBe(true)
+    expect(notify).not.toHaveBeenCalled()
   })
 
   it('с настроенной почтой переключатель работает', async () => {
@@ -87,25 +87,37 @@ describe('AdminSettings: плановая смена паролей', () => {
     expect(notify).not.toHaveBeenCalled()
   })
 
-  it('показывает, скольких работников затронет ближайший прогон', async () => {
+  it('показывает, у скольких работников срок вышел, и что с ними будет', async () => {
     const wrapper = await mountSettings({ mail_configured: true })
     const block = wrapper.find('[data-testid="rotation-status"]')
 
     expect(block.text()).toContain('5')
     expect(block.text()).toContain('12')
     expect(block.text()).toContain('3')
+    expect(block.text()).toContain('задать новый')
     expect(block.text()).toContain('адреса проставляет бюро')
   })
 
-  it('без почты вместо чисел показывает предупреждение', async () => {
+  // Обещать рассылку нельзя: пароли по почте больше не ходят, и текст экрана -
+  // единственное, откуда администратор об этом узнает.
+  it('не обещает, что система сменит пароли и вышлет их письмами', async () => {
+    const wrapper = await mountSettings({ mail_configured: true })
+    const text = wrapper.find('[data-testid="rotation-status"]').text()
+
+    expect(text).toContain('не меняются и письмами не рассылаются')
+    expect(text).not.toContain('Под смену подпадает')
+  })
+
+  it('без почты числа остаются, но предупреждает о недоступном', async () => {
     const wrapper = await mountSettings({ mail_configured: false })
     const block = wrapper.find('[data-testid="rotation-status"]')
 
+    expect(block.text()).toContain('Ближайшая проверка')
     expect(block.text()).toContain('Почта не настроена')
-    expect(block.text()).not.toContain('Ближайшая проверка')
+    expect(block.text()).toContain('предупреждения о скором')
   })
 
-  it('сохранение шлёт все четыре ключа ротации', async () => {
+  it('сохранение шлёт все четыре ключа сроков', async () => {
     const wrapper = await mountSettings({ mail_configured: true })
     wrapper.vm.settings.password_rotation_enabled = true
     wrapper.vm.settings.password_rotation_days = 60
