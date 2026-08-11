@@ -113,20 +113,34 @@ describe('BlankImportResult - карточки строк с ошибками', 
     expect(blocked.find('.bim__reason--blocking').exists()).toBe(true);
   });
 
-  it('исправимая, но недозаполненная строка объясняет, чего ждёт', async () => {
+  it('исправимая, но недозаполненная строка объясняет, чего ждёт - место под подсказку зарезервировано и не переключается из/в разметку', async () => {
     const wrapper = mountPanel([FIXABLE_ROW]);
     await flushPromises();
 
-    expect(wrapper.find('.bim__problem-note').exists()).toBe(true);
+    const note = () => wrapper.find('.bim__problem-note');
+    expect(note().exists()).toBe(true);
+    expect(note().classes()).not.toContain('bim__problem-note--hidden');
+    expect(note().text()).toContain('Заполните фамилию и имя');
 
     await wrapper.find('[data-testid="bim-problem-row-6"]').findAll('input.bim__cell-input')[0]
       .setValue('Иванова');
 
-    expect(wrapper.find('.bim__problem-note').exists()).toBe(false);
+    // Строка стала полной - подсказка гасится классом (видимость), а не исчезает из
+    // DOM: иначе высота карточки скачет и у списка карточек то появляется, то
+    // пропадает вертикальный скролл (жалоба владельца про дёргающийся скролл).
+    expect(note().exists()).toBe(true);
+    expect(note().classes()).toContain('bim__problem-note--hidden');
   });
 
-  // Раскладку в jsdom не посчитать, поэтому мобильный контракт карточки стережём
-  // чтением самого SFC: одна колонка полей и тач-таргеты 44px.
+  it('у неисправимой (заблокированной) строки подсказки нет вовсе - решение статичное, резервировать нечего', async () => {
+    const wrapper = mountPanel([BLOCKED_ROW]);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="bim-problem-row-7"] .bim__problem-note').exists()).toBe(false);
+  });
+
+  // Раскладку в jsdom не посчитать, поэтому раскладочные контракты карточки стережём
+  // чтением самого SFC.
   it('на мобильной ширине поля идут одной колонкой с тач-таргетами 44px', () => {
     const sfc = readFileSync(resolve(__dirname, '../BlankImportResult.vue'), 'utf8');
     const mobile = sfc.slice(sfc.indexOf('@media (max-width: 768px)'));
@@ -134,5 +148,22 @@ describe('BlankImportResult - карточки строк с ошибками', 
     expect(mobile).toMatch(/\.bim__fields\s*{[^}]*grid-template-columns:\s*1fr/);
     expect(mobile).toMatch(/\.bim__cell-input\s*{[^}]*min-height:\s*44px/);
     expect(mobile).toMatch(/\.bim__row-add\s*{[^}]*min-height:\s*44px/);
+  });
+
+  it('подсказка резервирует высоту независимо от видимости, список ошибок не сужается скроллбаром', () => {
+    const sfc = readFileSync(resolve(__dirname, '../BlankImportResult.vue'), 'utf8');
+
+    expect(sfc).toMatch(/\.bim__problem-note\s*{[^}]*min-height:\s*calc\(/);
+    expect(sfc).toMatch(/\.bim__problem-note--hidden\s*{[^}]*visibility:\s*hidden/);
+    expect(sfc).toMatch(/\.bim__problems-list\s*{[^}]*scrollbar-gutter:\s*stable/);
+  });
+
+  it('сводка счётчиков не переносится на десктопе - одна строка, ровные трети', () => {
+    const sfc = readFileSync(resolve(__dirname, '../BlankImportResult.vue'), 'utf8');
+    const countersRule = sfc.slice(sfc.indexOf('.bim__counters {'), sfc.indexOf('.bim__counters {') + 400);
+    const counterRule = sfc.slice(sfc.indexOf('.bim__counter {'), sfc.indexOf('.bim__counter {') + 300);
+
+    expect(countersRule).toMatch(/flex-wrap:\s*nowrap/);
+    expect(counterRule).toMatch(/flex:\s*1 1 0/);
   });
 });

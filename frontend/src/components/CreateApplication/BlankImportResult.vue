@@ -235,6 +235,28 @@
                   class="lk-input bim__cell-input"
                 >
               </label>
+              <!-- Формат номера - явный выбор рядом с полем номера (доводка владельца):
+                   по умолчанию перебор всех активных форматов, конкретный формат сужает
+                   проверку до него одного. Для людей выбора формата нет и не должно быть. -->
+              <label class="bim__field">
+                <span class="bim__field-label">Формат номера</span>
+                <select
+                  v-model="row.fields.formatId"
+                  class="lk-select bim__cell-input"
+                  :data-testid="`bim-format-${row.rowNumber}`"
+                >
+                  <option :value="null">
+                    Определить автоматически
+                  </option>
+                  <option
+                    v-for="fmt in plateFormats"
+                    :key="fmt.format.id"
+                    :value="fmt.format.id"
+                  >
+                    {{ fmt.format.name }}
+                  </option>
+                </select>
+              </label>
               <label class="bim__field">
                 <span class="bim__field-label">Марка</span>
                 <input
@@ -246,9 +268,14 @@
             </template>
           </div>
 
+          <!-- Место под подсказку зарезервировано ВСЕГДА для исправимой строки (высота
+               не скачет по мере ввода - от этого дёргался вертикальный скролл списка и
+               вместе с ним горизонтальный соседней колонки, см. .bim__problem-note ниже);
+               видимость переключается классом, а не добавлением/удалением из разметки. -->
           <p
-            v-if="rowFixable(row) && !canIncludeRow(row)"
+            v-if="rowFixable(row)"
             class="bim__problem-note"
+            :class="{ 'bim__problem-note--hidden': canIncludeRow(row) }"
           >
             {{ rowNote(row) }}
           </p>
@@ -477,6 +504,9 @@ export default {
             : {
               plateNumber: (r.vehicle && r.vehicle.car_number) || '',
               mark: (r.vehicle && r.vehicle.car_brand) || '',
+              // null = «Определить автоматически» (перебор всех активных форматов,
+              // поведение по умолчанию) - см. plateAccepted.
+              formatId: null,
             },
         }));
       // Справочник ждём ДО передачи строк наверх: citizenshipName собирается по нему,
@@ -574,7 +604,7 @@ export default {
         }
         return true;
       }
-      return this.plateAccepted(row.fields.plateNumber);
+      return this.plateAccepted(row.fields.plateNumber, row.fields.formatId);
     },
 
     /**
@@ -590,6 +620,11 @@ export default {
         const value = (row.fields.plateNumber || '').trim();
         if (!value) return 'Введите номер Т/С, чтобы отметить строку.';
         if (!this.plateFormats.length) return 'Справочник форматов номеров недоступен, проверить номер нечем.';
+        if (row.fields.formatId) {
+          const chosen = this.selectedFormatEntry(row.fields.formatId);
+          const name = chosen ? chosen.format.name : '';
+          return `Номер не подходит формату "${name}" - поправьте его или выберите другой формат.`;
+        }
         return 'Номер не подходит ни под один формат номеров - поправьте его, чтобы отметить строку.';
       }
       if (!row.fields.lastName.trim() || !row.fields.firstName.trim()) {
@@ -598,11 +633,24 @@ export default {
       return 'Выберите гражданство, чтобы отметить строку.';
     },
 
-    plateAccepted(raw) {
+    selectedFormatEntry(formatId) {
+      return this.plateFormats.find((f) => f.format.id === formatId) || null;
+    },
+
+    /**
+     * formatId null/не выбран - "Определить автоматически": перебор ВСЕХ активных
+     * форматов, как и раньше. Конкретный формат выбран рядом с полем номера (доводка
+     * владельца) - номер проверяется ТОЛЬКО по нему, автоподбор не подключается.
+     */
+    plateAccepted(raw, formatId) {
       const value = (raw || '').trim();
       if (!value) return false;
       if (value.toLowerCase() === VEHICLE_BY_FACT.toLowerCase()) return true;
       if (!this.plateFormats.length) return false;
+      if (formatId) {
+        const chosen = this.selectedFormatEntry(formatId);
+        return !!chosen && !!matchNumberToFormat(value, [chosen]);
+      }
       return !!matchNumberToFormat(value, this.plateFormats);
     },
     buildEmployeeFromRow(row, isFixed) {
@@ -634,7 +682,7 @@ export default {
       const veh = row.original ? row.original.vehicle : row.vehicle;
       const fields = isFixed
         ? row.fields
-        : { plateNumber: veh.car_number, mark: veh.car_brand };
+        : { plateNumber: veh.car_number, mark: veh.car_brand, formatId: null };
       const mark = (fields.mark || '').trim() || null;
       return {
         plateNumber: (fields.plateNumber || '').trim(),
@@ -644,7 +692,11 @@ export default {
         unloadingPlace: this.formatSelectedNames(this.selectedUnloadPlaces, this.unloadPlacesOptions),
         unloadPlaces: [...this.selectedUnloadPlaces],
         passage_tables: [...this.selectedPassageTables],
-        formatId: null,
+        // Формат, выбранный в карточке ошибки (или null - «Определить автоматически»),
+        // уезжает вместе со строкой в то же поле, которым пользуется VehicleForm при
+        // ручном добавлении/правке (см. applyEditedVehicleNumber) - второго поля под
+        // это заводить не нужно.
+        formatId: fields.formatId || null,
         isExisting: false,
       };
     },
@@ -733,11 +785,15 @@ export default {
 }
 
 /* Счётчики разбора - блок карточкой, как остальные блоки формы: цифры на голом фоне
-   читались случайным текстом. */
+   читались случайным текстом. Одна строка ВСЕГДА (владелец: третий счётчик уезжал на
+   вторую строку) - счётчики делят ширину РОВНЫМИ третями (flex-basis 0), поэтому при
+   нехватке места переносится текст подписи внутри своей колонки, а не сам счётчик
+   на новую строку. */
 .bim__counters {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px 20px;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 12px 0;
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -749,13 +805,14 @@ export default {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 1 1 0;
 }
 
 /* Разделители между счётчиками: смысл у трёх чисел разный, слитной строкой они
    читаются как одно. */
 .bim__counter + .bim__counter {
-  padding-left: 20px;
+  margin-left: 14px;
+  padding-left: 14px;
   border-left: 1px solid var(--border);
 }
 
@@ -860,6 +917,10 @@ export default {
   max-height: 420px;
   overflow-y: auto;
   scrollbar-width: thin;
+  /* Место под скроллбар держим постоянно: без этого его появление/исчезновение при
+     пересечении высотой max-height сужает/расширяет список и двигает соседнюю колонку
+     (места прохода/разгрузки), даже когда высота карточек сама уже стабильна. */
+  scrollbar-gutter: stable;
 }
 
 .bim__problem {
@@ -946,20 +1007,24 @@ export default {
   font-size: 13px;
 }
 
+/* Высота зарезервирована на 2 строки текста (line-height того же блока подсказок
+   .bim__problems-hint - 1.45) независимо от того, показана подсказка сейчас или нет:
+   иначе карточка меняет высоту по мере ввода, у списка карточек то появляется, то
+   пропадает вертикальный скролл, а из-за смены его ширины дёргается и соседняя
+   колонка. Гашение - visibility, а не display/v-if, чтобы место оставалось. */
 .bim__problem-note {
   margin: 0;
   font-size: 12px;
+  line-height: 1.45;
+  min-height: calc(1.45em * 2);
   color: var(--text-muted);
 }
 
-@media (max-width: 768px) {
-  /* Счётчики переносятся на вторую строку, и разделитель оказался бы у левого края
-     блока - там он читается как обрез, а не как граница между числами. */
-  .bim__counter + .bim__counter {
-    padding-left: 0;
-    border-left: none;
-  }
+.bim__problem-note--hidden {
+  visibility: hidden;
+}
 
+@media (max-width: 768px) {
   /* На телефоне карточка идёт одним столбцом: поля во всю ширину, отметка -
      полноценная строка-цель, а не 16px квадрат в углу. */
   .bim__fields {
