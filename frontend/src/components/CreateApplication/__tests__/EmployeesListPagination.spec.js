@@ -81,7 +81,7 @@ describe('EmployeesList - постраничный показ на большо�
   it('пустой список сохраняет исходное пустое состояние', () => {
     const w = mount(EmployeesList, { props: { employees: [] } });
 
-    expect(w.find('.no-employees').text()).toContain('Нет добавленных сотрудников');
+    expect(w.find('[data-testid="employees-empty"]').text()).toContain('Нет добавленных сотрудников');
     expect(w.find('[data-testid="employees-search"]').exists()).toBe(false);
   });
 

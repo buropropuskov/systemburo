@@ -4346,14 +4346,49 @@ definitions:
       rejected:
         type: integer
     type: object
+  services.ImportRowError:
+    properties:
+      code:
+        $ref: '#/definitions/services.ImportRowErrorCode'
+      field:
+        type: string
+      fixable:
+        type: boolean
+      text:
+        type: string
+    type: object
+  services.ImportRowErrorCode:
+    enum:
+    - field_required
+    - field_too_long
+    - citizenship_unknown
+    - patent_required
+    - plate_format_unknown
+    - duplicate_in_file
+    - blacklisted
+    type: string
+    x-enum-varnames:
+    - ImportErrFieldRequired
+    - ImportErrFieldTooLong
+    - ImportErrCitizenshipUnknown
+    - ImportErrPatentRequired
+    - ImportErrPlateFormat
+    - ImportErrDuplicateInFile
+    - ImportErrBlacklisted
   services.ImportRowResult:
     properties:
+      employee:
+        $ref: '#/definitions/services.EmployeeInput'
       errors:
         items:
-          type: string
+          $ref: '#/definitions/services.ImportRowError'
         type: array
+      item:
+        $ref: '#/definitions/services.ItemInput'
       row_number:
         type: integer
+      vehicle:
+        $ref: '#/definitions/services.VehicleInput'
       warnings:
         items:
           type: string
@@ -8820,10 +8855,12 @@ paths:
     post:
       consumes:
       - multipart/form-data
-      description: Гейт action.import.list, право не super-only. Кривой бланк (не
+      description: 'Гейт action.import.list, право не super-only. Кривой бланк (не
         .xlsx, чужой тип вложения, изменённая структура колонок, пустой или слишком
         длинный список) отлетает целиком с понятным текстом, до разбора отдельных
-        строк - построчный разбор появится следующим срезом.
+        строк. Дальше идёт построчный разбор теми же правилами, что форма подачи:
+        200 при чистом файле, 207 при частичном успехе - errors/warnings на каждую
+        строку готовым русским текстом.'
       parameters:
       - description: ID UniqueAttachment
         in: path
@@ -8840,6 +8877,10 @@ paths:
       responses:
         "200":
           description: OK
+          schema:
+            $ref: '#/definitions/services.ImportListResult'
+        "207":
+          description: Multi-Status
           schema:
             $ref: '#/definitions/services.ImportListResult'
         "400":

@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { setActivePinia, createPinia } from 'pinia';
 
-import ApplicationOrgModeration from '../ApplicationOrgModeration.vue';
-import ApplicationDetail from '../ApplicationDetail.vue';
+import DirectoryModeration from '../DirectoryModeration.vue';
+import ApplicationDetail from '@/components/ApplicationDetail/ApplicationDetail.vue';
 import { usePermissionsStore } from '@/stores/permissions';
 import { useDeletionsStore } from '@/stores/deletions';
 import {
@@ -13,7 +13,7 @@ import {
   fetchApprovedDirectory,
 } from '@/api/directory';
 
-// Разбор организации/компании «на проверке» в детали заявки (#1437 срез 7).
+// Разбор организации/компании «на проверке»: сам компонент и его гейт в детали заявки (#1437, #1875).
 vi.mock('@/api/directory', () => ({
   approveDirectoryEntry: vi.fn(),
   renameDirectoryEntry: vi.fn(),
@@ -30,14 +30,14 @@ vi.mock('@/api/applications', () => ({ markAsRead: vi.fn().mockResolvedValue({})
 const MODERATE = 'application.organization.moderate';
 
 function mountPanel(props = {}) {
-  return mount(ApplicationOrgModeration, {
+  return mount(DirectoryModeration, {
     props: { kind: 'organization', entryId: 7, entryName: 'ООО Рмашка', ...props },
   });
 }
 
 const testid = (w, name) => w.find(`[data-testid="org-moderation-organization-${name}"]`);
 
-describe('ApplicationOrgModeration', () => {
+describe('DirectoryModeration', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
@@ -174,7 +174,7 @@ function mountDetail(application, allow = []) {
   });
 }
 
-const panels = w => w.findAllComponents(ApplicationOrgModeration);
+const panels = w => w.findAllComponents(DirectoryModeration);
 
 describe('ApplicationDetail: гейт плашки разбора', () => {
   beforeEach(() => {

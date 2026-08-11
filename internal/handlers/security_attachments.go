@@ -22,8 +22,10 @@ type AvailableAttachmentDetail struct {
 
 // requireSecurityOrAdmin - гейт вкладки "Доступные мне" (#706, #976). Доступ имеют: супер-админ,
 // обычный админ, любой носитель права page.available и тип "Охранник" (user_types.code='security').
-// Второй возврат - "видит всё": true у super/admin/носителя page.available (все вложения без фильтра
-// по местам, как супер), у охранника по типу - false (только его места прохода). Прочим - 403.
+// Второй возврат - "видит всё": true у супер-админа, админа и носителя page.available, который НЕ
+// работник поста; у работника поста - всегда false, то есть только его места, даже когда право
+// page.available ему выдано. Право открывает страницу (пункт меню и вход), но не снимает фильтр по
+// местам: пост не должен видеть чужие. Прочим - 403.
 // Набор совпадает с FE-гейтом canViewAccessibleAttachments; рассинхрон давал 403 при видимой вкладке.
 func (h *ApplicationHandler) requireSecurityOrAdmin(c echo.Context) (int, bool, error) {
 	return securityScope(c, h.service, h.resolver)
@@ -42,6 +44,17 @@ func securityScope(c echo.Context, svc securityUserChecker, resolver *services.P
 	if IsSuperAdmin(c) {
 		return userID, true, nil
 	}
+	// Работник поста видит только свои места - и тогда, когда право page.available
+	// ему выдано. Право открывает саму страницу (пункт меню и вход), а не снимает
+	// ограничение по местам: иначе выдача права роли охраны показывала бы посту
+	// вложения всех постов сразу.
+	isSecurity, err := svc.IsSecurityUser(c.Request().Context(), userID)
+	if err != nil {
+		return 0, false, err
+	}
+	if isSecurity {
+		return userID, false, nil
+	}
 	// Has(page.available) истинно для админа (allowAll) и для явного гранта роли/группы/override.
 	// Резолвер учитывает бан (у забаненного Has=false) и личные deny-override.
 	set, err := resolver.Resolve(c.Request().Context(), userID)
@@ -51,15 +64,7 @@ func securityScope(c echo.Context, svc securityUserChecker, resolver *services.P
 	if set.Has(services.KeyPageAvailable) {
 		return userID, true, nil
 	}
-	// Тип "Охранник" получает доступ по типу аккаунта (без права), но видит только по своим местам.
-	isSecurity, err := svc.IsSecurityUser(c.Request().Context(), userID)
-	if err != nil {
-		return 0, false, err
-	}
-	if !isSecurity {
-		return 0, false, echo.NewHTTPError(http.StatusForbidden, "Access denied")
-	}
-	return userID, false, nil
+	return 0, false, echo.NewHTTPError(http.StatusForbidden, "Access denied")
 }
 
 // GetAvailableAttachments godoc

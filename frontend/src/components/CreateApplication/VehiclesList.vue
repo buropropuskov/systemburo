@@ -3,16 +3,47 @@
     <div class="header-with-badge">
       <h4>Список транспортных средств</h4>
       <span class="vehicles-badge">{{ vehicles.length }}</span>
+      <!-- В шапке живёт только вход в импорт: бейдж Experimental стоит рядом с ним и
+           относится к нему. «Очистить» - действие над содержимым таблицы, оно ниже. -->
+      <div
+        v-if="canImport"
+        class="header-actions"
+      >
+        <div
+          v-if="canImport"
+          class="import-entry"
+        >
+          <span
+            class="hint-anchor"
+            data-hint="Массовый ввод из бланка в опытной эксплуатации: проверяйте, что попало в список"
+          >
+            <Badge
+              variant="warning"
+              size="sm"
+              label="Experimental"
+            />
+          </span>
+          <button
+            type="button"
+            class="lk-button lk-button--secondary lk-button--sm import-entry__btn"
+            data-testid="vehicles-import-btn"
+            :aria-pressed="importActive ? 'true' : 'false'"
+            @click="$emit('toggle-import')"
+          >
+            {{ importActive ? 'Закрыть импорт' : 'Импорт' }}
+          </button>
+        </div>
+      </div>
     </div>
 
-    <!-- Импорт бланком (blank-import) может завести до 2000 машин - показываем поиск
-         и постраничную навигацию только когда список реально большой, чтобы обычная
-         ручная подача из нескольких машин выглядела как раньше. -->
+    <!-- Строка действий самой таблицы: поиск с пейджером (импорт бланком может завести
+         до 2000 машин, обычной ручной подаче они не нужны) и очистка её содержимого. -->
     <div
-      v-if="showToolbar"
+      v-if="showToolbar || vehicles.length"
       class="list-toolbar"
     >
       <input
+        v-if="showToolbar"
         v-model="searchQuery"
         type="text"
         class="lk-input list-search"
@@ -20,7 +51,7 @@
         data-testid="vehicles-search"
       >
       <Pager
-        v-if="totalPages > 1"
+        v-if="showToolbar && totalPages > 1"
         class="list-pager"
         :page="currentPage"
         :total-pages="totalPages"
@@ -28,6 +59,15 @@
         page-prefix="Стр. "
         @update:page="goToPage"
       />
+      <button
+        v-if="vehicles.length"
+        type="button"
+        class="lk-button lk-button--danger lk-button--sm list-toolbar__clear"
+        data-testid="vehicles-clear-btn"
+        @click="showClearConfirm = true"
+      >
+        Очистить
+      </button>
     </div>
 
     <!-- Десктоп/планшет: колоночная раскладка. В DOM ячейки идут по столбцам, поэтому
@@ -81,11 +121,20 @@
         <div
           v-for="(row, index) in pagedVehicles"
           :key="row.item.id"
-          class="vcol__cell vcol__cell--text"
+          class="vcol__cell vcol__cell--text vcol__cell--plate"
           :class="rowState(row.item, index)"
           @mouseenter="hoveredIndex = index"
         >
-          {{ row.item.plateNumber || 'Не указано' }}
+          <span class="vcol__value">{{ row.item.plateNumber || 'Не указано' }}</span>
+          <!-- Строка из бланка ещё не в заявке: приглушённого цвета мало, статус
+               называем словами (blank-import-ux, доводка U5). -->
+          <Badge
+            v-if="row.item.isPending"
+            class="pending-badge"
+            variant="info"
+            size="sm"
+            label="В очереди"
+          />
         </div>
       </div>
 
@@ -156,6 +205,16 @@
           </button>
         </div>
       </div>
+
+      <!-- Пустое состояние - строка внутри самой таблицы под шапкой колонок, а не
+           отдельный блок под ней: причина пустоты разная, место одно. -->
+      <div
+        v-if="emptyMessage"
+        class="table-empty"
+        data-testid="vehicles-empty"
+      >
+        {{ emptyMessage }}
+      </div>
     </div>
 
     <!-- Мобилка: строки становятся карточками (rt-* из responsive-tables.css). -->
@@ -198,7 +257,7 @@
           :key="row.item.id"
           class="table-row rt-row"
           data-testid="vehicles-row"
-          :class="{ 'has-active': row.item.activeInfo }"
+          :class="{ 'has-active': row.item.activeInfo, 'is-pending': row.item.isPending }"
         >
           <div class="table-col number-col">
             {{ row.number }}
@@ -206,6 +265,13 @@
           <div class="table-col plate-col">
             <div class="cell-with-icon">
               {{ row.item.plateNumber || 'Не указано' }}
+              <Badge
+                v-if="row.item.isPending"
+                class="pending-badge"
+                variant="info"
+                size="sm"
+                label="В очереди"
+              />
             </div>
           </div>
           <div class="table-col mark-col">
@@ -245,21 +311,29 @@
             </button>
           </div>
         </div>
+
+        <div
+          v-if="emptyMessage"
+          class="table-empty"
+          data-testid="vehicles-empty"
+        >
+          {{ emptyMessage }}
+        </div>
       </div>
     </div>
 
-    <div
-      v-if="vehicles.length === 0"
-      class="no-vehicles"
-    >
-      Нет добавленных транспортных средств
-    </div>
-    <div
-      v-else-if="filteredVehicles.length === 0"
-      class="no-vehicles"
-    >
-      Ничего не найдено по запросу «{{ searchQuery }}»
-    </div>
+    <!-- Очистка списка необратима (отмены на странице нет), поэтому идёт только через
+         подтверждение; само удаление делает родитель по clear-list. -->
+    <ConfirmationModal
+      :show="showClearConfirm"
+      title="Очистить список"
+      :message="clearConfirmMessage"
+      confirm-text="Очистить"
+      cancel-text="Отмена"
+      :confirm-button-style="{ background: 'var(--danger)', borderColor: 'var(--danger)', color: 'var(--fill-text)' }"
+      @confirm="confirmClear"
+      @cancel="showClearConfirm = false"
+    />
 
     <!-- Модальное окно деталей транспортного средства -->
     <VehicleDetailsModal
@@ -277,6 +351,8 @@
 
 <script>
 import VehicleDetailsModal from './VehicleDetailsModal.vue';
+import ConfirmationModal from '@/components/ConfirmationModal.vue';
+import Badge from '@/components/ui/Badge.vue';
 import DetailsIcon from '@/components/ui/DetailsIcon.vue';
 import Pager from '@/components/ui/Pager.vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
@@ -286,6 +362,8 @@ export default {
     name: 'VehiclesList',
     components: {
         VehicleDetailsModal,
+        ConfirmationModal,
+        Badge,
         DetailsIcon,
         Pager
     },
@@ -313,9 +391,19 @@ export default {
         detailInfo: {
             type: Object,
             default: () => ({})
+        },
+        // Вход в массовый ввод из бланка (blank-import-ux, U4): гейт права
+        // action.import.list считает родитель, здесь только показ кнопки.
+        canImport: {
+            type: Boolean,
+            default: false
+        },
+        importActive: {
+            type: Boolean,
+            default: false
         }
     },
-    emits: ['sort', 'edit-vehicle', 'delete-vehicle'],
+    emits: ['sort', 'edit-vehicle', 'delete-vehicle', 'toggle-import', 'clear-list'],
     // 767.98 - тот же порог, что у карточного @media: ниже него рендерим карточки,
     // выше - колоночную раскладку с выделением по столбцам.
     setup(props) {
@@ -352,9 +440,27 @@ export default {
         return {
             showDetailsModal: false,
             selectedVehicle: null,
+            showClearConfirm: false,
             // Индекс строки под курсором: подсвечиваем ячейки того же индекса во всех
             // столбцах (в колоночном DOM «строки» как элемента нет - синхроним по index).
             hoveredIndex: null
+        }
+    },
+    computed: {
+        // Считаем по ВСЕМУ списку, а не по видимой странице: поиск и пейджер режут показ,
+        // а чистится вложение целиком - иначе число в вопросе обещало бы меньше, чем уйдёт.
+        clearConfirmMessage() {
+            const pending = this.vehicles.filter(vehicle => vehicle.isPending).length;
+            const fromBlank = pending > 0 ? `, из них предварительных из бланка: ${pending}` : '';
+            return `Будет убрано строк: ${this.vehicles.length}${fromBlank}. Отменить это действие нельзя.`;
+        },
+
+        // Пустая таблица объясняет причину пустоты: список не заполняли вовсе или поиск
+        // ничего не нашёл. Предварительные строки из бланка тоже считаются заполнением.
+        emptyMessage() {
+            if (this.vehicles.length === 0) return 'Нет добавленных транспортных средств';
+            if (this.filteredVehicles.length === 0) return `Ничего не найдено по запросу «${this.searchQuery}»`;
+            return '';
         }
     },
     watch: {
@@ -370,8 +476,15 @@ export default {
         rowState(vehicle, index) {
             return {
                 'vcol__cell--active': !!vehicle.activeInfo,
-                'vcol__cell--hover': this.hoveredIndex === index
+                'vcol__cell--hover': this.hoveredIndex === index,
+                // Строка из бланка, ещё не добавленная в заявку (blank-import-ux, U5).
+                'vcol__cell--pending': !!vehicle.isPending
             };
+        },
+
+        confirmClear() {
+            this.showClearConfirm = false;
+            this.$emit('clear-list');
         },
 
         showVehicleDetails(vehicle) {
@@ -407,8 +520,35 @@ export default {
 .header-with-badge {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
     padding-bottom: 12px;
+}
+
+/* Действия списка прижаты к правому краю шапки: вход в импорт, за ним очистка.
+   Перенос обязателен: у .lk-button white-space: nowrap, и на узком экране пара
+   «Закрыть импорт» + «Очистить» иначе выехала бы за край шапки. */
+.header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.import-entry {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+@media (max-width: 768px) {
+    .import-entry__btn,
+    .list-toolbar__clear {
+        min-height: 44px;
+        padding: 4px 14px;
+    }
 }
 
 .vehicles-badge {
@@ -446,12 +586,22 @@ export default {
     color: var(--text-muted);
 }
 
+/* Очистка прижата к правому краю строки действий таблицы и держится там же, когда
+   поиска с пейджером ещё нет (короткий список). */
+.list-toolbar__clear {
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
 /* Колоночная раскладка (десктоп/планшет): каждый столбец - отдельный flex-column,
    ячейки одного индекса выровнены по фиксированной высоте. Растягиваем на высоту
    соседней формы (data__list stretch по form__data) - список показывает максимум
    строк, а не фиксированные ~180px; переполнение уходит во внутренний скролл. */
 .vehicles-cols {
     display: flex;
+    /* Перенос нужен пустому состоянию: его строка встаёт под столбцами на всю ширину.
+       Столбцы делят ровно 100%, поэтому на данных перенос не срабатывает. */
+    flex-wrap: wrap;
     flex: 1;
     min-height: 180px;
     overflow-y: auto;
@@ -592,6 +742,43 @@ export default {
     background: var(--warning);
 }
 
+/* Предварительная строка (blank-import-ux, U5): разобрана из бланка, но в заявку ещё не
+   добавлена - действия (детали, правка, удаление) работают как у обычной. Кроме бейджа
+   «В очереди» строка заметно серее обычной: одного приглушённого текста владельцу было
+   мало. Метка слева - inset-тень, а не border: он сдвинул бы текст ячейки. */
+.vcol__cell--pending {
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--text-muted) 12%, var(--surface));
+}
+
+.vcol--index .vcol__cell--pending {
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* Правило серой подложки идёт после hover-правила той же специфичности, поэтому
+   отклик на курсор возвращаем явно - иначе строка из бланка перестаёт реагировать. */
+.vcol__cell--pending.vcol__cell--hover {
+    background: color-mix(in srgb, var(--text-muted) 20%, var(--surface));
+}
+
+/* Ячейка номера несёт значение и бейдж: номер сжимается многоточием, бейдж остаётся
+   целым - он и есть статус строки. */
+.vcol__cell--plate {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.vcol__value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pending-badge {
+    flex: 0 0 auto;
+}
+
 /* --- Строковая раскладка (мобильные карточки) --- */
 .vehicles-table {
     width: 100%;
@@ -652,6 +839,17 @@ export default {
 
 .table-row:hover {
     background: var(--surface-2);
+}
+
+/* Карточная раскладка: та же серая подложка и метка, что и в колонках выше. */
+.table-row.is-pending {
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--text-muted) 12%, var(--surface));
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.table-row.is-pending:hover {
+    background: color-mix(in srgb, var(--text-muted) 20%, var(--surface));
 }
 
 .table-row.has-active {
@@ -742,7 +940,11 @@ export default {
     opacity: 0.9;
 }
 
-.no-vehicles {
+/* Пустое состояние живёт внутри таблицы: в колоночной раскладке - строкой на всю
+   ширину под шапкой колонок (для этого .vehicles-cols переносит), в карточной - в теле
+   вместо карточек. */
+.table-empty {
+    flex: 1 0 100%;
     text-align: center;
     padding: 16px;
     color: var(--text-muted);
@@ -796,6 +998,12 @@ h4 {
         /* Резерв под три кнопки действий, приколотые справа. */
         padding: 10px 136px 10px 12px !important;
         font-size: 14px;
+    }
+
+    /* Серую подложку строки из бланка возвращаем по той же причине, что и подсветку
+       ниже: карточный фон приходит из инфраструктуры с !important. */
+    .table-row.rt-row.is-pending {
+        background: color-mix(in srgb, var(--text-muted) 12%, var(--surface)) !important;
     }
 
     /* Подсветку уже заведённой машины возвращаем: карточный фон приходит

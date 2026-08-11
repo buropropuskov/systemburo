@@ -540,7 +540,7 @@ export default {
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 16px;
-  background: var(--accent-tint);
+  background: var(--surface-sunken);
 }
 
 .sec-title {
@@ -566,7 +566,7 @@ export default {
   height: 20px;
   padding: 0 7px;
   border-radius: 50px;
-  background: var(--accent-tint);
+  background: var(--surface);
   color: var(--accent-text);
   font-size: 11px;
   font-weight: 700;
@@ -691,7 +691,7 @@ export default {
 }
 
 .user-dropdown-item:hover {
-  background-color: var(--accent-tint);
+  background-color: var(--surface-2);
 }
 
 .user-dropdown-item:last-child {
@@ -734,7 +734,7 @@ export default {
   font-size: 0.65rem;
   padding: 1px 6px;
   border-radius: 6px;
-  background: var(--accent-tint);
+  background: var(--surface-2);
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -767,7 +767,7 @@ export default {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--accent-tint);
+  background: var(--surface-2);
   color: var(--accent-text);
   font-weight: 700;
   font-size: 12px;
@@ -816,12 +816,12 @@ export default {
 }
 
 .tag-pos {
-  background: var(--accent-tint);
+  background: var(--surface-2);
   color: var(--text);
 }
 
 .tag-neutral {
-  background: var(--accent-tint);
+  background: var(--surface-2);
   color: var(--text-muted);
 }
 
@@ -851,7 +851,7 @@ export default {
 .slider {
   position: absolute;
   inset: 0;
-  background: var(--accent);
+  background: var(--border);
   border-radius: 20px;
   transition: 0.2s;
   cursor: pointer;
@@ -922,7 +922,7 @@ export default {
   font-size: 0.75rem;
   border: 1px dashed var(--border);
   border-radius: 12px;
-  background: var(--accent-tint);
+  background: var(--surface);
 }
 
 .no-selected-users p {
