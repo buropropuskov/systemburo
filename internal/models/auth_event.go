@@ -29,7 +29,16 @@ const (
 	// входит намеренно: пишется он там, где пользователя опознать не удалось, с
 	// user_id = NULL, а история отбирается строго по user_id (AuthEventReader).
 	// Смотрят такие записи выборкой по username при разборе инцидента.
-	AuthEventLoginError         = "login_error"
+	AuthEventLoginError = "login_error"
+	// AuthEventRefreshError - продление сессии сорвалось по вине системы (та же
+	// причина, что у AuthEventLoginError), а не из-за недействительного токена.
+	// Пишется и когда пользователь уже опознан (user_id известен) - в отличие от
+	// LoginError, Detail тут НЕ содержит текст ошибки драйвера: запись видна в
+	// личной истории входов (ListForUser фильтрует по user_id), а туда нельзя
+	// пересылать "pq: sorry, too many clients already" и подобное. Только стадия
+	// (user lookup/token lookup/token rotation/family invalidation); причина
+	// целиком - в системном логе (#2016).
+	AuthEventRefreshError       = "refresh_error"
 	AuthEventLoginLocked        = "login_locked"
 	AuthEventLogout             = "logout"
 	AuthEventRefresh            = "refresh"
@@ -42,9 +51,9 @@ const (
 // AuthEventCategory - UI-категории фильтра истории входов. Каждая категория
 // раскрывается в набор event_type (сырые коды в интерфейсе не показываются).
 const (
-	AuthCategoryLogin   = "login"   // login_success
-	AuthCategoryLogout  = "logout"  // logout
-	AuthCategoryFailed  = "failed"  // login_failed
+	AuthCategoryLogin    = "login"    // login_success
+	AuthCategoryLogout   = "logout"   // logout
+	AuthCategoryFailed   = "failed"   // login_failed
 	AuthCategoryLocked   = "locked"   // login_locked, account_locked, lockout_reset
 	AuthCategorySession  = "session"  // refresh, token_reuse_detected
 	AuthCategoryPassword = "password" // password_changed
