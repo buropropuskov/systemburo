@@ -529,7 +529,13 @@ func Setup(e *echo.Echo, d Dependencies) {
 	orgg.GET("/with-users", org.GetWithUsers)
 	orgg.GET("/with-users-extended", org.GetWithUsersExtended)
 	orgg.GET("/:id/users", org.GetOrganizationUsers)
-	orgg.PUT("/:id/users", org.UpdateOrganizationUsers)
+	// Состав ответственных - запись, а не чтение: метод стирает organization_users
+	// и пересобирает набор из тела запроса, включая флаги is_primary и
+	// required_approval. Второй делает человека согласующим (IsReviewer в
+	// approver_service проверяет ровно его) и тянет его в ответственные по заявкам
+	// организации, так что без гейта любой работник вписывал себя сам. Право то же,
+	// что у соседей по составу - reassign-users и bulk/users.
+	orgg.PUT("/:id/users", org.UpdateOrganizationUsers, requireDirectories)
 	orgg.GET("/:id/members", org.GetMembers)
 	// Блокеры архивации и перенос всех в другую организацию - гейт как у Delete.
 	orgg.GET("/:id/blocking-users", org.GetBlockingUsers, requireDirectories)
@@ -565,7 +571,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	cg.GET("/with-users", comp.GetWithUsers)
 	cg.GET("/with-users-extended", comp.GetWithUsersExtended)
 	cg.GET("/:id/users", comp.GetUsers)
-	cg.PUT("/:id/users", comp.UpdateUsers)
+	// Зеркало organizations: запись состава с теми же флагами и тем же следствием
+	// для согласования, гейт держим одинаковым.
+	cg.PUT("/:id/users", comp.UpdateUsers, requireDirectories)
 	cg.GET("/:id/members", comp.GetMembers)
 	// Блокеры архивации и перенос всех в другую компанию - гейт как у Delete.
 	cg.GET("/:id/blocking-users", comp.GetBlockingUsers, requireDirectories)
