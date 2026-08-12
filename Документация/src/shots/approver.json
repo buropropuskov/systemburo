@@ -27,10 +27,10 @@
     {
       "id": "approver-detail",
       "goto": "/center",
-      "waitFor": "[data-testid=\"center-row-14\"]",
+      "waitFor": "[data-testid^=\"center-row-\"]",
       "prepare": [
         {
-          "click": "[data-testid=\"center-row-14\"]"
+          "click": "[data-testid^=\"center-row-\"] >> nth=0"
         },
         {
           "wait": "[data-testid=\"ob-detail-card\"]"
@@ -41,22 +41,39 @@
       },
       "highlight": [
         {
-          "selector": "[data-testid=\"ob-detail-actions\"]",
-          "badge": 1
+          "selector": ".detail-header",
+          "badge": 1,
+          "badgeInside": true
+        },
+        {
+          "selector": ".detail-left-column",
+          "badge": 2,
+          "badgeInside": true
+        },
+        {
+          "selector": ".message-section",
+          "badge": 3,
+          "badgeInside": true
         },
         {
           "selector": "[data-testid=\"application-questions\"]",
-          "badge": 2
+          "badge": 4,
+          "badgeInside": true
+        },
+        {
+          "selector": ".detail-right-column",
+          "badge": 5,
+          "badgeInside": true
         }
       ]
     },
     {
       "id": "approver-vote",
       "goto": "/center",
-      "waitFor": "[data-testid=\"center-row-14\"]",
+      "waitFor": "[data-testid^=\"center-row-\"]",
       "prepare": [
         {
-          "click": "[data-testid=\"center-row-14\"]"
+          "click": "[data-testid^=\"center-row-\"] >> nth=0"
         },
         {
           "wait": "[data-testid=\"app-detail-button-approve\"]"
@@ -79,10 +96,10 @@
     {
       "id": "approver-confirmation",
       "goto": "/center",
-      "waitFor": "[data-testid=\"center-row-14\"]",
+      "waitFor": "[data-testid^=\"center-row-\"]",
       "prepare": [
         {
-          "click": "[data-testid=\"center-row-14\"]"
+          "click": "[data-testid^=\"center-row-\"] >> nth=0"
         },
         {
           "wait": ".confirmation-section"
@@ -97,10 +114,10 @@
     {
       "id": "approver-question",
       "goto": "/center",
-      "waitFor": "[data-testid=\"center-row-14\"]",
+      "waitFor": "[data-testid^=\"center-row-\"]",
       "prepare": [
         {
-          "click": "[data-testid=\"center-row-14\"]"
+          "click": "[data-testid^=\"center-row-\"] >> nth=0"
         },
         {
           "wait": "[data-testid=\"question-ask-button\"]"
@@ -121,10 +138,10 @@
     {
       "id": "approver-blacklist",
       "goto": "/center",
-      "waitFor": "[data-testid=\"center-row-127\"]",
+      "waitFor": "[data-testid^=\"center-row-\"]",
       "prepare": [
         {
-          "click": "[data-testid=\"center-row-127\"]"
+          "click": "[data-testid^=\"center-row-\"] >> nth=0"
         },
         {
           "wait": "[data-testid=\"blacklist-override-btn\"]"

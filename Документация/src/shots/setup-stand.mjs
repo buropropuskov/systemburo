@@ -13,11 +13,19 @@
  * Запуск: node Документация/src/shots/setup-stand.mjs [--api=http://localhost:8095/api]
  */
 
+import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+
+/*
+ * Работа с электронными таблицами уже есть в зависимостях веб-части, поэтому
+ * пакет резолвится от неё явно - тем же приёмом, что и playwright в lib/session.
+ */
+const REPO_ROOT = path.resolve(HERE, '..', '..', '..');
+const requireFromFrontend = createRequire(path.join(REPO_ROOT, 'frontend', 'package.json'));
 
 /**
  * Права, которые получает охранник на каждую таблицу поста. Полный набор
@@ -76,6 +84,37 @@ const CONSENT_TEXT = `<p>Настоящим я даю согласие на об
 <p>Согласие действует на срок оформления и действия пропуска, а также на срок хранения
 сведений о проходе, установленный на предприятии. Согласие может быть отозвано
 письменным обращением в бюро пропусков.</p>`;
+
+/**
+ * Обращения работников в бюро пропусков. Первое закрыто ответом, остальные
+ * ждут разбора: так в кадре видны обе вкладки раздела и поле ответа.
+ */
+const FEEDBACK = [
+  {
+    role: 'user',
+    message:
+      'При подаче заявки не нашёл в списке место разгрузки «Склад №3». Раньше оно было, ' +
+      'сейчас его нет, а машина приходит именно туда.',
+    answer:
+      'Место разгрузки «Склад №3» убрано в архив на время ремонта. До 20 сентября указывайте ' +
+      '«Склад №1», проезд к нему открыт с той же стороны.',
+  },
+  {
+    role: 'approver',
+    message:
+      'Письма о новых заявках приходят с задержкой в несколько часов, а заявки срочные. ' +
+      'Можно ли настроить, чтобы уведомление приходило сразу?',
+  },
+  {
+    role: 'acceptor',
+    message:
+      'В выгрузке бланка по заявке не заполняется столбец с должностью, хотя в заявке ' +
+      'должность указана. Проверьте, пожалуйста, привязку поля к ячейке.',
+  },
+];
+
+/** Статусы, при которых заявка закрыта и решения согласующего уже не ждёт. */
+const ARCHIVED_STATUSES = new Set(['Завершено', 'Не согласовано', 'Отказано', 'Отозвана']);
 
 const DOCUMENTS = [
   { title: 'Правила пропускного режима', description: 'Порядок прохода и проезда на территорию' },
@@ -201,6 +240,10 @@ async function main() {
   await fillOverview(apiBase, token);
   await fillBureauSchedule(apiBase, token);
   await enableConsent(apiBase, token);
+  await seedFeedback(apiBase, token, accounts);
+  await ensureBlankTemplate(apiBase, token);
+  await ensurePendingApproval(apiBase, token, accounts);
+  await ensureBlacklistFlag(apiBase, token, accounts);
 }
 
 /**
@@ -505,6 +548,374 @@ async function fillOverview(apiBase, token) {
     }
   }
   console.log(`Документы: всего ${DOCUMENTS.length}`);
+}
+
+/**
+ * Держит на стенде заявку, которая ждёт решения согласующего.
+ *
+ * Наливка распределяет заявки по стадиям на момент своего запуска, но время идёт:
+ * срок вложений истекает, заявка уходит в «Завершено», и кадры руководства
+ * согласующего начинают показывать плашку статуса вместо кнопок решения. Здесь
+ * подаётся свежая заявка со сроком на месяц вперёд, где съёмочный согласующий
+ * назначен обязательным. Проверка идёт по факту: пока у него есть хоть одна
+ * живая заявка, ждущая голоса, ничего не подаётся.
+ */
+async function ensurePendingApproval(apiBase, token, accounts) {
+  const users = unwrap(await api(apiBase, token, 'GET', '/users/all'));
+  const list = Array.isArray(users) ? users : (users.users ?? users.items ?? []);
+  const approver = list.find((user) => user.username === accounts.roles.approver.username);
+  if (!approver) throw new Error(`согласующий ${accounts.roles.approver.username} не найден`);
+
+  const session = unwrap(
+    await api(apiBase, null, 'POST', '/login', {
+      username: accounts.roles.approver.username,
+      password: accounts.password,
+    }),
+  );
+  const center = unwrap(await api(apiBase, session.token, 'GET', '/applications?filter_type=all&per_page=100'));
+  const rows = center?.applications ?? center?.items ?? (Array.isArray(center) ? center : []);
+  const waiting = rows.filter(
+    (row) => row.confirmation === 'Согласование' && !ARCHIVED_STATUSES.has(row.status),
+  );
+  if (waiting.length > 0) {
+    console.log(`Согласующий: заявок, ждущих решения, ${waiting.length} - подача не нужна`);
+    return;
+  }
+
+  const applicant = unwrap(
+    await api(apiBase, null, 'POST', '/login', {
+      username: accounts.roles.user.username,
+      password: accounts.password,
+    }),
+  );
+  const profile = unwrap(await api(apiBase, applicant.token, 'GET', '/user-data'));
+  // Виды вложений читаются администраторским маркером: заявителю их перечень
+  // отдаётся только правом справочников, которого у него нет.
+  const kinds = unwrap(await api(apiBase, token, 'GET', '/attachments/all')) ?? [];
+  const people = kinds.find((kind) => kind.attachment_type === 'people' && kind.is_active !== false);
+  if (!people) throw new Error('на стенде нет действующего вида вложения для работников');
+
+  const citizenships = unwrap(await api(apiBase, applicant.token, 'GET', '/citizenships')) ?? [];
+  const citizenship = citizenships.find((item) => item.is_default) ?? citizenships[0];
+  const tables = (unwrap(await api(apiBase, applicant.token, 'GET', '/system-tables')) ?? [])
+    .map((item) => item.table ?? item)
+    .filter((table) => table.table_type === 'people' && table.is_active !== false);
+
+  const from = new Date(profile.server_time ?? Date.parse('2026-08-12T00:00:00Z'));
+  const to = new Date(from.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const day = (date) => date.toISOString().slice(0, 10);
+
+  await api(apiBase, applicant.token, 'POST', '/applications/submit-complete-application', {
+    message: 'Прошу оформить пропуск для проведения пусконаладочных работ на насосной станции.',
+    organization: profile.organization ?? '',
+    organization_id: profile.organization_id ?? null,
+    responsible_person: `${profile.last_name ?? ''} ${profile.first_name ?? ''}`.trim() || profile.username,
+    contact_phone: '+7 (999) 214-76-05',
+    data_approval: true,
+    required_users: [{ user_id: approver.id, required_approval: true }],
+    attachments: [
+      {
+        attachment_type: 'people',
+        attachment_name: `${people.name}_1`,
+        attachment_display_name: `${people.display_name} №1`,
+        unique_attachment_id: people.id,
+        entry_date_from: day(from),
+        entry_date_to: day(to),
+        entry_time_from: '08:00',
+        entry_time_to: '18:00',
+        data: {
+          employees: [
+            {
+              last_name: 'Александров',
+              first_name: 'Леонид',
+              middle_name: 'Леонидович',
+              citizenship_id: citizenship?.id ?? 1,
+              position: 'инженер-наладчик',
+              passport_series_number: '4519 774310',
+              target_tables: tables.slice(0, 1).map((table) => table.id),
+            },
+          ],
+        },
+      },
+    ],
+  });
+
+  console.log('Согласующий: подана заявка, ждущая его решения');
+}
+
+/**
+ * Фамилия, отличающаяся от заданной одной буквой. Меняется последняя гласная
+ * «и» или «о» - результат читается как настоящая фамилия, а не как опечатка
+ * с задвоенной буквой.
+ */
+function nearMissName(name) {
+  const swaps = { и: 'е', о: 'а', е: 'и', а: 'о' };
+  for (let i = name.length - 2; i > 1; i -= 1) {
+    const replacement = swaps[name[i].toLowerCase()];
+    if (replacement) return name.slice(0, i) + replacement + name.slice(i + 1);
+  }
+  return `${name.slice(0, -1)}н`;
+}
+
+/**
+ * Держит заявку с неразобранной пометкой чёрного списка.
+ *
+ * Кадр окна «Всё равно пропустить?» снимается только на живой заявке с
+ * непогашенной пометкой, а наливка такие заявки со временем доводит до решения.
+ * Работник подаётся с фамилией, отличающейся от записи чёрного списка одной
+ * буквой: точное совпадение система запретила бы, близкое - как раз и даёт
+ * пометку, которую разбирает согласующий.
+ */
+async function ensureBlacklistFlag(apiBase, token, accounts) {
+  const flagged = unwrap(await api(apiBase, token, 'GET', '/applications?filter_type=all&per_page=100'));
+  const rows = flagged?.applications ?? flagged?.items ?? (Array.isArray(flagged) ? flagged : []);
+  const live = rows.filter(
+    (row) => row.confirmation === 'Согласование' && !ARCHIVED_STATUSES.has(row.status) && row.blacklist_matches > 0,
+  );
+  if (live.length > 0) {
+    console.log(`Чёрный список: заявок с неразобранной пометкой ${live.length} - подача не нужна`);
+    return;
+  }
+
+  const blacklist = unwrap(await api(apiBase, token, 'GET', '/person-blacklist')) ?? [];
+  const record = (Array.isArray(blacklist) ? blacklist : (blacklist.items ?? [])).find((item) => item.last_name);
+  if (!record) {
+    console.log('Чёрный список: записей о людях нет, заявка с пометкой не подаётся');
+    return;
+  }
+
+  const users = unwrap(await api(apiBase, token, 'GET', '/users/all'));
+  const list = Array.isArray(users) ? users : (users.users ?? users.items ?? []);
+  const approver = list.find((user) => user.username === accounts.roles.approver.username);
+
+  const applicant = unwrap(
+    await api(apiBase, null, 'POST', '/login', {
+      username: accounts.roles.user.username,
+      password: accounts.password,
+    }),
+  );
+  const profile = unwrap(await api(apiBase, applicant.token, 'GET', '/user-data'));
+  const kinds = unwrap(await api(apiBase, token, 'GET', '/attachments/all')) ?? [];
+  const people = kinds.find((kind) => kind.attachment_type === 'people' && kind.is_active !== false);
+  const citizenships = unwrap(await api(apiBase, applicant.token, 'GET', '/citizenships')) ?? [];
+  const citizenship = citizenships.find((item) => item.is_default) ?? citizenships[0];
+  const tables = (unwrap(await api(apiBase, applicant.token, 'GET', '/system-tables')) ?? [])
+    .map((item) => item.table ?? item)
+    .filter((table) => table.table_type === 'people' && table.is_active !== false);
+
+  // Похожая фамилия строится заменой одной гласной: «Сорокина» -> «Сорокена».
+  // Совпадение перестаёт быть точным и становится близким, а сама фамилия
+  // остаётся правдоподобной - её увидит заказчик на снимке.
+  const nearName = nearMissName(record.last_name);
+  const from = new Date(profile.server_time ?? Date.parse('2026-08-12T00:00:00Z'));
+  const to = new Date(from.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const day = (date) => date.toISOString().slice(0, 10);
+
+  await api(apiBase, applicant.token, 'POST', '/applications/submit-complete-application', {
+    message: 'Прошу оформить пропуск подрядчику для замены осветительных приборов.',
+    organization: profile.organization ?? '',
+    organization_id: profile.organization_id ?? null,
+    responsible_person: `${profile.last_name ?? ''} ${profile.first_name ?? ''}`.trim() || profile.username,
+    contact_phone: '+7 (999) 214-76-05',
+    data_approval: true,
+    required_users: approver ? [{ user_id: approver.id, required_approval: true }] : undefined,
+    attachments: [
+      {
+        attachment_type: 'people',
+        attachment_name: `${people.name}_1`,
+        attachment_display_name: `${people.display_name} №1`,
+        unique_attachment_id: people.id,
+        entry_date_from: day(from),
+        entry_date_to: day(to),
+        entry_time_from: '09:00',
+        entry_time_to: '17:00',
+        data: {
+          employees: [
+            {
+              last_name: nearName,
+              first_name: record.first_name,
+              middle_name: record.middle_name,
+              citizenship_id: citizenship?.id ?? 1,
+              position: 'электромонтажник',
+              passport_series_number: '4521 660418',
+              target_tables: tables.slice(0, 1).map((table) => table.id),
+            },
+          ],
+        },
+      },
+    ],
+  });
+
+  console.log(`Чёрный список: подана заявка с работником «${nearName}», похожим на запись «${record.last_name}»`);
+}
+
+/**
+ * Собирает бланк пропуска на транспорт - образец печатной формы, которую бюро
+ * выдаёт на посту.
+ *
+ * Без загруженного шаблона редактор бланка показывает одну строку «Загрузите
+ * шаблон .xlsx», и рассказать по такому кадру про привязку полей к ячейкам
+ * нельзя. Настоящий бланк заказчика сюда класть незачем: он у каждого свой, а
+ * для рисунка нужна узнаваемая форма с шапкой и таблицей строк.
+ */
+async function makeBlank() {
+  const ExcelJS = requireFromFrontend('exceljs');
+  const book = new ExcelJS.Workbook();
+  const sheet = book.addWorksheet('Пропуск');
+
+  // Первая колонка держит номер строки в таблице, поэтому подписи шапки
+  // занимают две колонки merge-ом: в узкой A они обрезались бы многоточием, и
+  // на рисунке в руководстве бланк выглядел бы недоделанным.
+  sheet.columns = [
+    { width: 6 },
+    { width: 26 },
+    { width: 20 },
+    { width: 18 },
+    { width: 22 },
+  ];
+
+  sheet.mergeCells('A1:E1');
+  sheet.getCell('A1').value = 'ЗАЯВКА НА ПРОПУСК ТРАНСПОРТНОГО СРЕДСТВА';
+  sheet.getCell('A1').font = { bold: true, size: 14 };
+  sheet.getCell('A1').alignment = { horizontal: 'center' };
+
+  for (const [row, label] of [
+    [3, 'Организация:'],
+    [4, 'Ответственный:'],
+    [5, 'Телефон:'],
+    [6, 'Срок действия:'],
+  ]) {
+    sheet.mergeCells(`A${row}:B${row}`);
+    sheet.getCell(`A${row}`).value = label;
+    sheet.mergeCells(`C${row}:E${row}`);
+  }
+
+  const head = ['№', 'Марка', 'Гос. номер', 'Водитель', 'Место разгрузки'];
+  head.forEach((title, index) => {
+    const cell = sheet.getRow(8).getCell(index + 1);
+    cell.value = title;
+    cell.font = { bold: true };
+    cell.alignment = { horizontal: 'center' };
+  });
+
+  for (let row = 8; row <= 14; row += 1) {
+    for (let column = 1; column <= 5; column += 1) {
+      sheet.getRow(row).getCell(column).border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' },
+      };
+    }
+  }
+
+  sheet.mergeCells('A16:C16');
+  sheet.getCell('A16').value = 'Начальник бюро пропусков ____________________';
+
+  const buffer = await book.xlsx.writeBuffer();
+  return Buffer.from(buffer);
+}
+
+/**
+ * Загружает образец бланка в вид вложения «Автомобили» и привязывает поля к
+ * ячейкам. Привязки набираются по подписям, а не по заранее выписанным путям:
+ * состав полей задаётся системой и меняется вместе с ней.
+ */
+async function ensureBlankTemplate(apiBase, token) {
+  const kinds = unwrap(await api(apiBase, token, 'GET', '/attachments/all')) ?? [];
+  const cars = kinds.find((kind) => kind.attachment_type === 'cars' && kind.is_active !== false);
+  if (!cars) throw new Error('на стенде нет действующего вида вложения для машин');
+
+  // Пока шаблона нет, метод отвечает отказом «Шаблон не настроен» - это не сбой.
+  const current = unwrap(
+    await api(apiBase, token, 'GET', `/attachments/${cars.id}/template`).catch(() => null),
+  );
+  if (!current?.file_path) {
+    const form = new FormData();
+    form.append('file', new Blob([await makeBlank()]), 'Пропуск на транспорт.xlsx');
+    form.append('list_start_row', '9');
+    form.append('list_end_row', '14');
+    const response = await fetch(`${apiBase}/attachments/${cars.id}/template`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+    if (!response.ok) {
+      throw new Error(`загрузка бланка -> ${response.status}: ${(await response.text()).slice(0, 300)}`);
+    }
+  }
+
+  const loaded = unwrap(
+    await api(apiBase, token, 'GET', `/attachments/${cars.id}/template`).catch(() => null),
+  );
+  if ((loaded?.mappings ?? []).length > 0) {
+    console.log(`Бланк вида «${cars.display_name}»: уже настроен, привязок ${loaded.mappings.length}`);
+    return;
+  }
+
+  // Поля приходят группами («Заявка», «Автомобиль (список)» и прочие), а
+  // признак строки списка стоит у самого поля - от него зависит, берётся
+  // значение один раз или по строке на машину.
+  const groups = unwrap(await api(apiBase, token, 'GET', `/attachments/${cars.id}/template-fields`)) ?? [];
+  const flat = groups.flatMap((group) => group.fields ?? []);
+  const byPath = new Map(flat.map((field) => [field.path, field]));
+
+  const wanted = [
+    ['C3', 'application.organization'],
+    ['C4', 'application.sender.full_name'],
+    ['C5', 'application.contact_phone'],
+    ['A9', 'car.row_number'],
+    ['B9', 'car.mark_name'],
+    ['C9', 'car.car_number'],
+  ];
+  const mappings = [];
+  for (const [cell, fieldPath] of wanted) {
+    const field = byPath.get(fieldPath);
+    if (!field) throw new Error(`поле ${fieldPath} исчезло из состава полей бланка`);
+    mappings.push({ cell_ref: cell, field_path: fieldPath, is_list_field: Boolean(field.is_list) });
+  }
+  await api(apiBase, token, 'PUT', `/attachments/${cars.id}/template/mappings`, { mappings });
+
+  console.log(`Бланк вида «${cars.display_name}»: загружен, привязок ${mappings.length}`);
+}
+
+/**
+ * Заводит обращения в разделе «Обратная связь».
+ *
+ * Наливка обращений не создаёт, и раздел на стенде пуст: снимать нечего, а
+ * описывать разбор обращения по пустому экрану нельзя. Одно обращение
+ * закрывается ответом - иначе вкладка «Решено» и поле ответа заявителю тоже
+ * остались бы без кадра.
+ *
+ * Обращение пишет сам работник, поэтому оно и заводится входом под его учётной
+ * записью: отправка от имени администратора положила бы в список не ту фамилию.
+ */
+async function seedFeedback(apiBase, token, accounts) {
+  const existing = unwrap(await api(apiBase, token, 'GET', '/feedback/all')) ?? [];
+  const known = new Set(existing.map((item) => item.message));
+  let added = 0;
+
+  for (const item of FEEDBACK) {
+    if (known.has(item.message)) continue;
+    const session = unwrap(
+      await api(apiBase, null, 'POST', '/login', {
+        username: accounts.roles[item.role].username,
+        password: accounts.password,
+      }),
+    );
+    const created = unwrap(await api(apiBase, session.token, 'POST', '/feedback', {
+      message: item.message,
+    }));
+    if (item.answer) {
+      await api(apiBase, token, 'PUT', `/feedback/${created.id}/status`, {
+        status: 'Решено',
+        comment: item.answer,
+      });
+    }
+    added += 1;
+  }
+
+  console.log(`Обратная связь: было обращений ${existing.length}, добавлено ${added}`);
 }
 
 main().catch((error) => {
