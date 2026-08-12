@@ -113,6 +113,9 @@ const FEEDBACK = [
   },
 ];
 
+/** Статусы, при которых заявка закрыта и решения согласующего уже не ждёт. */
+const ARCHIVED_STATUSES = new Set(['Завершено', 'Не согласовано', 'Отказано', 'Отозвана']);
+
 const DOCUMENTS = [
   { title: 'Правила пропускного режима', description: 'Порядок прохода и проезда на территорию' },
   { title: 'Образец заявки на ввоз', description: 'Заполненный пример для материальных ценностей' },
@@ -239,6 +242,8 @@ async function main() {
   await enableConsent(apiBase, token);
   await seedFeedback(apiBase, token, accounts);
   await ensureBlankTemplate(apiBase, token);
+  await ensurePendingApproval(apiBase, token, accounts);
+  await ensureBlacklistFlag(apiBase, token, accounts);
 }
 
 /**
@@ -543,6 +548,205 @@ async function fillOverview(apiBase, token) {
     }
   }
   console.log(`Документы: всего ${DOCUMENTS.length}`);
+}
+
+/**
+ * Держит на стенде заявку, которая ждёт решения согласующего.
+ *
+ * Наливка распределяет заявки по стадиям на момент своего запуска, но время идёт:
+ * срок вложений истекает, заявка уходит в «Завершено», и кадры руководства
+ * согласующего начинают показывать плашку статуса вместо кнопок решения. Здесь
+ * подаётся свежая заявка со сроком на месяц вперёд, где съёмочный согласующий
+ * назначен обязательным. Проверка идёт по факту: пока у него есть хоть одна
+ * живая заявка, ждущая голоса, ничего не подаётся.
+ */
+async function ensurePendingApproval(apiBase, token, accounts) {
+  const users = unwrap(await api(apiBase, token, 'GET', '/users/all'));
+  const list = Array.isArray(users) ? users : (users.users ?? users.items ?? []);
+  const approver = list.find((user) => user.username === accounts.roles.approver.username);
+  if (!approver) throw new Error(`согласующий ${accounts.roles.approver.username} не найден`);
+
+  const session = unwrap(
+    await api(apiBase, null, 'POST', '/login', {
+      username: accounts.roles.approver.username,
+      password: accounts.password,
+    }),
+  );
+  const center = unwrap(await api(apiBase, session.token, 'GET', '/applications?filter_type=all&per_page=100'));
+  const rows = center?.applications ?? center?.items ?? (Array.isArray(center) ? center : []);
+  const waiting = rows.filter(
+    (row) => row.confirmation === 'Согласование' && !ARCHIVED_STATUSES.has(row.status),
+  );
+  if (waiting.length > 0) {
+    console.log(`Согласующий: заявок, ждущих решения, ${waiting.length} - подача не нужна`);
+    return;
+  }
+
+  const applicant = unwrap(
+    await api(apiBase, null, 'POST', '/login', {
+      username: accounts.roles.user.username,
+      password: accounts.password,
+    }),
+  );
+  const profile = unwrap(await api(apiBase, applicant.token, 'GET', '/user-data'));
+  // Виды вложений читаются администраторским маркером: заявителю их перечень
+  // отдаётся только правом справочников, которого у него нет.
+  const kinds = unwrap(await api(apiBase, token, 'GET', '/attachments/all')) ?? [];
+  const people = kinds.find((kind) => kind.attachment_type === 'people' && kind.is_active !== false);
+  if (!people) throw new Error('на стенде нет действующего вида вложения для работников');
+
+  const citizenships = unwrap(await api(apiBase, applicant.token, 'GET', '/citizenships')) ?? [];
+  const citizenship = citizenships.find((item) => item.is_default) ?? citizenships[0];
+  const tables = (unwrap(await api(apiBase, applicant.token, 'GET', '/system-tables')) ?? [])
+    .map((item) => item.table ?? item)
+    .filter((table) => table.table_type === 'people' && table.is_active !== false);
+
+  const from = new Date(profile.server_time ?? Date.parse('2026-08-12T00:00:00Z'));
+  const to = new Date(from.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const day = (date) => date.toISOString().slice(0, 10);
+
+  await api(apiBase, applicant.token, 'POST', '/applications/submit-complete-application', {
+    message: 'Прошу оформить пропуск для проведения пусконаладочных работ на насосной станции.',
+    organization: profile.organization ?? '',
+    organization_id: profile.organization_id ?? null,
+    responsible_person: `${profile.last_name ?? ''} ${profile.first_name ?? ''}`.trim() || profile.username,
+    contact_phone: '+7 (999) 214-76-05',
+    data_approval: true,
+    required_users: [{ user_id: approver.id, required_approval: true }],
+    attachments: [
+      {
+        attachment_type: 'people',
+        attachment_name: `${people.name}_1`,
+        attachment_display_name: `${people.display_name} №1`,
+        unique_attachment_id: people.id,
+        entry_date_from: day(from),
+        entry_date_to: day(to),
+        entry_time_from: '08:00',
+        entry_time_to: '18:00',
+        data: {
+          employees: [
+            {
+              last_name: 'Александров',
+              first_name: 'Леонид',
+              middle_name: 'Леонидович',
+              citizenship_id: citizenship?.id ?? 1,
+              position: 'инженер-наладчик',
+              passport_series_number: '4519 774310',
+              target_tables: tables.slice(0, 1).map((table) => table.id),
+            },
+          ],
+        },
+      },
+    ],
+  });
+
+  console.log('Согласующий: подана заявка, ждущая его решения');
+}
+
+/**
+ * Фамилия, отличающаяся от заданной одной буквой. Меняется последняя гласная
+ * «и» или «о» - результат читается как настоящая фамилия, а не как опечатка
+ * с задвоенной буквой.
+ */
+function nearMissName(name) {
+  const swaps = { и: 'е', о: 'а', е: 'и', а: 'о' };
+  for (let i = name.length - 2; i > 1; i -= 1) {
+    const replacement = swaps[name[i].toLowerCase()];
+    if (replacement) return name.slice(0, i) + replacement + name.slice(i + 1);
+  }
+  return `${name.slice(0, -1)}н`;
+}
+
+/**
+ * Держит заявку с неразобранной пометкой чёрного списка.
+ *
+ * Кадр окна «Всё равно пропустить?» снимается только на живой заявке с
+ * непогашенной пометкой, а наливка такие заявки со временем доводит до решения.
+ * Работник подаётся с фамилией, отличающейся от записи чёрного списка одной
+ * буквой: точное совпадение система запретила бы, близкое - как раз и даёт
+ * пометку, которую разбирает согласующий.
+ */
+async function ensureBlacklistFlag(apiBase, token, accounts) {
+  const flagged = unwrap(await api(apiBase, token, 'GET', '/applications?filter_type=all&per_page=100'));
+  const rows = flagged?.applications ?? flagged?.items ?? (Array.isArray(flagged) ? flagged : []);
+  const live = rows.filter(
+    (row) => row.confirmation === 'Согласование' && !ARCHIVED_STATUSES.has(row.status) && row.blacklist_matches > 0,
+  );
+  if (live.length > 0) {
+    console.log(`Чёрный список: заявок с неразобранной пометкой ${live.length} - подача не нужна`);
+    return;
+  }
+
+  const blacklist = unwrap(await api(apiBase, token, 'GET', '/person-blacklist')) ?? [];
+  const record = (Array.isArray(blacklist) ? blacklist : (blacklist.items ?? [])).find((item) => item.last_name);
+  if (!record) {
+    console.log('Чёрный список: записей о людях нет, заявка с пометкой не подаётся');
+    return;
+  }
+
+  const users = unwrap(await api(apiBase, token, 'GET', '/users/all'));
+  const list = Array.isArray(users) ? users : (users.users ?? users.items ?? []);
+  const approver = list.find((user) => user.username === accounts.roles.approver.username);
+
+  const applicant = unwrap(
+    await api(apiBase, null, 'POST', '/login', {
+      username: accounts.roles.user.username,
+      password: accounts.password,
+    }),
+  );
+  const profile = unwrap(await api(apiBase, applicant.token, 'GET', '/user-data'));
+  const kinds = unwrap(await api(apiBase, token, 'GET', '/attachments/all')) ?? [];
+  const people = kinds.find((kind) => kind.attachment_type === 'people' && kind.is_active !== false);
+  const citizenships = unwrap(await api(apiBase, applicant.token, 'GET', '/citizenships')) ?? [];
+  const citizenship = citizenships.find((item) => item.is_default) ?? citizenships[0];
+  const tables = (unwrap(await api(apiBase, applicant.token, 'GET', '/system-tables')) ?? [])
+    .map((item) => item.table ?? item)
+    .filter((table) => table.table_type === 'people' && table.is_active !== false);
+
+  // Похожая фамилия строится заменой одной гласной: «Сорокина» -> «Сорокена».
+  // Совпадение перестаёт быть точным и становится близким, а сама фамилия
+  // остаётся правдоподобной - её увидит заказчик на снимке.
+  const nearName = nearMissName(record.last_name);
+  const from = new Date(profile.server_time ?? Date.parse('2026-08-12T00:00:00Z'));
+  const to = new Date(from.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const day = (date) => date.toISOString().slice(0, 10);
+
+  await api(apiBase, applicant.token, 'POST', '/applications/submit-complete-application', {
+    message: 'Прошу оформить пропуск подрядчику для замены осветительных приборов.',
+    organization: profile.organization ?? '',
+    organization_id: profile.organization_id ?? null,
+    responsible_person: `${profile.last_name ?? ''} ${profile.first_name ?? ''}`.trim() || profile.username,
+    contact_phone: '+7 (999) 214-76-05',
+    data_approval: true,
+    required_users: approver ? [{ user_id: approver.id, required_approval: true }] : undefined,
+    attachments: [
+      {
+        attachment_type: 'people',
+        attachment_name: `${people.name}_1`,
+        attachment_display_name: `${people.display_name} №1`,
+        unique_attachment_id: people.id,
+        entry_date_from: day(from),
+        entry_date_to: day(to),
+        entry_time_from: '09:00',
+        entry_time_to: '17:00',
+        data: {
+          employees: [
+            {
+              last_name: nearName,
+              first_name: record.first_name,
+              middle_name: record.middle_name,
+              citizenship_id: citizenship?.id ?? 1,
+              position: 'электромонтажник',
+              passport_series_number: '4521 660418',
+              target_tables: tables.slice(0, 1).map((table) => table.id),
+            },
+          ],
+        },
+      },
+    ],
+  });
+
+  console.log(`Чёрный список: подана заявка с работником «${nearName}», похожим на запись «${record.last_name}»`);
 }
 
 /**
