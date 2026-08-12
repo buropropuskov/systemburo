@@ -105,7 +105,9 @@ func TestApplicationParticipants_RolesContactsAndOrganizations(t *testing.T) {
 	assert.Equal(t, []string{services.ParticipantRoleSender}, byID[senderID].Roles, "подавший - отправитель")
 	assert.Equal(t, []string{services.ParticipantRoleAcceptor}, byID[acceptorID].Roles, "взявший в работу - принимающий")
 	assert.Equal(t, []string{services.ParticipantRoleApprover}, byID[approverID].Roles, "required_approval=true - согласующий")
-	assert.Equal(t, []string{services.ParticipantRoleResponsible}, byID[responsibleID].Roles, "required_approval=false - ответственный")
+	assert.Equal(t, []string{services.ParticipantRoleApprover}, byID[responsibleID].Roles, "required_approval=false - тоже согласующий, просто необязательный")
+	assert.True(t, byID[approverID].RequiredApproval, "обязательность голоса - признак, а не отдельная роль")
+	assert.False(t, byID[responsibleID].RequiredApproval)
 	assert.Equal(t, []string{services.ParticipantRoleReader}, byID[readerID].Roles, "application_viewers - читатель")
 
 	approver := byID[approverID]
@@ -128,22 +130,22 @@ func TestApplicationParticipants_RolesContactsAndOrganizations(t *testing.T) {
 	require.NotNil(t, approver.ApprovalDatetime)
 	assert.True(t, approvedAt.Equal(*approver.ApprovalDatetime), "дата голоса отдана как есть: %v", approver.ApprovalDatetime)
 
-	// У ответственного строка в application_responsible_users та же, и её дефолтный
-	// pending лежит в базе - но голосовать он не может, и статус читался бы как
-	// "не ответил", хотя его никто не спрашивал.
+	// Голосуют все, у кого есть строка в application_responsible_users: голос
+	// необязательного на исход не влияет, но карточка заявки его показывает, и список
+	// участников обязан говорить то же самое.
 	var storedStatus string
 	require.NoError(t, db.Model(&models.ApplicationResponsibleUser{}).
 		Where("application_id = ? AND user_id = ?", appID, responsibleID).
 		Select("COALESCE(approval_status, '')").Row().Scan(&storedStatus))
-	require.Equal(t, "pending", storedStatus, "в базе у ответственного дефолтный pending")
-	assert.Nil(t, byID[responsibleID].ApprovalStatus, "наружу состояние голоса ответственного не идёт")
-	assert.Nil(t, byID[responsibleID].ApprovalDatetime)
+	require.Equal(t, "pending", storedStatus, "в базе у необязательного согласующего дефолтный pending")
+	assert.Equal(t, "pending", deref(byID[responsibleID].ApprovalStatus), "его состояние голоса тоже видно")
 	assert.Nil(t, byID[senderID].ApprovalStatus, "у отправителя голоса нет вовсе")
 
-	// Порядок списка: автор, принявший, согласующий, ответственный, читатель.
-	assert.Equal(t, []int{senderID, acceptorID, approverID, responsibleID, readerID},
+	// Порядок списка: автор, принявший, согласующие, читатель. Согласующие идут
+	// одной группой и внутри неё по видимому имени: «Ответов» раньше «Согласуева».
+	assert.Equal(t, []int{senderID, acceptorID, responsibleID, approverID, readerID},
 		[]int{list[0].UserID, list[1].UserID, list[2].UserID, list[3].UserID, list[4].UserID},
-		"порядок от автора к читателю")
+		"порядок от автора к читателю, согласующие по алфавиту")
 }
 
 // Посторонний список участников не получает: контакты половины бюро - не публичные данные.

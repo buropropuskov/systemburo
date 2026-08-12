@@ -72,9 +72,16 @@
               >
                 {{ roleLabel(participant.primary_role) }}
               </Badge>
-              <!-- Голос есть только у согласующего: у ответственного строка в
-                   application_responsible_users та же, но его никто не спрашивал,
-                   и её pending читался бы как «не ответил». -->
+              <!-- Обязательность голоса - подпись рядом с ролью, как в блоке
+                   «Ответственные за согласование»: там же и та же формулировка. -->
+              <Badge
+                v-if="participant.required_approval"
+                variant="primary"
+                size="sm"
+                data-testid="app-participants-required"
+              >
+                Обязательно
+              </Badge>
               <Badge
                 v-if="participant.approval_status"
                 :variant="voteVariant(participant.approval_status)"
