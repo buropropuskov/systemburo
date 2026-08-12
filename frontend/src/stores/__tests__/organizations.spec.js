@@ -57,7 +57,9 @@ describe('organizations store', () => {
 
       await store.fetchOrganizationsWithUsers()
 
-      expect(apiRequest).toHaveBeenCalledWith('/organizations/with-users-extended')
+      // silent403 обязателен: список закрыт правом справочников, а зовёт его и
+      // UserControl - без тишины админ пользователей ловил бы тост на ровном месте.
+      expect(apiRequest).toHaveBeenCalledWith('/organizations/with-users-extended', { silent403: true })
       expect(store.itemsWithUsers).toEqual([
         { id: 1, name: 'Acme', user_count: 5, originalName: 'Acme' },
       ])
@@ -69,7 +71,7 @@ describe('organizations store', () => {
 
       await store.fetchOrganizationsWithUsers(true)
 
-      expect(apiRequest).toHaveBeenCalledWith('/organizations/with-users-extended?include_archived=true')
+      expect(apiRequest).toHaveBeenCalledWith('/organizations/with-users-extended?include_archived=true', { silent403: true })
     })
   })
 

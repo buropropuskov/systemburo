@@ -1823,7 +1823,12 @@ export default {
                 // Пишем во временный ключ, а НЕ в draftApplicationState: на странице
                 // оформления может быть уже начатый черновик - CreateApplication сам решит
                 // (заменить/объединить/отмена), забирать ли этот дубль (#952).
-                localStorage.setItem('pendingDuplicateState', JSON.stringify(draftState));
+                // ownerId - чтобы дубль не достался тому, кто войдёт в этом браузере
+                // следующим: хранилище одно на устройство, а учётные записи сменяются.
+                localStorage.setItem('pendingDuplicateState', JSON.stringify({
+                    ...draftState,
+                    ownerId: useAuthStore().userPayload?.user_id ?? null,
+                }));
                 this.$emit('duplicate');
             } catch (error) {
                 console.error('Ошибка при дублировании заявки:', error);

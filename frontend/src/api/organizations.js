@@ -25,11 +25,6 @@ export async function deleteOrganization(id) {
   return apiRequest(`/organizations/${id}`, { method: 'DELETE' });
 }
 
-export async function getOrganizationsWithUsers() {
-  const res = await apiRequest('/organizations/with-users');
-  return res.json();
-}
-
 /**
  * Пользователи, привязанные к организации через organization_id (участники,
  * дают user_count), в отличие от ответственных из /:id/users (#1046).
@@ -71,11 +66,6 @@ export async function deleteCompany(id) {
   return apiRequest(`/companies/${id}`, { method: 'DELETE' });
 }
 
-export async function getCompaniesWithUsers() {
-  const res = await apiRequest('/companies/with-users');
-  return res.json();
-}
-
 /**
  * Пользователи, привязанные к компании через company_id (участники, дают
  * user_count), в отличие от ответственных из /:id/users (#1046).
@@ -88,11 +78,12 @@ export async function getCompanyMembers(id) {
 }
 
 // --- Блокеры архивации: перенос всех участников (#1379 delete-blockers) ---
-// Список блокеров = активные участники, их уже даёт getOrganizationMembers/
-// getCompanyMembers (тот же набор, что /:id/blocking-users). Здесь только
-// действие переноса. unwrap бросает на !res.ok с сообщением бэка (эталон
-// api/approvers.js), чтобы 4xx (target архивный/== источнику/404) не прошёл
-// молчаливым успехом, а показался в notify.
+// Список блокеров = активные участники, его даёт getOrganizationMembers/
+// getCompanyMembers. Отдельного маршрута под блокеры больше нет: он отдавал ровно
+// тот же ответ и держал собственный гейт, из-за чего право обходилось соседом
+// (#2002). Здесь только действие переноса. unwrap бросает на !res.ok с сообщением
+// бэка (эталон api/approvers.js), чтобы 4xx (target архивный/== источнику/404) не
+// прошёл молчаливым успехом, а показался в notify.
 
 async function unwrap(res, fallback) {
   const body = await res.json();
