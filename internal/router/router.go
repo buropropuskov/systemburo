@@ -191,8 +191,15 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// requireAdmin — гейт admin-страниц по page.admin (super/admin проходят,
 	// обычные — по гранту). Заменяет легаси type-code проверки в сервисах (Ф5).
 	requireAdmin := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdmin)
-	// Справочники (типы вложений, настройка их полей и Excel-бланков). Ключ тот же, что
-	// у фронтовых страниц /admin/*: иначе носитель права видит раздел и ловит 403.
+	// Справочники раздела /admin/* целиком. Ключ тот же, что у фронтовых страниц:
+	// иначе носитель права видит раздел и ловит 403.
+	//
+	// page.admin этих маршрутов больше не открывает, и наследования «page.admin даёт
+	// все page.admin.*» здесь намеренно нет (#1982): вместе со справочниками оно
+	// протащило бы журнал обращений к персональным данным, раздел пользователей и
+	// настройки - то есть расширило бы права под видом переезда. Действующие
+	// администраторы проходят по признаку is_admin (adminAll в резолвере), а не по
+	// ключу, поэтому переезд их не задевает.
 	requireDirectories := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminDirectories)
 	// Конструктор системных таблиц: создание/изменение/удаление структуры и настроек
 	// таблиц КПП. Ключ тот же, что у фронтовой страницы /table-constructor.
@@ -373,8 +380,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// entity_type/entity_id. Admin-only - кросс-сущностный аудит чувствителен.
 	protected.GET("/audit", audit.GetAuditLog, requireAdmin)
 
-	// Управление типами пользователей (admin-only, page.admin)
-	utm := protected.Group("/user-types-management", requireAdmin)
+	// Управление типами пользователей - справочник раздела (page.admin.directories),
+	// тем же правом фронт открывает /admin/user-types.
+	utm := protected.Group("/user-types-management", requireDirectories)
 	utm.GET("", userTypes.GetAll)
 	utm.POST("", userTypes.Create)
 	utm.PUT("/:id", userTypes.Update)
@@ -384,18 +392,18 @@ func Setup(e *echo.Echo, d Dependencies) {
 	utm.POST("/:id/reassign-users", userTypes.ReassignUsers)
 
 	// Гражданства. Список и история — для всех авторизованных (дропдаун гражданств
-	// в форме заявки); изменяющие операции — page.admin (Ф5, ранее service checkAdmin).
+	// в форме заявки); изменяющие операции — админ справочников (page.admin.directories).
 	csg := protected.Group("/citizenships")
 	csg.GET("", cs.GetAll)
-	csg.POST("", cs.Create, requireAdmin)
-	csg.PUT("/:id", cs.Update, requireAdmin)
-	csg.DELETE("/:id", cs.Delete, requireAdmin)
-	csg.POST("/:id/restore", cs.Restore, requireAdmin)
+	csg.POST("", cs.Create, requireDirectories)
+	csg.PUT("/:id", cs.Update, requireDirectories)
+	csg.DELETE("/:id", cs.Delete, requireDirectories)
+	csg.POST("/:id/restore", cs.Restore, requireDirectories)
 	// Групповые операции (статический bulk приоритетнее param :id в Echo).
-	csg.POST("/bulk/archive", cs.BulkArchive, requireAdmin)
-	csg.POST("/bulk/restore", cs.BulkRestore, requireAdmin)
+	csg.POST("/bulk/archive", cs.BulkArchive, requireDirectories)
+	csg.POST("/bulk/restore", cs.BulkRestore, requireDirectories)
 	csg.GET("/:id/history", cs.GetHistory)
-	csg.POST("/clear-default", cs.ClearDefaults, requireAdmin)
+	csg.POST("/clear-default", cs.ClearDefaults, requireDirectories)
 
 	// Форматы номерных знаков
 	lpfGroup := protected.Group("/license-plate-formats")
@@ -495,8 +503,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// без гейта, иначе заявитель не соберёт вложение.
 	att.GET("/:id/field-config", attachmentTemplates.GetFieldConfig)
 
-	// Организации. Изменяющие операции и история - page.admin (Ф5, ранее handler-level
-	// CheckAdminPermissions); списки и привязка пользователей - как было, без гейта.
+	// Организации. Изменяющие операции, история и состав - админ справочников
+	// (page.admin.directories, тем же правом фронт открывает /admin/organizations).
+	// Открытым остаётся то, без чего не собрать заявку: наименования (GetAll),
+	// ответственные (/:id/users), таблицы и места разгрузки - их читают форма подачи
+	// и VehicleForm.
 	// Подсказки при ручном вводе наименования в заявке (#1437). Гейт - то же право,
 	// что разблокирует ручной ввод: без него заявка идёт от своей организации, и
 	// подсказывать нечего. Статический сегмент suggest в Echo приоритетнее :id.
@@ -512,66 +523,79 @@ func Setup(e *echo.Echo, d Dependencies) {
 	orgg.POST("/:id/moderation/approve", org.ApproveModeration, requireOrgModerate)
 	orgg.PATCH("/:id/moderation/rename", org.RenameModeration, requireOrgModerate)
 	orgg.POST("/:id/moderation/merge", org.MergeModeration, requireOrgModerate)
-	orgg.POST("", org.Create, requireAdmin)
-	orgg.PUT("/:id", org.Update, requireAdmin)
-	orgg.DELETE("/:id", org.Delete, requireAdmin)
-	orgg.POST("/:id/restore", org.Restore, requireAdmin)
-	orgg.GET("/:id/history", org.GetHistory, requireAdmin)
-	orgg.GET("/with-users", org.GetWithUsers)
-	orgg.GET("/with-users-extended", org.GetWithUsersExtended)
+	orgg.POST("", org.Create, requireDirectories)
+	orgg.PUT("/:id", org.Update, requireDirectories)
+	orgg.DELETE("/:id", org.Delete, requireDirectories)
+	orgg.POST("/:id/restore", org.Restore, requireDirectories)
+	orgg.GET("/:id/history", org.GetHistory, requireDirectories)
+	// Списки для таблицы управления справочником: число работников, тип, архивные
+	// записи и статус разбора. Строки этой таблицы больше ничем не отдаются, а
+	// открытый /organizations даёт только наименования активных, так что гейт тут
+	// закрывает реальную разницу, а не повторяет соседа.
+	orgg.GET("/with-users", org.GetWithUsers, requireDirectories)
+	orgg.GET("/with-users-extended", org.GetWithUsersExtended, requireDirectories)
 	orgg.GET("/:id/users", org.GetOrganizationUsers)
-	orgg.PUT("/:id/users", org.UpdateOrganizationUsers)
-	orgg.GET("/:id/members", org.GetMembers)
-	// Блокеры архивации и перенос всех в другую организацию - гейт как у Delete (page.admin).
-	orgg.GET("/:id/blocking-users", org.GetBlockingUsers, requireAdmin)
-	orgg.POST("/:id/reassign-users", org.ReassignUsers, requireAdmin)
+	// Состав ответственных - запись, а не чтение: метод стирает organization_users
+	// и пересобирает набор из тела запроса, включая флаги is_primary и
+	// required_approval. Второй делает человека согласующим (IsReviewer в
+	// approver_service проверяет ровно его) и тянет его в ответственные по заявкам
+	// организации, так что без гейта любой работник вписывал себя сам. Право то же,
+	// что у соседей по составу - reassign-users и bulk/users.
+	orgg.PUT("/:id/users", org.UpdateOrganizationUsers, requireDirectories)
+	// Участники - ФИО, должности и логины работников организации. Они же блокируют
+	// архивацию: набор active-only, и delete-флоу спрашивает этот же маршрут.
+	orgg.GET("/:id/members", org.GetMembers, requireDirectories)
+	// Перенос всех участников в другую организацию - гейт как у Delete.
+	orgg.POST("/:id/reassign-users", org.ReassignUsers, requireDirectories)
 	orgg.GET("/:id/tables", org.GetOrganizationTables)
-	orgg.PUT("/:id/tables", org.UpdateOrganizationTables, requireAdmin)
+	orgg.PUT("/:id/tables", org.UpdateOrganizationTables, requireDirectories)
 	orgg.GET("/:id/unload-places", org.GetOrganizationUnloadPlaces)
-	orgg.PUT("/:id/unload-places", org.UpdateOrganizationUnloadPlaces, requireAdmin)
+	orgg.PUT("/:id/unload-places", org.UpdateOrganizationUnloadPlaces, requireDirectories)
 	// Групповые операции (bulk). Статический сегмент bulk имеет приоритет над
 	// param :id в Echo, поэтому /bulk/restore не конфликтует с /:id/restore.
-	orgg.POST("/bulk/type", org.BulkUpdateType, requireAdmin)
-	orgg.POST("/bulk/unload-places", org.BulkAssignUnloadPlaces, requireAdmin)
-	orgg.POST("/bulk/tables", org.BulkAssignTables, requireAdmin)
-	orgg.POST("/bulk/users", org.BulkAssignUsers, requireAdmin)
-	orgg.POST("/bulk/archive", org.BulkArchive, requireAdmin)
-	orgg.POST("/bulk/restore", org.BulkRestore, requireAdmin)
+	orgg.POST("/bulk/type", org.BulkUpdateType, requireDirectories)
+	orgg.POST("/bulk/unload-places", org.BulkAssignUnloadPlaces, requireDirectories)
+	orgg.POST("/bulk/tables", org.BulkAssignTables, requireDirectories)
+	orgg.POST("/bulk/users", org.BulkAssignUsers, requireDirectories)
+	orgg.POST("/bulk/archive", org.BulkArchive, requireDirectories)
+	orgg.POST("/bulk/restore", org.BulkRestore, requireDirectories)
 	protected.GET("/get-organization", org.GetMyOrganization)
 
-	// Компании. Изменяющие операции и история - page.admin (Ф5, ранее service checkAdmin);
-	// списки и привязка пользователей (UpdateUsers) - как было, без отдельного гейта.
+	// Компании. Зеркало organizations: изменяющие операции, история и состав - админ
+	// справочников (page.admin.directories, тем же правом фронт открывает
+	// /admin/companies); открыт тот же набор чтений, что нужен форме заявки.
 	cg := protected.Group("/companies")
 	cg.GET("", comp.GetAll)
 	cg.GET("/suggest", comp.Suggest, requireOrgOverride)
 	cg.POST("/:id/moderation/approve", comp.ApproveModeration, requireOrgModerate)
 	cg.PATCH("/:id/moderation/rename", comp.RenameModeration, requireOrgModerate)
 	cg.POST("/:id/moderation/merge", comp.MergeModeration, requireOrgModerate)
-	cg.POST("", comp.Create, requireAdmin)
-	cg.PUT("/:id", comp.Update, requireAdmin)
-	cg.DELETE("/:id", comp.Delete, requireAdmin)
-	cg.POST("/:id/restore", comp.Restore, requireAdmin)
-	cg.GET("/:id/history", comp.GetHistory, requireAdmin)
-	cg.GET("/with-users", comp.GetWithUsers)
-	cg.GET("/with-users-extended", comp.GetWithUsersExtended)
+	cg.POST("", comp.Create, requireDirectories)
+	cg.PUT("/:id", comp.Update, requireDirectories)
+	cg.DELETE("/:id", comp.Delete, requireDirectories)
+	cg.POST("/:id/restore", comp.Restore, requireDirectories)
+	cg.GET("/:id/history", comp.GetHistory, requireDirectories)
+	cg.GET("/with-users", comp.GetWithUsers, requireDirectories)
+	cg.GET("/with-users-extended", comp.GetWithUsersExtended, requireDirectories)
 	cg.GET("/:id/users", comp.GetUsers)
-	cg.PUT("/:id/users", comp.UpdateUsers)
-	cg.GET("/:id/members", comp.GetMembers)
-	// Блокеры архивации и перенос всех в другую компанию - гейт как у Delete (page.admin).
-	cg.GET("/:id/blocking-users", comp.GetBlockingUsers, requireAdmin)
-	cg.POST("/:id/reassign-users", comp.ReassignUsers, requireAdmin)
+	// Зеркало organizations: запись состава с теми же флагами и тем же следствием
+	// для согласования, гейт держим одинаковым.
+	cg.PUT("/:id/users", comp.UpdateUsers, requireDirectories)
+	cg.GET("/:id/members", comp.GetMembers, requireDirectories)
+	// Перенос всех участников в другую компанию - гейт как у Delete.
+	cg.POST("/:id/reassign-users", comp.ReassignUsers, requireDirectories)
 	cg.GET("/:id/tables", comp.GetTables)
-	cg.PUT("/:id/tables", comp.UpdateTables, requireAdmin)
+	cg.PUT("/:id/tables", comp.UpdateTables, requireDirectories)
 	cg.GET("/:id/unload-places", comp.GetUnloadPlaces)
-	cg.PUT("/:id/unload-places", comp.UpdateUnloadPlaces, requireAdmin)
+	cg.PUT("/:id/unload-places", comp.UpdateUnloadPlaces, requireDirectories)
 	// Групповые операции (bulk). Статический сегмент bulk имеет приоритет над
 	// param :id в Echo, поэтому /bulk/restore не конфликтует с /:id/restore.
-	cg.POST("/bulk/type", comp.BulkUpdateType, requireAdmin)
-	cg.POST("/bulk/unload-places", comp.BulkAssignUnloadPlaces, requireAdmin)
-	cg.POST("/bulk/tables", comp.BulkAssignTables, requireAdmin)
-	cg.POST("/bulk/users", comp.BulkAssignUsers, requireAdmin)
-	cg.POST("/bulk/archive", comp.BulkArchive, requireAdmin)
-	cg.POST("/bulk/restore", comp.BulkRestore, requireAdmin)
+	cg.POST("/bulk/type", comp.BulkUpdateType, requireDirectories)
+	cg.POST("/bulk/unload-places", comp.BulkAssignUnloadPlaces, requireDirectories)
+	cg.POST("/bulk/tables", comp.BulkAssignTables, requireDirectories)
+	cg.POST("/bulk/users", comp.BulkAssignUsers, requireDirectories)
+	cg.POST("/bulk/archive", comp.BulkArchive, requireDirectories)
+	cg.POST("/bulk/restore", comp.BulkRestore, requireDirectories)
 
 	// Места разгрузки
 	upg := protected.Group("/unload-places")
@@ -584,9 +608,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	upg.DELETE("/:id", up.Delete, requireDirectories)
 	upg.POST("/:id/restore", up.Restore, requireDirectories)
 	upg.GET("/:id/usage", up.GetUsage)
-	upg.POST("/:id/detach-all", up.DetachAll, requireAdmin)
-	upg.DELETE("/:id/organizations/:org_id", up.DetachOrganization, requireAdmin)
-	upg.DELETE("/:id/companies/:company_id", up.DetachCompany, requireAdmin)
+	upg.POST("/:id/detach-all", up.DetachAll, requireDirectories)
+	upg.DELETE("/:id/organizations/:org_id", up.DetachOrganization, requireDirectories)
+	upg.DELETE("/:id/companies/:company_id", up.DetachCompany, requireDirectories)
 	// Групповые операции (статический bulk приоритетнее param :id в Echo).
 	upg.POST("/bulk/archive", up.BulkArchive, requireDirectories)
 	upg.POST("/bulk/restore", up.BulkRestore, requireDirectories)
@@ -900,18 +924,19 @@ func Setup(e *echo.Echo, d Dependencies) {
 	att.GET("/:id/employees", app.GetAttachmentEmployees)
 	att.GET("/:id/items", app.GetAttachmentItems)
 
-	// Утверждающие заявок. Управление - page.admin (Ф5, ранее service checkAdmin);
-	// журнал (history) доступен всем авторизованным (как и раньше - без checkAdmin).
+	// Утверждающие заявок. Управление - админ справочников (page.admin.directories,
+	// тем же правом фронт открывает /admin/approvers); журнал (history) доступен
+	// всем авторизованным (как и раньше - без checkAdmin).
 	aag := protected.Group("/application-approvers")
-	aag.GET("", approvers.GetAll, requireAdmin)
-	aag.GET("/available-users", approvers.GetAvailableUsers, requireAdmin)
+	aag.GET("", approvers.GetAll, requireDirectories)
+	aag.GET("/available-users", approvers.GetAvailableUsers, requireDirectories)
 	aag.GET("/history", approvers.GetHistory)
 	// Ответ про себя доступен любому авторизованному: карточке заявки нужно знать,
 	// показывать ли кнопки принимающего, а весь состав ей не нужен и закрыт админом.
 	aag.GET("/me", approvers.IsApprover)
-	aag.POST("", approvers.Create, requireAdmin)
-	aag.PATCH("/:id", approvers.Update, requireAdmin)
-	aag.DELETE("/:id", approvers.Delete, requireAdmin)
+	aag.POST("", approvers.Create, requireDirectories)
+	aag.PATCH("/:id", approvers.Update, requireDirectories)
+	aag.DELETE("/:id", approvers.Delete, requireDirectories)
 
 	// permission.audit.manage = управление системой прав (роли, группы, назначения,
 	// индивидуальные права пользователей). super + admin проходят (audit.manage не
@@ -1033,24 +1058,25 @@ func Setup(e *echo.Echo, d Dependencies) {
 		mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionRotatePasswords))
 	protected.PUT("/settings/:key", settings.Update, requireSettings)
 
-	// Новости. Активные (GET "") - всем авторизованным; управление - page.admin
-	// (Ф5, ранее service checkAdmin).
+	// Новости. Активные (GET "") - всем авторизованным; управление - админ справочников
+	// (page.admin.directories, тем же правом фронт открывает /admin/news).
 	ng := protected.Group("/news")
 	ng.GET("", news.GetActiveNews)
-	ng.GET("/all", news.GetAllNews, requireAdmin)
-	ng.POST("", news.CreateNews, requireAdmin)
-	ng.PUT("/:id", news.UpdateNews, requireAdmin)
-	ng.DELETE("/:id", news.DeleteNews, requireAdmin)
+	ng.GET("/all", news.GetAllNews, requireDirectories)
+	ng.POST("", news.CreateNews, requireDirectories)
+	ng.PUT("/:id", news.UpdateNews, requireDirectories)
+	ng.DELETE("/:id", news.DeleteNews, requireDirectories)
 
-	// Объявления. Активное (GET /active) - всем авторизованным; управление - page.admin.
+	// Объявления. Активное (GET /active) - всем авторизованным; управление - тем же
+	// правом, что новости: это один экран «Новости и объявления».
 	ag := protected.Group("/announcements")
 	ag.GET("/active", news.GetActiveAnnouncement)
-	ag.GET("/all", news.GetAllAnnouncements, requireAdmin)
-	ag.POST("", news.CreateAnnouncement, requireAdmin)
-	ag.POST("/set-active", news.SetActiveAnnouncement, requireAdmin)
-	ag.POST("/:id/hide", news.HideAnnouncement, requireAdmin)
-	ag.PUT("/:id", news.UpdateAnnouncement, requireAdmin)
-	ag.DELETE("/:id", news.DeleteAnnouncement, requireAdmin)
+	ag.GET("/all", news.GetAllAnnouncements, requireDirectories)
+	ag.POST("", news.CreateAnnouncement, requireDirectories)
+	ag.POST("/set-active", news.SetActiveAnnouncement, requireDirectories)
+	ag.POST("/:id/hide", news.HideAnnouncement, requireDirectories)
+	ag.PUT("/:id", news.UpdateAnnouncement, requireDirectories)
+	ag.DELETE("/:id", news.DeleteAnnouncement, requireDirectories)
 
 	// Уведомления. Свои - любому авторизованному; рассылка (Create) - админ
 	// (page.admin, Ф5: ранее handler-проверка type_id 5/6 manager/buropropuskov).
@@ -1093,28 +1119,28 @@ func Setup(e *echo.Echo, d Dependencies) {
 	adminMaint.GET("/maintenance", maintenance.GetAdminStatus)
 	adminMaint.PUT("/maintenance", maintenance.ToggleMaintenance)
 
-	// Документы (#39). Admin-операции под page.admin (requireAdmin определён выше);
-	// скачивание и публичный список -- под auth.
+	// Документы (#39). Admin-операции под page.admin.directories - тем же правом фронт
+	// открывает /admin/documents; скачивание и публичный список -- под auth.
 
 	// Сброс онбординг-тура пользователю - админ-действие (после сброса у юзера
 	// снова автозапуск). Под page.admin, в отличие от self-эндпоинтов /onboarding.
 	protected.POST("/users/:username/onboarding/reset", onboarding.ResetForUser, requireAdmin)
 	if docGroups != nil {
 		dgGroup := protected.Group("/document-groups")
-		dgGroup.GET("", docGroups.List, requireAdmin)
-		dgGroup.POST("", docGroups.Create, requireAdmin)
-		dgGroup.PUT("/reorder", docGroups.Reorder, requireAdmin)
-		dgGroup.PUT("/:id", docGroups.Update, requireAdmin)
-		dgGroup.DELETE("/:id", docGroups.Delete, requireAdmin)
+		dgGroup.GET("", docGroups.List, requireDirectories)
+		dgGroup.POST("", docGroups.Create, requireDirectories)
+		dgGroup.PUT("/reorder", docGroups.Reorder, requireDirectories)
+		dgGroup.PUT("/:id", docGroups.Update, requireDirectories)
+		dgGroup.DELETE("/:id", docGroups.Delete, requireDirectories)
 	}
 	if docs != nil {
 		docsGroup := protected.Group("/documents")
-		docsGroup.GET("", docs.List, requireAdmin)
-		docsGroup.POST("", docs.Upload, requireAdmin)
-		docsGroup.PUT("/reorder", docs.Reorder, requireAdmin)
-		docsGroup.PUT("/:id", docs.UpdateMeta, requireAdmin)
-		docsGroup.PUT("/:id/file", docs.ReplaceFile, requireAdmin)
-		docsGroup.DELETE("/:id", docs.Delete, requireAdmin)
+		docsGroup.GET("", docs.List, requireDirectories)
+		docsGroup.POST("", docs.Upload, requireDirectories)
+		docsGroup.PUT("/reorder", docs.Reorder, requireDirectories)
+		docsGroup.PUT("/:id", docs.UpdateMeta, requireDirectories)
+		docsGroup.PUT("/:id/file", docs.ReplaceFile, requireDirectories)
+		docsGroup.DELETE("/:id", docs.Delete, requireDirectories)
 		docsGroup.GET("/:id/download", docs.Download)
 
 		protected.GET("/public/documents", docs.GetPublic)

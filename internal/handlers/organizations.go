@@ -390,34 +390,6 @@ func (h *OrganizationHandler) GetMembers(c echo.Context) error {
 	return RespondSuccess(c, members)
 }
 
-// GetBlockingUsers godoc
-// @Summary      Пользователи, блокирующие архивацию организации
-// @Description  Возвращает активных участников (users.organization_id=id), из-за
-// @Description  которых организацию нельзя архивировать. Тот же набор, что GetMembers
-// @Description  (участники активны по определению); отдельный endpoint для delete-флоу.
-// @Tags         organizations
-// @Produce      json
-// @Security     BearerAuth
-// @Param        id path int true "ID организации"
-// @Success      200 {array} services.MemberResponse
-// @Failure      400 {object} models.HTTPError
-// @Failure      401 {object} models.HTTPError
-// @Failure      403 {object} models.HTTPError
-// @Router       /organizations/{id}/blocking-users [get]
-func (h *OrganizationHandler) GetBlockingUsers(c echo.Context) error {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
-	}
-	// Блокирующие архивацию = активные участники (те же, что даёт GetMembers) -
-	// переиспользуем запрос, чтобы не плодить дубль active-only выборки.
-	users, err := h.service.GetMembers(c.Request().Context(), id)
-	if err != nil {
-		return err
-	}
-	return RespondSuccess(c, users)
-}
-
 // ReassignUsers godoc
 // @Summary      Перенести всех блокирующих пользователей в другую организацию
 // @Description  Переносит активных участников организации в целевую (target_id),

@@ -94,18 +94,20 @@ describe('UnloadPlacesContainer — блок «Привязки» на вкла�
     expect(unloadPlacesApi.getUnloadPlaceUsage).toHaveBeenCalledTimes(1)
   })
 
-  it('кнопка «Отвязать всё» скрыта без права page.admin, видна с ним', async () => {
+  it('кнопка «Отвязать всё» скрыта без права раздела, видна с ним', async () => {
     unloadPlacesApi.getUnloadPlaceUsage.mockResolvedValue({
       organizations: [{ id: 1, name: 'ООО Ромашка', is_active: true }],
       companies: [],
     })
     wrapper = mountContainer()
     await flushPromises()
-    // mode по умолчанию 'normal' -> hasPermission('page.admin') === false
+    // mode по умолчанию 'normal' с пустой картой -> права раздела нет
     await selectPlaceWithUsage(wrapper)
     expect(detachBtn(wrapper).exists()).toBe(false)
 
-    usePermissionsStore().mode = 'super'
+    // Отвязка закрыта тем же ключом, что открывает экран (#1982) - выдаём его, а не
+    // режим супер-админа: иначе тест зелёный при любом ключе в гейте.
+    usePermissionsStore().effective = { 'page.admin.directories': { value: 'allow' } }
     await flushPromises()
     expect(detachBtn(wrapper).exists()).toBe(true)
   })
@@ -209,17 +211,17 @@ describe('UnloadPlacesContainer — блок «Привязки» на вкла�
     expect(wrapper.findAll('.usage-item')).toHaveLength(0)
   })
 
-  it('крестик точечной отвязки: скрыт без права page.admin, виден с ним', async () => {
+  it('крестик точечной отвязки: скрыт без права раздела, виден с ним', async () => {
     unloadPlacesApi.getUnloadPlaceUsage.mockResolvedValue({
       organizations: [{ id: 1, name: 'ООО Ромашка', is_active: true }],
       companies: [],
     })
     wrapper = mountContainer()
     await flushPromises()
-    await selectPlaceWithUsage(wrapper) // mode 'normal' -> нет page.admin
+    await selectPlaceWithUsage(wrapper) // mode 'normal' с пустой картой -> права нет
     expect(wrapper.findAll('.usage-item__detach')).toHaveLength(0)
 
-    usePermissionsStore().mode = 'super'
+    usePermissionsStore().effective = { 'page.admin.directories': { value: 'allow' } }
     await flushPromises()
     expect(wrapper.findAll('.usage-item__detach')).toHaveLength(1)
   })

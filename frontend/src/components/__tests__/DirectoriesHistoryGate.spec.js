@@ -27,9 +27,11 @@ import { useDeletionsStore } from '@/stores/deletions'
 import { usePermissionsStore } from '@/stores/permissions'
 
 /**
- * Списки компаний и организаций открыты любому, кто вошёл в раздел справочников
- * по page.admin.directories, а история каждой записи закрыта page.admin. Без гейта
- * кнопка «История» вела админа справочников в пустое окно с отказом (#1967).
+ * История компании и организации закрыта тем же page.admin.directories, что открывает
+ * раздел справочников (#1982). Раньше она требовала page.admin, и кнопку приходилось
+ * прятать от админа справочников, чтобы не вела в пустое окно с отказом (#1967);
+ * теперь тот же человек историю читает, и гейт стережёт обратное - кнопка не должна
+ * исчезнуть у того, кто в разделе работает.
  */
 
 const STUBS = {
@@ -54,13 +56,11 @@ function grantDirectoriesOnly() {
   perm.effective = { 'page.admin.directories': { value: 'allow' } }
 }
 
-function grantAdmin() {
+// Остаток старого зонтичного права без права раздела: истории он больше не открывает.
+function grantLegacyAdminOnly() {
   const perm = usePermissionsStore()
   perm.mode = 'normal'
-  perm.effective = {
-    'page.admin.directories': { value: 'allow' },
-    'page.admin': { value: 'allow' },
-  }
+  perm.effective = { 'page.admin': { value: 'allow' } }
 }
 
 async function openCard(component, store, rowTestId) {
@@ -83,19 +83,8 @@ describe('CompaniesManagement — вход в историю компании', 
     dirApi.getCompanyMembers.mockResolvedValue([])
   })
 
-  it('без page.admin кнопки истории нет, а карточка компании открыта', async () => {
+  it('админ справочников открывает историю компании', async () => {
     grantDirectoriesOnly()
-    const store = useCompaniesStore()
-    vi.spyOn(store, 'fetchCompaniesWithUsers').mockResolvedValue()
-    const w = await openCard(CompaniesManagement, store, 'companies-row')
-
-    // Карточка на месте: соседняя кнопка того же блока гейта не имеет.
-    expect(w.find('[data-testid="companies-archive"]').exists()).toBe(true)
-    expect(w.find('[data-testid="companies-history"]').exists()).toBe(false)
-  })
-
-  it('с page.admin кнопка есть и открывает окно истории', async () => {
-    grantAdmin()
     const store = useCompaniesStore()
     vi.spyOn(store, 'fetchCompaniesWithUsers').mockResolvedValue()
     const w = await openCard(CompaniesManagement, store, 'companies-row')
@@ -106,6 +95,17 @@ describe('CompaniesManagement — вход в историю компании', 
     await flushPromises()
     expect(w.findComponent({ name: 'CompanyHistoryModal' }).exists()).toBe(true)
   })
+
+  it('без права раздела кнопки истории нет, а карточка компании открыта', async () => {
+    grantLegacyAdminOnly()
+    const store = useCompaniesStore()
+    vi.spyOn(store, 'fetchCompaniesWithUsers').mockResolvedValue()
+    const w = await openCard(CompaniesManagement, store, 'companies-row')
+
+    // Карточка на месте: соседняя кнопка того же блока гейта не имеет.
+    expect(w.find('[data-testid="companies-archive"]').exists()).toBe(true)
+    expect(w.find('[data-testid="companies-history"]').exists()).toBe(false)
+  })
 })
 
 describe('OrganizationsManagement — вход в историю организации', () => {
@@ -115,18 +115,8 @@ describe('OrganizationsManagement — вход в историю организ�
     dirApi.getOrganizationMembers.mockResolvedValue([])
   })
 
-  it('без page.admin кнопки истории нет, а карточка организации открыта', async () => {
+  it('админ справочников открывает историю организации', async () => {
     grantDirectoriesOnly()
-    const store = useOrganizationsStore()
-    vi.spyOn(store, 'fetchOrganizationsWithUsers').mockResolvedValue()
-    const w = await openCard(OrganizationsManagement, store, 'orgs-row')
-
-    expect(w.find('[data-testid="orgs-archive"]').exists()).toBe(true)
-    expect(w.find('[data-testid="orgs-history"]').exists()).toBe(false)
-  })
-
-  it('с page.admin кнопка есть и открывает окно истории', async () => {
-    grantAdmin()
     const store = useOrganizationsStore()
     vi.spyOn(store, 'fetchOrganizationsWithUsers').mockResolvedValue()
     const w = await openCard(OrganizationsManagement, store, 'orgs-row')
@@ -136,5 +126,15 @@ describe('OrganizationsManagement — вход в историю организ�
     await button.trigger('click')
     await flushPromises()
     expect(w.findComponent({ name: 'OrgHistoryModal' }).exists()).toBe(true)
+  })
+
+  it('без права раздела кнопки истории нет, а карточка организации открыта', async () => {
+    grantLegacyAdminOnly()
+    const store = useOrganizationsStore()
+    vi.spyOn(store, 'fetchOrganizationsWithUsers').mockResolvedValue()
+    const w = await openCard(OrganizationsManagement, store, 'orgs-row')
+
+    expect(w.find('[data-testid="orgs-archive"]').exists()).toBe(true)
+    expect(w.find('[data-testid="orgs-history"]').exists()).toBe(false)
   })
 })

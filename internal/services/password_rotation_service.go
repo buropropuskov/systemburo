@@ -324,7 +324,10 @@ func (s *PasswordRotationService) loginsWithoutEmail(ctx context.Context) ([]str
 // которого он не видел. reason попадает в журнал действий - обновление всем и
 // сброс из карточки выглядят там одинаково, различает их только он.
 func (s *PasswordRotationService) rotateOne(ctx context.Context, u models.User, policy models.PasswordPolicy, reason string) error {
-	password := GeneratePassword(policy)
+	password, err := s.generateUnusedPassword(ctx, u.ID, policy)
+	if err != nil {
+		return err
+	}
 	hashed := hashPassword(password)
 	now := time.Now()
 
@@ -347,6 +350,12 @@ func (s *PasswordRotationService) rotateOne(ctx context.Context, u models.User, 
 			return fmt.Errorf("отзыв маркеров продления: %w", err)
 		}
 
+		// Выданный пароль запоминается наравне с придуманным вручную: иначе
+		// человек, получив письмо, сможет «сменить» пароль на тот же самый.
+		if err := recordUsedPassword(ctx, tx, u.ID, hashed); err != nil {
+			return err
+		}
+
 		s.recorder.Log(ctx, tx, models.AuditEntityUser, &u.ID, models.UserActionPasswordReset, nil,
 			map[string]any{"reason": reason})
 
@@ -366,6 +375,30 @@ func (s *PasswordRotationService) rotateOne(ctx context.Context, u models.User, 
 		}
 		return nil
 	})
+}
+
+// generateUnusedPassword придумывает пароль, которым эта учётная запись ещё не
+// пользовалась. Запрет на повтор одинаков для всех путей смены, и выданный
+// системой пароль не исключение: работник иначе получил бы письмом пароль,
+// который система же и не даст ему подтвердить при следующей смене.
+//
+// Совпадение случайного пароля с одним из десяти прежних встречается примерно
+// никогда, поэтому попыток пять, а не бесконечность: исчерпать их можно только
+// при сломанном генераторе, и тогда честная ошибка полезнее вечного цикла.
+func (s *PasswordRotationService) generateUnusedPassword(ctx context.Context, userID int, policy models.PasswordPolicy) (string, error) {
+	for attempt := 0; attempt < passwordGenerateAttempts; attempt++ {
+		password := GeneratePassword(policy)
+		used, err := passwordAlreadyUsed(ctx, s.db, userID, password)
+		if err != nil {
+			return "", err
+		}
+		if !used {
+			return password, nil
+		}
+		slog.Warn("плановая смена: сгенерированный пароль уже использовался, пробуем ещё",
+			"user_id", userID, "attempt", attempt+1)
+	}
+	return "", fmt.Errorf("не удалось придумать неиспользованный пароль за %d попыток", passwordGenerateAttempts)
 }
 
 // rotatedLetterBody собирает письмо с новым паролем. Пароль отдельной строкой и

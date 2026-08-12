@@ -840,12 +840,14 @@ export default {
     };
   },
   computed: {
-    // Гейт кнопки «Перенести» зеркалит BE requireAdmin (page.admin): экран открыт
-    // по page.admin.directories, а reassign-эндпоинт - по page.admin, поэтому
-    // directories-админ без page.admin видит блокеров, но переносить не может
-    // (иначе «видно, но 403», уроки #976/#1083).
+    // Гейты зеркалят BE: перенос пользователей и история компании закрыты тем же
+    // page.admin.directories, что открывает экран (#1982). Ключ держим явно, а не
+    // считаем кнопки всегда доступными: разойдётся право маршрута - разойдётся и здесь.
     canReassign() {
-      return usePermissionsStore().hasPermission('page.admin');
+      return usePermissionsStore().hasPermission('page.admin.directories');
+    },
+    canViewHistory() {
+      return usePermissionsStore().hasPermission('page.admin.directories');
     },
     // История компании тоже под page.admin, а список компаний открыт любому, кто
     // вошёл в раздел справочников. Без гейта окно истории открывалось бы пустым.

@@ -36,13 +36,21 @@
               <div class="admin-toggle__txt">
                 <b>Администратор</b>
                 <span>Все права. Можно точечно выключать справа.</span>
+                <small
+                  v-if="adminLockReason"
+                  class="admin-toggle__lock"
+                  data-testid="admin-toggle-lock-reason"
+                >
+                  {{ adminLockReason }}
+                </small>
               </div>
               <button
                 type="button"
                 class="tgl"
                 data-testid="admin-toggle"
-                :class="{ on: localIsAdmin || isSuper, locked: isSuper }"
-                :disabled="isSuper || saving"
+                :class="{ on: localIsAdmin || isSuper, locked: adminLocked }"
+                :disabled="adminLocked || saving"
+                :title="adminLockReason"
                 :aria-pressed="localIsAdmin || isSuper"
                 aria-label="Администратор"
                 @click="toggleAdmin"
@@ -239,7 +247,9 @@
 
 <script>
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { useAuthStore } from '@/stores/auth';
 import { useDeletionsStore } from '@/stores/deletions';
+import { usePermissionsStore } from '@/stores/permissions';
 import { useUiStore } from '@/stores/ui';
 import {
   listRoles,
@@ -260,6 +270,9 @@ import EffectivePermissionsTree from './EffectivePermissionsTree.vue';
 import { filterCatalog, flattenCatalog } from '@/utils/permissionCatalog';
 import LoaderSpinner from '../ui/LoaderSpinner.vue';
 import BaseDropdown from '../ui/BaseDropdown.vue';
+
+// Ключ, которым бэкенд закрывает PUT /users/:id/admin (services.KeyActionGrantAdmin).
+const GRANT_ADMIN_KEY = 'action.grant.admin';
 
 /**
  * Модалка «Права доступа» в две колонки: слева источники прав (флаг Администратор,
@@ -312,6 +325,29 @@ export default {
     },
     isBanned() {
       return this.effective.mode === 'banned' || !!this.effective.banned || !!this.user?.is_banned;
+    },
+    // Признак администратора выдаёт action.grant.admin, а он super-only. Одной
+    // hasPermission тут мало: в режиме admin стор отвечает «да» на любой ключ, которого
+    // нет в denied (stores/permissions.js), а super-only ключи туда не попадают -- бэкенд
+    // же отказывает всем, кроме супера (PermissionSet.Has). Признак берём из каталога,
+    // он приходит тем же запросом, что и права.
+    canGrantAdmin() {
+      const node = this.flatCatalog.find((n) => n.key === GRANT_ADMIN_KEY);
+      // Каталог ещё не приехал -- считаем ключ закрытым, иначе тумблер успевает
+      // побыть доступным, пока грузятся права.
+      const superOnly = node ? !!node.super_only : true;
+      if (superOnly && !useAuthStore().isSuperAdmin) return false;
+      return usePermissionsStore().hasPermission(GRANT_ADMIN_KEY);
+    },
+    adminLocked() {
+      return this.isSuper || !this.canGrantAdmin;
+    },
+    // Причина недоступности тумблера. Про целевого пользователя -- первой: она
+    // держится даже у того, кому выдавать администраторов разрешено.
+    adminLockReason() {
+      if (this.isSuper) return 'У супер-администратора и так все права';
+      if (!this.canGrantAdmin) return 'Выдать признак может только Системный администратор';
+      return '';
     },
     banReasonCurrent() {
       return this.effective.ban_reason || this.user?.ban_reason || '';
@@ -496,7 +532,7 @@ export default {
       return { on: false, source: null, locked: false };
     },
     toggleAdmin() {
-      if (this.isSuper || this.saving) return;
+      if (this.adminLocked || this.saving) return;
       this.localIsAdmin = !this.localIsAdmin;
     },
     onToggleKey(key) {
@@ -754,6 +790,14 @@ export default {
   color: var(--color-text-muted);
   margin-top: 2px;
   font-weight: 500;
+}
+
+.admin-toggle__lock {
+  display: block;
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+  margin-top: 6px;
+  font-weight: 600;
 }
 
 /* --- Поля --- */

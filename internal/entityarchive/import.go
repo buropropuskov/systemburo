@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"systemburo/internal/crypto"
+	"systemburo/internal/models"
 
 	"gorm.io/gorm"
 )
@@ -184,7 +185,7 @@ func Import(ctx context.Context, db *gorm.DB, dir string, opt ImportOptions) (Im
 		if err := insertPackage(ctx, tx, tables); err != nil {
 			return err
 		}
-		return opt.Recorder.Record(ctx, tx, v.Manifest.Type, &orgID, "imported", nil, details)
+		return opt.Recorder.Record(ctx, tx, v.Manifest.Type, &orgID, models.OrganizationActionImported, nil, details)
 	})
 	if err != nil {
 		return res, fmt.Errorf("запись пакета в базу: %w", err)

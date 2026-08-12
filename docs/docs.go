@@ -2666,6 +2666,67 @@ const docTemplate = `{
                 }
             }
         },
+        "/applications/{id}/participants": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает всех участников заявки одним списком: отправителя, принявшего\nв работу, согласующих, ответственных и читателей. На каждого - роли\nмашинными ключами, должность, организация, компания и контакты.\nОдин человек - одна запись, даже если ролей у него несколько.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Участники заявки",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.ApplicationParticipant"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/applications/{id}/questions": {
             "get": {
                 "security": [
@@ -7693,61 +7754,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/companies/{id}/blocking-users": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Возвращает активных участников (users.company_id=id), из-за которых\nкомпанию нельзя архивировать. Тот же набор, что GetMembers; отдельный\nendpoint для delete-флоу.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "companies"
-                ],
-                "summary": "Пользователи, блокирующие архивацию компании",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "ID компании",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/services.MemberResponse"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.HTTPError"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/models.HTTPError"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/models.HTTPError"
-                        }
-                    }
-                }
-            }
-        },
         "/companies/{id}/history": {
             "get": {
                 "security": [
@@ -10710,6 +10716,35 @@ const docTemplate = `{
                 }
             }
         },
+        "/impersonation/stop": {
+            "post": {
+                "description": "Закрывает сеанс работы от чужого имени записью в журнал. Вызывается с маркером режима; свою учётную запись клиент возвращает обычным обновлением маркера.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Вернуться в свою учётную запись",
+                "responses": {
+                    "200": {
+                        "description": "message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Запрос идёт не в режиме работы от чужого имени",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/license-plate-formats": {
             "get": {
                 "security": [
@@ -13207,61 +13242,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/organizations/{id}/blocking-users": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Возвращает активных участников (users.organization_id=id), из-за\nкоторых организацию нельзя архивировать. Тот же набор, что GetMembers\n(участники активны по определению); отдельный endpoint для delete-флоу.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "organizations"
-                ],
-                "summary": "Пользователи, блокирующие архивацию организации",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "ID организации",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/services.MemberResponse"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.HTTPError"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/models.HTTPError"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/models.HTTPError"
-                        }
-                    }
-                }
-            }
-        },
         "/organizations/{id}/history": {
             "get": {
                 "security": [
@@ -15044,7 +15024,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Ручной прогон плановой смены: меняет пароли всем действующим работникам с адресом почты, не дожидаясь срока. Возвращает управление сразу, письма ставятся в очередь.",
+                "description": "Ручное обновление: придумывает новый пароль всем действующим работникам с адресом почты и высылает его письмом. Возвращает управление сразу, письма ставятся в очередь.",
                 "produces": [
                     "application/json"
                 ],
@@ -15095,7 +15075,7 @@ const docTemplate = `{
                 "tags": [
                     "settings"
                 ],
-                "summary": "Состояние плановой смены паролей",
+                "summary": "Состояние проверки сроков действия паролей",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -21497,6 +21477,47 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{id}/impersonate": {
+            "post": {
+                "description": "Выдаёт маркер доступа от имени указанного пользователя на 30 минут. Требует право user.impersonate. Войти от имени более полномочного нельзя.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Войти от имени пользователя",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID пользователя",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.ImpersonationResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Нет права или у цели прав больше",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Пользователь не найден",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{username}": {
             "delete": {
                 "security": [
@@ -24392,6 +24413,34 @@ const docTemplate = `{
                 }
             }
         },
+        "models.ImpersonationResponse": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "target": {
+                    "$ref": "#/definitions/models.ImpersonationTarget"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ImpersonationTarget": {
+            "type": "object",
+            "properties": {
+                "full_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
         "models.InsightsResponse": {
             "type": "object",
             "properties": {
@@ -25298,7 +25347,6 @@ const docTemplate = `{
         "models.RegisterRequest": {
             "type": "object",
             "required": [
-                "password",
                 "username"
             ],
             "properties": {
@@ -25321,6 +25369,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "password": {
+                    "description": "Password пустой означает «пароль придумает система и вышлет письмом».\nОбязательность зависит от того, указан ли Email, поэтому её проверяет\nсервис: тегом такое условие не выразить.",
                     "type": "string",
                     "maxLength": 255,
                     "minLength": 6
@@ -27355,6 +27404,75 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "user_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.ApplicationParticipant": {
+            "type": "object",
+            "properties": {
+                "approval_comment": {
+                    "type": "string"
+                },
+                "approval_datetime": {
+                    "type": "string"
+                },
+                "approval_status": {
+                    "description": "Состояние голоса - только у согласующего (approver). У ответственного строка\nв application_responsible_users та же, но голосовать он не может, и её\nдефолтный pending читался бы как «не ответил», хотя его никто не спрашивал.",
+                    "type": "string"
+                },
+                "company_id": {
+                    "type": "integer"
+                },
+                "company_name": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "full_name": {
+                    "description": "FullName - готовая строка «Фамилия Имя Отчество» (format_full_name). У скрытого\nработника пуста, у принимающего с заданной маской содержит маску.",
+                    "type": "string"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "middle_name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "integer"
+                },
+                "organization_name": {
+                    "type": "string"
+                },
+                "pd_hidden": {
+                    "description": "PDHidden - работник не дал согласия на обработку персональных данных (#1567):\nФИО и контакты скрыты. Без признака интерфейс не отличит «скрыто» от «не заполнено».",
+                    "type": "boolean"
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "position": {
+                    "type": "string"
+                },
+                "primary_role": {
+                    "type": "string"
+                },
+                "roles": {
+                    "description": "Roles - все роли человека в этой заявке, PrimaryRole - старшая из них.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "username": {
                     "type": "string"
                 }
             }
@@ -29863,22 +29981,22 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "eligible": {
-                    "description": "Eligible - активные незаблокированные работники с адресом почты, то есть те,\nкого механизм в принципе может обслужить.",
+                    "description": "Eligible - активные незаблокированные работники с адресом почты, то есть те,\nкому ручное обновление может выслать новый пароль.",
                     "type": "integer"
                 },
                 "enabled": {
                     "type": "boolean"
                 },
                 "expired": {
-                    "description": "Expired - у скольких срок уже вышел. Это и есть размер ближайшего прогона.",
+                    "description": "Expired - у скольких срок уже вышел. Часть из них прогон мог пометить в\nпрошлые сутки, поэтому это ответ на вопрос «сколько людей упрётся в форму\nсмены», а не размер ближайшего прогона.",
                     "type": "integer"
                 },
                 "expiring_soon": {
-                    "description": "ExpiringSoon - у скольких истечёт в окне предупреждения.",
+                    "description": "ExpiringSoon - скольким уйдёт предупреждение в окне перед истечением. Считается\nтолько по тем, у кого есть адрес: предупреждение - это письмо.",
                     "type": "integer"
                 },
                 "mail_configured": {
-                    "description": "MailConfigured - настроена ли отправка почты. Без неё смена не запускается.",
+                    "description": "MailConfigured - настроена ли отправка почты. Плановой проверке она не нужна,\nот неё зависят предупреждения заранее и ручное обновление паролей.",
                     "type": "boolean"
                 },
                 "next_run_at": {
@@ -29889,7 +30007,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "without_email": {
-                    "description": "WithoutEmail - активные незаблокированные без адреса. Их пароль не трогается,\nи адреса им должно проставить бюро.",
+                    "description": "WithoutEmail - активные незаблокированные без адреса. Плановая проверка их\nберёт наравне со всеми, а вот предупреждение и новый пароль слать им некуда.",
                     "type": "integer"
                 }
             }

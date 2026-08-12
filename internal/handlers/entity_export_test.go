@@ -308,10 +308,8 @@ func TestEntityExport_RecordsAuditLog(t *testing.T) {
 	require.NoError(t, err)
 
 	var audit models.AuditLog
-	// Действие "exported" - буквальный литерал, как "imported" в entity_import_test.go: обе
-	// стороны обмена не заводят публичной константы ради одного места использования.
 	err = db.Where("entity_type = ? AND action = ? AND entity_id = ?",
-		entityarchive.TypeOrganization, "exported", f.org.ID).First(&audit).Error
+		entityarchive.TypeOrganization, models.OrganizationActionExported, f.org.ID).First(&audit).Error
 	require.NoError(t, err, "реальная выгрузка обязана оставить запись в audit_log")
 
 	var details struct {
@@ -355,7 +353,7 @@ func TestEntityExport_RecordsAuditLog(t *testing.T) {
 
 	var encAudit models.AuditLog
 	err = db.Where("entity_type = ? AND action = ? AND entity_id = ? AND details->>'package' = ?",
-		entityarchive.TypeOrganization, "exported", f.org.ID, encRes.Dir).First(&encAudit).Error
+		entityarchive.TypeOrganization, models.OrganizationActionExported, f.org.ID, encRes.Dir).First(&encAudit).Error
 	require.NoError(t, err, "зашифрованная выгрузка тоже обязана оставить запись в audit_log")
 
 	var encDetails struct {
@@ -468,7 +466,7 @@ func TestEntityExport_CommitFailureAfterSuccess(t *testing.T) {
 
 	var audit models.AuditLog
 	err = db.Where("entity_type = ? AND action = ? AND entity_id = ?",
-		entityarchive.TypeOrganization, "exported", f.org.ID).First(&audit).Error
+		entityarchive.TypeOrganization, models.OrganizationActionExported, f.org.ID).First(&audit).Error
 	require.NoError(t, err, "запись в audit_log обязана появиться несмотря на упавший commit снимка")
 }
 

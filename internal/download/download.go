@@ -8,15 +8,31 @@ import (
 	"archive/zip"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 
 	"systemburo/internal/crypto"
+	"systemburo/internal/httpx"
 
 	"github.com/labstack/echo/v4"
 )
+
+// allowLongResponse снимает с соединения общий срок записи.
+//
+// Отдача файла идёт в темпе клиента: nginx для маршрутов файлового архива
+// буферизацию снимает намеренно (иначе он копил бы весь архив в памяти на машине с
+// 8 ГБ) и отводит на них час. Значит, скорость мобильного интернета на той стороне
+// напрямую решает, уложится ли запись в HTTP_WRITE_TIMEOUT, а обрыв на середине
+// выглядит как испорченный файл, а не как отказ.
+func allowLongResponse(c echo.Context, what string) {
+	if err := httpx.AllowLongResponse(c); err != nil {
+		slog.Warn("download: не удалось снять срок записи, отдача оборвётся по HTTP_WRITE_TIMEOUT",
+			"what", what, "path", c.Path(), "error", err)
+	}
+}
 
 // File описывает файл к отдаче.
 type File struct {
@@ -65,6 +81,7 @@ func ServeEncrypted(c echo.Context, f Encrypted) error {
 	if err != nil {
 		return fmt.Errorf("open encrypted file: %w", err)
 	}
+	allowLongResponse(c, "encrypted file")
 
 	if f.Name != "" {
 		disposition := "attachment"
@@ -93,6 +110,7 @@ func Serve(c echo.Context, f File) error {
 	if info, err := os.Stat(f.Path); err != nil || info.IsDir() {
 		return echo.NewHTTPError(http.StatusNotFound, "файл не найден")
 	}
+	allowLongResponse(c, "file")
 
 	if f.Mime != "" {
 		c.Response().Header().Set(echo.HeaderContentType, f.Mime)
@@ -164,6 +182,8 @@ const zipErrorSuffix = "_ОШИБКА.txt"
 // кладётся текстовая заметка "<имя>_ОШИБКА.txt" с причиной - молчаливый пропуск
 // неотличим от "файла никогда не было", а администратор должен увидеть пробел.
 func StreamZip(c echo.Context, archiveName string, entries []ZipEntry) error {
+	allowLongResponse(c, "zip stream")
+
 	res := c.Response()
 	res.Header().Set(echo.HeaderContentType, "application/zip")
 	res.Header().Set(echo.HeaderContentDisposition,

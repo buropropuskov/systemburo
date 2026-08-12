@@ -73,6 +73,10 @@ func TestChangeOwnPassword_MovesChangedAt(t *testing.T) {
 
 // TestCreateUser_SetsPasswordChangedAt: новый работник получает отсчёт срока с
 // момента заведения учётной записи, иначе он попадёт под первую же плановую смену.
+//
+// Заодно фиксируется правило про первый вход: пароль заводимой учётной записи
+// придумывает либо система, либо администратор - в обоих случаях не сам работник,
+// поэтому свой он задаёт при первом входе. Раньше признак здесь не поднимался.
 func TestCreateUser_SetsPasswordChangedAt(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -89,7 +93,7 @@ func TestCreateUser_SetsPasswordChangedAt(t *testing.T) {
 	require.NoError(t, db.Where("username = ?", "freshly_created_user").First(&created).Error)
 	require.NotNil(t, created.PasswordChangedAt, "дата смены пароля должна проставляться при создании")
 	assert.WithinDuration(t, time.Now(), *created.PasswordChangedAt, time.Minute)
-	assert.False(t, created.MustChangePassword)
+	assert.True(t, created.MustChangePassword, "пароль при заведении задаёт не сам работник, поэтому меняется при первом входе")
 }
 
 // TestBackfillPasswordChangedAt_FillsOnlyEmpty: учётным записям, заведённым до

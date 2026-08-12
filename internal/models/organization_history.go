@@ -36,6 +36,23 @@ const (
 	// историю обычной архивации организации.
 	OrganizationActionRetired        = "retired"
 	OrganizationActionRetireRestored = "retire_restored"
+
+	// OrganizationActionAnonymized - необратимое обезличивание персональных полей
+	// сотрудников и пользователей организации через консольную команду entity anonymize
+	// (internal/entityarchive, срез 5). В отличие от Retired/RetireRestored выше действие
+	// НЕ обратимо и не имеет своей restore-команды: запись в истории хранит только факт и
+	// счётчики затронутых строк по таблицам, без исходных значений.
+	OrganizationActionAnonymized = "anonymized"
+
+	// OrganizationActionExported / OrganizationActionPurged / OrganizationActionImported -
+	// три следа жизненного цикла пакета entity export/purge/import (internal/entityarchive,
+	// срезы 6-8): снятие копии графа организации, её физический снос по проверенному
+	// пакету и разворот пакета на другом стенде. Exported и Purged пишет одна и та же
+	// установка (снимающая и сносящая), Imported - принимающая сторона другого обмена;
+	// три разных action нужны, чтобы отличать эти следы друг от друга в журнале.
+	OrganizationActionExported = "exported"
+	OrganizationActionPurged   = "purged"
+	OrganizationActionImported = "imported"
 )
 
 // OrganizationHistoryItem - запись истории с именем актора для API (LEFT JOIN users).
