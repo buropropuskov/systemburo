@@ -503,9 +503,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// без гейта, иначе заявитель не соберёт вложение.
 	att.GET("/:id/field-config", attachmentTemplates.GetFieldConfig)
 
-	// Организации. Изменяющие операции и история - админ справочников
-	// (page.admin.directories, тем же правом фронт открывает /admin/organizations);
-	// списки и привязка пользователей - как было, без гейта.
+	// Организации. Изменяющие операции, история и состав - админ справочников
+	// (page.admin.directories, тем же правом фронт открывает /admin/organizations).
+	// Открытым остаётся то, без чего не собрать заявку: список наименований и
+	// ответственные (/:id/users) - их читает форма подачи.
 	// Подсказки при ручном вводе наименования в заявке (#1437). Гейт - то же право,
 	// что разблокирует ручной ввод: без него заявка идёт от своей организации, и
 	// подсказывать нечего. Статический сегмент suggest в Echo приоритетнее :id.
@@ -526,8 +527,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 	orgg.DELETE("/:id", org.Delete, requireDirectories)
 	orgg.POST("/:id/restore", org.Restore, requireDirectories)
 	orgg.GET("/:id/history", org.GetHistory, requireDirectories)
-	orgg.GET("/with-users", org.GetWithUsers)
-	orgg.GET("/with-users-extended", org.GetWithUsersExtended)
+	// Списки для таблицы управления справочником: число работников, тип, архивные
+	// записи и статус разбора. Строки этой таблицы больше ничем не отдаются, а
+	// открытый /organizations даёт только наименования активных, так что гейт тут
+	// закрывает реальную разницу, а не повторяет соседа.
+	orgg.GET("/with-users", org.GetWithUsers, requireDirectories)
+	orgg.GET("/with-users-extended", org.GetWithUsersExtended, requireDirectories)
 	orgg.GET("/:id/users", org.GetOrganizationUsers)
 	// Состав ответственных - запись, а не чтение: метод стирает organization_users
 	// и пересобирает набор из тела запроса, включая флаги is_primary и
@@ -536,7 +541,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// организации, так что без гейта любой работник вписывал себя сам. Право то же,
 	// что у соседей по составу - reassign-users и bulk/users.
 	orgg.PUT("/:id/users", org.UpdateOrganizationUsers, requireDirectories)
-	orgg.GET("/:id/members", org.GetMembers)
+	// Участники - ФИО, должности и логины работников организации. Ровно тот же
+	// набор отдают блокеры архивации ниже, и пока участники шли без гейта, право
+	// на закрытом близнеце обходилось вызовом соседа (#2002).
+	orgg.GET("/:id/members", org.GetMembers, requireDirectories)
 	// Блокеры архивации и перенос всех в другую организацию - гейт как у Delete.
 	orgg.GET("/:id/blocking-users", org.GetBlockingUsers, requireDirectories)
 	orgg.POST("/:id/reassign-users", org.ReassignUsers, requireDirectories)
@@ -554,9 +562,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	orgg.POST("/bulk/restore", org.BulkRestore, requireDirectories)
 	protected.GET("/get-organization", org.GetMyOrganization)
 
-	// Компании. Изменяющие операции и история - админ справочников
-	// (page.admin.directories, тем же правом фронт открывает /admin/companies);
-	// списки и привязка пользователей (UpdateUsers) - как было, без отдельного гейта.
+	// Компании. Зеркало organizations: изменяющие операции, история и состав - админ
+	// справочников (page.admin.directories, тем же правом фронт открывает
+	// /admin/companies); открыты список наименований и ответственные для формы заявки.
 	cg := protected.Group("/companies")
 	cg.GET("", comp.GetAll)
 	cg.GET("/suggest", comp.Suggest, requireOrgOverride)
@@ -568,13 +576,13 @@ func Setup(e *echo.Echo, d Dependencies) {
 	cg.DELETE("/:id", comp.Delete, requireDirectories)
 	cg.POST("/:id/restore", comp.Restore, requireDirectories)
 	cg.GET("/:id/history", comp.GetHistory, requireDirectories)
-	cg.GET("/with-users", comp.GetWithUsers)
-	cg.GET("/with-users-extended", comp.GetWithUsersExtended)
+	cg.GET("/with-users", comp.GetWithUsers, requireDirectories)
+	cg.GET("/with-users-extended", comp.GetWithUsersExtended, requireDirectories)
 	cg.GET("/:id/users", comp.GetUsers)
 	// Зеркало organizations: запись состава с теми же флагами и тем же следствием
 	// для согласования, гейт держим одинаковым.
 	cg.PUT("/:id/users", comp.UpdateUsers, requireDirectories)
-	cg.GET("/:id/members", comp.GetMembers)
+	cg.GET("/:id/members", comp.GetMembers, requireDirectories)
 	// Блокеры архивации и перенос всех в другую компанию - гейт как у Delete.
 	cg.GET("/:id/blocking-users", comp.GetBlockingUsers, requireDirectories)
 	cg.POST("/:id/reassign-users", comp.ReassignUsers, requireDirectories)

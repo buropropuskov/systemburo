@@ -41,18 +41,29 @@ type dirRoute struct {
 
 // directoryRoutes - по одному характерному маршруту на каждый справочник раздела.
 // Берём чтение там, где оно закрыто (типы пользователей, принимающие, документы,
-// новости), и запись там, где чтение открыто форме заявки (гражданства, организации,
-// компании, места разгрузки).
+// новости), и запись там, где чтение открыто форме заявки (гражданства, места
+// разгрузки).
+//
+// Состав организаций и компаний стоит здесь целиком (#2002): участники и оба списка
+// с работниками раньше шли без гейта, и право на блокерах архивации обходилось
+// вызовом соседнего маршрута с тем же ответом. Держим их все, чтобы close одного
+// близнеца снова не разошёлся с другим.
 func directoryRoutes(orgID, companyID, placeID int) []dirRoute {
 	return []dirRoute{
 		{"типы пользователей: список", http.MethodGet, "/user-types-management", ""},
 		{"гражданства: создание", http.MethodPost, "/citizenships", `{"name":"Тестляндия"}`},
 		{"организации: история", http.MethodGet, fmt.Sprintf("/organizations/%d/history", orgID), ""},
 		{"организации: блокеры архивации", http.MethodGet, fmt.Sprintf("/organizations/%d/blocking-users", orgID), ""},
+		{"организации: участники", http.MethodGet, fmt.Sprintf("/organizations/%d/members", orgID), ""},
+		{"организации: список с работниками", http.MethodGet, "/organizations/with-users", ""},
+		{"организации: расширенный список", http.MethodGet, "/organizations/with-users-extended", ""},
 		{"организации: привязка таблиц", http.MethodPut, fmt.Sprintf("/organizations/%d/tables", orgID), `{"table_ids":[]}`},
 		{"организации: привязка мест разгрузки", http.MethodPut, fmt.Sprintf("/organizations/%d/unload-places", orgID), `{"unload_place_ids":[]}`},
 		{"организации: массовая архивация", http.MethodPost, "/organizations/bulk/archive", `{"ids":[]}`},
 		{"компании: история", http.MethodGet, fmt.Sprintf("/companies/%d/history", companyID), ""},
+		{"компании: участники", http.MethodGet, fmt.Sprintf("/companies/%d/members", companyID), ""},
+		{"компании: список с работниками", http.MethodGet, "/companies/with-users", ""},
+		{"компании: расширенный список", http.MethodGet, "/companies/with-users-extended", ""},
 		{"компании: привязка таблиц", http.MethodPut, fmt.Sprintf("/companies/%d/tables", companyID), `{"table_ids":[]}`},
 		{"компании: массовая архивация", http.MethodPost, "/companies/bulk/archive", `{"ids":[]}`},
 		{"места разгрузки: отвязать всё", http.MethodPost, fmt.Sprintf("/unload-places/%d/detach-all", placeID), ""},
