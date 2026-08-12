@@ -27,10 +27,15 @@ import (
 // письма. Расширение должно быть осознанным, а не побочным эффектом правки рядом.
 func TestMustChangePassword_WhitelistIsGolden(t *testing.T) {
 	want := []string{
+		"GET /api/consents/gate",
 		"GET /api/permissions/my",
+		"GET /api/settings/data-processing/document",
+		"GET /api/settings/data-processing/document/meta",
+		"GET /api/settings/notifications",
 		"GET /api/settings/password-policy",
 		"GET /api/users/me",
 		"GET /api/users/me/theme",
+		"POST /api/consents/accept",
 		"POST /api/logout",
 		"POST /api/logout-all",
 		"PUT /api/users/me/password",

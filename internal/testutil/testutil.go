@@ -225,6 +225,19 @@ func SetupTestAppWithPasswordGate(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	return e, db, cleanup
 }
 
+// SetupTestAppWithBothGates поднимает приложение с ОБОИМИ гейтами сразу - согласия
+// на обработку ПД и обязательной смены пароля. Именно так система стоит на
+// установке, где согласие запрошено: новый работник упирается в оба одновременно.
+//
+// Связки не было, и это оказалось слепым пятном: каждый гейт проверялся в
+// одиночку, а то, что они закрывают друг другу выход и запирают работника
+// снаружи, не ловил ни один тест.
+func SetupTestAppWithBothGates(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
+	t.Helper()
+	e, db, _, _, cleanup := setupTestApp(t, true, true)
+	return e, db, cleanup
+}
+
 func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.Echo, *gorm.DB, string, string, func()) {
 	t.Helper()
 
