@@ -30,7 +30,7 @@
       "waitFor": "[data-testid^=\"center-row-\"]",
       "prepare": [
         {
-          "click": "[data-testid^=\"center-row-\"] >> nth=0"
+          "click": "[data-testid^=\"center-row-\"]:not(:has([data-testid=\"ob-center-blacklist-tag\"])) >> nth=0"
         },
         {
           "wait": "[data-testid=\"ob-detail-card\"]"
@@ -73,7 +73,7 @@
       "waitFor": "[data-testid^=\"center-row-\"]",
       "prepare": [
         {
-          "click": "[data-testid^=\"center-row-\"] >> nth=0"
+          "click": "[data-testid^=\"center-row-\"]:not(:has([data-testid=\"ob-center-blacklist-tag\"])) >> nth=0"
         },
         {
           "wait": "[data-testid=\"app-detail-button-approve\"]"
@@ -99,7 +99,7 @@
       "waitFor": "[data-testid^=\"center-row-\"]",
       "prepare": [
         {
-          "click": "[data-testid^=\"center-row-\"] >> nth=0"
+          "click": "[data-testid^=\"center-row-\"]:not(:has([data-testid=\"ob-center-blacklist-tag\"])) >> nth=0"
         },
         {
           "wait": ".confirmation-section"
@@ -117,7 +117,7 @@
       "waitFor": "[data-testid^=\"center-row-\"]",
       "prepare": [
         {
-          "click": "[data-testid^=\"center-row-\"] >> nth=0"
+          "click": "[data-testid^=\"center-row-\"]:not(:has([data-testid=\"ob-center-blacklist-tag\"])) >> nth=0"
         },
         {
           "wait": "[data-testid=\"question-ask-button\"]"
@@ -141,7 +141,7 @@
       "waitFor": "[data-testid^=\"center-row-\"]",
       "prepare": [
         {
-          "click": "[data-testid^=\"center-row-\"] >> nth=0"
+          "click": "[data-testid^=\"center-row-\"]:has([data-testid=\"ob-center-blacklist-tag\"]) >> nth=0"
         },
         {
           "wait": "[data-testid=\"blacklist-override-btn\"]"

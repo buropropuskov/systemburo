@@ -1,6 +1,9 @@
 package services
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 // Единый каталог точечных прав (#эпик-прав). Источник правды для UI настройки
 // прав и для валидации входящих ключей. Иерархия: категория-заголовок -> листья.
@@ -119,6 +122,12 @@ type CatalogNode struct {
 	Category    string        `json:"category"`
 	SuperOnly   bool          `json:"super_only,omitempty"`
 	Children    []CatalogNode `json:"children,omitempty"`
+	// Description -- необязательная подсказка для узлов, чьё название само по
+	// себе неоднозначно (#1998: page.admin выглядит зонтиком над всем разделом
+	// администрирования, а на деле открывает два пункта меню и россыпь действий).
+	// Показывается всплывающей подсказкой в редакторах прав; для большинства
+	// узлов, где DisplayName самодостаточен, остаётся пустой.
+	Description string `json:"description,omitempty"`
 }
 
 // superOnlyKeys -- права, доступные ТОЛЬКО супер-админу. Обычный администратор
@@ -139,7 +148,24 @@ func staticCatalog() []CatalogNode {
 		{Key: KeyPageEmployees, DisplayName: "Сотрудники", Category: CatNavigation},
 		{Key: KeyPageCars, DisplayName: "Автомобили", Category: CatNavigation},
 		{Key: KeyPageStatistics, DisplayName: "Аналитика", Category: CatNavigation},
-		{Key: KeyPageAdmin, DisplayName: "Администрирование", Category: CatNavigation},
+		// До #1982 page.admin открывал весь раздел администрирования и название
+		// "Администрирование" было точным. После переезда справочников за ним
+		// остались только пункты меню «Руководство» и «Обработка данных» плюс
+		// точечные действия по системе (не отдельный раздел) -- старое название
+		// вводило раздающего права в заблуждение (#1998). Справочники, пользователи,
+		// настройки и остальные разделы администрирования выдаются своими ключами
+		// page.admin.* и этим правом не открываются.
+		{
+			Key:         KeyPageAdmin,
+			DisplayName: "Общие административные действия",
+			Category:    CatNavigation,
+			Description: "Открывает пункты меню «Руководство» и «Обработка данных», а также " +
+				"административные действия в разных разделах системы: привязка файлов к заявке, " +
+				"перенос и отвязка записей в системных таблицах, рассылка уведомлений, тайм-слоты " +
+				"бюро, журнал аудита, мониторинг запросов, сброс онбординга пользователю и настройки " +
+				"согласия на обработку персональных данных. Раздел «Справочники» им не открывается " +
+				"- это отдельное право page.admin.directories.",
+		},
 		{Key: KeyPageNews, DisplayName: "Обзор и новости", Category: CatNavigation},
 		{Key: KeyPagePersonal, DisplayName: "Личный кабинет", Category: CatNavigation},
 
@@ -239,6 +265,19 @@ func AllCatalogKeys() []string {
 func IsSuperOnly(key string) bool {
 	_, ok := superOnlyKeys[key]
 	return ok
+}
+
+// SuperOnlyKeys возвращает отсортированный список ключей, доступных только
+// супер-админу. Нужен ответу /permissions/my (#1997): PermissionSet.Has режет
+// эти ключи для обычного admin, но раньше это не отражалось в Denied -- фронтовый
+// стор в admin-режиме считал ключ выданным, если его нет в denied.
+func SuperOnlyKeys() []string {
+	keys := make([]string, 0, len(superOnlyKeys))
+	for k := range superOnlyKeys {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // IsCatalogKey сообщает, что ключ есть в статическом каталоге.

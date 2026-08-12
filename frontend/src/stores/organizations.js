@@ -49,12 +49,19 @@ export const useOrganizationsStore = defineStore('organizations', {
     /**
      * Загружает расширенный список с user_count (для OrganizationsManagement).
      * Каждый элемент дополняется originalName для трекинга изменений inline.
+     *
+     * Список закрыт правом page.admin.directories (#2002), а зовут его и из
+     * UserControl - там он держит user_count свежим для соседнего экрана. Админ
+     * пользователей без права справочников получает на нём штатный 403, и тост о
+     * нём был бы про действие, которого человек не совершал: он всего лишь завёл
+     * пользователя. Отказ здесь молчит, экран управления пользователями работает
+     * без этих данных.
      * @param {boolean} includeArchived - включить архивные организации (is_active=false)
      */
     async fetchOrganizationsWithUsers(includeArchived = false) {
       try {
         const qs = includeArchived ? '?include_archived=true' : ''
-        const response = await apiRequest(`/organizations/with-users-extended${qs}`)
+        const response = await apiRequest(`/organizations/with-users-extended${qs}`, { silent403: true })
         if (response.ok) {
           const data = await response.json()
           this.itemsWithUsers = data.map(org => ({

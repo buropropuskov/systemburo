@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/labstack/echo/v4"
@@ -348,6 +349,57 @@ func TestOrganizations_GetOrganizationUsers(t *testing.T) {
 	users := testutil.ParseSlice(t, rec)
 	// Initially no organization_users junction records, so empty array is valid
 	assert.NotNil(t, users)
+}
+
+// TestOrganizations_GetOrganizationUsers_RequiredApprovalGated (#2013): признак
+// обязательного согласующего - карта того, кто в организации проводит решения.
+// Маршрут открыт любому вошедшему - его же дёргает форма подачи заявки у обычного
+// заявителя (CreateApplication.vue: loadDefaultApprovers, сбор required_users при
+// отправке), чтобы показать и проставить дефолтных согласующих СВОЕЙ организации.
+// Поэтому признак виден заявителю для СВОЕЙ организации, но не для чужой, и в любом
+// случае виден тому, у кого есть право на раздел справочников (админ, редактирующий
+// состав произвольной организации через ResponsibleUsersSection.vue).
+func TestOrganizations_GetOrganizationUsers_RequiredApprovalGated(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	foreignOrgID, _ := seedOrgAndCompany(t, db, "OrgUsersGateForeign")
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	testutil.RegisterUser(t, e, "reqapproveruser", "pass123", 1, td.OrgID, td.CompanyID)
+	body := `{"users":[{"username":"reqapproveruser","required_approval":true}]}`
+	require.Equal(t, http.StatusOK,
+		testutil.PUT(t, e, fmt.Sprintf("/organizations/%d/users", td.OrgID), body, testutil.AuthHeader(adminToken)).Code)
+
+	// Заявитель из ТОЙ ЖЕ организации: форма подачи должна увидеть настоящее значение -
+	// иначе чипы дефолтных согласующих (#884) перестанут показываться.
+	ownToken := testutil.RegisterAndLogin(t, e, "orgapplicant_own", "pass123", 1, td.OrgID, td.CompanyID)
+	recOwn := testutil.GET(t, e, fmt.Sprintf("/organizations/%d/users", td.OrgID), testutil.AuthHeader(ownToken))
+	require.Equal(t, http.StatusOK, recOwn.Code)
+	usersOwn := testutil.ParseSlice(t, recOwn)
+	require.Len(t, usersOwn, 1)
+	assert.Equal(t, true, usersOwn[0]["required_approval"], "заявитель должен видеть признак для своей организации")
+
+	// Заявитель из ЧУЖОЙ организации: маршрут отдаёт 200 (форма не ломается), но
+	// признак согласования скрыт - иначе любой вошедший узнаёт карту согласования
+	// чужой организации по id.
+	foreignToken := testutil.RegisterAndLogin(t, e, "orgapplicant_foreign", "pass123", 1, foreignOrgID, td.CompanyID)
+	recForeign := testutil.GET(t, e, fmt.Sprintf("/organizations/%d/users", td.OrgID), testutil.AuthHeader(foreignToken))
+	require.Equal(t, http.StatusOK, recForeign.Code)
+	usersForeign := testutil.ParseSlice(t, recForeign)
+	require.Len(t, usersForeign, 1)
+	assert.Nil(t, usersForeign[0]["required_approval"], "заявитель чужой организации не должен видеть признак")
+
+	// Пользователь с правом на справочники видит настоящее значение для ЛЮБОЙ
+	// организации, включая чужую по отношению к нему самому.
+	directoriesToken := testutil.RegisterAndLogin(t, e, "directoriesviewer", "pass123", 1, foreignOrgID, td.CompanyID)
+	testutil.GrantPermission(t, getUserID(t, db, "directoriesviewer"), services.KeyPageAdminDirectories)
+	recPriv := testutil.GET(t, e, fmt.Sprintf("/organizations/%d/users", td.OrgID), testutil.AuthHeader(directoriesToken))
+	require.Equal(t, http.StatusOK, recPriv.Code)
+	usersPriv := testutil.ParseSlice(t, recPriv)
+	require.Len(t, usersPriv, 1)
+	assert.Equal(t, true, usersPriv[0]["required_approval"], "право на справочники должно раскрывать признак для любой организации")
 }
 
 func TestOrganizations_UpdateOrganizationUsers(t *testing.T) {
@@ -956,7 +1008,7 @@ func TestOrganizations_BlockingUsersAndReassign(t *testing.T) {
 	require.NoError(t, db.Model(&models.User{}).Where("id = ?", inactive.ID).Update("is_active", false).Error)
 
 	// Список блокеров = только активные участники.
-	blockers := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/blocking-users", srcID), testutil.AuthHeader(token)))
+	blockers := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/members", srcID), testutil.AuthHeader(token)))
 	names := map[string]bool{}
 	for _, b := range blockers {
 		names[b["username"].(string)] = true
@@ -980,7 +1032,7 @@ func TestOrganizations_BlockingUsersAndReassign(t *testing.T) {
 		tgtNames[m["username"].(string)] = true
 	}
 	assert.True(t, tgtNames["blocker1"] && tgtNames["blocker2"], "оба перенесены в целевую")
-	assert.Empty(t, testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/blocking-users", srcID), testutil.AuthHeader(token))), "исходная без блокеров")
+	assert.Empty(t, testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/members", srcID), testutil.AuthHeader(token))), "исходная без блокеров")
 
 	// Аудит смены организации записан на каждого перенесённого.
 	var auditCount int64
@@ -1029,6 +1081,6 @@ func TestOrganizations_ReassignUsers_Validation(t *testing.T) {
 
 	// Обычный пользователь (не админ) не имеет доступа к обоим endpoint-ам.
 	userToken := testutil.RegisterAndLogin(t, e, "plainuser", "pass123", 1, td.OrgID, td.CompanyID)
-	assert.Equal(t, http.StatusForbidden, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/blocking-users", srcID), testutil.AuthHeader(userToken)).Code)
+	assert.Equal(t, http.StatusForbidden, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/members", srcID), testutil.AuthHeader(userToken)).Code)
 	assert.Equal(t, http.StatusForbidden, testutil.POST(t, e, fmt.Sprintf("/organizations/%d/reassign-users", srcID), fmt.Sprintf(`{"target_id":%d}`, tgtID), testutil.AuthHeader(userToken)).Code)
 }

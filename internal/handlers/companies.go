@@ -7,16 +7,19 @@ import (
 	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 )
 
 // CompanyHandler HTTP-обработчики для работы с компаниями.
 type CompanyHandler struct {
-	service services.CompanyService
+	service  services.CompanyService
+	db       *gorm.DB
+	resolver *services.PermissionResolver
 }
 
 // NewCompanyHandler создаёт экземпляр обработчика компаний.
-func NewCompanyHandler(service services.CompanyService) *CompanyHandler {
-	return &CompanyHandler{service: service}
+func NewCompanyHandler(service services.CompanyService, db *gorm.DB, resolver *services.PermissionResolver) *CompanyHandler {
+	return &CompanyHandler{service: service, db: db, resolver: resolver}
 }
 
 // GetAll godoc
@@ -320,7 +323,7 @@ func (h *CompanyHandler) GetHistory(c echo.Context) error {
 
 // GetUsers godoc
 // @Summary      Получить пользователей компании
-// @Description  Возвращает список ответственных пользователей компании
+// @Description  Возвращает список ответственных пользователей компании. Маршрут открыт любому вошедшему (его же читает форма подачи заявки у своей компании), поэтому required_approval виден только тем, у кого есть право на раздел справочников, и заявителю - для его СОБСТВЕННОЙ компании (#2013). Остальным поле приходит null.
 // @Tags         companies
 // @Accept       json
 // @Produce      json
@@ -339,6 +342,11 @@ func (h *CompanyHandler) GetUsers(c echo.Context) error {
 	users, err := h.service.GetUsers(c.Request().Context(), id)
 	if err != nil {
 		return err
+	}
+	if !canSeeRequiredApproval(c, h.db, h.resolver, id, func(o callerOwnDirectoryIDs) *int { return o.CompanyID }) {
+		for i := range users {
+			users[i].RequiredApproval = nil
+		}
 	}
 	return RespondSuccess(c, users)
 }
@@ -366,34 +374,6 @@ func (h *CompanyHandler) GetMembers(c echo.Context) error {
 		return err
 	}
 	return RespondSuccess(c, members)
-}
-
-// GetBlockingUsers godoc
-// @Summary      Пользователи, блокирующие архивацию компании
-// @Description  Возвращает активных участников (users.company_id=id), из-за которых
-// @Description  компанию нельзя архивировать. Тот же набор, что GetMembers; отдельный
-// @Description  endpoint для delete-флоу.
-// @Tags         companies
-// @Produce      json
-// @Security     BearerAuth
-// @Param        id path int true "ID компании"
-// @Success      200 {array} services.MemberResponse
-// @Failure      400 {object} models.HTTPError
-// @Failure      401 {object} models.HTTPError
-// @Failure      403 {object} models.HTTPError
-// @Router       /companies/{id}/blocking-users [get]
-func (h *CompanyHandler) GetBlockingUsers(c echo.Context) error {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid company ID")
-	}
-	// Блокирующие архивацию = активные участники (те же, что даёт GetMembers) -
-	// переиспользуем запрос, чтобы не плодить дубль active-only выборки.
-	users, err := h.service.GetMembers(c.Request().Context(), id)
-	if err != nil {
-		return err
-	}
-	return RespondSuccess(c, users)
 }
 
 // ReassignUsers godoc

@@ -12,13 +12,14 @@ import (
 
 // OrganizationHandler содержит HTTP-обработчики для управления организациями.
 type OrganizationHandler struct {
-	service services.OrganizationService
-	db      *gorm.DB
+	service  services.OrganizationService
+	db       *gorm.DB
+	resolver *services.PermissionResolver
 }
 
 // NewOrganizationHandler создаёт новый экземпляр обработчика организаций.
-func NewOrganizationHandler(service services.OrganizationService, db *gorm.DB) *OrganizationHandler {
-	return &OrganizationHandler{service: service, db: db}
+func NewOrganizationHandler(service services.OrganizationService, db *gorm.DB, resolver *services.PermissionResolver) *OrganizationHandler {
+	return &OrganizationHandler{service: service, db: db, resolver: resolver}
 }
 
 // GetAll godoc
@@ -342,7 +343,7 @@ func (h *OrganizationHandler) GetMyOrganization(c echo.Context) error {
 
 // GetOrganizationUsers godoc
 // @Summary      Получить пользователей организации
-// @Description  Возвращает список ответственных пользователей организации
+// @Description  Возвращает список ответственных пользователей организации. Маршрут открыт любому вошедшему (его же читает форма подачи заявки у своей организации), поэтому required_approval виден только тем, у кого есть право на раздел справочников, и заявителю - для его СОБСТВЕННОЙ организации (#2013). Остальным поле приходит null.
 // @Tags         organizations
 // @Accept       json
 // @Produce      json
@@ -361,6 +362,11 @@ func (h *OrganizationHandler) GetOrganizationUsers(c echo.Context) error {
 	users, err := h.service.GetOrganizationUsers(c.Request().Context(), id)
 	if err != nil {
 		return err
+	}
+	if !canSeeRequiredApproval(c, h.db, h.resolver, id, func(o callerOwnDirectoryIDs) *int { return o.OrganizationID }) {
+		for i := range users {
+			users[i].RequiredApproval = nil
+		}
 	}
 	return RespondSuccess(c, users)
 }
@@ -388,34 +394,6 @@ func (h *OrganizationHandler) GetMembers(c echo.Context) error {
 		return err
 	}
 	return RespondSuccess(c, members)
-}
-
-// GetBlockingUsers godoc
-// @Summary      Пользователи, блокирующие архивацию организации
-// @Description  Возвращает активных участников (users.organization_id=id), из-за
-// @Description  которых организацию нельзя архивировать. Тот же набор, что GetMembers
-// @Description  (участники активны по определению); отдельный endpoint для delete-флоу.
-// @Tags         organizations
-// @Produce      json
-// @Security     BearerAuth
-// @Param        id path int true "ID организации"
-// @Success      200 {array} services.MemberResponse
-// @Failure      400 {object} models.HTTPError
-// @Failure      401 {object} models.HTTPError
-// @Failure      403 {object} models.HTTPError
-// @Router       /organizations/{id}/blocking-users [get]
-func (h *OrganizationHandler) GetBlockingUsers(c echo.Context) error {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
-	}
-	// Блокирующие архивацию = активные участники (те же, что даёт GetMembers) -
-	// переиспользуем запрос, чтобы не плодить дубль active-only выборки.
-	users, err := h.service.GetMembers(c.Request().Context(), id)
-	if err != nil {
-		return err
-	}
-	return RespondSuccess(c, users)
 }
 
 // ReassignUsers godoc

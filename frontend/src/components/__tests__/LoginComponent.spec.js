@@ -179,3 +179,41 @@ describe('LoginComponent — 429 таймер', () => {
     wrapper.unmount()
   })
 })
+
+// Сбой на стороне сервера (недоступная база, исчерпанный пул) приходит на вход 500,
+// а не 401: дело не в пароле. Форма разбирает такой ответ сама - у /login есть
+// исключение из редиректа на страницу ошибки в client.js.
+describe('LoginComponent — 500 сбой на стороне сервера', () => {
+  const SERVER_MESSAGE = 'Вход временно недоступен из-за ошибки на сервере. Повторите попытку позже.'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('показывает текст из конверта ошибки, а не [object Object]', async () => {
+    apiRequest.mockResolvedValue(resp(500, {}, { success: false, error: SERVER_MESSAGE }))
+    const wrapper = mountLogin()
+    await submit(wrapper)
+
+    expect(wrapper.vm.errors.general).toBe(SERVER_MESSAGE)
+    expect(wrapper.find('[data-testid="login-error-message"]').text()).toBe(SERVER_MESSAGE)
+    wrapper.unmount()
+  })
+
+  it('не запускает таймер блокировки - повторить можно сразу', async () => {
+    apiRequest.mockResolvedValue(resp(500, {}, { success: false, error: SERVER_MESSAGE }))
+    const wrapper = mountLogin()
+    await submit(wrapper)
+
+    expect(wrapper.vm.isCoolingDown).toBe(false)
+    expect(localStorage.getItem('loginCooldownUntil')).toBeNull()
+    expect(wrapper.find('[data-testid="login-button-submit"]').attributes('disabled')).toBeUndefined()
+    wrapper.unmount()
+  })
+})

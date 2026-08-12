@@ -57,6 +57,7 @@ const PARTICIPANTS = [
     phone: '+7 900 000 00 03',
     roles: ['approver'],
     primary_role: 'approver',
+    required_approval: true,
     approval_status: 'approved',
     approval_comment: 'Согласовано без замечаний',
     approval_datetime: '2026-05-12T09:30:00Z',
@@ -211,6 +212,26 @@ describe('ApplicationParticipantsModal (#1952)', () => {
 
     expect(wrapper.findAll(ROW)).toHaveLength(1);
     expect(wrapper.text()).toContain('Согласуев');
+  });
+
+  it('необязательный согласующий назван согласующим, метка «Обязательно» только у обязательного', async () => {
+    // Карточка заявки давно зовёт всю таблицу «ответственными за согласование» и метит
+    // обязательных подписью. Пока список звал необязательного «Ответственным», один и
+    // тот же человек назывался в двух местах по-разному (поймано руками на стенде).
+    getApplicationParticipants.mockResolvedValue([
+      { ...PARTICIPANTS[2], user_id: 9, full_name: 'Соболева Наталья', required_approval: false, approval_status: 'pending' },
+      PARTICIPANTS[2],
+    ]);
+    const wrapper = await mountModal();
+
+    const roles = wrapper.findAll(ROLE).map((b) => b.text());
+    expect(roles).toEqual(['Согласующий', 'Согласующий']);
+
+    const required = wrapper.findAll('[data-testid="app-participants-required"]');
+    expect(required, 'подпись «Обязательно» ровно у одного').toHaveLength(1);
+
+    const votes = wrapper.findAll(VOTE).map((b) => b.text());
+    expect(votes, 'голос виден у обоих: необязательный тоже голосует').toHaveLength(2);
   });
 
   it('закрывается по Escape', async () => {
