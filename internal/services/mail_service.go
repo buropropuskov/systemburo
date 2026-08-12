@@ -203,6 +203,15 @@ func (s *mailService) claimBatch(ctx context.Context) ([]models.EmailMessage, er
 	return rows, err
 }
 
+// markSent помечает письмо отправленным и СТИРАЕТ его текст.
+//
+// Текст нужен ровно до отправки. Дальше он остаётся копией того, что уже ушло
+// адресату, и для писем о пароле это пароль открытым текстом - в базе, которая
+// по всем прочим правилам хранит пароли только вычислением Argon2id. Очередь
+// ничего не удаляет по сроку, поэтому без стирания такая копия жила бы вечно.
+//
+// Остальное о письме сохраняется: адрес, тема, шаблон, время отправки, число
+// попыток. По ним разбирают доставку, а текст для этого не нужен.
 func (s *mailService) markSent(ctx context.Context, row *models.EmailMessage) {
 	now := time.Now()
 	err := s.db.WithContext(ctx).Model(&models.EmailMessage{}).
@@ -212,6 +221,7 @@ func (s *mailService) markSent(ctx context.Context, row *models.EmailMessage) {
 			"sent_at":    now,
 			"attempts":   row.Attempts + 1,
 			"last_error": "",
+			"body":       "",
 		}).Error
 	if err != nil {
 		slog.Error("почта: письмо отправлено, но статус не записан", "id", row.ID, "error", err)
@@ -229,6 +239,9 @@ func (s *mailService) markFailure(ctx context.Context, row *models.EmailMessage,
 	}
 	if attempts >= s.cfg.MailRetryAttempts {
 		updates["status"] = models.EmailStatusFailed
+		// Повторов больше не будет - текст письма не нужен, а хранить его нельзя:
+		// в письмах о пароле он содержит сам пароль открытым текстом.
+		updates["body"] = ""
 		slog.Error("почта: письмо не доставлено, попытки исчерпаны",
 			"id", row.ID, "to", row.ToAddress, "template", row.TemplateCode, "attempts", attempts, "error", cause)
 	} else {
