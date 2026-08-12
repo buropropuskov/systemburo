@@ -242,6 +242,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := BackfillPasswordChangedAt(db); err != nil {
 		return err
 	}
+	if err := BackfillUsedPasswords(db); err != nil {
+		return err
+	}
 	if err := BackfillApplicationAcceptedAt(db); err != nil {
 		return err
 	}
@@ -541,6 +544,38 @@ func BackfillPasswordChangedAt(db *gorm.DB) error {
 	}
 	if res.RowsAffected > 0 {
 		slog.Info("проставлена дата последней смены пароля", "rows", res.RowsAffected)
+	}
+	return nil
+}
+
+// BackfillUsedPasswords кладёт действующий пароль в перечень прежних тем учётным
+// записям, которые завели до появления запрета на повтор.
+//
+// Без этого запрет промахивается ровно там, где он нужнее всего. Перечень
+// пополняется при смене пароля, то есть у существующей записи он пуст, и первая
+// смена запоминает НОВЫЙ пароль, а прежний не запоминает никто. Вернуться к нему
+// после этого можно свободно - к тому самому паролю, ради отказа от которого смену
+// и затевали.
+//
+// Копируется хеш из users.password: перечень и действующий пароль хранятся одним
+// способом (Argon2id), и сравнение работает с ним так же, как с записями, которые
+// система сделала сама.
+//
+// Идемпотентно: строка добавляется только тем, у кого перечень пуст. Учётные записи,
+// уже менявшие пароль после внедрения, проход не трогает - иначе действующий пароль
+// попадал бы в перечень дважды при каждом запуске.
+func BackfillUsedPasswords(db *gorm.DB) error {
+	res := db.Exec(`
+		INSERT INTO used_passwords (user_id, password_hash, created_at)
+		SELECT u.id, u.password, NOW()
+		FROM users u
+		WHERE u.password <> ''
+		  AND NOT EXISTS (SELECT 1 FROM used_passwords p WHERE p.user_id = u.id)`)
+	if res.Error != nil {
+		return fmt.Errorf("backfill used_passwords: %w", res.Error)
+	}
+	if res.RowsAffected > 0 {
+		slog.Info("действующие пароли внесены в перечень прежних", "rows", res.RowsAffected)
 	}
 	return nil
 }
