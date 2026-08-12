@@ -1,0 +1,140 @@
+{
+  "comment": "Кадры руководства принимающего. Роль - работник бюро пропусков, берущий заявку в работу, см. accounts.json. Заявка 102 согласована и ждёт приёма, 312 уже в работе, 303 ещё на согласовании.",
+  "role": "acceptor",
+  "shots": [
+    {
+      "id": "acceptor-center",
+      "goto": "/center",
+      "waitFor": "[data-testid=\"ob-center-list\"]",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"ob-center-archive\"]",
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"center-filter-confirmations\"]",
+          "badge": 2
+        }
+      ]
+    },
+    {
+      "id": "acceptor-accept",
+      "goto": "/center",
+      "waitFor": "[data-testid=\"center-input-search\"]",
+      "prepare": [
+        {
+          "fill": [
+            "[data-testid=\"center-input-search\"]",
+            "20260707/001"
+          ]
+        },
+        {
+          "wait": "[data-testid=\"center-row-102\"]"
+        },
+        {
+          "click": "[data-testid=\"center-row-102\"]"
+        },
+        {
+          "wait": "[data-testid=\"app-detail-button-take-to-work\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"ob-detail-actions\"]",
+        "pad": {
+          "x": 260,
+          "y": 120
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"app-detail-button-take-to-work\"]",
+          "badge": 1
+        }
+      ]
+    },
+    {
+      "id": "acceptor-waiting",
+      "goto": "/center",
+      "waitFor": "[data-testid=\"center-row-303\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"center-row-303\"]"
+        },
+        {
+          "wait": "[data-testid=\"ob-detail-actions\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"ob-detail-actions\"]",
+        "pad": {
+          "x": 260,
+          "y": 120
+        }
+      },
+      "highlight": []
+    },
+    {
+      "id": "acceptor-inwork",
+      "goto": "/center",
+      "waitFor": "[data-testid=\"center-row-312\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"center-row-312\"]"
+        },
+        {
+          "wait": "[data-testid=\"ob-detail-card\"]"
+        }
+      ],
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"ob-detail-actions\"]",
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"ob-detail-status-section\"]",
+          "badge": 2,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "acceptor-assign",
+      "goto": "/center",
+      "waitFor": "[data-testid=\"center-input-search\"]",
+      "prepare": [
+        {
+          "fill": [
+            "[data-testid=\"center-input-search\"]",
+            "20260707/001"
+          ]
+        },
+        {
+          "wait": "[data-testid=\"center-row-102\"]"
+        },
+        {
+          "click": "[data-testid=\"center-row-102\"]"
+        },
+        {
+          "wait": ".chip--assign"
+        },
+        {
+          "click": ".chip--assign"
+        },
+        {
+          "wait": ".assign-modal, .base-modal"
+        }
+      ],
+      "clip": {
+        "selector": ".assign-modal, .base-modal",
+        "pad": 40
+      },
+      "highlight": []
+    }
+  ]
+}
