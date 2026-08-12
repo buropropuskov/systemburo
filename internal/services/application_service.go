@@ -2176,14 +2176,18 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		}
 	}
 
-	// Добавляем обязательных из запроса
+	// req.RequiredUsers - список из формы подачи, дублирующий required_approval,
+	// который уже прочитан выше из organization_users/companies_users. Присланное
+	// значение признак не меняет ни в одну сторону (#2037): заявитель не назначает
+	// согласующих, он только видит состав организации, поэтому обязательность
+	// целиком определяется справочником. Для уже найденного пользователя запрос
+	// нужен лишь затем, чтобы не завести его повторно в блоке ниже.
 	if req.RequiredUsers != nil {
 		for _, reqUser := range *req.RequiredUsers {
 			exists := false
-			for i, ru := range responsibleUsers {
+			for _, ru := range responsibleUsers {
 				if ru.UserID == reqUser.UserID {
 					exists = true
-					responsibleUsers[i].RequiredApproval = reqUser.RequiredApproval
 					break
 				}
 			}
