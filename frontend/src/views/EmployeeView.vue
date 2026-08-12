@@ -13,7 +13,13 @@
       </p>
     </header>
 
-    <div class="employeesview__filters">
+    <!-- Десктоп: поиск и табы области над карточкой. На мобилке этот блок физически
+         переезжает под шапку списка (.employeesview__toolbar) - через v-if, а не
+         скрытой копией: иначе data-testid и якорь тура задвоились бы в DOM. -->
+    <div
+      v-if="!isNarrow"
+      class="employeesview__filters"
+    >
       <div
         class="filters-container"
         data-testid="ob-employees-filters"
@@ -22,9 +28,8 @@
           v-model="searchQuery"
           :title="'Поиск сотрудников...'"
         />
-        <!-- Десктоп: табы области инлайн в строке (как было). -->
         <div
-          v-if="ownershipInfo && !isNarrow"
+          v-if="ownershipInfo"
           class="filter-tabs"
         >
           <button
@@ -67,69 +72,62 @@
             Все сотрудники системы
           </button>
         </div>
-
-        <!-- Мобилка (<=768): табы области свёрнуты в кнопку «Фильтр» (поиск - снаружи). -->
-        <FilterButton
-          v-if="isNarrow && ownershipInfo"
-          :active="scopeFilterActive"
-          data-testid="employees-filter-btn"
-          @click="showScopeSheet = true"
-        />
       </div>
-
-      <!-- Мобилка: табы области в bottom-sheet. -->
-      <FilterSheet
-        v-if="isNarrow"
-        :show="showScopeSheet"
-        :has-active-filters="scopeFilterActive"
-        @close="showScopeSheet = false"
-        @reset="resetScopeFilter"
-      >
-        <div
-          v-if="ownershipInfo"
-          class="filter-section"
-        >
-          <span class="filter-label">Область</span>
-          <div class="filter-tabs">
-            <button
-              v-if="ownershipInfo.has_organization && canSeeOrganization"
-              class="filter-tab"
-              data-testid="employees-scope-organization"
-              :class="{ 'filter-tab--active': currentFilter === 'organization' }"
-              @click="switchScopeFromSheet('organization')"
-            >
-              Сотрудники организации
-            </button>
-            <button
-              v-if="ownershipInfo.has_company && canSeeCompany"
-              class="filter-tab"
-              data-testid="employees-scope-company"
-              :class="{ 'filter-tab--active': currentFilter === 'company' }"
-              @click="switchScopeFromSheet('company')"
-            >
-              Сотрудники компании
-            </button>
-            <button
-              class="filter-tab"
-              data-testid="employees-scope-user"
-              :class="{ 'filter-tab--active': currentFilter === 'user' }"
-              @click="switchScopeFromSheet('user')"
-            >
-              Мои сотрудники
-            </button>
-            <button
-              v-if="canSeeAllSystem"
-              class="filter-tab"
-              data-testid="employees-scope-all-system"
-              :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
-              @click="switchScopeFromSheet('all_system')"
-            >
-              Все сотрудники системы
-            </button>
-          </div>
-        </div>
-      </FilterSheet>
     </div>
+
+    <!-- Мобилка: табы области в bottom-sheet. Место в разметке роли не играет -
+         FilterSheet рендерится через BaseModal, а тот телепортирует себя в body. -->
+    <FilterSheet
+      v-if="isNarrow"
+      :show="showScopeSheet"
+      :has-active-filters="scopeFilterActive"
+      @close="showScopeSheet = false"
+      @reset="resetScopeFilter"
+    >
+      <div
+        v-if="ownershipInfo"
+        class="filter-section"
+      >
+        <span class="filter-label">Область</span>
+        <div class="filter-tabs">
+          <button
+            v-if="ownershipInfo.has_organization && canSeeOrganization"
+            class="filter-tab"
+            data-testid="employees-scope-organization"
+            :class="{ 'filter-tab--active': currentFilter === 'organization' }"
+            @click="switchScopeFromSheet('organization')"
+          >
+            Сотрудники организации
+          </button>
+          <button
+            v-if="ownershipInfo.has_company && canSeeCompany"
+            class="filter-tab"
+            data-testid="employees-scope-company"
+            :class="{ 'filter-tab--active': currentFilter === 'company' }"
+            @click="switchScopeFromSheet('company')"
+          >
+            Сотрудники компании
+          </button>
+          <button
+            class="filter-tab"
+            data-testid="employees-scope-user"
+            :class="{ 'filter-tab--active': currentFilter === 'user' }"
+            @click="switchScopeFromSheet('user')"
+          >
+            Мои сотрудники
+          </button>
+          <button
+            v-if="canSeeAllSystem"
+            class="filter-tab"
+            data-testid="employees-scope-all-system"
+            :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
+            @click="switchScopeFromSheet('all_system')"
+          >
+            Все сотрудники системы
+          </button>
+        </div>
+      </div>
+    </FilterSheet>
 
     <div class="employeesview__container">
       <!-- Таблица сотрудников -->
@@ -160,10 +158,19 @@
                 class="highlight-text"
               >Мои <span class="blue">сотрудники</span></span>
             </h3>
+            <!-- Счётчик записей рядом с заголовком - только на мобилке: на десктопе
+                 то же число уже стоит в футере таблицы («Показано X из Y»). -->
+            <span
+              v-if="isNarrow"
+              class="card-header__count"
+              data-testid="employees-count-badge"
+            >{{ employeesTotal }}</span>
           </div>
           <div class="card-header__settings">
+            <!-- На мобилке «Добавить» переезжает в панель у нижнего края экрана
+                 (.employeesview__action-bar), в шапке остаётся одно действие. -->
             <button
-              v-if="currentFilter !== 'all_system' && canWriteEmployees"
+              v-if="!isNarrow && currentFilter !== 'all_system' && canWriteEmployees"
               class="add-button"
               data-testid="ob-employees-add-button"
               @click="showAddEmployeeModal"
@@ -176,7 +183,25 @@
             />
           </div>
         </div>
-                
+
+        <!-- Мобилка: поиск и «Фильтр» отдельной полосой 36px под шапкой экрана. -->
+        <div
+          v-if="isNarrow"
+          class="employeesview__toolbar"
+          data-testid="ob-employees-filters"
+        >
+          <SearchComponent
+            v-model="searchQuery"
+            :title="'Поиск сотрудников...'"
+          />
+          <FilterButton
+            v-if="ownershipInfo"
+            :active="scopeFilterActive"
+            data-testid="employees-filter-btn"
+            @click="showScopeSheet = true"
+          />
+        </div>
+
         <div class="card-content rt-table">
           <!-- Заголовок таблицы всегда отображается (на мобилке скрыт rt-head-row, строки -> карточки) -->
           <div class="employees-header rt-head-row">
@@ -362,7 +387,7 @@
                       <button
                         v-if="showEditEmployee(employee)"
                         class="edit-btn"
-                        title="Редактировать"
+                        title="Изменить"
                         @click.stop="editEmployee(employee)"
                       >
                         <img
@@ -370,7 +395,7 @@
                           alt=""
                           class="edit-icon"
                         >
-                        <span class="action-btn__label">Редактировать</span>
+                        <span class="action-btn__label">Изменить</span>
                       </button>
                       <button
                         v-if="showDeleteEmployee(employee)"
@@ -506,6 +531,23 @@
           </template>
         </div>
       </div>
+    </div>
+
+    <!-- Мобилка: главное действие экрана - широкая кнопка в панели, прижатой к низу
+         экрана, у пальца. data-bottom-action-bar - контракт для ScrollTopButton:
+         кнопка «наверх» поднимается над панелью, чтобы не лечь на «Добавить». -->
+    <div
+      v-if="isNarrow && currentFilter !== 'all_system' && canWriteEmployees"
+      class="employeesview__action-bar"
+      data-bottom-action-bar
+    >
+      <button
+        class="add-button add-button--wide"
+        data-testid="ob-employees-add-button"
+        @click="showAddEmployeeModal"
+      >
+        Добавить сотрудника
+      </button>
     </div>
 
     <EmployeeEditModal
@@ -1584,18 +1626,72 @@ export default {
        скрыт (rt-head-row). Зазор между карточками - ниже, в блоке 767.98 (сиблинг
        .rt-row+.rt-row не сработает: rt-row на .employee-row, вложенном в .employee-item). */
 
-    /* Мобилка (S3): поиск + кнопка «Фильтр» в один ряд, поиск тянется на всю строку,
-       кнопка компактная справа (как S1/S2). Табы области ушли в bottom-sheet. */
-    .filters-container {
-        flex-direction: row;
-        align-items: center;
-        gap: 10px;
+    /* Заголовок страницы с подзаголовком на мобилке не показываем: то же название
+       («Мои сотрудники») несёт шапка списка, а поясняющий абзац дублирует блок
+       подсказки под таблицей. Освобождённые ~60px уходят под сами карточки. */
+    .employeesview__header {
+        display: none;
     }
 
-    .filters-container :deep(.search) {
+    /* Поиск и «Фильтр» - отдельная полоса 36px под шапкой списка. Разметка гейтится
+       isNarrow (768), поэтому и правила стоят здесь, а не в блоке 767.98: иначе ровно
+       на 768.0 полоса отрендерилась бы без своих стилей. */
+    .employeesview__toolbar {
+        display: flex;
+        flex-shrink: 0;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .employeesview__toolbar :deep(.search) {
         flex: 1 1 auto;
         width: auto;
         min-width: 0;
+        height: 36px;
+    }
+
+    /* Счётчик записей рядом с заголовком экрана. */
+    .card-header__count {
+        display: inline-flex;
+        flex-shrink: 0;
+        align-items: center;
+        justify-content: center;
+        min-width: 22px;
+        height: 22px;
+        padding: 0 7px;
+        border-radius: var(--radius-pill);
+        background: var(--accent-tint);
+        color: var(--accent-text);
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    /* Панель главного действия у нижнего края. fixed, а не sticky: панель обязана
+       держаться у нижней кромки видимой области независимо от прокрутки, поэтому
+       нижний отступ страницы резервирует её высоту (8 + 44 + 12 = 64px), иначе
+       последняя карточка уезжает под панель. */
+    .employeesview__action-bar {
+        position: fixed;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 90;
+        display: flex;
+        gap: 8px;
+        padding: 8px var(--gutter) calc(12px + env(safe-area-inset-bottom, 0px));
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+    }
+
+    .add-button--wide {
+        flex: 1;
+        height: 44px;
+        padding: 0 16px;
+        border-radius: var(--radius-pill);
+        font-size: 15px;
+        font-weight: 700;
     }
 
     /* .filter-tabs/.filter-tab на мобилке рендерятся ТОЛЬКО внутри FilterSheet
@@ -1618,6 +1714,7 @@ export default {
        767.98 (переключается вместе с телом таблицы). */
     .employeesview {
         padding: var(--gutter);
+        padding-bottom: calc(64px + var(--gutter) + env(safe-area-inset-bottom, 0px));
     }
 
     .employeesview__container {
@@ -1635,14 +1732,14 @@ export default {
    Зазор между карточками отдельным правилом (не через .rt-row+.rt-row): rt-row висит на
    .employee-row, вложенном в .employee-item (v-for-обёртку). */
 @media (max-width: 767.98px) {
-    /* Шапка одной строкой: заголовок + «Добавить» + «Обновить». Прежний
-       flex-direction: column ронял кнопки во вторую строку и растягивал их по ширине. */
+    /* Шапка экрана одной строкой 48px: заголовок, счётчик записей, «Обновить».
+       «Добавить» отсюда ушло вниз, в панель у пальца - в шапке рядом с заголовком
+       место есть ровно на одно действие. */
     .card-header {
         flex-wrap: nowrap;
         gap: 8px;
-        height: auto;
-        min-height: 48px;
-        padding: 8px 12px;
+        height: 48px;
+        padding: 0 12px;
     }
 
     /* min-width: 0 обязателен: flex-элемент не сжимается ниже min-content, и длинный
@@ -1666,43 +1763,9 @@ export default {
         gap: 6px;
     }
 
-    /* Кнопки шапки остаются ТЕКСТОВЫМИ и просто становятся компактными - прямая
-       просьба для этого экрана (в «Таблицах» просили обратное, сворачивание в иконку).
-       Высота 34px - как у контролов второго ряда шапки Центра. */
-    .card-header__settings .add-button {
-        height: 36px;
-        padding: 0 12px;
-        border-radius: var(--radius-pill);
-        font-size: 12px;
-        white-space: nowrap;
-    }
-
-    /* RefreshButton на этом же пороге сам прячет подпись и сжимается в 36x36 - здесь
-       возвращаем текст. Специфичность (0,3,0) против его собственной (0,2,0), поэтому
-       !important не нужен. Ширина фиксирована под самое широкое состояние: во время
-       перезарядки вместо текста три точки (27px), без фиксации кнопка дёргалась бы. */
-    .card-header__settings :deep(.refresh-btn) {
-        width: 88px;
-        height: 36px;
-        padding: 0;
-        gap: 4px;
-        border-radius: var(--radius-pill);
-    }
-
-    .card-header__settings :deep(.refresh-btn__text) {
-        position: static;
-        width: auto;
-        height: auto;
-        margin: 0;
-        overflow: visible;
-        clip: auto;
-        white-space: nowrap;
-    }
-
-    .card-header__settings :deep(.refresh-btn__icon) {
-        width: 14px;
-        height: 14px;
-    }
+    /* Своих правил для «Обновить» шапка больше не держит: RefreshButton на этом же пороге
+       сам сворачивается в круг 36px с иконкой. Прежние оверрайды возвращали текстовую
+       пилюлю 88px, а на <=480 гасили саму стрелку - её пропажу и забраковали. */
 
     /* Одинаковый зазор вокруг карточек: у .employees-body асимметрия от десктопного
        скроллбара (padding-right + margin-right по 4px), из-за неё слева карточки
@@ -1737,17 +1800,64 @@ export default {
         display: block !important;
     }
 
-    /* Разделитель полей рисуем СВЕРХУ у ячеек 2..N, а не снизу: последней в строке идёт
+    /* Поле карточки - строка не ниже 30px с содержимым по центру по вертикали: без
+       общего минимума строки разной высоты (бейдж статуса против одной строки текста)
+       давали рваную сетку, и список читался кашей.
+
+       Разделитель полей рисуем СВЕРХУ у ячеек 2..N, а не снизу: последней в строке идёт
        колонка действий без data-label, глобальное `[data-label]:last-child` до неё не
        достаёт и пунктир висел бы оторванной чертой над нижним краем карточки.
        white-space/overflow-wrap - потому что .employee-col держит nowrap ради десктопной
        таблицы, и длинное ФИО или организация уезжали бы вправо за край. */
     .employee-row.rt-row > .employee-col {
+        align-items: center !important;
         justify-content: flex-start !important;
+        min-height: 30px;
         border-bottom: none !important;
         text-align: left !important;
         white-space: normal;
         overflow-wrap: anywhere;
+    }
+
+    /* Должность и статус делят одну строку. В колоночном стеке бейдж занимал собственную
+       полосу, в которой кроме него ничего не было - пустая строка в каждой карточке, и
+       читалось это как случайно уехавший элемент. Приём взят у карточек проходной
+       (PeopleTable/CarsTable): карточка переводится из колонки в строку с переносом, каждой
+       ячейке задаётся базис 100% (во флекс-строке перенос держит БАЗИС, а не width), а
+       паре-исключению - ширина по содержимому.
+
+       Специфичность выше правил-источников и !important обязательны: responsive-tables.css
+       объявляет и flex-direction, и width со своим !important, коротким селектором их не
+       перебить. */
+    .rt-table .employee-row.rt-row {
+        flex-direction: row !important;
+        flex-wrap: wrap !important;
+        column-gap: 8px;
+        row-gap: 0;
+    }
+
+    .rt-table .employee-row.rt-row > * {
+        flex: 0 0 100% !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    /* Базис 0, а не auto: перенос во флексе решается по базису ДО сжатия, поэтому при
+       длинной должности пара с базисом по содержимому разъехалась бы обратно на две
+       строки. С нулевым базисом должность занимает всё, что осталось от бейджа, и статус
+       сам оказывается у правого края - без margin-left: auto, который забрал бы свободное
+       место раньше flex-grow и схлопнул должность в ноль. */
+    .rt-table .employee-row.rt-row > .position-col {
+        flex: 1 1 0 !important;
+        width: auto !important;
+    }
+
+    /* Пунктир-разделитель полей достался бы бейджу отдельной чертой посреди общей строки -
+       у ячейки, которая строку не начинает, его снимаем. */
+    .rt-table .employee-row.rt-row > .status-col {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        border-top: none !important;
     }
 
     .employee-row.rt-row > .employee-col ~ .employee-col {
@@ -1767,30 +1877,44 @@ export default {
     }
 
     /* Колонка действий не несёт data-label, поэтому держала бы desktop-ширину и обрезала
-       бы кнопки / «Только просмотр». */
+       бы кнопки / «Только просмотр». Подвал карточки отделён сплошной линией: пунктир
+       остаётся разделителем полей, сплошная - границей данных и действий. !important
+       нужен, чтобы перебить пунктир из сиблинг-правила выше: оно специфичнее (0,4,0
+       против 0,3,0) и иначе выигрывает. */
     .employee-row.rt-row > .actions-col {
         width: 100% !important;
         min-width: 0 !important;
-        gap: 8px;
+        gap: 6px;
+        margin-top: 2px;
         padding-top: 8px;
+        border-top: 1px solid color-mix(in srgb, var(--border) 45%, var(--surface)) !important;
     }
 
-    /* Кнопки-иконки в карточке заменены компактными ТЕКСТОВЫМИ (просьба пользователя):
-       иконка 16px с padding 4px давала 24px под палец. Высота 44px - тач-таргет по
-       умолчанию (WCAG 2.5.5, эталон §8). Классы .lk-button на разметку не вешаем: на
-       десктопе это остаётся безрамочная иконка, поэтому pill-геометрию из forms.css
-       повторяем здесь, в мобильном блоке. */
+    /* Действия - компактные бейджи 28px в подвале карточки. Прежние пилюли 44px
+       («жирные огромные») забирали половину карточки; зона нажатия остаётся 44px за счёт
+       невидимого ::before (28 + 8 сверху + 8 снизу), то есть глаз видит бейдж, а палец
+       по-прежнему не промахивается (эталон §8, тач-таргет >=44px). Классы .lk-button на
+       разметку не вешаем: на десктопе это остаётся безрамочная иконка, поэтому
+       pill-геометрию повторяем здесь, в мобильном блоке. */
     .employee-row.rt-row .edit-btn,
     .employee-row.rt-row .delete-btn {
-        height: 44px;
+        position: relative;
+        height: 28px;
         margin: 0;
-        padding: 0 14px;
+        padding: 0 10px;
         border: 1px solid var(--border);
         border-radius: var(--radius-pill);
-        font-size: 12px;
-        font-weight: 500;
+        font-size: 12.5px;
+        font-weight: 600;
         line-height: 1.2;
         white-space: nowrap;
+    }
+
+    .employee-row.rt-row .edit-btn::before,
+    .employee-row.rt-row .delete-btn::before {
+        content: "";
+        position: absolute;
+        inset: -8px -2px;
     }
 
     .employee-row.rt-row .edit-btn {
@@ -1823,17 +1947,14 @@ export default {
     }
 }
 
-/* Очень узкие телефоны (--bp-mobile-sm = 480px): ужимаем шапку, чтобы «Мои сотрудники»
-   вместе с обеими кнопками помещались одной строкой уже на 320px. Замер в chromium с
-   живым Montserrat: при padding 12 / gap 8 / «Обновить» 88px под заголовок оставалось
-   87px при нужных 127 - обрезало на 40px; после ужатия свободно 121px против 118, а на
-   390px влезают и длинные варианты («Сотрудники организации» - 181px). Иконку «Обновить»
-   убираем: для этих двух экранов просили текстовые кнопки, подпись важнее декоративной
-   иконки (alt пустой, скринридер её и так не читает). */
+/* Очень узкие телефоны (--bp-mobile-sm = 480px): в шапке остались заголовок, счётчик и
+   круг «Обновить» 36px, поэтому ужимать нечего, кроме отступов и кегля заголовка. Прежние
+   правила (ширина текстовой пилюли «Обновить» 72px и снятая с неё иконка) удалены вместе
+   с самой пилюлей - на 320px заголовку теперь остаётся 320-16-36-6-счётчик = ~230px. */
 @media (max-width: 480px) {
     .card-header {
         gap: 6px;
-        padding: 8px;
+        padding: 0 8px;
     }
 
     .card-title {
@@ -1844,16 +1965,9 @@ export default {
         gap: 4px;
     }
 
-    .card-header__settings .add-button {
-        padding: 0 9px;
-    }
-
-    .card-header__settings :deep(.refresh-btn) {
-        width: 72px;
-    }
-
-    .card-header__settings :deep(.refresh-btn__icon) {
-        display: none;
+    .employeesview__toolbar {
+        gap: 6px;
+        padding: 8px 10px;
     }
 }
 </style>
