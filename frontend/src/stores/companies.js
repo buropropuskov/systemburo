@@ -44,12 +44,15 @@ export const useCompaniesStore = defineStore('companies', {
     },
 
     /**
+     * Зеркало organizations: список закрыт page.admin.directories (#2002), но зовётся
+     * и из UserControl, где 403 у админа пользователей штатный - молчим, см. подробный
+     * разбор в stores/organizations.js.
      * @param {boolean} includeArchived - включить архивные компании (is_active=false)
      */
     async fetchCompaniesWithUsers(includeArchived = false) {
       try {
         const qs = includeArchived ? '?include_archived=true' : ''
-        const response = await apiRequest(`/companies/with-users-extended${qs}`)
+        const response = await apiRequest(`/companies/with-users-extended${qs}`, { silent403: true })
         if (response.ok) {
           const data = await response.json()
           this.itemsWithUsers = data.map(comp => ({

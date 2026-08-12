@@ -368,34 +368,6 @@ func (h *CompanyHandler) GetMembers(c echo.Context) error {
 	return RespondSuccess(c, members)
 }
 
-// GetBlockingUsers godoc
-// @Summary      Пользователи, блокирующие архивацию компании
-// @Description  Возвращает активных участников (users.company_id=id), из-за которых
-// @Description  компанию нельзя архивировать. Тот же набор, что GetMembers; отдельный
-// @Description  endpoint для delete-флоу.
-// @Tags         companies
-// @Produce      json
-// @Security     BearerAuth
-// @Param        id path int true "ID компании"
-// @Success      200 {array} services.MemberResponse
-// @Failure      400 {object} models.HTTPError
-// @Failure      401 {object} models.HTTPError
-// @Failure      403 {object} models.HTTPError
-// @Router       /companies/{id}/blocking-users [get]
-func (h *CompanyHandler) GetBlockingUsers(c echo.Context) error {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid company ID")
-	}
-	// Блокирующие архивацию = активные участники (те же, что даёт GetMembers) -
-	// переиспользуем запрос, чтобы не плодить дубль active-only выборки.
-	users, err := h.service.GetMembers(c.Request().Context(), id)
-	if err != nil {
-		return err
-	}
-	return RespondSuccess(c, users)
-}
-
 // ReassignUsers godoc
 // @Summary      Перенести всех блокирующих пользователей в другую компанию
 // @Description  Переносит активных участников компании в целевую (target_id),
