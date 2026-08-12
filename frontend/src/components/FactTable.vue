@@ -183,7 +183,14 @@
               :style="{ animationDelay: `${index * 0.1}s` }"
               @click="openItemDetails(item)"
             >
-              <div class="fact-row rt-row">
+              <!-- rt-pass: строка собирается талоном на мобилке (responsive-tables.css,
+                   часть 3) - той же, что у таблицы «по заявке» под ней: обе стоят на
+                   одном экране, и разнобой между ними виден целиком. Только для машин:
+                   у людей нет ни номера, ни кнопок прохода, талону не из чего собраться. -->
+              <div
+                class="fact-row rt-row"
+                :class="{ 'rt-pass': tableType === 'cars' }"
+              >
                 <!-- Служебные въезд/выезд - всегда первые (только cars) -->
                 <div
                   v-if="tableType === 'cars'"
@@ -222,7 +229,7 @@
                 <!-- Конфигурируемые столбцы -->
                 <div
                   v-if="tableType === 'cars' && isFieldVisible('car_number')"
-                  class="col number-col"
+                  class="col number-col rt-pass__plate"
                   :style="getColStyle('car_number')"
                   data-label="Номер Т/С"
                 >
@@ -230,7 +237,7 @@
                 </div>
                 <div
                   v-if="tableType === 'cars' && isFieldVisible('car_brand')"
-                  class="col brand-col"
+                  class="col brand-col rt-pass__mark"
                   :style="getColStyle('car_brand')"
                   data-label="Марка"
                 >
@@ -349,14 +356,15 @@
                   @click.stop
                 >
                   <button
-                    class="delete-btn"
+                    class="delete-btn rt-pass__act rt-pass__act--danger"
                     @click="deleteItem(item)"
                   >
                     <img
                       src="@/assets/icons/trashcan.png"
                       alt="Удалить"
-                      class="delete-icon"
+                      class="delete-icon rt-pass__act-icon"
                     >
+                    <span class="rt-pass__act-label">Удалить</span>
                   </button>
                 </div>
               </div>
@@ -1689,14 +1697,14 @@ export default {
     border-bottom: none !important;
   }
 
-  .fact-table-card .rt-row > [data-label] ~ [data-label] {
+  /* Только в режиме people: у машин строка собирается талоном, где единственная
+     горизонтальная линия - линия отрыва, и пунктиры её глушат. */
+  .fact-table-card .rt-row:not(.rt-pass) > [data-label] ~ [data-label] {
     border-top: 1px dashed color-mix(in srgb, var(--border) 60%, var(--surface));
   }
 
   /* Ячейки прохода делят верхнюю строку пополам - единственные, кто выходит из
-     «своя строка каждому». Пунктир им не нужен: между кнопками одного ряда он лёг бы
-     вертикальной чертой посреди строки, а поле под ними свой верхний пунктир
-     сохраняет - он и отделяет ряд действий от данных. */
+     «своя строка каждому». Это шапка талона: то, ради чего экран открывают. */
   .fact-table-card .rt-row > .entry-col,
   .fact-table-card .rt-row > .exit-col {
     width: auto !important;
@@ -1731,13 +1739,40 @@ export default {
     display: block !important;
   }
 
-  /* Тач-таргет >=44px (WCAG) для кнопок Въезд/Выезд/удаления. */
+  /* Подвал талона: статус слева, «Удалить» справа - одной строкой. Порядок задаём
+     заведомо большими числами: разметочный `order` колонки действий (9999)
+     соседствует с порядком настраиваемых столбцов, и статус оказывался бы после неё.
+     «Подробнее» здесь нет - столбцы по приоритету не прячутся, прятать нечего.
+
+     `overflow: visible` обязателен: базовый `.col { overflow: hidden }` обрезает
+     невидимый ::before, которым кнопка добирает зону нажатия до 44px. */
+  .fact-table-card .rt-pass > .status-col {
+    order: 9999 !important;
+  }
+
+  .fact-table-card .rt-pass > .actions-col {
+    order: 10001 !important;
+    margin-left: auto;
+  }
+
+  .fact-table-card .rt-pass > .status-col,
+  .fact-table-card .rt-pass > .actions-col {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    overflow: visible;
+    padding: 10px 0 0;
+  }
+
+  /* Кнопки прохода - главное действие экрана: 44px и крупная подпись. */
   .action-btn {
     min-width: 70px;
     height: 44px;
-    font-size: 13px;
+    font-size: 15px;
+    font-weight: 700;
   }
 
+  /* Режим people: талона нет, кнопка удаления остаётся тач-таргетом 44px. У машин
+     её перебивает пилюля подвала из rt-pass. */
   .delete-btn {
     width: 44px;
     height: 44px;
