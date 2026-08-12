@@ -32,6 +32,15 @@ const PasswordChangeRequiredCode = "PASSWORD_CHANGE_REQUIRED"
 // там после согласия маркер не меняется и поток надо переподключить на месте, а
 // здесь смена пароля отзывает все сессии - человек входит заново, и поток
 // поднимается с нуля.
+//
+// Роуты окна согласия (гейт, принятие, документ и его описание, настройки
+// уведомлений) пропускаются, хотя к паролю отношения не имеют. Причина в порядке
+// двух гейтов: согласие человек даёт первым, и пока его окно на экране, ни один
+// запрос оттуда не должен упереться в требование сменить пароль. Без этого
+// работник с поднятым признаком смены и без согласия запирался снаружи наглухо -
+// смену пароля закрывал гейт согласия, принятие согласия закрывал этот гейт.
+// Инвариант «всё, что пропускает гейт согласия, пропускает и этот» держит
+// TestGates_ConsentWhitelistIsSubsetOfPasswordWhitelist.
 var MustChangePasswordWhitelist = map[string]bool{
 	"PUT /api/users/me/password": true,
 	"POST /api/logout":           true,
@@ -41,6 +50,12 @@ var MustChangePasswordWhitelist = map[string]bool{
 	"GET /api/permissions/my":           true,
 	"GET /api/users/me":                 true,
 	"GET /api/users/me/theme":           true,
+
+	"GET /api/consents/gate":                          true,
+	"POST /api/consents/accept":                       true,
+	"GET /api/settings/data-processing/document":      true,
+	"GET /api/settings/data-processing/document/meta": true,
+	"GET /api/settings/notifications":                 true,
 }
 
 // MustChangePassword закрывает protected-API пользователю, которому система обязала
