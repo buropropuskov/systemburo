@@ -36,6 +36,11 @@ const APPLICATION = {
   attachments: [],
 };
 
+/** Ждём, пока панель доиграет уход и сообщит о закрытии (transition 200 мс). */
+function waitForClose() {
+  return new Promise((resolve) => setTimeout(resolve, 260));
+}
+
 function pressEscape() {
   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
 }
@@ -62,10 +67,13 @@ beforeEach(() => {
 afterEach(() => opened.splice(0).forEach((w) => w.unmount()));
 
 describe('ApplicationDetail: закрытие по Escape', () => {
-  it('Escape закрывает панель заявки', () => {
+  it('Escape закрывает панель заявки', async () => {
     const wrapper = mountDetail();
 
     pressEscape();
+    // Панель уходит с анимацией и сообщает о закрытии родителю после неё - иначе
+    // размонтирование обрывало бы уход на середине.
+    await waitForClose();
 
     expect(wrapper.emitted('close'), 'панель должна попросить родителя себя закрыть').toHaveLength(1);
   });
@@ -79,12 +87,14 @@ describe('ApplicationDetail: закрытие по Escape', () => {
     opened.push(modal);
 
     pressEscape();
+    await waitForClose();
 
     expect(modal.emitted('close'), 'верхнее окно закрывается').toHaveLength(1);
     expect(wrapper.emitted('close'), 'панель под ним остаётся открытой').toBeUndefined();
 
     modal.unmount();
     pressEscape();
+    await waitForClose();
 
     expect(wrapper.emitted('close'), 'после закрытия окна Escape доходит до панели').toHaveLength(1);
   });

@@ -245,6 +245,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := BackfillUsedPasswords(db); err != nil {
 		return err
 	}
+	if err := ClearDeliveredMailBodies(db); err != nil {
+		return err
+	}
 	if err := BackfillApplicationAcceptedAt(db); err != nil {
 		return err
 	}
@@ -544,6 +547,27 @@ func BackfillPasswordChangedAt(db *gorm.DB) error {
 	}
 	if res.RowsAffected > 0 {
 		slog.Info("проставлена дата последней смены пароля", "rows", res.RowsAffected)
+	}
+	return nil
+}
+
+// ClearDeliveredMailBodies стирает текст у писем, которым он больше не нужен:
+// отправленных и окончательно не доставленных.
+//
+// Отправитель стирает текст сам, но письма, ушедшие до появления этого правила,
+// лежат в очереди со своим текстом - а в письмах о пароле это пароль открытым
+// текстом. Очередь ничего не удаляет по сроку, поэтому сами они не исчезнут.
+//
+// Ожидающих отправки не касается: им текст ещё предстоит отправить.
+func ClearDeliveredMailBodies(db *gorm.DB) error {
+	res := db.Exec(`
+		UPDATE email_messages SET body = ''
+		WHERE body <> '' AND status IN ('sent', 'failed')`)
+	if res.Error != nil {
+		return fmt.Errorf("очистка текстов доставленных писем: %w", res.Error)
+	}
+	if res.RowsAffected > 0 {
+		slog.Info("тексты отправленных писем стёрты", "rows", res.RowsAffected)
 	}
 	return nil
 }
