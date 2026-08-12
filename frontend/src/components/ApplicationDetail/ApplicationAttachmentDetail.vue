@@ -67,7 +67,7 @@
     >
       <div class="el-section">
         <div class="el-section__head">
-          <h5>{{ sectionTitle }}</h5>
+          <h5>{{ headTitle }}</h5>
           <span
             v-if="!loading && rows.length"
             class="el-count"
@@ -205,12 +205,10 @@
                       :data-hint="cellHint(row, col)"
                       :data-testid="col.type === 'key' ? 'attachment-element-key' : null"
                     >{{ col.value(row) }}</span>
-                    <!-- Подстрока рисуется всегда: без неё строка без марки
-                         оказывалась ниже соседних и лента "дышала". -->
                     <span
-                      v-if="col.sub && isCompact"
+                      v-if="rowSub(row, col)"
                       class="val-sub"
-                    >{{ col.sub(row) || '—' }}</span>
+                    >{{ rowSub(row, col) }}</span>
                   </template>
 
                   <!-- Метка дополнения (#1685) живёт в ключевой колонке: она есть у
@@ -275,23 +273,64 @@
                 v-if="canAssign && bulkColumns.length"
                 class="el-foot__bulk"
               >
-                <span class="el-foot__bulk-label">Назначить всем:</span>
+                <!-- На телефоне подписи «назначить всем места разгрузки / посты проезда»
+                     не помещаются в подвал ни в каком виде - действия уезжают в лист,
+                     где место под полную подпись есть. -->
                 <button
-                  v-for="col in bulkColumns"
-                  :key="col.key"
+                  v-if="isNarrowViewport"
                   type="button"
                   class="lk-button lk-button--ghost el-foot__bulk-btn"
-                  :data-testid="`attachment-assign-all-${col.assignKind}`"
-                  @click="openAssignAll(col)"
+                  data-testid="attachment-assign-all-open"
+                  @click="bulkSheetOpen = true"
                 >
-                  {{ col.label.toLowerCase() }}
+                  Назначить всем…
                 </button>
+
+                <template v-else>
+                  <span class="el-foot__bulk-label">Назначить всем:</span>
+                  <button
+                    v-for="col in bulkColumns"
+                    :key="col.key"
+                    type="button"
+                    class="lk-button lk-button--ghost el-foot__bulk-btn"
+                    :data-testid="`attachment-assign-all-${col.assignKind}`"
+                    @click="openAssignAll(col)"
+                  >
+                    {{ col.label.toLowerCase() }}
+                  </button>
+                </template>
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- Выбор, чему назначать всем: свёрнутый подвал мобилки раскрывается сюда.
+         Слой 10004 - выше панели детали (10002) и карточек (10003), ниже самого
+         окна назначения (10006), которое открывается поверх этого листа. -->
+    <BaseModal
+      :show="bulkSheetOpen"
+      title="Назначить всем"
+      width="480px"
+      radius="30px"
+      :z-index="10004"
+      content-testid="attachment-assign-all-sheet"
+      @close="bulkSheetOpen = false"
+    >
+      <div class="bulk-sheet">
+        <button
+          v-for="col in bulkColumns"
+          :key="col.key"
+          type="button"
+          class="bulk-sheet__item"
+          :data-testid="`attachment-assign-all-${col.assignKind}`"
+          @click="chooseBulk(col)"
+        >
+          {{ col.bulkLabel || col.label }}
+        </button>
+      </div>
+    </BaseModal>
 
     <!-- Без v-if: BaseModal анимирует по :show, а внешний v-if сносил бы
          компонент мгновенно и уход не проигрывался (см. заметку проекта). -->
@@ -310,6 +349,7 @@
 
 <script>
 import Badge from '@/components/ui/Badge.vue'
+import BaseModal from '@/components/ui/BaseModal.vue'
 import ApplicationAssignModal from './ApplicationAssignModal.vue'
 import SearchComponent from '@/components/SearchComponent.vue'
 import { assignElementTables, assignCarUnloadPlaces } from '@/api/applicationAssignments'
@@ -413,7 +453,7 @@ function supplementRowMark(row) {
 
 export default {
     name: 'ApplicationAttachmentDetail',
-    components: { ApplicationAssignModal, Badge, SearchComponent },
+    components: { ApplicationAssignModal, BaseModal, Badge, SearchComponent },
     props: {
         attachment: {
             type: Object,
@@ -469,6 +509,7 @@ export default {
             textMeasureContext: null,
             searchQuery: '',
             searchVariants: [],
+            bulkSheetOpen: false,
             assign: {
                 open: false,
                 kind: 'tables',
@@ -494,6 +535,16 @@ export default {
             if (this.type === 'cars') return 'Автомобили';
             if (this.type === 'people') return 'Сотрудники';
             return 'Товарно-материальные ценности';
+        },
+
+        /**
+         * Заголовок блока делит строку с поиском, поэтому на телефоне длинное
+         * название сокращается: «Товарно-материальные ценности» съедало бы всю
+         * строку и оставляло полю поиска несколько пикселей.
+         */
+        headTitle() {
+            if (this.isNarrowViewport && this.type === 'items') return 'ТМЦ';
+            return this.sectionTitle;
         },
 
         emptyText() {
@@ -549,6 +600,8 @@ export default {
                         type: 'chips',
                         cls: 'c-tables',
                         label: 'Проезд',
+                        // В листе места хватает на полную подпись, в колонке - нет.
+                        bulkLabel: 'Посты проезда',
                         assignKind: 'tables',
                         grow: 26, min: 92,
                         growCompact: 26, minCompact: 96,
@@ -644,12 +697,12 @@ export default {
         },
 
         /**
-         * Узкий контейнер: часть колонок схлопывается. На телефоне режим не
-         * включаем - там строка разворачивается в карточку (responsive-tables.css),
-         * и каждому полю нужна своя подпись.
+         * Узкий контейнер: колонка второго плана (марка, должность) уходит из
+         * своей колонки и встаёт рядом с ключевым значением. На телефоне режим
+         * тоже включён: строка разворачивается в карточку, где отдельная строка
+         * под марку - лишняя, а подписи полей всё равно скрыты.
          */
         isCompact() {
-            if (this.isNarrowViewport) return false;
             if (!this.containerWidth) return false;
             return this.containerWidth < this.wideLayoutWidth;
         },
@@ -774,6 +827,22 @@ export default {
 
         onViewportChange(event) {
             this.isNarrowViewport = event.matches;
+        },
+
+        /**
+         * Значение колонки второго плана рядом с ключевым: марка у машины,
+         * должность у сотрудника.
+         *
+         * В таблице прочерк обязателен - без него строка без марки оказывалась
+         * ниже соседних и лента "дышала". В карточке подстрока стоит той же
+         * строкой, что и номер, высоту не меняет, и пустой прочерк там только
+         * мусор.
+         *
+         * @returns {?string} текст подстроки или null, если её не рисуем
+         */
+        rowSub(row, col) {
+            if (!col.sub || !this.isCompact) return null;
+            return col.sub(row) || (this.isNarrowViewport ? null : '—');
         },
 
         /** Минимальная ширина колонки в текущем режиме. */
@@ -988,6 +1057,16 @@ export default {
                 currentIds: common,
                 submitting: false
             };
+        },
+
+        /**
+         * Выбор из листа: лист закрывается сразу, окно назначения открывается
+         * поверх него (10006 против 10004), поэтому уходящий лист ничего не
+         * перекрывает и ждать конца его анимации не нужно.
+         */
+        chooseBulk(col) {
+            this.bulkSheetOpen = false;
+            this.openAssignAll(col);
         },
 
         closeAssign() {
@@ -1653,6 +1732,35 @@ export default {
     font-variant-numeric: tabular-nums;
 }
 
+/* Лист выбора «Назначить всем»: пункт во всю ширину, подпись слева, высота 48 -
+   палец попадает без прицеливания, а места хватает на полную формулировку. */
+.bulk-sheet {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 0 10px;
+}
+
+.bulk-sheet__item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 20px;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 15px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.bulk-sheet__item:hover,
+.bulk-sheet__item:active {
+    background: var(--surface-sunken);
+}
+
 .loading-container {
     display: flex;
     flex-direction: column;
@@ -1693,20 +1801,52 @@ export default {
 /* На мобилке блок вложения - по контенту: фикс min-height:300px оставлял много
    пустого белого снизу при коротких данных. Десктоп-стабильность не трогаем (W3.10). */
 @media (max-width: 767.98px) {
+    /* Единая сетка отступов: секции блока живут на тех же 12px, что и страница
+       детали, поэтому боковые края шапки, ленты и подвала совпадают, а не идут
+       тремя разными уступами (15 у секций против 14 у карточки). */
+    .attachment-header-section,
+    .custom-values-section,
+    .attachment-data-section {
+        padding: 12px;
+    }
+
     .attachment-data-section {
         min-height: 0;
     }
 
-    /* Поиск фиксированной ширины не помещается рядом с заголовком - уводим
-       его отдельной строкой на всю ширину. Селектор специфичнее собственного
-       `.search{width:220px}` компонента поиска, порядок чанков тут не решает. */
+    /* Поиск остаётся в строке заголовка, ужатый до 26px: отдельной строкой во всю
+       ширину он весил как панель управления над списком из трёх машин. Селектор
+       специфичнее собственного `.search{width:220px}` компонента поиска, порядок
+       чанков тут не решает. */
     .el-section__head {
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        gap: 8px;
+    }
+
+    .el-section__head h5 {
+        min-width: 0;
+        font-size: 15px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .el-section__head .el-search {
-        width: 100%;
+        flex: 1 1 auto;
+        width: auto;
+        min-width: 0;
+        height: 26px;
         margin-left: 0;
+        padding: 0 10px;
+    }
+
+    .el-section__head .el-search :deep(.search__input) {
+        font-size: 12px;
+    }
+
+    .el-section__head .el-search :deep(.search__icon) {
+        width: 13px;
+        height: 13px;
     }
 
     /* Строку разворачивает в карточку глобальный responsive-tables.css:
@@ -1736,6 +1876,30 @@ export default {
         margin-top: 8px;
         border: 1px solid var(--color-border);
         border-radius: var(--radius-md);
+        flex-wrap: wrap;
+    }
+
+    /* Компактно на вид, крупно под палец: пилюля 28px, зона нажатия 44 невидимым
+       расширением - подвал от этого не растёт. */
+    .el-foot__bulk-btn {
+        position: relative;
+        min-height: 28px;
+        white-space: nowrap;
+    }
+
+    .el-foot__bulk-btn::before {
+        content: '';
+        position: absolute;
+        inset: -8px -4px;
+    }
+
+    /* Карточка строки: боковые 12px - ровно столько же, сколько у секции и подвала,
+       поэтому их края совпадают (глобальное правило даёт 14 и несёт !important,
+       перебиваем составным селектором). Зазор между полями снимаем: ритм задают
+       высота строки и пунктир, а 10px сверху давали "странный" двойной отступ. */
+    .el-table .el-row {
+        gap: 0 !important;
+        padding: 10px 12px !important;
     }
 
     /* Подписи полей в карточке не показываем: значение говорит само за себя, а колонка
@@ -1746,17 +1910,36 @@ export default {
         display: none !important;
     }
 
-    /* Разделитель полей рисуем сверху, а не снизу: у машин и сотрудников последней в
+    /* Поле карточки - строка 30px: значение прижато влево и отцентровано по вертикали.
+       Разделитель полей рисуем сверху, а не снизу: у машин и сотрудников последней в
        строке стоит колонка действий без подписи, поэтому глобальное
        `[data-label]:last-child` не снимало пунктир с последнего поля и он висел
        оторванной чертой над нижним краем карточки. */
-    .el-row .el-cell {
+    .el-table .el-row .el-cell {
+        min-height: 30px;
+        padding: 0 !important;
+        gap: 8px;
+        align-items: center;
         justify-content: flex-start !important;
         text-align: left !important;
         border-bottom: none !important;
     }
 
     .el-row .el-cell ~ .el-cell {
+        border-top: 1px dashed color-mix(in srgb, var(--border) 60%, var(--surface));
+    }
+
+    /* Колонка действий - такая же строка слева, а не 112px, прижатых к правому краю.
+       Пустую (нет ни бейджа ЧС, ни кнопки) не отбиваем чертой: она невидима, а линия
+       над ней осталась бы висеть у нижнего края карточки. */
+    .el-row .c-state {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .el-row .el-cell ~ .c-state:not(:empty) {
+        min-height: 30px;
+        align-items: center;
         border-top: 1px dashed color-mix(in srgb, var(--border) 60%, var(--surface));
     }
 
@@ -1776,6 +1959,19 @@ export default {
        гос. номер до многоточия. */
     .el-row .el-cell--key {
         flex-wrap: wrap;
+    }
+
+    /* Гос. номер и марка (ФИО и должность) - одной строкой: номер жирный слева,
+       марка серым следом. Своя строка под марку добавляла карточке четвёртое поле
+       и пунктир там, где хватает одной строки. */
+    .el-row .el-cell--key .val,
+    .el-row .el-cell--key .val-sub {
+        flex: 0 1 auto;
+        min-width: 0;
+    }
+
+    .el-row .el-cell--key .val-sub {
+        margin-top: 0;
     }
 
     .el-row .el-cell--key .supplement-badge {

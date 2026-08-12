@@ -1668,5 +1668,19 @@ defineExpose({ refresh: reload });
   .proc__group-rule {
     min-width: 24px;
   }
+
+  /* Рейтинги на телефоне прокручиваются вместе со страницей (#1097 волна 5):
+     своя область прокрутки внутри прокручиваемой страницы отбирает жест у окна.
+     Sticky-шапка рейтинга при этом теряет смысл - липнуть не к чему, - поэтому
+     снимается вместе с ограничением высоты. */
+  .proc__card--scroll {
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .proc__card--scroll :deep(thead th),
+  .proc__card--scroll th {
+    position: static;
+  }
 }
 </style>

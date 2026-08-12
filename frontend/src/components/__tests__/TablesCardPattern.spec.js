@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 /**
- * Замок на карточку строки в таблицах проходной (#1097 S9).
+ * Замок на карточку строки в таблицах проходной (#1097 S9, талон машины - волна 5).
  *
  * Карточка собрана каскадом из двух слоёв - глобального responsive-tables.css и
  * scoped-блока компонента, - и ломается тихо: jsdom каскад и медиазапросы не считает,
@@ -17,12 +17,43 @@ import path from 'node:path';
  *   кнопку («Въезд» подписью и «Въезд» кнопкой в одной строке);
  * - пунктир снизу у последнего поля висит оторванной чертой: последней в строке идёт
  *   колонка действий без data-label, и `[data-label]:last-child` до неё не достаёт.
+ *
+ * CarsTable и FactTable в режиме cars с волны 5 собираются талоном (мокап
+ * docs/mockups/mobile-ux.html, экран «Проходная»): пунктир между полями заменён одной
+ * линией отрыва, а статус переехал в подвал к кнопкам. Общая часть талона живёт в
+ * responsive-tables.css (часть 3) и стережётся отдельным набором ниже; в компонентах
+ * остаётся раскладка полей, у каждой таблицы своя. Различия описаны полями
+ * `tail`/`talon`/`footCols`, чтобы в одном месте было видно, чем таблицы расходятся.
  */
 
 const TABLES = [
-  { file: 'CarsTable.vue', card: '.selected-table-card', row: '.selected-table-card .item-data.rt-row', head: '.items-header' },
-  { file: 'PeopleTable.vue', card: '.selected-table-card', row: '.selected-table-card .item-data.rt-row', head: '.items-header' },
-  { file: 'FactTable.vue', card: '.fact-table-card', row: '.fact-table-card .fact-row.rt-row', head: '.fact-header' },
+  {
+    file: 'CarsTable.vue',
+    card: '.selected-table-card',
+    row: '.selected-table-card .item-data.rt-row',
+    head: '.items-header',
+    tail: /\.(status|expand|actions)-col$/,
+    talon: true,
+    // «Подробнее» есть только здесь: столбцы прячутся по приоритету, есть что прятать.
+    footCols: ['.status-col', '.expand-col', '.actions-col'],
+  },
+  {
+    file: 'PeopleTable.vue',
+    card: '.selected-table-card',
+    row: '.selected-table-card .item-data.rt-row',
+    head: '.items-header',
+    tail: /\.(expand|actions)-col$/,
+    talon: false,
+  },
+  {
+    file: 'FactTable.vue',
+    card: '.fact-table-card',
+    row: '.fact-table-card .fact-row.rt-row',
+    head: '.fact-header',
+    tail: /\.(status|actions)-col$/,
+    talon: true,
+    footCols: ['.status-col', '.actions-col'],
+  },
 ];
 
 const MOBILE = '(max-width: 767.98px)';
@@ -79,7 +110,7 @@ function selectorsWith(css, declaration) {
   return out;
 }
 
-describe.each(TABLES)('Карточка строки: $file', ({ file, card, row, head }) => {
+describe.each(TABLES)('Карточка строки: $file', ({ file, card, row, head, tail }) => {
   const src = source(file);
   const mobile = mediaBlocks(src, MOBILE).join('\n');
   const cellRule = `${card} .rt-row > [data-label]`;
@@ -125,20 +156,26 @@ describe.each(TABLES)('Карточка строки: $file', ({ file, card, row
   it('ячейки прохода делят строку и не несут пунктира', () => {
     for (const col of ['.entry-col', '.exit-col']) {
       const decls = declarationsFor(mobile, `${card} .rt-row > ${col}`).join('\n');
-      expect(decls).toMatch(/flex:\s*1\s+1\s+0\s*!important/);
+      // Базис ровно половина строки. Нулевой базис с ростом (`flex: 1 1 0`) здесь
+      // не годится и однажды уже сломал талон: перенос во flex считается по базисам
+      // ДО распределения свободного места, поэтому в первую строку набиралась ещё и
+      // следующая ячейка, а обе кнопки схлопывались в 6px друг на друга.
+      expect(decls).toMatch(/flex:\s*0\s+0\s+calc\(50%[^)]*\)\s*!important/);
+      expect(decls).not.toMatch(/flex:\s*\d+\s+\d+\s+0(px)?\s*!important/);
       expect(decls).toMatch(/border-top:\s*none\s*!important/);
     }
   });
 
-  it('разделитель рисуется сверху у полей 2..N, снизу его нет', () => {
+  it('пунктира снизу у полей нет', () => {
+    // Последней в строке идёт колонка действий без data-label: глобальное
+    // `[data-label]:last-child { border-bottom: none }` до неё не достаёт, и нижний
+    // пунктир висел бы оторванной чертой над краем карточки.
     expect(declarationsFor(mobile, cellRule).join('\n'))
       .toMatch(/border-bottom:\s*none\s*!important/);
-    expect(declarationsFor(mobile, `${cellRule} ~ [data-label]`).join('\n'))
-      .toMatch(/border-top:\s*1px dashed/);
   });
 
   it('из «своя строка каждому» выходят только ячейки прохода', () => {
-    const exceptions = selectorsWith(mobile, 'flex: 1 1 0 !important');
+    const exceptions = selectorsWith(mobile, 'flex: 0 0 calc(50% - 4px) !important');
     expect(exceptions.sort()).toEqual([
       `${card} .rt-row > .entry-col`,
       `${card} .rt-row > .exit-col`,
@@ -147,7 +184,7 @@ describe.each(TABLES)('Карточка строки: $file', ({ file, card, row
 
   it('второе исключение - только служебные колонки в хвосте карточки', () => {
     const byContent = selectorsWith(mobile, 'flex: 0 0 auto !important');
-    byContent.forEach((s) => expect(s).toMatch(/\.(expand|actions)-col$/));
+    byContent.forEach((s) => expect(s).toMatch(tail));
   });
 
   it('кнопка прохода занимает свою половину строки', () => {
@@ -173,13 +210,16 @@ describe.each(TABLES)('Карточка строки: $file', ({ file, card, row
 /** Кнопка «Подробнее» есть только там, где столбцы прячутся по приоритету. */
 const WITH_CHEVRON = TABLES.filter(({ file }) => file !== 'FactTable.vue');
 
-describe.each(WITH_CHEVRON)('Кнопка «Подробнее» в карточке: $file', ({ file, card }) => {
+describe.each(WITH_CHEVRON)('Кнопка «Подробнее» в карточке: $file', ({ file, card, talon }) => {
   const src = source(file);
   const mobile = mediaBlocks(src, MOBILE).join('\n');
+  // В талоне служебные столбцы уводит в подвал правило на .rt-pass, в карточке-списке -
+  // на .rt-row: маркер талона и отличает один контракт от другого.
+  const rowSelector = talon ? `${card} .rt-pass` : `${card} .rt-row`;
 
   it('«Подробнее» и действия уходят в конец карточки, в этом порядке', () => {
     const order = (col) => {
-      const decls = declarationsFor(mobile, `${card} .rt-row > ${col}`).join('\n');
+      const decls = declarationsFor(mobile, `${rowSelector} > ${col}`).join('\n');
       const match = decls.match(/order:\s*(\d+)\s*!important/);
       return match ? Number(match[1]) : null;
     };
@@ -193,12 +233,136 @@ describe.each(WITH_CHEVRON)('Кнопка «Подробнее» в карточ
     expect(expand).toBeGreaterThan(9999);
     expect(actions).toBeGreaterThan(expand);
   });
+});
 
-  it('тач-таргет шеврона не мёртвый по каскаду', () => {
-    // Базовое `.expand-btn { width: 22px }` стоит НИЖЕ мобильного медиазапроса, и при
-    // равной специфичности побеждает оно: голый `.expand-btn` внутри @media бесполезен.
-    const selectors = selectorsWith(mobile, 'height: 44px');
-    expect(selectors).toContain(`${card} .expand-btn`);
+/** Карточки-списки: шеврон остаётся отдельной кнопкой в 44px. */
+describe.each(WITH_CHEVRON.filter(({ talon }) => !talon))(
+  'Тач-таргет шеврона: $file',
+  ({ file, card }) => {
+    const mobile = mediaBlocks(source(file), MOBILE).join('\n');
+
+    it('не мёртвый по каскаду', () => {
+      // Базовое `.expand-btn { width: 22px }` стоит НИЖЕ мобильного медиазапроса, и при
+      // равной специфичности побеждает оно: голый `.expand-btn` внутри @media бесполезен.
+      const selectors = selectorsWith(mobile, 'height: 44px');
+      expect(selectors).toContain(`${card} .expand-btn`);
+      expect(selectors).not.toContain('.expand-btn');
+    });
+  },
+);
+
+const TALON = TABLES.filter(({ talon }) => talon);
+
+/**
+ * Общая часть талона живёт в responsive-tables.css: линия отрыва, крупный номер,
+ * приглушённая марка и пилюли подвала у обеих таблиц совпадают буква в букву, и
+ * третьей копии этих правил быть не должно. Всё здесь обязано нести `!important` -
+ * глобальный селектор проигрывает scoped-правилу потребителя и по специфичности, и
+ * по порядку загрузки route-чанков.
+ */
+describe('Талон проходной: общая инфраструктура', () => {
+  const css = fs.readFileSync(path.join(SRC, 'assets', 'responsive-tables.css'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  const mobile = mediaBlocks(css, MOBILE).join('\n');
+
+  it('линия отрыва - псевдоэлемент строки, а не узел разметки', () => {
+    const decls = declarationsFor(mobile, '.rt-pass::before').join('\n');
+    // Своя строка: `.rt-row > *` псевдоэлемент не матчит, базис ему нужен собственный.
+    expect(decls).toMatch(/flex:\s*0\s+0\s+100%\s*!important/);
+    // Между кнопками прохода (order 0-1) и полями (от 10).
+    expect(decls).toMatch(/order:\s*5\s*!important/);
+    // Вырезы по краям - радиальные градиенты; без них остаётся просто пунктир.
+    expect(decls.match(/radial-gradient/g)).toHaveLength(2);
+    // Полоса тянется до краёв карточки поверх её padding (14px у .rt-row).
+    expect(decls).toMatch(/margin:[^;]*-14px/);
+  });
+
+  it('поле талона не несёт пунктира сверху', () => {
+    expect(declarationsFor(mobile, '.rt-pass > [data-label]').join('\n'))
+      .toMatch(/border-top:\s*none\s*!important/);
+  });
+
+  it('номер крупный, и правило не убито переменной размера строки', () => {
+    // У потребителей размер строки задан `.items-body .col { font-size: var(--table-font-size) }` -
+    // правило и специфичнее глобального, и стоит ниже. Спасает только `!important`.
+    const decls = declarationsFor(mobile, '.rt-pass > .rt-pass__plate').join('\n');
+    expect(decls).toMatch(/font-size:\s*20px\s*!important/);
+    expect(decls).toMatch(/font-variant-numeric:\s*tabular-nums\s*!important/);
+  });
+
+  it('кнопка подвала - пилюля 28px с зоной нажатия 44px', () => {
+    expect(declarationsFor(mobile, '.rt-pass .rt-pass__act').join('\n'))
+      .toMatch(/height:\s*28px\s*!important/);
+    // Зона нажатия добирается невидимым ::before, иначе три элемента подвала не
+    // помещаются в ширину карточки на 320.
+    expect(declarationsFor(mobile, '.rt-pass .rt-pass__act::before').join('\n'))
+      .toMatch(/inset:\s*-8px\s+-2px\s*!important/);
+  });
+
+  it('пилюля целит в свой класс, а не в кнопку потребителя', () => {
+    // Под именем `.delete-btn` внутри строки живёт ещё и кнопка подменю корзины
+    // (TableRowRemoveMenu) - подписи у неё нет, и она стала бы пустой пилюлей.
+    const selectors = selectorsWith(mobile, 'height: 28px !important');
+    expect(selectors).not.toContain('.delete-btn');
     expect(selectors).not.toContain('.expand-btn');
+  });
+
+  it('подпись кнопки по умолчанию скрыта и включается только в талоне', () => {
+    // Базовое правило - на голом классе (на десктопе подпись не нужна, там служебный
+    // столбец узкий), включение - на потомке .rt-pass, то есть только в карточке.
+    expect(declarationsFor(css, '.rt-pass__act-label').join('\n'))
+      .toMatch(/display:\s*none/);
+    expect(declarationsFor(mobile, '.rt-pass .rt-pass__act-label').join('\n'))
+      .toMatch(/display:\s*inline\s*!important/);
+  });
+});
+
+/**
+ * Раскладка талона у каждой таблицы своя: набор столбцов разный, поэтому подвал и
+ * список полей с подписями остаются в компонентах.
+ */
+describe.each(TALON)('Талон проходной: раскладка $file', ({ file, card, footCols }) => {
+  const src = source(file);
+  const mobile = mediaBlocks(src, MOBILE).join('\n');
+  const ROW = `${card} .rt-pass`;
+
+  it('строка помечена маркером талона, иначе общие правила мимо', () => {
+    expect(src).toMatch(/class="[^"]*\brt-pass\b|'rt-pass':/);
+    expect(src).toMatch(/\brt-pass__plate\b/);
+    expect(src).toMatch(/\brt-pass__mark\b/);
+    expect(src).toMatch(/\brt-pass__act\b/);
+    expect(src).toMatch(/\brt-pass__act-label\b/);
+  });
+
+  it('пунктир между полями не рисуется', () => {
+    const dashed = selectorsWith(mobile, 'border-top: 1px dashed');
+    // Либо правила нет вовсе, либо оно явно исключает строку-талон.
+    dashed.forEach((s) => expect(s).toMatch(/:not\(\.rt-pass\)/));
+  });
+
+  it('подвал: статус слева, действия справа одной строкой', () => {
+    const order = (col) => {
+      const decls = declarationsFor(mobile, `${ROW} > ${col}`).join('\n');
+      return Number(decls.match(/order:\s*(\d+)\s*!important/)?.[1] ?? NaN);
+    };
+    // Разметочные order служебных столбцов соседствуют с order настраиваемых, и без
+    // заведомо больших чисел статус с корзиной разъезжаются по середине карточки.
+    const orders = footCols.map(order);
+    expect(orders[0]).toBe(9999);
+    orders.forEach((value, i) => {
+      if (i > 0) expect(value).toBeGreaterThan(orders[i - 1]);
+    });
+
+    // Базовый `.col { overflow: hidden }` обрезал бы ::before пилюли, и зона нажатия
+    // осталась бы 28px - палец мимо пилюли попадал бы в пустоту.
+    const geometry = footCols
+      .map((c) => declarationsFor(mobile, `${ROW} > ${c}`).join('\n'))
+      .join('\n');
+    expect(geometry).toMatch(/overflow:\s*visible/);
+    expect(geometry).toMatch(/flex:\s*0\s+0\s+auto\s*!important/);
+
+    // Действия прижаты вправо автополем, статус остаётся слева.
+    expect(selectorsWith(mobile, 'margin-left: auto'))
+      .toContain(`${ROW} > .actions-col`);
   });
 });

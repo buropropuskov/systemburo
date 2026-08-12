@@ -333,7 +333,10 @@
               @mousedown="preview ? null : onRowMouseDown($event, item)"
               @mouseenter="preview ? null : dragOver(item.id)"
             >
-              <div class="item-data rt-row">
+              <!-- rt-pass: строка собирается талоном на мобилке (responsive-tables.css,
+                   часть 3). Общая инфраструктура с таблицей «по факту» - обе стоят на
+                   одном экране одна под другой, и разнобой между ними виден целиком. -->
+              <div class="item-data rt-row rt-pass">
                 <!-- Въезд - кнопка -->
                 <div
                   class="col entry-col"
@@ -370,7 +373,7 @@
                 </div>
                 <div
                   v-if="isFieldInDom('car_number')"
-                  class="col number-col"
+                  class="col number-col rt-pass__plate"
                   :class="fieldColClass('car_number')"
                   :style="getColStyle('car_number')"
                   data-label="Номер Т/С"
@@ -379,7 +382,7 @@
                 </div>
                 <div
                   v-if="isFieldInDom('car_brand')"
-                  class="col brand-col"
+                  class="col brand-col rt-pass__mark"
                   :class="fieldColClass('car_brand')"
                   :style="getColStyle('car_brand')"
                   data-label="Марка"
@@ -463,7 +466,7 @@
                 >
                   <button
                     type="button"
-                    class="expand-btn"
+                    class="expand-btn rt-pass__act"
                     :class="{ 'expand-btn--open': expandedRows[item.id] }"
                     :aria-expanded="!!expandedRows[item.id]"
                     :aria-label="expandedRows[item.id] ? 'Скрыть' : 'Подробнее'"
@@ -483,6 +486,9 @@
                         stroke-linejoin="round"
                       />
                     </svg>
+                    <!-- Подпись видна только в талоне: там шеврон стоит в подвале
+                         рядом с «Удалить» и один значок не объясняет, что за ним. -->
+                    <span class="rt-pass__act-label">{{ expandedRows[item.id] ? 'Скрыть' : 'Подробнее' }}</span>
                   </button>
                 </div>
                 <div
@@ -504,15 +510,16 @@
                   />
                   <button
                     v-else
-                    class="delete-btn"
+                    class="delete-btn rt-pass__act rt-pass__act--danger"
                     :disabled="preview || isLoading"
                     @click="preview ? null : removeItemWithNotification(item)"
                   >
                     <img
                       src="@/assets/icons/trashcan.png"
                       alt="Удалить"
-                      class="delete-icon"
+                      class="delete-icon rt-pass__act-icon"
                     >
+                    <span class="rt-pass__act-label">Удалить</span>
                   </button>
                 </div>
               </div>
@@ -2541,10 +2548,12 @@ export default {
     display: none;
   }
 
-  /* #1097 S9. Карточка по образцу заявки (ApplicationAttachmentDetail.vue): подписи
-     полей убраны, значения выровнены влево, разделитель рисуется сверху.
+  /* #1097 S9, переработано в волне 5 по мокапу docs/mockups/mobile-ux.html (экран
+     «Проходная»): строка машины на телефоне - отрывной талон. Сверху пара кнопок
+     прохода, под ними линия отрыва, дальше номер крупно и данные, внизу статус и
+     действия.
 
-     Кнопки прохода при этом стояли двумя отдельными строками, и слева от каждой висела
+     Кнопки прохода до S9 стояли двумя отдельными строками, и слева от каждой висела
      дублирующая подпись - "Въезд" подписью и "Въезд" кнопкой в одной строке. Поэтому
      карточка переведена из колонки в строку с переносом, а перенос во флексе держит
      БАЗИС, а не ширина.
@@ -2573,27 +2582,26 @@ export default {
     min-width: 0 !important;
   }
 
-  /* Разделитель полей рисуем сверху у ячеек 2..N, а не снизу: последней в строке идёт
-     колонка действий без data-label, глобальное `[data-label]:last-child` до неё не
-     достаёт, и пунктир висел бы оторванной чертой над нижним краем карточки. */
+  /* Значения влево. Геометрия строки поля и отсутствие пунктира между полями -
+     общие для талона и живут в responsive-tables.css (часть 3). */
   .selected-table-card .rt-row > [data-label] {
     justify-content: flex-start !important;
     text-align: left !important;
     border-bottom: none !important;
   }
 
-  .selected-table-card .rt-row > [data-label] ~ [data-label] {
-    border-top: 1px dashed color-mix(in srgb, var(--border) 60%, var(--surface));
-  }
-
   /* Ячейки прохода делят верхнюю строку пополам - единственные, кто выходит из
-     «своя строка каждому». Пунктир им не нужен: между кнопками одного ряда он лёг бы
-     вертикальной чертой посреди строки, а поле под ними свой верхний пунктир
-     сохраняет - он и отделяет ряд действий от данных. */
+     «своя строка каждому». Это шапка талона: то, ради чего экран открывают.
+
+     Базис ровно половина, а не 0 с ростом: перенос строк во flex считается по
+     базисам ДО распределения свободного места, поэтому при нулевом базисе в первую
+     строку набиралась ещё и следующая ячейка (её базис 100% как раз укладывался в
+     остаток), свободного места не оставалось, и обе кнопки схлопывались в 6px друг
+     на друга. С половиной третья ячейка в строку не входит и уезжает вниз. */
   .selected-table-card .rt-row > .entry-col,
   .selected-table-card .rt-row > .exit-col {
     width: auto !important;
-    flex: 1 1 0 !important;
+    flex: 0 0 calc(50% - 4px) !important;
     padding: 5px 0 !important;
     border-top: none !important;
   }
@@ -2604,27 +2612,49 @@ export default {
     min-width: 0;
   }
 
-  /* «Подробнее» и корзина - двумя последними строками карточки, в этом порядке.
-     Порядок задаём обоим служебным столбцам, а не правим один: их разметочные `order`
-     (9998 и 9999) соседствуют с порядком настраиваемых столбцов, и в таблице людей
-     шеврон с 9997 оказывался ПЕРЕД статусом (9998), то есть посреди карточки. Пара
-     заведомо больших чисел уводит оба в конец независимо от настроек столбцов. */
-  .selected-table-card .rt-row > .expand-col {
+  /* Подвал талона: статус слева, «Подробнее» и «Удалить» справа - одной строкой.
+     Порядок задаём всем трём заведомо большими числами, а не правим один столбец:
+     разметочные `order` служебных (9998 и 9999) соседствуют с порядком настраиваемых
+     столбцов, и в таблице людей шеврон с 9997 оказывался ПЕРЕД статусом, то есть
+     посреди карточки. */
+  .selected-table-card .rt-pass > .status-col {
+    order: 9999 !important;
+  }
+
+  .selected-table-card .rt-pass > .expand-col {
     order: 10000 !important;
   }
 
-  .selected-table-card .rt-row > .actions-col {
+  .selected-table-card .rt-pass > .actions-col {
     order: 10001 !important;
   }
 
-  /* И делят её между собой: своя строка каждой отдавала 88px карточки под две
-     44-пиксельные кнопки, причём шеврон висел один посреди пустой полосы. Ширина по
-     содержимому - второе и последнее исключение из «своя строка каждому». */
-  .selected-table-card .rt-row > .expand-col,
-  .selected-table-card .rt-row > .actions-col {
+  /* Ширина по содержимому - единственное исключение из «своя строка каждому» помимо
+     кнопок прохода: своя строка каждой отдавала бы три полосы карточки под бейдж и
+     две кнопки.
+
+     `overflow: visible` обязателен: базовый `.col { overflow: hidden }` обрезает
+     невидимый ::before, которым кнопки подвала добирают зону нажатия до 44px, - палец
+     мимо пилюли попадал бы в пустоту. */
+  .selected-table-card .rt-pass > .status-col,
+  .selected-table-card .rt-pass > .expand-col,
+  .selected-table-card .rt-pass > .actions-col {
     flex: 0 0 auto !important;
     width: auto !important;
-    padding-top: 8px;
+    overflow: visible;
+    padding: 10px 0 0;
+  }
+
+  /* Действия прижаты вправо, статус остаётся слева. Автополе у обеих кнопок, и оно
+     гасится у «Удалить», когда перед ним стоит «Подробнее»: два автополя подряд
+     делят свободное место между собой и растаскивают кнопки по краям. */
+  .selected-table-card .rt-pass > .expand-col,
+  .selected-table-card .rt-pass > .actions-col {
+    margin-left: auto;
+  }
+
+  .selected-table-card .rt-pass > .expand-col ~ .actions-col {
+    margin-left: 0;
   }
 
   .selected-table-card .rt-row > [data-label]::before {
@@ -2644,26 +2674,23 @@ export default {
     display: block !important;
   }
 
-  /* Тач-таргет >=44px (WCAG) для кнопок Въезд/Выезд/удаления/раскрытия. */
+  /* Кнопки прохода - главное действие экрана: 44px и крупная подпись. */
   .action-btn {
     min-width: 70px;
     height: 44px;
-    font-size: 13px;
+    font-size: 15px;
+    font-weight: 700;
   }
 
-  .delete-btn {
-    width: 44px;
-    height: 44px;
+  /* Шеврон в пилюле «Подробнее» показывает раскрытие поворотом - саму пилюлю при
+     этом не вертим, её `transform: none` приходит из rt-pass. Правило своё, а не
+     общее: «Подробнее» есть только здесь, у таблицы «по факту» такой кнопки нет. */
+  .selected-table-card .rt-pass > .expand-col .expand-btn svg {
+    transition: transform 0.2s ease;
   }
 
-  /* #1097 S9. Селектор с карточкой обязателен, а не просто `.expand-btn`: базовое
-     правило `.expand-btn { width: 22px; height: 22px }` стоит НИЖЕ этого медиазапроса,
-     специфичность у них равная (медиазапрос её не поднимает), и побеждало позднее -
-     тач-таргет 44px был мёртвым, шеврон оставался 22px на любой мобилке. Упростишь
-     селектор обратно - правило снова перестанет применяться, молча. */
-  .selected-table-card .expand-btn {
-    width: 44px;
-    height: 44px;
+  .selected-table-card .rt-pass > .expand-col .expand-btn--open svg {
+    transform: rotate(180deg);
   }
 }
 
