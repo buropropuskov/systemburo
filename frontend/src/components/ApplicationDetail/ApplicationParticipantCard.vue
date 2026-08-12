@@ -57,6 +57,16 @@
             >
               {{ role }}
             </Badge>
+            <!-- Обязательность голоса - той же подписью, что в блоке
+                 «Ответственные за согласование» карточки заявки. -->
+            <Badge
+              v-if="participant.required_approval"
+              variant="primary"
+              size="sm"
+              data-testid="app-participant-card-required"
+            >
+              Обязательно
+            </Badge>
             <Badge
               v-if="participant.approval_status"
               :variant="voteVariant(participant.approval_status)"

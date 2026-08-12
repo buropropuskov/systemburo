@@ -16,25 +16,29 @@ import (
 //
 // Осторожно с парой acceptor/approver - в этом проекте она перепутана исторически.
 // Принимающий (взял заявку в работу, applications.responsible_user_id, справочник
-// application_approvers) - это acceptor. Согласующий (голосует за заявку,
-// application_responsible_users.required_approval = true) - approver.
+// application_approvers) - это acceptor. Согласующий (голосует за заявку, строка в
+// application_responsible_users) - approver.
+//
+// Обязательность голоса - НЕ отдельная роль, а признак required_approval. Карточка
+// заявки давно называет всю эту таблицу «ответственными за согласование» и метит
+// обязательных отдельной подписью; отдельная роль для необязательного разводила бы
+// два интерфейса об одних и тех же людях (человек видел в справочнике организации
+// двух согласующих, а в списке участников - «согласующего» и «ответственного»).
 const (
-	ParticipantRoleSender      = "sender"
-	ParticipantRoleAcceptor    = "acceptor"
-	ParticipantRoleApprover    = "approver"
-	ParticipantRoleResponsible = "responsible"
-	ParticipantRoleReader      = "reader"
+	ParticipantRoleSender   = "sender"
+	ParticipantRoleAcceptor = "acceptor"
+	ParticipantRoleApprover = "approver"
+	ParticipantRoleReader   = "reader"
 )
 
 // participantRoleRank - старшинство ролей: от того, кто заявку породил, к тому, кто
 // её только читает. Задаёт и порядок списка, и выбор primary_role у человека сразу в
 // нескольких ролях.
 var participantRoleRank = map[string]int{
-	ParticipantRoleSender:      0,
-	ParticipantRoleAcceptor:    1,
-	ParticipantRoleApprover:    2,
-	ParticipantRoleResponsible: 3,
-	ParticipantRoleReader:      4,
+	ParticipantRoleSender:   0,
+	ParticipantRoleAcceptor: 1,
+	ParticipantRoleApprover: 2,
+	ParticipantRoleReader:   3,
 }
 
 // ApplicationParticipant - участник заявки с ролями и контактами.
@@ -63,9 +67,13 @@ type ApplicationParticipant struct {
 	// Roles - все роли человека в этой заявке, PrimaryRole - старшая из них.
 	Roles       []string `json:"roles"`
 	PrimaryRole string   `json:"primary_role"`
-	// Состояние голоса - только у согласующего (approver). У ответственного строка
-	// в application_responsible_users та же, но голосовать он не может, и её
-	// дефолтный pending читался бы как «не ответил», хотя его никто не спрашивал.
+	// RequiredApproval - голос этого согласующего обязателен для исхода заявки.
+	// Карточка заявки метит таких подписью «Обязательно», список участников - тоже.
+	RequiredApproval bool `json:"required_approval"`
+	// Состояние голоса согласующего - и обязательного, и остальных: голосуют все, у
+	// кого есть строка в application_responsible_users, просто необязательный голос
+	// на исход не влияет. Прятать его у необязательного значило бы показывать в
+	// списке участников не то, что показывает карточка заявки.
 	ApprovalStatus   *string    `json:"approval_status"`
 	ApprovalComment  *string    `json:"approval_comment"`
 	ApprovalDatetime *time.Time `json:"approval_datetime"`
@@ -79,6 +87,7 @@ type ApplicationParticipant struct {
 type participantRow struct {
 	UserID           int        `gorm:"column:user_id"`
 	Role             string     `gorm:"column:role"`
+	RequiredApproval bool       `gorm:"column:required_approval"`
 	ApprovalStatus   *string    `gorm:"column:approval_status"`
 	ApprovalComment  *string    `gorm:"column:approval_comment"`
 	ApprovalDatetime *time.Time `gorm:"column:approval_datetime"`
@@ -106,29 +115,31 @@ type participantRow struct {
 const participantsQuery = `
 WITH participants AS (
 	SELECT a.sender_user_id AS user_id, 'sender'::text AS role,
+	       false AS required_approval,
 	       NULL::text AS approval_status,
 	       NULL::text AS approval_comment,
 	       NULL::timestamptz AS approval_datetime
 	FROM applications a
 	WHERE a.id = ?
 	UNION ALL
-	SELECT a.responsible_user_id, 'acceptor'::text, NULL::text, NULL::text, NULL::timestamptz
+	SELECT a.responsible_user_id, 'acceptor'::text, false, NULL::text, NULL::text, NULL::timestamptz
 	FROM applications a
 	WHERE a.id = ? AND a.responsible_user_id IS NOT NULL
 	UNION ALL
-	SELECT aru.user_id,
-	       CASE WHEN aru.required_approval THEN 'approver'::text ELSE 'responsible'::text END,
+	SELECT aru.user_id, 'approver'::text,
+	       COALESCE(aru.required_approval, false),
 	       aru.approval_status::text, aru.approval_comment::text, aru.approval_datetime
 	FROM application_responsible_users aru
 	WHERE aru.application_id = ?
 	UNION ALL
-	SELECT av.user_id, 'reader'::text, NULL::text, NULL::text, NULL::timestamptz
+	SELECT av.user_id, 'reader'::text, false, NULL::text, NULL::text, NULL::timestamptz
 	FROM application_viewers av
 	WHERE av.application_id = ?
 )
 SELECT
 	p.user_id,
 	p.role,
+	p.required_approval,
 	p.approval_status,
 	p.approval_comment,
 	p.approval_datetime,
@@ -206,6 +217,7 @@ func mergeParticipantRows(rows []participantRow) []ApplicationParticipant {
 		p := &result[pos]
 		p.Roles = append(p.Roles, r.Role)
 		if r.Role == ParticipantRoleApprover {
+			p.RequiredApproval = r.RequiredApproval
 			p.ApprovalStatus = r.ApprovalStatus
 			p.ApprovalComment = r.ApprovalComment
 			p.ApprovalDatetime = r.ApprovalDatetime

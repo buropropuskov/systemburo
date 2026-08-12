@@ -67,10 +67,19 @@ func buildPermissionsResponse(set services.PermissionSet) models.MyPermissionsRe
 			Source: set.Source(k),
 		})
 	}
+	denied := set.Denies()
+	if set.Mode() == "admin" {
+		// PermissionSet.Has режет super-only ключи для всех, кроме супер-админа,
+		// но Denies() отдаёт только личные deny-override (#1997) - фронтовый стор
+		// в admin-режиме считает ключ выданным, если его нет в denied, поэтому
+		// без явного добавления интерфейс показывал бы доступным то, что сервер
+		// на сохранении отклонит.
+		denied = append(append([]string{}, denied...), services.SuperOnlyKeys()...)
+	}
 	return models.MyPermissionsResponse{
 		Mode:        set.Mode(),
 		Permissions: perms,
-		Denied:      set.Denies(),
+		Denied:      denied,
 		Banned:      set.IsBanned(),
 		BanReason:   set.BanReason(),
 	}

@@ -12,7 +12,6 @@ describe('utils/participantRoles', () => {
     expect(participantRoleLabel('sender')).toBe('Отправитель')
     expect(participantRoleLabel('acceptor')).toBe('Принимающий')
     expect(participantRoleLabel('approver')).toBe('Согласующий')
-    expect(participantRoleLabel('responsible')).toBe('Ответственный')
     expect(participantRoleLabel('reader')).toBe('Читатель')
   })
 
@@ -23,7 +22,7 @@ describe('utils/participantRoles', () => {
 
   it('роль не красится цветами голоса - они заняты бейджем решения рядом', () => {
     const voteColors = ['success', 'danger', 'warning']
-    for (const role of ['sender', 'acceptor', 'approver', 'responsible', 'reader']) {
+    for (const role of ['sender', 'acceptor', 'approver', 'reader']) {
       expect(voteColors).not.toContain(participantRoleVariant(role))
     }
   })
