@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -191,6 +192,38 @@ func TestManualAddKeysInCatalog(t *testing.T) {
 		if IsSuperOnly(key) {
 			t.Errorf("ключ %q не должен быть super-only (super/admin проходят через allowAll)", key)
 		}
+	}
+}
+
+// TestPageAdminNotUmbrellaName фиксирует #1998: после переезда справочников
+// (#1982) page.admin больше не открывает раздел администрирования целиком --
+// за ним остались два пункта меню («Руководство», «Обработка данных») и
+// россыпь действий по системе. Название "Администрирование" (как у самой
+// категории CatAdmin) вводило раздающего права в заблуждение: по нему решишь,
+// что выдаёшь весь раздел, а получишь два пункта меню. Замок стережёт, что
+// название переименовано и объяснено, а не просто выдаёт пустое описание.
+func TestPageAdminNotUmbrellaName(t *testing.T) {
+	t.Parallel()
+	meta, ok := CatalogMeta(KeyPageAdmin)
+	if !ok {
+		t.Fatal("page.admin должен быть в каталоге")
+	}
+	if meta.DisplayName == "Администрирование" || meta.DisplayName == CatAdmin {
+		t.Errorf("page.admin: название %q совпадает со старым зонтичным именем раздела администрирования", meta.DisplayName)
+	}
+	if meta.Description == "" {
+		t.Error("page.admin: нужно описание -- название короткое и само по себе не объясняет узкий состав права")
+	}
+	if !strings.Contains(meta.Description, "Руководство") || !strings.Contains(meta.Description, "Обработка данных") {
+		t.Errorf("page.admin: описание должно называть оба пункта меню, которые оно открывает: %q", meta.Description)
+	}
+	if !strings.Contains(meta.Description, KeyPageAdminDirectories) {
+		t.Errorf("page.admin: описание должно явно отделять его от справочников (%s), иначе путаница вернётся", KeyPageAdminDirectories)
+	}
+	// Ключ и его категория (навигация) не меняются -- дробление отклонено
+	// владельцем, чтобы сохранить обратную совместимость с уже выданными правами.
+	if meta.Category != CatNavigation {
+		t.Errorf("page.admin: категория изменилась на %q, ожидалась %q (правка #1998 - только текст)", meta.Category, CatNavigation)
 	}
 }
 
