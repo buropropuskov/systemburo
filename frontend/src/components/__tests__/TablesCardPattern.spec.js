@@ -156,7 +156,12 @@ describe.each(TABLES)('Карточка строки: $file', ({ file, card, row
   it('ячейки прохода делят строку и не несут пунктира', () => {
     for (const col of ['.entry-col', '.exit-col']) {
       const decls = declarationsFor(mobile, `${card} .rt-row > ${col}`).join('\n');
-      expect(decls).toMatch(/flex:\s*1\s+1\s+0\s*!important/);
+      // Базис ровно половина строки. Нулевой базис с ростом (`flex: 1 1 0`) здесь
+      // не годится и однажды уже сломал талон: перенос во flex считается по базисам
+      // ДО распределения свободного места, поэтому в первую строку набиралась ещё и
+      // следующая ячейка, а обе кнопки схлопывались в 6px друг на друга.
+      expect(decls).toMatch(/flex:\s*0\s+0\s+calc\(50%[^)]*\)\s*!important/);
+      expect(decls).not.toMatch(/flex:\s*\d+\s+\d+\s+0(px)?\s*!important/);
       expect(decls).toMatch(/border-top:\s*none\s*!important/);
     }
   });
@@ -170,7 +175,7 @@ describe.each(TABLES)('Карточка строки: $file', ({ file, card, row
   });
 
   it('из «своя строка каждому» выходят только ячейки прохода', () => {
-    const exceptions = selectorsWith(mobile, 'flex: 1 1 0 !important');
+    const exceptions = selectorsWith(mobile, 'flex: 0 0 calc(50% - 4px) !important');
     expect(exceptions.sort()).toEqual([
       `${card} .rt-row > .entry-col`,
       `${card} .rt-row > .exit-col`,

@@ -2526,7 +2526,11 @@ export default {
   .selected-table-card .rt-row > .entry-col,
   .selected-table-card .rt-row > .exit-col {
     width: auto !important;
-    flex: 1 1 0 !important;
+    /* Базис ровно половина, а не 0 с ростом: перенос во flex считается по базисам ДО
+       распределения свободного места, и при нулевом базисе в первую строку набирается
+       ещё и следующая ячейка - кнопки схлопываются друг на друга. На проходной это
+       уже случилось, здесь держим тот же явный базис. */
+    flex: 0 0 calc(50% - 4px) !important;
     padding: 5px 0 !important;
     border-top: none !important;
   }
