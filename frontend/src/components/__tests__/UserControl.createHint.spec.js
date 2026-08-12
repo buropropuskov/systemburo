@@ -61,7 +61,7 @@ describe('UserControl — подсказка на кнопке «Создать�
     await flushPromises()
 
     expect(wrapper.vm.createUserHint).toBe(
-      'Заполните: логин, пароль, организацию или компанию, тип пользователя'
+      'Заполните: логин, пароль или адрес почты, организацию или компанию, тип пользователя'
     )
   })
 
@@ -73,7 +73,7 @@ describe('UserControl — подсказка на кнопке «Создать�
     wrapper.vm.newUser.organization_id = 1
     await nextTick()
 
-    expect(wrapper.vm.createUserHint).toBe('Заполните: пароль, тип пользователя')
+    expect(wrapper.vm.createUserHint).toBe('Заполните: пароль или адрес почты, тип пользователя')
   })
 
   it('пароль не по политике объясняется отдельной причиной', async () => {

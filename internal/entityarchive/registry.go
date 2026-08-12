@@ -22,6 +22,17 @@ import "fmt"
 //     (attachments.organization_id), а не на машину;
 //   - system_tables (посты) и unload_places организации НЕ принадлежат - они общие;
 //     с организацией уходят лишь их join-строки (organization_tables/unload_places).
+//
+// Рукописная карта защищает export/verify/покрытие (что БУДЕТ выгружено и сверено), но
+// сама по себе не защищает от DELETE: Postgres исполняет ON DELETE CASCADE независимо от
+// того, что думает об этом Go-код. Ревью среза purge (12.08) прогнало ПОЛНЫЙ обход
+// information_schema от каждого узла графа и нашло 14 таблиц с каскадом от users.id,
+// application_questions.id и application_supplements.id, которых в карте не было -
+// DELETE FROM users сносил их молча, мимо Collect/экспорта/сверки покрытия/audit_log.
+// Все 14 заведены явными узлами ниже, каждая с однострочной причиной. Гарантия держится
+// тестом TestOrganizationGraph_NoUnaccountedCascades (internal/handlers/entity_graph_test.go) -
+// он живьём обходит information_schema от каждого узла графа и падает на первом каскаде
+// без узла и без записи в cascadeExemptions.
 
 // TypeOrganization - единственный поддерживаемый в v1 тип цели.
 const TypeOrganization = "organization"
@@ -42,6 +53,15 @@ const (
 	orgAtts = "SELECT id FROM attachments WHERE organization_id = @org OR application_id IN (" + orgApps + ")"
 	orgCars = "SELECT id FROM cars WHERE attachment_id IN (" + orgAtts + ")"
 	orgEmps = "SELECT id FROM employees WHERE attachment_id IN (" + orgAtts + ")"
+	// orgUsers - пользователи организации. Опора для личных данных пользователя (найдены
+	// каскадом от users.id при аудите 12.08 - см. комментарий пакета выше): их предикат
+	// идёт по user_id, а не по organization_id, потому что своей колонки org у них нет.
+	orgUsers = "SELECT id FROM users WHERE organization_id = @org"
+	// orgQuestions/orgSupplements - опора для находок того же аудита, повисших на
+	// поддереве заявки, а не на пользователе: прочтения вопросов и голоса по раунду
+	// дополнения принадлежат вопросу/раунду, а не тому, кто читал или голосовал.
+	orgQuestions   = "SELECT id FROM application_questions WHERE application_id IN (" + orgApps + ")"
+	orgSupplements = "SELECT id FROM application_supplements WHERE application_id IN (" + orgApps + ")"
 )
 
 // organizationNodes - граф организации в порядке «дети раньше родителей» (тот же
@@ -69,11 +89,20 @@ func organizationNodes() []Node {
 		{"unique_employees", "organization_id = @org"},
 		// Поддерево заявки - по application_id.
 		{"application_answers", "application_id IN (" + orgApps + ")"},
+		// application_question_reads - каскад от application_questions.id (найден
+		// аудитом 12.08): кто прочитал вопрос, значения не имеет, прочтение
+		// принадлежит вопросу - тот же принцип, что у application_answers строкой выше.
+		// Обязан идти РАНЬШЕ application_questions (её ребёнок).
+		{"application_question_reads", "question_id IN (" + orgQuestions + ")"},
 		{"application_question_views", "application_id IN (" + orgApps + ")"},
 		{"application_questions", "application_id IN (" + orgApps + ")"},
 		{"forward_attachments", "application_id IN (" + orgApps + ")"},
 		{"application_blacklist_overrides", "application_id IN (" + orgApps + ")"},
 		{"application_blacklist_flags", "application_id IN (" + orgApps + ")"},
+		// application_supplement_approvals - каскад от application_supplements.id
+		// (тот же аудит): голос согласующего принадлежит раунду дополнения, обязан
+		// идти РАНЬШЕ application_supplements.
+		{"application_supplement_approvals", "supplement_id IN (" + orgSupplements + ")"},
 		{"application_supplements", "application_id IN (" + orgApps + ")"},
 		{"application_files", "application_id IN (" + orgApps + ")"},
 		{"application_status_views", "application_id IN (" + orgApps + ")"},
@@ -82,6 +111,55 @@ func organizationNodes() []Node {
 		{"application_responsible_users", "application_id IN (" + orgApps + ")"},
 		{"application_status_history", "application_id IN (" + orgApps + ")"},
 		{"applications", "organization_id = @org"},
+		// Личные данные пользователей организации - остальные 12 находок того же
+		// аудита 12.08, все каскад от users.id. Обязаны идти РАНЬШЕ users (её дети).
+		// Однострочная причина у каждой - что это и почему уходит с пользователем:
+		{"notifications", "user_id IN (" + orgUsers + ")"},                 // личная лента уведомлений
+		{"user_onboarding_progress", "user_id IN (" + orgUsers + ")"},      // прогресс обучающих туров
+		{"user_notification_preferences", "user_id IN (" + orgUsers + ")"}, // персональные отклонения от каталога уведомлений
+		// user_groups/user_permission_overrides - членство и переопределения ПРАВ
+		// самого пользователя (не общих ролей/групп - те справочник, остаются).
+		{"user_groups", "user_id IN (" + orgUsers + ")"},
+		{"user_permission_overrides", "user_id IN (" + orgUsers + ")"},
+		// report_templates - шаблоны отчётов, СОЗДАННЫЕ пользователем (owner_user_id).
+		// Личные уходят вместе с автором штатным каскадом по предикату ниже. Общие
+		// (is_shared) при -apply purge отвязывает от владельца ДО того, как дойти до
+		// этого узла (detachSharedReportTemplates в purge.go) - тот же предикат
+		// перестаёт их видеть, и они переживают снос вместо того, чтобы пропасть у
+		// чужих пользователей, которые ими пользуются. На Collect и экспорт (они не
+		// удаляют и не отвязывают ничего) это не влияет - до -apply отвязки ещё не
+		// было, и оба видят общие шаблоны как есть, тем же узлом и тем же предикатом.
+		{"report_templates", "owner_user_id IN (" + orgUsers + ")"},
+		{"security_user_tables", "user_id IN (" + orgUsers + ")"},        // привязка охранника к постам (сами посты - справочник)
+		{"security_user_unload_places", "user_id IN (" + orgUsers + ")"}, // привязка охранника к местам разгрузки (справочник)
+		// application_approvers - пересмотр решения среза 1 ("глобальный реестр
+		// принимающих, в граф не входит"): решение было верным для export/verify
+		// (принимающий физически не привязан к организации ни одной колонкой), но FK
+		// на users.id каскадный - когда purge удаляет пользователя, Postgres сносит
+		// его запись принимающего независимо от того, есть ли для неё узел. Раз снос
+		// неизбежен, он обязан быть учтён (счётчик, экспорт, audit_log), а не невидим.
+		{"application_approvers", "user_id IN (" + orgUsers + ")"},
+		{"feedback", "user_id IN (" + orgUsers + ")"}, // обращения пользователя в поддержку
+		// pd_consents - согласия на обработку ПДн. Отдельный ретеншн (доказательство
+		// согласия) FK не остановит: он каскадный и физически снесёт строку при
+		// удалении пользователя ЛЮБЫМ путём, не только purge. Не заводить узел означало
+		// бы потерять эти записи БЕЗ копии в пакете - хуже, чем завести: пакет как раз
+		// и есть механизм сохранить копию перед необратимым удалением. Если нужен
+		// отдельный более долгий срок хранения именно доказательства согласия - это
+		// организационная процедура поверх пакета, вне этого среза.
+		{"pd_consents", "user_id IN (" + orgUsers + ")"},
+		{"push_subscriptions", "user_id IN (" + orgUsers + ")"}, // подписки на веб-push
+		// used_passwords - хеши прежних паролей пользователя, запрет их повторного
+		// использования (#1972). В пакете уже лежит users.password - хеш ДЕЙСТВУЮЩЕГО
+		// пароля, и хеши прежних той же природы и той же чувствительности, отдельной
+		// категории риска не создают. А вот их ОТСУТСТВИЕ в пакете было бы дырой: после
+		// разворота на другом стенде запрет повторного использования начал бы работать с
+		// чистого листа, и человек смог бы вернуть пароль, который система обязана была
+		// помнить как использованный. Найдена ПЯТНАДЦАТОЙ тем же тестом
+		// (TestOrganizationGraph_NoUnaccountedCascades), что нашёл 14 таблиц выше при
+		// аудите 12.08, только позже и отдельно от него - таблица появилась следующим
+		// мержем (#1972) уже после того аудита, узла для неё не завели.
+		{"used_passwords", "user_id IN (" + orgUsers + ")"},
 		// Прямые связки и корень. unload_places/system_tables общие - уходят только
 		// их join-строки, сами таблицы не собираются.
 		{"organization_unload_places", "organization_id = @org"},
@@ -135,4 +213,20 @@ func allowedNodeTables(entityType string) (map[string]bool, error) {
 func CheckSupportedType(entityType string) error {
 	_, err := allowedNodeTables(entityType)
 	return err
+}
+
+// GraphTables - имена таблиц графа entityType. Экспортируется ради внешних DB-backed
+// замков (TestOrganizationGraph_NoUnaccountedCascades, internal/handlers/entity_graph_test.go):
+// такому тесту нужна карта графа, а organizationNodes/allowedNodeTables неэкспортированы -
+// заводить для одного теста дублирующую карту было бы худшим вариантом, чем узкий геттер.
+func GraphTables(entityType string) ([]string, error) {
+	allowed, err := allowedNodeTables(entityType)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(allowed))
+	for t := range allowed {
+		out = append(out, t)
+	}
+	return out, nil
 }

@@ -1645,7 +1645,6 @@ definitions:
         minLength: 3
         type: string
     required:
-    - password
     - username
     type: object
   models.ReorderDocumentGroupsRequest:

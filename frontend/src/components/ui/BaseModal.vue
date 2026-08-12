@@ -69,6 +69,7 @@
 import { ref } from 'vue';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import { setModalOpen, releaseModal, isTopModal } from '@/utils/modalStack';
 
 export default {
   name: 'BaseModal',
@@ -159,12 +160,17 @@ export default {
     };
   },
   watch: {
-    show(val) {
-      // Через общий замок: окна живут стопкой, и прямое присвоение снимало блокировку,
-      // поставленную окном-родителем (закрыли вложенное - фон поехал под открытым).
-      setBodyScrollLock(this, val);
-      // Переоткрытие: сбросить застрявший после свайп-закрытия offset/closing (лист снизу).
-      if (val) this.resetSwipe();
+    show: {
+      immediate: true,
+      handler(val) {
+        // Через общий замок: окна живут стопкой, и прямое присвоение снимало блокировку,
+        // поставленную окном-родителем (закрыли вложенное - фон поехал под открытым).
+        setBodyScrollLock(this, val);
+        // Та же стопка отвечает на вопрос «кто сверху» для Escape.
+        setModalOpen(this, val, Number(this.zIndex) || 0);
+        // Переоткрытие: сбросить застрявший после свайп-закрытия offset/closing (лист снизу).
+        if (val) this.resetSwipe();
+      },
     },
   },
   mounted() {
@@ -173,6 +179,7 @@ export default {
   beforeUnmount() {
     document.removeEventListener('keydown', this.handleKeydown);
     releaseBodyScrollLock(this);
+    releaseModal(this);
   },
   methods: {
     handleOverlayMousedown(e) {
@@ -190,6 +197,9 @@ export default {
     handleKeydown(e) {
       if (!this.show) return;
       if (e.key === 'Escape' && this.closable) {
+        // Только верхнее окно стопки: обработчик висит у каждого окна, и без этой
+        // проверки один Escape закрывал разом и карточку, и список под ней.
+        if (!isTopModal(this)) return;
         this.$emit('close');
       }
       if (e.key === 'Tab') {
