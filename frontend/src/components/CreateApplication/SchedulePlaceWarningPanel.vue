@@ -8,7 +8,7 @@
  * состав) показывается снова. Живо реагирует на быструю смену мест и времени -
  * данные приходят готовым реактивным `groups` из формы.
  */
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { useUiStore } from '@/stores/ui';
 
@@ -49,6 +49,12 @@ const collapsed = ref(true);
 const expanded = computed(() => !isNarrow.value || !collapsed.value);
 
 function toggleCollapsed() {
+  // Хвостовой click после реального жеста не должен разворачивать плашку: порядок
+  // pointerup -> click браузер даёт всегда, поэтому гасим одноразовым флагом.
+  if (suppressClick) {
+    suppressClick = false;
+    return;
+  }
   if (isNarrow.value) collapsed.value = !collapsed.value;
 }
 
@@ -61,8 +67,146 @@ const signature = computed(() =>
 
 // Новый состав предупреждений возвращает панель, даже если её скрыли раньше.
 watch(signature, (next, prev) => {
-  if (next && next !== prev) dismissed.value = false;
+  if (next && next !== prev) {
+    dismissed.value = false;
+    slidingOut.value = false;
+    dragX.value = 0;
+  }
 });
+
+/* --- Смахивание вправо ------------------------------------------------------
+ * Подсказка про режим работы места нужна один раз, и убирать её крестиком в
+ * 26px на телефоне неудобно. Порог 90px и мёртвая зона 8px взяты те же, что у
+ * свайпа-вниз модальных листов (`useSwipeDismiss`): жест по ощущению один и тот
+ * же, отличается осью. Крестик остаётся - он единственный путь для мыши в теле
+ * панели и для тех, кому жест недоступен.
+ */
+const SWIPE_THRESHOLD = 90;
+const SWIPE_SLOP = 8;
+const SLIDE_OUT_MS = 220;
+/** Запас на leave-анимацию: инлайн-transform держим, пока панель не размонтируется. */
+const LEAVE_MS = 320;
+
+const dragX = ref(0);
+const dragging = ref(false);
+const slidingOut = ref(false);
+
+let startX = 0;
+let startY = 0;
+let tracking = false;
+let engaged = false;
+let suppressClick = false;
+let outTimer = null;
+let resetTimer = null;
+
+const panelStyle = computed(() => {
+  const style = { zIndex: props.zIndex };
+  if (slidingOut.value) {
+    style.transform = 'translateX(115%)';
+    style.opacity = 0;
+  } else if (dragX.value > 0) {
+    style.transform = `translateX(${dragX.value}px)`;
+  }
+  return style;
+});
+
+function reducedMotion() {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+}
+
+function cancelSwipe() {
+  tracking = false;
+  engaged = false;
+  dragging.value = false;
+  dragX.value = 0;
+}
+
+function clearTimers() {
+  if (outTimer) { clearTimeout(outTimer); outTimer = null; }
+  if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
+}
+
+/** Доводим плашку за правый край и только потом снимаем - иначе она мигает на месте. */
+function slideOut() {
+  tracking = false;
+  engaged = false;
+  dragging.value = false;
+  suppressClick = true;
+  dragX.value = 0;
+
+  if (reducedMotion()) {
+    dismissed.value = true;
+    return;
+  }
+
+  slidingOut.value = true;
+  outTimer = setTimeout(() => {
+    outTimer = null;
+    dismissed.value = true;
+    // Инлайн-transform снимаем уже после leave: класс leave-to задаёт свой
+    // translateY, и сброс раньше времени дал бы второй, обратный слайд.
+    resetTimer = setTimeout(() => {
+      resetTimer = null;
+      slidingOut.value = false;
+    }, LEAVE_MS);
+  }, SLIDE_OUT_MS);
+}
+
+function onPointerDown(e) {
+  suppressClick = false;
+  if (slidingOut.value) return;
+  if (e.isPrimary === false) return;
+  // Мышью панель тянется только за шапку: в теле горизонтальное движение мыши -
+  // это выделение текста предупреждения, перехватывать его нельзя. Пальцем
+  // тянется вся плашка.
+  if (e.pointerType === 'mouse' && !e.target?.closest?.('.warn-panel__head')) return;
+  startX = e.clientX;
+  startY = e.clientY;
+  tracking = true;
+  engaged = false;
+  dragX.value = 0;
+}
+
+function onPointerMove(e) {
+  if (!tracking) return;
+  const dx = e.clientX - startX;
+  const dy = e.clientY - startY;
+
+  if (!engaged) {
+    // Мёртвая зона: на дребезге пальца preventDefault съел бы тап по крестику.
+    if (Math.abs(dx) < SWIPE_SLOP && Math.abs(dy) < SWIPE_SLOP) return;
+    // Вертикальный жест - это прокрутка страницы и списка предупреждений.
+    if (Math.abs(dx) <= Math.abs(dy)) {
+      cancelSwipe();
+      return;
+    }
+    engaged = true;
+    dragging.value = true;
+    // Без захвата указателя движение за пределами плашки до нас не доходит.
+    e.currentTarget?.setPointerCapture?.(e.pointerId);
+  }
+
+  if (dx <= 0) {
+    dragX.value = 0;
+    return;
+  }
+  dragX.value = dx;
+  if (e.cancelable) e.preventDefault();
+  if (dx > SWIPE_THRESHOLD) slideOut();
+}
+
+function onPointerUp() {
+  if (!tracking) return;
+  if (engaged) suppressClick = true;
+  // Не дотянул до порога - плашка пружинит на место (transition вернёт её).
+  cancelSwipe();
+}
+
+onBeforeUnmount(clearTimers);
 
 const ui = useUiStore();
 
@@ -80,11 +224,15 @@ const shown = computed(
       <aside
         v-if="shown"
         class="warn-panel"
-        :class="{ 'warn-panel--collapsed': !expanded }"
-        :style="{ zIndex: props.zIndex }"
+        :class="{ 'warn-panel--collapsed': !expanded, 'is-dragging': dragging }"
+        :style="panelStyle"
         data-testid="schedule-warning-panel"
         role="status"
         aria-live="polite"
+        @pointerdown="onPointerDown"
+        @pointermove="onPointerMove"
+        @pointerup="onPointerUp"
+        @pointercancel="onPointerUp"
       >
         <header
           class="warn-panel__head"
@@ -94,12 +242,19 @@ const shown = computed(
           @click="toggleCollapsed"
         >
           <span class="warn-panel__title">
-            Предупреждение
+            <span class="warn-panel__title-text">
+              Предупреждение
+              <span
+                v-if="isNarrow"
+                class="warn-panel__count"
+                data-testid="schedule-warning-count"
+              >{{ visibleGroups.length }}</span>
+            </span>
+            <!-- Жест сам себя не объявляет: без подписи про смахивание не догадаются. -->
             <span
               v-if="isNarrow"
-              class="warn-panel__count"
-              data-testid="schedule-warning-count"
-            >{{ visibleGroups.length }}</span>
+              class="warn-panel__hint"
+            >Смахните вправо, чтобы убрать</span>
           </span>
           <svg
             v-if="isNarrow"
@@ -240,6 +395,16 @@ const shown = computed(
   box-shadow: 0 12px 32px var(--shadow-drop);
   overflow: hidden;
   font-family: inherit;
+  /* Смахивание вправо: анимируем только transform и opacity. pan-y оставляет
+     браузеру вертикальную прокрутку (страницы и списка внутри панели), а
+     горизонтальное движение достаётся обработчику. */
+  transition: transform 0.22s ease, opacity 0.22s ease;
+  touch-action: pan-y;
+}
+
+/* Пока тянут пальцем - панель идёт за ним 1:1, без сглаживания. */
+.warn-panel.is-dragging {
+  transition: none;
 }
 
 /* Свёрнутая плашка - это ТОЛЬКО жёлтая шапка, поэтому рамка панели уходит в тот же
@@ -262,11 +427,26 @@ const shown = computed(
 
 .warn-panel__title {
   display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
   font-size: 14px;
   font-weight: 600;
   color: var(--warning-text);
+}
+
+.warn-panel__title-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Подпись про жест: тише заголовка, но своей строкой - в остаток она не влезает. */
+.warn-panel__hint {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.75;
 }
 
 .warn-panel__count {
@@ -454,6 +634,19 @@ const shown = computed(
 .warn-group-leave-to {
   opacity: 0;
   transform: translateX(14px);
+}
+
+/* Смахивание при выключенных анимациях убирает плашку сразу (см. reducedMotion в
+   скрипте), поэтому здесь гасим и переходы - иначе она уезжает вхолостую. */
+@media (prefers-reduced-motion: reduce) {
+  .warn-panel,
+  .warn-panel-enter-active,
+  .warn-panel-leave-active,
+  .warn-group-enter-active,
+  .warn-group-leave-active,
+  .warn-group-move {
+    transition: none;
+  }
 }
 
 @media (max-width: 768px) {

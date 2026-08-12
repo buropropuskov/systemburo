@@ -74,27 +74,33 @@
             <div class="table-col quantity-col">
               {{ item.quantity || 0 }}
             </div>
+            <!-- Разметка одна на обе раскладки: на десктопе действия остаются иконками
+                 в колонке, на телефоне показываются подписи, иконки прячутся, а ряд
+                 уходит подвалом карточки (см. @media ниже). -->
             <div class="table-col actions-col">
-              <button 
+              <button
                 class="edit-btn"
                 title="Редактировать"
                 @click="$emit('edit-item', item)"
               >
-                <img 
-                  src="@/assets/icons/edit.png" 
-                  alt="Редактировать" 
+                <img
+                  src="@/assets/icons/edit.png"
+                  alt="Редактировать"
                   class="edit-icon"
                 >
+                <span class="act-label">Изменить</span>
               </button>
-              <button 
+              <button
                 class="delete-btn"
+                title="Удалить"
                 @click="deleteItemWithAnimation(item.id)"
               >
-                <img 
-                  src="@/assets/icons/trashcan.png" 
-                  alt="Удалить" 
+                <img
+                  src="@/assets/icons/trashcan.png"
+                  alt="Удалить"
                   class="delete-icon"
                 >
+                <span class="act-label">Удалить</span>
               </button>
             </div>
           </div>
@@ -304,6 +310,11 @@ export default {
     gap: 4px;
 }
 
+/* Подпись действия видна только на телефоне - на десктопе кнопка остаётся иконкой. */
+.act-label {
+    display: none;
+}
+
 .edit-btn, .delete-btn {
     background: none;
     border: none;
@@ -398,8 +409,9 @@ h4 {
         align-items: center;
         gap: 2px 8px;
         min-height: 56px;
-        /* Резерв под две кнопки действий, приколотые справа. */
-        padding: 10px 92px 10px 12px !important;
+        /* Резерва справа больше нет: действия уехали в подвал карточки, и наименование
+           занимает всю ширину (было 92px под две иконки поперёк строки). */
+        padding: 10px 12px !important;
         font-size: 14px;
     }
 
@@ -429,26 +441,65 @@ h4 {
         content: 'x ';
     }
 
+    /* Подвал карточки: действия бейджами под данными, а не поперёк строки. */
     .actions-col {
-        position: absolute;
-        top: 50%;
-        right: 8px;
-        transform: translateY(-50%);
+        position: static;
+        transform: none;
+        flex-basis: 100%;
         width: auto !important;
-        gap: 2px;
+        justify-content: flex-start;
+        gap: 6px;
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid color-mix(in srgb, var(--border) 60%, var(--surface));
     }
 
+    /* Высота 28px как у бейджа, зона нажатия 44px невидимым ::before (мокап .act). */
     .edit-btn,
     .delete-btn {
-        width: 40px;
-        height: 40px;
+        position: relative;
+        width: auto;
+        height: 28px;
+        padding: 0 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-pill, 999px);
+        background: var(--surface);
+        font-size: 12.5px;
+        font-weight: 600;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .edit-btn::before,
+    .delete-btn::before {
+        content: '';
+        position: absolute;
+        inset: -8px -2px;
+    }
+
+    .edit-btn {
+        border-color: var(--accent);
+        color: var(--accent-text);
+    }
+
+    .delete-btn {
+        border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
+        color: var(--danger-text);
+    }
+
+    .edit-btn:hover,
+    .delete-btn:hover {
+        background: var(--surface-2);
+    }
+
+    /* Подпись вместо иконки: текст в кнопке читается без догадок. */
+    .act-label {
+        display: inline;
     }
 
     .edit-icon,
     .delete-icon {
-        width: 20px;
-        height: 20px;
-        opacity: 0.75;
+        display: none;
     }
 }
 </style>
