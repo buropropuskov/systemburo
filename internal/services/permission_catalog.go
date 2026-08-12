@@ -1,6 +1,9 @@
 package services
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 // Единый каталог точечных прав (#эпик-прав). Источник правды для UI настройки
 // прав и для валидации входящих ключей. Иерархия: категория-заголовок -> листья.
@@ -239,6 +242,19 @@ func AllCatalogKeys() []string {
 func IsSuperOnly(key string) bool {
 	_, ok := superOnlyKeys[key]
 	return ok
+}
+
+// SuperOnlyKeys возвращает отсортированный список ключей, доступных только
+// супер-админу. Нужен ответу /permissions/my (#1997): PermissionSet.Has режет
+// эти ключи для обычного admin, но раньше это не отражалось в Denied -- фронтовый
+// стор в admin-режиме считал ключ выданным, если его нет в denied.
+func SuperOnlyKeys() []string {
+	keys := make([]string, 0, len(superOnlyKeys))
+	for k := range superOnlyKeys {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // IsCatalogKey сообщает, что ключ есть в статическом каталоге.

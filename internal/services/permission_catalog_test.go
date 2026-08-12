@@ -48,6 +48,26 @@ func TestSuperOnlyKeysPresentInCatalog(t *testing.T) {
 	}
 }
 
+// SuperOnlyKeys нужен ответу /permissions/my (#1997), чтобы super-only ключи
+// попадали в denied для обычного admin.
+func TestSuperOnlyKeys(t *testing.T) {
+	t.Parallel()
+	got := SuperOnlyKeys()
+	if len(got) != len(superOnlyKeys) {
+		t.Fatalf("SuperOnlyKeys() вернул %d ключей, ожидалось %d", len(got), len(superOnlyKeys))
+	}
+	for _, k := range got {
+		if !IsSuperOnly(k) {
+			t.Errorf("SuperOnlyKeys() вернул %q, который IsSuperOnly отрицает", k)
+		}
+	}
+	for i := 1; i < len(got); i++ {
+		if got[i-1] >= got[i] {
+			t.Errorf("SuperOnlyKeys() не отсортирован: %v", got)
+		}
+	}
+}
+
 func TestIsCatalogKey(t *testing.T) {
 	t.Parallel()
 	if !IsCatalogKey(KeyPageCenter) {
