@@ -3001,11 +3001,48 @@ export default {
             this.clearLocalStorageAfterSubmit();
         },
 
+        /**
+         * Учётная запись, которой принадлежит черновик. Берётся из маркера доступа:
+         * данные профиля в форму приезжают асинхронно, а сохранение может случиться
+         * раньше них.
+         * @returns {number|null}
+         */
+        draftOwnerId() {
+            return useAuthStore().userPayload?.user_id ?? null;
+        },
+
+        /**
+         * Черновик текущего работника либо null. Чужой (и старый, без владельца)
+         * стирается: браузер на проходной и в бюро один на смену, и после смены
+         * учётной записи форма подставляла организацию и компанию предыдущего - сервер
+         * такую заявку отбивал отказом «подать от другой организации», а человек видел
+         * в своей форме чужое место работы.
+         * @returns {object|null}
+         */
+        readOwnDraft() {
+            const raw = localStorage.getItem('draftApplicationState');
+            if (!raw) return null;
+            try {
+                const draft = JSON.parse(raw);
+                const me = this.draftOwnerId();
+                // Пока маркер не разобран, судить о владельце не по чему - отдаём как есть,
+                // иначе черновик пропадал бы на ровном месте при задержке восстановления сеанса.
+                if (me === null || draft?.ownerId === me) return draft;
+                localStorage.removeItem('draftApplicationState');
+                return null;
+            } catch (e) {
+                console.error('Битый draftApplicationState:', e);
+                localStorage.removeItem('draftApplicationState');
+                return null;
+            }
+        },
+
         saveToLocalStorage() {
             try {
                 const hasAttachments = this.attachments.length > 0;
 
                 const savedData = {
+                    ownerId: this.draftOwnerId(),
                     message: this.message,
                     organization: this.organization,
                     company: this.company,
@@ -3064,10 +3101,9 @@ export default {
             // открыл бы вложение прежнего черновика поверх выбранного пользователем.
             const seq = ++this.restoreSeq;
             try {
-                const savedData = localStorage.getItem('draftApplicationState');
-                if (savedData) {
-                    const parsedData = JSON.parse(savedData);
-                    
+                const parsedData = this.readOwnDraft();
+                if (parsedData) {
+
                     this.message = parsedData.message || '';
                     this.organization = parsedData.organization || '';
                     this.company = parsedData.company || '';
@@ -3165,6 +3201,12 @@ export default {
                 localStorage.removeItem('pendingDuplicateState');
                 return;
             }
+            // Дубль, отложенный другой учётной записью, не подхватываем: браузер общий.
+            const me = this.draftOwnerId();
+            if (me !== null && pending?.ownerId !== me) {
+                localStorage.removeItem('pendingDuplicateState');
+                return;
+            }
 
             if (this.hasExistingDraftData()) {
                 this.pendingDuplicate = pending;
@@ -3177,16 +3219,10 @@ export default {
 
         // Есть ли на странице осмысленный черновик (вложения или текст сообщения).
         hasExistingDraftData() {
-            const raw = localStorage.getItem('draftApplicationState');
-            if (!raw) return false;
-            try {
-                const d = JSON.parse(raw);
-                return (Array.isArray(d.attachments) && d.attachments.length > 0)
-                    || (typeof d.message === 'string' && d.message.trim().length > 0);
-            } catch (e) {
-                console.error('Битый draftApplicationState:', e);
-                return false;
-            }
+            const d = this.readOwnDraft();
+            if (!d) return false;
+            return (Array.isArray(d.attachments) && d.attachments.length > 0)
+                || (typeof d.message === 'string' && d.message.trim().length > 0);
         },
 
         // Применяет дубль: replace - целиком заменяет черновик; merge - дописывает вложения
@@ -3194,10 +3230,9 @@ export default {
         applyPendingDuplicate(pending, mode) {
             let finalDraft = pending;
             if (mode === 'merge') {
-                const raw = localStorage.getItem('draftApplicationState');
-                const existing = raw ? JSON.parse(raw) : {};
-                finalDraft = this.mergeDrafts(existing, pending);
+                finalDraft = this.mergeDrafts(this.readOwnDraft() || {}, pending);
             }
+            finalDraft = { ...finalDraft, ownerId: this.draftOwnerId() };
             localStorage.setItem('draftApplicationState', JSON.stringify(finalDraft));
             this.restoreFromLocalStorage();
         },
