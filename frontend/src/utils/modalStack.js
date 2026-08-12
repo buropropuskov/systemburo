@@ -49,6 +49,27 @@ export function isTopModal(owner) {
   return true;
 }
 
+/**
+ * Escape, на который слой уже ответил.
+ *
+ * Одной стопки мало: слушатели висят на document у каждого слоя, вызываются в порядке
+ * подписки, и слой, обработавший нажатие, снимается со стопки не мгновенно - следующий
+ * слушатель в том же нажатии успевает счесть себя верхним. Так один Escape закрывал и
+ * список получателей, и панель заявки под ним (поймано руками на стенде, в jsdom
+ * порядок другой и тест этого не видел). Пометка на самом событии от порядка не зависит.
+ */
+const handledEscapes = new WeakSet();
+
+/** @param {KeyboardEvent} event @returns {boolean} на это нажатие уже ответил другой слой */
+export function isEscapeHandled(event) {
+  return !!event && handledEscapes.has(event);
+}
+
+/** Отметить, что нажатие обработано этим слоем. @param {KeyboardEvent} event */
+export function markEscapeHandled(event) {
+  if (event) handledEscapes.add(event);
+}
+
 /** Только для тестов: сбросить состояние между кейсами. */
 export function resetModalStack() {
   stack.clear();

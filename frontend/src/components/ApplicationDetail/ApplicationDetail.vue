@@ -715,7 +715,7 @@ import EmployeeDetailsModal from '../CreateApplication/EmployeeDetailsModal.vue'
 import Badge from '@/components/ui/Badge.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import { sanitizeHtml } from '@/utils/sanitize'
-import { setModalOpen, releaseModal, isTopModal } from '@/utils/modalStack'
+import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack'
 
 /** Слой панели заявки - то же значение, что у неё в стилях (.application-detail). */
 const DETAIL_STACK_LAYER = 10002
@@ -1195,7 +1195,12 @@ export default {
          */
         handleDetailEscape(e) {
             if (e.key !== 'Escape') return;
+            // Окно поверх панели забирает нажатие себе - и по стопке, и по пометке на
+            // событии: снятие со стопки происходит следующим тиком, а слушатели одного
+            // нажатия идут подряд, поэтому одной стопки мало.
+            if (isEscapeHandled(e)) return;
             if (!isTopModal(this)) return;
+            markEscapeHandled(e);
             this.$emit('close');
         },
 

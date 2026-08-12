@@ -69,7 +69,7 @@
 import { ref } from 'vue';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
-import { setModalOpen, releaseModal, isTopModal } from '@/utils/modalStack';
+import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack';
 
 export default {
   name: 'BaseModal',
@@ -197,9 +197,12 @@ export default {
     handleKeydown(e) {
       if (!this.show) return;
       if (e.key === 'Escape' && this.closable) {
-        // Только верхнее окно стопки: обработчик висит у каждого окна, и без этой
-        // проверки один Escape закрывал разом и карточку, и список под ней.
+        // Одно нажатие - один закрытый слой. Стопка отвечает, кто сейчас сверху, а
+        // пометка на событии страхует от порядка слушателей: слой, ответивший первым,
+        // забирает нажатие себе, даже если со стопки он снимется только следующим тиком.
+        if (isEscapeHandled(e)) return;
         if (!isTopModal(this)) return;
+        markEscapeHandled(e);
         this.$emit('close');
       }
       if (e.key === 'Tab') {
