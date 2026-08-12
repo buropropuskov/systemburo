@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import ApplicationDetail from '../ApplicationDetail.vue';
@@ -40,11 +40,17 @@ function pressEscape() {
   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
 }
 
+// Панель и окна слушают document, пока смонтированы: слой из прошлого кейса иначе
+// забирает Escape следующего.
+const opened = [];
+
 function mountDetail() {
-  return mount(ApplicationDetail, {
+  const wrapper = mount(ApplicationDetail, {
     props: { application: APPLICATION, mode: 'center' },
     global: { stubs: { teleport: true } },
   });
+  opened.push(wrapper);
+  return wrapper;
 }
 
 beforeEach(() => {
@@ -52,6 +58,8 @@ beforeEach(() => {
   resetModalStack();
   vi.clearAllMocks();
 });
+
+afterEach(() => opened.splice(0).forEach((w) => w.unmount()));
 
 describe('ApplicationDetail: закрытие по Escape', () => {
   it('Escape закрывает панель заявки', () => {
@@ -68,6 +76,7 @@ describe('ApplicationDetail: закрытие по Escape', () => {
       props: { show: true, title: 'Получатели заявки', zIndex: 12000 },
       global: { stubs: { teleport: true } },
     });
+    opened.push(modal);
 
     pressEscape();
 
