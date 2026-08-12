@@ -229,10 +229,14 @@ export default {
 </script>
 
 <style scoped>
+/* base-modal__body идёт без padding - отступы несёт содержимое (как у соседних
+   окон). Без них поля и чеклист упирались в края окна и начинались левее
+   заголовка, у которого свой отступ есть. */
 .cp-form {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding: 14px 20px 18px;
 }
 
 .cp-field {
@@ -323,5 +327,20 @@ export default {
   font-size: 13px;
   line-height: 1.4;
   color: var(--text);
+}
+
+/* На узком экране окно выезжает листом снизу и шапка ужимается до 16px по бокам -
+   содержимое идёт тем же полем, иначе оно шире собственного заголовка. */
+@media (max-width: 768px) {
+  .cp-form {
+    padding: 12px 16px 16px;
+    gap: 14px;
+  }
+
+  /* Требования в одну колонку: две по 180px в лист шириной 390px не встают, и
+     вторая колонка обрезалась по правому краю. */
+  .cp-rules {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
