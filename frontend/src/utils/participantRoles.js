@@ -16,7 +16,6 @@ const ROLE_LABELS = {
   sender: 'Отправитель',
   acceptor: 'Принимающий',
   approver: 'Согласующий',
-  responsible: 'Ответственный',
   reader: 'Читатель',
 };
 
@@ -32,7 +31,6 @@ const ROLE_VARIANTS = {
   sender: 'primary',
   acceptor: 'info',
   approver: 'info',
-  responsible: 'neutral',
   reader: 'neutral',
 };
 
