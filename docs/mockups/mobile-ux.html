@@ -1,0 +1,1754 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мобильный интерфейс — мокап</title>
+<style>
+/* ---------------------------------------------------------------------------
+   Токены взяты из frontend/src/assets/tokens.css (светлая тема). Мокап живёт в
+   языке системы: те же акцент, поверхности, скругления. Новое здесь — не цвет,
+   а раскладка и поведение.
+   --------------------------------------------------------------------------- */
+:root {
+  --accent: #4F5BDF;
+  --accent-text: #4F5BDF;
+  --accent-contrast: #ffffff;
+  --accent-tint: rgba(79, 91, 223, 0.08);
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f9f9f9;
+  --surface-sunken: #f9f9f9;
+  --text: #333333;
+  --text-muted: #5f6672;
+  --border: #e6e6e6;
+  --success: #28a745; --success-bg: #e8f5e8; --success-text: #2e7d32;
+  --danger: #dc3545;  --danger-bg: #ffebee;  --danger-text: #c62828;
+  --warning: #f59e0b; --warning-bg: #fff3e0; --warning-text: #92400e;
+  --info-bg: #e3f2fd; --info-text: #1565c0;
+
+  --radius-sm: 8px;
+  --radius-md: 15px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  /* Высоты — единственный источник правды для мокапа. Числа подобраны так,
+     чтобы шапка экрана не съедала треть телефона (сейчас съедает 130px). */
+  --h-screen-header: 48px;
+  --h-control: 36px;
+  --h-chip-action: 28px;
+  --h-primary: 44px;
+  --gutter: 12px;
+
+  --page-bg: #eef0f6;
+  --paper: #ffffff;
+  --ink: #1c2030;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--page-bg);
+  color: var(--ink);
+  font-family: Montserrat, "Segoe UI", system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- Обвязка документа ----------------------------------------------------- */
+
+.doc-head {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 48px var(--gutter) 8px;
+}
+
+.doc-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+  margin: 0 0 10px;
+}
+
+.doc-head h1 {
+  margin: 0 0 14px;
+  font-size: clamp(28px, 5vw, 44px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.doc-lead {
+  margin: 0;
+  max-width: 60ch;
+  font-size: 16px;
+  color: #4a5162;
+}
+
+.doc-lead + .doc-lead { margin-top: 12px; }
+
+.rules {
+  max-width: 1180px;
+  margin: 28px auto 0;
+  padding: 0 var(--gutter);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.rule {
+  background: var(--paper);
+  border: 1px solid #dfe3ee;
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+
+.rule h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.rule p {
+  margin: 0;
+  font-size: 13px;
+  color: #565d6e;
+}
+
+.rule b { color: var(--ink); }
+
+/* --- Переключатель экранов -------------------------------------------------- */
+
+.tabs {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  margin-top: 36px;
+  padding: 12px var(--gutter);
+  background: rgba(238, 240, 246, 0.94);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid #dfe3ee;
+}
+
+.tabs__inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs__inner::-webkit-scrollbar { display: none; }
+
+.tab {
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid #d6dbe8;
+  border-radius: var(--radius-pill);
+  background: var(--paper);
+  color: #4a5162;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tab[aria-selected="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* --- Раскладка «телефон + заметки» ------------------------------------------ */
+
+main {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 28px var(--gutter) 80px;
+}
+
+.screen[hidden] { display: none; }
+
+.screen__grid {
+  display: grid;
+  gap: 28px;
+  grid-template-columns: 390px minmax(0, 1fr);
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .screen__grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+.phone {
+  width: 390px;
+  max-width: 100%;
+  height: 780px;
+  border-radius: 34px;
+  border: 10px solid #12151f;
+  background: var(--bg);
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 24px 60px rgba(18, 21, 31, 0.24);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ключ всего мокапа: единственный скроллпорт экрана. Внутри контента больше
+   ни одного overflow-y — именно из-за вложенных лент палец «то скроллит, то нет». */
+.phone__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  background: var(--surface-sunken);
+}
+
+.notes h2 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.notes__sub {
+  margin: 0 0 18px;
+  font-size: 14px;
+  color: #656c7d;
+}
+
+.note {
+  border-left: 3px solid var(--border);
+  padding: 2px 0 2px 14px;
+  margin-bottom: 16px;
+}
+
+.note--fix { border-left-color: var(--success); }
+.note--kill { border-left-color: var(--danger); }
+.note--new { border-left-color: var(--accent); }
+
+.note h4 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.note p {
+  margin: 0;
+  font-size: 13.5px;
+  color: #545b6c;
+}
+
+.note code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  background: #eceffa;
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+
+.was {
+  display: inline-block;
+  margin-top: 5px;
+  font-size: 12px;
+  color: #8a90a0;
+}
+
+/* =============================================================================
+   ИНТЕРФЕЙС ТЕЛЕФОНА
+   ============================================================================= */
+
+/* Шапка приложения — не трогаем, она принята. Показана для контекста. */
+.app-bar {
+  flex: 0 0 auto;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 var(--gutter);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.burger {
+  width: 38px; height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+
+.burger i { display: block; width: 16px; height: 2px; background: var(--text); border-radius: 2px; }
+
+.app-bar__spacer { flex: 1; }
+
+.icon-btn {
+  width: 38px; height: 38px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.app-bar .primary-mini {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--accent);
+  background: var(--surface);
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* --- Шапка экрана: 48px, одна строка ---------------------------------------
+   Было: заголовок отдельной строкой, под ним воздух, кнопка уезжала вниз.
+   Стало: заголовок, счётчик и одно главное действие в одной строке. */
+.screen-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  height: var(--h-screen-header);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 var(--gutter);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.screen-head__title {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1 1 0;
+}
+
+.screen-head__count {
+  flex: 0 0 auto;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-tint);
+  color: var(--accent-text);
+  font-size: 12px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+/* --- Панель управления: поиск + фильтр + «ещё» в одну строку ---------------- */
+.toolbar {
+  position: sticky;
+  top: var(--h-screen-header);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px var(--gutter);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.search {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: var(--h-control);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.chip-btn {
+  flex: 0 0 auto;
+  height: var(--h-control);
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chip-btn--icon { width: var(--h-control); padding: 0; justify-content: center; }
+
+.chip-btn--accent {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.chip-btn__count {
+  min-width: 16px; height: 16px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  padding: 0 4px;
+}
+
+/* --- Контент ---------------------------------------------------------------- */
+
+.list {
+  padding: var(--gutter);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Карточка списка. Значения по левому краю, вертикально по центру строки —
+   ровно то, чего не хватало. Никаких подписей полей. */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+}
+
+.card__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.card__type {
+  flex: 0 0 auto;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+}
+
+.type--items { background: var(--warning-bg); color: var(--warning-text); }
+.type--people { background: var(--info-bg); color: var(--info-text); }
+.type--cars { background: var(--accent-tint); color: var(--accent-text); }
+
+.card__org {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card__name {
+  margin-top: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent-text);
+}
+
+.card__meta {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.card__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  font-size: 14px;
+}
+
+.card__row + .card__row { border-top: 1px dashed #eceef4; }
+
+.card__row b { font-weight: 700; }
+
+.status {
+  flex: 0 0 auto;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+}
+
+.status--work { background: var(--info-bg); color: var(--info-text); }
+.status--ok { background: var(--success-bg); color: var(--success-text); }
+.status--off { background: var(--surface-2); color: var(--text-muted); }
+
+/* Действия карточки: внизу, компактными бейдж-кнопками.
+   Высота 28 — как у бейджа, но зона нажатия 44 через ::before. */
+.card__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f0f2f7;
+}
+
+.act {
+  position: relative;
+  height: var(--h-chip-action);
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Невидимое расширение зоны до 44px: палец попадает, глаз видит компактную пилюлю. */
+.act::before {
+  content: "";
+  position: absolute;
+  inset: -8px -2px;
+}
+
+.act--accent { border-color: var(--accent); color: var(--accent-text); }
+.act--danger { border-color: #f3c8cd; color: var(--danger-text); }
+.act--ghost { border-color: transparent; color: var(--text-muted); }
+.act__spacer { flex: 1; }
+
+/* --- Подвал списка: «Всего» + действия в меню ------------------------------- */
+.list-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin: 0 var(--gutter) var(--gutter);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.list-foot b { color: var(--text); font-weight: 700; }
+
+/* --- Свайпаемое предупреждение ---------------------------------------------- */
+.notice {
+  position: relative;
+  margin: var(--gutter) var(--gutter) 0;
+  padding: 10px 12px;
+  background: var(--warning-bg);
+  border-radius: var(--radius-md);
+  color: var(--warning-text);
+  font-size: 13px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  transition: transform 0.22s ease, opacity 0.22s ease;
+  touch-action: pan-y;
+}
+
+.notice.is-dismissed { transform: translateX(115%); opacity: 0; }
+
+.notice__text { flex: 1; }
+.notice__hint { display: block; margin-top: 4px; font-size: 11.5px; opacity: 0.75; }
+
+.notice__x {
+  flex: 0 0 auto;
+  width: 22px; height: 22px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: rgba(146, 64, 14, 0.12);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* --- Сворачиваемая подсказка ------------------------------------------------ */
+.hint {
+  margin: var(--gutter) var(--gutter) 0;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: #fff;
+  overflow: hidden;
+}
+
+.hint__bar {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hint__bar span { flex: 1; text-align: left; }
+
+/* Стрелка мелкая и чёткая: 8px штрих вместо размазанного PNG. */
+.hint__chev {
+  width: 16px; height: 16px;
+  flex: 0 0 auto;
+  transition: transform 0.2s ease;
+}
+
+.hint__chev path { stroke: currentColor; stroke-width: 2.2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+
+.hint.is-open .hint__chev { transform: rotate(90deg); }
+
+.hint__body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.22s ease;
+}
+
+.hint.is-open .hint__body { grid-template-rows: 1fr; }
+
+.hint__inner { min-height: 0; overflow: hidden; }
+
+.hint__inner ul { margin: 0; padding: 0 12px 12px 28px; font-size: 13px; }
+
+/* --- Талон проходной (signature) --------------------------------------------
+   Карточка машины на посту — не строка таблицы, а отрывной талон: насечка по
+   краям, номер крупно, действия сегментом сверху под большой палец. */
+.pass {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0;
+  overflow: hidden;
+}
+
+.pass__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.pass__act {
+  height: var(--h-primary);
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pass__act--in { border-color: var(--success); color: var(--success-text); background: var(--success-bg); }
+.pass__act--out { border-color: var(--border); color: var(--text); }
+.pass__act[disabled] { opacity: 0.45; }
+
+/* Перфорация: линия отрыва между действиями и данными талона. */
+.pass__perf {
+  position: relative;
+  height: 1px;
+  margin: 0 0 0;
+  background: repeating-linear-gradient(to right, #d8dce8 0 6px, transparent 6px 12px);
+}
+
+.pass__perf::before,
+.pass__perf::after {
+  content: "";
+  position: absolute;
+  top: -7px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+}
+
+.pass__perf::before { left: -8px; }
+.pass__perf::after { right: -8px; }
+
+.pass__body { padding: 12px; }
+
+.pass__plate {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.pass__mark { font-size: 14px; color: var(--text-muted); margin-top: 2px; }
+
+.pass__grid {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+  font-size: 13.5px;
+}
+
+.pass__line { display: flex; align-items: center; gap: 8px; min-height: 24px; }
+.pass__line span { color: var(--text-muted); flex: 0 0 auto; }
+
+.pass__foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 12px;
+}
+
+/* --- Лист действий (меню «Ещё») --------------------------------------------- */
+.sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 30;
+}
+
+.sheet-backdrop.is-open { opacity: 1; pointer-events: auto; }
+
+.sheet {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  background: var(--surface);
+  border-radius: 30px 30px 0 0;
+  padding: 8px 0 16px;
+  transform: translateY(100%);
+  transition: transform 0.24s ease;
+  z-index: 31;
+}
+
+.sheet.is-open { transform: translateY(0); }
+
+.sheet__grip {
+  width: 40px; height: 4px;
+  border-radius: 4px;
+  background: #d7dbe6;
+  margin: 4px auto 10px;
+}
+
+.sheet__title {
+  padding: 0 20px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sheet__item {
+  width: 100%;
+  height: 48px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sheet__item:active { background: var(--surface-2); }
+.sheet__item--danger { color: var(--danger-text); }
+
+.sheet__ico {
+  width: 22px;
+  text-align: center;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+
+/* --- Аналитика: фильтры одной строкой --------------------------------------- */
+.period {
+  display: flex;
+  gap: 6px;
+  padding: 8px var(--gutter);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.period button {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.period button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.metrics {
+  padding: var(--gutter);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.metric {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+}
+
+.metric__label { font-size: 12.5px; color: var(--text-muted); }
+.metric__value { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin-top: 2px; }
+.metric__delta { font-size: 12px; font-weight: 700; margin-top: 2px; }
+.metric__delta--up { color: var(--success-text); }
+.metric__delta--down { color: var(--danger-text); }
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px var(--gutter) 0;
+}
+
+.section-head h3 { margin: 0; font-size: 14px; font-weight: 800; }
+
+/* Пояснение уходит на свою строку целиком — не жмётся в остаток и не режется. */
+.section-head__note {
+  padding: 2px var(--gutter) 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* --- Форма подачи: шапка списка --------------------------------------------- */
+.form-block {
+  margin: var(--gutter);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.form-block__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.form-block__title { font-size: 14px; font-weight: 800; }
+
+.form-block__count {
+  min-width: 20px; height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.badge-exp {
+  height: 20px;
+  padding: 0 8px;
+  border-radius: var(--radius-pill);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font-size: 10.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Кнопка шапки блока ровно по высоте бейджа — как просили. Зона нажатия 44. */
+.mini-btn {
+  position: relative;
+  height: 22px;
+  padding: 0 9px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mini-btn::before { content: ""; position: absolute; inset: -11px -4px; }
+.mini-btn--ghost { border-color: var(--border); color: var(--text-muted); }
+
+.empty {
+  padding: 22px 12px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* --- Нижняя панель главного действия ---------------------------------------- */
+.fab-bar {
+  flex: 0 0 auto;
+  padding: 8px var(--gutter) 12px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+}
+
+.fab-bar button {
+  flex: 1;
+  height: var(--h-primary);
+  border-radius: var(--radius-pill);
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.fab-bar .fab-bar__ghost {
+  flex: 0 0 auto;
+  width: var(--h-primary);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<header class="doc-head">
+  <p class="doc-eyebrow">Бюро пропусков · мобильный интерфейс</p>
+  <h1>Телефон — не сжатый десктоп</h1>
+  <p class="doc-lead">
+    Мокап собран по разбору живого стенда: замерены высоты, найдены вложенные
+    скроллпорты, пройдены шесть экранов на ширине 390. Он отвечает на конкретные
+    замечания, а не переоформляет то же самое.
+  </p>
+  <p class="doc-lead">
+    Палитра, шрифт и скругления взяты из <code>tokens.css</code> без изменений —
+    система уже одета. Меняется другое: сколько места занимает служебное, куда
+    уходят действия и кто в экране прокручивается.
+  </p>
+</header>
+
+<section class="rules">
+  <div class="rule">
+    <h3>Один экран — один скролл</h3>
+    <p>Прокручивается страница, и только она. Сейчас на «Доступных мне» окно не
+      прокручивается <b>вообще</b>: контент лежит во внутреннем контейнере
+      (1453px в окне 789px), а в аналитике внутри страницы ещё и ленты с
+      <b>max-height 320</b>. Палец попадает то в одну область, то в другую —
+      отсюда «то скроллит, то нет, то дёргает».</p>
+  </div>
+  <div class="rule">
+    <h3>Служебное — 48px, не 130</h3>
+    <p>Шапка экрана: заголовок, счётчик и одно действие в одной строке.
+      Панель поиска — вторая строка 36px. Две липкие полосы вместо трети экрана.</p>
+  </div>
+  <div class="rule">
+    <h3>Одно главное действие, остальные в «Ещё»</h3>
+    <p>Пять кнопок в шапке не помещаются ни при каком раскладе. Остаётся главное,
+      прочее — в лист снизу, где есть место для подписей и куда дотягивается палец.</p>
+  </div>
+  <div class="rule">
+    <h3>Компактно на вид, крупно под палец</h3>
+    <p>Кнопка в карточке — пилюля 28px, зона нажатия 44px невидимым
+      <code>::before</code>. Так «Редактировать» перестаёт занимать полкарточки,
+      но по ней всё ещё попадаешь.</p>
+  </div>
+</section>
+
+<nav class="tabs" aria-label="Экраны">
+  <div class="tabs__inner" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-screen="available">Доступные мне</button>
+    <button class="tab" role="tab" aria-selected="false" data-screen="tables">Проходная</button>
+    <button class="tab" role="tab" aria-selected="false" data-screen="employees">Сотрудники</button>
+    <button class="tab" role="tab" aria-selected="false" data-screen="createapp">Подача заявки</button>
+    <button class="tab" role="tab" aria-selected="false" data-screen="detail">Заявка</button>
+    <button class="tab" role="tab" aria-selected="false" data-screen="analytics">Аналитика</button>
+  </div>
+</nav>
+
+<main>
+
+<!-- ================= ДОСТУПНЫЕ МНЕ ================= -->
+<section class="screen" id="screen-available">
+  <div class="screen__grid">
+    <div class="phone">
+      <div class="app-bar">
+        <button class="burger" aria-label="Меню"><i></i><i></i><i></i></button>
+        <span class="app-bar__spacer"></span>
+        <button class="primary-mini">Заявка</button>
+        <button class="icon-btn" aria-label="Поиск">⌕</button>
+      </div>
+
+      <div class="phone__scroll">
+        <div class="screen-head">
+          <span class="screen-head__title">Доступные мне</span>
+          <span class="screen-head__count">24</span>
+          <button class="chip-btn chip-btn--icon" aria-label="Обновить">↻</button>
+        </div>
+
+        <div class="toolbar">
+          <span class="search">⌕ Поиск</span>
+          <button class="chip-btn">Фильтр <span class="chip-btn__count">2</span></button>
+        </div>
+
+        <div class="list">
+          <article class="card">
+            <div class="card__top">
+              <span class="card__type type--items">ТМЦ</span>
+              <span class="card__org">р-н Мегобари / ООО «Победа»</span>
+            </div>
+            <div class="card__name">Заявка на ввоз</div>
+            <div class="card__meta">№ 20260812/003 · Пхакадзе В.</div>
+            <div class="card__meta">13.08 — 15.08 · Дебаркадер №1, №2</div>
+            <div class="card__actions">
+              <span class="status status--work">В работе</span>
+              <span class="act__spacer"></span>
+              <button class="act act--accent">Открыть</button>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card__top">
+              <span class="card__type type--people">Сотрудники</span>
+              <span class="card__org">р-н Мегобари / ООО «Победа»</span>
+            </div>
+            <div class="card__name">Разовый пропуск</div>
+            <div class="card__meta">№ 20260812/003 · Пхакадзе В.</div>
+            <div class="card__meta">13.08 — 15.08 · ПОСТ №72</div>
+            <div class="card__actions">
+              <span class="status status--work">В работе</span>
+              <span class="act__spacer"></span>
+              <button class="act act--accent">Открыть</button>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card__top">
+              <span class="card__type type--cars">Автомобили</span>
+              <span class="card__org">р-н Мегобари / ООО «Победа»</span>
+            </div>
+            <div class="card__name">Автозаявка</div>
+            <div class="card__meta">№ 20260812/003 · Пхакадзе В.</div>
+            <div class="card__meta">13.08 — 15.08 · Дебаркадер №1, №2</div>
+            <div class="card__actions">
+              <span class="status status--ok">Согласовано</span>
+              <span class="act__spacer"></span>
+              <button class="act act--accent">Открыть</button>
+            </div>
+          </article>
+        </div>
+
+        <div class="list-foot">Показано <b>3</b> из <b>24</b></div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h2>Доступные мне</h2>
+      <p class="notes__sub">Главная жалоба — сломанный скролл. Он не «глючит», он устроен неправильно.</p>
+
+      <div class="note note--kill">
+        <h4>Внутренний скроллпорт убран</h4>
+        <p>Замер стенда: <code>documentElement.scrollHeight === clientHeight</code>,
+          то есть страница не прокручивается, а прокручивается
+          <code>.admin-page.content__container</code> высотой 789 при содержимом 1453.
+          Вложенная область не отдаёт инерцию, не сворачивает адресную строку
+          браузера и залипает на границе — именно так и ощущается «то скроллит,
+          то зависает».</p>
+        <span class="was">Было: два скроллпорта на экран. Стало: один, оконный.</span>
+      </div>
+
+      <div class="note note--fix">
+        <h4>Шапка ужалась с 130px до 48px</h4>
+        <p>Заголовок, счётчик и «Обновить» встали в строку. Поиск с фильтром —
+          отдельная полоса 36px, обе липкие, обе узкие.</p>
+      </div>
+
+      <div class="note note--fix">
+        <h4>Рамка в рамке снята</h4>
+        <p>Карточки лежали внутри панели с собственной рамкой и радиусом — контур
+          дублировался. Панель убрана: карточки лежат прямо на подложке.</p>
+      </div>
+
+      <div class="note note--new">
+        <h4>Тип вложения читается первым</h4>
+        <p>Бейдж типа стоит перед организацией: на этом экране человек ищет
+          «где мои автомобили», а не название компании, которое к тому же одинаковое
+          у всей ленты и обрезается многоточием.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ПРОХОДНАЯ ================= -->
+<section class="screen" id="screen-tables" hidden>
+  <div class="screen__grid">
+    <div class="phone">
+      <div class="app-bar">
+        <button class="burger" aria-label="Меню"><i></i><i></i><i></i></button>
+        <span class="app-bar__spacer"></span>
+        <button class="primary-mini">Заявка</button>
+        <button class="icon-btn" aria-label="Поиск">⌕</button>
+      </div>
+
+      <div class="phone__scroll">
+        <div class="screen-head">
+          <span class="screen-head__title">КПП №4</span>
+          <span class="screen-head__count">3</span>
+          <button class="chip-btn chip-btn--icon" aria-label="Обновить">↻</button>
+        </div>
+
+        <div class="toolbar">
+          <span class="search">⌕ Поиск по номеру</span>
+          <button class="chip-btn">Фильтр</button>
+          <button class="chip-btn chip-btn--icon" data-sheet="tables" aria-label="Ещё">⋯</button>
+        </div>
+
+        <div class="hint is-open" id="hint-demo">
+          <button class="hint__bar" data-hint="hint-demo">
+            <span>При прибытии по факту</span>
+            <svg class="hint__chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
+          </button>
+          <div class="hint__body"><div class="hint__inner">
+            <ul>
+              <li>Спроси у водителя организацию</li>
+              <li>Найди её в списке ниже</li>
+              <li>Есть — пропусти</li>
+            </ul>
+          </div></div>
+        </div>
+
+        <div class="list">
+          <article class="pass">
+            <div class="pass__actions">
+              <button class="pass__act pass__act--in">Въезд</button>
+              <button class="pass__act pass__act--out">Выезд</button>
+            </div>
+            <div class="pass__perf"></div>
+            <div class="pass__body">
+              <div class="pass__plate">К 050 УА 902</div>
+              <div class="pass__mark">BMW X5 · р-н Мегобари</div>
+              <div class="pass__grid">
+                <div class="pass__line"><span>до</span> 31.08.2026, 12:00—23:00</div>
+                <div class="pass__line"><span>место</span> Дебаркадер №1 и ещё 2</div>
+              </div>
+            </div>
+            <div class="pass__foot">
+              <span class="status status--work">В работе</span>
+              <span class="act__spacer"></span>
+              <button class="act act--ghost">Подробнее</button>
+              <button class="act act--danger">Удалить</button>
+            </div>
+          </article>
+
+          <article class="pass">
+            <div class="pass__actions">
+              <button class="pass__act pass__act--in">Въезд</button>
+              <button class="pass__act pass__act--out" disabled>Выезд</button>
+            </div>
+            <div class="pass__perf"></div>
+            <div class="pass__body">
+              <div class="pass__plate">Н 853 УО 965</div>
+              <div class="pass__mark">Мерседес · р-н Мегобари</div>
+              <div class="pass__grid">
+                <div class="pass__line"><span>до</span> 31.08.2026, 12:00—23:00</div>
+                <div class="pass__line"><span>место</span> Дебаркадер №1</div>
+              </div>
+            </div>
+            <div class="pass__foot">
+              <span class="status status--work">В работе</span>
+              <span class="act__spacer"></span>
+              <button class="act act--ghost">Подробнее</button>
+              <button class="act act--danger">Удалить</button>
+            </div>
+          </article>
+        </div>
+
+        <div class="list-foot">На территории <b>1</b> · всего <b>3</b></div>
+      </div>
+
+      <div class="fab-bar">
+        <button>Добавить машину</button>
+        <button class="fab-bar__ghost" data-sheet="tables" aria-label="Ещё">⋯</button>
+      </div>
+
+      <div class="sheet-backdrop" data-close></div>
+      <div class="sheet" id="sheet-tables">
+        <div class="sheet__grip"></div>
+        <div class="sheet__title">Действия с таблицей</div>
+        <button class="sheet__item"><span class="sheet__ico">＋</span>Добавить вручную</button>
+        <button class="sheet__item"><span class="sheet__ico">↺</span>Версии таблицы</button>
+        <button class="sheet__item"><span class="sheet__ico">⬓</span>Отчёт по проходам</button>
+        <button class="sheet__item"><span class="sheet__ico">⤓</span>Экспорт в Excel</button>
+        <button class="sheet__item sheet__item--danger"><span class="sheet__ico">🗑</span>Корзина</button>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h2>Проходная</h2>
+      <p class="notes__sub">Экран, где работают стоя и одной рукой. Здесь цена лишнего тапа выше всего.</p>
+
+      <div class="note note--new">
+        <h4>Строка стала талоном</h4>
+        <p>Форма отрывного пропуска: сверху — то, ради чего экран открывают
+          («Въезд» и «Выезд» парой во всю ширину, 44px), ниже линия отрыва, под
+          ней данные машины. Номер набран крупно моноширинными цифрами — его
+          сверяют глазами с настоящим номером на бампере.</p>
+        <span class="was">Было: «Въезд» и «Выезд» двумя строками, у каждой слева дублирующая подпись.</span>
+      </div>
+
+      <div class="note note--fix">
+        <h4>Кнопки шапки — в «Ещё»</h4>
+        <p>«Версии», «Корзина», «Экспорт», «Отчёт» ушли в лист снизу с полными
+          подписями. В строке остались поиск, фильтр и «⋯». Главное действие —
+          «Добавить машину» — переехало в нижнюю панель, под большой палец.</p>
+        <span class="was">Было: пять кнопок в шапке, ужатых до иконок без подписей.</span>
+      </div>
+
+      <div class="note note--fix">
+        <h4>Стрелка подсказки — вектор 16px</h4>
+        <p>Вместо растянутого растрового шеврона — <code>svg</code> со штрихом
+          2.2px, поворот на 90° при раскрытии. Не мылится ни при каком масштабе.</p>
+      </div>
+
+      <div class="note note--kill">
+        <h4>Шапка колонок на телефоне не нужна</h4>
+        <p>Её пытались чинить и прятать; на ширине 390 таблица из 13 колонок не
+          существует как таблица. Осталась только карточка — а шапка живёт с 768,
+          где в неё есть смысл смотреть.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= СОТРУДНИКИ ================= -->
+<section class="screen" id="screen-employees" hidden>
+  <div class="screen__grid">
+    <div class="phone">
+      <div class="app-bar">
+        <button class="burger" aria-label="Меню"><i></i><i></i><i></i></button>
+        <span class="app-bar__spacer"></span>
+        <button class="primary-mini">Заявка</button>
+        <button class="icon-btn" aria-label="Поиск">⌕</button>
+      </div>
+
+      <div class="phone__scroll">
+        <div class="screen-head">
+          <span class="screen-head__title">Мои сотрудники</span>
+          <span class="screen-head__count">18</span>
+          <button class="chip-btn chip-btn--icon" aria-label="Обновить">↻</button>
+        </div>
+
+        <div class="toolbar">
+          <span class="search">⌕ Поиск сотрудников</span>
+          <button class="chip-btn">Фильтр</button>
+        </div>
+
+        <div class="list">
+          <article class="card">
+            <div class="card__row"><b>Васьков Денис Александрович</b></div>
+            <div class="card__row">Начальник участка<span class="act__spacer"></span><span class="status status--off">Неактивен</span></div>
+            <div class="card__actions">
+              <button class="act act--accent">Изменить</button>
+              <button class="act act--danger">Удалить</button>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card__row"><b>Кокотов Андрей Викторович</b></div>
+            <div class="card__row">Работник<span class="act__spacer"></span><span class="status status--ok">Активен</span></div>
+            <div class="card__actions">
+              <button class="act act--accent">Изменить</button>
+              <button class="act act--danger">Удалить</button>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card__row"><b>Мякотных Сергей Михайлович</b></div>
+            <div class="card__row">Менеджер<span class="act__spacer"></span><span class="status status--off">Неактивен</span></div>
+            <div class="card__actions">
+              <button class="act act--accent">Изменить</button>
+              <button class="act act--danger">Удалить</button>
+            </div>
+          </article>
+        </div>
+
+        <div class="list-foot">Показано <b>3</b> из <b>18</b></div>
+      </div>
+
+      <div class="fab-bar">
+        <button>Добавить сотрудника</button>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h2>Сотрудники и машины</h2>
+      <p class="notes__sub">Тот же список, но без «кирпичей» и с работающей прокруткой.</p>
+
+      <div class="note note--fix">
+        <h4>«Добавить» ушло вниз, «Обновить» стало иконкой</h4>
+        <p>В шапке рядом с заголовком место есть ровно на одно действие —
+          обновление, и ему хватает круга 36px со стрелкой. Создание записи —
+          главное действие экрана, поэтому это широкая кнопка внизу, у пальца,
+          а не пилюля, притёртая к заголовку.</p>
+        <span class="was">Было: «Добавить» и «Обновить» жирными пилюлями в шапке, без отступов, у «Обновить» пропала иконка.</span>
+      </div>
+
+      <div class="note note--fix">
+        <h4>Действия карточки — бейджи внизу</h4>
+        <p>«Изменить» и «Удалить» высотой 28px в подвале карточки. Зона нажатия
+          остаётся 44px за счёт невидимого <code>::before</code>: визуально они
+          перестали претендовать на половину карточки, но мимо не попадёшь.</p>
+        <span class="was">Было: две пилюли 126×44 и 82×44 поперёк карточки.</span>
+      </div>
+
+      <div class="note note--new">
+        <h4>Строка карточки центрируется по вертикали</h4>
+        <p>Каждое поле — строка с <code>min-height: 30px</code> и выравниванием по
+          центру, значения прижаты влево, статус — вправо. Пропадает «пляшущая»
+          сетка, из-за которой список читался как каша.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ПОДАЧА ЗАЯВКИ ================= -->
+<section class="screen" id="screen-createapp" hidden>
+  <div class="screen__grid">
+    <div class="phone">
+      <div class="app-bar">
+        <button class="burger" aria-label="Меню"><i></i><i></i><i></i></button>
+        <span class="app-bar__spacer"></span>
+        <button class="primary-mini">Заявка</button>
+        <button class="icon-btn" aria-label="Поиск">⌕</button>
+      </div>
+
+      <div class="phone__scroll">
+        <div class="screen-head">
+          <span class="screen-head__title">Автозаявка №1</span>
+          <button class="chip-btn">Бланк</button>
+        </div>
+
+        <div class="notice" id="notice-demo">
+          <span>⚠</span>
+          <span class="notice__text">
+            Дебаркадер №1: с 13:00 до 17:00 въезд через ПОСТ №72.
+            <span class="notice__hint">Смахните вправо, чтобы убрать</span>
+          </span>
+          <button class="notice__x" data-dismiss="notice-demo" aria-label="Убрать">✕</button>
+        </div>
+
+        <section class="form-block">
+          <div class="form-block__head">
+            <span class="form-block__title">Транспорт</span>
+            <span class="form-block__count">2</span>
+            <span class="act__spacer"></span>
+            <span class="badge-exp">Experimental</span>
+            <button class="mini-btn">Импорт</button>
+          </div>
+
+          <div class="list" style="padding:8px">
+            <article class="card">
+              <div class="card__row"><b>О 999 ОО 777</b><span class="act__spacer"></span><span class="card__meta">ГАЗ</span></div>
+              <div class="card__row">Дебаркадер №1<span class="act__spacer"></span><span class="card__meta">08:00—18:00</span></div>
+              <div class="card__actions">
+                <button class="act">Изменить</button>
+                <button class="act act--danger">Удалить</button>
+                <span class="act__spacer"></span>
+                <button class="act act--ghost">Копировать</button>
+              </div>
+            </article>
+
+            <article class="card">
+              <div class="card__row"><b>К 050 УА 902</b><span class="act__spacer"></span><span class="card__meta">BMW X5</span></div>
+              <div class="card__row">Дебаркадер №2<span class="act__spacer"></span><span class="card__meta">08:00—18:00</span></div>
+              <div class="card__actions">
+                <button class="act">Изменить</button>
+                <button class="act act--danger">Удалить</button>
+                <span class="act__spacer"></span>
+                <button class="act act--ghost">Копировать</button>
+              </div>
+            </article>
+          </div>
+
+          <div class="form-block__head" style="border-top:1px solid var(--border);border-bottom:0">
+            <span class="card__meta">Всего 2 машины</span>
+            <span class="act__spacer"></span>
+            <button class="mini-btn mini-btn--ghost">Очистить</button>
+          </div>
+        </section>
+
+        <section class="form-block">
+          <div class="form-block__head">
+            <span class="form-block__title">Сотрудники</span>
+            <span class="form-block__count">0</span>
+            <span class="act__spacer"></span>
+            <span class="badge-exp">Experimental</span>
+            <button class="mini-btn">Импорт</button>
+          </div>
+          <div class="empty">Пока никого не добавили</div>
+        </section>
+      </div>
+
+      <div class="fab-bar">
+        <button>Добавить машину</button>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h2>Подача заявки</h2>
+      <p class="notes__sub">Самый длинный экран системы. Каждая лишняя кнопка здесь умножается на число бланков.</p>
+
+      <div class="note note--fix">
+        <h4>«Импорт» и «Очистить» — по высоте бейджа</h4>
+        <p>22px, ровно как <span class="badge-exp" style="height:18px;font-size:10px">Experimental</span> рядом.
+          Зона нажатия расширена невидимо до 44px. Ряд шапки перестал выглядеть
+          как панель инструментов и стал строкой заголовка.</p>
+        <span class="was">Было: две кнопки в 44px, вдвое выше бейджа, рядом с которым стоят.</span>
+      </div>
+
+      <div class="note note--new">
+        <h4>Предупреждение смахивается вправо</h4>
+        <p>Подсказки про режим работы мест разгрузки нужны один раз. Свайп вправо
+          (или крестик) убирает карточку, экран не копит баннеры.
+          <b>Попробуйте: потяните жёлтую плашку вправо.</b></p>
+      </div>
+
+      <div class="note note--fix">
+        <h4>Действия строки — в подвал карточки</h4>
+        <p>«Изменить», «Удалить», «Копировать» стоят под данными компактным рядом,
+          а не отъедают половину ширины у номера и марки.</p>
+        <span class="was">Было: кнопки деталей и удаления занимали больше половины строки.</span>
+      </div>
+
+      <div class="note note--new">
+        <h4>Итог блока — отдельной строкой</h4>
+        <p>«Всего 2 машины» и «Очистить» вынесены вниз блока. Раньше счётчик и
+          действия жались в одну строку с заголовком и переносились.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ЗАЯВКА ================= -->
+<section class="screen" id="screen-detail" hidden>
+  <div class="screen__grid">
+    <div class="phone">
+      <div class="app-bar">
+        <button class="burger" aria-label="Меню"><i></i><i></i><i></i></button>
+        <span class="app-bar__spacer"></span>
+        <button class="primary-mini">Заявка</button>
+        <button class="icon-btn" aria-label="Поиск">⌕</button>
+      </div>
+
+      <div class="phone__scroll">
+        <div class="screen-head">
+          <span class="screen-head__title">Заявка № 20260808/027</span>
+          <button class="chip-btn chip-btn--icon" data-sheet="detail" aria-label="Ещё">⋯</button>
+        </div>
+
+        <div class="toolbar">
+          <span class="card__meta">08.08.2026, 15:00 · Суббота</span>
+          <span class="act__spacer"></span>
+          <span class="status status--work">В обработке</span>
+        </div>
+
+        <section class="form-block">
+          <div class="form-block__head">
+            <span class="form-block__title">Автомобили</span>
+            <span class="form-block__count">3</span>
+            <span class="act__spacer"></span>
+            <span class="search" style="height:26px;font-size:12px;padding:0 10px">⌕ Поиск</span>
+          </div>
+
+          <div class="list" style="padding:8px">
+            <article class="card">
+              <div class="card__row"><b>О 999 ОО 777</b></div>
+              <div class="card__row">ГАЗ</div>
+              <div class="card__row">Дебаркадер №1</div>
+              <div class="card__row">E2E фильтры, Ship Check RT <span class="card__meta">+6</span></div>
+            </article>
+            <article class="card">
+              <div class="card__row"><b>К 050 УА 902</b></div>
+              <div class="card__row">BMW X5</div>
+              <div class="card__row">Дебаркадер №2</div>
+              <div class="card__row">ПОСТ №72</div>
+            </article>
+          </div>
+        </section>
+
+        <div class="list-foot">
+          Всего <b>3</b>
+          <span class="act__spacer"></span>
+          <button class="act act--accent" data-sheet="detail">Назначить всем…</button>
+        </div>
+      </div>
+
+      <div class="sheet-backdrop" data-close></div>
+      <div class="sheet" id="sheet-detail">
+        <div class="sheet__grip"></div>
+        <div class="sheet__title">Назначить всем машинам</div>
+        <button class="sheet__item"><span class="sheet__ico">▣</span>Места разгрузки</button>
+        <button class="sheet__item"><span class="sheet__ico">⛊</span>Посты проезда</button>
+        <div class="sheet__title" style="padding-top:12px">Заявка</div>
+        <button class="sheet__item"><span class="sheet__ico">⤓</span>Скачать бланк</button>
+        <button class="sheet__item"><span class="sheet__ico">↗</span>Переслать</button>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h2>Заявка</h2>
+      <p class="notes__sub">Карточки уже без подписей — осталось привести в порядок отступы и подвал.</p>
+
+      <div class="note note--fix">
+        <h4>Подвал перестал ломаться</h4>
+        <p>«Всего: N» и «Назначить всем места разгрузки / посты проезда» не влезают
+          в 390 ни в каком виде. Счётчик остаётся строкой, назначение сворачивается
+          в «Назначить всем…» и раскрывается листом с полными подписями.</p>
+        <span class="was">Было: подвал не вмещался, подписи наезжали друг на друга.</span>
+      </div>
+
+      <div class="note note--fix">
+        <h4>Единая сетка отступов</h4>
+        <p>Поле карточки — строка <code>min-height: 30px</code>, значение прижато
+          влево и центрировано по вертикали, между строками пунктир. Никаких
+          «странных» боковых отступов: у карточки 12px, у списка 12px, и всё.</p>
+      </div>
+
+      <div class="note note--new">
+        <h4>Поиск по сущностям — в шапке блока</h4>
+        <p>Поле поиска ужато до 26px и стоит в строке заголовка блока: у списка на
+          3 машины оно не должно весить как отдельная панель.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= АНАЛИТИКА ================= -->
+<section class="screen" id="screen-analytics" hidden>
+  <div class="screen__grid">
+    <div class="phone">
+      <div class="app-bar">
+        <button class="burger" aria-label="Меню"><i></i><i></i><i></i></button>
+        <span class="app-bar__spacer"></span>
+        <button class="primary-mini">Заявка</button>
+        <button class="icon-btn" aria-label="Поиск">⌕</button>
+      </div>
+
+      <div class="phone__scroll">
+        <div class="screen-head">
+          <span class="screen-head__title">Аналитика</span>
+          <button class="chip-btn chip-btn--icon" aria-label="Справка">i</button>
+          <button class="chip-btn chip-btn--icon" aria-label="Период">▤</button>
+          <button class="chip-btn chip-btn--icon" aria-label="Обновить">↻</button>
+        </div>
+
+        <div class="period">
+          <button>Сегодня</button>
+          <button aria-pressed="true">Неделя</button>
+          <button>Месяц</button>
+          <button>Год</button>
+        </div>
+
+        <div class="toolbar">
+          <span class="card__meta">10.08.2026 — 11.08.2026</span>
+        </div>
+
+        <div class="section-head"><h3>Данные</h3></div>
+        <div class="section-head__note">бизнес-показатели за период</div>
+
+        <div class="metrics">
+          <div class="metric">
+            <div class="metric__label">Получено заявок</div>
+            <div class="metric__value">1</div>
+            <div class="metric__delta metric__delta--down">↓ 96,4%</div>
+          </div>
+          <div class="metric">
+            <div class="metric__label">Обработано</div>
+            <div class="metric__value">0</div>
+          </div>
+          <div class="metric">
+            <div class="metric__label">Машин заехало</div>
+            <div class="metric__value">72</div>
+            <div class="metric__delta metric__delta--up">↑ 1340%</div>
+          </div>
+          <div class="metric">
+            <div class="metric__label">Людей прошло</div>
+            <div class="metric__value">74</div>
+            <div class="metric__delta metric__delta--up">↑ 640%</div>
+          </div>
+        </div>
+
+        <div class="section-head"><h3>Push-уведомления</h3></div>
+        <div class="section-head__note">снимок на сейчас, вне выбранного периода</div>
+
+        <div class="metrics">
+          <div class="metric">
+            <div class="metric__label">Подписано</div>
+            <div class="metric__value">12</div>
+          </div>
+          <div class="metric">
+            <div class="metric__label">Доставлено</div>
+            <div class="metric__value">96%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h2>Аналитика</h2>
+      <p class="notes__sub">Здесь чинить надо не разъезд, а ширину служебных строк.</p>
+
+      <div class="note note--fix">
+        <h4>«Инфо», «Период» и «Обновить» — одной строкой</h4>
+        <p>Три круга по 36px рядом с заголовком: 3×36 плюс зазоры укладываются в
+          остаток строки на 320. «Обновить» больше не уезжает вниз.</p>
+        <span class="was">Было: «Обновить» переносилось на следующую строку.</span>
+      </div>
+
+      <div class="note note--fix">
+        <h4>Пояснение — своей строкой, а не в остаток</h4>
+        <p>Серый чип «снимок на сейчас, вне выбранного периода» уходил за экран,
+          потому что делил строку с заголовком. Пояснение вынесено под заголовок
+          обычным текстом: оно длиннее заголовка и в остаток не влезет никогда.</p>
+      </div>
+
+      <div class="note note--kill">
+        <h4>Ленты с max-height убраны</h4>
+        <p>Внутри страницы стояли списки с <code>max-height: 320</code> и своей
+          прокруткой — второй источник «дёргает». На телефоне лента показывает
+          первые записи и кнопку «Показать ещё», прокрутка остаётся одна.</p>
+      </div>
+
+      <div class="note note--fix">
+        <h4>Показатели — сеткой 2×N</h4>
+        <p>Плитки одинаковой ширины вместо блоков, которые «раздувались» по
+          содержимому. Раздел обработки заявок собирается из тех же плиток.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script>
+// Переключение экранов
+const tabs = [...document.querySelectorAll('.tab')];
+tabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    tabs.forEach(t => t.setAttribute('aria-selected', String(t === tab)));
+    document.querySelectorAll('.screen').forEach(s => { s.hidden = true; });
+    document.getElementById('screen-' + tab.dataset.screen).hidden = false;
+    window.scrollTo({ top: document.querySelector('.tabs').offsetTop, behavior: 'smooth' });
+  });
+});
+
+// Сворачиваемая подсказка
+document.querySelectorAll('[data-hint]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById(btn.dataset.hint).classList.toggle('is-open');
+  });
+});
+
+// Лист действий
+const openSheet = name => {
+  const sheet = document.getElementById('sheet-' + name);
+  if (!sheet) return;
+  sheet.classList.add('is-open');
+  sheet.previousElementSibling.classList.add('is-open');
+};
+document.querySelectorAll('[data-sheet]').forEach(btn => {
+  btn.addEventListener('click', () => openSheet(btn.dataset.sheet));
+});
+document.querySelectorAll('[data-close]').forEach(back => {
+  back.addEventListener('click', () => {
+    back.classList.remove('is-open');
+    back.nextElementSibling.classList.remove('is-open');
+  });
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  document.querySelectorAll('.sheet.is-open').forEach(s => s.classList.remove('is-open'));
+  document.querySelectorAll('.sheet-backdrop.is-open').forEach(b => b.classList.remove('is-open'));
+});
+
+// Смахивание предупреждения вправо
+document.querySelectorAll('.notice').forEach(notice => {
+  let startX = null;
+  const dismiss = () => notice.classList.add('is-dismissed');
+  notice.addEventListener('pointerdown', e => { startX = e.clientX; notice.setPointerCapture(e.pointerId); });
+  notice.addEventListener('pointermove', e => {
+    if (startX === null) return;
+    const dx = e.clientX - startX;
+    if (dx > 0) notice.style.transform = `translateX(${dx}px)`;
+    if (dx > 90) { notice.style.transform = ''; startX = null; dismiss(); }
+  });
+  notice.addEventListener('pointerup', () => { notice.style.transform = ''; startX = null; });
+  notice.addEventListener('pointercancel', () => { notice.style.transform = ''; startX = null; });
+});
+document.querySelectorAll('[data-dismiss]').forEach(btn => {
+  btn.addEventListener('click', () => document.getElementById(btn.dataset.dismiss).classList.add('is-dismissed'));
+});
+</script>
+</body>
+</html>
