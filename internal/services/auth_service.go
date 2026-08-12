@@ -272,8 +272,14 @@ func (s *authService) lockoutError(seconds int) error {
 // запись на этом пути читать незачем, а пароль здесь не проверяется вовсе.
 func (s *authService) accountLockSeconds(ctx context.Context, username string) int {
 	var lockedUntil *time.Time
-	s.db.WithContext(ctx).Table("users").Select("locked_until").
-		Where("username = ?", username).Scan(&lockedUntil)
+	if err := s.db.WithContext(ctx).Table("users").Select("locked_until").
+		Where("username = ?", username).Scan(&lockedUntil).Error; err != nil {
+		// Решение об отказе принято счётчиком в памяти и от этого запроса не
+		// зависит, поэтому вход не роняем. Но молчать нельзя: без остатка по
+		// учётке ответ пообещает вход раньше, чем он откроется.
+		slog.Warn("не удалось прочитать остаток блокировки учётной записи", "username", username, "error", err)
+		return 0
+	}
 	if lockedUntil == nil || !lockedUntil.After(time.Now().UTC()) {
 		return 0
 	}
@@ -300,6 +306,28 @@ func (s *authService) loginFailureResponse(ip, username string, accountLockedUnt
 	}
 	return apperr.Unauthorized("Неверный логин или пароль").
 		WithHeader("X-Auth-Attempts-Remaining", strconv.Itoa(remaining))
+}
+
+// loginUnavailable - ответ на СБОЙ входа, а не на неверные учётные данные:
+// недоступная база, исчерпанный пул соединений, таймаут запроса. От обычного
+// отказа отличается тремя вещами.
+//
+// Наружу уходит 500, а не 401: дело не в пароле, и повторять подбор бессмысленно.
+// 503 тут занят - его отдаёт режим технических работ, и фронт по нему уводит на
+// страницу техработ, где сам же читает окно работ из базы, которой сейчас нет.
+// Для 500 на /login у клиента исключение из редиректа на страницу ошибки: форма
+// входа показывает текст сама.
+//
+// Счётчик блокировки НЕ трогается (loginFailureResponse тут не зовётся): иначе
+// после аварии люди сидели бы заперты за то, чего не делали.
+//
+// Причина пишется и в журнал событий, и в системный лог. Журнал живёт в той же
+// базе и при полной аварии не сохранится - системный лог её переживает.
+func (s *authService) loginUnavailable(ctx context.Context, username string, meta *RequestMeta, stage string, cause error) error {
+	slog.Error("вход не выполнен из-за ошибки обращения к базе", "stage", stage, "username", username, "error", cause)
+	s.recordAuthEvent(ctx, nil, username, models.AuthEventLoginError, false, meta,
+		fmt.Sprintf("%s: %v", stage, cause))
+	return apperr.Internal("Вход временно недоступен из-за ошибки на сервере. Повторите попытку позже.", cause)
 }
 
 // Login выполняет аутентификацию пользователя и возвращает пару токенов.
@@ -331,6 +359,12 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		Where("username = ?", req.Username).
 		First(&user).Error
 	if err != nil {
+		// Ошибка запроса - это не только отсутствующая строка: недоступная база,
+		// исчерпанный пул, таймаут, сбой преднагрузки связанных сущностей. Считать
+		// их «логина нет» значит врать в журнале и наказывать человека за аварию.
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, s.loginUnavailable(ctx, req.Username, meta, "user lookup", err)
+		}
 		s.recordAuthEvent(ctx, nil, req.Username, models.AuthEventLoginFailed, false, meta, "user not found")
 		// Счётчик показываем и для несуществующего логина (тот же ответ, что и при
 		// неверном пароле) - иначе по наличию счётчика можно перебирать имена.
@@ -351,10 +385,12 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 	// цикл из maxFailedLoginsBeforeLock попыток. Без этого счётчик остаётся на пороге,
 	// и первая же новая неверная попытка мгновенно лочит заново с "осталось 0".
 	if user.LockedUntil != nil {
-		s.db.WithContext(ctx).Model(&user).Updates(map[string]interface{}{
+		if err := s.db.WithContext(ctx).Model(&user).Updates(map[string]interface{}{
 			"failed_login_count": 0,
 			"locked_until":       nil,
-		})
+		}).Error; err != nil {
+			slog.Error("не удалось снять истёкшую блокировку входа", "username", user.Username, "error", err)
+		}
 		user.FailedLoginCount = 0
 		user.LockedUntil = nil
 	}
@@ -387,7 +423,12 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		updates["lockout_level"] = 0
 		updates["last_failed_login_at"] = nil
 	}
-	s.db.WithContext(ctx).Model(&user).Updates(updates)
+	if err := s.db.WithContext(ctx).Model(&user).Updates(updates).Error; err != nil {
+		// Пароль уже проверен, вход состоялся - ронять его из-за отметки активности
+		// незачем. Но потерянный сброс счётчика встретит человека блокировкой на
+		// ровном месте, и разбирать это придётся по логу.
+		slog.Error("не удалось сохранить состояние успешного входа", "username", user.Username, "error", err)
+	}
 
 	accessToken, err := s.createAccessToken(user.Username, user.ID, user.TypeID, user.IsSuperAdmin)
 	if err != nil {
@@ -411,7 +452,12 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		IPAddress: metaIPPtr(meta),
 		UserAgent: metaUAPtr(meta),
 	}
-	s.db.WithContext(ctx).Create(&rt)
+	if err := s.db.WithContext(ctx).Create(&rt).Error; err != nil {
+		// Ошибку тут глотать нельзя: refresh-токен на руках есть, а в базе его нет,
+		// и сессия тихо умрёт на первом же продлении - человек вылетит посреди работы
+		// без объяснения. Честнее отказать сразу тем же ответом, что и при сбое базы.
+		return nil, s.loginUnavailable(ctx, user.Username, meta, "refresh token store", err)
+	}
 
 	s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginSuccess, true, meta, "")
 
