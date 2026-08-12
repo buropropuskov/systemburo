@@ -13,11 +13,19 @@
  * Запуск: node Документация/src/shots/setup-stand.mjs [--api=http://localhost:8095/api]
  */
 
+import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+
+/*
+ * Работа с электронными таблицами уже есть в зависимостях веб-части, поэтому
+ * пакет резолвится от неё явно - тем же приёмом, что и playwright в lib/session.
+ */
+const REPO_ROOT = path.resolve(HERE, '..', '..', '..');
+const requireFromFrontend = createRequire(path.join(REPO_ROOT, 'frontend', 'package.json'));
 
 /**
  * Права, которые получает охранник на каждую таблицу поста. Полный набор
@@ -76,6 +84,34 @@ const CONSENT_TEXT = `<p>Настоящим я даю согласие на об
 <p>Согласие действует на срок оформления и действия пропуска, а также на срок хранения
 сведений о проходе, установленный на предприятии. Согласие может быть отозвано
 письменным обращением в бюро пропусков.</p>`;
+
+/**
+ * Обращения работников в бюро пропусков. Первое закрыто ответом, остальные
+ * ждут разбора: так в кадре видны обе вкладки раздела и поле ответа.
+ */
+const FEEDBACK = [
+  {
+    role: 'user',
+    message:
+      'При подаче заявки не нашёл в списке место разгрузки «Склад №3». Раньше оно было, ' +
+      'сейчас его нет, а машина приходит именно туда.',
+    answer:
+      'Место разгрузки «Склад №3» убрано в архив на время ремонта. До 20 сентября указывайте ' +
+      '«Склад №1», проезд к нему открыт с той же стороны.',
+  },
+  {
+    role: 'approver',
+    message:
+      'Письма о новых заявках приходят с задержкой в несколько часов, а заявки срочные. ' +
+      'Можно ли настроить, чтобы уведомление приходило сразу?',
+  },
+  {
+    role: 'acceptor',
+    message:
+      'В выгрузке бланка по заявке не заполняется столбец с должностью, хотя в заявке ' +
+      'должность указана. Проверьте, пожалуйста, привязку поля к ячейке.',
+  },
+];
 
 const DOCUMENTS = [
   { title: 'Правила пропускного режима', description: 'Порядок прохода и проезда на территорию' },
@@ -201,6 +237,8 @@ async function main() {
   await fillOverview(apiBase, token);
   await fillBureauSchedule(apiBase, token);
   await enableConsent(apiBase, token);
+  await seedFeedback(apiBase, token, accounts);
+  await ensureBlankTemplate(apiBase, token);
 }
 
 /**
@@ -505,6 +543,175 @@ async function fillOverview(apiBase, token) {
     }
   }
   console.log(`Документы: всего ${DOCUMENTS.length}`);
+}
+
+/**
+ * Собирает бланк пропуска на транспорт - образец печатной формы, которую бюро
+ * выдаёт на посту.
+ *
+ * Без загруженного шаблона редактор бланка показывает одну строку «Загрузите
+ * шаблон .xlsx», и рассказать по такому кадру про привязку полей к ячейкам
+ * нельзя. Настоящий бланк заказчика сюда класть незачем: он у каждого свой, а
+ * для рисунка нужна узнаваемая форма с шапкой и таблицей строк.
+ */
+async function makeBlank() {
+  const ExcelJS = requireFromFrontend('exceljs');
+  const book = new ExcelJS.Workbook();
+  const sheet = book.addWorksheet('Пропуск');
+
+  // Первая колонка держит номер строки в таблице, поэтому подписи шапки
+  // занимают две колонки merge-ом: в узкой A они обрезались бы многоточием, и
+  // на рисунке в руководстве бланк выглядел бы недоделанным.
+  sheet.columns = [
+    { width: 6 },
+    { width: 26 },
+    { width: 20 },
+    { width: 18 },
+    { width: 22 },
+  ];
+
+  sheet.mergeCells('A1:E1');
+  sheet.getCell('A1').value = 'ЗАЯВКА НА ПРОПУСК ТРАНСПОРТНОГО СРЕДСТВА';
+  sheet.getCell('A1').font = { bold: true, size: 14 };
+  sheet.getCell('A1').alignment = { horizontal: 'center' };
+
+  for (const [row, label] of [
+    [3, 'Организация:'],
+    [4, 'Ответственный:'],
+    [5, 'Телефон:'],
+    [6, 'Срок действия:'],
+  ]) {
+    sheet.mergeCells(`A${row}:B${row}`);
+    sheet.getCell(`A${row}`).value = label;
+    sheet.mergeCells(`C${row}:E${row}`);
+  }
+
+  const head = ['№', 'Марка', 'Гос. номер', 'Водитель', 'Место разгрузки'];
+  head.forEach((title, index) => {
+    const cell = sheet.getRow(8).getCell(index + 1);
+    cell.value = title;
+    cell.font = { bold: true };
+    cell.alignment = { horizontal: 'center' };
+  });
+
+  for (let row = 8; row <= 14; row += 1) {
+    for (let column = 1; column <= 5; column += 1) {
+      sheet.getRow(row).getCell(column).border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' },
+      };
+    }
+  }
+
+  sheet.mergeCells('A16:C16');
+  sheet.getCell('A16').value = 'Начальник бюро пропусков ____________________';
+
+  const buffer = await book.xlsx.writeBuffer();
+  return Buffer.from(buffer);
+}
+
+/**
+ * Загружает образец бланка в вид вложения «Автомобили» и привязывает поля к
+ * ячейкам. Привязки набираются по подписям, а не по заранее выписанным путям:
+ * состав полей задаётся системой и меняется вместе с ней.
+ */
+async function ensureBlankTemplate(apiBase, token) {
+  const kinds = unwrap(await api(apiBase, token, 'GET', '/attachments/all')) ?? [];
+  const cars = kinds.find((kind) => kind.attachment_type === 'cars' && kind.is_active !== false);
+  if (!cars) throw new Error('на стенде нет действующего вида вложения для машин');
+
+  // Пока шаблона нет, метод отвечает отказом «Шаблон не настроен» - это не сбой.
+  const current = unwrap(
+    await api(apiBase, token, 'GET', `/attachments/${cars.id}/template`).catch(() => null),
+  );
+  if (!current?.file_path) {
+    const form = new FormData();
+    form.append('file', new Blob([await makeBlank()]), 'Пропуск на транспорт.xlsx');
+    form.append('list_start_row', '9');
+    form.append('list_end_row', '14');
+    const response = await fetch(`${apiBase}/attachments/${cars.id}/template`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+    if (!response.ok) {
+      throw new Error(`загрузка бланка -> ${response.status}: ${(await response.text()).slice(0, 300)}`);
+    }
+  }
+
+  const loaded = unwrap(
+    await api(apiBase, token, 'GET', `/attachments/${cars.id}/template`).catch(() => null),
+  );
+  if ((loaded?.mappings ?? []).length > 0) {
+    console.log(`Бланк вида «${cars.display_name}»: уже настроен, привязок ${loaded.mappings.length}`);
+    return;
+  }
+
+  // Поля приходят группами («Заявка», «Автомобиль (список)» и прочие), а
+  // признак строки списка стоит у самого поля - от него зависит, берётся
+  // значение один раз или по строке на машину.
+  const groups = unwrap(await api(apiBase, token, 'GET', `/attachments/${cars.id}/template-fields`)) ?? [];
+  const flat = groups.flatMap((group) => group.fields ?? []);
+  const byPath = new Map(flat.map((field) => [field.path, field]));
+
+  const wanted = [
+    ['C3', 'application.organization'],
+    ['C4', 'application.sender.full_name'],
+    ['C5', 'application.contact_phone'],
+    ['A9', 'car.row_number'],
+    ['B9', 'car.mark_name'],
+    ['C9', 'car.car_number'],
+  ];
+  const mappings = [];
+  for (const [cell, fieldPath] of wanted) {
+    const field = byPath.get(fieldPath);
+    if (!field) throw new Error(`поле ${fieldPath} исчезло из состава полей бланка`);
+    mappings.push({ cell_ref: cell, field_path: fieldPath, is_list_field: Boolean(field.is_list) });
+  }
+  await api(apiBase, token, 'PUT', `/attachments/${cars.id}/template/mappings`, { mappings });
+
+  console.log(`Бланк вида «${cars.display_name}»: загружен, привязок ${mappings.length}`);
+}
+
+/**
+ * Заводит обращения в разделе «Обратная связь».
+ *
+ * Наливка обращений не создаёт, и раздел на стенде пуст: снимать нечего, а
+ * описывать разбор обращения по пустому экрану нельзя. Одно обращение
+ * закрывается ответом - иначе вкладка «Решено» и поле ответа заявителю тоже
+ * остались бы без кадра.
+ *
+ * Обращение пишет сам работник, поэтому оно и заводится входом под его учётной
+ * записью: отправка от имени администратора положила бы в список не ту фамилию.
+ */
+async function seedFeedback(apiBase, token, accounts) {
+  const existing = unwrap(await api(apiBase, token, 'GET', '/feedback/all')) ?? [];
+  const known = new Set(existing.map((item) => item.message));
+  let added = 0;
+
+  for (const item of FEEDBACK) {
+    if (known.has(item.message)) continue;
+    const session = unwrap(
+      await api(apiBase, null, 'POST', '/login', {
+        username: accounts.roles[item.role].username,
+        password: accounts.password,
+      }),
+    );
+    const created = unwrap(await api(apiBase, session.token, 'POST', '/feedback', {
+      message: item.message,
+    }));
+    if (item.answer) {
+      await api(apiBase, token, 'PUT', `/feedback/${created.id}/status`, {
+        status: 'Решено',
+        comment: item.answer,
+      });
+    }
+    added += 1;
+  }
+
+  console.log(`Обратная связь: было обращений ${existing.length}, добавлено ${added}`);
 }
 
 main().catch((error) => {

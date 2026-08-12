@@ -125,7 +125,10 @@ async function main() {
   const accounts = JSON.parse(await readFile(path.join(HERE, 'accounts.json'), 'utf8'));
   const manifest = JSON.parse(await readFile(path.join(HERE, `${doc}.json`), 'utf8'));
 
-  const shots = manifest.shots.filter((shot) => !only || shot.id === only);
+  // Кадров в документе десятки, а переснимать после правки манифеста обычно
+  // нужно несколько: имена перечисляются через запятую.
+  const wanted = only ? new Set(only.split(',').map((name) => name.trim()).filter(Boolean)) : null;
+  const shots = manifest.shots.filter((shot) => !wanted || wanted.has(shot.id));
   if (shots.length === 0) throw new Error(`в манифесте ${doc} нет кадров${only ? ` с именем ${only}` : ''}`);
 
   const outDir = path.join(DOCS_ROOT, 'src', 'screenshots', doc);
