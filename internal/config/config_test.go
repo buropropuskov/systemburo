@@ -748,3 +748,140 @@ func TestLoad_EntityExportPathHasNoDefault(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, cfg.EntityExportPath)
 }
+
+// --- Пул соединений, таймауты HTTP и предел хеширования ---
+
+// clearPoolAndLimitEnv снимает новые параметры с окружения: проверять умолчания в
+// оболочке разработчика, где часть из них может быть выставлена, значило бы получить
+// тест, зелёный не у всех.
+func clearPoolAndLimitEnv(t *testing.T) {
+	t.Helper()
+	for _, key := range []string{
+		"DB_MAX_OPEN_CONNS", "DB_MAX_IDLE_CONNS", "DB_CONN_MAX_LIFETIME", "DB_CONN_MAX_IDLE_TIME",
+		"HTTP_READ_HEADER_TIMEOUT", "HTTP_READ_TIMEOUT", "HTTP_WRITE_TIMEOUT", "HTTP_IDLE_TIMEOUT",
+		"ARGON2_HASH_CONCURRENCY",
+	} {
+		t.Setenv(key, "")
+	}
+}
+
+// TestLoad_PoolAndLimitDefaults стережёт сами умолчания: система обязана подниматься,
+// когда ни один из параметров не задан, и получать при этом настроенный пул, а не
+// умолчания драйвера (безлимит открытых, два простаивающих), ради ухода от которых
+// параметры и заведены.
+func TestLoad_PoolAndLimitDefaults(t *testing.T) {
+	setValidEnv(t)
+	clearPoolAndLimitEnv(t)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	// 50 - треть от max_connections=150 в docker-compose.prod.yml; остаток нужен
+	// консольным подкомандам, pgAdmin и резервному копированию.
+	assert.Equal(t, 50, cfg.DBMaxOpenConns)
+	assert.Equal(t, 25, cfg.DBMaxIdleConns)
+	assert.Equal(t, time.Hour, cfg.DBConnMaxLifetime)
+	assert.Equal(t, 10*time.Minute, cfg.DBConnMaxIdleTime)
+
+	assert.Equal(t, 10*time.Second, cfg.HTTPReadHeaderTimeout)
+	assert.Equal(t, 120*time.Second, cfg.HTTPReadTimeout)
+	assert.Equal(t, 120*time.Second, cfg.HTTPWriteTimeout)
+	assert.Equal(t, 120*time.Second, cfg.HTTPIdleTimeout)
+
+	// 0 означает "по числу ядер" - предел ставится, просто считается на старте.
+	assert.Equal(t, 0, cfg.Argon2HashConcurrency)
+
+	// Умолчание предела простаивающих не должно превышать предел открытых, иначе
+	// поднявшаяся на умолчаниях система падала бы собственной же проверкой.
+	require.NoError(t, cfg.Validate())
+}
+
+// TestLoad_PoolAndLimitsFromEnv проверяет, что заданные значения доезжают до
+// конфигурации, а не теряются по дороге к настройке.
+func TestLoad_PoolAndLimitsFromEnv(t *testing.T) {
+	setValidEnv(t)
+	t.Setenv("DB_MAX_OPEN_CONNS", "77")
+	t.Setenv("DB_MAX_IDLE_CONNS", "33")
+	t.Setenv("DB_CONN_MAX_LIFETIME", "42m")
+	t.Setenv("DB_CONN_MAX_IDLE_TIME", "7m")
+	t.Setenv("HTTP_READ_HEADER_TIMEOUT", "3s")
+	t.Setenv("HTTP_READ_TIMEOUT", "31s")
+	t.Setenv("HTTP_WRITE_TIMEOUT", "32s")
+	t.Setenv("HTTP_IDLE_TIMEOUT", "33s")
+	t.Setenv("ARGON2_HASH_CONCURRENCY", "4")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	assert.Equal(t, 77, cfg.DBMaxOpenConns)
+	assert.Equal(t, 33, cfg.DBMaxIdleConns)
+	assert.Equal(t, 42*time.Minute, cfg.DBConnMaxLifetime)
+	assert.Equal(t, 7*time.Minute, cfg.DBConnMaxIdleTime)
+	assert.Equal(t, 3*time.Second, cfg.HTTPReadHeaderTimeout)
+	assert.Equal(t, 31*time.Second, cfg.HTTPReadTimeout)
+	assert.Equal(t, 32*time.Second, cfg.HTTPWriteTimeout)
+	assert.Equal(t, 33*time.Second, cfg.HTTPIdleTimeout)
+	assert.Equal(t, 4, cfg.Argon2HashConcurrency)
+}
+
+// TestValidate_NegativePoolAndLimits: отрицательное значение обязано ронять старт.
+// Все три подсистемы трактуют его как "снять ограничение", то есть опечатка в знаке
+// молча выключает ровно ту защиту, ради которой параметр появился.
+func TestValidate_NegativePoolAndLimits(t *testing.T) {
+	tests := []struct {
+		name    string
+		spoil   func(*Config)
+		wantVar string
+	}{
+		{"открытых соединений", func(c *Config) { c.DBMaxOpenConns = -1 }, "DB_MAX_OPEN_CONNS"},
+		{"простаивающих соединений", func(c *Config) { c.DBMaxIdleConns = -1 }, "DB_MAX_IDLE_CONNS"},
+		{"времени жизни соединения", func(c *Config) { c.DBConnMaxLifetime = -time.Second }, "DB_CONN_MAX_LIFETIME"},
+		{"простоя соединения", func(c *Config) { c.DBConnMaxIdleTime = -time.Second }, "DB_CONN_MAX_IDLE_TIME"},
+		{"приёма заголовков", func(c *Config) { c.HTTPReadHeaderTimeout = -time.Second }, "HTTP_READ_HEADER_TIMEOUT"},
+		{"чтения запроса", func(c *Config) { c.HTTPReadTimeout = -time.Second }, "HTTP_READ_TIMEOUT"},
+		{"записи ответа", func(c *Config) { c.HTTPWriteTimeout = -time.Second }, "HTTP_WRITE_TIMEOUT"},
+		{"простоя соединения HTTP", func(c *Config) { c.HTTPIdleTimeout = -time.Second }, "HTTP_IDLE_TIMEOUT"},
+		{"параллелизма хеширования", func(c *Config) { c.Argon2HashConcurrency = -1 }, "ARGON2_HASH_CONCURRENCY"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validConfig()
+			tt.spoil(cfg)
+			err := cfg.Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantVar)
+		})
+	}
+}
+
+// TestValidate_IdleConnsAboveOpen ловит half-настройку: предел открытых опустили,
+// про простаивающие забыли. database/sql лишнее обрежет молча, и пул будет вести
+// себя не так, как записано в файле параметров.
+func TestValidate_IdleConnsAboveOpen(t *testing.T) {
+	cfg := validConfig()
+	cfg.DBMaxOpenConns = 10
+	cfg.DBMaxIdleConns = 25
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "DB_MAX_IDLE_CONNS")
+	assert.Contains(t, err.Error(), "DB_MAX_OPEN_CONNS")
+}
+
+// TestValidate_ZeroPoolAndLimitsAllowed: ноль - осознанное "без ограничения" и
+// отдушина администратору, чей обработчик законно идёт дольше таймаута. Отказывать
+// в нём значило бы заставлять править код вместо параметра.
+func TestValidate_ZeroPoolAndLimitsAllowed(t *testing.T) {
+	cfg := validConfig()
+	cfg.DBMaxOpenConns = 0
+	cfg.DBMaxIdleConns = 0
+	cfg.DBConnMaxLifetime = 0
+	cfg.DBConnMaxIdleTime = 0
+	cfg.HTTPReadHeaderTimeout = 0
+	cfg.HTTPReadTimeout = 0
+	cfg.HTTPWriteTimeout = 0
+	cfg.HTTPIdleTimeout = 0
+	cfg.Argon2HashConcurrency = 0
+
+	require.NoError(t, cfg.Validate())
+}

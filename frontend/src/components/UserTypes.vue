@@ -502,11 +502,10 @@ export default {
     };
   },
   computed: {
-    // Гейт кнопки «Перенести» зеркалит BE requireAdmin (page.admin): список
-    // блокеров видит любой, кто открыл экран, а reassign-эндпоинт - только
-    // page.admin, иначе «видно, но 403» (уроки #976/#1083).
+    // Гейт кнопки «Перенести» зеркалит BE: reassign-эндпоинт закрыт тем же
+    // page.admin.directories, что открывает экран (#1982).
     canReassign() {
-      return usePermissionsStore().hasPermission('page.admin');
+      return usePermissionsStore().hasPermission('page.admin.directories');
     },
     // Цели переноса - все типы, кроме источника. Системные НЕ исключаем: перенос
     // в дефолтный (системный) тип допустим, BE это принимает. Источник-системный
