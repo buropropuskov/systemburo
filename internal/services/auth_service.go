@@ -137,17 +137,22 @@ func hashPassword(password string) string {
 	return fmt.Sprintf("$argon2id$v=%d$m=19456,t=2,p=1$%s$%s", goargon2.Version, saltB64, hashB64)
 }
 
-func verifyPassword(phcHash, password string) bool {
+// verifyPassword сравнивает пароль с сохранённым PHC-хешем. Второй результат -
+// ошибка РАЗБОРА хеша (обрезанная строка, чужой алгоритм, битый base64), а не
+// "пароль не подошёл". Вызывающий обязан различать эти два случая: иначе дефект
+// сохранённых данных выглядит как неверно введённый пароль и наказывается как
+// он - счётчиком неудачных попыток и лестницей блокировки (#2017).
+func verifyPassword(phcHash, password string) (bool, error) {
 	// Parse PHC format
 	salt, expectedHash, params, err := parsePHC(phcHash)
 	if err != nil {
-		return false
+		return false, err
 	}
 	var computed []byte
 	withArgon2Slot(func() {
 		computed = argon2.IDKey([]byte(password), salt, params.time, params.memory, params.threads, uint32(len(expectedHash)))
 	})
-	return subtleCompare(computed, expectedHash)
+	return subtleCompare(computed, expectedHash), nil
 }
 
 // --- JWT ---
@@ -330,6 +335,22 @@ func (s *authService) loginUnavailable(ctx context.Context, username string, met
 	return apperr.Internal("Вход временно недоступен из-за ошибки на сервере. Повторите попытку позже.", cause)
 }
 
+// loginBadHash - ответ на ПОВРЕЖДЁННУЮ запись пароля конкретной учётной записи:
+// строка в users.password не разбирается как Argon2id PHC (обрезана, обнулена,
+// записана другим алгоритмом). От loginUnavailable отличается причиной и
+// адресатом починки: дело не в недоступности базы (та отвечает исправно), а в
+// дефекте ОДНОЙ записи - чинить нужно именно её (обычно принудительным сбросом
+// пароля), поэтому у события собственный тип (#2017).
+//
+// Счётчик блокировки НЕ трогается по той же причине, что и при аварии базы:
+// человек мог ввести верный пароль, наказывать его за чужой дефект данных нельзя.
+func (s *authService) loginBadHash(ctx context.Context, username string, meta *RequestMeta, cause error) error {
+	slog.Error("вход не выполнен: повреждена запись пароля в базе", "username", username, "error", cause)
+	s.recordAuthEvent(ctx, nil, username, models.AuthEventLoginBadHash, false, meta,
+		fmt.Sprintf("password hash unreadable: %v", cause))
+	return apperr.Internal("Вход невозможен из-за ошибки на сервере. Обратитесь к администратору.", cause)
+}
+
 // Login выполняет аутентификацию пользователя и возвращает пару токенов.
 func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *RequestMeta) (*models.LoginResponse, error) {
 	ip := ""
@@ -395,7 +416,14 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		user.LockedUntil = nil
 	}
 
-	if !verifyPassword(user.Password, req.Password) {
+	passwordMatches, verifyErr := verifyPassword(user.Password, req.Password)
+	if verifyErr != nil {
+		// Хеш не разбирается - это не "человек ошибся паролем", а дефект данных
+		// этой учётки. Считать его неверным паролем значит копить лестницу
+		// блокировки на человеке, который мог ввести пароль верно (#2017).
+		return nil, s.loginBadHash(ctx, user.Username, meta, verifyErr)
+	}
+	if !passwordMatches {
 		// registerFailedLogin ведёт per-user счётчик - бэкстоп от distributed
 		// brute-force (атака с разных IP, которую per-IP guard не ловит).
 		lockedUntil := s.registerFailedLogin(ctx, &user)
@@ -475,6 +503,29 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 	}, nil
 }
 
+// logRefreshDBError пишет сбой обращения к базе при обновлении токена в системный
+// лог и в журнал событий, НЕ решая при этом, каким будет ответ вызывающему коду -
+// вызывающий код мог уже принять решение по другой причине (см. reuse detection
+// ниже, где ответ 401 не зависит от исхода инвалидации семьи). Detail - только
+// стадия, без текста ошибки драйвера: если userID уже известен, запись видна в
+// личной истории входов пользователя (ListForUser фильтрует по user_id), а туда
+// нельзя пересылать "pq: sorry, too many clients already" и подобное.
+func (s *authService) logRefreshDBError(ctx context.Context, userID *int, username string, meta *RequestMeta, stage string, cause error) {
+	slog.Error("обновление токена не выполнено из-за ошибки обращения к базе", "stage", stage, "username", username, "error", cause)
+	s.recordAuthEvent(ctx, userID, username, models.AuthEventRefreshError, false, meta, stage)
+}
+
+// refreshUnavailable - ответ на СБОЙ обновления токена, а не на его невалидность:
+// недоступная база, исчерпанный пул, сорванная запись ротации. Аналог
+// loginUnavailable (#2006): 500, а не 401 - секундная авария базы не должна
+// разлогинивать того, у кого в этот момент фоном продлевалась сессия (#2016),
+// хотя его refresh-токен ещё вполне действителен. Клиент вправе повторить запрос
+// тем же токеном.
+func (s *authService) refreshUnavailable(ctx context.Context, userID *int, username string, meta *RequestMeta, stage string, cause error) error {
+	s.logRefreshDBError(ctx, userID, username, meta, stage, cause)
+	return apperr.Internal("Не удалось обновить сессию из-за ошибки на сервере. Повторите попытку позже.", cause)
+}
+
 // RefreshToken обновляет пару access/refresh токенов с ротацией.
 // Reuse detection: если пришёл валидный по подписи, но уже отозванный токен -
 // это признак кражи (либо attacker, либо legitimate user использовал старую копию
@@ -491,6 +542,12 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 
 	var user models.User
 	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error; err != nil {
+		// Ошибка запроса - это не только отсутствующая строка: недоступная база,
+		// исчерпанный пул, таймаут. Считать их "юзера нет" значит выкидывать на
+		// форму входа того, у кого сейчас просто не работает база (#2016).
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, s.refreshUnavailable(ctx, nil, username, meta, "user lookup", err)
+		}
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "User not found")
 	}
 
@@ -507,6 +564,9 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 		Where("user_id = ? AND token_hash = ?", user.ID, tokenHash).
 		First(&storedToken).Error
 	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, s.refreshUnavailable(ctx, &user.ID, user.Username, meta, "token lookup", err)
+		}
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Invalid refresh token")
 	}
 
@@ -527,21 +587,22 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 		// Инвалидируем всю семью - включая текущий активный refresh attacker-а
 		// или legitimate user-а. Оба будут вынуждены перелогиниться.
 		now := time.Now().UTC()
-		s.db.WithContext(ctx).
+		if err := s.db.WithContext(ctx).
 			Model(&models.RefreshToken{}).
 			Where("family_id = ? AND is_revoked = false", storedToken.FamilyID).
-			Updates(map[string]any{"is_revoked": true, "revoked_at": now})
+			Updates(map[string]any{"is_revoked": true, "revoked_at": now}).Error; err != nil {
+			// Отказ по reuse уже принят и не меняется от исхода этой записи - токен
+			// и так пойман на повторном использовании. Но если сама инвалидация
+			// семьи не прошла, токены атакующего/легитимного юзера могли остаться
+			// рабочими - это должно быть видно, а не потеряно молча.
+			s.logRefreshDBError(ctx, &user.ID, user.Username, meta, "family invalidation", err)
+		}
 		slog.Warn("refresh token reuse detected - family invalidated",
 			"user_id", user.ID, "family_id", storedToken.FamilyID)
 		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventTokenReuseDetected, false, meta,
 			"family_id="+storedToken.FamilyID)
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Refresh token reuse detected, please log in again")
 	}
-
-	// Ротация: помечаем старый revoked + revoked_at, выдаём новую пару в той же family.
-	now := time.Now().UTC()
-	s.db.WithContext(ctx).Model(&storedToken).
-		Updates(map[string]any{"is_revoked": true, "revoked_at": now})
 
 	newAccess, err := s.createAccessToken(username, user.ID, user.TypeID, user.IsSuperAdmin)
 	if err != nil {
@@ -561,7 +622,22 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 		IPAddress: metaIPPtr(meta),
 		UserAgent: metaUAPtr(meta),
 	}
-	s.db.WithContext(ctx).Create(&rt)
+
+	// Ротация: помечаем старый revoked + пишем новый ОДНОЙ транзакцией. Раздельными
+	// запросами (как было) старый токен мог оказаться отозван, а новый - не
+	// записан: сессия тихо умирала бы на следующем продлении без всякой связи с
+	// причиной (#2016). В транзакции любой сбой откатывает обе записи - старый
+	// токен остаётся рабочим, и клиент может безопасно повторить запрос им же.
+	now := time.Now().UTC()
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&storedToken).
+			Updates(map[string]any{"is_revoked": true, "revoked_at": now}).Error; err != nil {
+			return err
+		}
+		return tx.Create(&rt).Error
+	}); err != nil {
+		return nil, s.refreshUnavailable(ctx, &user.ID, user.Username, meta, "token rotation", err)
+	}
 
 	s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventRefresh, true, meta, "")
 

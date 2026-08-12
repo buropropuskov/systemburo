@@ -263,6 +263,91 @@ describe('401 auto-refresh', () => {
   });
 });
 
+// #2016: кратковременная недоступность базы отвечает /refresh-token пятисоткой, а не
+// 401. Раньше performRefresh кидал ошибку на ЛЮБОЙ !response.ok, и catch в baseRequest
+// стирал токены и уводил на форму входа - фоновое продление сессии разлогинивало
+// человека посреди работы. Теперь 500 ретраится, и только настоящий 401 (токен
+// отклонён) рвёт сессию.
+describe('500 при обновлении сессии (#2016)', () => {
+  let fetchMock;
+
+  beforeEach(async () => {
+    setActivePinia(createPinia());
+    localStorage.clear();
+    routerPush.mockReset();
+    const { useAuthStore } = await import('@/stores/auth');
+    useAuthStore().setTokens('old-access');
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('после исчерпания ретраев не стирает токены и не редиректит на /', async () => {
+    vi.useFakeTimers();
+    fetchMock
+      .mockResolvedValueOnce(errJson({ success: false, error: 'Missing' }, 401)) // защищённый запрос
+      .mockResolvedValueOnce(errJson({ success: false, error: 'db down' }, 500)) // refresh, попытка 1
+      .mockResolvedValueOnce(errJson({ success: false, error: 'db down' }, 500)) // refresh, попытка 2
+      .mockResolvedValueOnce(errJson({ success: false, error: 'db down' }, 500)); // refresh, попытка 3
+
+    const p = apiRequest('/users/me');
+    await vi.advanceTimersByTimeAsync(3000);
+    const resp = await p;
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/refresh-token');
+    expect(fetchMock.mock.calls[2][0]).toBe('/api/refresh-token');
+    expect(fetchMock.mock.calls[3][0]).toBe('/api/refresh-token');
+    // Исходный 401 уходит вызывающему коду как есть - именно он покажет ошибку,
+    // а не полный выход из системы.
+    expect(resp.status).toBe(401);
+
+    const { useAuthStore } = await import('@/stores/auth');
+    expect(useAuthStore().token).toBe('old-access');
+    expect(routerPush).not.toHaveBeenCalled();
+  });
+
+  it('если база оживает между ретраями, продлевает сессию без разлогина', async () => {
+    vi.useFakeTimers();
+    fetchMock
+      .mockResolvedValueOnce(errJson({ success: false, error: 'Missing' }, 401)) // защищённый запрос
+      .mockResolvedValueOnce(errJson({ success: false, error: 'db down' }, 500)) // refresh, попытка 1
+      .mockResolvedValueOnce(okJson({ success: true, data: { token: 'new-access', refreshToken: 'new-refresh' } })) // refresh, попытка 2
+      .mockResolvedValueOnce(okJson({ success: true, data: { id: 42 } })); // повтор защищённого запроса
+
+    const p = apiRequest('/users/me');
+    await vi.advanceTimersByTimeAsync(3000);
+    const resp = await p;
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(await resp.json()).toEqual({ id: 42 });
+
+    const { useAuthStore } = await import('@/stores/auth');
+    expect(useAuthStore().token).toBe('new-access');
+    expect(routerPush).not.toHaveBeenCalled();
+  });
+
+  it('настоящий 401 от /refresh-token по-прежнему рвёт сессию без ожидания ретраев', async () => {
+    fetchMock
+      .mockResolvedValueOnce(errJson({ success: false, error: 'Missing' }, 401))
+      .mockResolvedValueOnce(errJson({ success: false, error: 'Invalid refresh token' }, 401));
+
+    await apiRequest('/users/me');
+
+    // Токен точно недействителен - ретраить нечего, второго обращения к
+    // /refresh-token быть не должно.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const { useAuthStore } = await import('@/stores/auth');
+    expect(useAuthStore().token).toBeNull();
+    expect(routerPush).toHaveBeenCalledWith('/');
+  });
+});
+
 describe('403 handling', () => {
   let fetchMock;
 

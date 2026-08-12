@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"systemburo/internal/models"
@@ -58,7 +59,17 @@ func passwordAlreadyUsed(ctx context.Context, db *gorm.DB, userID int, password 
 		return false, fmt.Errorf("чтение прежних паролей: %w", err)
 	}
 	for _, h := range hashes {
-		if verifyPassword(h, password) {
+		matched, err := verifyPassword(h, password)
+		if err != nil {
+			// Одна из последних usedPasswordDepth записей повреждена - дефект
+			// данных этой конкретной учётки, а не текущей попытки. Отказывать
+			// в смене пароля из-за него - тот же грех, что и запирать вход по
+			// нему (#2017), поэтому запись просто пропускаем как несовпавшую,
+			// но громко логируем, чтобы дефект не потерялся молча.
+			slog.Warn("не удалось разобрать сохранённый прежний пароль", "user_id", userID, "error", err)
+			continue
+		}
+		if matched {
 			return true, nil
 		}
 	}

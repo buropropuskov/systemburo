@@ -129,24 +129,47 @@ function isAuthEndpoint(path) {
   return AUTH_ENDPOINTS.some((p) => path === p || path.startsWith(p + '?'))
 }
 
+// RefreshFailedError различает ДВЕ разные причины провала /refresh-token. sessionInvalid
+// решает, стирать ли токены и уводить на форму входа (см. catch в baseRequest).
+class RefreshFailedError extends Error {
+  constructor(message, sessionInvalid) {
+    super(message)
+    this.sessionInvalid = sessionInvalid
+  }
+}
+
+// Кратковременная недоступность базы (#2016) не должна разлогинивать того, чей
+// запрос в этот момент фоном продлевал сессию: 401 - токен реально отклонён
+// (истёк/отозван/переиспользован), ретраить нечего. Любой другой статус (500 от
+// сбоя базы, сетевой обрыв) - лечим тем же приёмом, что и 429 в baseRequest:
+// несколько попыток с паузой вместо немедленного разлогина.
+const REFRESH_RETRY_DELAYS_MS = [500, 1500]
+
 // performRefresh вызывает POST /refresh-token. Refresh token живёт в
 // HttpOnly cookie - отправляется автоматически через credentials: 'include'.
 async function performRefresh() {
   const authStore = useAuthStore()
 
-  const response = await fetch(`${API_BASE_URL}/refresh-token`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-    body: '{}',
-  })
-  if (!response.ok) throw new Error(`refresh failed: ${response.status}`)
-
-  const body = await response.json()
-  const data = body && typeof body === 'object' && 'success' in body ? body.data : body
-  if (!data || !data.token) throw new Error('refresh: malformed response')
-  authStore.setTokens(data.token)
-  return data.token
+  let lastStatus = 0
+  for (let attempt = 0; attempt <= REFRESH_RETRY_DELAYS_MS.length; attempt++) {
+    const response = await fetch(`${API_BASE_URL}/refresh-token`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: '{}',
+    })
+    if (response.ok) {
+      const body = await response.json()
+      const data = body && typeof body === 'object' && 'success' in body ? body.data : body
+      if (!data || !data.token) throw new RefreshFailedError('refresh: malformed response', false)
+      authStore.setTokens(data.token)
+      return data.token
+    }
+    lastStatus = response.status
+    if (response.status === 401 || attempt === REFRESH_RETRY_DELAYS_MS.length) break
+    await sleep(REFRESH_RETRY_DELAYS_MS[attempt])
+  }
+  throw new RefreshFailedError(`refresh failed: ${lastStatus}`, lastStatus === 401)
 }
 
 function ensureRefreshed() {
@@ -344,7 +367,13 @@ async function baseRequest(path, options = {}) {
     const newToken = await ensureRefreshed()
     response = await doFetch(path, { ...options, _retried: true }, newToken)
     return response
-  } catch {
+  } catch (err) {
+    // Сессию рвём только когда токен ДЕЙСТВИТЕЛЬНО недействителен (401 от
+    // /refresh-token, после ретраев). Сбой сервера/сети (#2016) сессию не трогает -
+    // человек остаётся на своём экране, а исходный 401 уходит вызывающему коду.
+    if (!err?.sessionInvalid) {
+      return response
+    }
     authStore.clearTokens()
     if (router.currentRoute.value.path !== '/') {
       router.push('/')

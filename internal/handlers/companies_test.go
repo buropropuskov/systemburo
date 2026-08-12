@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/labstack/echo/v4"
@@ -374,6 +375,46 @@ func TestCompanies_GetUsers(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 	users := testutil.ParseSlice(t, rec)
 	assert.NotNil(t, users)
+}
+
+// TestCompanies_GetUsers_RequiredApprovalGated (#2013): зеркало
+// TestOrganizations_GetOrganizationUsers_RequiredApprovalGated - /companies/:id/users
+// открыт так же, как /organizations/:id/users, и признак обязательного согласующего
+// гейтится тем же образом: своя компания или право на раздел справочников.
+func TestCompanies_GetUsers_RequiredApprovalGated(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	_, foreignCompanyID := seedOrgAndCompany(t, db, "CompUsersGateForeign")
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	testutil.RegisterUser(t, e, "compreqapprover", "pass123", 1, td.OrgID, td.CompanyID)
+	body := `{"users":[{"username":"compreqapprover","required_approval":true}]}`
+	require.Equal(t, http.StatusOK,
+		testutil.PUT(t, e, fmt.Sprintf("/companies/%d/users", td.CompanyID), body, testutil.AuthHeader(adminToken)).Code)
+
+	ownToken := testutil.RegisterAndLogin(t, e, "compapplicant_own", "pass123", 1, td.OrgID, td.CompanyID)
+	recOwn := testutil.GET(t, e, fmt.Sprintf("/companies/%d/users", td.CompanyID), testutil.AuthHeader(ownToken))
+	require.Equal(t, http.StatusOK, recOwn.Code)
+	usersOwn := testutil.ParseSlice(t, recOwn)
+	require.Len(t, usersOwn, 1)
+	assert.Equal(t, true, usersOwn[0]["required_approval"], "заявитель должен видеть признак для своей компании")
+
+	foreignToken := testutil.RegisterAndLogin(t, e, "compapplicant_foreign", "pass123", 1, td.OrgID, foreignCompanyID)
+	recForeign := testutil.GET(t, e, fmt.Sprintf("/companies/%d/users", td.CompanyID), testutil.AuthHeader(foreignToken))
+	require.Equal(t, http.StatusOK, recForeign.Code)
+	usersForeign := testutil.ParseSlice(t, recForeign)
+	require.Len(t, usersForeign, 1)
+	assert.Nil(t, usersForeign[0]["required_approval"], "заявитель чужой компании не должен видеть признак")
+
+	directoriesToken := testutil.RegisterAndLogin(t, e, "compdirectoriesviewer", "pass123", 1, td.OrgID, foreignCompanyID)
+	testutil.GrantPermission(t, getUserID(t, db, "compdirectoriesviewer"), services.KeyPageAdminDirectories)
+	recPriv := testutil.GET(t, e, fmt.Sprintf("/companies/%d/users", td.CompanyID), testutil.AuthHeader(directoriesToken))
+	require.Equal(t, http.StatusOK, recPriv.Code)
+	usersPriv := testutil.ParseSlice(t, recPriv)
+	require.Len(t, usersPriv, 1)
+	assert.Equal(t, true, usersPriv[0]["required_approval"], "право на справочники должно раскрывать признак для любой компании")
 }
 
 func TestCompanies_UpdateUsers(t *testing.T) {
