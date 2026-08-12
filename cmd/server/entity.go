@@ -822,6 +822,10 @@ func printPurgeResult(res entityarchive.PurgeResult) {
 		fmt.Println()
 	}
 	fmt.Println(padRight("Всего строк", 34), res.TotalRows())
+	if res.DetachedReportTemplates > 0 {
+		// Не в счёт "Всего строк": строки физически остались в базе, отвязка - не удаление.
+		fmt.Println(padRight("Отвязано общих шаблонов отчётов", 34), res.DetachedReportTemplates)
+	}
 	fmt.Println(padRight("Файлов заявок", 34), res.Files)
 	fmt.Println(padRight("Пакет", 34), res.Package)
 	if res.ManifestSHA256 != "" {

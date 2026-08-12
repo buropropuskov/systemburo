@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
+import { createPinia, setActivePinia } from 'pinia';
 
+import { useAuthStore } from '@/stores/auth';
+import { usePermissionsStore } from '@/stores/permissions';
 import UserAccessModal from '../UserAccessModal.vue';
 import {
   getUserEffectivePermissions,
@@ -34,6 +37,7 @@ const notify = vi.fn();
 const confirm = vi.fn(async () => true);
 
 vi.mock('@/api/permissions', () => ({
+  getMyPermissions: vi.fn(async () => ({ mode: 'normal', permissions: [], denied: [] })),
   getPermissionCatalog: vi.fn(async () => CATALOG),
   getUserEffectivePermissions: vi.fn(async () => ({
     mode: 'normal',
@@ -56,6 +60,7 @@ vi.mock('@/api/permissions', () => ({
 
 vi.mock('@/api/client', () => ({
   apiRequest: vi.fn(async () => ({ ok: true, json: async () => [] })),
+  tryRestoreSession: vi.fn(async () => false),
 }));
 
 vi.mock('@/stores/deletions', () => ({
@@ -80,6 +85,23 @@ const USER = {
   middle_name: 'Иванович',
 };
 
+/** JWT-подобный токен: стор читает is_super_admin из payload. */
+function tokenWith(payload) {
+  const body = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600, ...payload }));
+  return `header.${body}.signature`;
+}
+
+/**
+ * Кем открыто окно. Без аргумента -- администратор: именно он открывает окно по
+ * permission.audit.manage и именно у него стор отвечает «да» на super-only ключи.
+ */
+function openedBy({ superAdmin = false, allow = [] } = {}) {
+  const perms = usePermissionsStore();
+  useAuthStore().token = superAdmin ? tokenWith({ is_super_admin: true }) : tokenWith({});
+  perms.mode = superAdmin ? 'super' : (allow.length ? 'normal' : 'admin');
+  perms.effective = Object.fromEntries(allow.map((k) => [k, { value: 'allow', source: 'role' }]));
+}
+
 async function mountModal(user = USER) {
   const wrapper = mount(UserAccessModal, {
     props: { user },
@@ -91,6 +113,8 @@ async function mountModal(user = USER) {
 
 describe('UserAccessModal (#187 Фаза 3, две колонки)', () => {
   beforeEach(() => {
+    setActivePinia(createPinia());
+    openedBy({ superAdmin: true });
     notify.mockClear();
     confirm.mockClear();
     [setUserAdmin, setUserRole, assignGroupToUser, updateUserPermissions, banUser].forEach((f) => f.mockClear());
@@ -241,5 +265,54 @@ describe('UserAccessModal (#187 Фаза 3, две колонки)', () => {
     expect(banBtn.text()).toBe('Невозможно');
     expect(banBtn.attributes('title')).toBe('Супер-администратора заблокировать нельзя');
     expect(wrapper.vm.stateByKey['page.cars']).toMatchObject({ on: true, locked: true });
+    // Замок по целевому пользователю держится и у того, кому выдавать признак можно.
+    expect(wrapper.get('[data-testid="admin-toggle-lock-reason"]').text())
+      .toBe('У супер-администратора и так все права');
+  });
+
+  // action.grant.admin -- super-only, и стор в режиме admin отвечает на такие ключи
+  // «да»: до #1983 тумблер выглядел рабочим, а отказ приходил на сохранении.
+  describe('тумблер Администратор гейтится action.grant.admin (#1983)', () => {
+    it('администратор без права: тумблер виден, но не двигается, и рядом сказано почему', async () => {
+      openedBy();
+      const wrapper = await mountModal();
+      const toggle = wrapper.get('[data-testid="admin-toggle"]');
+
+      expect(toggle.attributes('disabled')).toBeDefined();
+      expect(toggle.attributes('title')).toBe('Выдать признак может только Системный администратор');
+      expect(wrapper.get('[data-testid="admin-toggle-lock-reason"]').text())
+        .toBe('Выдать признак может только Системный администратор');
+
+      await toggle.trigger('click');
+      expect(wrapper.vm.localIsAdmin).toBe(false);
+
+      await wrapper.get('[data-testid="save-button"]').trigger('click');
+      await flushPromises();
+      expect(setUserAdmin).not.toHaveBeenCalled();
+    });
+
+    it('обычный пользователь с управлением правами: тумблер тоже закрыт', async () => {
+      openedBy({ allow: ['permission.audit.manage'] });
+      const wrapper = await mountModal();
+
+      expect(wrapper.get('[data-testid="admin-toggle"]').attributes('disabled')).toBeDefined();
+      expect(wrapper.find('[data-testid="admin-toggle-lock-reason"]').exists()).toBe(true);
+    });
+
+    it('системный администратор: тумблер двигается, пояснения нет', async () => {
+      openedBy({ superAdmin: true });
+      const wrapper = await mountModal();
+      const toggle = wrapper.get('[data-testid="admin-toggle"]');
+
+      expect(toggle.attributes('disabled')).toBeUndefined();
+      expect(wrapper.find('[data-testid="admin-toggle-lock-reason"]').exists()).toBe(false);
+
+      await toggle.trigger('click');
+      expect(wrapper.vm.localIsAdmin).toBe(true);
+
+      await wrapper.get('[data-testid="save-button"]').trigger('click');
+      await flushPromises();
+      expect(setUserAdmin).toHaveBeenCalledWith(42, true);
+    });
   });
 });

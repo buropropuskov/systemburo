@@ -127,7 +127,10 @@ func hashPassword(password string) string {
 	salt := generateSalt()
 	// Argon2id with default params matching Rust argon2 0.5.3 defaults:
 	// m=19456 (19 MiB), t=2, p=1
-	hash := argon2.IDKey([]byte(password), salt, 2, 19456, 1, 32)
+	var hash []byte
+	withArgon2Slot(func() {
+		hash = argon2.IDKey([]byte(password), salt, 2, 19456, 1, 32)
+	})
 	// PHC format: $argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>
 	saltB64 := base64RawEncode(salt)
 	hashB64 := base64RawEncode(hash)
@@ -140,7 +143,10 @@ func verifyPassword(phcHash, password string) bool {
 	if err != nil {
 		return false
 	}
-	computed := argon2.IDKey([]byte(password), salt, params.time, params.memory, params.threads, uint32(len(expectedHash)))
+	var computed []byte
+	withArgon2Slot(func() {
+		computed = argon2.IDKey([]byte(password), salt, params.time, params.memory, params.threads, uint32(len(expectedHash)))
+	})
 	return subtleCompare(computed, expectedHash)
 }
 
