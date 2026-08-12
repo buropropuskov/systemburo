@@ -439,8 +439,11 @@ def env_defaults():
     with open(path, encoding="utf-8") as fh:
         body = fh.read()
     found = {}
+    # Цифра в имени - часть имени: ARGON2_HASH_CONCURRENCY при классе [A-Z_]
+    # обрывался на «ARGON», до закрывающей кавычки не доходил и молча выпадал из
+    # обеих проверок приложения Б - и полноты, и значений.
     for name, default in re.findall(
-            r'env:"([A-Z_]+)(?:,required)?"(?:\s+envDefault:"([^"]*)")?', body):
+            r'env:"([A-Z0-9_]+)(?:,required)?"(?:\s+envDefault:"([^"]*)")?', body):
         found[name] = default
     return found
 
@@ -448,7 +451,7 @@ def env_defaults():
 def doc_env_table(text):
     """Имя переменной -> значение из приложения Б."""
     rows = {}
-    for name, value in re.findall(r"^\| `([A-Z_]+)` \| ([^|]+?) \|", text, re.M):
+    for name, value in re.findall(r"^\| `([A-Z0-9_]+)` \| ([^|]+?) \|", text, re.M):
         rows[name] = value.strip().strip("`")
     return rows
 
