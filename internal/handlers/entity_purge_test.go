@@ -430,28 +430,40 @@ func TestEntityPurge_RejectsForgedEncryptedFlag(t *testing.T) {
 	require.True(t, orgExistsInDB(t, db, f.org.ID), "поддельный флаг шифрования не должен был снести организацию")
 }
 
-// TestEntityPurge_WarnsAboutSharedReportTemplates: report_templates каскадится от
-// пользователя молча (FK OwnerUserID OnDelete:CASCADE) - строка сотрётся штатно, узел графа
-// её видит и считает. Но is_shared делает шаблон видимым ВСЕМ, кто им пользуется, не только
-// автору, а снос отвечает только за пользователей СВОЕЙ организации - оператор обязан узнать
-// об этом до -apply, а не после. Предупреждение считается ДО удаления и обязано появиться в
-// обоих прогонах - без общего шаблона его быть не должно вовсе.
-func TestEntityPurge_WarnsAboutSharedReportTemplates(t *testing.T) {
+// TestEntityPurge_SharedReportTemplatesSurviveDetached: report_templates каскадится от
+// пользователя молча (FK OwnerUserID OnDelete:CASCADE) - без отдельного шага строка ушла бы
+// вместе с автором штатным узлом графа. Но is_shared делает шаблон видимым ВСЕМ, кто им
+// пользуется, не только автору, а снос отвечает только за пользователей СВОЕЙ организации -
+// общий шаблон обязан пережить снос своего автора (owner_user_id -> NULL ДО удаления узлов
+// графа), а личный - обязан уйти вместе с ним, как и раньше. Оператор обязан увидеть
+// предупреждение о предстоящей отвязке ДО -apply, а не после.
+func TestEntityPurge_SharedReportTemplatesSurviveDetached(t *testing.T) {
 	_, db, uploadDir, cleanup := testutil.SetupTestAppWithUploads(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
 
-	t.Run("общий шаблон - предупреждение и в пробном прогоне, и при apply", func(t *testing.T) {
+	t.Run("общий шаблон переживает снос и виден чужому пользователю, личный уходит с автором", func(t *testing.T) {
 		testutil.CleanDB(t, db)
 
-		// Шаблон заводится ДО снятия пакета, а не после (в отличие от purgeFixture) - иначе
+		// Шаблоны заводятся ДО снятия пакета, а не после (в отличие от purgeFixture) - иначе
 		// снимок не покрыл бы текущее состояние графа, и Purge отказал бы сверкой покрытия
-		// раньше, чем дошёл бы до предупреждения.
+		// раньше, чем дошёл бы до отвязки.
 		f := setupExportFixture(t, db, uploadDir)
 		uid := f.app.SenderUserID
-		require.NoError(t, db.Create(&models.ReportTemplate{
+		shared := models.ReportTemplate{
 			Name: "Общий отчёт", Config: json.RawMessage(`{}`), IsShared: true, OwnerUserID: &uid,
-		}).Error)
+		}
+		require.NoError(t, db.Create(&shared).Error)
+		personal := models.ReportTemplate{
+			Name: "Личный отчёт", Config: json.RawMessage(`{}`), OwnerUserID: &uid,
+		}
+		require.NoError(t, db.Create(&personal).Error)
+
+		// Пользователь чужой, не сносимой организации - именно ради него шаблон и
+		// расшаривали; после сноса он не должен его лишиться.
+		otherOrgUser := models.User{Username: "purge-tpl-other-user", OrganizationID: &f.otherOrg.ID}
+		require.NoError(t, db.Create(&otherOrgUser).Error)
+
 		crypt := testExportCrypto(t)
 		eres, err := entityarchive.Export(context.Background(), db, entityarchive.TypeOrganization, f.org.ID,
 			entityarchive.ExportOptions{
@@ -472,9 +484,53 @@ func TestEntityPurge_WarnsAboutSharedReportTemplates(t *testing.T) {
 		require.NoError(t, err, "tables: %+v", res.Tables)
 		require.Len(t, res.Warnings, 1)
 		require.Contains(t, res.Warnings[0], "report_templates")
+		require.False(t, orgExistsInDB(t, db, f.org.ID))
+
+		// Счётчики различают удалённое и отвязанное: личный - в Tables (удалён), общий - в
+		// отдельном DetachedReportTemplates, а не смешаны в одну цифру.
+		require.EqualValues(t, 1, res.DetachedReportTemplates, "отвязан ровно общий шаблон")
+		var reportTemplatesDeleted int64 = -1
+		for _, tbl := range res.Tables {
+			if tbl.Table == "report_templates" {
+				reportTemplatesDeleted = tbl.Rows
+			}
+		}
+		require.EqualValues(t, 1, reportTemplatesDeleted, "report_templates: удалён только личный, общий отвязан, а не удалён")
+
+		// Общий шаблон физически остался в базе осиротевшим (owner_user_id -> NULL), личный
+		// исчез вместе с автором.
+		var survivor models.ReportTemplate
+		require.NoError(t, db.First(&survivor, shared.ID).Error, "общий шаблон обязан пережить снос организации-автора")
+		require.Nil(t, survivor.OwnerUserID)
+		require.True(t, survivor.IsShared)
+		require.ErrorIs(t, db.First(&models.ReportTemplate{}, personal.ID).Error, gorm.ErrRecordNotFound,
+			"личный шаблон обязан уйти вместе с автором штатным каскадом")
+
+		// И виден в выборке чужому пользователю - ровно тому, ради кого его расшаривали и
+		// кто заявку на снос своей организации не подавал.
+		svc := services.NewStatisticsService(db, 0)
+		list, err := svc.ListReportTemplates(context.Background(), otherOrgUser.ID)
+		require.NoError(t, err)
+		found := false
+		for _, tpl := range list {
+			if tpl.ID == shared.ID {
+				found = true
+			}
+		}
+		require.True(t, found, "общий шаблон обязан остаться виден чужому пользователю после сноса автора")
+
+		// Журнал различает удалённое и отвязанное тем же приёмом, что и результат команды.
+		var entry models.AuditLog
+		require.NoError(t, db.Where("entity_type = ? AND action = ? AND entity_id = ?",
+			models.AuditEntityOrganization, models.OrganizationActionPurged, f.org.ID).First(&entry).Error)
+		var details struct {
+			DetachedReportTemplates int64 `json:"detached_report_templates"`
+		}
+		require.NoError(t, json.Unmarshal(entry.Details, &details))
+		require.EqualValues(t, 1, details.DetachedReportTemplates)
 	})
 
-	t.Run("без общих шаблонов - предупреждения нет", func(t *testing.T) {
+	t.Run("без общих шаблонов - предупреждения нет и отвязывать нечего", func(t *testing.T) {
 		testutil.CleanDB(t, db)
 
 		f, dir, crypt := purgeFixture(t, db, uploadDir)
@@ -483,5 +539,6 @@ func TestEntityPurge_WarnsAboutSharedReportTemplates(t *testing.T) {
 			entityarchive.PurgeOptions{UploadPath: uploadDir, Decrypt: crypt, Recorder: services.NewAuditRecorder(db)})
 		require.NoError(t, err, "tables: %+v", res.Tables)
 		require.Empty(t, res.Warnings)
+		require.Zero(t, res.DetachedReportTemplates)
 	})
 }
