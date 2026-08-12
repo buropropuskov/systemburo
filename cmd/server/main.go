@@ -21,6 +21,7 @@ import (
 	"systemburo/internal/crypto"
 	"systemburo/internal/database"
 	"systemburo/internal/handlers"
+	"systemburo/internal/httpx"
 	mw "systemburo/internal/middleware"
 	"systemburo/internal/models"
 	"systemburo/internal/realtime"
@@ -134,6 +135,27 @@ func main() {
 	}
 	slog.Info("connected to database")
 
+	// Пул настраивается сразу после подключения, до миграций и сидов: они тоже ходят
+	// в базу, и делать это на драйверных умолчаниях незачем.
+	if err := database.ConfigureConnectionPool(db, database.PoolConfig{
+		MaxOpenConns:    cfg.DBMaxOpenConns,
+		MaxIdleConns:    cfg.DBMaxIdleConns,
+		ConnMaxLifetime: cfg.DBConnMaxLifetime,
+		ConnMaxIdleTime: cfg.DBConnMaxIdleTime,
+	}); err != nil {
+		slog.Error("failed to configure DB connection pool", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("db pool configured",
+		"max_open", cfg.DBMaxOpenConns,
+		"max_idle", cfg.DBMaxIdleConns,
+		"conn_max_lifetime", cfg.DBConnMaxLifetime,
+		"conn_max_idle_time", cfg.DBConnMaxIdleTime)
+
+	// Предел одновременных проверок пароля ставится до приёма трафика: перенастройка
+	// на ходу не видна вычислениям, уже занявшим слот.
+	services.SetArgon2Concurrency(cfg.Argon2HashConcurrency)
+
 	// AutoMigrate all tables (like Laravel Schema::create)
 	if err := database.AutoMigrate(db); err != nil {
 		slog.Error("AutoMigrate failed", "error", err)
@@ -151,6 +173,20 @@ func main() {
 	e.HideBanner = true
 	e.HTTPErrorHandler = handlers.CustomHTTPErrorHandler
 	e.Validator = appvalidator.New()
+
+	// Сроки жизни соединения. Длинные обработчики (SSE-поток, потоковые выгрузки
+	// файлового архива) снимают срок записи с себя сами - см. httpx.AllowLongResponse.
+	httpx.ApplyServerTimeouts(e.Server, httpx.ServerTimeouts{
+		ReadHeader: cfg.HTTPReadHeaderTimeout,
+		Read:       cfg.HTTPReadTimeout,
+		Write:      cfg.HTTPWriteTimeout,
+		Idle:       cfg.HTTPIdleTimeout,
+	})
+	slog.Info("http timeouts configured",
+		"read_header", cfg.HTTPReadHeaderTimeout,
+		"read", cfg.HTTPReadTimeout,
+		"write", cfg.HTTPWriteTimeout,
+		"idle", cfg.HTTPIdleTimeout)
 
 	// Global middleware
 	e.Use(mw.RequestID())
@@ -369,6 +405,10 @@ func main() {
 	if len(cfg.CORSAllowedOrigins) > 0 {
 		publicBaseURL = cfg.CORSAllowedOrigins[0]
 	}
+	// Учётные данные новому работнику и пароль, заданный администратором, уходят
+	// письмом тем же почтовым сервисом и с тем же адресом системы.
+	userService.SetMailSender(mailService, publicBaseURL)
+
 	passwordRotationService := services.NewPasswordRotationService(
 		db, settingsService, mailService, notificationServiceEarly, permissionResolver, publicBaseURL)
 	settingsHandler.SetRotationService(passwordRotationService)

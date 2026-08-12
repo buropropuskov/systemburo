@@ -461,9 +461,29 @@ func createFakeUser(ctx context.Context, db *gorm.DB, svc services.UserService, 
 		if err != nil {
 			return createdFakeUser{}, err
 		}
+		if err := clearFakeUserPasswordChange(ctx, db, id); err != nil {
+			return createdFakeUser{}, err
+		}
 		return createdFakeUser{id: id, username: username}, nil
 	}
 	return createdFakeUser{}, fmt.Errorf("не удалось создать пользователя за %d попыток, логин конфликтует: %w", userCreateRetries, lastErr)
+}
+
+// clearFakeUserPasswordChange снимает с налитого работника требование задать свой
+// пароль при первом входе.
+//
+// Заведение учётной записи поднимает этот признак всем: живому работнику пароль
+// придумывает система, и менять его при первом входе он обязан. Налитому паролем
+// служит общий `-user-pass`, придумывать ему нечего, а признак закрывает весь
+// защищённый API до смены пароля -- зайти под налитым работником и посмотреть
+// стенд его глазами стало бы нельзя. Та же беда, что и с согласием на обработку
+// данных ниже, и лечится так же.
+func clearFakeUserPasswordChange(ctx context.Context, db *gorm.DB, userID int) error {
+	if err := db.WithContext(ctx).Model(&models.User{}).Where("id = ?", userID).
+		Update("must_change_password", false).Error; err != nil {
+		return fmt.Errorf("снятие требования сменить пароль у пользователя %d: %w", userID, err)
+	}
+	return nil
 }
 
 // consentUserAgent -- чем записано согласие созданного работника. Живой человек

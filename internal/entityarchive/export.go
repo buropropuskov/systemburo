@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"systemburo/internal/crypto"
+	"systemburo/internal/models"
 
 	"gorm.io/gorm"
 )
@@ -63,12 +64,6 @@ const (
 	// applicationFilesDir - подкаталог загрузок, где лежат файлы заявок
 	// (services.NewApplicationFileService собирает его так же).
 	applicationFilesDir = "application_files"
-
-	// auditActionExported - действие audit_log при реально записанном (не пробном) снятии
-	// пакета: "данные организации выгружены в пакет". Отдельная от import.go константа
-	// (там действие - "imported") - это два разных следа одного и того же обмена, и
-	// различать их в журнале надо по action, а не только по details.
-	auditActionExported = "exported"
 )
 
 // Encryptor - шифрование пакета age-конвертом. Интерфейс объявлен здесь, а реализация
@@ -277,7 +272,7 @@ func recordExport(ctx context.Context, r AuditRecorder, entityType string, id in
 		Encrypted:      res.Manifest.Encrypted,
 		ManifestSHA256: res.ManifestSHA256,
 	}
-	return r.Record(ctx, nil, entityType, &entityID, auditActionExported, nil, details)
+	return r.Record(ctx, nil, entityType, &entityID, models.OrganizationActionExported, nil, details)
 }
 
 // exportAuditDetails - подробности записи audit_log о снятой выгрузке.

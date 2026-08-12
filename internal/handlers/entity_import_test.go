@@ -102,8 +102,8 @@ func TestEntityImport_RoundTrip(t *testing.T) {
 	require.Equal(t, int64(1), orgCount)
 
 	var audit models.AuditLog
-	err = db.Where("entity_type = ? AND action = ? AND entity_id = ?", "organization", "imported", f.org.ID).
-		First(&audit).Error
+	err = db.Where("entity_type = ? AND action = ? AND entity_id = ?",
+		entityarchive.TypeOrganization, models.OrganizationActionImported, f.org.ID).First(&audit).Error
 	require.NoError(t, err, "успешный импорт обязан оставить запись в audit_log")
 }
 

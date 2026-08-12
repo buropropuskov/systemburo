@@ -25298,7 +25298,6 @@ const docTemplate = `{
         "models.RegisterRequest": {
             "type": "object",
             "required": [
-                "password",
                 "username"
             ],
             "properties": {
