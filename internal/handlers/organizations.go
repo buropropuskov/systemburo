@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -12,13 +13,14 @@ import (
 
 // OrganizationHandler содержит HTTP-обработчики для управления организациями.
 type OrganizationHandler struct {
-	service services.OrganizationService
-	db      *gorm.DB
+	service  services.OrganizationService
+	db       *gorm.DB
+	resolver *services.PermissionResolver
 }
 
 // NewOrganizationHandler создаёт новый экземпляр обработчика организаций.
-func NewOrganizationHandler(service services.OrganizationService, db *gorm.DB) *OrganizationHandler {
-	return &OrganizationHandler{service: service, db: db}
+func NewOrganizationHandler(service services.OrganizationService, db *gorm.DB, resolver *services.PermissionResolver) *OrganizationHandler {
+	return &OrganizationHandler{service: service, db: db, resolver: resolver}
 }
 
 // GetAll godoc
@@ -342,7 +344,7 @@ func (h *OrganizationHandler) GetMyOrganization(c echo.Context) error {
 
 // GetOrganizationUsers godoc
 // @Summary      Получить пользователей организации
-// @Description  Возвращает список ответственных пользователей организации
+// @Description  Возвращает список ответственных пользователей организации. Маршрут открыт любому вошедшему (его же читает форма подачи заявки), поэтому required_approval виден только тем, у кого есть право на раздел справочников (#2013) - остальным поле приходит null.
 // @Tags         organizations
 // @Accept       json
 // @Produce      json
@@ -362,7 +364,32 @@ func (h *OrganizationHandler) GetOrganizationUsers(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+	hideRequiredApproval(c, h.resolver, users)
 	return RespondSuccess(c, users)
+}
+
+// hideRequiredApproval прячет признак обязательного согласующего (#2013) от всех,
+// кроме тех, у кого есть право на раздел справочников. Маршрут /organizations/:id/users
+// открыт любому вошедшему - его же дёргает форма подачи заявки у обычного заявителя,
+// чтобы получить самих ответственных, но не должна раскрывать карту согласования чужой
+// организации. Подача заявки от этого не страдает: application_service.go при её
+// создании сам достаёт required_approval из organization_users/companies_users,
+// независимо от того, что прислал клиент в required_users.
+func hideRequiredApproval(c echo.Context, resolver *services.PermissionResolver, users []services.OrganizationUserResponse) {
+	userID, _ := c.Get("user_id").(int)
+	allowed, err := resolver.HasPermission(c.Request().Context(), userID, services.KeyPageAdminDirectories)
+	if err != nil {
+		// Не даём сбою проверки права раскрыть служебное поле - при ошибке считаем,
+		// что права нет, но саму ошибку не глотаем молча.
+		slog.Error("Не удалось проверить право на служебные поля пользователей организации", "error", err)
+		allowed = false
+	}
+	if allowed {
+		return
+	}
+	for i := range users {
+		users[i].RequiredApproval = nil
+	}
 }
 
 // GetMembers godoc

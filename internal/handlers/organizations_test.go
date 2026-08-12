@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/labstack/echo/v4"
@@ -348,6 +349,42 @@ func TestOrganizations_GetOrganizationUsers(t *testing.T) {
 	users := testutil.ParseSlice(t, rec)
 	// Initially no organization_users junction records, so empty array is valid
 	assert.NotNil(t, users)
+}
+
+// TestOrganizations_GetOrganizationUsers_RequiredApprovalGated (#2013): признак
+// обязательного согласующего - карта того, кто в организации проводит решения.
+// Маршрут открыт любому вошедшему (его же дёргает форма подачи заявки у обычного
+// заявителя, чтобы собрать список ответственных), поэтому сам признак должен видеть
+// только тот, у кого есть право на раздел справочников - остальным поле приходит null.
+func TestOrganizations_GetOrganizationUsers_RequiredApprovalGated(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	testutil.RegisterUser(t, e, "reqapproveruser", "pass123", 1, td.OrgID, td.CompanyID)
+	body := `{"users":[{"username":"reqapproveruser","required_approval":true}]}`
+	require.Equal(t, http.StatusOK,
+		testutil.PUT(t, e, fmt.Sprintf("/organizations/%d/users", td.OrgID), body, testutil.AuthHeader(adminToken)).Code)
+
+	// Обычный заявитель из той же организации: маршрут отдаёт 200 (форма не ломается),
+	// но признак согласования скрыт.
+	applicantToken := testutil.RegisterAndLogin(t, e, "plainapplicant", "pass123", 1, td.OrgID, td.CompanyID)
+	rec := testutil.GET(t, e, fmt.Sprintf("/organizations/%d/users", td.OrgID), testutil.AuthHeader(applicantToken))
+	require.Equal(t, http.StatusOK, rec.Code)
+	users := testutil.ParseSlice(t, rec)
+	require.Len(t, users, 1)
+	assert.Nil(t, users[0]["required_approval"], "обычный заявитель не должен видеть признак обязательного согласующего")
+
+	// Пользователь с правом на справочники видит настоящее значение.
+	directoriesToken := testutil.RegisterAndLogin(t, e, "directoriesviewer", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.GrantPermission(t, getUserID(t, db, "directoriesviewer"), services.KeyPageAdminDirectories)
+	recPriv := testutil.GET(t, e, fmt.Sprintf("/organizations/%d/users", td.OrgID), testutil.AuthHeader(directoriesToken))
+	require.Equal(t, http.StatusOK, recPriv.Code)
+	usersPriv := testutil.ParseSlice(t, recPriv)
+	require.Len(t, usersPriv, 1)
+	assert.Equal(t, true, usersPriv[0]["required_approval"], "право на справочники должно раскрывать признак")
 }
 
 func TestOrganizations_UpdateOrganizationUsers(t *testing.T) {

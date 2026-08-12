@@ -341,7 +341,7 @@ func main() {
 	attachmentHandler := handlers.NewAttachmentHandler(attachmentService)
 	manualAttachHandler := handlers.NewManualAttachHandler(manualAttachService)
 	citizenshipHandler := handlers.NewCitizenshipHandler(citizenshipService)
-	organizationHandler := handlers.NewOrganizationHandler(organizationService, db)
+	organizationHandler := handlers.NewOrganizationHandler(organizationService, db, permissionResolver)
 	companyHandler := handlers.NewCompanyHandler(companyService)
 	usersHandler := handlers.NewUsersHandler(userService)
 	onboardingHandler := handlers.NewOnboardingHandler(onboardingService)

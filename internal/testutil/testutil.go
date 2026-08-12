@@ -375,7 +375,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 	lpfHandler := handlers.NewLicensePlateFormatHandler(lpfService)
 	attachmentHandler := handlers.NewAttachmentHandler(attachmentService)
 	citizenshipHandler := handlers.NewCitizenshipHandler(citizenshipService)
-	organizationHandler := handlers.NewOrganizationHandler(organizationService, db)
+	organizationHandler := handlers.NewOrganizationHandler(organizationService, db, permissionResolver)
 	companyHandler := handlers.NewCompanyHandler(companyService)
 	usersHandler := handlers.NewUsersHandler(userService)
 	onboardingHandler := handlers.NewOnboardingHandler(onboardingService)
