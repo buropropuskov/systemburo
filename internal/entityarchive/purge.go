@@ -29,6 +29,11 @@ package entityarchive
 //  7. Порядок удаления - organizationNodes() КАК ЕСТЬ (дети раньше родителей). Import вставляет
 //     в ОБРАТНОМ порядке (родители раньше детей) ровно потому, что вставка и удаление зеркальны;
 //     удалению разворот не нужен - порядок карты графа для него уже правильный.
+//  8. Общие (is_shared) шаблоны отчётов сносимых пользователей отвязываются от владельца
+//     (owner_user_id -> NULL) ВНУТРИ той же транзакции, ДО удаления узлов графа - иначе каскад
+//     OwnerUserID (OnDelete:CASCADE) унёс бы шаблон, которым пользуются чужие пользователи, не
+//     подававшие заявку на снос. Личные (не is_shared) шаблоны отвязку не проходят и уходят
+//     штатным каскадом вместе с автором - см. detachSharedReportTemplates.
 
 import (
 	"context"
@@ -89,11 +94,16 @@ type PurgeResult struct {
 	Apply          bool
 	Tables         []PurgeTableCount
 	Files          int
+	// DetachedReportTemplates - число общих шаблонов отчётов (report_templates, is_shared),
+	// СНЯТЫХ с владельца перед сносом (owner_user_id -> NULL), а не удалённых вместе с ним -
+	// см. detachSharedReportTemplates. Отдельное число, не входит в Tables/TotalRows: строка
+	// физически осталась в базе, удалением её считать нельзя.
+	DetachedReportTemplates int64
 	// Warnings - то, что оператор обязан увидеть, но что не мешает сносу (тот же приём,
 	// что у AnonymizeResult.Warnings): общие шаблоны отчётов, чьи авторы входят в снос -
-	// report_templates уже узел графа и удаляется штатно (счётчик, пакет, audit_log), но
-	// is_shared делает шаблон видимым чужим пользователям, и они не подавали заявку на
-	// снос своего шаблона.
+	// перед удалением строк они отвязываются от владельца (DetachedReportTemplates) и
+	// остаются доступны всем, кто ими пользуется, но менять/удалять их через API станет
+	// некому - loadOwnedTemplate не признаёт своей строку с NULL-владельцем ни для кого.
 	Warnings []string
 }
 
@@ -116,6 +126,9 @@ type purgeAuditDetails struct {
 	Tables         []PurgeTableCount `json:"tables"`
 	Rows           int64             `json:"rows"`
 	Files          int               `json:"files"`
+	// DetachedReportTemplates - см. PurgeResult.DetachedReportTemplates: отдельное от Rows
+	// число, журнал обязан отличать снос от отвязки так же, как и результат команды.
+	DetachedReportTemplates int64 `json:"detached_report_templates,omitempty"`
 }
 
 // Purge проверяет пакет в dir (Verify с указанием entityType/id - инвариант 1), сверяет его
@@ -190,6 +203,7 @@ func Purge(ctx context.Context, db *gorm.DB, entityType string, id int, dir stri
 	}
 
 	var deleted []PurgeTableCount
+	var detachedTemplates int64
 	txErr := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Повторная сверка покрытия ВНУТРИ транзакции: закрывает окно между проверкой выше
 		// и самим удалением - на практике verify и purge -apply запускает один оператор
@@ -197,12 +211,25 @@ func Purge(ctx context.Context, db *gorm.DB, entityType string, id int, dir stri
 		// риск (данные, изменившиеся между этим SELECT и DELETE ниже уже внутри одной
 		// транзакции READ COMMITTED) тот же, с которым здесь живёт retire.go - усиливать
 		// изоляцию отдельной задачей, если понадобится.
+		//
+		// Сверка обязана идти РАНЬШЕ отвязки шаблонов ниже: она сравнивает счётчики строк
+		// с пакетом, а пакет снят ДО отвязки - на нём report_templates ещё несёт исходные
+		// owner_user_id. Отвязка не меняет число строк report_templates (только колонку),
+		// поэтому сама по себе сверку не портит - но идти она обязана после, а не до, иначе
+		// один и тот же Purge отказывал бы себе сам при повторном перечитывании инварианта.
 		curGraph, err := Collect(ctx, tx, entityType, id)
 		if err != nil {
 			return err
 		}
 		if diff := comparePackageCoverage(v.Manifest.Tables, curGraph.Tables); diff != "" {
 			return coverageMismatchError(diff)
+		}
+
+		// Инвариант 8: отвязка общих шаблонов ДО удаления узлов графа - иначе deleteNode
+		// ниже унёс бы их тем же каскадом, что и личные.
+		detachedTemplates, err = detachSharedReportTemplates(ctx, tx, id)
+		if err != nil {
+			return err
 		}
 
 		for _, node := range organizationNodes() {
@@ -218,6 +245,7 @@ func Purge(ctx context.Context, db *gorm.DB, entityType string, id int, dir stri
 		entityID := id
 		details := purgeAuditDetails{
 			Package: dir, ManifestSHA256: fingerprint, Tables: deleted, Rows: sumRows(deleted), Files: len(files),
+			DetachedReportTemplates: detachedTemplates,
 		}
 		return opt.Recorder.Record(ctx, tx, entityType, &entityID, models.OrganizationActionPurged, opt.ActorID, details)
 	})
@@ -225,6 +253,7 @@ func Purge(ctx context.Context, db *gorm.DB, entityType string, id int, dir stri
 		return res, fmt.Errorf("снос %s #%d: %w", entityType, id, txErr)
 	}
 	res.Tables = deleted
+	res.DetachedReportTemplates = detachedTemplates
 
 	// Инвариант 6: файлы уходят с диска ТОЛЬКО после того, как транзакция с удалением строк
 	// и записью в audit_log зафиксирована. Сбой здесь не откатывает уже сделанное удаление -
@@ -352,12 +381,12 @@ func removeApplicationFiles(uploadPath string, files []appFileRow) error {
 }
 
 // sharedReportTemplateWarning предупреждает про общие шаблоны отчётов (report_templates,
-// is_shared), чьи авторы входят в снос. Таблица - обычный узел графа (registry.go) и
-// удаляется штатно вместе со своим владельцем (OwnerUserID, FK OnDelete:CASCADE), данные
-// не теряются молча - но is_shared делает шаблон видимым ВСЕМ, кто им пользуется, не
-// только автору: снос организации заберёт его и у чужих пользователей, которые заявку на
-// снос не подавали. Предикат берётся из nodeWhere("report_templates") - тот же, по
-// которому deleteNode ниже реально сотрёт строки, а не переписывается заново.
+// is_shared), чьи авторы входят в снос: is_shared делает шаблон видимым ВСЕМ, кто им
+// пользуется, не только автору, и оператор обязан узнать об этом до -apply. Само по себе
+// это сносу больше не мешает (см. detachSharedReportTemplates) - шаблон переживает снос,
+// но становится ничьим: loadOwnedTemplate не отдаст его в правку/удаление никому, ни
+// прежнему кругу пользователей, ни оператору. Предикат берётся из
+// nodeWhere("report_templates") - тот же, что и у самой отвязки, а не переписывается заново.
 func sharedReportTemplateWarning(ctx context.Context, exec *gorm.DB, id int) (string, error) {
 	where, err := nodeWhere("report_templates")
 	if err != nil {
@@ -372,8 +401,45 @@ func sharedReportTemplateWarning(ctx context.Context, exec *gorm.DB, id int) (st
 		return "", nil
 	}
 	return fmt.Sprintf("среди сносимых пользователей есть авторы общих шаблонов отчётов (report_templates, "+
-		"is_shared, сейчас %d шт.) - общий шаблон виден ВСЕМ, кто им пользуется, не только автору, и снос "+
-		"заберёт его вместе с автором у всех остальных", count), nil
+		"is_shared, сейчас %d шт.) - перед удалением строк они будут отвязаны от владельца (owner_user_id "+
+		"-> NULL) и останутся доступны всем, кто ими пользуется, но менять или удалять их станет некому",
+		count), nil
+}
+
+// detachSharedReportTemplates снимает владение с общих шаблонов отчётов сносимых
+// пользователей ДО удаления узлов графа (инвариант 8) - иначе каскад OwnerUserID
+// (OnDelete:CASCADE) унёс бы вместе с автором и шаблон, которым пользуются чужие
+// пользователи, не подававшие заявку на снос своей организации. Личные (не is_shared)
+// шаблоны отвязку не проходят - предикат ниже требует is_shared = true, а без него строка
+// дойдёт до deleteNode("report_templates") и уйдёт штатным каскадом вместе с автором,
+// ровно как и ожидается: личный шаблон умирает вместе с владельцем.
+//
+// owner_user_id обнуляется, а не переносится на другого пользователя (например, на
+// супер-администратора): поле уже допускает NULL - тем же состоянием живут системные
+// пресеты (models.ReportTemplate: "Системные пресеты... имеют OwnerUserID=nil"), и
+// ListReportTemplates продолжает отдавать шаблон всем через ветку "is_shared = true"
+// независимо от владельца - видимость и применение шаблона (то, ради чего его вообще
+// расшаривали) не теряются. Перенос на конкретного администратора добавил бы вопрос без
+// надёжного ответа: узел "users" ниже удаляет ВСЕХ пользователей организации без
+// исключения (organization_id = @org, включая супер-администраторов ЭТОЙ ЖЕ организации),
+// так что кандидат в новые владельцы сам может оказаться удалён той же транзакцией -
+// пришлось бы отдельно искать супер-администратора вне сносимой организации, ловить
+// случай, когда такого нет, и решать вопрос чужого владения ресурсом, который человек не
+// создавал. Обратная сторона NULL - строку после этого не сможет поправить или убрать уже
+// никто через API (loadOwnedTemplate трактует NULL-владельца как чужого для любого
+// вызывающего), но это тот же компромисс, на котором уже стоят системные пресеты, и он
+// назван в предупреждении (sharedReportTemplateWarning) до -apply, а не всплывает молча.
+func detachSharedReportTemplates(ctx context.Context, tx *gorm.DB, id int) (int64, error) {
+	where, err := nodeWhere("report_templates")
+	if err != nil {
+		return 0, err
+	}
+	q := "UPDATE report_templates SET owner_user_id = NULL WHERE " + where + " AND is_shared = true"
+	result := tx.WithContext(ctx).Exec(q, sql.Named("org", id))
+	if result.Error != nil {
+		return 0, fmt.Errorf("отвязка общих шаблонов отчётов: %w", result.Error)
+	}
+	return result.RowsAffected, nil
 }
 
 func toPurgeTableCounts(in []TableCount) []PurgeTableCount {
