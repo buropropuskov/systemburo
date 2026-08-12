@@ -853,11 +853,6 @@ export default {
     canViewHistory() {
       return usePermissionsStore().hasPermission('page.admin.directories');
     },
-    // История организации тоже под page.admin, а список организаций открыт любому,
-    // кто вошёл в раздел справочников. Без гейта окно истории открывалось бы пустым.
-    canViewHistory() {
-      return usePermissionsStore().hasPermission('page.admin');
-    },
     // Архивный режим - производная от режима списка: наборы групповых операций и
     // подписи по-прежнему делятся на «активные» и «архив», а «на проверке» - срез
     // активных, поэтому он идёт по ветке активных.
