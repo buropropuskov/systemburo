@@ -505,8 +505,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Организации. Изменяющие операции, история и состав - админ справочников
 	// (page.admin.directories, тем же правом фронт открывает /admin/organizations).
-	// Открытым остаётся то, без чего не собрать заявку: список наименований и
-	// ответственные (/:id/users) - их читает форма подачи.
+	// Открытым остаётся то, без чего не собрать заявку: наименования (GetAll),
+	// ответственные (/:id/users), таблицы и места разгрузки - их читают форма подачи
+	// и VehicleForm.
 	// Подсказки при ручном вводе наименования в заявке (#1437). Гейт - то же право,
 	// что разблокирует ручной ввод: без него заявка идёт от своей организации, и
 	// подсказывать нечего. Статический сегмент suggest в Echo приоритетнее :id.
@@ -541,12 +542,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// организации, так что без гейта любой работник вписывал себя сам. Право то же,
 	// что у соседей по составу - reassign-users и bulk/users.
 	orgg.PUT("/:id/users", org.UpdateOrganizationUsers, requireDirectories)
-	// Участники - ФИО, должности и логины работников организации. Ровно тот же
-	// набор отдают блокеры архивации ниже, и пока участники шли без гейта, право
-	// на закрытом близнеце обходилось вызовом соседа (#2002).
+	// Участники - ФИО, должности и логины работников организации. Они же блокируют
+	// архивацию: набор active-only, и delete-флоу спрашивает этот же маршрут.
 	orgg.GET("/:id/members", org.GetMembers, requireDirectories)
-	// Блокеры архивации и перенос всех в другую организацию - гейт как у Delete.
-	orgg.GET("/:id/blocking-users", org.GetBlockingUsers, requireDirectories)
+	// Перенос всех участников в другую организацию - гейт как у Delete.
 	orgg.POST("/:id/reassign-users", org.ReassignUsers, requireDirectories)
 	orgg.GET("/:id/tables", org.GetOrganizationTables)
 	orgg.PUT("/:id/tables", org.UpdateOrganizationTables, requireDirectories)
@@ -564,7 +563,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Компании. Зеркало organizations: изменяющие операции, история и состав - админ
 	// справочников (page.admin.directories, тем же правом фронт открывает
-	// /admin/companies); открыты список наименований и ответственные для формы заявки.
+	// /admin/companies); открыт тот же набор чтений, что нужен форме заявки.
 	cg := protected.Group("/companies")
 	cg.GET("", comp.GetAll)
 	cg.GET("/suggest", comp.Suggest, requireOrgOverride)
@@ -583,8 +582,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// для согласования, гейт держим одинаковым.
 	cg.PUT("/:id/users", comp.UpdateUsers, requireDirectories)
 	cg.GET("/:id/members", comp.GetMembers, requireDirectories)
-	// Блокеры архивации и перенос всех в другую компанию - гейт как у Delete.
-	cg.GET("/:id/blocking-users", comp.GetBlockingUsers, requireDirectories)
+	// Перенос всех участников в другую компанию - гейт как у Delete.
 	cg.POST("/:id/reassign-users", comp.ReassignUsers, requireDirectories)
 	cg.GET("/:id/tables", comp.GetTables)
 	cg.PUT("/:id/tables", comp.UpdateTables, requireDirectories)

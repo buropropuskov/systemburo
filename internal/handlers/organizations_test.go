@@ -956,7 +956,7 @@ func TestOrganizations_BlockingUsersAndReassign(t *testing.T) {
 	require.NoError(t, db.Model(&models.User{}).Where("id = ?", inactive.ID).Update("is_active", false).Error)
 
 	// Список блокеров = только активные участники.
-	blockers := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/blocking-users", srcID), testutil.AuthHeader(token)))
+	blockers := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/members", srcID), testutil.AuthHeader(token)))
 	names := map[string]bool{}
 	for _, b := range blockers {
 		names[b["username"].(string)] = true
@@ -980,7 +980,7 @@ func TestOrganizations_BlockingUsersAndReassign(t *testing.T) {
 		tgtNames[m["username"].(string)] = true
 	}
 	assert.True(t, tgtNames["blocker1"] && tgtNames["blocker2"], "оба перенесены в целевую")
-	assert.Empty(t, testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/blocking-users", srcID), testutil.AuthHeader(token))), "исходная без блокеров")
+	assert.Empty(t, testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/members", srcID), testutil.AuthHeader(token))), "исходная без блокеров")
 
 	// Аудит смены организации записан на каждого перенесённого.
 	var auditCount int64
@@ -1029,6 +1029,6 @@ func TestOrganizations_ReassignUsers_Validation(t *testing.T) {
 
 	// Обычный пользователь (не админ) не имеет доступа к обоим endpoint-ам.
 	userToken := testutil.RegisterAndLogin(t, e, "plainuser", "pass123", 1, td.OrgID, td.CompanyID)
-	assert.Equal(t, http.StatusForbidden, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/blocking-users", srcID), testutil.AuthHeader(userToken)).Code)
+	assert.Equal(t, http.StatusForbidden, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/members", srcID), testutil.AuthHeader(userToken)).Code)
 	assert.Equal(t, http.StatusForbidden, testutil.POST(t, e, fmt.Sprintf("/organizations/%d/reassign-users", srcID), fmt.Sprintf(`{"target_id":%d}`, tgtID), testutil.AuthHeader(userToken)).Code)
 }

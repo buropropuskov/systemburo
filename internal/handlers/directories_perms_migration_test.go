@@ -46,14 +46,13 @@ type dirRoute struct {
 //
 // Состав организаций и компаний стоит здесь целиком (#2002): участники и оба списка
 // с работниками раньше шли без гейта, и право на блокерах архивации обходилось
-// вызовом соседнего маршрута с тем же ответом. Держим их все, чтобы close одного
-// близнеца снова не разошёлся с другим.
+// вызовом соседнего маршрута с тем же ответом. Дубль удалён, участники закрыты, и
+// перечень держит их все, чтобы гейт снова не разъехался между близнецами.
 func directoryRoutes(orgID, companyID, placeID int) []dirRoute {
 	return []dirRoute{
 		{"типы пользователей: список", http.MethodGet, "/user-types-management", ""},
 		{"гражданства: создание", http.MethodPost, "/citizenships", `{"name":"Тестляндия"}`},
 		{"организации: история", http.MethodGet, fmt.Sprintf("/organizations/%d/history", orgID), ""},
-		{"организации: блокеры архивации", http.MethodGet, fmt.Sprintf("/organizations/%d/blocking-users", orgID), ""},
 		{"организации: участники", http.MethodGet, fmt.Sprintf("/organizations/%d/members", orgID), ""},
 		{"организации: список с работниками", http.MethodGet, "/organizations/with-users", ""},
 		{"организации: расширенный список", http.MethodGet, "/organizations/with-users-extended", ""},

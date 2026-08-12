@@ -1001,6 +1001,24 @@ definitions:
       value:
         type: integer
     type: object
+  models.ImpersonationResponse:
+    properties:
+      expires_at:
+        type: string
+      target:
+        $ref: '#/definitions/models.ImpersonationTarget'
+      token:
+        type: string
+    type: object
+  models.ImpersonationTarget:
+    properties:
+      full_name:
+        type: string
+      id:
+        type: integer
+      username:
+        type: string
+    type: object
   models.InsightsResponse:
     properties:
       comparisons:
@@ -1631,6 +1649,10 @@ definitions:
       organization_id:
         type: integer
       password:
+        description: |-
+          Password пустой означает «пароль придумает система и вышлет письмом».
+          Обязательность зависит от того, указан ли Email, поэтому её проверяет
+          сервис: тегом такое условие не выразить.
         maxLength: 255
         minLength: 6
         type: string
@@ -3035,6 +3057,61 @@ definitions:
       user_id:
         type: integer
       user_name:
+        type: string
+    type: object
+  services.ApplicationParticipant:
+    properties:
+      approval_comment:
+        type: string
+      approval_datetime:
+        type: string
+      approval_status:
+        description: |-
+          Состояние голоса - только у согласующего (approver). У ответственного строка
+          в application_responsible_users та же, но голосовать он не может, и её
+          дефолтный pending читался бы как «не ответил», хотя его никто не спрашивал.
+        type: string
+      company_id:
+        type: integer
+      company_name:
+        type: string
+      email:
+        type: string
+      first_name:
+        type: string
+      full_name:
+        description: |-
+          FullName - готовая строка «Фамилия Имя Отчество» (format_full_name). У скрытого
+          работника пуста, у принимающего с заданной маской содержит маску.
+        type: string
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      organization_id:
+        type: integer
+      organization_name:
+        type: string
+      pd_hidden:
+        description: |-
+          PDHidden - работник не дал согласия на обработку персональных данных (#1567):
+          ФИО и контакты скрыты. Без признака интерфейс не отличит «скрыто» от «не заполнено».
+        type: boolean
+      phone:
+        type: string
+      position:
+        type: string
+      primary_role:
+        type: string
+      roles:
+        description: Roles - все роли человека в этой заявке, PrimaryRole - старшая
+          из них.
+        items:
+          type: string
+        type: array
+      user_id:
+        type: integer
+      username:
         type: string
     type: object
   services.ApplicationUpdateRequest:
@@ -4749,20 +4826,25 @@ definitions:
       eligible:
         description: |-
           Eligible - активные незаблокированные работники с адресом почты, то есть те,
-          кого механизм в принципе может обслужить.
+          кому ручное обновление может выслать новый пароль.
         type: integer
       enabled:
         type: boolean
       expired:
-        description: Expired - у скольких срок уже вышел. Это и есть размер ближайшего
-          прогона.
+        description: |-
+          Expired - у скольких срок уже вышел. Часть из них прогон мог пометить в
+          прошлые сутки, поэтому это ответ на вопрос «сколько людей упрётся в форму
+          смены», а не размер ближайшего прогона.
         type: integer
       expiring_soon:
-        description: ExpiringSoon - у скольких истечёт в окне предупреждения.
+        description: |-
+          ExpiringSoon - скольким уйдёт предупреждение в окне перед истечением. Считается
+          только по тем, у кого есть адрес: предупреждение - это письмо.
         type: integer
       mail_configured:
-        description: MailConfigured - настроена ли отправка почты. Без неё смена не
-          запускается.
+        description: |-
+          MailConfigured - настроена ли отправка почты. Плановой проверке она не нужна,
+          от неё зависят предупреждения заранее и ручное обновление паролей.
         type: boolean
       next_run_at:
         description: NextRunAt - когда планировщик проснётся в следующий раз.
@@ -4771,8 +4853,8 @@ definitions:
         type: integer
       without_email:
         description: |-
-          WithoutEmail - активные незаблокированные без адреса. Их пароль не трогается,
-          и адреса им должно проставить бюро.
+          WithoutEmail - активные незаблокированные без адреса. Плановая проверка их
+          берёт наравне со всеми, а вот предупреждение и новый пароль слать им некуда.
         type: integer
     type: object
   services.QuestionAttachmentItem:
@@ -7114,6 +7196,49 @@ paths:
       security:
       - BearerAuth: []
       summary: История заявки
+      tags:
+      - applications
+  /applications/{id}/participants:
+    get:
+      description: |-
+        Возвращает всех участников заявки одним списком: отправителя, принявшего
+        в работу, согласующих, ответственных и читателей. На каждого - роли
+        машинными ключами, должность, организация, компания и контакты.
+        Один человек - одна запись, даже если ролей у него несколько.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.ApplicationParticipant'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Участники заявки
       tags:
       - applications
   /applications/{id}/questions:
@@ -10486,44 +10611,6 @@ paths:
       summary: Обновить компанию
       tags:
       - companies
-  /companies/{id}/blocking-users:
-    get:
-      description: |-
-        Возвращает активных участников (users.company_id=id), из-за которых
-        компанию нельзя архивировать. Тот же набор, что GetMembers; отдельный
-        endpoint для delete-флоу.
-      parameters:
-      - description: ID компании
-        in: path
-        name: id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/services.MemberResponse'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.HTTPError'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.HTTPError'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/models.HTTPError'
-      security:
-      - BearerAuth: []
-      summary: Пользователи, блокирующие архивацию компании
-      tags:
-      - companies
   /companies/{id}/history:
     get:
       parameters:
@@ -12748,6 +12835,27 @@ paths:
       summary: Скачать PDF раздела руководства
       tags:
       - guide
+  /impersonation/stop:
+    post:
+      description: Закрывает сеанс работы от чужого имени записью в журнал. Вызывается
+        с маркером режима; свою учётную запись клиент возвращает обычным обновлением
+        маркера.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Запрос идёт не в режиме работы от чужого имени
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      summary: Вернуться в свою учётную запись
+      tags:
+      - users
   /license-plate-formats:
     get:
       consumes:
@@ -14010,44 +14118,6 @@ paths:
       security:
       - BearerAuth: []
       summary: Обновить организацию
-      tags:
-      - organizations
-  /organizations/{id}/blocking-users:
-    get:
-      description: |-
-        Возвращает активных участников (users.organization_id=id), из-за
-        которых организацию нельзя архивировать. Тот же набор, что GetMembers
-        (участники активны по определению); отдельный endpoint для delete-флоу.
-      parameters:
-      - description: ID организации
-        in: path
-        name: id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/services.MemberResponse'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.HTTPError'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.HTTPError'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/models.HTTPError'
-      security:
-      - BearerAuth: []
-      summary: Пользователи, блокирующие архивацию организации
       tags:
       - organizations
   /organizations/{id}/history:
@@ -15522,9 +15592,9 @@ paths:
       - settings
   /settings/password-rotation/run:
     post:
-      description: 'Ручной прогон плановой смены: меняет пароли всем действующим работникам
-        с адресом почты, не дожидаясь срока. Возвращает управление сразу, письма ставятся
-        в очередь.'
+      description: 'Ручное обновление: придумывает новый пароль всем действующим работникам
+        с адресом почты и высылает его письмом. Возвращает управление сразу, письма
+        ставятся в очередь.'
       produces:
       - application/json
       responses:
@@ -15571,7 +15641,7 @@ paths:
             $ref: '#/definitions/models.HTTPError'
       security:
       - BearerAuth: []
-      summary: Состояние плановой смены паролей
+      summary: Состояние проверки сроков действия паролей
       tags:
       - settings
   /statistics/insights:
@@ -19309,6 +19379,34 @@ paths:
       security:
       - BearerAuth: []
       summary: Создание пользователя
+      tags:
+      - users
+  /users/{id}/impersonate:
+    post:
+      description: Выдаёт маркер доступа от имени указанного пользователя на 30 минут.
+        Требует право user.impersonate. Войти от имени более полномочного нельзя.
+      parameters:
+      - description: ID пользователя
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ImpersonationResponse'
+        "403":
+          description: Нет права или у цели прав больше
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Пользователь не найден
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      summary: Войти от имени пользователя
       tags:
       - users
   /users/{username}:
