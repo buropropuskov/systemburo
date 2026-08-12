@@ -1,4 +1,4 @@
-.PHONY: up down build test logs restart lint swagger bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage archive staging-archive deploy-archive entity staging-entity deploy-entity fake staging-fake vapid staging-vapid deploy-vapid backup staging-backup deploy-backup backup-status staging-backup-status deploy-backup-status backup-verify staging-backup-verify deploy-backup-verify deploy-restore restore staging-restore
+.PHONY: up down build test logs restart lint swagger bash db-shell frontend-dev prod-build package init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage archive staging-archive deploy-archive entity staging-entity deploy-entity fake staging-fake vapid staging-vapid deploy-vapid backup staging-backup deploy-backup backup-status staging-backup-status deploy-backup-status backup-verify staging-backup-verify deploy-backup-verify deploy-restore restore staging-restore
 
 # Подтверждение перед разрушающими целями рабочего сервера.
 #
@@ -55,6 +55,11 @@ frontend-dev:
 
 prod-build:
 	docker build --target production -t systemburo:latest .
+
+# Архив поставки для площадки без доступа к репозиторию. Собирается из последнего
+# коммита, кладётся в dist/. Версию можно задать: make package VERSION=1.2.0
+package:
+	bash scripts/package.sh
 
 # Создать/обновить тестового админа (buropropuskov / admin123)
 # Кастомный пароль: make seed PASS=mypass (уходит в сидер как -password)
