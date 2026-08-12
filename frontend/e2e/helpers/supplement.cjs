@@ -11,7 +11,19 @@ const {
 
 const API_BASE = process.env.E2E_API_BASE_URL || '/api';
 
-const PASSWORD = 'SuppE2E-pass-2718';
+/** Пароль, который администратор задаёт работнику при заведении учётной записи. */
+const INITIAL_PASSWORD = 'SuppE2E-pass-2718';
+
+/**
+ * Пароль, которым учётная запись пользуется дальше: работник задаёт его сам при
+ * первом входе. Заданный администратором система считает временным и до смены
+ * отвечает 403 на защищённые методы, поэтому фикстура проходит первый вход так
+ * же, как живой человек.
+ *
+ * Значение обязано отличаться от начального: повторное использование прежнего
+ * пароля система не примет.
+ */
+const PASSWORD = 'SuppE2E-own-3141';
 
 /**
  * Версия пройденного тура заведомо выше любой реальной ONBOARDING_VERSION - иначе
@@ -42,7 +54,7 @@ const CENTER_KEYS = [
 async function createUser(request, token, { username, organizationId, lastName }) {
   await apiPost(request, token, '/users', {
     username,
-    password: PASSWORD,
+    password: INITIAL_PASSWORD,
     organization_id: organizationId,
     type_id: 1,
     last_name: lastName,
@@ -51,7 +63,25 @@ async function createUser(request, token, { username, organizationId, lastName }
   const users = await apiGet(request, token, '/users/all');
   const created = users.find((u) => u.username === username);
   if (!created) throw new Error(`user ${username} not found after create`);
+  await changeInitialPassword(request, username);
   return { id: created.id, username, password: PASSWORD, lastName };
+}
+
+/**
+ * Первый вход работника: меняет временный пароль на свой. Без этого шага система
+ * отвечает 403 с кодом PASSWORD_CHANGE_REQUIRED на первый же защищённый запрос -
+ * начиная с пометки туров пройденными.
+ */
+async function changeInitialPassword(request, username) {
+  const res = await request.post(`${API_BASE}/login`, {
+    data: { username, password: INITIAL_PASSWORD },
+  });
+  if (!res.ok()) throw new Error(`login ${username} failed: ${res.status()}`);
+  const token = (await res.json()).data.token;
+  await apiPut(request, token, '/users/me/password', {
+    current_password: INITIAL_PASSWORD,
+    new_password: PASSWORD,
+  });
 }
 
 /** Туры помечаются пройденными от лица самого пользователя - /onboarding/complete self-эндпоинт. */

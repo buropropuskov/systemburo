@@ -369,6 +369,10 @@ func main() {
 	if len(cfg.CORSAllowedOrigins) > 0 {
 		publicBaseURL = cfg.CORSAllowedOrigins[0]
 	}
+	// Учётные данные новому работнику и пароль, заданный администратором, уходят
+	// письмом тем же почтовым сервисом и с тем же адресом системы.
+	userService.SetMailSender(mailService, publicBaseURL)
+
 	passwordRotationService := services.NewPasswordRotationService(
 		db, settingsService, mailService, notificationServiceEarly, permissionResolver, publicBaseURL)
 	settingsHandler.SetRotationService(passwordRotationService)

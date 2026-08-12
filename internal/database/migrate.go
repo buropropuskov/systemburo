@@ -36,6 +36,8 @@ func AllModels() []interface{} {
 		&models.UserBanHistory{},
 		&models.RefreshToken{},
 		&models.AuthEvent{},
+		// Прежние пароли учётной записи: по ним отсекается повтор при смене.
+		&models.UsedPassword{},
 		&models.OrganizationUser{},
 		&models.CompaniesUser{},
 		// Прогресс онбординг-туров (#1737): строка на пару (пользователь, тур).

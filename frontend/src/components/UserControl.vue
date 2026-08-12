@@ -452,6 +452,7 @@
               </template>
             </BaseDropdown>
             <button
+              v-if="canManageAccess"
               class="lk-button lk-button--secondary"
               data-testid="user-access"
               @click="openAccess(selectedUser)"
@@ -752,6 +753,12 @@
                   </li>
                 </ul>
               </div>
+              <p
+                class="field-note"
+                data-testid="change-password-mail-note"
+              >
+                {{ changePasswordNote }}
+              </p>
             </div>
           </div>
 
@@ -824,12 +831,25 @@
             >
           </div>
           <div class="input-group half">
-            <label class="input-label">Пароль <span class="required">*</span></label>
+            <label class="input-label">
+              Пароль
+              <span
+                v-if="!createEmailFilled"
+                class="required"
+              >*</span>
+            </label>
             <PasswordInput
               v-model="newUser.password"
-              placeholder="Введите пароль"
+              :placeholder="createEmailFilled ? 'Придумает система' : 'Введите пароль'"
               @input="saveDraft"
             />
+            <p
+              v-if="createEmailFilled && !newUser.password"
+              class="field-note"
+              data-testid="create-password-mail-note"
+            >
+              Оставьте поле пустым - система придумает пароль и вышлет работнику письмом вместе с логином.
+            </p>
             <ul
               v-if="newUser.password"
               class="password-checklist"
@@ -927,6 +947,9 @@
               type="email"
               @input="saveDraft"
             >
+            <p class="field-note">
+              На этот адрес уйдут логин и пароль. Без адреса пароль задаёт администратор.
+            </p>
           </div>
           <div class="input-group half">
             <label class="input-label">Телефон</label>
@@ -1241,6 +1264,13 @@ export default {
       if (user.is_super_admin) return false;
       return !user.is_admin || auth.isSuperAdmin;
     },
+    // Окно прав доступа целиком стоит на permission.audit.manage: этим правом на
+    // бэкенде закрыты и каталог ключей, и эффективные права цели, и роли с
+    // группами. Без права окно открывалось бы пустым и с чередой отказов, поэтому
+    // прячем сам вход в него.
+    canManageAccess() {
+      return usePermissionsStore().hasPermission('permission.audit.manage');
+    },
     ...mapState(useCompaniesStore, { companies: 'items' }),
     showArchive() {
       return this.listMode === 'archive';
@@ -1400,11 +1430,35 @@ export default {
     changePasswordValid() {
       return passwordMeetsPolicy(this.passwordPolicy, (this.selectedUser && this.selectedUser.newPassword) || '');
     },
+    createEmailFilled() {
+      return Boolean((this.newUser.email || '').trim());
+    },
+    /**
+     * Пустой пароль допустим только с адресом почты: тогда его придумает система
+     * и вышлет работнику письмом. Без адреса читать такой пароль было бы негде.
+     */
+    createPasswordReady() {
+      if (!this.newUser.password) return this.createEmailFilled;
+      return this.createPasswordValid;
+    },
+    /**
+     * Подсказка под полем пароля в карточке: куда уйдёт заданный пароль. Адрес
+     * не печатаем - у работника без согласия на обработку данных сервер его не
+     * присылает, и подставить туда нечего.
+     */
+    changePasswordNote() {
+      const forced = 'Сменить пароль при первом входе система попросит сама.';
+      if (!this.selectedUser) return forced;
+      if (this.selectedUser.email) {
+        return `Новый пароль уйдёт работнику письмом на его почту. ${forced}`;
+      }
+      if (this.selectedUser.pd_hidden) return forced;
+      return `Адрес почты не указан - передайте пароль работнику лично. ${forced}`;
+    },
     canCreateUser() {
       return (
         this.newUser.username &&
-        this.newUser.password &&
-        this.createPasswordValid &&
+        this.createPasswordReady &&
         this.newUser.type_id &&
         this.hasOrgOrCompany
       );
@@ -1423,7 +1477,7 @@ export default {
 
       const missing = [];
       if (!this.newUser.username) missing.push('логин');
-      if (!this.newUser.password) missing.push('пароль');
+      if (!this.newUser.password && !this.createEmailFilled) missing.push('пароль или адрес почты');
       if (!this.hasOrgOrCompany) missing.push('организацию или компанию');
       if (!this.newUser.type_id) missing.push('тип пользователя');
 
@@ -2049,7 +2103,9 @@ export default {
           method: "POST",
           body: JSON.stringify({
             username: this.newUser.username,
-            password: this.newUser.password,
+            // Пустая строка означает «пароль придумает система»: бэкенд примет её
+            // только с адресом почты, иначе откажет с объяснением.
+            password: this.newUser.password || '',
             last_name: this.newUser.last_name || null,
             first_name: this.newUser.first_name || null,
             middle_name: this.newUser.middle_name || null,
@@ -2064,8 +2120,15 @@ export default {
 
         if (response.ok) {
           const createdName = this.newUser.username;
+          // Пароль оставили пустым и запрос прошёл - значит его придумала система
+          // и письмо ушло: без настроенной почты сервер отказал бы.
+          const mailed = !this.newUser.password && this.createEmailFilled;
           this.handleUserCreated();
-          useDeletionsStore().notify({ prefix: 'Пользователь ', bold: createdName, suffix: ' создан' });
+          useDeletionsStore().notify({
+            prefix: 'Пользователь ',
+            bold: createdName,
+            suffix: mailed ? ' создан, пароль отправлен на почту' : ' создан',
+          });
         } else {
           const errorData = await response.json();
           useDeletionsStore().notify({ prefix: 'Не удалось создать пользователя: ', bold: errorData.message || 'ошибка', type: 'error' });
@@ -3134,6 +3197,13 @@ export default {
 .org-company-hint {
   margin: -4px 0 0;
   font-size: 12px;
+  color: var(--text-muted);
+}
+
+.field-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.35;
   color: var(--text-muted);
 }
 

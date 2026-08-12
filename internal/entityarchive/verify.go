@@ -62,7 +62,16 @@ type VerifyResult struct {
 	// совпадают со схемой текущей базы. Предупреждения на OK не влияют.
 	OK       bool
 	Manifest Manifest
-	Files    []FileCheck
+	// ManifestEncrypted - находился ли САМ файл манифеста реально под age-конвертом на
+	// диске (имя manifest.json.age), а не то, что заявляет Manifest.Encrypted. Последнее -
+	// поле ИЗ ТЕЛА манифеста, то есть заявление пакета о самом себе: открытый manifest.json
+	// с "encrypted": true внутри разбирается ничуть не хуже настоящего. Снос (Purge) обязан
+	// опираться на ManifestEncrypted, а не на Manifest.Encrypted - иначе гейт "пакет обязан
+	// быть зашифрован" проверяет утверждение, а не факт. checkEncryptionConsistency ниже
+	// дополнительно валит OK при любом расхождении - защита не должна зависеть от того, что
+	// вызывающий (Purge) не перепутает поле.
+	ManifestEncrypted bool
+	Files             []FileCheck
 	// Problems - причины отказа. Пустой список при OK=false не бывает.
 	Problems []string
 	// Warnings - то, что оператор должен увидеть, но что не мешает развороту.
@@ -129,8 +138,10 @@ func verifyStructure(dir string, dec Decryptor) (VerifyResult, bool) {
 		return res, false
 	}
 	res.Manifest = m
+	res.ManifestEncrypted = strings.HasSuffix(name, ageSuffix)
 	checkVersion(&res, m.Version)
 	checkGraphMembership(&res, m)
+	checkEncryptionConsistency(&res, m, res.ManifestEncrypted)
 
 	// Опись определяет, чего в каталоге ждать: имя манифеста плюс все файлы таблиц и
 	// вложений. Всё остальное на диске - лишнее (проверяется ниже).
@@ -238,6 +249,43 @@ func checkGraphMembership(res *VerifyResult, m Manifest) {
 				t.Table, m.Type)
 		}
 	}
+}
+
+// checkEncryptionConsistency сверяет заявленный Manifest.Encrypted (часть ТЕЛА манифеста,
+// то есть заявление пакета о самом себе) с тем, как манифест РЕАЛЬНО лежал на диске
+// (manifestFileEncrypted - имя файла, а не содержимое), и с тем, как названы файлы описи.
+// Расхождение - само по себе повод отказать, а не только сигнал для Purge: открытый
+// manifest.json с телом "encrypted": true иначе проходил бы любую проверку целостности
+// чисто (отпечатки в нём сходятся сами с собой) и обманывал бы гейт "пакет обязан быть
+// зашифрован" (см. ManifestEncrypted и Purge в purge.go), оставаясь при этом читаемым без
+// единого ключа. Та же сверка идёт и по каждому файлу таблиц/вложений - иначе конверт
+// достаточно было бы натянуть только на манифест, оставив содержимое таблиц открытым.
+func checkEncryptionConsistency(res *VerifyResult, m Manifest, manifestFileEncrypted bool) {
+	if m.Encrypted != manifestFileEncrypted {
+		res.fail("манифест заявляет encrypted=%v, но сам файл манифеста реально лежит %s - "+
+			"расхождение между описанием и действительностью, пакет считается изменённым",
+			m.Encrypted, sealedLabel(manifestFileEncrypted))
+		return
+	}
+	for _, t := range m.Tables {
+		if strings.HasSuffix(t.File, ageSuffix) != m.Encrypted {
+			res.fail("таблица %s: файл %s не соответствует заявленному в манифесте encrypted=%v",
+				t.Table, t.File, m.Encrypted)
+		}
+	}
+	for _, f := range m.Files {
+		if strings.HasSuffix(f.File, ageSuffix) != m.Encrypted {
+			res.fail("файл %s (заявка %d): не соответствует заявленному в манифесте encrypted=%v",
+				f.File, f.RowID, m.Encrypted)
+		}
+	}
+}
+
+func sealedLabel(sealed bool) string {
+	if sealed {
+		return "конвертом"
+	}
+	return "открытым текстом"
 }
 
 // verifyTableFile проверяет один файл tables/*.jsonl: отпечаток, размер, число строк из
