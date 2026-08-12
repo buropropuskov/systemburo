@@ -7,6 +7,9 @@
 # Зависимости и кэши сборки (в т.ч. node_modules/.vite от прогона vitest из корня)
 node_modules/
 
+# Собранные архивы поставки (make package)
+/dist/
+
 # Дампы БД
 *.sql
 
