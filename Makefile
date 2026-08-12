@@ -1,4 +1,4 @@
-.PHONY: up down build test logs restart lint swagger bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage archive staging-archive deploy-archive entity staging-entity deploy-entity fake staging-fake vapid staging-vapid deploy-vapid backup staging-backup deploy-backup backup-status staging-backup-status deploy-backup-status backup-verify staging-backup-verify deploy-backup-verify deploy-restore restore staging-restore
+.PHONY: up down build test logs restart lint swagger bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage archive staging-archive deploy-archive entity staging-entity deploy-entity fake staging-fake vapid staging-vapid deploy-vapid backup staging-backup deploy-backup backup-status staging-backup-status deploy-backup-status backup-verify staging-backup-verify deploy-backup-verify deploy-restore restore staging-restore health-check staging-health-check deploy-health-check
 
 # Подтверждение перед разрушающими целями рабочего сервера.
 #
@@ -252,3 +252,15 @@ staging-restore:
 
 deploy-restore:
 	bash scripts/restore.sh production $(ARGS)
+
+# Проверка живости: отвечает ли система так, как её видит человек - открывается ли
+# сайт по внешнему адресу, входит ли учётная запись, отвечает ли база.
+# На расписание ставится один раз: sudo ./scripts/health-install.sh production 5
+health-check:
+	bash scripts/health-check.sh local
+
+staging-health-check:
+	bash scripts/health-check.sh staging
+
+deploy-health-check:
+	bash scripts/health-check.sh production
