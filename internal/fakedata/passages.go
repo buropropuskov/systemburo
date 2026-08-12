@@ -41,18 +41,19 @@ type passagesStep struct{}
 
 func (passagesStep) Name() string { return "проходы через посты" }
 
-// Plan -- верхняя граница по числу машин/сотрудников профиля (Profile.Cars/
-// Profile.Employees): сколько из них реально попадёт в принятую в работу заявку,
-// известно только после того, как applicationsStep/stagesStep разыграют состав --
-// Plan по контракту пакета базу не читает, поэтому показывает потолок, а не точное
-// число (как и "Шаблоны вложений" в applicationsStep.Plan).
+// Plan -- ОЦЕНКА по числу машин/сотрудников профиля (Profile.Cars/Profile.Employees),
+// а не потолок: отмечаются не записи реестра, а машины и люди во вложениях заявок, и
+// одна машина реестра попадает в несколько заявок. На стенде 11.08.2026 профиль small
+// (20 машин, 30 сотрудников) дал 25 и 32 отметки -- больше собственных чисел профиля.
+// Сколько выйдет на самом деле, известно только после того, как applicationsStep/
+// stagesStep разыграют состав и стадии, а Plan по контракту пакета базу не читает.
 func (passagesStep) Plan(p Profile) []PlanItem {
 	if p.Applications <= 0 {
 		return nil
 	}
 	return []PlanItem{
-		{Entity: models.AuditEntityCar, Title: "Отметки проезда машин", Count: p.Cars},
-		{Entity: models.AuditEntityEmployee, Title: "Отметки прохода сотрудников", Count: p.Employees},
+		{Entity: models.AuditEntityCar, Title: EntityTitle(models.AuditEntityCar), Count: p.Cars, Mark: true},
+		{Entity: models.AuditEntityEmployee, Title: EntityTitle(models.AuditEntityEmployee), Count: p.Employees, Mark: true},
 	}
 }
 
@@ -97,12 +98,20 @@ func (passagesStep) Run(ctx context.Context, env *Env) error {
 	streams := newPassageStreams(env.Seed)
 	now := time.Now().UTC()
 
-	if err := runCarPassages(ctx, carSvc, env.DB, cars, actors, streams, now); err != nil {
+	markedCars, err := runCarPassages(ctx, carSvc, env.DB, cars, actors, streams, now)
+	if err != nil {
 		return fmt.Errorf("проходы машин: %w", err)
 	}
-	if err := runEmployeePassages(ctx, empSvc, env.DB, employees, actors, streams, now); err != nil {
+	markedEmployees, err := runEmployeePassages(ctx, empSvc, env.DB, employees, actors, streams, now)
+	if err != nil {
 		return fmt.Errorf("проходы сотрудников: %w", err)
 	}
+	// Не Batch.Add: машина и сотрудник уже принадлежат заявке партии и уйдут вместе с
+	// ней, а отметка -- действие над ними, удалять по ней нечего. Счёт нужен отчёту:
+	// фактическое число всегда меньше плана (до поста доходят только принятые в работу
+	// и с непросроченным пропуском), и разницу человек должен видеть числом.
+	env.Batch.Mark(models.AuditEntityCar, markedCars)
+	env.Batch.Mark(models.AuditEntityEmployee, markedEmployees)
 	return nil
 }
 
@@ -371,7 +380,7 @@ func shiftEmployeeExit(ctx context.Context, db *gorm.DB, employeeID int, at time
 // runCarPassages отмечает въезд каждой машины кандидата и выезд -- доле из них
 // (passageStayExitCounts). Порядок кандидатов из SQL детерминирован (ORDER BY c.id),
 // поэтому одно и то же -seed даёт один и тот же состав "остался"/"выехал".
-func runCarPassages(ctx context.Context, svc services.CarService, db *gorm.DB, cars []passageCandidate, actors []int, s *passageStreams, now time.Time) error {
+func runCarPassages(ctx context.Context, svc services.CarService, db *gorm.DB, cars []passageCandidate, actors []int, s *passageStreams, now time.Time) (int, error) {
 	cars = passableCandidates(cars, now)
 	stay, _ := passageStayExitCounts(len(cars))
 	for i, c := range cars {
@@ -386,13 +395,13 @@ func runCarPassages(ctx context.Context, svc services.CarService, db *gorm.DB, c
 			},
 		}
 		if err := svc.UpdateCarTerritoryStatus(ctx, c.ID, req); err != nil {
-			return fmt.Errorf("въезд машины %d: %w", c.ID, err)
+			return 0, fmt.Errorf("въезд машины %d: %w", c.ID, err)
 		}
 		if err := shiftCarEntry(ctx, db, c.ID, entryAt); err != nil {
-			return err
+			return 0, err
 		}
 		if err := shiftEntityAuditLog(ctx, db, models.AuditEntityCar, c.ID, "entry", entryAt); err != nil {
-			return err
+			return 0, err
 		}
 
 		if i < stay && passageWindowOpen(c, now) {
@@ -406,20 +415,20 @@ func runCarPassages(ctx context.Context, svc services.CarService, db *gorm.DB, c
 			},
 		}
 		if err := svc.UpdateCarTerritoryStatus(ctx, c.ID, exitReq); err != nil {
-			return fmt.Errorf("выезд машины %d: %w", c.ID, err)
+			return 0, fmt.Errorf("выезд машины %d: %w", c.ID, err)
 		}
 		if err := shiftCarExit(ctx, db, c.ID, exitAt); err != nil {
-			return err
+			return 0, err
 		}
 		if err := shiftEntityAuditLog(ctx, db, models.AuditEntityCar, c.ID, "exit", exitAt); err != nil {
-			return err
+			return 0, err
 		}
 	}
-	return nil
+	return len(cars), nil
 }
 
 // runEmployeePassages -- зеркало runCarPassages для сотрудников.
-func runEmployeePassages(ctx context.Context, svc services.EmployeeService, db *gorm.DB, employees []passageCandidate, actors []int, s *passageStreams, now time.Time) error {
+func runEmployeePassages(ctx context.Context, svc services.EmployeeService, db *gorm.DB, employees []passageCandidate, actors []int, s *passageStreams, now time.Time) (int, error) {
 	employees = passableCandidates(employees, now)
 	stay, _ := passageStayExitCounts(len(employees))
 	for i, e := range employees {
@@ -430,13 +439,13 @@ func runEmployeePassages(ctx context.Context, svc services.EmployeeService, db *
 
 		req := services.UpdateTerritoryStatusRequest{TerritoryStatus: 1, UserID: &actorID, TableID: &e.TableID}
 		if err := svc.UpdateEmployeeTerritoryStatus(ctx, e.ID, req); err != nil {
-			return fmt.Errorf("вход сотрудника %d: %w", e.ID, err)
+			return 0, fmt.Errorf("вход сотрудника %d: %w", e.ID, err)
 		}
 		if err := shiftEmployeeEntry(ctx, db, e.ID, entryAt); err != nil {
-			return err
+			return 0, err
 		}
 		if err := shiftEntityAuditLog(ctx, db, models.AuditEntityEmployee, e.ID, "entry", entryAt); err != nil {
-			return err
+			return 0, err
 		}
 
 		if i < stay && passageWindowOpen(e, now) {
@@ -446,16 +455,16 @@ func runEmployeePassages(ctx context.Context, svc services.EmployeeService, db *
 		exitAt := passageMoment(s.empExitGap, entryAt, windowEnd)
 		exitReq := services.UpdateTerritoryStatusRequest{TerritoryStatus: 2, UserID: &actorID, TableID: &e.TableID}
 		if err := svc.UpdateEmployeeTerritoryStatus(ctx, e.ID, exitReq); err != nil {
-			return fmt.Errorf("выход сотрудника %d: %w", e.ID, err)
+			return 0, fmt.Errorf("выход сотрудника %d: %w", e.ID, err)
 		}
 		if err := shiftEmployeeExit(ctx, db, e.ID, exitAt); err != nil {
-			return err
+			return 0, err
 		}
 		if err := shiftEntityAuditLog(ctx, db, models.AuditEntityEmployee, e.ID, "exit", exitAt); err != nil {
-			return err
+			return 0, err
 		}
 	}
-	return nil
+	return len(employees), nil
 }
 
 // PassageStayExitCountsForTest открывает распределение остался/выехал проверке: сама

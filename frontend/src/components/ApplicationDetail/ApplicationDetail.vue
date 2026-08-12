@@ -12,9 +12,29 @@
       :existing-approvers="approvers"
       :existing-viewers="viewers"
       :attachments="attachments"
+      :reader-only="isForwardReaderOnly"
       :is-sending="isForwarding"
       @close="closeForwardModal"
       @send="sendForwardRequest"
+    />
+
+    <!-- Получатели заявки (#1952) -->
+    <ApplicationParticipantsModal
+      :show="showParticipantsModal"
+      :application-id="Number(applicationData.id)"
+      @close="showParticipantsModal = false"
+      @select="openParticipantFromList"
+    />
+
+    <!-- Карточка участника (#1952). Одна на оба входа - строку списка получателей
+         и согласующего в блоке согласования: два экземпляра разошлись бы тем,
+         кто открыт и поверх чего лежит. -->
+    <ApplicationParticipantCard
+      :show="showParticipantCard"
+      :participant="selectedParticipant"
+      :loading="participantCardLoading"
+      :error="participantCardError"
+      @close="showParticipantCard = false"
     />
 
     <!-- Дополнение поданной заявки (#1685) -->
@@ -124,6 +144,40 @@
               </svg>
               <span class="detail-download-btn__text">Скачать</span>
             </button>
+            <!-- Получатели (#1952): кто видит заявку и кто по ней голосует. Своего
+                 гейта у кнопки нет - метод отдаёт список тому, кому видна сама
+                 заявка, а она уже открыта. -->
+            <!-- aria-label дублирует подпись: на мобилке текст скрыт, и без него
+                 кнопка остаётся безымянным кружком для скринридера. -->
+            <button
+              class="participants-btn"
+              data-testid="app-detail-button-participants"
+              aria-label="Получатели"
+              @click="showParticipantsModal = true"
+            >
+              <svg
+                class="participants-btn__icon"
+                width="17"
+                height="17"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle
+                  cx="9"
+                  cy="7"
+                  r="4"
+                />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+              <span class="participants-btn__text">Получатели</span>
+            </button>
           </div>
         </div>
         <div class="detail-header-right">
@@ -149,6 +203,7 @@
             :current-user-id="currentUserId"
             :responsible-users="responsibleUsers"
             :approvers="approvers"
+            :is-approver="isApprover"
             :mode="mode"
             :processing="processingApplication"
             :updating-confirmation="updatingConfirmation"
@@ -388,7 +443,7 @@
 
             <!-- Разбор наименования, заведённого подачей (#1437): плашка видна только
                  тому, у кого есть право разбора, и только пока запись на проверке. -->
-            <ApplicationOrgModeration
+            <DirectoryModeration
               v-for="entry in pendingDirectoryEntries"
               :key="entry.kind"
               :kind="entry.kind"
@@ -562,6 +617,7 @@
               :responsible-users="responsibleUsers"
               :current-user-id="currentUserId"
               :updating-confirmation="updatingConfirmation"
+              @select-user="openParticipantByUser"
             />
           </div>
 
@@ -638,11 +694,12 @@
 
 <script>
 import { apiRequest } from '@/api/client'
-import { markAsRead, getApplicationSupplements } from '@/api/applications'
+import { markAsRead, getApplicationSupplements, getApplicationParticipants } from '@/api/applications'
 import { useDeletionsStore } from '@/stores/deletions'
 import { useUiStore } from '@/stores/ui'
 import { SUPPLEMENT_APPROVED } from '@/utils/supplementStatuses'
 import { usePermissionsStore } from '@/stores/permissions'
+import { useAuthStore } from '@/stores/auth'
 import ApplicationAttachments from './ApplicationAttachments.vue'
 import ApplicationFiles from './ApplicationFiles.vue'
 import ApplicationConfirmation from './ApplicationConfirmation.vue'
@@ -659,7 +716,9 @@ import Badge from '@/components/ui/Badge.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import { sanitizeHtml } from '@/utils/sanitize'
 import ApplicationMessageModal from './ApplicationMessageModal.vue'
-import ApplicationOrgModeration from './ApplicationOrgModeration.vue'
+import ApplicationParticipantsModal from './ApplicationParticipantsModal.vue'
+import ApplicationParticipantCard from './ApplicationParticipantCard.vue'
+import DirectoryModeration from '@/components/directory/DirectoryModeration.vue'
 import eventStream from '@/services/eventStream'
 import { ref } from 'vue'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
@@ -688,7 +747,9 @@ export default {
         Badge,
         BaseDropdown,
         ApplicationMessageModal,
-        ApplicationOrgModeration,
+        ApplicationParticipantsModal,
+        ApplicationParticipantCard,
+        DirectoryModeration,
         SupplementModal,
         SupplementPanel
     },
@@ -769,6 +830,24 @@ export default {
             supplementsError: '',
             supplementsSeq: 0,
             showForwardModal: false,
+            showParticipantsModal: false,
+            // Карточка участника (#1952). Список участников тянем ЛЕНИВО и держим до
+            // следующего обновления детали: из блока согласования контактов и ролей
+            // нет вовсе, а платить запросом за каждое открытие карточки не за что.
+            // Тот, кто карточку ни разу не открыл, за неё и не платит.
+            showParticipantCard: false,
+            selectedParticipant: null,
+            participantCardLoading: false,
+            participantCardError: '',
+            // Кого открывают прямо сейчас: пока летит запрос, человек успевает
+            // кликнуть соседа, и ответ на прошлый клик не должен подменить карточку.
+            participantCardUserId: null,
+            participants: [],
+            participantsLoadedFor: null,
+            participantsInflight: null,
+            // Поколение списка: деталь перечитывают по live-сигналу, и ответ,
+            // стартовавший до этого, не должен осесть в памяти как свежий.
+            participantsGeneration: 0,
             isForwarding: false,
             allUsers: [],
             approvers: [],
@@ -798,6 +877,11 @@ export default {
          */
         tourOnlyActions() {
             return useUiStore().tourActive;
+        },
+
+        /** Супер-администратор: доступ к заявке и пересылка ему открыты безусловно. */
+        isSuperAdmin() {
+            return useAuthStore().isSuperAdmin;
         },
 
         /** Бланки к заявке настроены и их выгрузка этому режиму/праву доступна. */
@@ -953,11 +1037,40 @@ export default {
             return this.isResponsibleUser || this.isApprover;
         },
 
-        // Зеркалит BE-проверку canForward (sender OR responsible). Согласующего не включаем
-        // сознательно: isApprover - глобальная роль, видит все заявки, и на чужой forward
-        // вернул бы 403. Отправителя тоже нет - в режиме "Центр" у него нет UI-пути к кнопке.
+        /**
+         * Доступ к заявке: зеркало CanAccessApplication на бэке. Супер-админ и
+         * принимающий (оператор бюро) видят любую заявку, остальные - свою по роли
+         * на ней: отправитель, ответственный, согласующий (он же строка в
+         * responsible_users) и читатель.
+         */
+        hasApplicationAccess() {
+            const a = this.applicationData;
+            if (!a) return false;
+            if (this.isSuperAdmin) return true;
+            return this.isApprover || this.isResponsibleUser || this.isViewer ||
+                a.sender_user_id === this.currentUserId;
+        },
+
+        /**
+         * Переслать заявку вправе любой, у кого есть к ней доступ (#1948): гейт
+         * пересылки на бэке = гейт доступа. Прежнее «только ответственный» осталось от
+         * #680 и отсекало отправителя, принимающего и читателя, хотя сервер их пускает.
+         * Отозванную заявку сервер отбивает checkNotWithdrawn - действий по ней нет.
+         */
         canForwardApplication() {
-            return this.isResponsibleUser && this.applicationData.status !== 'Отозвана';
+            return this.hasApplicationAccess && this.applicationData.status !== 'Отозвана';
+        },
+
+        /**
+         * Заявка доступна только на просмотр: тогда и переслать её можно лишь на
+         * просмотр - назначение согласующего или ответственного сервер отбивает 403.
+         * Зеркало forwardAuthority.readerOnly: супер-админ и принимающий проходят
+         * раньше проверки роли на заявке, дальше решают отправитель/ответственный.
+         */
+        isForwardReaderOnly() {
+            if (this.isSuperAdmin || this.isApprover) return false;
+            if (this.applicationData?.sender_user_id === this.currentUserId) return false;
+            return !this.isResponsibleUser;
         },
 
         hasUserVoted() {
@@ -1172,6 +1285,101 @@ export default {
         },
 
         /**
+         * Карточка участника по строке списка получателей (#1952). Запись уже
+         * загружена окном - открытие бесплатно.
+         * @param {object} participant
+         */
+        openParticipantFromList(participant) {
+            this.participantCardUserId = Number(participant?.user_id) || null;
+            this.participantCardLoading = false;
+            this.participantCardError = '';
+            this.selectedParticipant = participant;
+            this.showParticipantCard = true;
+        },
+
+        /**
+         * Карточка участника по клику в блоке «Ответственные за согласование»
+         * (#1952). У блока есть только ФИО, должность и голос - контакты, место
+         * работы и остальные роли лежат в ответе про участников, поэтому его и
+         * подтягиваем: один раз на заявку, дальше из памяти.
+         * @param {{id: number}} user строка responsible_users
+         */
+        async openParticipantByUser(user) {
+            const userId = Number(user?.id);
+            this.participantCardUserId = userId;
+            this.selectedParticipant = null;
+            this.participantCardError = '';
+            this.participantCardLoading = true;
+            this.showParticipantCard = true;
+            try {
+                const list = await this.ensureParticipants();
+                if (this.participantCardUserId !== userId) return;
+                const found = (list || []).find(p => Number(p.user_id) === userId);
+                if (found) {
+                    this.selectedParticipant = found;
+                } else {
+                    this.participantCardError = 'Не нашли этого человека среди получателей заявки.';
+                }
+            } catch (error) {
+                if (this.participantCardUserId !== userId) return;
+                this.participantCardError = error.message || 'Не удалось загрузить данные участника';
+            } finally {
+                if (this.participantCardUserId === userId) this.participantCardLoading = false;
+            }
+        },
+
+        /**
+         * Список участников заявки: из памяти, если он уже загружен для этой заявки,
+         * иначе одним запросом. Пока запрос летит, второй клик присоединяется к нему -
+         * дедуп безопасен, потому что заявка у обоих кликов одна и та же и проверяется
+         * при записи: ответ по чужой заявке (успели переключить) не сохраняем.
+         * @returns {Promise<Array>}
+         */
+        ensureParticipants() {
+            const id = Number(this.applicationData.id);
+            if (!id) return Promise.resolve([]);
+            if (this.participantsLoadedFor === id) return Promise.resolve(this.participants);
+            if (this.participantsInflight && this.participantsInflight.id === id) {
+                return this.participantsInflight.promise;
+            }
+
+            const generation = this.participantsGeneration;
+            const promise = getApplicationParticipants(id)
+                .then((list) => {
+                    const fresh = Array.isArray(list) ? list : [];
+                    // Пока ответ летел, деталь перечитали или заявку сменили: показать
+                    // его тому, кто кликнул, ещё можно, а запоминать уже нельзя -
+                    // следующий клик обязан спросить заново.
+                    if (generation === this.participantsGeneration && Number(this.applicationData.id) === id) {
+                        this.participants = fresh;
+                        this.participantsLoadedFor = id;
+                    }
+                    return fresh;
+                })
+                .finally(() => {
+                    // Сверяем по самому промису: после сброса кэша в поле уже может
+                    // лежать запрос следующего клика по той же заявке.
+                    if (this.participantsInflight && this.participantsInflight.promise === promise) {
+                        this.participantsInflight = null;
+                    }
+                });
+            this.participantsInflight = { id, promise };
+            return promise;
+        },
+
+        /**
+         * Сбросить память об участниках: заявку сменили или её деталь перечитали.
+         * Голоса согласующих меняются вместе с деталью, и карточка обязана
+         * показывать то же, что блок согласования за ней.
+         */
+        resetParticipantsCache() {
+            this.participantsGeneration += 1;
+            this.participants = [];
+            this.participantsLoadedFor = null;
+            this.participantsInflight = null;
+        },
+
+        /**
          * Дополнение принято (#1685): перечитываем карточку, чтобы новые строки появились
          * в составе вложения, а признак открытого раунда (open_supplement) обновился и
          * погасил кнопку. Ленту истории двигаем тем же заходом - раунд пишется в неё.
@@ -1245,6 +1453,11 @@ export default {
                         ...appData
                     };
 
+                    // Деталь перечитана - вместе с ней могли смениться голоса
+                    // согласующих, поэтому карточка участника берёт список заново
+                    // при следующем открытии (#1952).
+                    this.resetParticipantsCache();
+
                     // Раунды дополнения (#1685) - отдельной ручкой, признак их наличия
                     // приезжает только что вместе с деталью. Без await: у панели свой
                     // лоадер, а кнопки действий заявки её ждать не должны.
@@ -1293,12 +1506,11 @@ export default {
                     this.viewers = newViewers;
                 }
 
-                // Списки всех пользователей и согласующих нужны только в "Центре заявок"
-                // (пересылка, определение согласующего). Рядовому отправителю в ЛК их не
-                // отдают (403) - не дёргаем админ-эндпоинты, иначе всплывает generic-тост
-                // "Недостаточно прав для этого действия" при открытии своей же заявки.
+                // Получатели и состав принимающих нужны окну пересылки, а оно живёт
+                // только в "Центре заявок". В личном кабинете кнопки пересылки нет,
+                // поэтому и запросов не делаем.
                 if (this.mode === 'center') {
-                    await this.fetchAllUsers();
+                    await this.fetchForwardRecipients();
                     await this.fetchApprovers();
                 }
 
@@ -1315,15 +1527,30 @@ export default {
             }
         },
 
-        async fetchAllUsers() {
+        /**
+         * Получатели для окна пересылки - из двух источников, по праву на список
+         * пользователей.
+         *
+         * Узкий круг кандидатов (коллеги по организации и компании плюс руководители) -
+         * это ограничение бэка для рядового участника заявки, а не общее правило:
+         * forwardAuthority не сужает получателей ни супер-админу, ни принимающему -
+         * маршрутизация заявок по чужим организациям и есть работа оператора бюро.
+         * Поэтому носителю page.admin.users оставляем полный /users/all, как было, а
+         * остальным даём неадминских кандидатов: на /users/all они получали 403 и
+         * пустой выбор в окне.
+         *
+         * silent403 на обеих ветках: окно деградирует до пустого списка молча - тост
+         * "Недостаточно прав" здесь лишний, запроса пользователь не делал.
+         */
+        async fetchForwardRecipients() {
+            const path = this.can('page.admin.users') ? "/users/all" : "/users/recipient-candidates";
             try {
-                // silent403 - на случай контекста без права: без пугающего тоста, деградируем тихо.
-                const response = await apiRequest("/users/all", { silent403: true });
+                const response = await apiRequest(path, { silent403: true });
                 if (response.ok) {
-                    this.allUsers = await response.json();
+                    this.allUsers = (await response.json()) || [];
                 }
             } catch (error) {
-                console.error("Error fetching users:", error);
+                console.error("Error fetching forward recipients:", error);
             }
         },
 
@@ -2183,6 +2410,31 @@ export default {
     background: var(--accent-hover);
 }
 
+/* Получатели (#1952) - вторичное действие рядом с "Переслать": та же пилюля и та
+   же высота, но контурная, чтобы не спорить с основным действием шапки. */
+.participants-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 18px;
+    border-radius: 50px;
+    border: 1px solid var(--accent);
+    background: var(--surface);
+    color: var(--accent-text);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.participants-btn:hover {
+    background: var(--accent-tint);
+}
+
+.participants-btn__icon {
+    flex-shrink: 0;
+}
+
 .detail-header-right {
     display: flex;
     align-items: center;
@@ -2780,6 +3032,22 @@ export default {
 
     .forward-btn__icon {
         display: inline-block;
+    }
+
+    /* "Получатели" сворачивается в такой же круг: ряд заголовка на 390 несёт дату
+       и кнопки-иконки, и пилюля с подписью выдавила бы их на лишнюю строку. */
+    .participants-btn {
+        width: 30px;
+        height: 30px;
+        min-width: 30px;
+        padding: 0;
+        gap: 0;
+        border-radius: 50%;
+        justify-content: center;
+    }
+
+    .participants-btn__text {
+        display: none;
     }
 
 

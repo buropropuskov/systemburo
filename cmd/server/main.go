@@ -59,6 +59,8 @@ func main() {
 			os.Exit(runStorage(os.Args[2:]))
 		case "archive":
 			os.Exit(runArchive(os.Args[2:]))
+		case "entity":
+			os.Exit(runEntity(os.Args[2:]))
 		case "fake":
 			os.Exit(runFake(os.Args[2:]))
 		case "vapid":
@@ -291,8 +293,13 @@ func main() {
 	guideService := services.NewGuideService(db, permissionResolver)
 	statisticsService := services.NewStatisticsService(db, time.Duration(cfg.AnalyticsCacheRefreshSec)*time.Second)
 
+	// Режим «войти как пользователь» (#1912). Тот же секрет подписи, что у обычного
+	// входа: проверка маркера в middleware остаётся одна на всех.
+	impersonationService := services.NewImpersonationService(db, cfg.JWTSecret, permissionResolver, auditRecorder)
+
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authService, maintenanceService, cfg.CookieSecure, cfg.JWTRefreshTTL)
+	impersonationHandler := handlers.NewImpersonationHandler(impersonationService)
 	userTypesHandler := handlers.NewUserTypesHandler(userTypeService)
 	lpfHandler := handlers.NewLicensePlateFormatHandler(lpfService)
 	attachmentHandler := handlers.NewAttachmentHandler(attachmentService)
@@ -338,6 +345,10 @@ func main() {
 	userBanHandler := handlers.NewUserBanHandler(userBanService)
 	consentHandler := handlers.NewConsentHandler(consentService, pdConsentGateService, settingsService, db)
 	settingsHandler := handlers.NewSettingsHandler(settingsService, documentFileService, cfg.UploadMaxFileSize, pdConsentGateService, pdConsentStatsService)
+	// Почтовая рассылка (#1906). Сервис создаётся всегда: при пустом SMTP_HOST он
+	// отвечает "почта не настроена" и не даёт молча копить недоставленное.
+	mailService := services.NewMailService(db, cfg)
+	settingsHandler.SetMailSender(mailService)
 	// Рабочая таймзона суточных операций: по ней же считается каталог дня в файловом
 	// архиве, иначе заявка, поданная поздним вечером, легла бы в папку следующего дня.
 	resetLoc, err := time.LoadLocation(cfg.ResetTimezone)
@@ -345,6 +356,28 @@ func main() {
 		slog.Warn("неверный RESET_TIMEZONE, используем UTC", "timezone", cfg.ResetTimezone, "error", err)
 		resetLoc = time.UTC
 	}
+	// Состояние проверки сроков действия паролей для экрана настроек (#1909):
+	// считается по тем же условиям, по которым будет отбирать работников сам прогон.
+	settingsHandler.SetRotationStatusService(
+		services.NewPasswordRotationStatusService(db, settingsService, mailService, resetLoc))
+
+	// Прогоны по паролям (#1910): плановая проверка сроков и ручное обновление.
+	// Базовый адрес системы для писем берём из списка разрешённых источников:
+	// отдельного параметра под адрес нет, а ссылка на localhost в письме у
+	// получателя всё равно не откроется - сервис такую отбрасывает сам.
+	publicBaseURL := ""
+	if len(cfg.CORSAllowedOrigins) > 0 {
+		publicBaseURL = cfg.CORSAllowedOrigins[0]
+	}
+	// Учётные данные новому работнику и пароль, заданный администратором, уходят
+	// письмом тем же почтовым сервисом и с тем же адресом системы.
+	userService.SetMailSender(mailService, publicBaseURL)
+
+	passwordRotationService := services.NewPasswordRotationService(
+		db, settingsService, mailService, notificationServiceEarly, permissionResolver, publicBaseURL)
+	settingsHandler.SetRotationService(passwordRotationService)
+	usersHandler.SetRotationService(passwordRotationService)
+
 	archivePathService := services.NewArchivePathService(db, resetLoc)
 	// Место и квота файлового архива (#1615, срез B2): сводка занятого места и
 	// порог, останавливающий очередь выгрузки при нехватке места. Поднимается
@@ -435,11 +468,18 @@ func main() {
 	// Приём файла массового импорта (blank-import, C1C2) разбирает .xlsx на до 2000
 	// строк - дороже обычной ручки, поэтому сверх общего лимита свой, per-user/IP.
 	importListLimiter := mw.RateLimit(10, 60)
+	// Смена своего пароля (#1915): форма принимает текущий пароль, значит годится
+	// для подбора. Лестница блокировки входа сюда не достаёт - она считает неудачные
+	// логины, - поэтому свой лимит: пять попыток за пять минут на пользователя.
+	selfPasswordLimiter := mw.RateLimit(5, 300)
 	maintenanceBlock := mw.MaintenanceBlock(maintenanceService)
 	banCheck := mw.BanCheck(banCheckService)
 	// Гейт согласия на обработку ПД (#1567). Пока тумблер выключен или текст пуст,
 	// пропускает всех - включается настройкой, а не деплоем.
 	consentGate := mw.PDConsentGate(pdConsentGateService)
+	// Обязательная смена пароля из письма (#1911). Флаг читается из базы, а не из
+	// маркера доступа: маркер живёт до 15 минут и версии пароля не несёт.
+	mustChangePassword := mw.MustChangePassword(services.NewPasswordChangeGateService(db, 30*time.Second))
 	lastSeen := mw.LastSeen(db)
 
 	// Routes
@@ -520,13 +560,16 @@ func main() {
 		MaintenanceBlock:    maintenanceBlock,
 		BanCheck:            banCheck,
 		ConsentGate:         consentGate,
+		MustChangePassword:  mustChangePassword,
 		LoginLimiter:        loginLimiter,
 		ImportListLimiter:   importListLimiter,
+		SelfPasswordLimiter: selfPasswordLimiter,
 		LastSeen:            lastSeen,
 		TableReportGate:     mw.RequireTableVerb(db, permissionResolver, accessDenialService, "report"),
 		TableVersionsGate:   mw.RequireTableVerb(db, permissionResolver, accessDenialService, "versions"),
 		TableTrashGate:      mw.RequireTableVerb(db, permissionResolver, accessDenialService, "trash"),
 		TablePassGate:       mw.RequireTablePassVerb(db, permissionResolver, accessDenialService),
+		Impersonation:       impersonationHandler,
 		JWTSecret:           []byte(cfg.JWTSecret),
 		UploadPath:          cfg.UploadPath,
 	})
@@ -584,6 +627,15 @@ func main() {
 
 	// Уборка файлов, загруженных к заявке, которую так и не отправили (#1721).
 	go startApplicationFileSweeper(ctxSig, applicationFileService, cfg.ApplicationFileDraftTTL, time.Hour)
+
+	// Разбор очереди исходящих писем (#1906). При пустом SMTP_HOST горутина
+	// завершается сразу: очередь тогда и не наполняется.
+	go startMailWorker(ctxSig, mailService, cfg.MailWorkerTick)
+
+	// Проверка сроков действия паролей (#1910): раз в сутки в 04:00 по рабочей
+	// зоне. 03:00 занят сверкой файлового архива, 06:00 - сбросом территориальных
+	// статусов.
+	go startPasswordRotationScheduler(ctxSig, passwordRotationService, resetLoc)
 
 	// Файловый архив бланков (#1615, B1): разбор очереди enqueue, подметатель
 	// повторов и ежесуточная сверка реестра с диском в 03:00 по resetLoc. nil,
@@ -666,6 +718,81 @@ func startRetentionWorker(ctx context.Context, db *gorm.DB, tokenDays, notificat
 // startApplicationFileSweeper убирает файлы, загруженные к заявке, которую так и
 // не отправили (#1721): заявитель выбрал документы и закрыл форму. Ходит чаще
 // суток, потому что такие файлы занимают место, ни на что не влияя.
+// startPasswordRotationScheduler раз в сутки в 04:00 по location проверяет сроки
+// действия паролей: сначала предупреждает тех, у кого срок подходит, затем помечает
+// истёкшими пароли тех, у кого он вышел. Выключенная настройка делает оба шага
+// пустыми - решение сервиса, а не планировщика.
+//
+// Паролей прогон не придумывает и писем с ними не шлёт: помеченный работник входит
+// своим прежним паролем, а дальше формы смены его не пускает гейт. Повторный проход
+// того же дня никого не выберет - уже помеченные из отбора исключены.
+func startPasswordRotationScheduler(ctx context.Context, svc *services.PasswordRotationService, location *time.Location) {
+	if svc == nil {
+		return
+	}
+	now := time.Now().In(location)
+	next := time.Date(now.Year(), now.Month(), now.Day(), services.RotationRunHour, 0, 0, 0, location)
+	if !next.After(now) {
+		next = next.Add(24 * time.Hour)
+	}
+	timer := time.NewTimer(time.Until(next))
+	defer timer.Stop()
+	slog.Info("планировщик сроков действия паролей запущен", "next_run", next.Format(time.RFC3339))
+
+	run := func() {
+		svc.NotifyExpiring(ctx)
+		svc.RunScheduled(ctx)
+	}
+
+	select {
+	case <-ctx.Done():
+		slog.Info("планировщик сроков действия паролей остановлен до первого срабатывания")
+		return
+	case <-timer.C:
+	}
+	run()
+
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("планировщик сроков действия паролей остановлен")
+			return
+		case <-ticker.C:
+			run()
+		}
+	}
+}
+
+// startMailWorker разбирает очередь исходящих писем: раз в tick забирает пачку
+// ожидающих отправки и шлёт её одним SMTP-соединением. Ненастроенная почта
+// завершает горутину сразу - при пустом SMTP_HOST письма в очередь не попадают.
+func startMailWorker(ctx context.Context, svc services.MailSender, tick time.Duration) {
+	if svc == nil || !svc.Enabled() {
+		slog.Info("почта не настроена, воркер очереди писем не запущен")
+		return
+	}
+	run := func() {
+		sent, failed := svc.ProcessQueue(ctx)
+		if sent > 0 || failed > 0 {
+			slog.Info("почта: очередь разобрана", "sent", sent, "failed", failed)
+		}
+	}
+	run()
+	ticker := time.NewTicker(tick)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("почта: воркер очереди остановлен")
+			return
+		case <-ticker.C:
+			run()
+		}
+	}
+}
+
 func startApplicationFileSweeper(ctx context.Context, svc services.ApplicationFileService, ttl, interval time.Duration) {
 	run := func() {
 		removed, err := svc.SweepOrphans(ctx, ttl)

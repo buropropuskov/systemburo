@@ -42,6 +42,24 @@ describe('VehicleDetailsModal - данные пропуска "по факту" 
     expect(vm.passInfo({})).toBeNull();
   });
 
+  // application_number реальных заявок уже начинается с «№» (проверено на стенде:
+  // «№ 20260808/027»), свой знак давал «Заявка №№ 20260808/027».
+  it('предупреждение об активной заявке печатает номер как есть, без второго «№»', () => {
+    const wrapper = mountModal({
+      show: true,
+      activeInfo: {
+        application_number: '№ 20260808/027',
+        entry_date_to: '2026-08-10',
+        entry_time_to: '18:00:00',
+        organization_name: 'ООО Ромашка',
+      },
+    });
+
+    const text = wrapper.find('.active-warning-section').text();
+    expect(text).toContain('Заявка № 20260808/027');
+    expect(text).not.toContain('№№');
+  });
+
   it('для source=facttable история грузится по одной машине (/cars/:id/history), не unified', async () => {
     apiRequest.mockImplementation((url) => {
       if (url === '/cars/5/history') {

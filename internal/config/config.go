@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/mail"
 	"path/filepath"
 	"strings"
 	"time"
@@ -96,6 +97,16 @@ type Config struct {
 	// выгрузка на диск не могла уронить подачу заявки.
 	ArchiveSweepInterval time.Duration `env:"ARCHIVE_SWEEP_INTERVAL" envDefault:"5m"`
 
+	// EntityExportPath - корень пакетов консольной выгрузки данных по сущности
+	// (server entity export). Пусто по умолчанию намеренно: в пакете лежат все
+	// персональные данные организации разом, и подставлять ему каталог «по
+	// умолчанию» рядом с кодом нельзя - место хранения выбирает тот, кто
+	// разворачивает систему. Пока значение не задано, команда выгрузки отказывает
+	// с подсказкой, а не пишет пакет наугад.
+	//
+	// Каталог обязан лежать вне UploadPath по той же причине, что и ARCHIVE_PATH.
+	EntityExportPath string `env:"ENTITY_EXPORT_PATH" envDefault:""`
+
 	// CookieSecure управляет флагом Secure на refresh-cookie. На staging/prod
 	// всегда true (HTTPS). На локальной разработке (http://localhost) - false,
 	// иначе браузер не отправит cookie.
@@ -155,6 +166,36 @@ type Config struct {
 	// не пользуется (ушёл в другой браузер, не отписавшись). 180 дней - половина года без
 	// единого успеха, заведомо больше типового цикла смены браузера или устройства.
 	PushSubscriptionRetentionDays int `env:"PUSH_SUBSCRIPTION_RETENTION_DAYS" envDefault:"180"`
+
+	// Почтовая рассылка (#1906). Система не поднимает свой почтовый сервер, а
+	// подключается клиентом к чужому: Джино, Яндекс 360, почтовый сервер
+	// организации - параметры одни и те же. Пустой SMTP_HOST - штатный режим
+	// "почта не настроена": письма не ставятся в очередь, а всё, что от неё
+	// зависит, отказывается стартовать явно, а не молча копит недоставленное.
+	SMTPHost string `env:"SMTP_HOST" envDefault:""`
+	SMTPPort int    `env:"SMTP_PORT" envDefault:"587"`
+	// SMTPUsername обычно совпадает с полным адресом ящика.
+	SMTPUsername string `env:"SMTP_USERNAME" envDefault:""`
+	SMTPPassword string `env:"SMTP_PASSWORD" envDefault:""`
+	// SMTPFrom обязан совпадать с ящиком аутентификации: почтовые серверы
+	// отвергают чужого отправителя ошибкой 550, и настройка выглядит рабочей
+	// ровно до первого письма.
+	SMTPFrom     string `env:"SMTP_FROM" envDefault:""`
+	SMTPFromName string `env:"SMTP_FROM_NAME" envDefault:"Бюро пропусков"`
+	// SMTPTLSMode: starttls (587), tls (465, шифрование с первого байта) или none.
+	// none оставлен для внутреннего почтового сервера в закрытом контуре, где
+	// шифрование снимает сама сеть; наружу так ходить нельзя.
+	SMTPTLSMode    string `env:"SMTP_TLS_MODE" envDefault:"starttls"`
+	SMTPTimeoutSec int    `env:"SMTP_TIMEOUT_SEC" envDefault:"15"`
+	// SMTPRatePerHour - потолок отправки, заведомо ниже лимита провайдера
+	// (у Джино 500 писем в час на обычной отправке). Упереться в чужой лимит
+	// хуже, чем растянуть рассылку: сервер начинает отвечать отказом всем подряд.
+	SMTPRatePerHour int `env:"SMTP_RATE_PER_HOUR" envDefault:"400"`
+	// MailRetryAttempts - сколько раз пытаться доставить письмо, прежде чем
+	// признать доставку несостоявшейся и позвать администратора.
+	MailRetryAttempts int `env:"MAIL_RETRY_ATTEMPTS" envDefault:"5"`
+	// MailWorkerTick - как часто разбирается очередь писем.
+	MailWorkerTick time.Duration `env:"MAIL_WORKER_TICK" envDefault:"15s"`
 }
 
 func Load() (*Config, error) {
@@ -238,6 +279,9 @@ func (c *Config) Validate() error {
 	if err := validateArchiveOutsideUploads(c.ArchivePath, c.UploadPath); err != nil {
 		return err
 	}
+	if err := validateExportOutsideUploads(c.EntityExportPath, c.UploadPath); err != nil {
+		return err
+	}
 	if (c.VAPIDPublicKey == "") != (c.VAPIDPrivateKey == "") {
 		return fmt.Errorf("VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be set together (both empty disables push)")
 	}
@@ -253,6 +297,9 @@ func (c *Config) Validate() error {
 	}
 	if c.PushSubscriptionRetentionDays <= 0 {
 		return fmt.Errorf("PUSH_SUBSCRIPTION_RETENTION_DAYS must be positive (got %d)", c.PushSubscriptionRetentionDays)
+	}
+	if err := c.validateMail(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -285,6 +332,35 @@ func validateArchiveOutsideUploads(archivePath, uploadPath string) error {
 		return fmt.Errorf("ARCHIVE_PATH (%s) must not be inside UPLOAD_PATH (%s): uploads are served without authorization, blanks contain personal data", archiveAbs, uploadAbs)
 	case isInside(uploadAbs, archiveAbs):
 		return fmt.Errorf("UPLOAD_PATH (%s) must not be inside ARCHIVE_PATH (%s)", uploadAbs, archiveAbs)
+	}
+	return nil
+}
+
+// validateExportOutsideUploads держит каталог пакетов выгрузки вне каталога загрузок.
+//
+// Та же защита, что у архива бланков, и по той же причине: загрузки раздаются статикой
+// до проверки авторизации. Разница в цене ошибки - в пакете лежит весь набор данных
+// организации сразу, включая файлы заявок, поэтому каталог внутри загрузок означал бы
+// выдачу всей выгрузки по прямой ссылке.
+func validateExportOutsideUploads(exportPath, uploadPath string) error {
+	if exportPath == "" || uploadPath == "" {
+		return nil
+	}
+
+	exportAbs, err := resolvePath(exportPath)
+	if err != nil {
+		return fmt.Errorf("ENTITY_EXPORT_PATH: %w", err)
+	}
+	uploadAbs, err := resolvePath(uploadPath)
+	if err != nil {
+		return fmt.Errorf("UPLOAD_PATH: %w", err)
+	}
+
+	switch {
+	case exportAbs == uploadAbs, isInside(exportAbs, uploadAbs):
+		return fmt.Errorf("ENTITY_EXPORT_PATH (%s) must be outside UPLOAD_PATH (%s): uploads are served without authorization, an export package holds the whole personal data set of an entity", exportAbs, uploadAbs)
+	case isInside(uploadAbs, exportAbs):
+		return fmt.Errorf("UPLOAD_PATH (%s) must not be inside ENTITY_EXPORT_PATH (%s)", uploadAbs, exportAbs)
 	}
 	return nil
 }
@@ -335,4 +411,52 @@ func isInside(child, parent string) bool {
 		return false
 	}
 	return !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// MailEnabled сообщает, настроена ли отправка почты. Пустой SMTP_HOST выключает
+// её целиком - тем же способом, что пустые VAPID-ключи выключают push.
+func (c *Config) MailEnabled() bool {
+	return c.SMTPHost != ""
+}
+
+// validateMail проверяет параметры почты. Полуготовая настройка (хост есть,
+// отправителя нет) не должна доживать до первого письма: там она превратится в
+// отказ 550 посреди рассылки, когда пароли уже сменены.
+func (c *Config) validateMail() error {
+	if !c.MailEnabled() {
+		// Почта выключена: остальные параметры не важны, стенд без неё работает.
+		return nil
+	}
+	switch c.SMTPTLSMode {
+	case "starttls", "tls", "none":
+	default:
+		return fmt.Errorf("SMTP_TLS_MODE must be one of: starttls, tls, none (got %q)", c.SMTPTLSMode)
+	}
+	if c.SMTPPort <= 0 || c.SMTPPort > 65535 {
+		return fmt.Errorf("SMTP_PORT must be between 1 and 65535 (got %d)", c.SMTPPort)
+	}
+	if c.SMTPFrom == "" {
+		return fmt.Errorf("SMTP_FROM is required when SMTP_HOST is set")
+	}
+	if _, err := mail.ParseAddress(c.SMTPFrom); err != nil {
+		return fmt.Errorf("SMTP_FROM must be a valid email address (got %q)", c.SMTPFrom)
+	}
+	// Пароль без логина и наоборот - почти всегда опечатка в файле параметров:
+	// сервер ответит 535, а выглядеть это будет как "письма не приходят".
+	if (c.SMTPUsername == "") != (c.SMTPPassword == "") {
+		return fmt.Errorf("SMTP_USERNAME and SMTP_PASSWORD must be set together (both empty means server without authentication)")
+	}
+	if c.SMTPTimeoutSec <= 0 {
+		return fmt.Errorf("SMTP_TIMEOUT_SEC must be positive (got %d)", c.SMTPTimeoutSec)
+	}
+	if c.SMTPRatePerHour <= 0 {
+		return fmt.Errorf("SMTP_RATE_PER_HOUR must be positive (got %d)", c.SMTPRatePerHour)
+	}
+	if c.MailRetryAttempts <= 0 {
+		return fmt.Errorf("MAIL_RETRY_ATTEMPTS must be positive (got %d)", c.MailRetryAttempts)
+	}
+	if c.MailWorkerTick <= 0 {
+		return fmt.Errorf("MAIL_WORKER_TICK must be positive (got %s)", c.MailWorkerTick)
+	}
+	return nil
 }

@@ -571,3 +571,180 @@ func TestValidate_VAPIDKeysMustComeInPair(t *testing.T) {
 		assert.NoError(t, cfg.Validate())
 	})
 }
+
+// mailConfig - корректная конфигурация с включённой почтой.
+func mailConfig() *Config {
+	c := validConfig()
+	c.SMTPHost = "smtp.jino.ru"
+	c.SMTPPort = 587
+	c.SMTPFrom = "bureau@example.org"
+	c.SMTPUsername = "bureau@example.org"
+	c.SMTPPassword = "секрет"
+	c.SMTPTLSMode = "starttls"
+	c.SMTPTimeoutSec = 15
+	c.SMTPRatePerHour = 400
+	c.MailRetryAttempts = 5
+	c.MailWorkerTick = 15 * time.Second
+	return c
+}
+
+// TestValidate_MailDisabledByEmptyHost: пустой SMTP_HOST - штатный режим, а не
+// ошибка. Стенд и локальная разработка живут без почты.
+func TestValidate_MailDisabledByEmptyHost(t *testing.T) {
+	c := validConfig()
+	require.False(t, c.MailEnabled())
+	require.NoError(t, c.Validate())
+}
+
+// TestValidate_MailConfigPasses стережёт помощник mailConfig: остальные тесты
+// ждут на нём конкретную ошибку и не заметили бы подмены причины.
+func TestValidate_MailConfigPasses(t *testing.T) {
+	c := mailConfig()
+	require.True(t, c.MailEnabled())
+	require.NoError(t, c.Validate())
+}
+
+// TestValidate_MailHalfConfigured: полуготовая настройка не должна доживать до
+// первого письма. Там она превратится в отказ сервера посреди рассылки, когда
+// пароли уже сменены и откатывать нечего.
+func TestValidate_MailHalfConfigured(t *testing.T) {
+	cases := []struct {
+		name   string
+		mutate func(*Config)
+		expect string
+	}{
+		{"без отправителя", func(c *Config) { c.SMTPFrom = "" }, "SMTP_FROM"},
+		{"отправитель не адрес", func(c *Config) { c.SMTPFrom = "бюро" }, "SMTP_FROM"},
+		{"логин без пароля", func(c *Config) { c.SMTPPassword = "" }, "SMTP_USERNAME"},
+		{"пароль без логина", func(c *Config) { c.SMTPUsername = "" }, "SMTP_USERNAME"},
+		{"неизвестный режим TLS", func(c *Config) { c.SMTPTLSMode = "ssl" }, "SMTP_TLS_MODE"},
+		{"порт вне диапазона", func(c *Config) { c.SMTPPort = 70000 }, "SMTP_PORT"},
+		{"нулевой таймаут", func(c *Config) { c.SMTPTimeoutSec = 0 }, "SMTP_TIMEOUT_SEC"},
+		{"нулевой потолок отправки", func(c *Config) { c.SMTPRatePerHour = 0 }, "SMTP_RATE_PER_HOUR"},
+		{"нет попыток доставки", func(c *Config) { c.MailRetryAttempts = 0 }, "MAIL_RETRY_ATTEMPTS"},
+		{"нулевой тик воркера", func(c *Config) { c.MailWorkerTick = 0 }, "MAIL_WORKER_TICK"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := mailConfig()
+			tc.mutate(c)
+			err := c.Validate()
+			require.Error(t, err, "полуготовая настройка должна отклоняться")
+			assert.Contains(t, err.Error(), tc.expect)
+		})
+	}
+}
+
+// TestValidate_MailServerWithoutAuth: почтовый сервер организации может принимать
+// письма без пароля - пустая пара логин/пароль это разрешает.
+func TestValidate_MailServerWithoutAuth(t *testing.T) {
+	c := mailConfig()
+	c.SMTPUsername = ""
+	c.SMTPPassword = ""
+	require.NoError(t, c.Validate())
+}
+
+// TestValidate_ExportMustBeOutsideUploads - зеркало проверки архива для каталога пакетов
+// выгрузки. Цена ошибки здесь выше: в пакете лежит весь набор данных организации сразу,
+// а загрузки раздаются статикой до проверки авторизации.
+func TestValidate_ExportMustBeOutsideUploads(t *testing.T) {
+	root := t.TempDir()
+	uploads := filepath.Join(root, "uploads")
+
+	cases := []struct {
+		name    string
+		export  string
+		upload  string
+		wantErr string
+	}{
+		{
+			name:    "выгрузка внутри загрузок",
+			export:  filepath.Join(uploads, "packages"),
+			upload:  uploads,
+			wantErr: "must be outside UPLOAD_PATH",
+		},
+		{
+			name:    "выгрузка глубоко внутри загрузок",
+			export:  filepath.Join(uploads, "a", "b", "packages"),
+			upload:  uploads,
+			wantErr: "must be outside UPLOAD_PATH",
+		},
+		{
+			name:    "тот же каталог",
+			export:  uploads,
+			upload:  uploads,
+			wantErr: "must be outside UPLOAD_PATH",
+		},
+		{
+			name:    "загрузки внутри выгрузки",
+			export:  root,
+			upload:  uploads,
+			wantErr: "must not be inside ENTITY_EXPORT_PATH",
+		},
+		{
+			name:    "путь с обходом вверх всё равно попадает внутрь загрузок",
+			export:  filepath.Join(uploads, "sub", "..", "packages"),
+			upload:  uploads,
+			wantErr: "must be outside UPLOAD_PATH",
+		},
+		{
+			name:   "соседние каталоги",
+			export: filepath.Join(root, "packages"),
+			upload: uploads,
+		},
+		{
+			name:   "похожее имя не считается вложенностью",
+			export: uploads + "-packages",
+			upload: uploads,
+		},
+		{
+			name:   "каталог не задан - проверять нечего",
+			export: "",
+			upload: uploads,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := validConfig()
+			cfg.EntityExportPath = tc.export
+			cfg.UploadPath = tc.upload
+
+			err := cfg.Validate()
+			if tc.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			require.Error(t, err, "конфигурация с утечкой обязана валить старт")
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
+// TestValidate_ExportSymlinkedIntoUploads - обход проверки ссылкой: лексически пути
+// разные, физически пакеты лягут в публично раздаваемый каталог.
+func TestValidate_ExportSymlinkedIntoUploads(t *testing.T) {
+	root := t.TempDir()
+	uploads := filepath.Join(root, "uploads")
+	require.NoError(t, os.MkdirAll(filepath.Join(uploads, "inner"), 0o750))
+
+	link := filepath.Join(root, "packages-link")
+	require.NoError(t, os.Symlink(filepath.Join(uploads, "inner"), link))
+
+	cfg := validConfig()
+	cfg.EntityExportPath = link
+	cfg.UploadPath = uploads
+
+	require.ErrorContains(t, cfg.Validate(), "must be outside UPLOAD_PATH")
+}
+
+// TestLoad_EntityExportPathHasNoDefault: у каталога пакетов намеренно нет значения по
+// умолчанию. Дефолт означал бы, что выгрузка персональных данных ложится в каталог,
+// который никто не выбирал, - место хранения задаёт тот, кто разворачивает систему.
+func TestLoad_EntityExportPathHasNoDefault(t *testing.T) {
+	setValidEnv(t)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Empty(t, cfg.EntityExportPath)
+}

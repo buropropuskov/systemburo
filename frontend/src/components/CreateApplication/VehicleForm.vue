@@ -457,7 +457,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useDeletionsStore } from '@/stores/deletions'
 import { useFormValidation } from '@/composables/useFormValidation'
 import { useNarrowScreen } from '@/composables/useNarrowScreen'
-import { validatePartValue, formatPartValue, initializeNumberParts } from '@/composables/useNumberFormat'
+import { validatePartValue, formatPartValue, initializeNumberParts, matchNumberToFormat } from '@/composables/useNumberFormat'
 import { useFieldConfig } from '@/composables/useFieldConfig'
 import { collectActiveWarnings } from '@/utils/warningWindows'
 import { buildScheduleReport } from '@/utils/scheduleCheck'
@@ -585,6 +585,8 @@ export default {
             numberParts: [],
             isNumberByFact: false,
             availableFormats: [],
+            // Промис загрузки справочника форматов - см. mounted и applyEditedVehicleNumber.
+            formatsReady: null,
             selectedFormat: null,
             isFormatDropdownOpen: false,
             isMarkByFact: false,
@@ -761,8 +763,11 @@ export default {
         }
     },
     async mounted() {
+        // Промис держим отдельно: правка строки может прийти раньше, чем справочник
+        // форматов доедет, и тогда подбор формата по номеру ложно не находит ничего.
+        this.formatsReady = this.loadLicensePlateFormats();
         await Promise.all([
-            this.loadLicensePlateFormats(),
+            this.formatsReady,
             this.loadUnloadingPlaces(),
             this.loadMarks(),
             this.loadPassageTables()
@@ -1467,7 +1472,49 @@ export default {
             this.selectedExistingCars = [];
         },
 
-        editVehicle(vehicle) {
+        // Раскладывает номер редактируемой строки по ячейкам формата (U3). Строка несёт
+        // formatId в двух случаях: добавлена вручную (numberParts.join(' ') - части через
+        // пробел) или пришла из импорта бланка с явно выбранным форматом (доводка владельца,
+        // BlankImportResult.buildVehicleFromRow) - там строка сырая, без пробелов по границам
+        // ячеек. matchNumberToFormat разбирает оба вида одинаково (сам убирает пробелы и
+        // раскладывает по cells формата), поэтому раскладка идёт через него всегда, а не
+        // прямым split(' '). formatId не пришёл или номер в него не лёг - формат подбирается
+        // по самой строке среди ВСЕХ активных форматов. Не подошёл ни один - явно сообщаем об
+        // этом, а не оставляем пустые ячейки под чужим форматом молча.
+        async applyEditedVehicleNumber(vehicle) {
+            if (!this.availableFormats.length && this.formatsReady) {
+                await this.formatsReady;
+            }
+            const knownFormat = vehicle.formatId
+                ? this.availableFormats.find(f => f.format.id === vehicle.formatId)
+                : null;
+
+            if (knownFormat) {
+                const matched = matchNumberToFormat(vehicle.plateNumber, [knownFormat]);
+                if (matched) {
+                    this.selectedFormat = knownFormat;
+                    this.numberParts = matched.parts;
+                    return;
+                }
+            }
+
+            const guessed = matchNumberToFormat(vehicle.plateNumber, this.availableFormats);
+            if (guessed) {
+                this.selectedFormat = guessed.format;
+                this.numberParts = guessed.parts;
+                return;
+            }
+
+            this.selectedFormat = null;
+            this.numberParts = [];
+            useDeletionsStore().notify({
+                prefix: `Номер "${vehicle.plateNumber}" не подошёл ни под один формат. `,
+                bold: 'Выберите формат и введите номер вручную',
+                type: 'error',
+            });
+        },
+
+        async editVehicle(vehicle) {
             this.editingVehicle = vehicle;
             this.selectedExistingCars = [];
             this.activeCarInfo = null; // Сбрасываем информацию об активной заявке
@@ -1506,11 +1553,7 @@ export default {
                     this.isNumberByFact = true;
                 } else {
                     this.isNumberByFact = false;
-                    const format = this.availableFormats.find(f => f.format.id === vehicle.formatId);
-                    if (format) {
-                        this.selectedFormat = format;
-                        this.numberParts = vehicle.plateNumber.split(' ');
-                    }
+                    await this.applyEditedVehicleNumber(vehicle);
                 }
 
                 restoreMarkSelection();

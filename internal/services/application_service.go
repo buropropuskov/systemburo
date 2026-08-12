@@ -141,7 +141,7 @@ type ApplicationService interface {
 	UpdateApplication(ctx context.Context, username string, applicationID int, req ApplicationUpdateRequest) (*ApplicationUpdateResponse, error)
 
 	// ForwardApplication пересылает заявку ответственным/просматривающим.
-	ForwardApplication(ctx context.Context, username string, applicationID int, req ForwardApplicationRequest) error
+	ForwardApplication(ctx context.Context, username string, applicationID int, isSuperAdmin bool, req ForwardApplicationRequest) error
 
 	// ApproveApplicationByUser согласование/отказ заявки пользователем.
 	ApproveApplicationByUser(ctx context.Context, username string, applicationID int, req UserApprovalRequest) error
@@ -193,6 +193,11 @@ type ApplicationService interface {
 
 	// GetApplicationResponsibleUsers возвращает ответственных пользователей заявки.
 	GetApplicationResponsibleUsers(ctx context.Context, applicationID int) ([]ResponsibleUserInfo, error)
+
+	// GetApplicationParticipants возвращает всех участников заявки одним списком:
+	// отправителя, принявшего в работу, согласующих, ответственных и читателей - с
+	// ролями, контактами и состоянием голоса. Персональные данные маскируются.
+	GetApplicationParticipants(ctx context.Context, applicationID int) ([]ApplicationParticipant, error)
 
 	// GetApplicationHistory возвращает историю заявки.
 	GetApplicationHistory(ctx context.Context, applicationID int) ([]ApplicationHistoryItem, error)
@@ -2211,13 +2216,32 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	// Читатели-получатели заявки (#884): доступ только на просмотр через application_viewers
 	// (как форвард-флоу) - CanAccessApplication пускает их на чтение, но не в согласующие.
 	// Пропускаем тех, кто уже ответственный (у них доступ и так есть).
-	if req.Readers != nil {
+	if req.Readers != nil && len(*req.Readers) > 0 {
+		// Читателем можно назначить только того, кого форма и предлагала выбрать:
+		// иначе подделанный запрос открывал бы заявку любому пользователю системы.
+		// Чужие идентификаторы отбрасываем молча - так же, как дубли ответственных
+		// строкой ниже; запрос при этом остаётся валидным и заявка подаётся.
+		//
+		// Тот же список стережёт пересылку (ForwardApplication): второй путь к INSERT
+		// в application_viewers обязан пускать тот же круг, иначе закрытая на подаче
+		// дыра открывается через /forward.
+		allowedReaders, err := recipientCandidateIDs(ctx, tx, *user)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+
 		seenViewer := make(map[int]bool, len(responsibleUsers))
 		for _, ru := range responsibleUsers {
 			seenViewer[ru.UserID] = true
 		}
 		for _, readerID := range *req.Readers {
 			if readerID <= 0 || seenViewer[readerID] {
+				continue
+			}
+			if _, allowed := allowedReaders[readerID]; !allowed {
+				slog.Warn("читатель заявки отброшен: вне списка доступных получателей",
+					"application_id", appID, "reader_id", readerID, "author_id", user.ID)
 				continue
 			}
 			seenViewer[readerID] = true
@@ -2271,7 +2295,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 					pendingVehicleFlags = append(pendingVehicleFlags, pendingVehicleFlag{carID: carID, carNumber: v.CarNumber})
 
 					carCreateComment := fmt.Sprintf("Автомобиль %s %s создан", v.CarNumber, v.CarBrand)
-					entry, err := buildAuditLogEntry(models.AuditEntityCar, &carID, "create", &user.ID, carAuditDetails{Comment: &carCreateComment})
+					entry, err := buildAuditLogEntry(ctx, models.AuditEntityCar, &carID, "create", &user.ID, carAuditDetails{Comment: &carCreateComment})
 					if err != nil {
 						slog.Error("не удалось подготовить аудит создания машины (submit)", "car_id", carID, "error", err)
 					} else {
@@ -2362,7 +2386,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 						empID: empID, lastName: e.LastName, firstName: e.FirstName, middleName: empMiddle,
 					})
 					empComment := fmt.Sprintf("Сотрудник %s создан", strings.TrimSpace(strings.Join([]string{e.LastName, e.FirstName, empMiddle}, " ")))
-					entry, err := buildAuditLogEntry(models.AuditEntityEmployee, &empID, "create", &user.ID, carAuditDetails{Comment: &empComment})
+					entry, err := buildAuditLogEntry(ctx, models.AuditEntityEmployee, &empID, "create", &user.ID, carAuditDetails{Comment: &empComment})
 					if err != nil {
 						slog.Error("не удалось подготовить аудит создания сотрудника (submit)", "employee_id", empID, "error", err)
 					} else {

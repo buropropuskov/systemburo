@@ -1,13 +1,58 @@
 <template>
   <div class="data__list">
     <div class="header-with-badge">
-      <h4>Список сотрудников</h4>
+      <h4>
+        <span class="list-title__full">Список сотрудников</span>
+        <span class="list-title__short">Сотрудники</span>
+      </h4>
       <span class="employees-badge">{{ employees.length }}</span>
+      <!-- Действия шапки: вход в импорт (когда доступен) и очистка списка (когда есть,
+           что чистить) - обе живут в шапке справа, а не в отдельной полосе тулбара под
+           ней: иначе при коротком списке (нет поиска/пейджера) тулбар оставался пустой
+           строкой под кнопку и раздувал пробел между шапкой и таблицей. -->
+      <div
+        v-if="canImport || employees.length"
+        class="header-actions"
+      >
+        <div
+          v-if="canImport"
+          class="import-entry"
+        >
+          <span
+            class="hint-anchor"
+            data-hint="Массовый ввод из бланка в опытной эксплуатации: проверяйте, что попало в список"
+          >
+            <Badge
+              variant="warning"
+              size="sm"
+              label="Experimental"
+            />
+          </span>
+          <button
+            type="button"
+            class="lk-button lk-button--secondary lk-button--sm import-entry__btn"
+            data-testid="employees-import-btn"
+            :aria-pressed="importActive ? 'true' : 'false'"
+            @click="$emit('toggle-import')"
+          >
+            {{ importActive ? 'Закрыть импорт' : 'Импорт' }}
+          </button>
+        </div>
+        <button
+          v-if="employees.length"
+          type="button"
+          class="lk-button lk-button--danger lk-button--sm list-toolbar__clear"
+          data-testid="employees-clear-btn"
+          @click="showClearConfirm = true"
+        >
+          Очистить
+        </button>
+      </div>
     </div>
 
-    <!-- Импорт бланком (blank-import) может занести до 2000 строк - показываем
-         поиск и постраничную навигацию только когда список реально большой,
-         чтобы обычная ручная подача из нескольких человек выглядела как раньше. -->
+    <!-- Поиск с пейджером - только когда список длинный (импорт бланком может занести
+         до 2000 строк, обычной ручной подаче они не нужны). Короткий список этой
+         строки не занимает вовсе. -->
     <div
       v-if="showToolbar"
       class="list-toolbar"
@@ -102,12 +147,22 @@
           :key="row.item.id"
           class="table-row rt-row"
           data-testid="employees-row"
+          :class="{ 'is-pending': row.item.isPending }"
         >
           <div class="table-col number-col">
             {{ row.number }}
           </div>
           <div class="table-col lastName-col">
-            {{ row.item.lastName || 'Не указано' }}
+            <span class="cell-value">{{ row.item.lastName || 'Не указано' }}</span>
+            <!-- Строка из бланка ещё не в заявке: приглушённого цвета мало, статус
+                 называем словами (blank-import-ux, доводка U5). -->
+            <Badge
+              v-if="row.item.isPending"
+              class="pending-badge"
+              variant="info"
+              size="sm"
+              label="В очереди"
+            />
           </div>
           <div class="table-col firstName-col">
             {{ row.item.firstName || 'Не указано' }}
@@ -146,20 +201,30 @@
             </button>
           </div>
         </div>
+        <!-- Пустое состояние - строка внутри тела таблицы под шапкой колонок: причина
+             пустоты разная, место одно. -->
         <div
-          v-if="employees.length === 0"
-          class="no-employees"
+          v-if="emptyMessage"
+          class="table-empty"
+          data-testid="employees-empty"
         >
-          Нет добавленных сотрудников
-        </div>
-        <div
-          v-else-if="filteredEmployees.length === 0"
-          class="no-employees"
-        >
-          Ничего не найдено по запросу «{{ searchQuery }}»
+          {{ emptyMessage }}
         </div>
       </div>
     </div>
+
+    <!-- Очистка списка необратима (отмены на странице нет), поэтому идёт только через
+         подтверждение; само удаление делает родитель по clear-list. -->
+    <ConfirmationModal
+      :show="showClearConfirm"
+      title="Очистить список"
+      :message="clearConfirmMessage"
+      confirm-text="Очистить"
+      cancel-text="Отмена"
+      :confirm-button-style="{ background: 'var(--danger)', borderColor: 'var(--danger)', color: 'var(--fill-text)' }"
+      @confirm="confirmClear"
+      @cancel="showClearConfirm = false"
+    />
 
     <!-- Модальное окно деталей сотрудника -->
     <EmployeeDetailsModal
@@ -175,13 +240,15 @@
 
 <script>
 import EmployeeDetailsModal from './EmployeeDetailsModal.vue';
+import ConfirmationModal from '@/components/ConfirmationModal.vue';
+import Badge from '@/components/ui/Badge.vue';
 import DetailsIcon from '@/components/ui/DetailsIcon.vue';
 import Pager from '@/components/ui/Pager.vue';
 import { useListSearchPagination } from '@/composables/useListSearchPagination';
 
 export default {
     name: 'EmployeesList',
-    components: { EmployeeDetailsModal, DetailsIcon, Pager },
+    components: { EmployeeDetailsModal, ConfirmationModal, Badge, DetailsIcon, Pager },
     props: {
         employees: {
             type: Array,
@@ -198,9 +265,19 @@ export default {
         detailInfo: {
             type: Object,
             default: () => ({})
+        },
+        // Вход в массовый ввод из бланка (blank-import-ux, U4): гейт права
+        // action.import.list считает родитель, здесь только показ кнопки.
+        canImport: {
+            type: Boolean,
+            default: false
+        },
+        importActive: {
+            type: Boolean,
+            default: false
         }
     },
-    emits: ['sort', 'edit-employee', 'delete-employee'],
+    emits: ['sort', 'edit-employee', 'delete-employee', 'toggle-import', 'clear-list'],
     setup(props) {
         // Поиск+постраничный показ - см. useListSearchPagination (blank-import E1: до
         // 2000 строк, рендерить всё v-for'ом не годится).
@@ -230,10 +307,33 @@ export default {
     data() {
         return {
             showDetailsModal: false,
-            selectedEmployee: null
+            selectedEmployee: null,
+            showClearConfirm: false
         };
     },
+    computed: {
+        // Считаем по ВСЕМУ списку, а не по видимой странице: поиск и пейджер режут показ,
+        // а чистится вложение целиком - иначе число в вопросе обещало бы меньше, чем уйдёт.
+        clearConfirmMessage() {
+            const pending = this.employees.filter(employee => employee.isPending).length;
+            const fromBlank = pending > 0 ? `, из них предварительных из бланка: ${pending}` : '';
+            return `Будет убрано строк: ${this.employees.length}${fromBlank}. Отменить это действие нельзя.`;
+        },
+
+        // Пустая таблица объясняет причину пустоты: список не заполняли вовсе или поиск
+        // ничего не нашёл. Предварительные строки из бланка тоже считаются заполнением.
+        emptyMessage() {
+            if (this.employees.length === 0) return 'Нет добавленных сотрудников';
+            if (this.filteredEmployees.length === 0) return `Ничего не найдено по запросу «${this.searchQuery}»`;
+            return '';
+        }
+    },
     methods: {
+        confirmClear() {
+            this.showClearConfirm = false;
+            this.$emit('clear-list');
+        },
+
         showEmployeeDetails(employee) {
             // EmployeeForm кладёт в employeesByAttachment объекты в camelCase
             // (lastName, firstName, citizenshipName, targetTables, ...), а
@@ -280,8 +380,41 @@ export default {
 .header-with-badge {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
     padding-bottom: 12px;
+}
+
+/* Действия списка прижаты к правому краю шапки: вход в импорт, за ним очистка.
+   Перенос обязателен: у .lk-button white-space: nowrap, и на узком экране пара
+   «Закрыть импорт» + «Очистить» иначе выехала бы за край шапки. */
+.header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.import-entry {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Короткая подпись списка для телефона - отдельный класс, а не модификатор общего:
+   видимость не должна зависеть от порядка правил при правке media-блока. */
+.list-title__short {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .import-entry__btn,
+    .list-toolbar__clear {
+        min-height: 44px;
+        padding: 4px 14px;
+    }
 }
 
 .employees-badge {
@@ -296,10 +429,11 @@ export default {
     line-height: 1.2;
 }
 
+/* Только поиск+пейджер - рисуется исключительно у длинных списков (showToolbar),
+   иначе строки в раскладке нет вовсе (см. header-actions выше для очистки). */
 .list-toolbar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     flex-wrap: wrap;
     gap: 8px;
     padding-bottom: 10px;
@@ -317,6 +451,10 @@ export default {
 .list-pager {
     flex-shrink: 0;
     color: var(--text-muted);
+}
+
+.list-toolbar__clear {
+    flex-shrink: 0;
 }
 
 .employees-table {
@@ -396,6 +534,41 @@ export default {
 
 .table-row:hover {
     background: var(--surface-2);
+}
+
+/* Предварительная строка (blank-import-ux, U5): разобрана из бланка, но в заявку ещё не
+   добавлена - детали, правка и удаление работают как у обычной. Кроме бейджа «В очереди»
+   строка заметно серее обычной: одного приглушённого текста владельцу было мало.
+   Метка слева - inset-тень, а не border: он сдвинул бы содержимое строки. */
+.table-row.is-pending {
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--text-muted) 12%, var(--surface));
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* Правило серой подложки идёт после hover-правила той же специфичности, поэтому
+   отклик на курсор возвращаем явно - иначе строка из бланка перестаёт реагировать. */
+.table-row.is-pending:hover {
+    background: color-mix(in srgb, var(--text-muted) 20%, var(--surface));
+}
+
+/* Ячейка фамилии несёт значение и бейдж: фамилия сжимается многоточием, бейдж
+   остаётся целым - он и есть статус строки. Шапку не трогаем - у неё свой gap. */
+.table-col.lastName-col {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cell-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pending-badge {
+    flex: 0 0 auto;
 }
 
 .table-row.has-active {
@@ -484,7 +657,8 @@ export default {
     opacity: 0.9;
 }
 
-.no-employees {
+/* Пустое состояние живёт внутри тела таблицы, вместо карточек/строк. */
+.table-empty {
     text-align: center;
     padding: 16px;
     color: var(--text-muted);
@@ -521,6 +695,54 @@ h4 {
    полей не выводим - решение по эпику: карточки без лейблов, как в Центре; ФИО
    читается само. Брейкпоинт 767.98 - как у инфраструктуры. */
 @media (max-width: 767.98px) {
+    /* Шапка списка перестаёт разваливаться на стопку. Замер на 320 (ряд шапки - 274px):
+       полная подпись занимала 176px, бейдж режима 95px, и пара «Импорт»+«Очистить»
+       требовала 280px - действия уезжали на свою строку, а там ломались ещё раз. После
+       сжатия группа действий укладывается в 249px и остаётся одной строкой. */
+    .header-with-badge {
+        gap: 6px;
+    }
+
+    h4 {
+        min-width: 0;
+        font-size: 15px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .list-title__full {
+        display: none;
+    }
+
+    .list-title__short {
+        display: inline;
+    }
+
+    .employees-badge {
+        flex: 0 0 auto;
+    }
+
+    .header-actions,
+    .import-entry {
+        gap: 6px;
+    }
+
+    /* Бейдж режима остаётся, но кеглем и полями поменьше. Специфичность (0,3,0) взята
+       выше scoped-правила самого Badge (0,2,0) намеренно: при равной побеждает чанк,
+       загруженный позже, а его порядок на проде не совпадает с dev (#1097 S9a). */
+    .import-entry .hint-anchor :deep(.badge--sm) {
+        font-size: 10px;
+        padding: 2px 6px;
+    }
+
+    /* Ужимаем только горизонтальные поля - высота 44px под палец остаётся. */
+    .import-entry__btn,
+    .list-toolbar__clear {
+        padding: 4px 10px;
+        font-size: 12px;
+    }
+
     .employees-table {
         border: none;
         border-radius: 0;
@@ -556,6 +778,12 @@ h4 {
         /* Резерв под три кнопки действий, приколотые справа. */
         padding: 10px 136px 10px 12px !important;
         font-size: 14px;
+    }
+
+    /* Серую подложку строки из бланка возвращаем: карточный фон приходит из
+       инфраструктуры с !important и иначе её съедает. */
+    .table-row.rt-row.is-pending {
+        background: color-mix(in srgb, var(--text-muted) 12%, var(--surface)) !important;
     }
 
     .table-col {
@@ -599,6 +827,31 @@ h4 {
         width: 20px;
         height: 20px;
         opacity: 0.75;
+    }
+}
+
+/* Узкие телефоны: те же элементы шапки ещё плотнее. На 320 доступной ширины ряда 274px,
+   и группе действий с очисткой её хватает только при этих полях. */
+@media (max-width: 480px) {
+    .header-with-badge,
+    .header-actions,
+    .import-entry {
+        gap: 4px;
+    }
+
+    /* Подпись 14px, а не 15: на 320 ряд с «Сотрудники» + счётчик + бейдж + «Импорт»
+       требовал 279px при доступных 274 и переносил действия на вторую строку. */
+    h4 {
+        font-size: 14px;
+    }
+
+    .import-entry .hint-anchor :deep(.badge--sm) {
+        padding: 2px 5px;
+    }
+
+    .import-entry__btn,
+    .list-toolbar__clear {
+        padding: 4px 8px;
     }
 }
 </style>

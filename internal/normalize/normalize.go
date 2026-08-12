@@ -151,22 +151,64 @@ func FixLatinInName(s string) (fixed string, latinFound bool) {
 // 0->О - осознанный компромисс: ловит классическую подмену О<->0, ценой редких
 // ложных сближений (регион "70" -> "7О"). Для предупреждения (не блокировки) приемлемо.
 func Plate(number string) string {
-	upper := strings.ToUpper(number)
+	stripped := StripPlateSeparators(strings.ToUpper(number))
 
 	var b strings.Builder
-	b.Grow(len(upper))
-	for _, r := range upper {
-		switch {
-		case r == ' ' || r == '-' || r == '_':
+	b.Grow(len(stripped))
+	for _, r := range stripped {
+		if r == '0' {
+			b.WriteRune('О')
 			continue
-		case r == '0':
-			r = 'О'
-		default:
-			if cyr, ok := latToCyrUpper[r]; ok {
-				r = cyr
-			}
+		}
+		if cyr, ok := latToCyrUpper[r]; ok {
+			b.WriteRune(cyr)
+			continue
 		}
 		b.WriteRune(r)
 	}
 	return b.String()
+}
+
+// StripPlateSeparators убирает пробелы, дефисы и подчёркивания - разделители, которыми
+// иногда размечают госномер, но которые не входят в саму комбинацию символов. Вынесено
+// из Plate отдельной функцией для разбора номера по ячейкам формата при импорте
+// (blank-import-ux U2): там строка сначала делится на сегменты по ячейкам, а уже потом
+// каждый сегмент нормализуется по своим правилам - раньше делить нельзя, разделители
+// мешают разбиению.
+func StripPlateSeparators(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if r == ' ' || r == '-' || r == '_' {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// FixPlateLetterCell нормализует СЕГМЕНТ номера, уже отнесённый разбором по формату к
+// буквенной (не смешанной и не числовой) кириллической ячейке: те же замены, что Plate
+// (латиница-омоглиф в кириллицу, 0 в букву О), но применённые только к этому сегменту -
+// целиком по строке 0->О сломал бы соседние числовые ячейки, где 0 легитимная цифра
+// (см. Plate). Строка должна быть уже в верхнем регистре и без разделителей - сегмент
+// пришёл из уже нормализованной по StripPlateSeparators строки. Второе значение - была
+// ли хоть одна замена (используется для предупреждения строки импорта, а не блокировки).
+func FixPlateLetterCell(s string) (fixed string, changed bool) {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if r == '0' {
+			b.WriteRune('О')
+			changed = true
+			continue
+		}
+		if cyr, ok := latToCyrUpper[r]; ok {
+			b.WriteRune(cyr)
+			changed = true
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String(), changed
 }

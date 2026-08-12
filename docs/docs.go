@@ -4863,7 +4863,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Гейт action.import.list, право не super-only. Кривой бланк (не .xlsx, чужой тип вложения, изменённая структура колонок, пустой или слишком длинный список) отлетает целиком с понятным текстом, до разбора отдельных строк - построчный разбор появится следующим срезом.",
+                "description": "Гейт action.import.list, право не super-only. Кривой бланк (не .xlsx, чужой тип вложения, изменённая структура колонок, пустой или слишком длинный список) отлетает целиком с понятным текстом, до разбора отдельных строк. Дальше идёт построчный разбор теми же правилами, что форма подачи: 200 при чистом файле, 207 при частичном успехе - errors/warnings на каждую строку готовым русским текстом.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -4893,6 +4893,12 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.ImportListResult"
+                        }
+                    },
+                    "207": {
+                        "description": "Multi-Status",
                         "schema": {
                             "$ref": "#/definitions/services.ImportListResult"
                         }
@@ -14997,6 +15003,121 @@ const docTemplate = `{
                 }
             }
         },
+        "/settings/mail/status": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Сообщает, настроена ли отправка писем (задан ли SMTP_HOST).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Состояние настройки почты",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "boolean"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/settings/password-rotation/run": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Ручной прогон плановой смены: меняет пароли всем действующим работникам с адресом почты, не дожидаясь срока. Возвращает управление сразу, письма ставятся в очередь.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Сменить пароли всем работникам",
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "412": {
+                        "description": "Precondition Failed",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/settings/password-rotation/status": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Настроена ли почта, когда ближайшая проверка сроков и скольких работников она затронет.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Состояние плановой смены паролей",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.PasswordRotationStatus"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/statistics/insights": {
             "get": {
                 "security": [
@@ -21179,6 +21300,69 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/me/password": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Меняет пароль текущего пользователя по подтверждению текущим паролем. Права не требуются.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Смена собственного пароля",
+                "parameters": [
+                    {
+                        "description": "Текущий и новый пароль",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.ChangeOwnPasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Password changed successfully",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/users/me/theme": {
             "get": {
                 "security": [
@@ -21256,6 +21440,46 @@ const docTemplate = `{
                         "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/recipient-candidates": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Пользователи, которых автор может добавить получателем заявки: коллеги по организации и компании плюс руководители. Доступно любому авторизованному - выбор получателя есть у всех, кто подаёт заявку, а список людей своей организации и так открыт (/organizations/{id}/users).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Кандидаты в получатели заявки",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.RecipientCandidate"
+                            }
                         }
                     },
                     "401": {
@@ -21887,6 +22111,58 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{username}/rotate-password": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Генерирует пароль по действующей политике, меняет его и отправляет работнику на почту. Требует настроенной почты и указанного адреса.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Сменить пароль работнику и отправить письмом",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Имя пользователя",
+                        "name": "username",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Password rotated",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "412": {
+                        "description": "Precondition Failed",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -23143,6 +23419,24 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
+                }
+            }
+        },
+        "models.ChangeOwnPasswordRequest": {
+            "type": "object",
+            "required": [
+                "current_password",
+                "new_password"
+            ],
+            "properties": {
+                "current_password": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "new_password": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 6
                 }
             }
         },
@@ -24956,6 +25250,40 @@ const docTemplate = `{
                 }
             }
         },
+        "models.RecipientCandidate": {
+            "type": "object",
+            "properties": {
+                "company": {
+                    "type": "string"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "middle_name": {
+                    "type": "string"
+                },
+                "organization": {
+                    "description": "Organization и Company названы как в UserInfoResponse, а не organization_name\nсоседних ответов: окно пересылки получает оба ответа в ОДИН проп allUsers\n(носителю page.admin.users - /users/all, остальным - кандидатов), и второе имя\nтого же поля потребовало бы развилки в каждом месте, где окно его читает.",
+                    "type": "string"
+                },
+                "pd_hidden": {
+                    "description": "PDHidden -- ФИО скрыто: работник не дал согласия на обработку ПД (#1567).\nОрганизацию и компанию согласие не закрывает: это данные работодателя, а не\nработника, и в администраторском списке они видны у скрытого работника тоже.",
+                    "type": "boolean"
+                },
+                "position": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
         "models.RefreshTokenRequest": {
             "type": "object",
             "properties": {
@@ -24970,7 +25298,6 @@ const docTemplate = `{
         "models.RegisterRequest": {
             "type": "object",
             "required": [
-                "password",
                 "username"
             ],
             "properties": {
@@ -29007,17 +29334,64 @@ const docTemplate = `{
                 }
             }
         },
+        "services.ImportRowError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "$ref": "#/definitions/services.ImportRowErrorCode"
+                },
+                "field": {
+                    "type": "string"
+                },
+                "fixable": {
+                    "type": "boolean"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.ImportRowErrorCode": {
+            "type": "string",
+            "enum": [
+                "field_required",
+                "field_too_long",
+                "citizenship_unknown",
+                "patent_required",
+                "plate_format_unknown",
+                "duplicate_in_file",
+                "blacklisted"
+            ],
+            "x-enum-varnames": [
+                "ImportErrFieldRequired",
+                "ImportErrFieldTooLong",
+                "ImportErrCitizenshipUnknown",
+                "ImportErrPatentRequired",
+                "ImportErrPlateFormat",
+                "ImportErrDuplicateInFile",
+                "ImportErrBlacklisted"
+            ]
+        },
         "services.ImportRowResult": {
             "type": "object",
             "properties": {
+                "employee": {
+                    "$ref": "#/definitions/services.EmployeeInput"
+                },
                 "errors": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/services.ImportRowError"
                     }
+                },
+                "item": {
+                    "$ref": "#/definitions/services.ItemInput"
                 },
                 "row_number": {
                     "type": "integer"
+                },
+                "vehicle": {
+                    "$ref": "#/definitions/services.VehicleInput"
                 },
                 "warnings": {
                     "type": "array",
@@ -29481,6 +29855,41 @@ const docTemplate = `{
                 "flag_id": {
                     "type": "integer",
                     "minimum": 1
+                }
+            }
+        },
+        "services.PasswordRotationStatus": {
+            "type": "object",
+            "properties": {
+                "eligible": {
+                    "description": "Eligible - активные незаблокированные работники с адресом почты, то есть те,\nкого механизм в принципе может обслужить.",
+                    "type": "integer"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "expired": {
+                    "description": "Expired - у скольких срок уже вышел. Это и есть размер ближайшего прогона.",
+                    "type": "integer"
+                },
+                "expiring_soon": {
+                    "description": "ExpiringSoon - у скольких истечёт в окне предупреждения.",
+                    "type": "integer"
+                },
+                "mail_configured": {
+                    "description": "MailConfigured - настроена ли отправка почты. Без неё смена не запускается.",
+                    "type": "boolean"
+                },
+                "next_run_at": {
+                    "description": "NextRunAt - когда планировщик проснётся в следующий раз.",
+                    "type": "string"
+                },
+                "rotation_days": {
+                    "type": "integer"
+                },
+                "without_email": {
+                    "description": "WithoutEmail - активные незаблокированные без адреса. Их пароль не трогается,\nи адреса им должно проставить бюро.",
+                    "type": "integer"
                 }
             }
         },

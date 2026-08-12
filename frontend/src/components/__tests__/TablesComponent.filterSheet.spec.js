@@ -93,8 +93,9 @@ describe('TablesComponent - сворачивание фильтров в кно�
     expect(wrapper.findAllComponents(BaseDropdown).length).toBe(0);
     expect(wrapper.find('[data-testid="table-filter-btn"]').exists()).toBe(true);
     expect(wrapper.findComponent(FilterSheet).exists()).toBe(true);
-    // Поиск остаётся снаружи sheet.
-    expect(wrapper.find('input.field__input.search').exists()).toBe(true);
+    // Поиск остаётся снаружи sheet - с #1097 S7 он свёрнут в иконку-тоггл рядом
+    // с «Фильтром», а поле раскрывается оверлеем (см. TablesComponent.searchOverlay.spec.js).
+    expect(wrapper.find('[data-testid="table-search-icon"]').exists()).toBe(true);
   });
 
   it('клик по кнопке «Фильтр» открывает sheet', async () => {

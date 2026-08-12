@@ -184,7 +184,14 @@ func runFake(args []string) int {
 		fmt.Fprintln(os.Stderr, "Ошибка:", err)
 		return 1
 	}
-	passwordPolicy := services.NewSettingsService(db, cfg).GetPasswordPolicy()
+	settingsSvc := services.NewSettingsService(db, cfg)
+	passwordPolicy := settingsSvc.GetPasswordPolicy()
+
+	consent, err := fakeConsentStamp(ctx, db, settingsSvc)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Ошибка:", err)
+		return 1
+	}
 
 	batch, err := fakedata.OpenBatch(ctx, db, *label, *seed, profile.Name)
 	if err != nil {
@@ -195,6 +202,7 @@ func runFake(args []string) int {
 		DB: db, Batch: batch, Profile: profile, Seed: *seed,
 		UserPassword:   *userPass,
 		PasswordPolicy: passwordPolicy,
+		Consent:        consent,
 	}
 	if err := fakedata.Run(ctx, env); err != nil {
 		fmt.Fprintln(os.Stderr, "Ошибка:", err)
@@ -204,6 +212,22 @@ func runFake(args []string) int {
 
 	printFakeResult(batch, *seed, *userPass)
 	return 0
+}
+
+// fakeConsentStamp -- редакция и отпечаток действующего текста согласия на обработку
+// ПД, за которые расписываются создаваемые работники (#1567).
+//
+// Считает их тот же сервис, что и гейт на входе (PDConsentGateService.Requirement):
+// сравнивает-то он именно свои значения, и вторая копия правила «отпечаток -- sha256
+// текста настроек» разошлась бы с ним на первой правке. TTL кэша роли не играет --
+// значение читается один раз за прогон.
+func fakeConsentStamp(ctx context.Context, db *gorm.DB, settings services.SettingsService) (fakedata.ConsentStamp, error) {
+	gate := services.NewPDConsentGateService(services.NewConsentService(db), settings, time.Minute)
+	req, err := gate.Requirement(ctx)
+	if err != nil {
+		return fakedata.ConsentStamp{}, fmt.Errorf("настройки согласия на обработку ПД не прочитаны: %w", err)
+	}
+	return fakedata.ConsentStamp{Version: req.Version, Hash: req.Hash}, nil
 }
 
 func printFakePlan(profile fakedata.Profile, plan []fakedata.PlanItem) {
@@ -216,12 +240,27 @@ func printFakePlan(profile fakedata.Profile, plan []fakedata.PlanItem) {
 		return
 	}
 	fmt.Println(padRight("Что создастся", 30), padLeft("Записей", 10))
-	for _, item := range plan {
+	for _, item := range fakedata.PlanRecords(plan) {
 		fmt.Println(padRight(item.Title, 30), padLeft(strconv.Itoa(item.Count), 10))
 	}
 	fmt.Println()
 	total := fakedata.PlanTotal(plan)
 	fmt.Printf("Всего создастся: %d %s\n", total, pluralRecords(int64(total)))
+
+	// Отметки прохода печатаются отдельно и с оговоркой: они ничего не создают, а их
+	// число приблизительное. Пока строки стояли в общей таблице и входили в «всего
+	// создастся», отчёт о наливке выглядел так, будто часть работы потерялась.
+	if marks := fakedata.PlanMarks(plan); len(marks) > 0 {
+		fmt.Println()
+		fmt.Println(padRight("Что будет отмечено", 30), padLeft("Примерно", 10))
+		for _, item := range marks {
+			fmt.Println(padRight(item.Title, 30), padLeft(strconv.Itoa(item.Count), 10))
+		}
+		fmt.Println()
+		fmt.Println("Отметки прохода ставятся на уже созданных машинах и сотрудниках, новых записей не добавляют.")
+		fmt.Println("Число приблизительное: отмечаются машины и люди заявок, принятых в работу, а одна запись")
+		fmt.Println("реестра попадает в несколько заявок - фактически отмеченных бывает и меньше, и больше.")
+	}
 }
 
 func printFakeResult(batch *fakedata.Batch, seed int64, userPassword string) {
@@ -237,11 +276,24 @@ func printFakeResult(batch *fakedata.Batch, seed int64, userPassword string) {
 	}
 	fmt.Println(padRight("Вид записей", 30), padLeft("Создано", 10))
 	for _, entity := range fakedata.SortedEntities(counts) {
-		fmt.Println(padRight(entity, 30), padLeft(strconv.Itoa(counts[entity]), 10))
+		fmt.Println(padRight(fakedata.EntityTitle(entity), 30), padLeft(strconv.Itoa(counts[entity]), 10))
 	}
 	fmt.Println()
 	total := batch.Total()
 	fmt.Printf("Всего создано: %d %s\n", total, pluralRecords(int64(total)))
+
+	marks := batch.Marks()
+	if len(marks) == 0 {
+		return
+	}
+	fmt.Println()
+	fmt.Println(padRight("Что отмечено", 30), padLeft("Отмечено", 10))
+	for _, entity := range fakedata.SortedEntities(marks) {
+		fmt.Println(padRight(fakedata.EntityTitle(entity), 30), padLeft(strconv.Itoa(marks[entity]), 10))
+	}
+	fmt.Println()
+	fmt.Println("Отметки прохода поставлены на уже созданных машинах и сотрудниках: новых записей они не добавляют")
+	fmt.Println("и в объём партии не входят.")
 }
 
 func printFakeBatches(ctx context.Context, db *gorm.DB) int {

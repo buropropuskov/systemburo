@@ -7,11 +7,15 @@ const catalog = [
   { key: 'entity.cars.read', display_name: 'Автомобили: просмотр', category: 'Сотрудники и автомобили' },
   { key: 'page.analytics', display_name: 'Аналитика', category: 'Навигация' },
   { key: 'page.admin.system_control', display_name: 'Техработы', category: 'Администрирование', super_only: true },
+  { key: 'table.kpp_4.view', display_name: 'КПП №4: Доступ к таблице', category: 'Таблицы' },
+  { key: 'table.kpp_4.entry', display_name: 'КПП №4: Отметка въезда/входа', category: 'Таблицы' },
+  { key: 'table.kpp_4.export', display_name: 'КПП №4: Экспорт', category: 'Таблицы' },
 ];
 
 const groups = [
   { id: 1, name: 'Аналитика', keys: ['page.analytics'] },
   { id: 2, name: 'Базовые', keys: ['page.center'] },
+  { id: 3, name: 'КПП вход', keys: ['table.kpp_4.entry'] },
 ];
 
 function mountModal(props = {}) {
@@ -116,6 +120,17 @@ describe('RolePermissionsModal', () => {
     expect(lastSave(w).directKeys).toEqual(['entity.cars.read']);
   });
 
+  it('право архивной таблицы каталог не показывает, но сохранение его не теряет', async () => {
+    // Таблица в архиве -> её права не приходят в каталоге (#1881), поэтому строки
+    // в дереве нет. Отфильтровать такой ключ на сохранении значило бы снять права
+    // архивных таблиц у роли молча и безвозвратно: таблицу вернут из архива, а
+    // права уже не будет.
+    const w = mountModal({ initialDirectKeys: ['entity.cars.read', 'table.kpp_old.view'] });
+    expect(toggle(w, 'table.kpp_old.view').exists()).toBe(false);
+    await save(w);
+    expect([...lastSave(w).directKeys].sort()).toEqual(['entity.cars.read', 'table.kpp_old.view']);
+  });
+
   it('super_only-право заблокировано и не попадает в directKeys', async () => {
     const w = mountModal();
     const su = toggle(w, 'page.admin.system_control');
@@ -130,5 +145,39 @@ describe('RolePermissionsModal', () => {
     await w.find('[data-testid="role-permissions-search"]').setValue('аналитик');
     expect(toggle(w, 'page.analytics').exists()).toBe(true);
     expect(toggle(w, 'entity.cars.read').exists()).toBe(false);
+  });
+
+  it('поиск раскрывает найденное право внутри свёрнутой таблицы', async () => {
+    const w = mountModal();
+    expect(w.get('[data-table="kpp_4"]').get('.ep-group__toggle').attributes('aria-expanded')).toBe('false');
+    await w.find('[data-testid="role-permissions-search"]').setValue('экспорт');
+    expect(w.get('[data-table="kpp_4"]').get('.ep-group__toggle').attributes('aria-expanded')).toBe('true');
+  });
+
+  it('«выбрать все» по таблице выдаёт только редактируемые права, ключ из группы не трогает', async () => {
+    // Группа 3 отдаёт table.kpp_4.entry -- он залочен и снять его тут нельзя.
+    const w = mountModal({ initialGroupIds: [3] });
+    const box = w.get('[data-table="kpp_4"]');
+    expect(box.get('.ep-group__count').text()).toBe('1 из 3');
+
+    await box.get('.ep-group__all').trigger('click');
+    await save(w);
+    const payload = lastSave(w);
+    expect([...payload.directKeys].sort()).toEqual([
+      'entity.cars.read',
+      'table.kpp_4.export',
+      'table.kpp_4.view',
+    ]);
+  });
+
+  it('повторное нажатие снимает выданные права таблицы', async () => {
+    const w = mountModal({ initialDirectKeys: ['table.kpp_4.view', 'table.kpp_4.entry', 'table.kpp_4.export'] });
+    const box = w.get('[data-table="kpp_4"]');
+    expect(box.get('.ep-group__count').text()).toBe('3 из 3');
+    expect(box.get('.ep-group__all').text()).toBe('Снять все');
+
+    await box.get('.ep-group__all').trigger('click');
+    await save(w);
+    expect(lastSave(w).directKeys).toEqual([]);
   });
 });

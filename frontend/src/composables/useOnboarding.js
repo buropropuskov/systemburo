@@ -606,8 +606,21 @@ export function useOnboarding() {
         if (prev?.demo) {
           setStepMode(target, !prev.element || !document.querySelector(prev.element));
         }
-        if (target === localIndex - 1) driverObj.movePrevious();
-        else driverObj.moveTo(target);
+        // Шаг, которому нужно раскрыть узел или сменить бланк, готовим так же,
+        // как на «Далее»: ставим сигнал и ДОЖИДАЕМСЯ цели. Иначе возврат на шаг
+        // с окном показывал его пустым - окно открывалось лишь через несколько
+        // секунд, уже после того, как шаг нарисовался («нажал Назад, десять
+        // секунд ничего, потом бланк без бланка»).
+        const needsPrepare = Boolean(prev?.reveal?.open || prev?.demoAttachment);
+        const go = () => {
+          if (target === localIndex - 1) driverObj.movePrevious();
+          else driverObj.moveTo(target);
+        };
+        if (needsPrepare && onBeforeStep) {
+          Promise.resolve(onBeforeStep(startIndex + target)).then(go);
+          return;
+        }
+        go();
       },
       onPopoverRender(popover) {
         // Первый показ поповера в сегменте - без анимации переезда: иначе он

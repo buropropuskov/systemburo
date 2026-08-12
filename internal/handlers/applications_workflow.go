@@ -37,7 +37,7 @@ func (h *ApplicationHandler) ForwardApplication(c echo.Context) error {
 		return err
 	}
 
-	if err := h.service.ForwardApplication(c.Request().Context(), username, id, req); err != nil {
+	if err := h.service.ForwardApplication(c.Request().Context(), username, id, IsSuperAdmin(c), req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Application forwarded successfully")

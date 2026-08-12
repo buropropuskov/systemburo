@@ -69,11 +69,17 @@ var knownKeys = map[string]string{
 	"password.require_lowercase":     "bool",
 	"password.require_digit":         "bool",
 	"password.require_special":       "bool",
-	"contacts.bureau_phone":          "string",
-	"contacts.bureau_email":          "string",
-	"approval.reminder_enabled":      "bool",
-	"approval.reminder_first_days":   "int",
-	"approval.reminder_repeat_days":  "int",
+	// Плановая смена паролей (#1909). Периодичность в сутках; 120 - потолок из
+	// приказа ФСТЭК России N 21 для ИСПДн, выше поднимать бессмысленно.
+	"password.rotation_enabled":            "bool",
+	"password.rotation_days":               "int",
+	"password.rotation_notify_days_before": "int",
+	"password.force_change_on_next_login":  "bool",
+	"contacts.bureau_phone":                "string",
+	"contacts.bureau_email":                "string",
+	"approval.reminder_enabled":            "bool",
+	"approval.reminder_first_days":         "int",
+	"approval.reminder_repeat_days":        "int",
 }
 
 type settingsService struct {
@@ -86,22 +92,26 @@ type settingsService struct {
 // NewSettingsService создаёт сервис для управления системными настройками.
 func NewSettingsService(db *gorm.DB, cfg *config.Config) SettingsService {
 	defaults := map[string]models.SystemSetting{
-		"upload.max_file_size":           {Key: "upload.max_file_size", Value: strconv.FormatInt(cfg.UploadMaxFileSize, 10), Type: "int"},
-		"upload.allowed_image_types":     {Key: "upload.allowed_image_types", Value: mustJSON(cfg.UploadAllowedImageTypes), Type: "json"},
-		"upload.allowed_doc_types":       {Key: "upload.allowed_doc_types", Value: mustJSON(cfg.UploadAllowedDocTypes), Type: "json"},
-		"pagination.max_per_page":        {Key: "pagination.max_per_page", Value: strconv.Itoa(cfg.PaginationMaxLimit), Type: "int"},
-		"notifications.enabled":          {Key: "notifications.enabled", Value: "true", Type: "bool"},
-		"notifications.poll_interval":    {Key: "notifications.poll_interval", Value: "30", Type: "int"},
-		"notifications.delete_duration":  {Key: "notifications.delete_duration", Value: "10", Type: "int"},
-		"notifications.restore_duration": {Key: "notifications.restore_duration", Value: "5", Type: "int"},
-		"password.min_length":            {Key: "password.min_length", Value: "8", Type: "int"},
-		"password.require_letter":        {Key: "password.require_letter", Value: "true", Type: "bool"},
-		"password.require_uppercase":     {Key: "password.require_uppercase", Value: "false", Type: "bool"},
-		"password.require_lowercase":     {Key: "password.require_lowercase", Value: "false", Type: "bool"},
-		"password.require_digit":         {Key: "password.require_digit", Value: "true", Type: "bool"},
-		"password.require_special":       {Key: "password.require_special", Value: "false", Type: "bool"},
-		"contacts.bureau_phone":          {Key: "contacts.bureau_phone", Value: "", Type: "string"},
-		"contacts.bureau_email":          {Key: "contacts.bureau_email", Value: "", Type: "string"},
+		"upload.max_file_size":                 {Key: "upload.max_file_size", Value: strconv.FormatInt(cfg.UploadMaxFileSize, 10), Type: "int"},
+		"upload.allowed_image_types":           {Key: "upload.allowed_image_types", Value: mustJSON(cfg.UploadAllowedImageTypes), Type: "json"},
+		"upload.allowed_doc_types":             {Key: "upload.allowed_doc_types", Value: mustJSON(cfg.UploadAllowedDocTypes), Type: "json"},
+		"pagination.max_per_page":              {Key: "pagination.max_per_page", Value: strconv.Itoa(cfg.PaginationMaxLimit), Type: "int"},
+		"notifications.enabled":                {Key: "notifications.enabled", Value: "true", Type: "bool"},
+		"notifications.poll_interval":          {Key: "notifications.poll_interval", Value: "30", Type: "int"},
+		"notifications.delete_duration":        {Key: "notifications.delete_duration", Value: "10", Type: "int"},
+		"notifications.restore_duration":       {Key: "notifications.restore_duration", Value: "5", Type: "int"},
+		"password.min_length":                  {Key: "password.min_length", Value: "8", Type: "int"},
+		"password.require_letter":              {Key: "password.require_letter", Value: "true", Type: "bool"},
+		"password.require_uppercase":           {Key: "password.require_uppercase", Value: "false", Type: "bool"},
+		"password.require_lowercase":           {Key: "password.require_lowercase", Value: "false", Type: "bool"},
+		"password.require_digit":               {Key: "password.require_digit", Value: "true", Type: "bool"},
+		"password.require_special":             {Key: "password.require_special", Value: "false", Type: "bool"},
+		"password.rotation_enabled":            {Key: "password.rotation_enabled", Value: "false", Type: "bool"},
+		"password.rotation_days":               {Key: "password.rotation_days", Value: "90", Type: "int"},
+		"password.rotation_notify_days_before": {Key: "password.rotation_notify_days_before", Value: "7", Type: "int"},
+		"password.force_change_on_next_login":  {Key: "password.force_change_on_next_login", Value: "true", Type: "bool"},
+		"contacts.bureau_phone":                {Key: "contacts.bureau_phone", Value: "", Type: "string"},
+		"contacts.bureau_email":                {Key: "contacts.bureau_email", Value: "", Type: "string"},
 		// Автонапоминания зависшим согласующим (#1315, ReminderService): включены по
 		// умолчанию, первое напоминание через 3 дня молчания, дальше раз в 3 дня.
 		"approval.reminder_enabled":     {Key: "approval.reminder_enabled", Value: "true", Type: "bool"},
@@ -243,6 +253,11 @@ func (s *settingsService) GetPasswordPolicy() models.PasswordPolicy {
 		RequireLowercase: s.cache["password.require_lowercase"].Value == "true",
 		RequireDigit:     s.cache["password.require_digit"].Value == "true",
 		RequireSpecial:   s.cache["password.require_special"].Value == "true",
+		RotationEnabled:  s.cache["password.rotation_enabled"].Value == "true",
+		RotationDays:     cachedInt(s.cache, "password.rotation_days", models.DefaultRotationDays),
+		RotationNotifyDaysBefore: cachedInt(s.cache, "password.rotation_notify_days_before",
+			models.DefaultRotationNotifyDaysBefore),
+		ForceChangeOnNextLogin: s.cache["password.force_change_on_next_login"].Value == "true",
 	}
 }
 
@@ -481,6 +496,25 @@ func validateSettingValue(key, value string) error {
 		if value != "true" && value != "false" {
 			return fmt.Errorf("notifications.enabled: true/false (получено %s)", value)
 		}
+	case "password.rotation_enabled", "password.force_change_on_next_login":
+		if value != "true" && value != "false" {
+			return fmt.Errorf("%s: true/false (получено %s)", key, value)
+		}
+	case "password.rotation_days":
+		v, err := strconv.Atoi(value)
+		if err != nil || v < models.MinRotationDays || v > models.MaxRotationDays {
+			// Верхняя граница не косметическая: приказ ФСТЭК России N 21 требует
+			// смены пароля не реже чем раз в 120 суток, и разрешать «раз в три
+			// года» в системе, аттестуемой как ИСПДн, нельзя.
+			return fmt.Errorf("password.rotation_days: %d-%d (получено %s)",
+				models.MinRotationDays, models.MaxRotationDays, value)
+		}
+	case "password.rotation_notify_days_before":
+		v, err := strconv.Atoi(value)
+		if err != nil || v < 0 || v > models.MaxRotationNotifyDaysBefore {
+			return fmt.Errorf("password.rotation_notify_days_before: 0-%d (получено %s)",
+				models.MaxRotationNotifyDaysBefore, value)
+		}
 	case "password.min_length":
 		v, err := strconv.Atoi(value)
 		if err != nil || v < 6 || v > 128 {
@@ -514,4 +548,15 @@ func validateSettingValue(key, value string) error {
 		}
 	}
 	return nil
+}
+
+// cachedInt читает целочисленную настройку из кэша, подставляя дефолт при пустом
+// или испорченном значении. Иначе мусор в базе превращается в ноль, а ноль в
+// периодичности означал бы «пароль истёк у всех сразу».
+func cachedInt(cache map[string]models.SystemSetting, key string, fallback int) int {
+	v, err := strconv.Atoi(cache[key].Value)
+	if err != nil || v <= 0 {
+		return fallback
+	}
+	return v
 }

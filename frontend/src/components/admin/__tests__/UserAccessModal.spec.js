@@ -16,6 +16,9 @@ const CATALOG = [
   { key: 'page.cars', display_name: 'Автомобили', category: 'Навигация' },
   { key: 'page.statistics', display_name: 'Аналитика', category: 'Навигация' },
   { key: 'action.grant.admin', display_name: 'Выдача прав администратора', category: 'Администрирование', super_only: true },
+  { key: 'table.kpp_4.view', display_name: 'КПП №4: Доступ к таблице', category: 'Таблицы' },
+  { key: 'table.kpp_4.entry', display_name: 'КПП №4: Отметка въезда/входа', category: 'Таблицы' },
+  { key: 'table.kpp_4.export', display_name: 'КПП №4: Экспорт', category: 'Таблицы' },
 ];
 
 const ROLES = [
@@ -186,6 +189,43 @@ describe('UserAccessModal (#187 Фаза 3, две колонки)', () => {
     expect(confirm).toHaveBeenCalled();
     expect(banUser).toHaveBeenCalledWith(42, 'нарушение пропускного режима');
     expect(wrapper.emitted('updated')).toHaveLength(1);
+  });
+
+  it('права таблицы собраны во второй уровень со счётчиком', async () => {
+    const wrapper = await mountModal();
+    const group = wrapper.get('[data-table="kpp_4"]');
+    expect(group.get('.ep-group__name').text()).toBe('КПП №4');
+    expect(group.get('.ep-group__count').text()).toBe('0 из 3');
+    expect(group.get('.ep-group__toggle').attributes('aria-expanded')).toBe('false');
+  });
+
+  it('поиск сужает дерево и раскрывает найденное внутри таблицы', async () => {
+    const wrapper = await mountModal();
+    const search = wrapper.get('[data-testid="user-permissions-search"]');
+
+    await search.setValue('экспорт');
+    expect(wrapper.find('[data-key="page.cars"]').exists()).toBe(false);
+    expect(wrapper.find('[data-key="table.kpp_4.export"]').exists()).toBe(true);
+    // Совпадение внутри свёрнутой таблицы раскрывается принудительно.
+    expect(wrapper.get('[data-table="kpp_4"]').get('.ep-group__toggle').attributes('aria-expanded')).toBe('true');
+
+    await search.setValue('');
+    expect(wrapper.find('[data-key="page.cars"]').exists()).toBe(true);
+  });
+
+  it('поиск не теряет override спрятанного права при сохранении', async () => {
+    const wrapper = await mountModal();
+    wrapper.vm.onToggleKey('page.cars');
+    await wrapper.vm.$nextTick();
+
+    // Право ушло из выдачи поиска, но состояние считается по полному каталогу.
+    await wrapper.get('[data-testid="user-permissions-search"]').setValue('экспорт');
+    expect(wrapper.find('[data-key="page.cars"]').exists()).toBe(false);
+    expect(wrapper.vm.stateByKey['page.cars']).toMatchObject({ on: true, source: 'override' });
+
+    await wrapper.find('[data-testid="save-button"]').trigger('click');
+    await flushPromises();
+    expect(updateUserPermissions).toHaveBeenCalledWith(42, { permissions: [{ key: 'page.cars', value: 'allow' }] });
   });
 
   it('для супер-админа флаг и блокировка заблокированы, права readonly-on', async () => {

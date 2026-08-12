@@ -74,6 +74,11 @@ var tables = []string{
 	"request_logs_daily", "request_log", "request_logs", "notifications", "user_notification_preferences",
 	// Подписки Web Push (#974): такая же прямая FK на users, что и у настроек уведомлений.
 	"push_subscriptions",
+	// Очередь исходящих писем (#1906). Внешний ключ на users стоит с ON DELETE SET
+	// NULL, поэтому чистка пользователей строки не уносит: письмо прошлого прогона
+	// оставалось в очереди, и следующий тест находил по адресу чужую строку - уже
+	// отправленную. Ровно тот же класс, что blank_exports и fake_batches выше.
+	"email_messages",
 	"news", "announcements",
 	// analytics_cache и user_ban_histories тоже живут без внешних ключей: кэш отдаёт
 	// тесту цифры прошлого прогона, история банов копится вечно.
@@ -116,7 +121,7 @@ var tables = []string{
 	"citizenships",
 	"companies_users", "organization_users",
 	"user_onboarding_progress",
-	"auth_events", "refresh_tokens", "users",
+	"auth_events", "refresh_tokens", "used_passwords", "users",
 	"roles",
 	"companies", "organizations", "user_types",
 }
@@ -184,7 +189,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 // причине, что и вариант с архивом, - чтобы не трогать три сотни чужих вызовов.
 func SetupTestAppWithUploads(t *testing.T) (*echo.Echo, *gorm.DB, string, func()) {
 	t.Helper()
-	e, db, _, uploadDir, cleanup := setupTestApp(t, false)
+	e, db, _, uploadDir, cleanup := setupTestApp(t, false, false)
 	return e, db, uploadDir, cleanup
 }
 
@@ -194,7 +199,7 @@ func SetupTestAppWithUploads(t *testing.T) (*echo.Echo, *gorm.DB, string, func()
 // чужих вызовов.
 func SetupTestAppWithArchive(t *testing.T) (*echo.Echo, *gorm.DB, string, func()) {
 	t.Helper()
-	e, db, archiveDir, _, cleanup := setupTestApp(t, false)
+	e, db, archiveDir, _, cleanup := setupTestApp(t, false, false)
 	return e, db, archiveDir, cleanup
 }
 
@@ -206,11 +211,21 @@ func SetupTestAppWithArchive(t *testing.T) (*echo.Echo, *gorm.DB, string, func()
 // начали бы получать 403 вместо своих ответов.
 func SetupTestAppWithConsentGate(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	t.Helper()
-	e, db, _, _, cleanup := setupTestApp(t, true)
+	e, db, _, _, cleanup := setupTestApp(t, true, false)
 	return e, db, cleanup
 }
 
-func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, string, string, func()) {
+// SetupTestAppWithPasswordGate поднимает приложение с навешенным middleware
+// обязательной смены пароля (#1911). Отдельной функцией по той же причине, что и
+// вариант с гейтом согласия: включённый для всех гейт отдавал бы 403 каждому тесту,
+// где у пользователя поднят флаг.
+func SetupTestAppWithPasswordGate(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
+	t.Helper()
+	e, db, _, _, cleanup := setupTestApp(t, false, true)
+	return e, db, cleanup
+}
+
+func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.Echo, *gorm.DB, string, string, func()) {
 	t.Helper()
 
 	crypto.SetGlobalKey(nil) // passthrough in tests
@@ -364,6 +379,11 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	userBanHandler := handlers.NewUserBanHandler(userBanService)
 	consentHandler := handlers.NewConsentHandler(consentService, pdConsentGateService, settingsService, db)
 	settingsHandler := handlers.NewSettingsHandler(settingsService, documentFileService, 10*1024*1024, pdConsentGateService, pdConsentStatsService)
+	// Состояние плановой смены паролей (#1909) - как в бою. Почтовый сервис не
+	// подключаем: в тестах почта не настроена, и ручка обязана честно об этом
+	// сообщать, а не отвечать «сервис недоступен».
+	settingsHandler.SetRotationStatusService(
+		services.NewPasswordRotationStatusService(db, settingsService, nil, time.UTC))
 	// Файловый архив поднимается и в тестах: без него роуты /file-archive не
 	// существуют, и гвард прав сверялся бы с роутером, где их просто нет. Корень
 	// архива - временный каталог теста: запись проверяется на настоящем диске,
@@ -448,10 +468,17 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 		consentGate = mw.PDConsentGate(pdConsentGateService)
 		banCheck = mw.BanCheck(services.NewBanCheckService(db, 0))
 	}
+	// Нулевой TTL: тест поднимает и снимает флаг прямо в базе, ждать протухания
+	// кэша ему нечем.
+	var mustChangePassword echo.MiddlewareFunc
+	if withPasswordGate {
+		mustChangePassword = mw.MustChangePassword(services.NewPasswordChangeGateService(db, 0))
+	}
 	// nil loginLimiter - в тестах rate-limit на /login не применяется,
 	// т.к. тесты делают много логинов подряд. Отдельный Test* покрывает сам лимитер.
 	router.Setup(e, router.Dependencies{
 		ConsentGate:         consentGate,
+		MustChangePassword:  mustChangePassword,
 		BanCheck:            banCheck,
 		Auth:                authHandler,
 		UserTypes:           userTypesHandler,
@@ -516,6 +543,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 		TableVersionsGate:   mw.RequireTableVerb(db, permissionResolver, accessDenialService, "versions"),
 		TableTrashGate:      mw.RequireTableVerb(db, permissionResolver, accessDenialService, "trash"),
 		TablePassGate:       mw.RequireTablePassVerb(db, permissionResolver, accessDenialService),
+		Impersonation:       handlers.NewImpersonationHandler(services.NewImpersonationService(db, TestJWTSecret, permissionResolver, auditRecorder)),
 		JWTSecret:           []byte(TestJWTSecret),
 		UploadPath:          uploadDir,
 	})

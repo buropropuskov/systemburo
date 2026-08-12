@@ -1,11 +1,17 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { shallowMount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import CreateApplication from '../CreateApplication.vue';
+import BlankImportPanel from '../BlankImportPanel.vue';
+import VehicleForm from '../VehicleForm.vue';
+import VehiclesList from '../VehiclesList.vue';
+import EmployeeForm from '../EmployeeForm.vue';
+import ItemsList from '../ItemsList.vue';
 
-// Эпик blank-import, срез D1D2: загрузка заполненного бланка (D1) и открытие модалки
-// результата (D2). Принятые строки уходят в список ТЕМ ЖЕ путём, что ручное массовое
-// добавление - handleEmployeesAdded/handleVehiclesAdded (закрыто в срезе E2E3).
+// Эпик blank-import, срез D1D2: загрузка заполненного бланка (D1) и показ сводки
+// результата (D2, с U4 - панель на месте формы). Принятые строки уходят в список ТЕМ ЖЕ
+// путём, что ручное массовое добавление - handleEmployeesAdded/handleVehiclesAdded
+// (закрыто в срезе E2E3).
 
 const notifyMock = vi.fn();
 vi.mock('@/stores/deletions', () => ({
@@ -19,6 +25,15 @@ vi.mock('@/api/client', () => ({
 
 vi.mock('@/stores/auth', () => ({
     useAuthStore: vi.fn().mockReturnValue({ token: 'test-token' }),
+}));
+
+// Право на импорт списка выдаётся точечно (см. tourCoverage), поэтому по умолчанию его
+// нет - вход в режим не должен появляться сам собой.
+let hasImportPermission = false;
+vi.mock('@/stores/permissions', () => ({
+    usePermissionsStore: () => ({
+        hasPermission: (key) => hasImportPermission && key === 'action.import.list',
+    }),
 }));
 
 const uploadImportListMock = vi.fn();
@@ -46,10 +61,10 @@ function withSelectedAttachment(w, type = 'people') {
 }
 
 describe('CreateApplication - загрузка заполненного бланка (D1D2)', () => {
-    it('успешная загрузка открывает модалку результата и закрывает дропзон', async () => {
+    it('успешная загрузка кладёт сводку на место области загрузки', async () => {
         const w = await mountApp();
         withSelectedAttachment(w);
-        w.vm.showImportDropzone = true;
+        w.vm.importMode = true;
 
         const result = { rows: [{ row_number: 1, employee: {}, errors: [], warnings: [] }], summary: { read: 1, accepted: 1, rejected: 0 } };
         uploadImportListMock.mockResolvedValue(result);
@@ -58,8 +73,7 @@ describe('CreateApplication - загрузка заполненного блан
 
         expect(uploadImportListMock).toHaveBeenCalledWith(9, expect.any(File));
         expect(w.vm.importResult).toEqual(result);
-        expect(w.vm.showImportResultModal).toBe(true);
-        expect(w.vm.showImportDropzone).toBe(false);
+        expect(w.vm.importMode).toBe(true);
         expect(w.vm.importUploading).toBe(false);
     });
 
@@ -75,7 +89,7 @@ describe('CreateApplication - загрузка заполненного блан
         const call = notifyMock.mock.calls[0][0];
         expect(call.type).toBe('error');
         expect(call.bold).toContain('Недостаточно прав');
-        expect(w.vm.showImportResultModal).toBe(false);
+        expect(w.vm.importResult).toBeNull();
         expect(w.vm.importUploading).toBe(false);
         // форма продолжает работать после сбоя загрузки
         expect(w.vm.attachments).toHaveLength(1);
@@ -101,12 +115,12 @@ describe('CreateApplication - загрузка заполненного блан
         expect(uploadImportListMock).toHaveBeenCalledTimes(1);
     });
 
-    it('handleImportRows(people) добавляет строки через handleEmployeesAdded и закрывает модалку', async () => {
+    it('handleImportRows(people) добавляет строки через handleEmployeesAdded и выходит из импорта', async () => {
         const w = await mountApp();
         w.vm.attachments = [{ local_id: 'p1', attachment_type: 'people', display_name: 'Люди' }];
         w.vm.employeesByAttachment = { p1: [] };
         w.vm.selectedAttachment = w.vm.attachments[0];
-        w.vm.showImportResultModal = true;
+        w.vm.importMode = true;
         w.vm.importResult = { rows: [], summary: {} };
 
         const rows = [{ lastName: 'Иванов', firstName: 'Иван', isExisting: false }];
@@ -114,7 +128,7 @@ describe('CreateApplication - загрузка заполненного блан
 
         expect(w.vm.employeesByAttachment.p1).toHaveLength(1);
         expect(w.vm.employeesByAttachment.p1[0]).toMatchObject({ lastName: 'Иванов' });
-        expect(w.vm.showImportResultModal).toBe(false);
+        expect(w.vm.importMode).toBe(false);
         expect(w.vm.importResult).toBeNull();
         expect(notifyMock).toHaveBeenCalledTimes(1);
     });
@@ -132,30 +146,34 @@ describe('CreateApplication - загрузка заполненного блан
         expect(w.vm.vehiclesByAttachment.c1[0]).toMatchObject({ plateNumber: 'А001АА777' });
     });
 
-    it('пустой массив rows ничего не делает и не закрывает модалку молча', async () => {
+    it('пустой массив rows ничего не делает и не закрывает сводку молча', async () => {
         const w = await mountApp();
-        w.vm.showImportResultModal = true;
+        w.vm.importMode = true;
+        w.vm.importResult = { rows: [], summary: {} };
 
         w.vm.handleImportRows({ attachmentType: 'people', rows: [] });
 
-        expect(w.vm.showImportResultModal).toBe(true);
+        expect(w.vm.importMode).toBe(true);
+        expect(w.vm.importResult).not.toBeNull();
         expect(notifyMock).not.toHaveBeenCalled();
     });
 
     // Ревью D1D2 (замечание 3): открытая шторка дропзона переживала переключение на
-    // другое вложение - у него свой шаблон/право, шторка должна закрываться.
-    it('переключение на другое вложение закрывает открытую шторку загрузки бланка', async () => {
+    // другое вложение - у него свой шаблон/право, режим должен закрываться.
+    it('переключение на другое вложение выходит из режима импорта', async () => {
         const w = await mountApp();
         w.vm.attachments = [
             { local_id: 'p1', id: 9, attachment_type: 'people', display_name: 'Люди' },
             { local_id: 'c1', id: 10, attachment_type: 'cars', display_name: 'Машины' },
         ];
         w.vm.selectedAttachment = w.vm.attachments[0];
-        w.vm.showImportDropzone = true;
+        w.vm.importMode = true;
+        w.vm.importResult = { rows: [], summary: {} };
 
         await w.vm.handleAttachmentSelected(w.vm.attachments[1]);
 
-        expect(w.vm.showImportDropzone).toBe(false);
+        expect(w.vm.importMode).toBe(false);
+        expect(w.vm.importResult).toBeNull();
     });
 });
 
@@ -280,5 +298,199 @@ describe('CreateApplication - дедуп импорта против уже до
             bold: 'уже в списке - пропущен при импорте',
             type: 'error',
         }));
+    });
+});
+
+// Срез U4: вход в массовый ввод переехал из пары кнопок над формой в шапку списка, а
+// сам режим подменяет форму ручного ввода панелью загрузки.
+describe('CreateApplication - режим импорта (U4)', () => {
+    afterEach(() => {
+        hasImportPermission = false;
+    });
+
+    it('вход в импорт отдаётся списку только при праве action.import.list', async () => {
+        const w = await mountApp();
+        withSelectedAttachment(w, 'cars');
+        await flushPromises();
+        expect(w.findComponent(VehiclesList).props('canImport')).toBe(false);
+
+        hasImportPermission = true;
+        const withRight = await mountApp();
+        withSelectedAttachment(withRight, 'cars');
+        await flushPromises();
+        expect(withRight.findComponent(VehiclesList).props('canImport')).toBe(true);
+    });
+
+    // У ТМЦ списочной части в бланке нет - импортировать нечего даже с правом.
+    it('у вложения ТМЦ входа в импорт нет даже с правом', async () => {
+        hasImportPermission = true;
+        const w = await mountApp();
+        withSelectedAttachment(w, 'items');
+        await flushPromises();
+
+        expect(w.vm.canImportList).toBe(false);
+        expect(w.findComponent(ItemsList).exists()).toBe(true);
+    });
+
+    it('вход в режим прячет форму ввода машин и показывает панель загрузки', async () => {
+        hasImportPermission = true;
+        const w = await mountApp();
+        withSelectedAttachment(w, 'cars');
+        await flushPromises();
+        expect(w.findComponent(VehicleForm).exists()).toBe(true);
+
+        w.findComponent(VehiclesList).vm.$emit('toggle-import');
+        await flushPromises();
+
+        expect(w.vm.importMode).toBe(true);
+        expect(w.findComponent(VehicleForm).exists()).toBe(false);
+        expect(w.findComponent(BlankImportPanel).exists()).toBe(true);
+        // Список рядом остаётся: из его шапки и выходят обратно.
+        expect(w.findComponent(VehiclesList).exists()).toBe(true);
+        expect(w.findComponent(VehiclesList).props('importActive')).toBe(true);
+    });
+
+    it('вход в режим прячет форму ввода сотрудников', async () => {
+        hasImportPermission = true;
+        const w = await mountApp();
+        withSelectedAttachment(w, 'people');
+        await flushPromises();
+        expect(w.findComponent(EmployeeForm).exists()).toBe(true);
+
+        w.vm.toggleImportMode();
+        await flushPromises();
+
+        expect(w.findComponent(EmployeeForm).exists()).toBe(false);
+        expect(w.findComponent(BlankImportPanel).exists()).toBe(true);
+    });
+
+    it('после загрузки панель получает сводку с теми же счётчиками, что вернул сервер', async () => {
+        hasImportPermission = true;
+        const w = await mountApp();
+        withSelectedAttachment(w, 'people');
+        w.vm.importMode = true;
+        await flushPromises();
+        expect(w.findComponent(BlankImportPanel).props('result')).toBeNull();
+
+        const result = {
+            rows: [{ row_number: 1, employee: {}, errors: [], warnings: [] }],
+            summary: { read: 5, accepted: 4, rejected: 1 },
+        };
+        uploadImportListMock.mockResolvedValue(result);
+
+        await w.findComponent(BlankImportPanel).vm.$emit('file', new File(['x'], 'blank.xlsx'));
+        await flushPromises();
+
+        expect(w.findComponent(BlankImportPanel).props('result')).toEqual(result);
+    });
+
+    it('выход из режима возвращает форму и гасит разобранный файл', async () => {
+        hasImportPermission = true;
+        const w = await mountApp();
+        withSelectedAttachment(w, 'cars');
+        w.vm.importMode = true;
+        w.vm.importResult = { rows: [], summary: { read: 1, accepted: 1, rejected: 0 } };
+        await flushPromises();
+
+        w.findComponent(VehiclesList).vm.$emit('toggle-import');
+        await flushPromises();
+
+        expect(w.vm.importMode).toBe(false);
+        expect(w.vm.importResult).toBeNull();
+        expect(w.findComponent(VehicleForm).exists()).toBe(true);
+        expect(w.findComponent(BlankImportPanel).exists()).toBe(false);
+    });
+
+    // "Загрузить другой файл" в сводке - не выход из режима: остаёмся в панели, но с
+    // чистой областью загрузки.
+    it('сброс сводки оставляет режим импорта открытым', async () => {
+        hasImportPermission = true;
+        const w = await mountApp();
+        withSelectedAttachment(w, 'people');
+        w.vm.importMode = true;
+        w.vm.importResult = { rows: [], summary: { read: 1, accepted: 1, rejected: 0 } };
+        await flushPromises();
+
+        await w.findComponent(BlankImportPanel).vm.$emit('reset');
+        await flushPromises();
+
+        expect(w.vm.importMode).toBe(true);
+        expect(w.findComponent(BlankImportPanel).props('result')).toBeNull();
+    });
+});
+
+// Список рядом с панелью остаётся кликабельным, а правка строки живёт в форме ручного
+// ввода - без показа формы кнопка «Редактировать» была бы мёртвой. Разбор при этом не
+// теряется: панель уступает форме место, а не закрывается.
+describe('CreateApplication - правка строки из списка в режиме импорта (U4)', () => {
+    const vehicleEdit = vi.fn();
+    const employeeEdit = vi.fn();
+
+    // Формы подменяем заглушками с теми же методами, что зовёт родитель: важно не что
+    // делает форма, а что она вообще получила строку.
+    const formStubs = {
+        VehicleForm: {
+            name: 'VehicleForm',
+            template: '<div />',
+            methods: { editVehicle: (...args) => vehicleEdit(...args) },
+        },
+        EmployeeForm: {
+            name: 'EmployeeForm',
+            template: '<div />',
+            methods: { editEmployee: (...args) => employeeEdit(...args) },
+        },
+    };
+
+    async function mountWithFormStubs() {
+        const w = shallowMount(CreateApplication, { global: { stubs: formStubs } });
+        await flushPromises();
+        return w;
+    }
+
+    beforeEach(() => {
+        hasImportPermission = true;
+        vehicleEdit.mockReset();
+        employeeEdit.mockReset();
+    });
+
+    afterEach(() => {
+        hasImportPermission = false;
+    });
+
+    it('правка машины отдаёт строку форме и сохраняет разбор', async () => {
+        const w = await mountWithFormStubs();
+        w.vm.attachments = [{ local_id: 'c1', id: 10, attachment_type: 'cars', display_name: 'Машины' }];
+        w.vm.vehiclesByAttachment = { c1: [{ id: 1, plateNumber: 'А001АА777', mark: 'Volvo' }] };
+        w.vm.selectedAttachment = w.vm.attachments[0];
+        w.vm.importMode = true;
+        w.vm.importResult = { rows: [], summary: { read: 1, accepted: 1, rejected: 0 } };
+        await flushPromises();
+
+        w.vm.editVehicle(w.vm.vehicles[0]);
+        await flushPromises();
+
+        expect(vehicleEdit).toHaveBeenCalledWith(expect.objectContaining({ plateNumber: 'А001АА777' }));
+        // Режим остаётся открытым, панель лишь уступает форме место - разбор бланка
+        // переживает правку строки и возвращается после неё.
+        expect(w.vm.importMode).toBe(true);
+        expect(w.vm.importResult).not.toBeNull();
+        expect(w.findComponent(BlankImportPanel).exists()).toBe(true);
+        expect(notifyMock).not.toHaveBeenCalled();
+    });
+
+    it('правка строки сотрудника показывает форму и не трогает режим', async () => {
+        const w = await mountWithFormStubs();
+        w.vm.attachments = [{ local_id: 'p1', id: 9, attachment_type: 'people', display_name: 'Люди' }];
+        w.vm.employeesByAttachment = { p1: [{ id: 1, lastName: 'Иванов', firstName: 'Иван' }] };
+        w.vm.selectedAttachment = w.vm.attachments[0];
+        w.vm.importMode = true;
+        await flushPromises();
+
+        w.vm.editEmployee(w.vm.employees[0]);
+        await flushPromises();
+
+        expect(w.vm.importMode).toBe(true);
+        expect(employeeEdit).toHaveBeenCalledWith(expect.objectContaining({ lastName: 'Иванов' }));
+        expect(notifyMock).not.toHaveBeenCalled();
     });
 });

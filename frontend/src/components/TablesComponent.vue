@@ -78,12 +78,17 @@
 
     <div class="tables__filters">
       <div class="filters__fields">
-        <!-- Поиск -->
-        <div class="field search">
-          <input 
-            v-model="searchQuery" 
-            placeholder="Поиск.." 
-            type="text" 
+        <!-- Десктоп: поле поиска видно всегда. На мобилке (#1097 S7) его заменяет
+             иконка-тоггл справа, а поле раскрывается оверлеем поверх ряда - механика
+             взята у Центра и кабинета (эталон §9.3), не изобретена заново. -->
+        <div
+          v-if="!isNarrow"
+          class="field search"
+        >
+          <input
+            v-model="searchQuery"
+            placeholder="Поиск.."
+            type="text"
             class="field__input search"
             @input="applyFilters"
           >
@@ -92,7 +97,7 @@
             class="tables__icon"
           >
         </div>
-                
+
         <!-- Десктоп: вторичные фильтры инлайн в строке (как было). Видимость каждого
              фильтра решает directoryFilters, а не v-if в шаблоне - иначе десктопный ряд
              и мобильный лист со временем разъедутся по составу. data-testid у обеих
@@ -133,13 +138,60 @@
           />
         </template>
 
-        <!-- Мобилка: вторичные фильтры свёрнуты в кнопку «Фильтр» (поиск - снаружи). -->
-        <FilterButton
-          v-else
-          :active="secondaryFiltersActive"
-          data-testid="table-filter-btn"
-          @click="showFilterSheet = true"
-        />
+        <!-- Мобилка: вторичные фильтры свёрнуты в кнопку «Фильтр», поиск - в иконку. -->
+        <template v-else>
+          <FilterButton
+            :active="secondaryFiltersActive"
+            data-testid="table-filter-btn"
+            @click="showFilterSheet = true"
+          />
+
+          <button
+            type="button"
+            class="search-icon-btn"
+            :class="{ 'search-icon-btn--active': showMobileSearch || !!searchQuery.trim() }"
+            aria-label="Поиск по таблице"
+            data-testid="table-search-icon"
+            @click="toggleMobileSearch"
+          >
+            <img
+              src="@/assets/icons/search.png"
+              class="search-icon-btn__img"
+              alt=""
+            >
+          </button>
+
+          <!-- Поле раскрывается ВЛЕВО оверлеем поверх ряда через clip-path: ряд не
+               переставляется, кнопка «Фильтр» не уезжает, reflow нет. Иконка справа -
+               тоггл, крестик внутри поля - очистить и закрыть (зеркало Центра). -->
+          <Transition name="table-search">
+            <div
+              v-if="showMobileSearch"
+              class="tables__search-overlay"
+            >
+              <div class="field search">
+                <input
+                  ref="mobileSearchInput"
+                  v-model="searchQuery"
+                  placeholder="Поиск.."
+                  type="text"
+                  class="field__input search"
+                  data-testid="table-input-search"
+                  @input="applyFilters"
+                >
+                <button
+                  v-if="searchQuery.trim()"
+                  type="button"
+                  class="tables__search-clear"
+                  aria-label="Очистить поиск"
+                  @click="clearMobileSearch"
+                >
+                  &times;
+                </button>
+              </div>
+            </div>
+          </Transition>
+        </template>
       </div>
       <div class="filters__options">
         <button
@@ -151,11 +203,19 @@
           <span class="options__manual-add-icon">+</span>
           <span class="options__text">{{ isNarrow ? 'Добавить' : 'Добавить вручную' }}</span>
         </button>
+        <!-- Мобилка (#1097 S6): текстом остаётся только «Добавить», остальные
+             действия сворачиваются в 36x36 иконки через общий .rt-btn-compact -
+             подпись прячется clip-приёмом (.rt-btn-label), не display:none.
+             Подсказку на узком экране даёт data-hint вместо native title: у
+             Версий/Корзины иначе на hover всплывали бы обе (тот же приём, что у
+             кнопки «Инструкция» выше). -->
         <RouterLink
           v-if="can(`table.${$route.params.tableName}.versions`)"
           :to="`/table/${$route.params.tableName}/versions`"
-          class="options__versions-link"
-          title="Версии состояния таблицы"
+          class="options__versions-link rt-btn-compact"
+          :class="{ 'hint-anchor hint-anchor--below': isNarrow }"
+          :title="isNarrow ? null : 'Версии состояния таблицы'"
+          :data-hint="isNarrow ? 'Версии' : null"
           data-testid="table-versions-link"
           aria-label="Версии состояния таблицы"
         >
@@ -164,13 +224,15 @@
             class="options__icon"
             alt=""
           >
-          <span class="options__text">Версии</span>
+          <span class="options__text rt-btn-label">Версии</span>
         </RouterLink>
         <RouterLink
           v-if="can(`table.${$route.params.tableName}.trash`)"
           :to="`/table/${$route.params.tableName}/trash`"
-          class="options__trash-link"
-          title="Корзина таблицы"
+          class="options__trash-link rt-btn-compact"
+          :class="{ 'hint-anchor hint-anchor--below': isNarrow }"
+          :title="isNarrow ? null : 'Корзина таблицы'"
+          :data-hint="isNarrow ? 'Корзина' : null"
           data-testid="table-trash-link"
           aria-label="Корзина таблицы"
         >
@@ -179,24 +241,28 @@
             class="options__icon"
             alt=""
           >
-          <span class="options__text">Корзина</span>
+          <span class="options__text rt-btn-label">Корзина</span>
         </RouterLink>
         <button
           v-if="can(`table.${$route.params.tableName}.export`)"
-          class="options__export"
+          class="options__export rt-btn-compact"
+          :class="{ 'hint-anchor hint-anchor--below': isNarrow }"
+          :data-hint="isNarrow ? 'Экспорт' : null"
           @click="handleExport"
         >
           <img
             src="@/assets/icons/export.png"
             class="tables__icon"
           >
-          <p class="options__text">
+          <p class="options__text rt-btn-label">
             Экспорт
           </p>
         </button>
         <button
           v-if="can(`table.${$route.params.tableName}.report`)"
-          class="options__export"
+          class="options__export rt-btn-compact"
+          :class="{ 'hint-anchor hint-anchor--below': isNarrow }"
+          :data-hint="isNarrow ? 'Отчёт' : null"
           data-testid="pass-report-button"
           @click="showPassReport = true"
         >
@@ -204,7 +270,7 @@
             src="@/assets/icons/stats.png"
             class="tables__icon"
           >
-          <p class="options__text">
+          <p class="options__text rt-btn-label">
             Отчёт
           </p>
         </button>
@@ -282,15 +348,41 @@
           @refresh-data="refreshData"
           @open-application="handleOpenApplication"
         />
-        <!-- Подсказка на синем фоне -->
+        <!-- Подсказка на синем фоне. На мобилке (#1097 S6) сворачивается: там она
+             разворачивается во всю ширину между таблицей «по факту» и основной,
+             отодвигая последнюю вниз на экран и больше.
+             Состояние помним per-table в localStorage - как режим «Сетка» рядом.
+             Переключатель только на узком экране: на десктопе подсказка стоит
+             сбоку от таблицы и место не отнимает (эталон §9.3 - прятать за кнопку
+             только там, где мало места). -->
         <div
           v-if="tableFactHint"
           class="fact-hint-card"
+          :class="{ 'fact-hint-card--collapsed': isNarrow && !hintExpanded }"
         >
-          <div
-            class="text-constructor-content hint-content"
-            v-html="sanitizedHint"
-          />
+          <button
+            v-if="isNarrow"
+            class="fact-hint-card__toggle"
+            type="button"
+            :aria-expanded="hintExpanded ? 'true' : 'false'"
+            data-testid="fact-hint-toggle"
+            @click="toggleHint"
+          >
+            <span class="fact-hint-card__toggle-text">Подсказка</span>
+            <img
+              src="@/assets/icons/arrow.png"
+              class="fact-hint-card__chevron"
+              alt=""
+            >
+          </button>
+          <div class="fact-hint-card__collapse">
+            <div class="fact-hint-card__collapse-inner">
+              <div
+                class="text-constructor-content hint-content"
+                v-html="sanitizedHint"
+              />
+            </div>
+          </div>
         </div>
       </div>
             
@@ -428,9 +520,16 @@ export default {
 
         const permissionsStore = usePermissionsStore();
 
-        // Мобилка (<=768): вторичные фильтры сворачиваются в кнопку «Фильтр» + FilterSheet;
-        // поиск остаётся снаружи. Десктоп не трогаем - фильтры инлайн (эпик mobile-filter-collapse).
-        const { isNarrow } = useNarrowScreen();
+        // Мобилка: вторичные фильтры сворачиваются в кнопку «Фильтр» + FilterSheet,
+        // поиск - в иконку с оверлеем. Десктоп не трогаем - фильтры инлайн
+        // (эпик mobile-filter-collapse).
+        //
+        // Порог 767.98, а не дефолтные 768 (#1097 S7): страница живёт поверх
+        // card-правил responsive-tables.css, которые срабатывают на 767.98 (эталон §1.2).
+        // На ровно 768 таблицы оставались десктопными, а шапка страницы уже уезжала в
+        // мобильный режим - экран собирался гибридом (свёрнутые фильтры над обычной
+        // таблицей). CSS-медиа этого компонента переведены на тот же порог.
+        const { isNarrow } = useNarrowScreen(767.98);
 
         const onboardingStore = useOnboardingStore();
         return { showInstruction, openInstruction, closeInstruction, onOverlayMousedown, onOverlayMouseup, permissionsStore, onboardingStore, isNarrow };
@@ -469,6 +568,9 @@ export default {
             // Мобилка: открыт ли bottom-sheet со вторичными фильтрами.
             showFilterSheet: false,
 
+            // Мобилка (#1097 S7): раскрыт ли оверлей поиска над рядом фильтров.
+            showMobileSearch: false,
+
             // Режим "Сетка" (#1289): один тумблер страницы на обе таблицы
             // (по факту + основная). Состояние своё у каждой таблицы.
             gridMode: false,
@@ -476,6 +578,11 @@ export default {
             // Мобилка: кнопка «Инструкция» сжата до иконки, когда заголовок+инструкция
             // не влезают в одну строку (measureHeader). Десктоп всегда с текстом.
             instructionCompact: false,
+
+            // Мобилка (#1097 S6): развёрнута ли подсказка таблицы «по факту».
+            // По умолчанию развёрнута - до первого сворачивания экран выглядит
+            // как раньше; дальше состояние своё у каждой таблицы.
+            hintExpanded: true,
         };
     },
     computed: {
@@ -607,6 +714,7 @@ export default {
                 this.fetchTableData();
                 this.clearFilters();
                 this.loadGridMode();
+                this.loadHintExpanded();
             },
             immediate: true
         },
@@ -618,7 +726,10 @@ export default {
         tableDisplayName() {
             this.measureHeader();
         },
-        isNarrow() {
+        isNarrow(value) {
+            // Возврат на десктоп - гасим мобильное раскрытие поиска, иначе оверлей
+            // остаётся смонтированным поверх инлайн-ряда фильтров (#1097 S7).
+            if (!value) this.showMobileSearch = false;
             this.measureHeader();
         }
     },
@@ -677,6 +788,31 @@ export default {
                 localStorage.setItem(this.gridStorageKey(), value ? '1' : '0');
             } catch {
                 // localStorage недоступен (приватный режим) - режим просто не запомнится.
+            }
+        },
+
+        // Подсказка «по факту» (#1097 S6). Ключ от имени таблицы в роуте - по тем же
+        // причинам, что у режима «Сетка» выше.
+        hintStorageKey() {
+            return `fact-hint-open:${this.$route.params.tableName || 'default'}`;
+        },
+
+        // Развёрнуто по умолчанию: отсутствующий ключ читается как '1', свёрнутым
+        // блок становится только после явного действия пользователя.
+        loadHintExpanded() {
+            try {
+                this.hintExpanded = localStorage.getItem(this.hintStorageKey()) !== '0';
+            } catch {
+                this.hintExpanded = true;
+            }
+        },
+
+        toggleHint() {
+            this.hintExpanded = !this.hintExpanded;
+            try {
+                localStorage.setItem(this.hintStorageKey(), this.hintExpanded ? '1' : '0');
+            } catch {
+                // localStorage недоступен (приватный режим) - состояние не запомнится.
             }
         },
         handleApplicationUpdate(updatedApp) {
@@ -841,6 +977,26 @@ export default {
         applyFilters() {
             // Фильтры применяются автоматически через props в дочерних компонентах
         },
+
+        /**
+         * Мобилка (#1097 S7): тоггл оверлея поиска. Фокус переносим в поле только при
+         * раскрытии по клику - автофокуса при загрузке страницы нет (он на мобилке
+         * выбрасывает клавиатуру поверх списка).
+         */
+        toggleMobileSearch() {
+            this.showMobileSearch = !this.showMobileSearch;
+            if (this.showMobileSearch) {
+                this.$nextTick(() => {
+                    this.$refs.mobileSearchInput?.focus();
+                });
+            }
+        },
+
+        clearMobileSearch() {
+            this.searchQuery = '';
+            this.showMobileSearch = false;
+            this.applyFilters();
+        },
         
         clearFilters() {
             this.searchQuery = '';
@@ -919,8 +1075,11 @@ export default {
 
 <style scoped>
 /* Все стили остаются без изменений */
+/* Отступ страницы - общий токен (#1097 S7, эталон §1.3): 20px базово, 16 на <=1024,
+   12 на <=768, 10 на <=480. Хардкод 20px забирал на 320px по 20px с каждой стороны,
+   и ряд действий из среза 6 собирался впритык. */
 .tables {
-    padding: 20px;
+    padding: var(--gutter);
     position: relative;
 }
 
@@ -1501,7 +1660,11 @@ export default {
     color: var(--accent-text);
 }
 
-@media (max-width: 768px) {
+/* 767.98, а не 768 (#1097 S7): страница стоит поверх card-правил
+   responsive-tables.css с тем же порогом, и JS-гейт isNarrow переведён туда же.
+   На ровно 768 (портретный iPad) правила расходились, и экран собирался гибридом -
+   эталон §1.2. */
+@media (max-width: 767.98px) {
     .fact-section {
         flex-direction: column;
     }
@@ -1510,6 +1673,11 @@ export default {
         flex: none;
         width: 100%;
         overflow: visible;
+        flex-direction: column;
+        /* stretch перебивает align-items: flex-start десктопной карточки: в колонке
+           он ужал бы переключатель и текст до ширины содержимого. */
+        align-items: stretch;
+        gap: 0;
     }
 
     .hint-content {
@@ -1517,7 +1685,64 @@ export default {
         inset: auto;
         overflow: visible;
     }
-    
+
+    /* Сворачиваемая подсказка (#1097 S6). Высота анимируется через
+       grid-template-rows 0fr -> 1fr (эталон §3.3: display и height не
+       анимируются вовсе), стрелка - transform. Внутренний слой с overflow:hidden
+       обязателен: padding содержимого иначе остаётся видимой полосой при нулевой
+       строке. */
+    .fact-hint-card__toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        width: 100%;
+        /* Тач-таргет 44px (WCAG 2.5.5) - вся ширина карточки, промахнуться негде. */
+        min-height: 44px;
+        padding: 0;
+        background: none;
+        border: 0;
+        outline: none;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--hint-card-text);
+    }
+
+    /* arrow.png нарисована смотрящей вправо (как у .select-arrow в остальных
+       окнах), поэтому «развёрнуто» - это повёрнутая вниз стрелка, а свёрнутое
+       состояние оставляет её как есть. */
+    .fact-hint-card__chevron {
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+        transform: rotate(90deg);
+        transition: transform 0.2s ease;
+    }
+
+    .fact-hint-card--collapsed .fact-hint-card__chevron {
+        transform: rotate(0deg);
+    }
+
+    .fact-hint-card__collapse {
+        display: grid;
+        grid-template-rows: 1fr;
+        transition: grid-template-rows 0.22s ease;
+    }
+
+    .fact-hint-card--collapsed .fact-hint-card__collapse {
+        grid-template-rows: 0fr;
+    }
+
+    .fact-hint-card__collapse-inner {
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .fact-hint-card__collapse-inner .hint-content {
+        padding-top: 10px;
+    }
+
     /* Заголовок и «Инструкция» - в одну строку; длинное имя ужимается ellipsis,
        инструкция сжимается до иконки через measureHeader (не переносится). */
     .tables__header {
@@ -1562,32 +1787,129 @@ export default {
         width: 100%;
     }
 
-    /* Поиск тянется на всю строку нормальной высоты, кнопка «Фильтр» - справа. */
-    .field.search {
-        flex: 1 1 auto;
-        width: auto;
+    /* Поиск свёрнут в иконку (#1097 S7): в ряду остаются «Фильтр» слева и иконка
+       справа, а поле живёт в оверлее и занимает высоту ряда целиком. */
+    .tables__search-overlay .field.search {
+        width: 100%;
+        height: 100%;
         min-width: 0;
-        height: 40px;
+        padding: 0 12px;
+        margin: 0;
+        gap: 8px;
     }
 
     .field.search .field__input {
         font-size: 14px;
     }
 
-    /* Все действия шапки - одинаковые кнопки с иконкой и подписью, переносятся в
-       ряд(ы), а не жмутся в разнокалиберные голые иконки. Иконка 16px: PNG нативно
-       30px, при 20px на 2x-экране апскейлились в мыло; 16px (=32px на 2x) чёткие. */
+    /* Иконка-тоггл поиска: круг 36x36 (эталон §1.4 - круглые иконки-кнопки 50%).
+       В Центре и кабинете этот круг 40px, но там он стоит в ряду заголовка; здесь
+       он делит ряд с кнопкой «Фильтр» (36px), а весь мобильный ряд действий ниже
+       после среза 6 тоже 36px. Разъехавшиеся по высоте контролы одного ряда -
+       отдельная претензия пользователя (урок #1832), поэтому размер берём от соседа. */
+    .search-icon-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        margin-left: auto;
+        padding: 0;
+        border: 1px solid var(--border);
+        border-radius: 50%;
+        background: var(--surface);
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .search-icon-btn:hover,
+    .search-icon-btn--active {
+        background: var(--surface-2);
+        border-color: var(--accent);
+    }
+
+    .search-icon-btn__img {
+        width: 16px;
+        height: 16px;
+    }
+
+    /* Оверлей поиска поверх ряда. right: 46px = иконка 36 + зазор ряда 10, чтобы
+       тоггл остался открытым. Скругление под поле (15px): иначе белые квадратные
+       углы оверлея торчат из-за pill-поля рядом с круглой иконкой (#1097 R3-3). */
+    .tables__search-overlay {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        right: 46px;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        background: var(--surface);
+        border-radius: var(--radius-md);
+    }
+
+    /* Крестик очистки внутри поля (появляется при вводе): сбрасывает и закрывает поиск. */
+    .tables__search-clear {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        padding: 0;
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        font-size: 20px;
+        line-height: 1;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+
+    .tables__search-clear:hover {
+        color: var(--accent-text);
+    }
+
+    /* Раскрытие влево - clip-path (композитится, ряд не переставляется). */
+    .table-search-enter-active,
+    .table-search-leave-active {
+        transition: clip-path 0.25s ease;
+    }
+
+    .table-search-enter-from,
+    .table-search-leave-to {
+        clip-path: inset(0 0 0 100%);
+    }
+
+    .table-search-enter-to,
+    .table-search-leave-from {
+        clip-path: inset(0 0 0 0);
+    }
+
+    /* Действия шапки - одной строкой (#1097 S6). Текстом остаётся только
+       «Добавить», остальные сворачиваются глобальным .rt-btn-compact в 36x36
+       (директива пользователя: в «Таблицах» плотность выше, чем в списках
+       сотрудников и машин, где он просил наоборот текстовые кнопки). Подписи
+       Версий/Корзины скрыты и на десктопе, у Экспорта и Отчёта их гасит
+       clip-приём .rt-btn-label - доступное имя кнопки остаётся.
+       wrap оставлен страховкой: вторая строка лучше горизонтальной прокрутки
+       страницы (эталон §12). Иконка 16px: PNG нативно 30px, при 20px на
+       2x-экране апскейлились в мыло; 16px (=32px на 2x) чёткие. */
     .filters__options {
         flex-wrap: wrap;
         justify-content: flex-start;
         gap: 8px;
     }
 
+    /* Высота одинаковая у всей строки: 36px = размер .rt-btn-compact, который
+       перебивает её у свёрнутых кнопок своим !important. Разъехавшиеся по высоте
+       контролы ряда - отдельная претензия пользователя (урок #1832). */
     .options__manual-add,
     .options__versions-link,
     .options__trash-link,
     .options__export {
-        height: 34px;
+        height: 36px;
         width: auto;
         padding: 0 12px;
         border: 1px solid var(--border);
@@ -1595,11 +1917,6 @@ export default {
         background: var(--surface);
         font-size: 13px;
         gap: 6px;
-    }
-
-    .options__versions-link .options__text,
-    .options__trash-link .options__text {
-        display: inline;
     }
 
     .filters__options .options__icon,
@@ -1611,6 +1928,23 @@ export default {
     .instruction-modal-large {
         margin: 10px;
         max-height: 90vh;
+    }
+}
+
+/* На 320px ряд действий сходится впритык и от округления уезжает во вторую
+   строку. Замер «до»: «Добавить» 104px (padding 12 + зазор 6 + иконка + текст
+   13px), четыре свёрнутые кнопки 4x36 = 144, зазоры 4x8 = 32 - ровно 280 при
+   доступных 320 - 2x20 padding страницы = 280. Поджимаем зазор и поля кнопки:
+   268 против 280, запас 12px.
+   Срез 7 перевёл отступ страницы на --gutter (на <=480 это 10px вместо 20):
+   доступно стало 300, запас ряда - 32px. */
+@media (max-width: 480px) {
+    .filters__options {
+        gap: 6px;
+    }
+
+    .options__manual-add {
+        padding: 0 10px;
     }
 }
 </style>

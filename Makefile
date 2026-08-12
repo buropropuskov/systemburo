@@ -1,4 +1,24 @@
-.PHONY: up down build test logs restart lint swagger bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage archive staging-archive deploy-archive fake staging-fake vapid staging-vapid deploy-vapid backup staging-backup deploy-backup backup-status staging-backup-status deploy-backup-status backup-verify staging-backup-verify deploy-backup-verify deploy-restore restore staging-restore
+.PHONY: up down build test logs restart lint swagger bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage archive staging-archive deploy-archive entity staging-entity deploy-entity fake staging-fake vapid staging-vapid deploy-vapid backup staging-backup deploy-backup backup-status staging-backup-status deploy-backup-status backup-verify staging-backup-verify deploy-backup-verify deploy-restore restore staging-restore
+
+# Подтверждение перед разрушающими целями рабочего сервера.
+#
+# sudo помнит пароль пятнадцать минут, поэтому опечатка в имени цели внутри этого
+# окна выполняется молча - и это самый частый сценарий аварии, когда человек в
+# потоке набирает не ту цель. Спрашивается не «вы уверены», а слово, называющее
+# действие: пока его набирают, читают, что именно произойдёт и почему это не
+# отменить. Защищены только цели, которые ломают данные без единого аргумента.
+#
+# Обход для неинтерактивных запусков тот же, что в scripts/restore.sh:
+#   CONFIRM=yes make deploy-seed PASS=...
+# Первый аргумент - слово, второй - текст; \n в тексте разворачивает printf %b.
+define confirm
+@if [ "$${CONFIRM:-}" != "yes" ]; then \
+	printf '\n%b\n\n' "$(2)" >&2; \
+	printf 'Введите %s для продолжения: ' '$(1)' >&2; \
+	read -r answer; \
+	if [ "$$answer" != "$(1)" ]; then printf 'Отменено, ничего не выполнено.\n' >&2; exit 1; fi; \
+fi
+endef
 
 up:
 	docker compose up -d
@@ -44,7 +64,10 @@ seed:
 staging-seed:
 	docker compose -f docker-compose.base.yml -f docker-compose.staging.yml exec backend ./seed $(if $(PASS),-password $(PASS))
 
+CONFIRM_DEPLOY_SEED = На рабочем сервере будет перезаписан пароль супер-администратора buropropuskov.\nБез PASS=... он станет паролем по умолчанию admin123 - тем, что напечатан в\nруководстве по развёртыванию. Прежний пароль перестанет работать, вернуть его нельзя.
+
 deploy-seed:
+	$(call confirm,ПЕРЕЗАПИСАТЬ,$(CONFIRM_DEPLOY_SEED))
 	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec backend ./seed $(if $(PASS),-password $(PASS))
 
 # Демо-данные для UI-сценариев (объявления, новости, заявки с вложениями, cars_history).
@@ -55,7 +78,10 @@ seed-demo:
 staging-seed-demo:
 	docker compose -f docker-compose.base.yml -f docker-compose.staging.yml exec -e SEED_DEMO=true backend ./seed $(if $(PASS),-password $(PASS))
 
+CONFIRM_DEPLOY_SEED_DEMO = На рабочий сервер будут налиты вымышленные данные: организации и компании,\nзаявки с вложениями, сотрудники и машины, новости, объявления, уведомления.\nОтличить их от настоящих потом можно только по содержимому: пометки на них нет,\nкоманды снять их обратно тоже нет. Заодно перезаписывается пароль супер-администратора.
+
 deploy-seed-demo:
+	$(call confirm,НАЛИТЬ,$(CONFIRM_DEPLOY_SEED_DEMO))
 	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec -e SEED_DEMO=true backend ./seed $(if $(PASS),-password $(PASS))
 
 init:
@@ -118,7 +144,12 @@ cleanup:
 staging-cleanup:
 	docker compose -f docker-compose.base.yml -f docker-compose.staging.yml exec backend ./server cleanup $(ARGS)
 
+CONFIRM_DEPLOY_CLEANUP = Записи, попавшие под условия очистки, будут безвозвратно удалены из базы\nрабочего сервера. Сколько их и в каких группах - показывает тот же вызов без -apply.
+
+# Подтверждение спрашивается только на -apply: предварительный показ ничего не
+# удаляет, а вопрос на безопасном вызове приучает отвечать не глядя.
 deploy-cleanup:
+	$(if $(findstring -apply,$(ARGS)),$(call confirm,УДАЛИТЬ,$(CONFIRM_DEPLOY_CLEANUP)))
 	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec backend ./server cleanup $(ARGS)
 
 # Обзор занятого места: крупнейшие таблицы и что из них подлежит очистке.
@@ -143,6 +174,18 @@ staging-archive:
 
 deploy-archive:
 	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec backend ./server archive $(ARGS)
+
+# Работа с данными по идентификатору сущности: снять пакет, проверить его и развернуть на
+# другом стенде. Без ARGS печатает справку. Примеры: make entity ARGS="export -type=organization -id=42"
+#                                                     make deploy-entity ARGS="export -type=organization -id=42 -apply"
+entity:
+	docker compose exec go-backend go run ./cmd/server entity $(ARGS)
+
+staging-entity:
+	docker compose -f docker-compose.base.yml -f docker-compose.staging.yml exec backend ./server entity $(ARGS)
+
+deploy-entity:
+	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec backend ./server entity $(ARGS)
 
 # Наполнение проверочного стенда вымышленными данными. Без ARGS показывает план и
 # ничего не создаёт. Справка: make fake ARGS=-help

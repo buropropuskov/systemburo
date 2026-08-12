@@ -1,19 +1,21 @@
+// Команда genhash печатает хэш пароля в том же формате, что хранит система.
+// Нужна при ручном восстановлении доступа: хэш вставляют в базу напрямую, когда
+// войти в интерфейс нечем.
 package main
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
+	"os"
 
-	"golang.org/x/crypto/argon2"
+	"systemburo/internal/services"
 )
 
 func main() {
-	password := "admin123"
-	salt := make([]byte, 16)
-	rand.Read(salt)
-	hash := argon2.IDKey([]byte(password), salt, 2, 19456, 1, 32)
-	saltB64 := base64.RawStdEncoding.EncodeToString(salt)
-	hashB64 := base64.RawStdEncoding.EncodeToString(hash)
-	fmt.Printf("$argon2id$v=%d$m=19456,t=2,p=1$%s$%s\n", argon2.Version, saltB64, hashB64)
+	// Пароль берётся аргументом; прежняя версия несла зашитый admin123 и печатала
+	// хэш от него независимо от того, что просили.
+	if len(os.Args) < 2 {
+		fmt.Fprintln(os.Stderr, "использование: genhash <пароль>")
+		os.Exit(2)
+	}
+	fmt.Println(services.HashPassword(os.Args[1]))
 }

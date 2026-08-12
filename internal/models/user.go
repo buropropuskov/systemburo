@@ -53,6 +53,21 @@ type User struct {
 	// LastFailedLoginAt - момент последней неудачной попытки. Держит окно
 	// накопления счётчика и точку отсчёта для затухания ступени.
 	LastFailedLoginAt *time.Time `json:"-"`
+	// PasswordChangedAt - когда пароль менялся в последний раз (#1907). От неё
+	// считается срок действия при плановой смене: график индивидуальный, у каждого
+	// свой отсчёт. Существующим учётным записям проставлена дата внедрения, а не
+	// дата создания - иначе в день включения ротации истекли бы разом все старые.
+	PasswordChangedAt *time.Time `gorm:"index" json:"-"`
+	// MustChangePassword - при следующем входе система потребует задать свой пароль.
+	// Плановая проверка сроков только его и делает: пароль остаётся прежним, а
+	// работать человек начинает, задав новый. Ставится и при выдаче придуманного
+	// системой пароля - перехваченное письмо тогда даёт доступ лишь до того, как
+	// войдёт владелец.
+	MustChangePassword bool `gorm:"default:false;index" json:"-"`
+	// PasswordRotatedAt - когда пароль в последний раз меняла сама система: при
+	// обновлении паролей всем работникам или сбросе из карточки. Отличается от
+	// PasswordChangedAt, которую двигает и обычная смена самим человеком.
+	PasswordRotatedAt *time.Time `json:"-"`
 	// OnboardingCompletedVersion - версия онбординг-тура, которую прошёл юзер.
 	// null = не проходил. Хранится per-user (а не per-browser), чтобы тур не
 	// сбрасывался при смене устройства; при подъёме версии шагов тур показывается заново.
@@ -178,6 +193,28 @@ type UserInfoResponse struct {
 	LockoutLevel int `json:"lockout_level"`
 }
 
+// RecipientCandidate — пользователь, которого автор может добавить получателем заявки.
+// Узкий срез полей: форме нужно показать человека и отличить однофамильцев по должности,
+// остальное (контакты, роль, признаки администратора) к выбору получателя отношения не имеет.
+type RecipientCandidate struct {
+	ID         int     `json:"id"`
+	Username   string  `json:"username"`
+	LastName   *string `json:"last_name"`
+	FirstName  *string `json:"first_name"`
+	MiddleName *string `json:"middle_name"`
+	Position   *string `json:"position"`
+	// Organization и Company названы как в UserInfoResponse, а не organization_name
+	// соседних ответов: окно пересылки получает оба ответа в ОДИН проп allUsers
+	// (носителю page.admin.users - /users/all, остальным - кандидатов), и второе имя
+	// того же поля потребовало бы развилки в каждом месте, где окно его читает.
+	Organization *string `json:"organization"`
+	Company      *string `json:"company"`
+	// PDHidden -- ФИО скрыто: работник не дал согласия на обработку ПД (#1567).
+	// Организацию и компанию согласие не закрывает: это данные работодателя, а не
+	// работника, и в администраторском списке они видны у скрытого работника тоже.
+	PDHidden bool `json:"pd_hidden"`
+}
+
 // UpdateUserTypeRequest — запрос на обновление типа пользователя.
 type UpdateUserTypeRequest struct {
 	TypeID int `json:"type_id" validate:"gte=1"`
@@ -186,6 +223,14 @@ type UpdateUserTypeRequest struct {
 // UpdatePasswordRequest — запрос на обновление пароля пользователя.
 type UpdatePasswordRequest struct {
 	Password string `json:"password" validate:"required,min=6,max=255"`
+}
+
+// ChangeOwnPasswordRequest — запрос на смену СВОЕГО пароля. В отличие от
+// UpdatePasswordRequest (админ задаёт пароль другому) требует подтверждения
+// текущим паролем: без него угнанная сессия превращается в захват учётной записи.
+type ChangeOwnPasswordRequest struct {
+	CurrentPassword string `json:"current_password" validate:"required,max=255"`
+	NewPassword     string `json:"new_password" validate:"required,min=6,max=255"`
 }
 
 // UpdateUserInfoRequest — запрос на обновление персональных данных пользователя.

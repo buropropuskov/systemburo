@@ -7,7 +7,8 @@
       <div class="header-controls">
         <BaseDropdown
           class="archive-dropdown"
-          :model-value="showArchive ? 'archive' : 'active'"
+          data-testid="companies-list-mode"
+          :model-value="listMode"
           :options="archiveOptions"
           label-key="label"
           value-key="value"
@@ -289,7 +290,7 @@
 
           <div class="table-footer">
             <span class="items-count">
-              {{ showArchive ? 'В архиве' : 'Всего компаний' }}: {{ sortedCompanies.length }}
+              {{ countLabel }}: {{ sortedCompanies.length }}
             </span>
           </div>
         </div>
@@ -326,6 +327,7 @@
                 class="archive-badge"
               >В архиве</span>
               <button
+                v-if="canViewHistory"
                 class="pill pill-ghost"
                 data-testid="companies-history"
                 @click="openHistory(selectedCompany)"
@@ -351,6 +353,25 @@
             </div>
           </div>
 
+          <!-- Разбор записи, заведённой подачей заявки (#1875). Секция даёт заголовок
+               раздела, сам разбор внутри неё - жёлтая плашка предупреждения. -->
+          <div
+            v-if="canModerate && isPendingModeration(selectedCompany)"
+            class="card"
+            data-testid="companies-moderation-card"
+          >
+            <div class="sec-title">
+              Разбор записи
+            </div>
+            <DirectoryModeration
+              kind="company"
+              variant="panel"
+              :entry-id="selectedCompany.id"
+              :entry-name="originalSelectedName"
+              @resolved="onModerationResolved"
+            />
+          </div>
+
           <!-- Основное -->
           <div class="card">
             <div class="sec-title">
@@ -366,7 +387,7 @@
                   maxlength="100"
                   placeholder="Введите название компании"
                   autocomplete="off"
-                  :disabled="!selectedCompany.is_active || isSavingName"
+                  :disabled="!selectedCompany.is_active || isSavingName || isNameLockedByModeration"
                   data-testid="companies-detail-name"
                   @keyup.enter="saveSelectedName"
                 >
@@ -385,6 +406,14 @@
                 />
               </div>
             </div>
+
+            <p
+              v-if="nameLockHint"
+              class="lock-note"
+              data-testid="companies-name-lock-hint"
+            >
+              {{ nameLockHint }}
+            </p>
 
             <div
               v-if="detailError"
@@ -405,7 +434,7 @@
               >
                 Сохранить
               </button>
-              <span class="muted-hint">Имя и тип сохраняются вместе</span>
+              <span class="muted-hint">{{ saveHint }}</span>
             </div>
           </div>
 
@@ -735,10 +764,12 @@ import BaseModal from './ui/BaseModal.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import CompanyHistoryModal from './CompanyHistoryModal.vue';
 import BulkOperationsModal from './directories/BulkOperationsModal.vue';
+import DirectoryModeration from './directory/DirectoryModeration.vue';
 
 export default {
   name: 'CompaniesManagement',
   components: {
+    DirectoryModeration,
     SearchComponent,
     RefreshButton,
     ResponsibleUsersSection,
@@ -760,7 +791,7 @@ export default {
   data() {
     return {
       searchQuery: '',
-      showArchive: false,
+      listMode: 'active',
       typeFilters: [],
       selectedIds: [],
       // Якорь для shift-выделения диапазона строк (id последней кликнутой строки).
@@ -799,6 +830,7 @@ export default {
       archiveOptions: [
         { label: 'Активные', value: 'active' },
         { label: 'Архив', value: 'archive' },
+        { label: 'На проверке', value: 'pending' },
       ],
       typeCreateOptions: ORG_TYPE_CREATE_OPTIONS,
       typeDetailOptions: ORG_TYPE_DETAIL_OPTIONS,
@@ -815,6 +847,50 @@ export default {
     canReassign() {
       return usePermissionsStore().hasPermission('page.admin');
     },
+    // История компании тоже под page.admin, а список компаний открыт любому, кто
+    // вошёл в раздел справочников. Без гейта окно истории открывалось бы пустым.
+    canViewHistory() {
+      return usePermissionsStore().hasPermission('page.admin');
+    },
+    // Архивный режим - производная от режима списка: наборы групповых операций и
+    // подписи по-прежнему делятся на «активные» и «архив», а «на проверке» - срез
+    // активных, поэтому он идёт по ветке активных.
+    showArchive() {
+      return this.listMode === 'archive';
+    },
+    // Разбор записи гейтится своим правом, не page.admin: справочник открыт по
+    // page.admin.directories, а moderation-эндпоинты - по application.organization.moderate
+    // (иначе «видно, но 403», уроки #976/#1083).
+    canModerate() {
+      return usePermissionsStore().hasPermission('application.organization.moderate');
+    },
+    // Наименование неразобранной записи правится ТОЛЬКО разбором (#1876): обычный
+    // PUT оставляет moderation_status=pending, админ видел «сохранено» и тот же
+    // бейдж «На проверке». Тип не блокируем - он к разбору отношения не имеет.
+    isNameLockedByModeration() {
+      return !!this.selectedCompany && this.isPendingModeration(this.selectedCompany);
+    },
+    // Подсказка обязана следовать за состоянием: без права разбора блок разбора не
+    // отрисован, и отсылать к нему бессмысленно - человеку нужен адрес, куда идти.
+    nameLockHint() {
+      if (!this.isNameLockedByModeration) return '';
+      if (!this.canModerate) {
+        return 'Запись ещё не разобрана, а права на разбор у вас нет: '
+          + 'наименование исправит сотрудник, которому разбор доступен.';
+      }
+      return 'Запись ещё не разобрана, поэтому наименование правится только действием '
+        + '«Исправить наименование» в блоке «Разбор записи» выше.';
+    },
+    saveHint() {
+      return this.isNameLockedByModeration
+        ? 'Пока запись не разобрана, сохраняется только тип'
+        : 'Имя и тип сохраняются вместе';
+    },
+    countLabel() {
+      if (this.listMode === 'archive') return 'В архиве';
+      if (this.listMode === 'pending') return 'На проверке';
+      return 'Всего компаний';
+    },
     // Цели переноса - активные компании, кроме исходной (BE отвергает архивную
     // и == источнику). Архивных в списке нет by design.
     reassignTargetOptions() {
@@ -829,9 +905,7 @@ export default {
       isLoading: 'isLoading',
     }),
     filteredCompanies() {
-      let list = this.companiesWithUsers.filter(comp =>
-        this.showArchive ? !comp.is_active : comp.is_active
-      );
+      let list = this.companiesWithUsers.filter(comp => this.matchesListMode(comp));
       if (this.typeFilters.length) {
         // «не указан» - такой же элемент набора, как остальные типы: NULL/пусто
         // приводим к его сентинелу, чтобы «Отдел + не указан» отдавал и то, и то.
@@ -888,7 +962,9 @@ export default {
       if (this.typeFilters.length) {
         return this.typeFilters.length === 1 ? 'Нет компаний с таким типом' : 'Нет компаний с выбранными типами';
       }
-      return this.showArchive ? 'В архиве пусто' : 'Компаний пока нет';
+      if (this.listMode === 'archive') return 'В архиве пусто';
+      if (this.listMode === 'pending') return 'Записей на проверке нет';
+      return 'Компаний пока нет';
     },
     isAddDirty() {
       return this.showAddModal && (this.addForm.name.trim() !== '' || !!this.addForm.type);
@@ -1009,10 +1085,22 @@ export default {
       this.syncSelected();
     },
 
+    /**
+     * Попадает ли запись в текущий режим списка. «На проверке» - срез активных, а не
+     * третье состояние: разобранная или заархивированная запись из него выпадает.
+     * @param {{ is_active?: boolean, moderation_status?: string }} company
+     * @returns {boolean}
+     */
+    matchesListMode(company) {
+      if (this.listMode === 'archive') return !company.is_active;
+      if (this.listMode === 'pending') return company.is_active && this.isPendingModeration(company);
+      return company.is_active;
+    },
+
     syncSelected() {
       if (!this.selectedCompany) return;
       const fresh = this.companiesWithUsers.find(c => c.id === this.selectedCompany.id);
-      const visible = fresh && (this.showArchive ? !fresh.is_active : fresh.is_active);
+      const visible = fresh && this.matchesListMode(fresh);
       if (fresh && visible && !this.isDetailsDirty) {
         this.selectedCompany = { ...fresh };
         this.originalSelectedName = fresh.name;
@@ -1026,7 +1114,7 @@ export default {
 
     async onArchiveModeChange(value) {
       if (this.detailsAreaDirty && !(await confirmIfAnyDirty())) return;
-      this.showArchive = value === 'archive';
+      this.listMode = value;
       this.selectedCompany = null;
       this.members = [];
       this.detailError = '';
@@ -1250,7 +1338,8 @@ export default {
 
       if (result.ok) {
         this.forceCloseAdd();
-        if (this.showArchive) this.showArchive = false;
+        // Созданная вручную запись сразу проверенная - в архиве и «на проверке» её нет.
+        if (this.listMode !== 'active') this.listMode = 'active';
         const created = this.companiesWithUsers.find(comp => comp.id === result.data.id);
         if (created) {
           this.selectedCompany = { ...created };
@@ -1388,6 +1477,39 @@ export default {
      */
     isPendingModeration(company) {
       return company?.moderation_status === 'pending';
+    },
+
+    /**
+     * Запись разобрана: перечитываем список и переводим выбор на её итог. При привязке
+     * (merge) исходная запись физически удалена, а `id` в событии - уже цель привязки,
+     * поэтому ищем по нему, а не по прежнему `selectedCompany.id`. Не нашли или итог
+     * выпал из текущего режима (подтвердили запись, стоя в «На проверке») - гасим
+     * детали, иначе панель осталась бы на мёртвом выборе.
+     * @param {{ kind: string, id: number|null, name: string }} result
+     */
+    async onModerationResolved(result) {
+      await this.fetchCompaniesWithUsers(true);
+
+      const alive = new Set(this.companiesWithUsers.map(c => c.id));
+      this.selectedIds = this.selectedIds.filter(id => alive.has(id));
+      if (this.lastSelectedId != null && !alive.has(this.lastSelectedId)) this.lastSelectedId = null;
+
+      this.resetChildDirty();
+      this.detailError = '';
+
+      const resolved = result?.id != null
+        ? this.companiesWithUsers.find(c => c.id === result.id)
+        : null;
+      if (!resolved || !this.matchesListMode(resolved)) {
+        this.selectedCompany = null;
+        this.members = [];
+        return;
+      }
+
+      this.selectedCompany = { ...resolved };
+      this.originalSelectedName = resolved.name;
+      this.originalSelectedType = resolved.type ?? null;
+      this.loadMembers(resolved.id);
     },
 
     onArchiveClick(comp) {
@@ -1828,7 +1950,7 @@ export default {
   padding: 6px 20px;
   border-top: 1px solid var(--border);
   text-align: end;
-  background: var(--accent-tint);
+  background: var(--surface-2);
 }
 
 .items-count {
@@ -1923,7 +2045,7 @@ export default {
 }
 
 .pill-type {
-  background: var(--accent-tint);
+  background: var(--surface-2);
   color: var(--accent-text);
   cursor: default;
 }
@@ -1963,7 +2085,7 @@ export default {
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 16px;
-  background: var(--accent-tint);
+  background: var(--surface-sunken);
 }
 
 .sec-title {
@@ -1989,7 +2111,7 @@ export default {
   height: 20px;
   padding: 0 7px;
   border-radius: 50px;
-  background: var(--accent-tint);
+  background: var(--surface);
   color: var(--accent-text);
   font-size: 11px;
   font-weight: 700;
@@ -2015,6 +2137,15 @@ export default {
   text-transform: uppercase;
   display: block;
   margin-bottom: 6px;
+}
+
+/* Объяснение к заблокированному наименованию. Лежит под сеткой полей, а не внутри
+   ячейки: у .basic align-items:end, и выросшая ячейка утащила бы дропдаун типа вниз. */
+.lock-note {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 0.85em;
+  line-height: 1.45;
 }
 
 .save-actions {
@@ -2058,7 +2189,7 @@ export default {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--accent-tint);
+  background: var(--surface-2);
   color: var(--accent-text);
   font-weight: 700;
   font-size: 12px;

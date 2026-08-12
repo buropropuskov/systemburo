@@ -37,6 +37,10 @@ services:
       # Ключи шифрования архива. Пусто - архив пишется как раньше, без шифрования.
       ARCHIVE_AGE_RECIPIENT: ${ARCHIVE_AGE_RECIPIENT:-}
       ARCHIVE_AGE_IDENTITY: ${ARCHIVE_AGE_IDENTITY:-}
+      # Каталог пакетов выгрузки по идентификатору сущности (server entity export).
+      # Как и архив, лежит на каталоге хоста: пакет забирают с сервера руками, и
+      # внутри контейнера он не пережил бы его пересоздания.
+      ENTITY_EXPORT_PATH: /app/entity-export
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
       # Ниже - параметры, которые описаны в приложении Б и в шаблоне файла
       # параметров, но до этой правки внутрь контейнера не попадали: compose
@@ -55,6 +59,23 @@ services:
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       PUSH_SUBSCRIPTION_RETENTION_DAYS: ${PUSH_SUBSCRIPTION_RETENTION_DAYS:-180}
+      # Почтовая рассылка (#1906, #1936). Тот же класс, что и с ключами доставки
+      # уведомлений выше: параметры лежали в файле параметров и в приложении Б, а
+      # до контейнера не доходили - оператор заполнял SMTP_*, перезапускал систему
+      # и не получал ничего, потому что внутри адрес сервера оставался пустым, а
+      # пустой адрес это штатное "почта не настроена", без единой ошибки в журнале.
+      # Пустой SMTP_HOST по умолчанию сохраняет прежнее поведение: почта выключена.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Бюро пропусков}
+      SMTP_TLS_MODE: ${SMTP_TLS_MODE:-starttls}
+      SMTP_TIMEOUT_SEC: ${SMTP_TIMEOUT_SEC:-15}
+      SMTP_RATE_PER_HOUR: ${SMTP_RATE_PER_HOUR:-400}
+      MAIL_RETRY_ATTEMPTS: ${MAIL_RETRY_ATTEMPTS:-5}
+      MAIL_WORKER_TICK: ${MAIL_WORKER_TICK:-15s}
     volumes:
       - uploads:/app/uploads
       # Файловый архив бланков (#1615) - каталог хоста, а не именованный том.
@@ -63,6 +84,12 @@ services:
       # сетевую папку только на чтение и включить в резервное копирование. Каталог
       # создаётся заранее с владельцем uid/gid 1001 - см. docs/DEPLOYMENT.md.
       - ${ARCHIVE_HOST_PATH:-./archive}:/app/archive
+      # Пакеты выгрузки организаций. Каталог хоста по той же причине, что и у архива:
+      # пакет снимают, чтобы унести с сервера, а внутри контейнера его не забрать и
+      # он исчезнет при первом же пересоздании. В пакете лежат персональные данные
+      # целиком, поэтому каталог держат отдельно от загрузок, которые раздаются
+      # статикой - проверку этого делает config.Validate и отказывает в старте.
+      - ${ENTITY_EXPORT_HOST_PATH:-./entity-export}:/app/entity-export
     depends_on:
       db:
         condition: service_healthy

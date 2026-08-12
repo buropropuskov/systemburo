@@ -295,7 +295,9 @@
           <template v-if="detail">
             <div class="application-block">
               <h4 class="application-block__title">
-                <span>Заявка<template v-if="detail.attachment.application_number"> № {{ detail.attachment.application_number }}</template></span>
+                <!-- Номер печатается как есть: application_number реальных заявок уже
+                     начинается с «№», свой знак давал «Заявка № № 20260808/027». -->
+                <span>Заявка&#32;<template v-if="detail.attachment.application_number">{{ detail.attachment.application_number }}</template></span>
                 <StatusBadge
                   v-if="statusText(detail.attachment)"
                   :status="statusText(detail.attachment)"
@@ -549,7 +551,7 @@ function orgLine(a) {
 // (рядом со статусом), чтобы читался чётко, а не терялся в серой мете.
 function metaLine(a) {
   const parts = [];
-  if (a.application_number) parts.push(`№ ${a.application_number}`);
+  if (a.application_number) parts.push(a.application_number);
   const sender = senderName(a);
   if (sender) parts.push(sender);
   return parts.join(' · ');
@@ -1160,6 +1162,15 @@ onBeforeUnmount(() => {
 .detail-actions {
   display: flex;
   justify-content: flex-start;
+}
+
+/*
+ * «Посмотреть файл» на время загрузки подписывается «Загрузка...», и кнопка
+ * прыгала в ширине. Держим её размер по длинной подписи.
+ */
+.detail-actions .lk-button {
+  min-width: 172px;
+  justify-content: center;
 }
 
 .blank-preview {

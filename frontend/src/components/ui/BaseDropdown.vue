@@ -274,6 +274,13 @@ export default {
   },
   watch: {
     isOpen(open) {
+      // Слушатель Escape живёт ровно столько, сколько открыто меню: висеть постоянно
+      // ему незачем, дропдаунов на странице бывает десяток.
+      if (open) {
+        document.addEventListener('keydown', this.handleEscape, true);
+      } else {
+        document.removeEventListener('keydown', this.handleEscape, true);
+      }
       if (!this.teleport) return;
       if (open) {
         this.updateMenuPosition();
@@ -297,6 +304,7 @@ export default {
   },
   beforeUnmount() {
     document.removeEventListener('click', this.handleClickOutside, true);
+    document.removeEventListener('keydown', this.handleEscape, true);
     this.removeRepositionListeners();
   },
   methods: {
@@ -362,6 +370,18 @@ export default {
     isSelected(option) {
       if (this.multiple) return this.selectedValues.includes(option[this.valueKey]);
       return option[this.valueKey] === this.modelValue;
+    },
+
+    /**
+     * Escape закрывает открытое меню - как и любое другое окно проекта. Событие
+     * дальше не идёт: без этого то же нажатие закроет ещё и модалку под списком,
+     * и человек потеряет форму вместо того, чтобы свернуть список.
+     */
+    handleEscape(e) {
+      if (e.key !== 'Escape') return;
+      this.isOpen = false;
+      this.searchQuery = '';
+      e.stopPropagation();
     },
 
     handleClickOutside(e) {
