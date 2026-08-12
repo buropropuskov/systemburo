@@ -14,6 +14,9 @@ set -euo pipefail
 ENVIRONMENT="${1:-production}"
 AT_TIME="${2:-03:30}"
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# Вынесено в переменную ради проверки прав каталога копий без реального
+# systemd: подставить временный путь для "cat > /etc/..." иначе нечем.
+SYSTEMD_DIR="${SYSTEMD_DIR:-/etc/systemd/system}"
 
 case "$ENVIRONMENT" in
   staging|production) ;;
@@ -35,7 +38,7 @@ fi
 
 write_unit() {
   local name="$1"
-  cat > "/etc/systemd/system/${name}"
+  cat > "${SYSTEMD_DIR}/${name}"
 }
 
 write_unit systemburo-backup.service <<EOF
@@ -123,6 +126,29 @@ else
   OPERATOR_NOTE="группы ${OPERATOR_GROUP} на сервере нет, состояние копирования увидит только суперпользователь"
 fi
 
+# Права 710 на корне открывают проход внутрь только для НОВОЙ установки. Если
+# каталог копий существовал ещё до umask 077 в backup.sh, подкаталоги сроков
+# хранения и файлы в них остались с режимом, в котором их когда-то создал
+# оператор без маски - обычно 755 и 644. Пока корень был 700, это ничего не
+# открывало; строка выше делает проход внутрь возможным, и без выравнивания
+# оператор читает копии по правам подкаталогов, а не корня. Правится один раз
+# здесь; новые копии backup.sh и так создаёт с верным режимом сам.
+CLOSED_COUNT=0
+if [ "$OPERATOR_READY" = true ]; then
+  for retention in daily weekly monthly; do
+    retention_dir="${BACKUP_DIR_VALUE}/${retention}"
+    [ -d "$retention_dir" ] || continue
+    while IFS= read -r -d '' entry; do
+      if [ -d "$entry" ]; then
+        chmod 700 "$entry"
+      else
+        chmod 600 "$entry"
+      fi
+      CLOSED_COUNT=$((CLOSED_COUNT + 1))
+    done < <(find "$retention_dir" -perm /077 -print0)
+  done
+fi
+
 systemctl daemon-reload
 systemctl enable --now systemburo-backup.timer systemburo-backup-verify.timer
 
@@ -131,6 +157,9 @@ echo "Расписание установлено."
 echo "  копирование:  ежедневно в ${AT_TIME}, каталог ${BACKUP_DIR_VALUE}"
 echo "  проверка:     первого числа каждого месяца в 05:00"
 echo "  оператор:     ${OPERATOR_NOTE}"
+if [ "$CLOSED_COUNT" -gt 0 ]; then
+  echo "  выровнено:    закрыты права ${CLOSED_COUNT} записей в каталоге копий (были шире обещанного до этой установки)"
+fi
 echo
 echo "Ближайшие запуски:  systemctl list-timers 'systemburo-*'"
 echo "Журнал последнего:  journalctl -u systemburo-backup -n 50"

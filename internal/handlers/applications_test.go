@@ -80,6 +80,18 @@ func assignOrgUser(t *testing.T, db *gorm.DB, orgID, userID int, isPrimary bool)
 	require.NoError(t, err)
 }
 
+// assignOrgUserRequired добавляет пользователя в organization_users с признаком
+// обязательного согласующего - готовит сценарий #2037, где присланный запросом
+// required_approval не должен ни снимать, ни добавлять этот признак.
+func assignOrgUserRequired(t *testing.T, db *gorm.DB, orgID, userID int) {
+	t.Helper()
+	err := db.Exec(
+		"INSERT INTO organization_users (organization_id, user_id, is_primary, required_approval) VALUES (?, ?, false, true) ON CONFLICT DO NOTHING",
+		orgID, userID,
+	).Error
+	require.NoError(t, err)
+}
+
 // getUserID returns user.ID by username.
 func getUserID(t *testing.T, db *gorm.DB, username string) int {
 	t.Helper()
@@ -191,6 +203,101 @@ func TestSubmitCompleteApplication_AddsReaders(t *testing.T) {
 	var respCount int64
 	db.Raw("SELECT COUNT(*) FROM application_responsible_users WHERE application_id = ? AND user_id = ?", appID, readerID).Scan(&respCount)
 	assert.Zero(t, respCount, "читатель не должен попадать в ответственных/согласующих")
+}
+
+// TestSubmitCompleteApplication_RequiredApprovalFromOrgPersists закрепляет базовое
+// поведение (#2037): признак обязательного согласующего читается из organization_users
+// и переносится в application_responsible_users без участия required_users в запросе -
+// именно так подаёт форма-эталон, ничего не заявляя.
+func TestSubmitCompleteApplication_RequiredApprovalFromOrgPersists(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	senderToken := testutil.RegisterAndLogin(t, e, "reqsender", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.RegisterAndLogin(t, e, "reqapprover", "pass123", 1, td.OrgID, td.CompanyID)
+	approverID := getUserID(t, db, "reqapprover")
+	assignOrgUserRequired(t, db, td.OrgID, approverID)
+	uaID := seedUniqueAttachment(t, db, "cars", "cars_req", "Cars REQ")
+
+	body := fmt.Sprintf(`{
+		"message": "required approval from org",
+		"organization_id": %d,
+		"responsible_person": "Test Person",
+		"contact_phone": "+79001234567",
+		"data_approval": true,
+		"attachments": [{
+			"attachment_type": "cars",
+			"attachment_name": "cars_template",
+			"attachment_display_name": "Cars Template",
+			"unique_attachment_id": %d,
+			"entry_date_from": "2026-04-01",
+			"entry_date_to": "2099-12-31",
+			"entry_time_from": "08:00",
+			"entry_time_to": "18:00",
+			"data": { "vehicles": [{ "car_number": "A002AA777", "car_brand": "Toyota" }] }
+		}]
+	}`, td.OrgID, uaID)
+
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(senderToken))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
+
+	var required bool
+	require.NoError(t, db.Raw(
+		"SELECT required_approval FROM application_responsible_users WHERE application_id = ? AND user_id = ?",
+		appID, approverID).Scan(&required).Error)
+	assert.True(t, required, "признак обязательного согласующего из организации должен перейти в заявку")
+}
+
+// TestSubmitCompleteApplication_RequiredApprovalNotDowngradableByClient - дефект
+// #2037: заявитель не назначает согласующих сам, признак обязательности целиком
+// определяется составом организации. Присланный запросом required_approval: false
+// для уже обязательного согласующего не должен его снимать - до фикса строка
+// application_service.go затирала прочитанное из organization_users значение тем,
+// что прислал клиент.
+func TestSubmitCompleteApplication_RequiredApprovalNotDowngradableByClient(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	senderToken := testutil.RegisterAndLogin(t, e, "downsender", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.RegisterAndLogin(t, e, "downapprover", "pass123", 1, td.OrgID, td.CompanyID)
+	approverID := getUserID(t, db, "downapprover")
+	assignOrgUserRequired(t, db, td.OrgID, approverID)
+	uaID := seedUniqueAttachment(t, db, "cars", "cars_down", "Cars DOWN")
+
+	body := fmt.Sprintf(`{
+		"message": "required approval downgrade attempt",
+		"organization_id": %d,
+		"responsible_person": "Test Person",
+		"contact_phone": "+79001234567",
+		"data_approval": true,
+		"required_users": [{"user_id": %d, "required_approval": false}],
+		"attachments": [{
+			"attachment_type": "cars",
+			"attachment_name": "cars_template",
+			"attachment_display_name": "Cars Template",
+			"unique_attachment_id": %d,
+			"entry_date_from": "2026-04-01",
+			"entry_date_to": "2099-12-31",
+			"entry_time_from": "08:00",
+			"entry_time_to": "18:00",
+			"data": { "vehicles": [{ "car_number": "A003AA777", "car_brand": "Toyota" }] }
+		}]
+	}`, td.OrgID, approverID, uaID)
+
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(senderToken))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
+
+	var required bool
+	require.NoError(t, db.Raw(
+		"SELECT required_approval FROM application_responsible_users WHERE application_id = ? AND user_id = ?",
+		appID, approverID).Scan(&required).Error)
+	assert.True(t, required, "клиентский required_approval:false не должен снимать обязательность, назначенную в организации")
 }
 
 // --- 401 Unauthorized tests ---
