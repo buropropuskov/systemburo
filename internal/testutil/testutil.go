@@ -245,16 +245,27 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 
 	dbOnce.Do(func() {
 		db := initTestDB()
-		if err := database.AutoMigrate(db); err != nil {
-			log.Fatalf("AutoMigrate failed: %v", err)
-		}
-		// One-time TRUNCATE to clean leftover data from previous runs.
-		query := fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", strings.Join(tables, ", "))
-		if err := db.Exec(query).Error; err != nil {
-			log.Fatalf("initial truncate failed: %v", err)
-		}
-		if err := database.Seed(db); err != nil {
-			log.Fatalf("Seed failed: %v", err)
+		// sync.Once защищает только свой процесс, а `go test ./...` запускает
+		// пакеты параллельными бинарями по одной базе. Двое одновременных
+		// CREATE TABLE по одной таблице падают конфликтом системного индекса
+		// каталога PostgreSQL (#1974), и то же касается сидера: два пакета
+		// вставляли выдачи прав роли и ловили duplicate key. Замок делает
+		// подготовку базы тем, чем она и должна быть - разовой, а не гонкой.
+		if err := withPreparationLock(db, func() error {
+			if err := database.AutoMigrate(db); err != nil {
+				return fmt.Errorf("AutoMigrate failed: %w", err)
+			}
+			// One-time TRUNCATE to clean leftover data from previous runs.
+			query := fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", strings.Join(tables, ", "))
+			if err := db.Exec(query).Error; err != nil {
+				return fmt.Errorf("initial truncate failed: %w", err)
+			}
+			if err := database.Seed(db); err != nil {
+				return fmt.Errorf("Seed failed: %w", err)
+			}
+			return nil
+		}); err != nil {
+			log.Fatal(err)
 		}
 		if err := captureSeedSnapshot(db); err != nil {
 			log.Fatalf("seed snapshot failed: %v", err)
@@ -263,6 +274,15 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 	})
 
 	db := cachedDB
+
+	// Настройки возвращаются к посеянным ДО сборки сервисов. Служба настроек
+	// читает их в кэш процесса один раз, при создании, а CleanDB тест зовёт уже
+	// после SetupTestApp - и новая служба успевала прочитать то, что оставил
+	// предыдущий тест. Так проверка политики паролей, включённая в тесте
+	// настроек, роняла следующий тест на создании пользователя.
+	if err := restoreSeedTable(db, "system_settings"); err != nil {
+		t.Fatalf("восстановление настроек перед сборкой служб: %v", err)
+	}
 
 	// Create all services (same wiring as cmd/server/main.go)
 	userTypeService := services.NewUserTypeService(db)
@@ -703,6 +723,62 @@ func captureSeedSnapshot(db *gorm.DB) error {
 }
 
 // restoreSeedSnapshot возвращает справочники в состояние сразу после Seed.
+// preparationLockKey - произвольное, но постоянное число: замок общий для всех
+// тестовых бинарей, и совпадать он обязан только сам с собой.
+const preparationLockKey int64 = 774219740001
+
+// withPreparationLock выполняет fn под межпроцессным замком базы.
+//
+// Замок берётся на ОДНОМ соединении: pg_advisory_lock живёт в сеансе, а gorm
+// раздаёт соединения из пула, и освобождение с другого соединения молча не
+// сработало бы - замок висел бы до конца сеанса, а следующий бинарь ждал бы его
+// впустую. Отсюда явный conn вместо db.Exec.
+//
+// Ожидание не ограничено по времени намеренно: под замком идут миграция и сидер,
+// это секунды, а тайм-аут превратил бы редкую гонку в редкое падение с менее
+// понятной причиной.
+func withPreparationLock(db *gorm.DB, fn func() error) error {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("подключение для замка подготовки: %w", err)
+	}
+	ctx := context.Background()
+	conn, err := sqlDB.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("соединение для замка подготовки: %w", err)
+	}
+	defer conn.Close()
+
+	if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", preparationLockKey); err != nil {
+		return fmt.Errorf("взятие замка подготовки: %w", err)
+	}
+	defer func() {
+		if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", preparationLockKey); err != nil {
+			log.Printf("не удалось снять замок подготовки: %v", err)
+		}
+	}()
+
+	return fn()
+}
+
+// restoreSeedTable возвращает одну таблицу к состоянию после Seed. Нужна там, где
+// полное восстановление снимка избыточно и небезопасно: оно чистит всё подряд, а
+// здесь требуется вернуть только настройки.
+func restoreSeedTable(db *gorm.DB, table string) error {
+	for _, snap := range seedSnapshots {
+		if snap.table != table {
+			continue
+		}
+		stmt := "DELETE FROM " + snap.table +
+			"; INSERT INTO " + snap.table + " SELECT * FROM " + seedSnapshotSchema + "." + snap.table
+		if snap.seq != "" {
+			stmt += "; SELECT setval('" + snap.seq + "', COALESCE((SELECT max(id) FROM " + snap.table + "), 1))"
+		}
+		return db.Exec(stmt).Error
+	}
+	return nil
+}
+
 func restoreSeedSnapshot(db *gorm.DB) error {
 	if len(seedSnapshots) == 0 {
 		return nil

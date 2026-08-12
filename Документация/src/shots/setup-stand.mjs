@@ -572,8 +572,8 @@ async function ensurePendingApproval(apiBase, token, accounts) {
       password: accounts.password,
     }),
   );
-  const center = unwrap(await api(apiBase, session.token, 'GET', '/applications?filter_type=all&per_page=100'));
-  const rows = center?.applications ?? center?.items ?? (Array.isArray(center) ? center : []);
+  const center = unwrap(await api(apiBase, session.token, 'GET', '/applications?filter_type=all'));
+  const rows = Array.isArray(center) ? center : (center?.applications ?? center?.items ?? []);
   const waiting = rows.filter(
     (row) => row.confirmation === 'Согласование' && !ARCHIVED_STATUSES.has(row.status),
   );
@@ -667,10 +667,18 @@ function nearMissName(name) {
  * пометку, которую разбирает согласующий.
  */
 async function ensureBlacklistFlag(apiBase, token, accounts) {
-  const flagged = unwrap(await api(apiBase, token, 'GET', '/applications?filter_type=all&per_page=100'));
-  const rows = flagged?.applications ?? flagged?.items ?? (Array.isArray(flagged) ? flagged : []);
+  // Спрашиваем от имени согласующего: администратор в этих заявках не участвует и
+  // в его списке их нет, поэтому проверка по нему всегда считала бы, что заявок нет.
+  const approverSession = unwrap(
+    await api(apiBase, null, 'POST', '/login', {
+      username: accounts.roles.approver.username,
+      password: accounts.password,
+    }),
+  );
+  const flagged = unwrap(await api(apiBase, approverSession.token, 'GET', '/applications?filter_type=all'));
+  const rows = Array.isArray(flagged) ? flagged : (flagged?.applications ?? flagged?.items ?? []);
   const live = rows.filter(
-    (row) => row.confirmation === 'Согласование' && !ARCHIVED_STATUSES.has(row.status) && row.blacklist_matches > 0,
+    (row) => row.confirmation === 'Согласование' && !ARCHIVED_STATUSES.has(row.status) && row.blacklist_flags_count > 0,
   );
   if (live.length > 0) {
     console.log(`Чёрный список: заявок с неразобранной пометкой ${live.length} - подача не нужна`);

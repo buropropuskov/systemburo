@@ -24,6 +24,7 @@
 
 Код возврата 1, если найдено расхождение или потерян якорь.
 """
+import glob
 import os
 import re
 import subprocess
@@ -35,6 +36,8 @@ REPO = os.path.dirname(DOCS_DIR)
 
 OVERVIEW = "Техническое описание системы"
 DEPLOY = "Руководство по развёртыванию и сопровождению"
+ADMIN = "Руководство администратора"
+GUARD = "Руководство охранника"
 
 WORDS = {
     "один": 1, "два": 2, "три": 3, "четыре": 4, "пять": 5, "шесть": 6,
@@ -44,6 +47,8 @@ WORDS = {
     "девятнадцать": 19, "двадцать": 20,
     "одной": 1, "двух": 2, "трёх": 3, "четырёх": 4, "пяти": 5, "шести": 6,
     "семи": 7, "восьми": 8, "девяти": 9, "десяти": 10,
+    "тридцать": 30, "тридцати": 30, "сорок": 40, "сорока": 40,
+    "шестьдесят": 60, "шестидесяти": 60,
 }
 
 
@@ -129,6 +134,20 @@ def metrics():
         r"sed -n '/types := \[\]models.UserType{/,/^\t\t}/p' "
         r"internal/database/migrate.go | grep -c 'Code:'")
 
+    # Числа, которые живут сразу в нескольких местах и расходятся молча.
+    # Срок жизни вычисленного набора прав задан на сервере и повторён во фронте
+    # и в трёх окнах настройки прав; граница смены - в коде отчёта и в тексте
+    # руководства охранника. Ни то, ни другое не покрыто тестами.
+    m["perm_ttl_sec"] = count(
+        r"grep -o 'ttl: *[0-9]\+ \* time.Second' internal/services/"
+        r"permission_resolver.go | grep -o '[0-9]\+' | head -1")
+    m["shift_hour"] = count(
+        r"grep -o 'passReportBoundaryHour *= *[0-9]\+' internal/services/"
+        r"daily_pass_report_service.go | grep -o '[0-9]\+$'")
+    m["shift_minute"] = count(
+        r"grep -o 'passReportBoundaryMinute *= *[0-9]\+' internal/services/"
+        r"daily_pass_report_service.go | grep -o '[0-9]\+$'")
+
     m["code_files"] = count("%s | wc -l" % code)
     m["code_lines"] = count("%s | xargs cat 2>/dev/null | wc -l" % code)
     m["be_lines"] = count("find cmd internal -name '*.go' ! -name '*_test.go' "
@@ -175,6 +194,14 @@ def anchors(m):
          [m["e2e"], m["e2e_files"]]),
         (OVERVIEW, "14.1 всего тестов",
          r"\| Всего \| \| ([\d  ]+?) \|", [m["tests_total"]]),
+        # Число живёт в пяти местах сразу: TTL на сервере, кэш во фронте и три
+        # подписи в окнах настройки прав. Тест ни одно из них не связывает.
+        (ADMIN, "4.3 срок применения прав",
+         r"держат вычисленный набор до (\S+) секунд", [m["perm_ttl_sec"]]),
+        (ADMIN, "4.3 подпись в окнах прав",
+         r"Изменения вступят в силу в течение (\d+) секунд", [m["perm_ttl_sec"]]),
+        (GUARD, "2 граница смены",
+         r"Граница смены - (\d+):(\d+)", [m["shift_hour"], m["shift_minute"]]),
         (OVERVIEW, "15 файлов тестов на базе",
          r"\| Файлов бэкенд-тестов на настоящей базе \| (\d+) \|",
          [m["go_db_files"]]),
@@ -441,9 +468,6 @@ def env_defaults():
     with open(path, encoding="utf-8") as fh:
         body = fh.read()
     found = {}
-    # Цифра в имени - часть имени: ARGON2_HASH_CONCURRENCY при классе [A-Z_]
-    # обрывался на «ARGON», до закрывающей кавычки не доходил и молча выпадал из
-    # обеих проверок приложения Б - и полноты, и значений.
     for name, default in re.findall(
             r'env:"([A-Z0-9_]+)(?:,required)?"(?:\s+envDefault:"([^"]*)")?', body):
         found[name] = default
@@ -504,6 +528,41 @@ def check_env_completeness(text, problems):
             problems.append(
                 "%s, приложение Б: параметр %s задаётся в config.go, "
                 "но в документе не описан" % (DEPLOY, name))
+
+
+def check_scripts_completeness(text, problems):
+    """Каждый сценарий из scripts/ должен быть назван в руководстве.
+
+    Та же дыра, что была с параметрами: проверка шла от документа к коду и
+    видела только упомянутые файлы. Новый сценарий не двигал ни одного числа и
+    не менял ни одной описанной строки, поэтому три сценария проверки живости и
+    сборки поставки прожили в системе незамеченными до ручной сверки.
+    """
+    for path in sorted(glob.glob("scripts/*.sh")):
+        name = os.path.basename(path)
+        if name not in text:
+            problems.append(
+                "%s: сценарий scripts/%s есть в поставке, "
+                "но в документе не описан" % (DEPLOY, name))
+
+
+def check_make_completeness(text, problems):
+    """Цели make рабочего сервера должны быть названы в руководстве.
+
+    Проверяются цели deploy-*: это команды, которыми оператор ведёт рабочий
+    сервер, и незаписанная цель означает, что о ней не узнают.
+    """
+    try:
+        with open("Makefile", encoding="utf-8") as fh:
+            body = fh.read()
+    except OSError:
+        problems.append("%s: не найден Makefile" % DEPLOY)
+        return
+    for target in sorted(set(re.findall(r"^(deploy-[a-z-]+):", body, re.M))):
+        if target not in text:
+            problems.append(
+                "%s: цель make %s ведёт рабочий сервер, "
+                "но в документе не описана" % (DEPLOY, target))
 
 
 def check_db(text, problems):
@@ -707,7 +766,7 @@ def main():
             print("Ветка отстала от origin/dev: сначала влить dev, "
                   "иначе в документ уедут числа старого кода.")
             return 1
-        texts = {name: read_doc(name) for name in (OVERVIEW, DEPLOY)}
+        texts = {name: read_doc(name) for name in (OVERVIEW, DEPLOY, ADMIN, GUARD)}
         edits = apply_fix(texts, m)
         for name, text in texts.items():
             write_doc(name, text)
@@ -725,7 +784,7 @@ def main():
         print("ВНИМАНИЕ: ветка отстала от origin/dev, коммитов позади: %d. "
               "Сначала влить dev, иначе сверка идёт против старого кода." % lag)
 
-    texts = {name: read_doc(name) for name in (OVERVIEW, DEPLOY)}
+    texts = {name: read_doc(name) for name in (OVERVIEW, DEPLOY, ADMIN, GUARD)}
 
     for doc, label, pattern, expected in anchors(m):
         match = re.search(pattern, texts[doc])
@@ -753,6 +812,8 @@ def main():
     check_refs(texts, problems)
     check_env(texts[DEPLOY], problems)
     check_env_completeness(texts[DEPLOY], problems)
+    check_scripts_completeness(texts[DEPLOY], problems)
+    check_make_completeness(texts[DEPLOY], problems)
     check_db(texts[DEPLOY], problems)
     check_paths(texts[DEPLOY], problems)
     check_make_targets(problems)

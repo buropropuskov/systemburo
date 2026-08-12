@@ -584,7 +584,15 @@ export default {
                     if (errorText) {
                         try {
                             const errorData = JSON.parse(errorText);
-                            this.errors.general = errorData.message || errorData || "Произошла ошибка";
+                            // Тело ошибки приходит конвертом {success:false, error}. Читали
+                            // только message - его в конверте нет, и на месте текста
+                            // оказывался сам объект, то есть "[object Object]" на экране.
+                            // Форму берём сырую: тут response.text(), а разворачивает конверт
+                            // client.js только у response.json().
+                            const message = typeof errorData === 'string'
+                                ? errorData
+                                : errorData?.error || errorData?.message;
+                            this.errors.general = message || "Произошла ошибка";
                         } catch {
                             this.errors.general = errorText || "Произошла ошибка";
                         }
