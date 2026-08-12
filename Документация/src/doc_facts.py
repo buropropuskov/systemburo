@@ -240,6 +240,8 @@ def inventories():
                 "startRetentionWorker": "Уборка технического мусора",
                 "startFileArchiveWorker": "Выгрузка бланков в файловый архив",
                 "startApplicationFileSweeper": "Уборка неотправленных файлов заявок",
+                "startMailWorker": "Разбор очереди писем",
+                "startPasswordRotationScheduler": "Проверка сроков действия паролей",
             },
         },
         {
