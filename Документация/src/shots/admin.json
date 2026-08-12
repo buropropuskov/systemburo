@@ -1,0 +1,851 @@
+{
+  "comment": "Кадры руководства администратора. Снимаются под учётной записью с признаком администратора (не супер-администратора): у супер-администратора состав разделов и тумблеров другой.",
+  "role": "admin",
+  "shots": [
+    {
+      "id": "admin-nav",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"nav-link-admin\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"nav-link-admin\"]"
+        },
+        {
+          "wait": "[data-testid=\"ob-admin-groups\"]"
+        }
+      ],
+      "clip": {
+        "selector": ".admin-column",
+        "pad": {
+          "x": 420,
+          "y": 50
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"ob-admin-search\"]",
+          "badge": 3
+        },
+        {
+          "selector": "[data-testid=\"ob-admin-groups\"]",
+          "badge": 4,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "admin-users-list",
+      "goto": "/admin/users",
+      "waitFor": "[data-testid=\"ob-users-list\"]",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"users-online-count\"]",
+          "badge": 1
+        },
+        {
+          "selector": ".archive-dropdown",
+          "badge": 2
+        },
+        {
+          "selector": ".header-controls .search-component, .header-controls input",
+          "badge": 3
+        },
+        {
+          "selector": "[data-testid=\"ob-users-create\"]",
+          "badge": 4
+        }
+      ]
+    },
+    {
+      "id": "admin-user-create",
+      "goto": "/admin/users",
+      "waitFor": "[data-testid=\"ob-users-create\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"ob-users-create\"]"
+        },
+        {
+          "wait": ".user-create-modal"
+        }
+      ],
+      "clip": {
+        "selector": ".user-create-modal",
+        "pad": 40
+      },
+      "highlight": [
+        {
+          "selector": ".user-create-modal .input-group",
+          "nth": 0,
+          "badge": 1
+        },
+        {
+          "selector": ".user-create-modal .input-group",
+          "nth": 1,
+          "badge": 2
+        }
+      ]
+    },
+    {
+      "id": "admin-users-bulk",
+      "goto": "/admin/users",
+      "waitFor": "[data-testid=\"ob-users-list\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"users-row-check\"] >> nth=0"
+        },
+        {
+          "click": "[data-testid=\"users-row-check\"] >> nth=1"
+        },
+        {
+          "wait": "[data-testid=\"users-bulk-bar\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"users-bulk-bar\"]",
+        "pad": {
+          "x": 90,
+          "y": 70
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"users-bulk-type\"]",
+          "badge": 2
+        },
+        {
+          "selector": "[data-testid=\"users-bulk-clear\"]",
+          "badge": 3
+        }
+      ]
+    },
+    {
+      "id": "admin-roles-list",
+      "goto": "/admin/roles",
+      "waitFor": "[data-testid=\"ob-admin-roles\"]",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"role-add-btn\"]",
+          "badge": 2
+        },
+        {
+          "selector": ".table-section",
+          "badge": 3,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "admin-groups-list",
+      "goto": "/admin/permission-groups",
+      "waitFor": "[data-testid=\"ob-admin-permission-groups\"]",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"group-add-btn\"]",
+          "badge": 2
+        },
+        {
+          "selector": ".table-section",
+          "badge": 3,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "admin-denials",
+      "goto": "/admin/access-denials",
+      "waitFor": ".denials",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": ".toggle-row",
+          "badge": 1,
+          "badgeInside": true
+        },
+        {
+          "selector": ".filters",
+          "badge": 2,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "admin-user-card",
+      "goto": "/admin/users",
+      "waitFor": "[data-testid=\"ob-users-list\"]",
+      "prepare": [
+        {
+          "fill": [
+            ".header-controls input",
+            "manager32810"
+          ]
+        },
+        {
+          "wait": ".user-item"
+        },
+        {
+          "click": ".user-item",
+          "nth": 0
+        },
+        {
+          "wait": ".user-edit-modal"
+        }
+      ],
+      "clip": {
+        "selector": ".user-edit-modal",
+        "pad": 40
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"user-access\"]",
+          "badge": 4
+        }
+      ]
+    },
+    {
+      "id": "admin-perms-tree",
+      "goto": "/admin/users",
+      "waitFor": "[data-testid=\"ob-users-list\"]",
+      "prepare": [
+        {
+          "fill": [
+            ".header-controls input",
+            "manager32810"
+          ]
+        },
+        {
+          "wait": ".user-item"
+        },
+        {
+          "click": ".user-item",
+          "nth": 0
+        },
+        {
+          "wait": ".user-edit-modal"
+        },
+        {
+          "click": "[data-testid=\"user-access\"]"
+        },
+        {
+          "wait": "[data-testid=\"user-access-modal\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"user-access-modal\"]",
+        "pad": 40
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"admin-toggle\"]",
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"user-permissions-search\"]",
+          "badge": 2
+        }
+      ]
+    },
+    {
+      "id": "admin-role-card",
+      "goto": "/admin/roles",
+      "waitFor": "[data-testid=\"ob-admin-roles\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"role-row\"]",
+          "nth": 0
+        },
+        {
+          "wait": ".details-section"
+        }
+      ],
+      "clip": {
+        "selector": ".details-section",
+        "pad": {
+          "x": 90,
+          "y": 60
+        }
+      },
+      "highlight": [
+        {
+          "selector": ".details-body .lk-input",
+          "nth": 0,
+          "badge": 1
+        },
+        {
+          "selector": ".details-body .lk-input",
+          "nth": 1,
+          "badge": 2
+        },
+        {
+          "selector": ".details-body .lk-textarea",
+          "badge": 3
+        },
+        {
+          "selector": ".manage-perms-btn",
+          "badge": 4
+        }
+      ]
+    },
+    {
+      "id": "admin-orgs-list",
+      "goto": "/admin/organizations",
+      "waitFor": "[data-testid=\"orgs-row\"]",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": ".management-title",
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"orgs-list-mode\"]",
+          "badge": 2
+        },
+        {
+          "selector": "[data-testid=\"orgs-type-filter\"]",
+          "badge": 3
+        },
+        {
+          "selector": ".header-controls input",
+          "badge": 4
+        },
+        {
+          "selector": "[data-testid=\"orgs-add-btn\"]",
+          "badge": 5
+        }
+      ]
+    },
+    {
+      "id": "admin-org-card",
+      "goto": "/admin/organizations",
+      "waitFor": "[data-testid=\"orgs-row\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"orgs-row\"]",
+          "nth": 1
+        },
+        {
+          "wait": ".details-column"
+        }
+      ],
+      "clip": {
+        "selector": ".details-column",
+        "pad": {
+          "x": 90,
+          "y": 60
+        }
+      },
+      "highlight": [
+        {
+          "selector": ".details-column .card",
+          "nth": 0,
+          "badge": 1,
+          "badgeInside": true
+        },
+        {
+          "selector": ".details-column .card",
+          "nth": 1,
+          "badge": 2,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "admin-blacklist",
+      "goto": "/admin/blacklist",
+      "waitFor": "[data-testid=\"filter-tab-vehicles\"]",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"filter-tab-vehicles\"]",
+          "badge": 1
+        }
+      ]
+    },
+    {
+      "id": "admin-attach-list",
+      "goto": "/admin/attachment-types",
+      "waitFor": "[data-testid=\"attachment-row\"]",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": ".archive-dropdown",
+          "badge": 1
+        },
+        {
+          "selector": ".header-controls .search-component, .header-controls input",
+          "badge": 2
+        },
+        {
+          "selector": "[data-testid=\"attachment-add-btn\"]",
+          "badge": 3
+        },
+        {
+          "selector": ".table-footer .items-count",
+          "badge": 4
+        }
+      ]
+    },
+    {
+      "id": "admin-attach-card",
+      "goto": "/admin/attachment-types",
+      "waitFor": "[data-testid=\"attachment-row\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"attachment-row\"] >> nth=0"
+        },
+        {
+          "wait": "[data-testid=\"attachment-details\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"attachment-details\"]",
+        "pad": {
+          "x": 70,
+          "y": 50
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"attachment-detail-name\"]",
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"attachment-detail-system-name\"]",
+          "badge": 2
+        },
+        {
+          "selector": "[data-testid=\"attachment-detail-title\"]",
+          "badge": 3
+        },
+        {
+          "selector": ".type-dropdown",
+          "badge": 4
+        },
+        {
+          "selector": "[data-testid=\"attachment-auto-export\"]",
+          "badge": 5
+        }
+      ]
+    },
+    {
+      "id": "admin-attach-fields",
+      "goto": "/admin/attachment-types",
+      "waitFor": "[data-testid=\"attachment-row\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"attachment-row\"] >> nth=0"
+        },
+        {
+          "wait": "[data-testid=\"attachment-details\"]"
+        },
+        {
+          "click": "[data-testid=\"attachment-fields-btn\"]"
+        },
+        {
+          "wait": "[data-testid=\"attachment-fields-modal\"] .matrix"
+        }
+      ],
+      "clip": {
+        "selector": ".fields-modal",
+        "pad": 40
+      },
+      "highlight": [
+        {
+          "selector": ".gcard",
+          "nth": 0,
+          "badge": 1,
+          "badgeInside": true
+        },
+        {
+          "selector": ".custom-card",
+          "badge": 2,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "admin-attach-blank",
+      "goto": "/admin/attachment-types",
+      "waitFor": "[data-testid=\"attachment-row\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"attachment-row\"] >> nth=0"
+        },
+        {
+          "wait": "[data-testid=\"attachment-details\"]"
+        },
+        {
+          "click": "[data-testid=\"attachment-template-btn\"]"
+        },
+        {
+          "wait": ".te-field-picker"
+        }
+      ],
+      "clip": {
+        "selector": ".te-modal-rounded",
+        "pad": 30
+      },
+      "highlight": [
+        {
+          "selector": ".te-preview-panel",
+          "badge": 1,
+          "badgeInside": true
+        },
+        {
+          "selector": ".te-field-picker",
+          "badge": 2,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "admin-tables-list",
+      "goto": "/table-constructor",
+      "waitFor": ".table-row",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": ".archive-dropdown",
+          "badge": 1
+        },
+        {
+          "selector": ".header-controls .search-component, .header-controls input",
+          "badge": 2
+        },
+        {
+          "selector": ".add-header-button",
+          "badge": 3
+        },
+        {
+          "selector": ".table-col.status-col",
+          "nth": 0,
+          "badge": 4
+        }
+      ]
+    },
+    {
+      "id": "admin-tables-create",
+      "goto": "/table-constructor",
+      "waitFor": ".add-header-button",
+      "prepare": [
+        {
+          "click": ".add-header-button"
+        },
+        {
+          "wait": ".modal-content.horizontal-modal"
+        }
+      ],
+      "clip": {
+        "selector": ".modal-content.horizontal-modal",
+        "pad": 40
+      },
+      "highlight": [
+        {
+          "selector": ".form-group-compact",
+          "nth": 0,
+          "badge": 1
+        },
+        {
+          "selector": ".form-group-compact",
+          "nth": 1,
+          "badge": 2
+        },
+        {
+          "selector": ".form-group-compact",
+          "nth": 2,
+          "badge": 3
+        }
+      ]
+    },
+    {
+      "id": "admin-tables-main",
+      "goto": "/table-constructor",
+      "waitFor": ".table-row",
+      "prepare": [
+        {
+          "click": ".table-row >> nth=0"
+        },
+        {
+          "wait": ".details-tabs"
+        }
+      ],
+      "clip": {
+        "selector": ".details-section",
+        "pad": {
+          "x": 70,
+          "y": 50
+        }
+      },
+      "highlight": [
+        {
+          "selector": ".details-tabs__row",
+          "nth": 0,
+          "badge": 1,
+          "badgeInside": true
+        },
+        {
+          "selector": ".details-tabs__row--fact",
+          "badge": 2,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "admin-tables-columns",
+      "goto": "/table-constructor",
+      "waitFor": ".table-row",
+      "prepare": [
+        {
+          "click": ".table-row >> nth=0"
+        },
+        {
+          "wait": ".details-tabs"
+        },
+        {
+          "click": ".details-tabs__row >> nth=0 >> .tab-btn >> nth=4"
+        },
+        {
+          "wait": ".tab-content"
+        }
+      ],
+      "clip": {
+        "selector": ".details-section",
+        "pad": {
+          "x": 70,
+          "y": 50
+        }
+      },
+      "highlight": []
+    },
+    {
+      "id": "admin-settings-sections",
+      "goto": "/admin/settings",
+      "waitFor": ".settings-section",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": ".admin-settings__sidebar",
+          "badge": 1,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "admin-settings-password",
+      "goto": "/admin/settings",
+      "waitFor": ".settings-section",
+      "prepare": [
+        {
+          "click": ".sidebar-item >> nth=3"
+        },
+        {
+          "wait": "[data-testid=\"rotation-status\"]"
+        }
+      ],
+      "clip": {
+        "selector": "#pw-min-length",
+        "pad": {
+          "x": 260,
+          "y": 90
+        }
+      },
+      "highlight": [
+        {
+          "selector": "#pw-min-length"
+        },
+        {
+          "selector": ".settings-section .switch",
+          "nth": 0,
+          "badge": 1
+        },
+        {
+          "selector": ".settings-section .switch",
+          "nth": 4,
+          "badge": 2
+        }
+      ]
+    },
+    {
+      "id": "admin-settings-rotation",
+      "goto": "/admin/settings",
+      "waitFor": ".settings-section",
+      "viewport": {
+        "height": 1150
+      },
+      "prepare": [
+        {
+          "click": ".sidebar-item >> nth=3"
+        },
+        {
+          "wait": "[data-testid=\"rotation-status\"]"
+        },
+        {
+          "scrollTo": "#pw-rotation-notify"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"rotation-status\"]",
+        "pad": {
+          "x": 110,
+          "y": 60
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"rotation-toggle\"]",
+          "badge": 1
+        },
+        {
+          "selector": "#pw-rotation-days",
+          "badge": 2
+        }
+      ]
+    },
+    {
+      "id": "admin-consent",
+      "goto": "/admin/data-processing",
+      "waitFor": "[data-testid=\"pdc-required-switch\"]",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"pdc-required-switch\"]",
+          "badge": 1
+        }
+      ]
+    },
+    {
+      "id": "admin-consent-registry",
+      "goto": "/admin/data-processing",
+      "waitFor": "[data-testid=\"pdc-collection\"]",
+      "clip": {
+        "selector": "[data-testid=\"pdc-collection\"]",
+        "pad": {
+          "x": 120,
+          "y": 70
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"pdc-collection-counts\"]",
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"pdc-pending-search\"]",
+          "badge": 2
+        }
+      ],
+      "viewport": {
+        "height": 1150
+      },
+      "prepare": [
+        {
+          "scrollTo": "[data-testid=\"pdc-collection\"]"
+        }
+      ]
+    },
+    {
+      "id": "admin-feedback",
+      "goto": "/admin/feedback",
+      "waitFor": "[data-testid=\"fb-row\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"fb-row\"] >> nth=0"
+        },
+        {
+          "wait": "[data-testid=\"fb-detail\"]"
+        }
+      ],
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"fb-reply\"]",
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"fb-resolve\"]",
+          "badge": 2
+        }
+      ]
+    },
+    {
+      "id": "admin-analytics-dashboard",
+      "goto": "/analytics",
+      "waitFor": ".statistics__tabs",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": ".period-presets",
+          "badge": 1
+        },
+        {
+          "selector": ".statistics__tabs",
+          "badge": 2,
+          "badgeInside": true
+        }
+      ]
+    },
+    {
+      "id": "admin-analytics-processing",
+      "goto": "/analytics",
+      "waitFor": ".statistics__tabs",
+      "prepare": [
+        {
+          "click": ".period-preset >> nth=3"
+        },
+        {
+          "click": ".statistics__tab >> nth=1"
+        },
+        {
+          "wait": ".statistics__panel"
+        }
+      ],
+      "clip": {
+        "full": true
+      },
+      "highlight": []
+    },
+    {
+      "id": "admin-analytics-reports",
+      "goto": "/analytics",
+      "waitFor": ".statistics__tabs",
+      "prepare": [
+        {
+          "click": ".statistics__tab >> nth=2"
+        },
+        {
+          "wait": ".statistics__panel"
+        }
+      ],
+      "clip": {
+        "full": true
+      },
+      "highlight": []
+    }
+  ]
+}

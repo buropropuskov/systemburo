@@ -1,0 +1,220 @@
+{
+  "comment": "Кадры руководства охранника. Роль - работник поста, тип учётной записи security, права на четыре таблицы стенда, см. accounts.json.",
+  "role": "guard",
+  "shots": [
+    {
+      "id": "guard-menu",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"ob-nav-rail\"]",
+      "prepare": [
+        {
+          "hover": "[data-testid=\"ob-nav-rail\"]"
+        },
+        {
+          "wait": "[data-testid=\"nav-link-tables\"]"
+        },
+        {
+          "click": "[data-testid=\"nav-link-tables\"]"
+        },
+        {
+          "wait": "[data-testid=\"nav-tables-list\"]"
+        }
+      ],
+      "clip": {
+        "selector": "[data-testid=\"ob-nav-rail\"]",
+        "pad": {
+          "x": 640,
+          "y": 20
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"nav-tables-list\"]",
+          "badge": 1
+        }
+      ]
+    },
+    {
+      "id": "guard-table-cars",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"cars-table\"]",
+      "clip": {
+        "full": true
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"ob-table-instruction\"]",
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"fact-table\"]",
+          "badge": 2,
+          "badgeInside": true
+        },
+        {
+          "selector": "[data-testid=\"cars-table\"]",
+          "badge": 3,
+          "badgeInside": true,
+          "inset": true
+        }
+      ]
+    },
+    {
+      "id": "guard-filters",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"cars-table\"]",
+      "clip": {
+        "selector": "[data-testid=\"table-sheet-org\"]",
+        "pad": {
+          "x": 220,
+          "y": 60
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"table-sheet-org\"]",
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"table-sheet-place\"]",
+          "badge": 2
+        },
+        {
+          "selector": "[data-testid=\"pass-report-button\"]",
+          "badge": 3
+        }
+      ]
+    },
+    {
+      "id": "guard-instruction",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"ob-table-instruction\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"ob-table-instruction\"]"
+        },
+        {
+          "wait": ".instruction-modal-large"
+        }
+      ],
+      "clip": {
+        "selector": ".instruction-modal-large",
+        "pad": 40
+      },
+      "highlight": []
+    },
+    {
+      "id": "guard-report",
+      "goto": "/table/checkpoint-main",
+      "waitFor": "[data-testid=\"pass-report-button\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"pass-report-button\"]"
+        },
+        {
+          "wait": ".pass-report-modal"
+        }
+      ],
+      "clip": {
+        "selector": ".pass-report-modal",
+        "pad": 40
+      },
+      "highlight": []
+    },
+    {
+      "id": "guard-table-people",
+      "goto": "/table/checkpoint-main",
+      "waitFor": "[data-testid=\"people-table\"]",
+      "clip": {
+        "selector": "[data-testid=\"people-table\"]",
+        "pad": {
+          "x": 110,
+          "y": 40
+        }
+      },
+      "highlight": [
+        {
+          "selector": ".entry-btn",
+          "nth": 0,
+          "badge": 1
+        },
+        {
+          "selector": ".exit-btn",
+          "nth": 0
+        }
+      ]
+    },
+    {
+      "id": "guard-accessible",
+      "goto": "/accessible-attachments",
+      "waitFor": "body",
+      "clip": {
+        "full": true
+      },
+      "highlight": []
+    },
+    {
+      "id": "guard-pass-row",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"ob-pass-row\"]",
+      "clip": {
+        "selector": "[data-testid=\"ob-pass-row\"]",
+        "pad": {
+          "x": 110,
+          "y": 120
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"ob-pass-entry\"]",
+          "badge": 1
+        },
+        {
+          "selector": "[data-testid=\"ob-pass-exit\"]"
+        }
+      ]
+    },
+    {
+      "id": "guard-card",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"ob-pass-row\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"ob-pass-row\"] .item-data > div",
+          "nth": 3
+        },
+        {
+          "wait": ".main-modal"
+        }
+      ],
+      "clip": {
+        "selector": ".details-section",
+        "nth": 0,
+        "pad": {
+          "x": 40,
+          "y": 130
+        }
+      },
+      "highlight": []
+    },
+    {
+      "id": "guard-export",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"cars-table\"]",
+      "prepare": [
+        {
+          "click": ".options__export",
+          "nth": 0
+        },
+        {
+          "wait": ".modal-overlay .modal, .base-modal"
+        }
+      ],
+      "clip": {
+        "selector": ".modal-overlay .modal, .base-modal",
+        "pad": 40
+      },
+      "highlight": []
+    }
+  ]
+}

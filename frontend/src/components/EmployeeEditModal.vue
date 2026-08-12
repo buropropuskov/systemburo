@@ -846,13 +846,21 @@ export default {
     flex: 1;
 }
 
+/*
+ * Заголовки полей - только подпись над контролом. Раньше они стояли в одной
+ * группе селекторов с .name__input (список кончался запятой, а следом шла
+ * пустая строка), поэтому получали высоту 40px, рамку и скругление: над каждым
+ * полем рисовался пустой прямоугольник, и форма выглядела задвоенной.
+ */
 .completion__last-name-header,
 .completion__first-name-header,
 .completion__middle-name-header,
 .completion__position-header,
 .completion__passport-header,
 .completion__patent-header,
-.completion__permission-header,
+.completion__permission-header {
+    margin-bottom: 5px;
+}
 
 .name__input {
     width: 100%;

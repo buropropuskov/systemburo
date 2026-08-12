@@ -102,6 +102,29 @@ MAP = [
      "Техописание", "7.1 сквозной поиск: состав разделов и распознаваемые совпадения"),
     (r"^internal/services/report_|^internal/services/processing_",
      "Критерии", "4 показатели: метрики и разрезы"),
+    # --- ролевые руководства -------------------------------------------------
+    # Разделы здесь названы словами, а не номерами: руководства пишутся
+    # срезами, и номера разделов до конца работы над документом плавают.
+    # Приведём к номерам, когда комплект будет собран целиком.
+    (r"^frontend/src/components/CreateApplication/",
+     "Руководство пользователя", "оформление и подача заявки: поля форм вложений"),
+    (r"^frontend/src/components/(AccountComponent|UserApplications)\.vue$|"
+     r"^frontend/src/views/(CarsView|EmployeeView|NewsAndReview|"
+     r"NotificationSettingsView)\.vue$",
+     "Руководство пользователя",
+     "личный кабинет, свои справочники, обзор и новости, настройка уведомлений"),
+    (r"^frontend/src/components/ApplicationDetail/",
+     "Согласующий и принимающий", "карточка заявки: состав, решения, вопросы"),
+    (r"^frontend/src/views/AccessibleAttachmentsView\.vue$|"
+     r"^frontend/src/components/(TablesComponent|FactTable|PeopleTable|CarsTable|"
+     r"PassReportModal|FactPassModal)\.vue$",
+     "Руководство охранника",
+     "доступные мне, таблицы поста, отметка прохода, отчёт по смене"),
+    (r"^frontend/src/views/admin/|^frontend/src/views/AdminSettings\.vue$|"
+     r"^frontend/src/components/(UserControl|TableConstructor|NewsManagement|"
+     r"DocumentsManagement|UserTypes|ApplicationApprovers)\.vue$",
+     "Руководство администратора",
+     "разделы администрирования: учётные записи, права, справочники, настройки"),
     (r"^internal/realtime/|^internal/handlers/events\.go$", "Техописание",
      "12 обновление без перезагрузки"),
     (r"^internal/upload/", "Техописание", "13.4 загрузка файлов"),
@@ -135,6 +158,11 @@ MAP = [
      "приложение В"),
     (r"^internal/services/login_guard", "Оба",
      "13.1 проверка подлинности: пороги и сроки блокировки; приложение Б"),
+    # Наполнение стенда вымышленными данными: раздел 8.4 описывает и команды, и вид
+    # их вывода, и объём заготовок. Правило появилось задним числом - правки наливки
+    # не поднимали тревогу вовсе, и вывод команды разошёлся с описанным.
+    (r"^cmd/server/fake\.go$|^internal/fakedata/", "Руководство",
+     "8.4 наполнение стенда вымышленными данными"),
     (r"^internal/blankpath/", "Оба",
      "6.1 раскладка файлов архива; руководство 9.6 шаблоны и плейсхолдеры"),
     (r"^internal/(services|handlers)/maintenance|"
