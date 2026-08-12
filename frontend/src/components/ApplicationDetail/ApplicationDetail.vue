@@ -715,6 +715,10 @@ import EmployeeDetailsModal from '../CreateApplication/EmployeeDetailsModal.vue'
 import Badge from '@/components/ui/Badge.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import { sanitizeHtml } from '@/utils/sanitize'
+import { setModalOpen, releaseModal, isTopModal } from '@/utils/modalStack'
+
+/** Слой панели заявки - то же значение, что у неё в стилях (.application-detail). */
+const DETAIL_STACK_LAYER = 10002
 import ApplicationMessageModal from './ApplicationMessageModal.vue'
 import ApplicationParticipantsModal from './ApplicationParticipantsModal.vue'
 import ApplicationParticipantCard from './ApplicationParticipantCard.vue'
@@ -1165,6 +1169,11 @@ export default {
         // Real-time (#840 V4): подписка на изменения открытой заявки (сам scope
         // ставится в watch application по её id). connect - refcount'ный.
         eventStream.connect();
+        // Панель заявки закрывается по Escape наравне с окнами. В общей стопке она
+        // стоит своим слоем: пока поверх открыто окно (получатели, карточка участника,
+        // пересылка), Escape закрывает его, а до панели доходит, когда она верхняя.
+        setModalOpen(this, true, DETAIL_STACK_LAYER);
+        document.addEventListener('keydown', this.handleDetailEscape);
     },
     beforeUnmount() {
         if (this.eventStreamOff) {
@@ -1172,10 +1181,22 @@ export default {
             this.eventStreamOff = null;
         }
         eventStream.disconnect();
+        document.removeEventListener('keydown', this.handleDetailEscape);
+        releaseModal(this);
     },
     methods: {
         can(key) {
             return this.permissionsStore.hasPermission(key);
+        },
+
+        /**
+         * Escape закрывает панель заявки, если поверх неё ничего не открыто.
+         * @param {KeyboardEvent} e
+         */
+        handleDetailEscape(e) {
+            if (e.key !== 'Escape') return;
+            if (!isTopModal(this)) return;
+            this.$emit('close');
         },
 
         /**
