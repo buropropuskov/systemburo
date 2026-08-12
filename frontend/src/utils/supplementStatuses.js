@@ -8,6 +8,8 @@
  * перестаёт, а в другом нет. Поэтому значения живут здесь одним списком.
  */
 
+import { COUNT_NOUNS, pluralRu } from './entityCount';
+
 /** Дополнение влито в текущий круг согласования: отдельного раунда у него нет. */
 export const SUPPLEMENT_MERGED = 'merged';
 /** Раунд ждёт голосов согласующих. */
@@ -96,21 +98,6 @@ export function isOpenSupplement(status) {
   return SUPPLEMENT_OPEN_STATUSES.includes(status);
 }
 
-const COUNT_NOUNS = {
-  vehicles: ['машина', 'машины', 'машин'],
-  employees: ['сотрудник', 'сотрудника', 'сотрудников'],
-  items: ['позиция ТМЦ', 'позиции ТМЦ', 'позиций ТМЦ'],
-};
-
-/** Русское склонение по числу: 1 машина, 2-4 машины, 5+ машин (11-14 - третья форма). */
-function plural(count, forms) {
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-  if (mod10 === 1 && mod100 !== 11) return forms[0];
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return forms[1];
-  return forms[2];
-}
-
 /**
  * Состав раунда одной строкой: «2 машины, 1 сотрудник». Нулевые типы опускаем -
  * «0 машин» в перечислении добавленного не несёт смысла.
@@ -121,6 +108,6 @@ export function supplementCountsLabel(counts) {
   return Object.entries(COUNT_NOUNS)
     .map(([key, forms]) => [Number(counts?.[key]) || 0, forms])
     .filter(([count]) => count > 0)
-    .map(([count, forms]) => `${count} ${plural(count, forms)}`)
+    .map(([count, forms]) => `${count} ${pluralRu(count, forms)}`)
     .join(', ');
 }
