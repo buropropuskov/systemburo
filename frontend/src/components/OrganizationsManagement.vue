@@ -327,6 +327,7 @@
                 class="archive-badge"
               >В архиве</span>
               <button
+                v-if="canViewHistory"
                 class="pill pill-ghost"
                 data-testid="orgs-history"
                 @click="openHistory(selectedOrganization)"
@@ -848,6 +849,11 @@ export default {
     // directories-админ без page.admin видит блокеров, но переносить не может
     // (иначе «видно, но 403», уроки #976/#1083).
     canReassign() {
+      return usePermissionsStore().hasPermission('page.admin');
+    },
+    // История организации тоже под page.admin, а список организаций открыт любому,
+    // кто вошёл в раздел справочников. Без гейта окно истории открывалось бы пустым.
+    canViewHistory() {
       return usePermissionsStore().hasPermission('page.admin');
     },
     // Архивный режим - производная от режима списка: наборы групповых операций и

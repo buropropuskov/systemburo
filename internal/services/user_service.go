@@ -31,9 +31,13 @@ type UserService interface {
 	// UpdatePassword обновляет пароль пользователя. meta (адрес, клиент) идёт в
 	// историю входов и может быть nil там, где http-контекста нет.
 	UpdatePassword(ctx context.Context, callerUserID int, username string, req models.UpdatePasswordRequest, meta *RequestMeta) error
+	// UpdatePasswordKeepingSession - то же, но сохраняет одну сессию: ту, из
+	// которой человек сам сменил пароль. keepRefreshToken - её маркер продления
+	// из cookie; пустая строка означает «отозвать все».
+	UpdatePasswordKeepingSession(ctx context.Context, callerUserID int, username string, req models.UpdatePasswordRequest, meta *RequestMeta, keepRefreshToken string) error
 	// ChangeOwnPassword меняет пароль ТЕКУЩЕГО пользователя по подтверждению
 	// текущим паролем. Единственный путь смены пароля без права page.admin.users.
-	ChangeOwnPassword(ctx context.Context, userID int, req models.ChangeOwnPasswordRequest, meta *RequestMeta) error
+	ChangeOwnPassword(ctx context.Context, userID int, req models.ChangeOwnPasswordRequest, meta *RequestMeta, keepRefreshToken string) error
 	// UpdateInfo обновляет ФИО, должность, email и телефон пользователя.
 	UpdateInfo(ctx context.Context, callerUserID int, username string, req models.UpdateUserInfoRequest) error
 	// UpdateOrganization обновляет организацию пользователя.
@@ -401,6 +405,17 @@ func (s *userService) UpdateType(ctx context.Context, callerUserID int, username
 // После смены пароля все refresh_tokens юзера отзываются - иначе старые
 // сессии (возможно скомпрометированные) продолжили бы жить до истечения TTL.
 func (s *userService) UpdatePassword(ctx context.Context, callerUserID int, username string, req models.UpdatePasswordRequest, meta *RequestMeta) error {
+	return s.UpdatePasswordKeepingSession(ctx, callerUserID, username, req, meta, "")
+}
+
+// UpdatePasswordKeepingSession меняет пароль, оставляя живой одну сессию.
+//
+// Человек, сменивший пароль сам, не должен вылетать из системы: он только что
+// подтвердил, что это он, и выкидывать его на форму входа - раздражение без
+// выигрыша в безопасности. Все остальные сессии гаснут, поэтому угнанная на
+// другом устройстве умирает, как и раньше. Так это устроено в системах, где
+// смена пароля - обычное действие, а не аварийная процедура.
+func (s *userService) UpdatePasswordKeepingSession(ctx context.Context, callerUserID int, username string, req models.UpdatePasswordRequest, meta *RequestMeta, keepRefreshToken string) error {
 	if err := ValidatePassword(s.passwordPolicy(), req.Password); err != nil {
 		return err
 	}
@@ -427,10 +442,15 @@ func (s *userService) UpdatePassword(ctx context.Context, callerUserID int, user
 	// сессий - это ок.
 	var user models.User
 	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error; err == nil {
-		s.db.WithContext(ctx).
+		revoke := s.db.WithContext(ctx).
 			Model(&models.RefreshToken{}).
-			Where("user_id = ? AND is_revoked = false", user.ID).
-			Update("is_revoked", true)
+			Where("user_id = ? AND is_revoked = false", user.ID)
+		if keepRefreshToken != "" {
+			// Сессию, из которой шла смена, оставляем живой - её владелец только
+			// что подтвердил личность текущим паролем.
+			revoke = revoke.Where("token_hash <> ?", hashRefreshToken(keepRefreshToken))
+		}
+		revoke.Update("is_revoked", true)
 
 		// Аудит: факт сброса пароля без значения.
 		s.recorder.Log(ctx, nil, models.AuditEntityUser, &user.ID, models.UserActionPasswordReset, &callerUserID, nil)
@@ -458,7 +478,7 @@ func (s *userService) UpdatePassword(ctx context.Context, callerUserID int, user
 // захват учётной записи. Дальше переиспользует UpdatePassword - отзыв сессий,
 // аудит и уведомление там уже написаны и должны работать одинаково независимо
 // от того, кто менял пароль.
-func (s *userService) ChangeOwnPassword(ctx context.Context, userID int, req models.ChangeOwnPasswordRequest, meta *RequestMeta) error {
+func (s *userService) ChangeOwnPassword(ctx context.Context, userID int, req models.ChangeOwnPasswordRequest, meta *RequestMeta, keepRefreshToken string) error {
 	var user models.User
 	if err := s.db.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -478,7 +498,8 @@ func (s *userService) ChangeOwnPassword(ctx context.Context, userID int, req mod
 		return echo.NewHTTPError(http.StatusBadRequest, "Новый пароль совпадает с текущим")
 	}
 
-	return s.UpdatePassword(ctx, userID, user.Username, models.UpdatePasswordRequest{Password: req.NewPassword}, meta)
+	return s.UpdatePasswordKeepingSession(ctx, userID, user.Username,
+		models.UpdatePasswordRequest{Password: req.NewPassword}, meta, keepRefreshToken)
 }
 
 // recordPasswordChangeEvent пишет запись в auth_events. Best-effort по образцу

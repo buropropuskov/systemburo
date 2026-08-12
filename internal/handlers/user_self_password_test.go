@@ -133,3 +133,46 @@ func TestChangeOwnPassword_RequiresAuth(t *testing.T) {
 		`{"current_password":"whatever","new_password":"`+selfPassNew+`"}`, nil)
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 }
+
+// TestChangeOwnPassword_KeepsCurrentSession: человек, сменивший пароль сам, не
+// должен вылетать из системы. Он только что подтвердил личность текущим паролем,
+// и выкидывать его на форму входа - раздражение без выигрыша в безопасности.
+// Остальные сессии при этом гаснут, поэтому угнанная на другом устройстве умирает.
+func TestChangeOwnPassword_KeepsCurrentSession(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	const old = "oldpassword12345"
+	testutil.RegisterUser(t, e, "keepsess_user", old, 1, td.OrgID, td.CompanyID)
+	access, refresh := testutil.LoginUser(t, e, "keepsess_user", old)
+	require.NotEmpty(t, refresh, "вход должен положить маркер продления в cookie")
+
+	// Вторая сессия того же работника - её смена пароля обязана погасить.
+	_, otherRefresh := testutil.LoginUser(t, e, "keepsess_user", old)
+	require.NotEmpty(t, otherRefresh)
+
+	headers := testutil.AuthHeader(access)
+	headers.Add("Cookie", "refresh_token="+refresh)
+
+	rec := testutil.PUT(t, e, "/api/users/me/password",
+		`{"current_password":"`+old+`","new_password":"freshpassword678"}`, headers)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	// Сессия, из которой меняли, продолжает продлеваться.
+	refreshRec := testutil.POST(t, e, "/api/refresh-token", `{}`, func() http.Header {
+		h := http.Header{}
+		h.Set("Cookie", "refresh_token="+refresh)
+		return h
+	}())
+	assert.Equal(t, http.StatusOK, refreshRec.Code, "текущая сессия должна пережить смену пароля: %s", refreshRec.Body.String())
+
+	// А вторая - нет.
+	otherRec := testutil.POST(t, e, "/api/refresh-token", `{}`, func() http.Header {
+		h := http.Header{}
+		h.Set("Cookie", "refresh_token="+otherRefresh)
+		return h
+	}())
+	assert.NotEqual(t, http.StatusOK, otherRec.Code, "остальные сессии должны погаснуть")
+}
