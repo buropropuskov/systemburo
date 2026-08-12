@@ -4,7 +4,7 @@
     :class="[modifierClass, { 'ep-row--locked': state.locked }]"
     :data-key="node.key"
   >
-    <span class="ep-row__label">
+    <span class="ep-row__label" :title="node.description || undefined">
       {{ label || node.display_name }}
       <small v-if="node.super_only">только Системный администратор</small>
     </span>
