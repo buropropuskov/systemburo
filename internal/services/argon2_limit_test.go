@@ -107,6 +107,10 @@ func TestArgon2Slot_LimitDoesNotBreakHashing(t *testing.T) {
 	defer SetArgon2Concurrency(0)
 
 	hash := hashPassword("correct-horse-battery-staple")
-	assert.True(t, verifyPassword(hash, "correct-horse-battery-staple"))
-	assert.False(t, verifyPassword(hash, "wrong-password"))
+	match, err := verifyPassword(hash, "correct-horse-battery-staple")
+	require.NoError(t, err)
+	assert.True(t, match)
+	match, err = verifyPassword(hash, "wrong-password")
+	require.NoError(t, err)
+	assert.False(t, match)
 }

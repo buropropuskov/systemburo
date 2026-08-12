@@ -38,7 +38,19 @@ const (
 	// пересылать "pq: sorry, too many clients already" и подобное. Только стадия
 	// (user lookup/token lookup/token rotation/family invalidation); причина
 	// целиком - в системном логе (#2016).
-	AuthEventRefreshError       = "refresh_error"
+	AuthEventRefreshError = "refresh_error"
+	// AuthEventLoginBadHash - вход сорвался из-за ПОВРЕЖДЁННОЙ записи пароля этой
+	// конкретной учётной записи: строка в users.password не разбирается как
+	// Argon2id PHC (обрезана, обнулена, записана другим форматом/алгоритмом).
+	// Отдельный от AuthEventLoginError тип: там причина в недоступности базы
+	// (чинить нужно инфраструктуру), здесь - дефект данных ОДНОЙ учётки (чинить
+	// нужно её, обычно принудительным сбросом пароля). См. #2017.
+	//
+	// Как и AuthEventLoginError, пишется с user_id = NULL и не входит ни в одну
+	// категорию фильтра личной истории - иначе деталь события (сырой текст ошибки
+	// разбора) утекала бы владельцу учётки. Разбирают такие записи выборкой по
+	// username, как и аварию базы.
+	AuthEventLoginBadHash       = "login_bad_hash"
 	AuthEventLoginLocked        = "login_locked"
 	AuthEventLogout             = "logout"
 	AuthEventRefresh            = "refresh"

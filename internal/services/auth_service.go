@@ -137,17 +137,22 @@ func hashPassword(password string) string {
 	return fmt.Sprintf("$argon2id$v=%d$m=19456,t=2,p=1$%s$%s", goargon2.Version, saltB64, hashB64)
 }
 
-func verifyPassword(phcHash, password string) bool {
+// verifyPassword сравнивает пароль с сохранённым PHC-хешем. Второй результат -
+// ошибка РАЗБОРА хеша (обрезанная строка, чужой алгоритм, битый base64), а не
+// "пароль не подошёл". Вызывающий обязан различать эти два случая: иначе дефект
+// сохранённых данных выглядит как неверно введённый пароль и наказывается как
+// он - счётчиком неудачных попыток и лестницей блокировки (#2017).
+func verifyPassword(phcHash, password string) (bool, error) {
 	// Parse PHC format
 	salt, expectedHash, params, err := parsePHC(phcHash)
 	if err != nil {
-		return false
+		return false, err
 	}
 	var computed []byte
 	withArgon2Slot(func() {
 		computed = argon2.IDKey([]byte(password), salt, params.time, params.memory, params.threads, uint32(len(expectedHash)))
 	})
-	return subtleCompare(computed, expectedHash)
+	return subtleCompare(computed, expectedHash), nil
 }
 
 // --- JWT ---
@@ -330,6 +335,22 @@ func (s *authService) loginUnavailable(ctx context.Context, username string, met
 	return apperr.Internal("Вход временно недоступен из-за ошибки на сервере. Повторите попытку позже.", cause)
 }
 
+// loginBadHash - ответ на ПОВРЕЖДЁННУЮ запись пароля конкретной учётной записи:
+// строка в users.password не разбирается как Argon2id PHC (обрезана, обнулена,
+// записана другим алгоритмом). От loginUnavailable отличается причиной и
+// адресатом починки: дело не в недоступности базы (та отвечает исправно), а в
+// дефекте ОДНОЙ записи - чинить нужно именно её (обычно принудительным сбросом
+// пароля), поэтому у события собственный тип (#2017).
+//
+// Счётчик блокировки НЕ трогается по той же причине, что и при аварии базы:
+// человек мог ввести верный пароль, наказывать его за чужой дефект данных нельзя.
+func (s *authService) loginBadHash(ctx context.Context, username string, meta *RequestMeta, cause error) error {
+	slog.Error("вход не выполнен: повреждена запись пароля в базе", "username", username, "error", cause)
+	s.recordAuthEvent(ctx, nil, username, models.AuthEventLoginBadHash, false, meta,
+		fmt.Sprintf("password hash unreadable: %v", cause))
+	return apperr.Internal("Вход невозможен из-за ошибки на сервере. Обратитесь к администратору.", cause)
+}
+
 // Login выполняет аутентификацию пользователя и возвращает пару токенов.
 func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *RequestMeta) (*models.LoginResponse, error) {
 	ip := ""
@@ -395,7 +416,14 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		user.LockedUntil = nil
 	}
 
-	if !verifyPassword(user.Password, req.Password) {
+	passwordMatches, verifyErr := verifyPassword(user.Password, req.Password)
+	if verifyErr != nil {
+		// Хеш не разбирается - это не "человек ошибся паролем", а дефект данных
+		// этой учётки. Считать его неверным паролем значит копить лестницу
+		// блокировки на человеке, который мог ввести пароль верно (#2017).
+		return nil, s.loginBadHash(ctx, user.Username, meta, verifyErr)
+	}
+	if !passwordMatches {
 		// registerFailedLogin ведёт per-user счётчик - бэкстоп от distributed
 		// brute-force (атака с разных IP, которую per-IP guard не ловит).
 		lockedUntil := s.registerFailedLogin(ctx, &user)

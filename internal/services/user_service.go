@@ -606,14 +606,30 @@ func (s *userService) ChangeOwnPassword(ctx context.Context, userID int, req mod
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error loading user")
 	}
 
-	if !verifyPassword(user.Password, req.CurrentPassword) {
+	currentMatches, err := verifyPassword(user.Password, req.CurrentPassword)
+	if err != nil {
+		// Хеш в базе не разбирается - дефект данных этой учётки, а не ошибка во
+		// введённом пароле. "Текущий пароль указан неверно" тут была бы такой же
+		// ложью, как счётчик неудачных попыток при входе по битому хешу (#2017):
+		// человек с верным паролем не смог бы сменить его вовсе.
+		slog.Error("не удалось проверить текущий пароль: повреждена запись в базе", "username", user.Username, "error", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось проверить текущий пароль. Обратитесь к администратору.")
+	}
+	if !currentMatches {
 		// Неудачная попытка тоже попадает в историю: подбор текущего пароля через
 		// эту форму - такой же признак инцидента, как серия неудачных входов.
 		s.recordPasswordChangeEvent(ctx, &user, meta, false, "неверный текущий пароль")
 		return echo.NewHTTPError(http.StatusBadRequest, "Текущий пароль указан неверно")
 	}
 
-	if verifyPassword(user.Password, req.NewPassword) {
+	// user.Password уже успешно разобран строкой выше - вторая проверка того же
+	// хеша ошибку разбора вернуть не может, но обрабатываем её на случай расхождения.
+	sameAsCurrent, err := verifyPassword(user.Password, req.NewPassword)
+	if err != nil {
+		slog.Error("не удалось сравнить новый пароль с текущим", "username", user.Username, "error", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось проверить новый пароль. Обратитесь к администратору.")
+	}
+	if sameAsCurrent {
 		return echo.NewHTTPError(http.StatusBadRequest, "Новый пароль совпадает с текущим")
 	}
 
