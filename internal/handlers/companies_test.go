@@ -974,7 +974,7 @@ func TestCompanies_BlockingUsersAndReassign(t *testing.T) {
 	require.NoError(t, db.Create(&inactive).Error)
 	require.NoError(t, db.Model(&models.User{}).Where("id = ?", inactive.ID).Update("is_active", false).Error)
 
-	blockers := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/blocking-users", srcID), testutil.AuthHeader(token)))
+	blockers := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/members", srcID), testutil.AuthHeader(token)))
 	assert.Len(t, blockers, 2, "только активные участники блокируют")
 
 	// Пока есть активные - архивация запрещена.
@@ -1002,5 +1002,5 @@ func TestCompanies_BlockingUsersAndReassign(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, testutil.POST(t, e, "/companies/999999/reassign-users", fmt.Sprintf(`{"target_id":%d}`, tgtID), testutil.AuthHeader(token)).Code)
 	userToken := testutil.RegisterAndLogin(t, e, "cplainuser", "pass123", 1, td.OrgID, td.CompanyID)
 	assert.Equal(t, http.StatusForbidden, testutil.POST(t, e, fmt.Sprintf("/companies/%d/reassign-users", tgtID), fmt.Sprintf(`{"target_id":%d}`, srcID), testutil.AuthHeader(userToken)).Code)
-	assert.Equal(t, http.StatusForbidden, testutil.GET(t, e, fmt.Sprintf("/companies/%d/blocking-users", tgtID), testutil.AuthHeader(userToken)).Code)
+	assert.Equal(t, http.StatusForbidden, testutil.GET(t, e, fmt.Sprintf("/companies/%d/members", tgtID), testutil.AuthHeader(userToken)).Code)
 }
