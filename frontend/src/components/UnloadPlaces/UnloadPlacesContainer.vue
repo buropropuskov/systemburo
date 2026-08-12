@@ -958,10 +958,10 @@ export default {
     usageHasBindings() {
       return this.usage.organizations.length > 0 || this.usage.companies.length > 0;
     },
-    // Зеркалит BE-гейт detach-all (requireAdmin = RequirePermissionV2 page.admin):
-    // права page.admin.directories (открывающего экран) недостаточно.
+    // Зеркалит BE-гейт detach-all: отвязка закрыта тем же page.admin.directories,
+    // что открывает экран (#1982).
     canDetachUnloadPlace() {
-      return usePermissionsStore().hasPermission('page.admin');
+      return usePermissionsStore().hasPermission('page.admin.directories');
     },
     detachConfirmMessage() {
       if (!this.selectedPlace) return '';
