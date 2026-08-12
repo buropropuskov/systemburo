@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import BaseModal from '../BaseModal.vue';
 import { resetModalStack } from '@/utils/modalStack';
 
@@ -10,11 +10,18 @@ import { resetModalStack } from '@/utils/modalStack';
  * Escape схлопывал и карточку участника, и список получателей под ней (поймано руками
  * на стенде, jsdom-тесты одиночного окна такое не видят).
  */
+// Окно живёт, пока не размонтировано, и продолжает слушать document. Пока нажатие
+// закрывало все слои разом, чужие окна кейсу не мешали; теперь слой забирает Escape
+// себе, и окно из прошлого кейса перехватывало бы нажатие следующего.
+const opened = [];
+
 function openModal(zIndex) {
-  return mount(BaseModal, {
+  const wrapper = mount(BaseModal, {
     props: { show: true, title: 'Окно', zIndex },
     global: { stubs: { teleport: true } },
   });
+  opened.push(wrapper);
+  return wrapper;
 }
 
 function pressEscape() {
@@ -23,6 +30,7 @@ function pressEscape() {
 
 describe('BaseModal: Escape в стопке окон', () => {
   beforeEach(() => resetModalStack());
+  afterEach(() => opened.splice(0).forEach((w) => w.unmount()));
 
   it('закрывает окно с большим слоем, нижнее не трогает', () => {
     const bottom = openModal(12000);
