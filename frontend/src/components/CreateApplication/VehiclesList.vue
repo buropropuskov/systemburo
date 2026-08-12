@@ -9,9 +9,11 @@
       <!-- Действия шапки: вход в импорт (когда доступен) и очистка списка (когда есть,
            что чистить) - обе живут в шапке справа, а не в отдельной полосе тулбара под
            ней: иначе при коротком списке (нет поиска/пейджера) тулбар оставался пустой
-           строкой под кнопку и раздувал пробел между шапкой и таблицей. -->
+           строкой под кнопку и раздувал пробел между шапкой и таблицей.
+           На телефоне очистка уезжает в подвал блока (см. .list-foot ниже): счётчик и
+           действие в одной строке с заголовком переносились. -->
       <div
-        v-if="canImport || vehicles.length"
+        v-if="canImport || (!isNarrow && vehicles.length)"
         class="header-actions"
       >
         <div
@@ -30,7 +32,7 @@
           </span>
           <button
             type="button"
-            class="lk-button lk-button--secondary lk-button--sm import-entry__btn"
+            class="lk-button lk-button--secondary lk-button--sm list-mini-btn import-entry__btn"
             data-testid="vehicles-import-btn"
             :aria-pressed="importActive ? 'true' : 'false'"
             @click="$emit('toggle-import')"
@@ -39,7 +41,7 @@
           </button>
         </div>
         <button
-          v-if="vehicles.length"
+          v-if="!isNarrow && vehicles.length"
           type="button"
           class="lk-button lk-button--danger lk-button--sm list-toolbar__clear"
           data-testid="vehicles-clear-btn"
@@ -269,7 +271,7 @@
           </div>
           <div class="table-col plate-col">
             <div class="cell-with-icon">
-              {{ row.item.plateNumber || 'Не указано' }}
+              <span class="cell-value">{{ row.item.plateNumber || 'Не указано' }}</span>
               <Badge
                 v-if="row.item.isPending"
                 class="pending-badge"
@@ -284,35 +286,42 @@
               {{ row.item.mark || 'Не указано' }}
             </div>
           </div>
+          <!-- Вторая строка карточки: где машина разгружается и в какие часы. Время
+               общее на вложение (detailInfo), место - своё у каждой строки. Нет ни
+               того, ни другого - строки нет вовсе, пустых подписей не рисуем. -->
+          <div
+            v-if="row.item.unloadingPlace || passTime"
+            class="table-col meta-col"
+            data-testid="vehicles-row-meta"
+          >
+            <span class="meta-col__place">{{ row.item.unloadingPlace || 'Место не выбрано' }}</span>
+            <span
+              v-if="passTime"
+              class="meta-col__time"
+            >{{ passTime }}</span>
+          </div>
+          <!-- Действия - подвалом карточки бейджами с подписями: иконками поперёк
+               строки они съедали больше половины ширины у номера и марки. Иконок здесь
+               нет вовсе: ветка рендерится только на телефоне, а скрытый через CSS
+               <img> браузер всё равно загружает. -->
           <div class="table-col actions-col">
             <button
-              class="details-btn"
-              title="Детали"
-              @click="showVehicleDetails(row.item)"
-            >
-              <DetailsIcon class="details-icon" />
-            </button>
-            <button
               class="edit-btn"
-              title="Редактировать"
               @click="$emit('edit-vehicle', row.item)"
             >
-              <img
-                src="@/assets/icons/edit.png"
-                alt="Редактировать"
-                class="edit-icon"
-              >
+              Изменить
             </button>
             <button
               class="delete-btn"
-              title="Удалить"
               @click="$emit('delete-vehicle', row.item.id)"
             >
-              <img
-                src="@/assets/icons/trashcan.png"
-                alt="Удалить"
-                class="delete-icon"
-              >
+              Удалить
+            </button>
+            <button
+              class="details-btn"
+              @click="showVehicleDetails(row.item)"
+            >
+              Детали
             </button>
           </div>
         </div>
@@ -325,6 +334,26 @@
           {{ emptyMessage }}
         </div>
       </div>
+    </div>
+
+    <!-- Итог блока отдельной строкой (только телефон): счётчик слева, очистка справа.
+         В строке заголовка та же пара переносилась вместе с подписью списка. -->
+    <div
+      v-if="isNarrow && vehicles.length"
+      class="list-foot"
+    >
+      <span
+        class="list-foot__total"
+        data-testid="vehicles-total"
+      >Всего {{ totalLabel }}</span>
+      <button
+        type="button"
+        class="lk-button lk-button--danger lk-button--sm list-mini-btn list-foot__clear"
+        data-testid="vehicles-clear-btn"
+        @click="showClearConfirm = true"
+      >
+        Очистить
+      </button>
     </div>
 
     <!-- Очистка списка необратима (отмены на странице нет), поэтому идёт только через
@@ -362,6 +391,7 @@ import DetailsIcon from '@/components/ui/DetailsIcon.vue';
 import Pager from '@/components/ui/Pager.vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { useListSearchPagination } from '@/composables/useListSearchPagination';
+import { entityCountLabel } from '@/utils/entityCount';
 
 export default {
     name: 'VehiclesList',
@@ -460,6 +490,18 @@ export default {
             return `Будет убрано строк: ${this.vehicles.length}${fromBlank}. Отменить это действие нельзя.`;
         },
 
+        // Итог блока в подвале: «Всего 2 машины» - со склонением по числу.
+        totalLabel() {
+            return entityCountLabel(this.vehicles.length, 'vehicles');
+        },
+
+        // Часы пребывания берём с вложения (на самой машине их нет) - вторая строка
+        // карточки на телефоне. Половинчатый интервал не показываем.
+        passTime() {
+            const info = this.detailInfo || {};
+            return info.timeFrom && info.timeTo ? `${info.timeFrom}—${info.timeTo}` : '';
+        },
+
         // Пустая таблица объясняет причину пустоты: список не заполняли вовсе или поиск
         // ничего не нашёл. Предварительные строки из бланка тоже считаются заполнением.
         emptyMessage() {
@@ -554,12 +596,22 @@ export default {
     display: none;
 }
 
-@media (max-width: 768px) {
-    .import-entry__btn,
-    .list-toolbar__clear {
-        min-height: 44px;
-        padding: 4px 14px;
-    }
+/* Подвал блока (только телефон): «Всего N машины» слева, очистка справа. */
+.list-foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md, 15px);
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.list-foot__clear {
+    margin-left: auto;
 }
 
 .vehicles-badge {
@@ -1000,24 +1052,43 @@ h4 {
         flex: 0 0 auto;
     }
 
+    /* 8px, а не 6: зоны нажатия мини-кнопок расширены на 4px в стороны, при меньшем
+       зазоре они наложились бы друг на друга. Места хватает - очистка ушла в подвал. */
     .header-actions,
     .import-entry {
-        gap: 6px;
+        gap: 8px;
     }
 
-    /* Бейдж режима остаётся, но кеглем и полями поменьше. Специфичность (0,3,0) взята
-       выше scoped-правила самого Badge (0,2,0) намеренно: при равной побеждает чанк,
-       загруженный позже, а его порядок на проде не совпадает с dev (#1097 S9a). */
+    /* Бейдж режима ровно той же высоты, что и кнопка рядом (22px): «как бейдж
+       Experimental» - это про совпадение, а собственная высота бейджа на телефоне
+       была 16px. Специфичность (0,3,0) взята выше scoped-правила самого Badge
+       (0,2,0) намеренно: при равной побеждает чанк, загруженный позже, а его
+       порядок на проде не совпадает с dev (#1097 S9a). */
     .import-entry .hint-anchor :deep(.badge--sm) {
+        height: 22px;
+        padding: 0 8px;
         font-size: 10px;
-        padding: 2px 6px;
     }
 
-    /* Ужимаем только горизонтальные поля - высота 44px под палец остаётся. */
-    .import-entry__btn,
-    .list-toolbar__clear {
-        padding: 4px 10px;
-        font-size: 12px;
+    /* Кнопка шапки блока ровно по высоте бейджа «Experimental» рядом - 22px, как в
+       мокапе (.mini-btn). Прежние 44px делали из строки заголовка панель инструментов.
+       Палец при этом не мимо: невидимый ::before растягивает зону нажатия до 44px
+       (22 + 11 сверху и снизу), горизонтальный запас 4px меньше половины зазора 8px -
+       зоны соседних кнопок не перекрываются. */
+    .list-mini-btn {
+        position: relative;
+        height: 22px;
+        min-height: 0;
+        padding: 0 9px;
+        font-size: 11.5px;
+        font-weight: 700;
+        line-height: 1;
+    }
+
+    .list-mini-btn::before {
+        content: '';
+        position: absolute;
+        inset: -11px -4px;
     }
 
     .vehicles-table {
@@ -1052,8 +1123,9 @@ h4 {
         align-items: center;
         gap: 2px 8px;
         min-height: 56px;
-        /* Резерв под три кнопки действий, приколотые справа. */
-        padding: 10px 136px 10px 12px !important;
+        /* Резерва справа больше нет: действия уехали в подвал карточки, и данные
+           занимают всю ширину (было 136px под три иконки поперёк строки). */
+        padding: 10px 12px !important;
         font-size: 14px;
     }
 
@@ -1080,49 +1152,128 @@ h4 {
         font-size: 12px;
     }
 
+    /* Номер жирным слева, марка серым справа - одной строкой (мокап). Обе ужимаются
+       многоточием, поэтому длинная марка не выталкивает номер. */
     .plate-col {
+        flex: 1 1 auto;
+        min-width: 0;
         font-weight: 600;
         font-size: 15px;
     }
 
-    /* Марка уходит на вторую строку карточки. */
+    .plate-col .cell-with-icon {
+        min-width: 0;
+    }
+
+    .plate-col .cell-value {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
     .mark-col {
+        flex: 0 1 auto;
+        min-width: 0;
+        margin-left: auto;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--text-muted);
+        font-size: 13px;
+    }
+
+    /* Вторая строка: место разгрузки слева, часы пребывания справа. */
+    .meta-col {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
         flex-basis: 100%;
         color: var(--text-muted);
         font-size: 13px;
     }
 
-    .actions-col {
-        position: absolute;
-        top: 50%;
-        right: 8px;
-        transform: translateY(-50%);
-        width: auto !important;
-        gap: 2px;
+    .meta-col__place {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
+    .meta-col__time {
+        margin-left: auto;
+        flex-shrink: 0;
+    }
+
+    /* Подвал карточки: действия бейджами под данными, а не поперёк строки. */
+    .actions-col {
+        position: static;
+        transform: none;
+        flex-basis: 100%;
+        width: auto !important;
+        justify-content: flex-start;
+        gap: 6px;
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid color-mix(in srgb, var(--border) 60%, var(--surface));
+    }
+
+    /* Высота 28px как у бейджа, зона нажатия 44px невидимым ::before (мокап .act):
+       кнопка перестаёт претендовать на половину карточки, но мимо неё не попадёшь. */
     .details-btn,
     .edit-btn,
     .delete-btn {
-        width: 40px;
-        height: 40px;
+        position: relative;
+        width: auto;
+        height: 28px;
+        padding: 0 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-pill, 999px);
+        background: var(--surface);
+        font-size: 12.5px;
+        font-weight: 600;
+        line-height: 1;
+        white-space: nowrap;
     }
 
-    .details-icon,
-    .edit-icon,
-    .delete-icon {
-        width: 20px;
-        height: 20px;
-        opacity: 0.75;
+    .details-btn::before,
+    .edit-btn::before,
+    .delete-btn::before {
+        content: '';
+        position: absolute;
+        inset: -8px -2px;
+    }
+
+    .edit-btn {
+        border-color: var(--accent);
+        color: var(--accent-text);
+    }
+
+    .delete-btn {
+        border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
+        color: var(--danger-text);
+    }
+
+    /* «Детали» - вторичное действие: без рамки и прижата к правому краю подвала. */
+    .details-btn {
+        margin-left: auto;
+        border-color: transparent;
+        color: var(--text-muted);
+    }
+
+    /* Подложка кнопок из десктопной раскладки (зелёная/красная заливка на весь
+       квадрат) на бейджах читается как залитая кнопка - гасим. */
+    .details-btn:hover,
+    .edit-btn:hover,
+    .delete-btn:hover {
+        background: var(--surface-2);
     }
 }
 
-/* Узкие телефоны: те же элементы шапки ещё плотнее. На 320 доступной ширины ряда 274px,
-   и группе действий с очисткой её хватает только при этих полях. */
+/* Узкие телефоны: подпись и бейдж плотнее. Зазоры группы действий не ужимаем - они
+   держат зоны нажатия мини-кнопок раздельными (см. .list-mini-btn). */
 @media (max-width: 480px) {
-    .header-with-badge,
-    .header-actions,
-    .import-entry {
+    .header-with-badge {
         gap: 4px;
     }
 
@@ -1133,12 +1284,7 @@ h4 {
     }
 
     .import-entry .hint-anchor :deep(.badge--sm) {
-        padding: 2px 5px;
-    }
-
-    .import-entry__btn,
-    .list-toolbar__clear {
-        padding: 4px 8px;
+        padding: 0 6px;
     }
 }
 </style>
