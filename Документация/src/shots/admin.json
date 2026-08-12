@@ -171,11 +171,6 @@
           "selector": ".toggle-row",
           "badge": 1,
           "badgeInside": true
-        },
-        {
-          "selector": ".filters",
-          "badge": 2,
-          "badgeInside": true
         }
       ]
     },
@@ -771,10 +766,16 @@
       "waitFor": "[data-testid=\"fb-row\"]",
       "prepare": [
         {
+          "click": "[data-testid=\"filter-tab-open\"]"
+        },
+        {
+          "wait": "[data-testid=\"fb-row\"]"
+        },
+        {
           "click": "[data-testid=\"fb-row\"] >> nth=0"
         },
         {
-          "wait": "[data-testid=\"fb-detail\"]"
+          "wait": "[data-testid=\"fb-reply\"]"
         }
       ],
       "clip": {
