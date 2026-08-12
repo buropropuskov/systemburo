@@ -19,8 +19,17 @@ type AuthEvent struct {
 
 // AuthEventType - канонические значения event_type для AuthEvent.
 const (
-	AuthEventLoginSuccess       = "login_success"
-	AuthEventLoginFailed        = "login_failed"
+	AuthEventLoginSuccess = "login_success"
+	AuthEventLoginFailed  = "login_failed"
+	// AuthEventLoginError - вход сорвался по вине системы (база недоступна, пул
+	// исчерпан, запрос отвалился по таймауту), а не по вине вводившего. Отдельный
+	// тип нужен, чтобы авария не читалась в журнале как «люди путают пароли».
+	//
+	// В личной истории входов не показывается и ни в одну категорию фильтра не
+	// входит намеренно: пишется он там, где пользователя опознать не удалось, с
+	// user_id = NULL, а история отбирается строго по user_id (AuthEventReader).
+	// Смотрят такие записи выборкой по username при разборе инцидента.
+	AuthEventLoginError         = "login_error"
 	AuthEventLoginLocked        = "login_locked"
 	AuthEventLogout             = "logout"
 	AuthEventRefresh            = "refresh"
