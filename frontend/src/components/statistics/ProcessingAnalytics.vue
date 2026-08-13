@@ -448,7 +448,10 @@
     >
       <div class="proc__group-head">
         <h2 class="proc__group-title">Журнал</h2>
-        <span class="proc__group-chip">решения по заявкам: согласования, принятия, отказы, отзывы</span>
+        <span class="proc__group-chip">
+          <span class="proc__group-chip-full">решения по заявкам: согласования, принятия, отказы, отзывы</span>
+          <span class="proc__group-chip-short">решения по заявкам</span>
+        </span>
         <span class="proc__group-rule" />
         <RefreshButton
           :loading="journalLoading"
@@ -458,30 +461,87 @@
       </div>
       <!-- Фильтры ленты (#1251 P5c). Отбор идёт на бэке: страница и «Всего»
            считаются по одному предикату, иначе фильтрация в пределах текущей
-           страницы врала бы о числе событий. -->
+           страницы врала бы о числе событий.
+           На телефоне шесть табов роли не помещаются - заменяются BaseDropdown
+           (десктоп не трогаем, FilterTabs остаются), а дата и поиск встают в
+           одну строку через .proc__journal-daterow (поиск раскрывается поверх
+           неё иконкой - зеркало Центра/кабинета). -->
       <div class="proc__journal-filters">
         <FilterTabs
+          v-if="!isNarrow"
           :model-value="journalRole"
           :tabs="JOURNAL_ROLE_TABS"
           @update:model-value="onJournalRoleChange"
         />
+        <BaseDropdown
+          v-else
+          class="proc__journal-role-dropdown"
+          :model-value="journalRole"
+          :options="JOURNAL_ROLE_TABS"
+          value-key="key"
+          label-key="label"
+          @update:model-value="onJournalRoleChange"
+        />
         <SearchComponent
+          v-if="!isNarrow"
           :model-value="journalSearch"
           class="proc__journal-search"
           title="Номер заявки или ФИО"
           @update:model-value="onJournalSearchInput"
         />
-        <DateFilter
-          mode="range"
-          :selected-date="journalSelectedDate"
-          :date-range-start="journalRangeStart"
-          :date-range-end="journalRangeEnd"
-          @update:selected-date="journalSelectedDate = $event"
-          @update:date-range-start="journalRangeStart = $event"
-          @update:date-range-end="journalRangeEnd = $event"
-          @apply="applyJournalFilters"
-          @clear="clearJournalRange"
-        />
+        <div class="proc__journal-daterow">
+          <DateFilter
+            mode="range"
+            :selected-date="journalSelectedDate"
+            :date-range-start="journalRangeStart"
+            :date-range-end="journalRangeEnd"
+            @update:selected-date="journalSelectedDate = $event"
+            @update:date-range-start="journalRangeStart = $event"
+            @update:date-range-end="journalRangeEnd = $event"
+            @apply="applyJournalFilters"
+            @clear="clearJournalRange"
+          />
+          <button
+            v-if="isNarrow"
+            type="button"
+            class="proc__journal-search-icon"
+            :class="{ 'proc__journal-search-icon--active': journalSearchOpen || !!journalSearch.trim() }"
+            aria-label="Поиск по журналу"
+            @click="toggleJournalSearch"
+          >
+            <img
+              src="@/assets/icons/search.png"
+              class="proc__journal-search-icon__img"
+              alt=""
+            >
+          </button>
+          <Transition name="proc-journal-search">
+            <div
+              v-if="isNarrow && journalSearchOpen"
+              class="proc__journal-search-overlay"
+            >
+              <div class="field search">
+                <input
+                  ref="journalSearchInputRef"
+                  :value="journalSearch"
+                  placeholder="Номер заявки или ФИО"
+                  type="text"
+                  class="proc__journal-search-input"
+                  @input="onJournalSearchInput($event.target.value)"
+                >
+                <button
+                  v-if="journalSearch.trim()"
+                  type="button"
+                  class="proc__journal-search-clear"
+                  aria-label="Очистить поиск"
+                  @click="clearJournalSearch"
+                >
+                  &times;
+                </button>
+              </div>
+            </div>
+          </Transition>
+        </div>
         <button
           type="button"
           class="lk-button lk-button--ghost proc__journal-reset"
@@ -573,20 +633,27 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { getProcessingSummary, getProcessingJournal, getStuckApprovals, runReport } from '@/api/statistics.js';
 import { formatDuration, formatDateTime, formatTimeAgo } from '@/utils/datetime';
 import { MAX_REPORT_LIMIT } from '@/composables/useReportRequest';
+import { useNarrowScreen } from '@/composables/useNarrowScreen.js';
 import eventStream from '@/services/eventStream';
 import { useDeletionsStore } from '@/stores/deletions';
 import HintTooltip from '@/components/ui/HintTooltip.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
+import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import Pager from '@/components/ui/Pager.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import SearchComponent from '@/components/SearchComponent.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import AnalyticsAreaChart from './AnalyticsAreaChart.vue';
 import DirIcon from './DirIcon.vue';
+
+// Табы роли журнала не помещаются на телефоне (шесть кнопок) - на узком экране
+// заменяются одной выпадающей кнопкой (BaseDropdown), а поиск сворачивается в
+// иконку (тот же приём, что в Центре/кабинете - grep search-icon-btn).
+const { isNarrow } = useNarrowScreen();
 
 const props = defineProps({
   from: { type: String, default: '' },
@@ -780,6 +847,33 @@ function onJournalSearchInput(value) {
   journalSearch.value = value;
   cancelJournalSearchDebounce();
   journalSearchTimer = setTimeout(applyJournalFilters, JOURNAL_SEARCH_DEBOUNCE_MS);
+}
+
+// Раскрывающийся поиск на телефоне (зеркало Центра/кабинета): иконка-тоггл
+// поверх ряда даты, автофокус на раскрытии - это не searchable-поле внутри
+// BaseDropdown (там автофокус убран в #1303 - выбрасывал клавиатуру поверх
+// списка опций), а отдельная страница поиска по журналу, тот же случай, что
+// уже решён в ApplicationsCenter/UserApplications.
+const journalSearchOpen = ref(false);
+const journalSearchInputRef = ref(null);
+
+// Возврат на десктоп - гасим мобильное раскрытие (зеркало Центра/кабинета).
+watch(isNarrow, (narrow) => {
+  if (!narrow) journalSearchOpen.value = false;
+});
+
+function toggleJournalSearch() {
+  journalSearchOpen.value = !journalSearchOpen.value;
+  if (journalSearchOpen.value) {
+    nextTick(() => { journalSearchInputRef.value?.focus(); });
+  }
+}
+
+function clearJournalSearch() {
+  cancelJournalSearchDebounce();
+  journalSearch.value = '';
+  applyJournalFilters();
+  journalSearchOpen.value = false;
 }
 
 function clearJournalRange() {
@@ -1162,6 +1256,12 @@ defineExpose({ refresh: reload });
   padding: 3px 10px;
   border-radius: var(--radius-pill);
   white-space: nowrap;
+}
+
+/* Короткая подпись чипа «Журнал» - только на мобилке (эталон §12: подмена
+   текста парой классов, не обрезка). На десктопе чип один - полный текст. */
+.proc__group-chip-short {
+  display: none;
 }
 
 .proc__group-rule {
@@ -1547,6 +1647,15 @@ defineExpose({ refresh: reload });
   flex-wrap: wrap;
 }
 
+/* Ряд даты на десктопе - те же дети в общем потоке фильтров, без обособления
+   (обёртка нужна только на телефоне под оверлей поиска). Правило ОБЯЗАНО стоять
+   раньше мобильного @media - иначе оно, будучи позже в файле при равной
+   специфичности, перебивает display:flex из media независимо от ширины экрана
+   (заметил по скриншоту стенда: ряд даты не группировался, волна 8). */
+.proc__journal-daterow {
+  display: contents;
+}
+
 .proc__journal-search {
   width: 240px;
 }
@@ -1735,6 +1844,17 @@ defineExpose({ refresh: reload });
     min-width: 24px;
   }
 
+  /* Журнал: короткая подпись держит заголовок и чип на одной строке даже на
+     320px - полная версия («решения по заявкам: согласования, принятия,
+     отказы, отзывы») перелетала на вторую строку (владелец, волна 8). */
+  .proc__group-chip-full {
+    display: none;
+  }
+
+  .proc__group-chip-short {
+    display: inline;
+  }
+
   /* Рейтинги на телефоне прокручиваются вместе со страницей (#1097 волна 5):
      своя область прокрутки внутри прокручиваемой страницы отбирает жест у окна.
      Sticky-шапка рейтинга при этом теряет смысл - липнуть не к чему, - поэтому
@@ -1749,17 +1869,155 @@ defineExpose({ refresh: reload });
     position: static;
   }
 
-  /* Фильтры ленты на телефоне переносятся в столбик (flex-wrap самого ряда),
-     но поиск держал фиксированную десктопную ширину 240px и вставал отдельной
-     узкой полоской с пустым хвостом справа - рядом с полноширинными датами и
-     табами роли это и читается как «кривые кнопки». Сброс ниже той же высоты,
-     что у соседей (35px, как у Search/DateFilter), а не своих 30px. */
-  .proc__journal-search {
-    width: 100%;
+  /* Фильтры ленты на телефоне - две строки (волна 8, было четыре с лишним):
+     [дропдаун роли][Сбросить] на первой, [дата][поиск] на второй. Порядок
+     задаём order, а не перестановкой в разметке (эталон §2.2) - в DOM ряд
+     даты идёт раньше кнопки сброса (десктопный порядок сохраняем нетронутым:
+     табы -> поиск -> дата -> сброс), а на телефоне сброс должен встать сразу
+     за дропдауном, до ряда даты. */
+  .proc__journal-role-dropdown {
+    order: 1;
+    width: 165px;
+    flex: 0 0 auto;
   }
 
   .proc__journal-reset {
+    order: 2;
     height: 35px;
+    margin-left: auto;
+  }
+
+  /* Ряд даты: `display: contents` на десктопе оставляет DateFilter прямым
+     ребёнком .proc__journal-filters (визуально ничего не меняется), на
+     телефоне становится настоящим flex-рядом и переносится на новую строку
+     через flex-basis: 100% - надёжнее, чем полагаться на то, что ряду 1 не
+     хватит места (#1097 общий урок про "не полагаться на порядок"). */
+  .proc__journal-daterow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+    order: 3;
+    flex: 1 1 100%;
+  }
+
+  /* Ширина поля периода зашита в DateFilter (215px, .date-filter И .date-field
+     оба) - тем же приёмом, что в ArchiveBackfillPanel/ArchiveDownloadPanel,
+     отдаём ей остаток ряда после иконки поиска. */
+  .proc__journal-daterow :deep(.date-filter),
+  .proc__journal-daterow :deep(.date-field) {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .proc__journal-daterow :deep(.date-filter) {
+    flex: 1;
+  }
+
+  /* Иконка-тоггл поиска (мобилка): раскрывает поле оверлеем поверх ряда даты -
+     тот же приём и те же размеры, что в ApplicationsCenter/UserApplications. */
+  .proc__journal-search-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    background: var(--surface);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  @media (hover: hover) {
+    .proc__journal-search-icon:hover {
+      background: var(--color-bg);
+      border-color: var(--accent);
+    }
+  }
+
+  .proc__journal-search-icon--active {
+    background: var(--color-bg);
+    border-color: var(--accent);
+  }
+
+  .proc__journal-search-icon__img {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Оверлей раскрытия: поверх ряда даты, оставляя иконку (40px) открытой справа. */
+  .proc__journal-search-overlay {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 48px;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    background: var(--surface);
+    border-radius: var(--radius-md);
+  }
+
+  .proc__journal-search-overlay .field.search {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 40px;
+    border: 1px solid var(--color-border);
+    border-radius: 15px;
+    padding: 0 12px;
+    box-sizing: border-box;
+  }
+
+  .proc__journal-search-input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 14px;
+    color: var(--color-text);
+  }
+
+  .proc__journal-search-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  @media (hover: hover) {
+    .proc__journal-search-clear:hover {
+      color: var(--accent-text);
+    }
+  }
+
+  /* Раскрытие вправо-налево - clip-path (композитится, ряд не двигается). */
+  .proc-journal-search-enter-active,
+  .proc-journal-search-leave-active {
+    transition: clip-path 0.25s ease;
+  }
+
+  .proc-journal-search-enter-from,
+  .proc-journal-search-leave-to {
+    clip-path: inset(0 0 0 100%);
+  }
+
+  .proc-journal-search-enter-to,
+  .proc-journal-search-leave-from {
+    clip-path: inset(0 0 0 0);
   }
 }
 
