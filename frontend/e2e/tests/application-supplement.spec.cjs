@@ -217,7 +217,10 @@ test.describe.serial('Дополнение поданной заявки (#1685)
     await center.openApplication(applicationNumber);
     await detail.expectOpen();
 
-    await expect(detail.supplementActionsLabel).toContainText('Дополнение №1');
+    // Подпись с номером раунда из панели убрали (#1097): номер несёт бейдж в шапке
+    // заявки, а здесь проверяем то, ради чего тест и написан - согласующий видит панель
+    // решения по дополнению и может голосовать.
+    await expect(detail.supplementActions).toBeVisible();
     await detail.approveSupplement();
     await expect(detail.supplementMyVote).toContainText('вы согласовали');
   });

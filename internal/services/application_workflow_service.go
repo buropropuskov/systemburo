@@ -77,6 +77,18 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 				tx.Rollback()
 				return echo.NewHTTPError(http.StatusBadRequest, "Заявку нельзя принять в работу: не завершено согласование")
 			}
+			// Согласующих нет - согласовывать нечего, и решение принимающего его заменяет:
+			// отмечаем согласование выполненным. Иначе заявка остаётся в подтверждении
+			// "Согласование" навсегда: пересчёт голосов на пустом списке ничего не меняет,
+			// и заявитель видит принятую в работу заявку как ожидающую согласования.
+			if err := tx.Exec(`
+				UPDATE applications
+				SET confirmation = ?,
+				    confirmation_datetime = COALESCE(confirmation_datetime, NOW())
+				WHERE id = ?`, models.ConfirmationApproved, applicationID).Error; err != nil {
+				tx.Rollback()
+				return echo.NewHTTPError(http.StatusInternalServerError, "Error updating confirmation")
+			}
 		}
 
 		// accepted_at через COALESCE: заявку могли отозвать из работы и принять снова

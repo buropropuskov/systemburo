@@ -242,7 +242,7 @@
                         v-if="processing"
                         class="button-loading"
                       />
-                      <span v-else>Принять</span>
+                      <span v-else>{{ hasNoApprovers ? 'Согласовать и принять' : 'Принять' }}</span>
                     </button>
                     <button
                       class="reject-btn"
@@ -336,7 +336,7 @@
                     v-if="processing"
                     class="button-loading"
                   />
-                  <span v-else>Принять</span>
+                  <span v-else>{{ hasNoApprovers ? 'Согласовать и принять' : 'Принять' }}</span>
                 </button>
                 <button
                   class="reject-btn"
@@ -718,6 +718,13 @@ export default {
         // updateConfirmationBasedOnApprovals: все обязательные approved / при отсутствии
         // обязательных - хотя бы один approved; заявка без согласующих - принять можно.
         // По этому решаем: комбо-кнопка "Согласовать и принять" vs просто "Согласовать".
+        // У заявки нет ни одного согласующего: согласовывать некому, и решение принимающего
+        // заменяет согласование. Такому принимающему показываем ту же комбо-кнопку, что и
+        // совмещённой роли, а голос за него не отправляем - записи согласующего нет.
+        hasNoApprovers() {
+            return !Array.isArray(this.responsibleUsers) || this.responsibleUsers.length === 0;
+        },
+
         approvingCompletesConfirmation() {
             const users = this.responsibleUsers.map(u =>
                 u.id === this.currentUserId ? { ...u, approval_status: 'approved' } : u);
