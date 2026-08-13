@@ -233,12 +233,12 @@ describe('ApplicationActionBar - выполнение действий по ра
   it('закрытие гасит окно через show, не снимая его родительским v-if - иначе уход не проиграется', async () => {
     const wrapper = mountBar();
     await wrapper.find(APPROVE).trigger('click');
-    const modal = wrapper.findComponent({ name: 'ConfirmationModal' });
+    const modal = wrapper.findComponent({ name: 'BaseModal' });
     expect(modal.props('show')).toBe(true);
 
     await wrapper.find('[data-testid="confirmation-cancel"]').trigger('click');
-    expect(wrapper.findComponent({ name: 'ConfirmationModal' }).exists()).toBe(true);
-    expect(wrapper.findComponent({ name: 'ConfirmationModal' }).props('show')).toBe(false);
+    expect(wrapper.findComponent({ name: 'BaseModal' }).exists()).toBe(true);
+    expect(wrapper.findComponent({ name: 'BaseModal' }).props('show')).toBe(false);
   });
 
   it('ошибка бэка уходит наверх человеческим текстом, кнопки остаются рабочими', async () => {
@@ -255,5 +255,19 @@ describe('ApplicationActionBar - выполнение действий по ра
     // Окно с введённым комментарием живо, повтор возможен без потери ввода.
     expect(wrapper.find(CONFIRM).exists()).toBe(true);
     expect(wrapper.find(APPROVE).attributes('disabled')).toBeUndefined();
+  });
+
+  it('окно решения по раунду держит общий контракт (#1097): BaseModal, ползунок-свайп, скругление 30px', async () => {
+    const wrapper = mountBar();
+    await wrapper.find(APPROVE).trigger('click');
+
+    const modal = wrapper.findComponent({ name: 'BaseModal' });
+    expect(modal.exists()).toBe(true);
+    // Bottom-sheet со свайпом-вниз и закрытие по оверлею включены по умолчанию -
+    // замок ловит, если их когда-нибудь явно отключат (:sheet-swipe="false" и т.п.).
+    expect(modal.props('sheetSwipe')).toBe(true);
+    expect(modal.props('closeOnOverlay')).toBe(true);
+    expect(modal.props('radius')).toBe('30px');
+    expect(wrapper.find('.sheet-handle').exists()).toBe(true);
   });
 });
