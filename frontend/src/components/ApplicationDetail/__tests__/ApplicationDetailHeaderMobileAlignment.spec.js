@@ -67,8 +67,34 @@ describe('ApplicationActionBar - бейдж "Доп. №N" в ряду реше�
     expect(body).toMatch(/flex-wrap:\s*wrap/);
   });
 
-  it('панель действий заявки в шапке всегда встаёт под бейджем "+ Дополнение..." (flex-basis: 100%)', () => {
+  // Ряд решения обведён собственной рамкой/подложкой не был - убран волной w12
+  // (владелец: "убрать блок, обводку с тёмным фоном"). Кнопки решения стоят
+  // прямо в шапке, без визуального контейнера вокруг ряда.
+  it('у ряда решения нет рамки и подложки (нет визуального контейнера)', () => {
+    const body = rule(ACTION_BAR_SFC, '.supplement-actions');
+    expect(body).not.toMatch(/border(-\w+)?:\s*1px\s+solid/);
+    expect(body).not.toMatch(/background:/);
+    expect(body).not.toMatch(/padding:\s*6px/);
+  });
+
+  // Волна w12 (владелец): "Дополнение" + "Отозвать" + "В работе" на десктопе
+  // разъезжались на две строки - панель действий выталкивалась под бейдж
+  // ЛЮБОЙ шириной экрана. flex-basis:100% остаётся верным только для мобилки,
+  // где под шапку и правда нужно уйти отдельной строкой; на десктопе всё
+  // должно стоять в одну строку с бейджем.
+  it('панель действий заявки встаёт под бейджем "+ Дополнение..." ТОЛЬКО на мобилке (flex-basis: 100%)', () => {
+    const mobileMarker = DETAIL_SFC.indexOf('.detail-header-actions {\n        justify-content: flex-start;');
+    expect(mobileMarker).toBeGreaterThan(-1);
+
+    const actionBarRuleIndex = DETAIL_SFC.indexOf('.detail-header-actions :deep(.action-bar-root)');
+    expect(actionBarRuleIndex).toBeGreaterThan(mobileMarker);
+
     const body = rule(DETAIL_SFC, '.detail-header-actions :deep(.action-bar-root)');
     expect(body).toMatch(/flex-basis:\s*100%/);
+
+    // Вне мобильного блока правило не объявлено - на десктопе панель не
+    // выталкивается под бейдж отдельной строкой.
+    const beforeMobile = DETAIL_SFC.slice(0, mobileMarker);
+    expect(beforeMobile).not.toMatch(/\.detail-header-actions :deep\(\.action-bar-root\)/);
   });
 });
