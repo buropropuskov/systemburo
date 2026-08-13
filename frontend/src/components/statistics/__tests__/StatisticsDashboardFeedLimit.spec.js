@@ -73,3 +73,62 @@ describe('StatisticsDashboard — лимит живой ленты по шири
     expect(state.calls).toEqual([5]);
   });
 });
+
+/** N записей с уникальным ключом (feedRowKey = created_at|subject|action_type). */
+function makeRows(n, prefix) {
+  return Array.from({ length: n }, (_, i) => ({
+    action_type: i % 2 === 0 ? 'entry' : 'exit',
+    created_at: `2026-06-07T10:${String(i).padStart(2, '0')}:00Z`,
+    subject: `${prefix}-${i}`,
+    mark: '',
+    organization: 'Ромашка',
+    place: 'КПП-1',
+  }));
+}
+
+describe('StatisticsDashboard — раскрытие ленты по тапу (#1097 w8)', () => {
+  it('на узком экране при >=5 записях показывает "Показать ещё" у каждой ленты отдельно', async () => {
+    mockNarrowViewport(true);
+    state.passages = { people: makeRows(20, 'Иванов'), cars: makeRows(20, 'А000АА') };
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    const feeds = wrapper.findAll('.dashboard__feed');
+    expect(feeds).toHaveLength(2);
+    expect(feeds[0].find('.dashboard__feed-more').exists()).toBe(true);
+    expect(feeds[1].find('.dashboard__feed-more').exists()).toBe(true);
+  });
+
+  it('раскрытие ленты людей поднимает только её лимит, машины остаются свёрнуты', async () => {
+    mockNarrowViewport(true);
+    state.passages = { people: makeRows(20, 'Иванов'), cars: makeRows(20, 'А000АА') };
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    const feeds = wrapper.findAll('.dashboard__feed');
+    await feeds[0].find('.dashboard__feed-more').trigger('click');
+    await flushPromises();
+
+    // Запрос ушёл с большим из двух активных потолков (15), а не свёрнутыми 5.
+    expect(state.calls.at(-1)).toBe(15);
+
+    const feedsAfter = wrapper.findAll('.dashboard__feed');
+    const peopleRows = feedsAfter[0].findAll('.dashboard__feed-row:not(.dashboard__feed-row--skeleton)');
+    const carsRows = feedsAfter[1].findAll('.dashboard__feed-row:not(.dashboard__feed-row--skeleton)');
+    expect(peopleRows.length).toBe(15);
+    expect(carsRows.length).toBe(5);
+
+    // Кнопка раскрытой ленты пропадает, у свёрнутой остаётся.
+    expect(feedsAfter[0].find('.dashboard__feed-more').exists()).toBe(false);
+    expect(feedsAfter[1].find('.dashboard__feed-more').exists()).toBe(true);
+  });
+
+  it('на широком экране кнопка "Показать ещё" не рендерится вовсе', async () => {
+    mockNarrowViewport(false);
+    state.passages = { people: makeRows(20, 'Иванов'), cars: makeRows(20, 'А000АА') };
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    expect(wrapper.find('.dashboard__feed-more').exists()).toBe(false);
+  });
+});
