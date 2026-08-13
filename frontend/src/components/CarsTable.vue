@@ -2673,7 +2673,7 @@ export default {
   }
 
   .selected-table-card .item-row:not(:last-child) .rt-pass {
-    border-bottom: 1px solid var(--border) !important;
+    border-bottom: 2px solid var(--border) !important;
   }
 
   .selected-table-card .item-row:last-child .rt-pass {
