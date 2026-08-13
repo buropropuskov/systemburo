@@ -1830,6 +1830,7 @@ export default {
         align-items: center !important;
         justify-content: flex-start !important;
         min-height: 30px;
+        height: auto;
         border-bottom: none !important;
         text-align: left !important;
         white-space: normal;
@@ -1870,10 +1871,16 @@ export default {
     }
 
     /* Пунктир-разделитель полей достался бы бейджу отдельной чертой посреди общей строки -
-       у ячейки, которая строку не начинает, его снимаем. */
+       у ячейки, которая строку не начинает, его снимаем.
+
+       align-self прибивает бейдж к ПЕРВОЙ строке должности, а не к середине поля: у
+       должности в две-три строки строка карточки вырастает до 50-60px, и отцентрованный
+       бейдж повисал ровно посреди неё, наезжая на текст соседа и читаясь как воткнутый
+       между полями. Сверху он теперь стоит вплотную под своим пунктиром. */
     .rt-table .employee-row.rt-row > .status-col {
         flex: 0 0 auto !important;
         width: auto !important;
+        align-self: flex-start;
         border-top: none !important;
     }
 
