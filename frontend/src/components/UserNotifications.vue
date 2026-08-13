@@ -195,6 +195,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { apiRequest } from '@/api/client'
 import { getNotificationsPaginated } from '@/api/notifications'
+import { useUiStore } from '@/stores/ui'
 import eventStream from '@/services/eventStream'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 import { useNotificationNavigation } from '@/composables/useNotificationNavigation'
@@ -244,7 +245,11 @@ export default {
     // useInfiniteList (#1158): аккумуляция страниц, hasMore/canLoadMore, устойчивость
     // к ошибкам бэка (#1173, circuit-breaker) - см. buildNotificationsPage/setSentinelRef.
     const infiniteList = useInfiniteList({ perPage: NOTIFICATIONS_PER_PAGE });
+    // Глобальный ConfirmDialog нужен и для вопроса об очистке, и для гейтов
+    // закрытия панели, пока человек на этот вопрос отвечает.
+    const uiStore = useUiStore();
     return {
+      uiStore,
       sheetScroll,
       isSheet,
       sheetOffset: swipe.offset,
@@ -315,8 +320,13 @@ export default {
     // обработчик навешивается раньше нашего и на том же document, поэтому в
     // обычной фазе он успевает закрыть окно и сбросить showDetailModal до того,
     // как мы его прочитаем. Перехват отдаёт нам событие первыми.
+    // Тот же довод про глобальный вопрос подтверждения: он смонтирован в App и
+    // ловит Escape в обычной фазе, то есть позже нас. Без гейта одно нажатие
+    // закрыло бы панель, оставив вопрос об очистке висеть над пустым местом.
     this.escHandler = (e) => {
-      if (e.key === 'Escape' && this.show && !this.showDetailModal) this.$emit('close')
+      if (e.key === 'Escape' && this.show && !this.showDetailModal && !this.uiStore.confirmState) {
+        this.$emit('close')
+      }
     }
     document.addEventListener('keydown', this.escHandler, true)
   },
@@ -460,6 +470,16 @@ export default {
     },
 
     async clearAll() {
+      // Очистка необратима и сносит ВСЕ уведомления пользователя, а не только
+      // видимые на текущей вкладке: DeleteAll бьёт по user_id без фильтра.
+      const ok = await this.uiStore.confirm({
+        title: 'Очистить уведомления?',
+        message: 'Все уведомления будут удалены.',
+        confirmText: 'Очистить',
+        cancelText: 'Отмена',
+        danger: false,
+      })
+      if (!ok) return
       try {
         const response = await apiRequest('/notifications', {
           method: 'DELETE',

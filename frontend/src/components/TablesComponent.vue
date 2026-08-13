@@ -1,5 +1,8 @@
 <template>
-  <div class="tables">
+  <div
+    class="tables"
+    :class="{ 'tables--fab': showFabBar }"
+  >
     <div
       ref="headerRef"
       class="tables__header"
@@ -161,13 +164,32 @@
             >
           </button>
 
+          <!-- Действия таблицы (Версии/Отчёт/Экспорт/Корзина) свёрнуты в лист снизу:
+               четыре иконки без подписей занимали вторую строку шапки и не читались.
+               В строке остаются поиск, «Фильтр» и это «⋯» (мокап mobile-ux.html,
+               экран «Проходная»). -->
+          <button
+            v-if="hasSheetActions"
+            type="button"
+            class="more-icon-btn"
+            aria-label="Действия с таблицей"
+            data-testid="table-more-btn"
+            @click="showActionsSheet = true"
+          >
+            &#8943;
+          </button>
+
           <!-- Поле раскрывается ВЛЕВО оверлеем поверх ряда через clip-path: ряд не
                переставляется, кнопка «Фильтр» не уезжает, reflow нет. Иконка справа -
-               тоггл, крестик внутри поля - очистить и закрыть (зеркало Центра). -->
+               тоггл, крестик внутри поля - очистить и закрыть (зеркало Центра).
+               Правый вырез считается от числа кнопок справа: без «⋯» это 46px
+               (36 иконка + 10 зазор ряда), с ним - 92px. Значение приходит
+               переменной, чтобы правило осталось в CSS, а не ушло в inline. -->
           <Transition name="table-search">
             <div
               v-if="showMobileSearch"
               class="tables__search-overlay"
+              :style="{ '--search-overlay-right': hasSheetActions ? '92px' : '46px' }"
             >
               <div class="field search">
                 <input
@@ -193,7 +215,14 @@
           </Transition>
         </template>
       </div>
-      <div class="filters__options">
+      <!-- Десктоп: действия таблицы инлайн в шапке. На мобилке ряд расходится по
+           двум местам - главное действие уходит в нижнюю панель, остальные в лист
+           «⋯». v-if, а не скрытая копия: два узла с одним data-testid ломают
+           онбординг-тур и E2E (эталон §2.2). -->
+      <div
+        v-if="!isNarrow"
+        class="filters__options"
+      >
         <button
           v-if="canManualAdd"
           class="options__manual-add"
@@ -201,21 +230,13 @@
           @click="showManualAdd = true"
         >
           <span class="options__manual-add-icon">+</span>
-          <span class="options__text">{{ isNarrow ? 'Добавить' : 'Добавить вручную' }}</span>
+          <span class="options__text">Добавить вручную</span>
         </button>
-        <!-- Мобилка (#1097 S6): текстом остаётся только «Добавить», остальные
-             действия сворачиваются в 36x36 иконки через общий .rt-btn-compact -
-             подпись прячется clip-приёмом (.rt-btn-label), не display:none.
-             Подсказку на узком экране даёт data-hint вместо native title: у
-             Версий/Корзины иначе на hover всплывали бы обе (тот же приём, что у
-             кнопки «Инструкция» выше). -->
         <RouterLink
-          v-if="can(`table.${$route.params.tableName}.versions`)"
+          v-if="canVersions"
           :to="`/table/${$route.params.tableName}/versions`"
-          class="options__versions-link rt-btn-compact"
-          :class="{ 'hint-anchor hint-anchor--below': isNarrow }"
-          :title="isNarrow ? null : 'Версии состояния таблицы'"
-          :data-hint="isNarrow ? 'Версии' : null"
+          class="options__versions-link"
+          title="Версии состояния таблицы"
           data-testid="table-versions-link"
           aria-label="Версии состояния таблицы"
         >
@@ -224,15 +245,13 @@
             class="options__icon"
             alt=""
           >
-          <span class="options__text rt-btn-label">Версии</span>
+          <span class="options__text">Версии</span>
         </RouterLink>
         <RouterLink
-          v-if="can(`table.${$route.params.tableName}.trash`)"
+          v-if="canTrash"
           :to="`/table/${$route.params.tableName}/trash`"
-          class="options__trash-link rt-btn-compact"
-          :class="{ 'hint-anchor hint-anchor--below': isNarrow }"
-          :title="isNarrow ? null : 'Корзина таблицы'"
-          :data-hint="isNarrow ? 'Корзина' : null"
+          class="options__trash-link"
+          title="Корзина таблицы"
           data-testid="table-trash-link"
           aria-label="Корзина таблицы"
         >
@@ -241,28 +260,24 @@
             class="options__icon"
             alt=""
           >
-          <span class="options__text rt-btn-label">Корзина</span>
+          <span class="options__text">Корзина</span>
         </RouterLink>
         <button
-          v-if="can(`table.${$route.params.tableName}.export`)"
-          class="options__export rt-btn-compact"
-          :class="{ 'hint-anchor hint-anchor--below': isNarrow }"
-          :data-hint="isNarrow ? 'Экспорт' : null"
+          v-if="canExport"
+          class="options__export"
           @click="handleExport"
         >
           <img
             src="@/assets/icons/export.png"
             class="tables__icon"
           >
-          <p class="options__text rt-btn-label">
+          <p class="options__text">
             Экспорт
           </p>
         </button>
         <button
-          v-if="can(`table.${$route.params.tableName}.report`)"
-          class="options__export rt-btn-compact"
-          :class="{ 'hint-anchor hint-anchor--below': isNarrow }"
-          :data-hint="isNarrow ? 'Отчёт' : null"
+          v-if="canReport"
+          class="options__export"
           data-testid="pass-report-button"
           @click="showPassReport = true"
         >
@@ -270,12 +285,103 @@
             src="@/assets/icons/stats.png"
             class="tables__icon"
           >
-          <p class="options__text rt-btn-label">
+          <p class="options__text">
             Отчёт
           </p>
         </button>
       </div>
     </div>
+
+    <!-- Мобилка: те же действия полными подписями в листе снизу. Механика окна
+         (крестик, затемнение, Escape, свайп вниз, блокировка фона) - из BaseModal,
+         пропы 1:1 с FilterSheet рядом, чтобы два листа одного экрана не разъехались
+         по геометрии. Своя обёртка, а не FilterSheet: у того нижняя панель занята
+         кнопкой сброса фильтров, здесь она не нужна. -->
+    <BaseModal
+      v-if="isNarrow && hasSheetActions"
+      :show="showActionsSheet"
+      title="Действия с таблицей"
+      width="600px"
+      radius="30px"
+      sheet-swipe
+      @close="showActionsSheet = false"
+    >
+      <div class="actions-sheet__list">
+        <RouterLink
+          v-if="canVersions"
+          :to="`/table/${$route.params.tableName}/versions`"
+          class="actions-sheet__item"
+          data-testid="table-versions-link"
+          @click="showActionsSheet = false"
+        >
+          <img
+            src="@/assets/icons/recent-changes.png"
+            class="actions-sheet__icon"
+            alt=""
+          >
+          Версии таблицы
+        </RouterLink>
+        <!-- «История» переехала сюда из шапки таблицы: там на телефоне один ряд в
+             48px, и три группы контролов в него не влезали. Модалка живёт в самой
+             таблице, поэтому зовём её метод по ref. -->
+        <button
+          v-if="canTableHistory"
+          type="button"
+          class="actions-sheet__item"
+          data-testid="table-history-action"
+          @click="runSheetAction(openTableHistory)"
+        >
+          <img
+            src="@/assets/icons/clipboard.png"
+            class="actions-sheet__icon"
+            alt=""
+          >
+          История изменений
+        </button>
+        <button
+          v-if="canReport"
+          type="button"
+          class="actions-sheet__item"
+          data-testid="pass-report-button"
+          @click="runSheetAction(() => { showPassReport = true; })"
+        >
+          <img
+            src="@/assets/icons/stats.png"
+            class="actions-sheet__icon"
+            alt=""
+          >
+          Отчёт по проходам
+        </button>
+        <button
+          v-if="canExport"
+          type="button"
+          class="actions-sheet__item"
+          data-testid="table-export-action"
+          @click="runSheetAction(handleExport)"
+        >
+          <img
+            src="@/assets/icons/export.png"
+            class="actions-sheet__icon"
+            alt=""
+          >
+          Экспорт в Excel
+        </button>
+        <RouterLink
+          v-if="canTrash"
+          :to="`/table/${$route.params.tableName}/trash`"
+          class="actions-sheet__item actions-sheet__item--danger"
+          data-testid="table-trash-link"
+          @click="showActionsSheet = false"
+        >
+          <img
+            src="@/assets/icons/trashcan.png"
+            class="actions-sheet__icon"
+            alt=""
+          >
+          Корзина
+        </RouterLink>
+      </div>
+    </BaseModal>
 
     <!-- Мобилка: вторичные фильтры в bottom-sheet. -->
     <FilterSheet
@@ -369,11 +475,25 @@
             @click="toggleHint"
           >
             <span class="fact-hint-card__toggle-text">Подсказка</span>
-            <img
-              src="@/assets/icons/arrow.png"
+            <!-- Вектор вместо arrow.png: растровая стрелка нативно 30px и на
+                 2x-экране в 14px мылилась. Рисуем сами - 16px, штрих 2.2,
+                 currentColor (следует за цветом подсказки в любой теме). -->
+            <svg
               class="fact-hint-card__chevron"
-              alt=""
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden="true"
             >
+              <path
+                d="M6 3l5 5-5 5"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
           </button>
           <div class="fact-hint-card__collapse">
             <div class="fact-hint-card__collapse-inner">
@@ -423,6 +543,39 @@
         @refresh-data="refreshData"
         @open-application="handleOpenApplication"
       />
+    </div>
+
+    <!-- Мобилка: главное действие экрана прижато к низу, под большой палец, и
+         продублировано «⋯» - как в мокапе. Панель fixed, поэтому контент получает
+         нижний отступ (.tables--fab), иначе она накрывает последнюю карточку.
+
+         data-bottom-action-bar - общий признак «снизу закреплена панель»: по нему
+         ScrollTopButton уводит свою кнопку выше, иначе она стоит в этом же углу.
+         Атрибут, а не переменная от страницы: любой следующий экран с такой панелью
+         получает поведение, просто поставив его на свою. -->
+    <div
+      v-if="showFabBar"
+      class="tables__fab-bar"
+      data-bottom-action-bar
+    >
+      <button
+        type="button"
+        class="tables__fab-main"
+        data-testid="manual-add-button"
+        @click="showManualAdd = true"
+      >
+        Добавить вручную
+      </button>
+      <button
+        v-if="hasSheetActions"
+        type="button"
+        class="tables__fab-more"
+        aria-label="Действия с таблицей"
+        data-testid="table-more-bar-btn"
+        @click="showActionsSheet = true"
+      >
+        &#8943;
+      </button>
     </div>
 
     <ApplicationDetail
@@ -476,6 +629,7 @@ import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
 import TableExportModal from './TableExportModal.vue';
 import ManualAddModal from './ManualAddModal.vue';
 import PassReportModal from './PassReportModal.vue';
+import BaseModal from '@/components/ui/BaseModal.vue';
 import FilterButton from '@/components/ui/FilterButton.vue';
 import FilterSheet from '@/components/ui/FilterSheet.vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
@@ -494,6 +648,7 @@ export default {
         TableExportModal,
         ManualAddModal,
         PassReportModal,
+        BaseModal,
         FilterButton,
         FilterSheet,
     },
@@ -568,6 +723,9 @@ export default {
             // Мобилка: открыт ли bottom-sheet со вторичными фильтрами.
             showFilterSheet: false,
 
+            // Мобилка: открыт ли лист действий таблицы («⋯»).
+            showActionsSheet: false,
+
             // Мобилка (#1097 S7): раскрыт ли оверлей поиска над рядом фильтров.
             showMobileSearch: false,
 
@@ -626,7 +784,44 @@ export default {
             if (this.tableType === 'people') return this.can('entity.employees.manual_add');
             return false;
         },
-        
+
+        // Права на действия таблицы - одним местом на обе раскладки: десктопный ряд
+        // и мобильный лист иначе разъедутся по составу при следующей правке.
+        canVersions() {
+            return this.can(`table.${this.$route.params.tableName}.versions`);
+        },
+
+        canTrash() {
+            return this.can(`table.${this.$route.params.tableName}.trash`);
+        },
+
+        canExport() {
+            return this.can(`table.${this.$route.params.tableName}.export`);
+        },
+
+        canReport() {
+            return this.can(`table.${this.$route.params.tableName}.report`);
+        },
+
+        // История таблицы. На десктопе её открывает кнопка в шапке самой таблицы, на
+        // телефоне шапка - один ряд в 48px, и кнопка уехала в лист «⋯» (волна 6).
+        canTableHistory() {
+            return this.can(`table.${this.$route.params.tableName}.history`);
+        },
+
+        // Есть ли что показывать в листе «⋯»: без единого доступного действия кнопка
+        // открывала бы пустое окно.
+        hasSheetActions() {
+            return this.canVersions || this.canTrash || this.canExport || this.canReport
+                || (this.isNarrow && this.canTableHistory);
+        },
+
+        // Нижняя панель существует ради главного действия; «⋯» в ней - дубль кнопки
+        // из шапки, ради одного его панель не поднимаем.
+        showFabBar() {
+            return this.isNarrow && this.canManualAdd;
+        },
+
         sanitizedHint() {
             return this.sanitizeHtml(this.tableFactHint);
         },
@@ -729,7 +924,12 @@ export default {
         isNarrow(value) {
             // Возврат на десктоп - гасим мобильное раскрытие поиска, иначе оверлей
             // остаётся смонтированным поверх инлайн-ряда фильтров (#1097 S7).
-            if (!value) this.showMobileSearch = false;
+            // Лист действий гасим по той же причине: его кнопки на десктопе снова
+            // в шапке, а окно осталось бы висеть.
+            if (!value) {
+                this.showMobileSearch = false;
+                this.showActionsSheet = false;
+            }
             this.measureHeader();
         }
     },
@@ -815,6 +1015,33 @@ export default {
                 // localStorage недоступен (приватный режим) - состояние не запомнится.
             }
         },
+        /**
+         * Действие из листа «⋯»: сначала закрываем лист, потом выполняем. Иначе
+         * окно экспорта/отчёта открывается ПОД листом - оба лежат на базовом слое
+         * модалок, и поздний оказывается не сверху, а рядом.
+         *
+         * @param {Function} action
+         */
+        runSheetAction(action) {
+            this.showActionsSheet = false;
+            action();
+        },
+
+        /**
+         * Открывает историю той таблицы, что сейчас на экране: у машин и у людей она
+         * своя - со своей моделью, фильтрами и выгрузкой, - и живёт внутри компонента
+         * таблицы. Рендерится ровно один из двух, поэтому и ref всегда один.
+         */
+        openTableHistory() {
+            const cars = this.$refs.carsTable;
+            if (cars) {
+                cars.openCarsTableHistory();
+                return;
+            }
+            const people = this.$refs.peopleTable;
+            if (people) people.openEmployeesHistory();
+        },
+
         handleApplicationUpdate(updatedApp) {
             console.log('Application updated:', updatedApp);
             this.refreshData();
@@ -1081,6 +1308,97 @@ export default {
 .tables {
     padding: var(--gutter);
     position: relative;
+}
+
+/* Панель главного действия прижата к низу экрана (position: fixed), поэтому её
+   высоту резервирует контент - иначе последняя карточка списка уезжает под неё.
+   64px = 8 сверху + кнопка 44 + 12 снизу. */
+.tables--fab {
+    padding-bottom: calc(var(--gutter) + 64px + env(safe-area-inset-bottom, 0px));
+}
+
+.tables__fab-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    /* Выше содержимого страницы, ниже шапки (100) и всех окон (от 1000). */
+    z-index: 90;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px var(--gutter) calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+}
+
+.tables__fab-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 44px;
+    border: none;
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+    color: var(--accent-contrast);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.tables__fab-more {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+/* Лист действий: строки 48px с полными подписями - ради них действия и уехали из
+   шапки, где от них оставались иконки 36x36 без текста. */
+.actions-sheet__list {
+    display: flex;
+    flex-direction: column;
+    padding: 4px 0 8px;
+}
+
+.actions-sheet__item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 20px;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 15px;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.actions-sheet__item:active {
+    background: var(--surface-2);
+}
+
+.actions-sheet__item--danger {
+    color: var(--danger-text);
+}
+
+.actions-sheet__icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
 }
 
 .tables__title {
@@ -1669,6 +1987,10 @@ export default {
         flex-direction: column;
     }
     
+    /* Вертикальные отступы карточки на телефоне отдаём содержимому: в свёрнутом
+       виде она вся состоит из одного переключателя, и padding 14px превращал полосу
+       подсказки в блок 74px. Своей высоты у неё теперь нет - ровно тач-таргет
+       переключателя (44px) плюс рамка, а в развёрнутом отступ снизу добирает текст. */
     .fact-hint-card {
         flex: none;
         width: 100%;
@@ -1678,6 +2000,23 @@ export default {
            он ужал бы переключатель и текст до ширины содержимого. */
         align-items: stretch;
         gap: 0;
+        padding: 0 16px;
+        transition: background-color 0.22s ease, border-color 0.22s ease;
+    }
+
+    /* Свёрнутая - тонкая подсказка, а не акцентная плашка: заливка акцентом во всю
+       ширину читалась как главный элемент экрана над таблицей поста. Остаётся тот
+       же акцент, но примесью (8% на поверхности) и текстом, а не фоном. Развёрнутая
+       заливку сохраняет - там она отделяет чужой текст из конструктора от таблицы. */
+    .fact-hint-card--collapsed {
+        background-color: var(--accent-tint-solid);
+        border-color: color-mix(in srgb, var(--accent) 30%, var(--surface));
+    }
+
+    .fact-hint-card--collapsed .fact-hint-card__toggle {
+        color: var(--accent-text);
+        font-size: 13px;
+        font-weight: 500;
     }
 
     .hint-content {
@@ -1697,7 +2036,8 @@ export default {
         justify-content: space-between;
         gap: 8px;
         width: 100%;
-        /* Тач-таргет 44px (WCAG 2.5.5) - вся ширина карточки, промахнуться негде. */
+        /* Тач-таргет 44px (WCAG 2.5.5) - вся ширина карточки, промахнуться негде.
+           Он же задаёт высоту свёрнутой подсказки: своих отступов у карточки нет. */
         min-height: 44px;
         padding: 0;
         background: none;
@@ -1707,14 +2047,14 @@ export default {
         font-size: 14px;
         font-weight: 600;
         color: var(--hint-card-text);
+        transition: color 0.22s ease;
     }
 
-    /* arrow.png нарисована смотрящей вправо (как у .select-arrow в остальных
-       окнах), поэтому «развёрнуто» - это повёрнутая вниз стрелка, а свёрнутое
-       состояние оставляет её как есть. */
+    /* Стрелка нарисована смотрящей вправо, поэтому «развёрнуто» - это повёрнутая
+       вниз стрелка, а свёрнутое состояние оставляет её как есть. */
     .fact-hint-card__chevron {
-        width: 14px;
-        height: 14px;
+        width: 16px;
+        height: 16px;
         flex-shrink: 0;
         transform: rotate(90deg);
         transition: transform 0.2s ease;
@@ -1739,8 +2079,11 @@ export default {
         overflow: hidden;
     }
 
+    /* Нижний отступ развёрнутой подсказки: у карточки своего больше нет, иначе текст
+       упирался бы в её нижнюю кромку. Задан содержимому, а не карточке, - иначе он
+       остался бы видимой полосой и в свёрнутом виде. */
     .fact-hint-card__collapse-inner .hint-content {
-        padding-top: 10px;
+        padding: 6px 0 14px;
     }
 
     /* Заголовок и «Инструкция» - в одну строку; длинное имя ужимается ellipsis,
@@ -1834,15 +2177,41 @@ export default {
         height: 16px;
     }
 
-    /* Оверлей поиска поверх ряда. right: 46px = иконка 36 + зазор ряда 10, чтобы
-       тоггл остался открытым. Скругление под поле (15px): иначе белые квадратные
-       углы оверлея торчат из-за pill-поля рядом с круглой иконкой (#1097 R3-3). */
+    /* «⋯» - тот же круг 36px, что у поиска рядом: разъехавшиеся по высоте контролы
+       одного ряда пользователь уже забраковал (урок #1832). */
+    .more-icon-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        border: 1px solid var(--border);
+        border-radius: 50%;
+        background: var(--surface);
+        color: var(--text);
+        font-size: 18px;
+        line-height: 1;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .more-icon-btn:hover {
+        background: var(--surface-2);
+        border-color: var(--accent);
+    }
+
+    /* Оверлей поиска поверх ряда. Правый вырез оставляет открытыми кнопки справа:
+       36 + зазор 10 на каждую (значение приходит из шаблона, см. --search-overlay-right).
+       Скругление под поле (15px): иначе белые квадратные углы оверлея торчат из-за
+       pill-поля рядом с круглой иконкой (#1097 R3-3). */
     .tables__search-overlay {
         position: absolute;
         top: 0;
         bottom: 0;
         left: 0;
-        right: 46px;
+        right: var(--search-overlay-right, 46px);
         z-index: 1;
         display: flex;
         align-items: center;
@@ -1887,64 +2256,9 @@ export default {
         clip-path: inset(0 0 0 0);
     }
 
-    /* Действия шапки - одной строкой (#1097 S6). Текстом остаётся только
-       «Добавить», остальные сворачиваются глобальным .rt-btn-compact в 36x36
-       (директива пользователя: в «Таблицах» плотность выше, чем в списках
-       сотрудников и машин, где он просил наоборот текстовые кнопки). Подписи
-       Версий/Корзины скрыты и на десктопе, у Экспорта и Отчёта их гасит
-       clip-приём .rt-btn-label - доступное имя кнопки остаётся.
-       wrap оставлен страховкой: вторая строка лучше горизонтальной прокрутки
-       страницы (эталон §12). Иконка 16px: PNG нативно 30px, при 20px на
-       2x-экране апскейлились в мыло; 16px (=32px на 2x) чёткие. */
-    .filters__options {
-        flex-wrap: wrap;
-        justify-content: flex-start;
-        gap: 8px;
-    }
-
-    /* Высота одинаковая у всей строки: 36px = размер .rt-btn-compact, который
-       перебивает её у свёрнутых кнопок своим !important. Разъехавшиеся по высоте
-       контролы ряда - отдельная претензия пользователя (урок #1832). */
-    .options__manual-add,
-    .options__versions-link,
-    .options__trash-link,
-    .options__export {
-        height: 36px;
-        width: auto;
-        padding: 0 12px;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        background: var(--surface);
-        font-size: 13px;
-        gap: 6px;
-    }
-
-    .filters__options .options__icon,
-    .options__export .tables__icon {
-        width: 16px;
-        height: 16px;
-    }
-
     .instruction-modal-large {
         margin: 10px;
         max-height: 90vh;
-    }
-}
-
-/* На 320px ряд действий сходится впритык и от округления уезжает во вторую
-   строку. Замер «до»: «Добавить» 104px (padding 12 + зазор 6 + иконка + текст
-   13px), четыре свёрнутые кнопки 4x36 = 144, зазоры 4x8 = 32 - ровно 280 при
-   доступных 320 - 2x20 padding страницы = 280. Поджимаем зазор и поля кнопки:
-   268 против 280, запас 12px.
-   Срез 7 перевёл отступ страницы на --gutter (на <=480 это 10px вместо 20):
-   доступно стало 300, запас ряда - 32px. */
-@media (max-width: 480px) {
-    .filters__options {
-        gap: 6px;
-    }
-
-    .options__manual-add {
-        padding: 0 10px;
     }
 }
 </style>

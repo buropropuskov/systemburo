@@ -9,9 +9,11 @@
       <!-- Действия шапки: вход в импорт (когда доступен) и очистка списка (когда есть,
            что чистить) - обе живут в шапке справа, а не в отдельной полосе тулбара под
            ней: иначе при коротком списке (нет поиска/пейджера) тулбар оставался пустой
-           строкой под кнопку и раздувал пробел между шапкой и таблицей. -->
+           строкой под кнопку и раздувал пробел между шапкой и таблицей.
+           На телефоне очистка уезжает в подвал блока (см. .list-foot ниже): счётчик и
+           действие в одной строке с заголовком переносились. -->
       <div
-        v-if="canImport || employees.length"
+        v-if="canImport || (!isNarrow && employees.length)"
         class="header-actions"
       >
         <div
@@ -28,18 +30,23 @@
               label="Experimental"
             />
           </span>
+          <!-- На телефоне подпись выхода короче: полная («Закрыть импорт») вместе с
+               заголовком, счётчиком и бейджем режима не оставляла шапке ни одной
+               свободной точки на 360. Доступное имя остаётся полным - видимый текст
+               его префикс, требование «label in name» соблюдено. -->
           <button
             type="button"
-            class="lk-button lk-button--secondary lk-button--sm import-entry__btn"
+            class="lk-button lk-button--secondary lk-button--sm list-mini-btn import-entry__btn"
             data-testid="employees-import-btn"
             :aria-pressed="importActive ? 'true' : 'false'"
+            :aria-label="importActive ? 'Закрыть импорт' : 'Импорт'"
             @click="$emit('toggle-import')"
           >
-            {{ importActive ? 'Закрыть импорт' : 'Импорт' }}
+            {{ importActive ? (isNarrow ? 'Закрыть' : 'Закрыть импорт') : 'Импорт' }}
           </button>
         </div>
         <button
-          v-if="employees.length"
+          v-if="!isNarrow && employees.length"
           type="button"
           class="lk-button lk-button--danger lk-button--sm list-toolbar__clear"
           data-testid="employees-clear-btn"
@@ -170,6 +177,10 @@
           <div class="table-col middleName-col">
             {{ row.item.middleName || 'Не указано' }}
           </div>
+          <!-- Разметка одна на обе раскладки: на десктопе действия остаются иконками
+               в колонке (порядок DOM не трогаем), на телефоне показываются подписи,
+               иконки прячутся, ряд уходит подвалом карточки, а «Детали» переставляется
+               в конец через order - см. @media ниже. -->
           <div class="table-col actions-col">
             <button
               class="details-btn"
@@ -177,6 +188,7 @@
               @click="showEmployeeDetails(row.item)"
             >
               <DetailsIcon class="details-icon" />
+              <span class="act-label">Детали</span>
             </button>
             <button
               class="edit-btn"
@@ -188,9 +200,11 @@
                 alt="Редактировать"
                 class="edit-icon"
               >
+              <span class="act-label">Изменить</span>
             </button>
             <button
               class="delete-btn"
+              title="Удалить"
               @click="$emit('delete-employee', row.item.id)"
             >
               <img
@@ -198,6 +212,7 @@
                 alt="Удалить"
                 class="delete-icon"
               >
+              <span class="act-label">Удалить</span>
             </button>
           </div>
         </div>
@@ -211,6 +226,26 @@
           {{ emptyMessage }}
         </div>
       </div>
+    </div>
+
+    <!-- Итог блока отдельной строкой (только телефон): счётчик слева, очистка справа.
+         В строке заголовка та же пара переносилась вместе с подписью списка. -->
+    <div
+      v-if="isNarrow && employees.length"
+      class="list-foot"
+    >
+      <span
+        class="list-foot__total"
+        data-testid="employees-total"
+      >Всего {{ totalLabel }}</span>
+      <button
+        type="button"
+        class="lk-button lk-button--danger lk-button--sm list-mini-btn list-foot__clear"
+        data-testid="employees-clear-btn"
+        @click="showClearConfirm = true"
+      >
+        Очистить
+      </button>
     </div>
 
     <!-- Очистка списка необратима (отмены на странице нет), поэтому идёт только через
@@ -245,6 +280,8 @@ import Badge from '@/components/ui/Badge.vue';
 import DetailsIcon from '@/components/ui/DetailsIcon.vue';
 import Pager from '@/components/ui/Pager.vue';
 import { useListSearchPagination } from '@/composables/useListSearchPagination';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
+import { entityCountLabel } from '@/utils/entityCount';
 
 export default {
     name: 'EmployeesList',
@@ -278,7 +315,11 @@ export default {
         }
     },
     emits: ['sort', 'edit-employee', 'delete-employee', 'toggle-import', 'clear-list'],
+    // 767.98 - тот же порог, что у карточного @media: очистка списка и подписи действий
+    // живут в разных местах раскладки, одним CSS этого не выразить.
     setup(props) {
+        const { isNarrow } = useNarrowScreen(767.98);
+
         // Поиск+постраничный показ - см. useListSearchPagination (blank-import E1: до
         // 2000 строк, рендерить всё v-for'ом не годится).
         const {
@@ -295,6 +336,7 @@ export default {
         );
 
         return {
+            isNarrow,
             searchQuery,
             currentPage,
             showToolbar,
@@ -318,6 +360,11 @@ export default {
             const pending = this.employees.filter(employee => employee.isPending).length;
             const fromBlank = pending > 0 ? `, из них предварительных из бланка: ${pending}` : '';
             return `Будет убрано строк: ${this.employees.length}${fromBlank}. Отменить это действие нельзя.`;
+        },
+
+        // Итог блока в подвале: «Всего 2 сотрудника» - со склонением по числу.
+        totalLabel() {
+            return entityCountLabel(this.employees.length, 'employees');
         },
 
         // Пустая таблица объясняет причину пустоты: список не заполняли вовсе или поиск
@@ -409,12 +456,27 @@ export default {
     display: none;
 }
 
-@media (max-width: 768px) {
-    .import-entry__btn,
-    .list-toolbar__clear {
-        min-height: 44px;
-        padding: 4px 14px;
-    }
+/* Подпись действия видна только на телефоне - на десктопе кнопка остаётся иконкой. */
+.act-label {
+    display: none;
+}
+
+/* Подвал блока (только телефон): «Всего N сотрудника» слева, очистка справа. */
+.list-foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md, 15px);
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.list-foot__clear {
+    margin-left: auto;
 }
 
 .employees-badge {
@@ -698,8 +760,15 @@ h4 {
     /* Шапка списка перестаёт разваливаться на стопку. Замер на 320 (ряд шапки - 274px):
        полная подпись занимала 176px, бейдж режима 95px, и пара «Импорт»+«Очистить»
        требовала 280px - действия уезжали на свою строку, а там ломались ещё раз. После
-       сжатия группа действий укладывается в 249px и остаётся одной строкой. */
+       сжатия группа действий укладывается в 249px и остаётся одной строкой.
+
+       nowrap, а не wrap: перенос флекс считает по НАТУРАЛЬНОЙ ширине элемента, до
+       применения flex-shrink, поэтому многоточие у заголовка перенос не отменяло -
+       группа действий всё равно уезжала во вторую строку («Сотрудники (0)» + бейдж +
+       «Закрыть импорт» требовали 338px при 314 на 360). Теперь единственный
+       сжимаемый элемент ряда - заголовок, остальные идут в натуральную ширину. */
     .header-with-badge {
+        flex-wrap: nowrap;
         gap: 6px;
     }
 
@@ -723,24 +792,50 @@ h4 {
         flex: 0 0 auto;
     }
 
+    /* 8px, а не 6: зоны нажатия мини-кнопок расширены на 4px в стороны, при меньшем
+       зазоре они наложились бы друг на друга. Места хватает - очистка ушла в подвал. */
     .header-actions,
     .import-entry {
-        gap: 6px;
+        gap: 8px;
     }
 
-    /* Бейдж режима остаётся, но кеглем и полями поменьше. Специфичность (0,3,0) взята
-       выше scoped-правила самого Badge (0,2,0) намеренно: при равной побеждает чанк,
-       загруженный позже, а его порядок на проде не совпадает с dev (#1097 S9a). */
+    /* Группа действий несжимаема: у .lk-button white-space: nowrap, и сжатие не
+       укоротило бы подпись, а вытолкнуло её за границы кнопки. */
+    .header-actions {
+        flex-shrink: 0;
+        flex-wrap: nowrap;
+    }
+
+    /* Бейдж режима ровно той же высоты, что и кнопка рядом (22px): «как бейдж
+       Experimental» - это про совпадение, а собственная высота бейджа на телефоне
+       была 16px. Специфичность (0,3,0) взята выше scoped-правила самого Badge
+       (0,2,0) намеренно: при равной побеждает чанк, загруженный позже, а его
+       порядок на проде не совпадает с dev (#1097 S9a). */
     .import-entry .hint-anchor :deep(.badge--sm) {
+        height: 22px;
+        padding: 0 8px;
         font-size: 10px;
-        padding: 2px 6px;
     }
 
-    /* Ужимаем только горизонтальные поля - высота 44px под палец остаётся. */
-    .import-entry__btn,
-    .list-toolbar__clear {
-        padding: 4px 10px;
-        font-size: 12px;
+    /* Кнопка шапки блока ровно по высоте бейджа «Experimental» рядом - 22px, как в
+       мокапе (.mini-btn). Прежние 44px делали из строки заголовка панель инструментов.
+       Палец при этом не мимо: невидимый ::before растягивает зону нажатия до 44px
+       (22 + 11 сверху и снизу), горизонтальный запас 4px меньше половины зазора 8px -
+       зоны соседних кнопок не перекрываются. */
+    .list-mini-btn {
+        position: relative;
+        height: 22px;
+        min-height: 0;
+        padding: 0 9px;
+        font-size: 11.5px;
+        font-weight: 700;
+        line-height: 1;
+    }
+
+    .list-mini-btn::before {
+        content: '';
+        position: absolute;
+        inset: -11px -4px;
     }
 
     .employees-table {
@@ -775,8 +870,9 @@ h4 {
         align-items: center;
         gap: 2px 6px;
         min-height: 56px;
-        /* Резерв под три кнопки действий, приколотые справа. */
-        padding: 10px 136px 10px 12px !important;
+        /* Резерва справа больше нет: действия уехали в подвал карточки, и ФИО занимает
+           всю ширину (было 136px под три иконки поперёк строки). */
+        padding: 10px 12px !important;
         font-size: 14px;
     }
 
@@ -805,37 +901,91 @@ h4 {
         font-size: 14px;
     }
 
+    /* Подвал карточки: действия бейджами под ФИО, а не поперёк строки. */
     .actions-col {
-        position: absolute;
-        top: 50%;
-        right: 8px;
-        transform: translateY(-50%);
+        position: static;
+        transform: none;
+        flex-basis: 100%;
         width: auto !important;
-        gap: 2px;
+        justify-content: flex-start;
+        gap: 6px;
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid color-mix(in srgb, var(--border) 60%, var(--surface));
     }
 
+    /* Высота 28px как у бейджа, зона нажатия 44px невидимым ::before (мокап .act):
+       кнопка перестаёт претендовать на половину карточки, но мимо неё не попадёшь. */
     .details-btn,
     .edit-btn,
     .delete-btn {
-        width: 40px;
-        height: 40px;
+        position: relative;
+        width: auto;
+        height: 28px;
+        padding: 0 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-pill, 999px);
+        background: var(--surface);
+        font-size: 12.5px;
+        font-weight: 600;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .details-btn::before,
+    .edit-btn::before,
+    .delete-btn::before {
+        content: '';
+        position: absolute;
+        inset: -8px -2px;
+    }
+
+    .edit-btn {
+        order: 1;
+        border-color: var(--accent);
+        color: var(--accent-text);
+    }
+
+    .delete-btn {
+        order: 2;
+        border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
+        color: var(--danger-text);
+    }
+
+    /* «Детали» - вторичное действие: без рамки и прижата к правому краю подвала.
+       Порядок DOM оставлен десктопным (иконка деталей там идёт первой), поэтому
+       переставляем через order, а не перестановкой разметки. */
+    .details-btn {
+        order: 3;
+        margin-left: auto;
+        border-color: transparent;
+        color: var(--text-muted);
+    }
+
+    /* Подложка кнопок из десктопной раскладки (зелёная/красная заливка на весь
+       квадрат) на бейджах читается как залитая кнопка - гасим. */
+    .details-btn:hover,
+    .edit-btn:hover,
+    .delete-btn:hover {
+        background: var(--surface-2);
+    }
+
+    /* Подпись вместо иконки: текст в кнопке читается без догадок. */
+    .act-label {
+        display: inline;
     }
 
     .details-icon,
     .edit-icon,
     .delete-icon {
-        width: 20px;
-        height: 20px;
-        opacity: 0.75;
+        display: none;
     }
 }
 
-/* Узкие телефоны: те же элементы шапки ещё плотнее. На 320 доступной ширины ряда 274px,
-   и группе действий с очисткой её хватает только при этих полях. */
+/* Узкие телефоны: подпись и бейдж плотнее. Зазоры группы действий не ужимаем - они
+   держат зоны нажатия мини-кнопок раздельными (см. .list-mini-btn). */
 @media (max-width: 480px) {
-    .header-with-badge,
-    .header-actions,
-    .import-entry {
+    .header-with-badge {
         gap: 4px;
     }
 
@@ -846,12 +996,7 @@ h4 {
     }
 
     .import-entry .hint-anchor :deep(.badge--sm) {
-        padding: 2px 5px;
-    }
-
-    .import-entry__btn,
-    .list-toolbar__clear {
-        padding: 4px 8px;
+        padding: 0 6px;
     }
 }
 </style>

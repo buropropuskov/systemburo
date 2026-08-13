@@ -107,7 +107,16 @@ func isPDPath(path string) bool {
 		}
 	}
 	return isBlankPath(path) || isAvailableAttachmentPath(path) || isApplicationArchivePath(path) ||
-		isApplicationFilePath(path)
+		isApplicationFilePath(path) || isApplicationParticipantsPath(path)
+}
+
+// isApplicationParticipantsPath - состав участников заявки
+// (/api/applications/{id}/participants). Метод отдаёт рабочие контакты каждого:
+// почту и телефон. Это те же сведения о людях, что в реестре работников, только
+// вход другой - через карточку заявки, - и без этой строки появился бы способ
+// собирать контакты мимо журнала, как это было со сквозным поиском до #1472.
+func isApplicationParticipantsPath(path string) bool {
+	return strings.HasPrefix(path, "/api/applications/") && strings.HasSuffix(path, "/participants")
 }
 
 // isApplicationFilePath - файлы, приложенные к заявке (#1721): /api/applications/{id}/files
@@ -191,6 +200,8 @@ func pathToResource(path string) string {
 		return "application_archive"
 	case isApplicationFilePath(path):
 		return "application_file"
+	case isApplicationParticipantsPath(path):
+		return "application_participants"
 	case strings.HasPrefix(path, "/api/unique-employees"):
 		return "unique_employee"
 	case strings.HasPrefix(path, "/api/employees"):
@@ -203,6 +214,10 @@ func pathToResource(path string) string {
 		// Один вид ресурса на все входы выгрузки: разбирать в журнале «список» и
 		// «сам ZIP» незачем, отвечать по 152-ФЗ придётся за факт выноса бланков.
 		return "file_archive"
+	case strings.HasPrefix(path, "/api/applications/export"):
+		return "applications_export"
+	case strings.HasPrefix(path, "/api/search"):
+		return "search"
 	}
 	return "unknown"
 }

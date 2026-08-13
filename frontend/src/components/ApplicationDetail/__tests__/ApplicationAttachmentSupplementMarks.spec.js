@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
 
@@ -5,6 +7,15 @@ import ApplicationAttachmentDetail from '../ApplicationAttachmentDetail.vue';
 
 const ROW = '[data-testid="attachment-element-row"]';
 const BADGE = '[data-testid="attachment-supplement-badge"]';
+
+const SFC = readFileSync(resolve(__dirname, '../ApplicationAttachmentDetail.vue'), 'utf8');
+
+/** Тело правила для селектора, без учёта переносов. */
+function rule(src, selector) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const found = src.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`));
+  return found ? found[1].replace(/\s+/g, ' ').trim() : null;
+}
 
 // Признаки приезжают плоскими полями строки состава (SupplementMark встроен в DTO машины,
 // сотрудника и ТМЦ) - фикстуру строим по json-тегам, а не по своим догадкам.
@@ -84,14 +95,16 @@ describe('ApplicationAttachmentDetail — метки дополнения (#1685
     expect(wrapper.find(ROW).classes()).toContain('el-row--supplement-approved');
   });
 
-  // На мобилке карточка уводит метку на свою строку правилом по .el-cell--key: без
-  // этого класса правило не имело бы цели, а метка жала бы гос. номер.
-  it('метка стоит в ключевой ячейке, помеченной классом для карточной раскладки', () => {
+  // На мобилке карточка уводит метку на свою строку: класс ключевой ячейки - цель
+  // правила, обёртка .supplement-line - то, что забирает строку целиком. Без обёртки
+  // место метки снова определяла бы длина значения, и она жала бы гос. номер.
+  it('метка стоит в ключевой ячейке, в обёртке под отдельную строку карточки', () => {
     const wrapper = mountAttachment('cars', [car(mark({ status: 'pending' }))]);
 
     const keyCell = wrapper.find('.el-row .el-cell--key');
     expect(keyCell.exists()).toBe(true);
-    expect(keyCell.find(BADGE).exists()).toBe(true);
+    expect(keyCell.find('.supplement-line').exists()).toBe(true);
+    expect(keyCell.find('.supplement-line').find(BADGE).exists()).toBe(true);
   });
 
   it('раунд принят: постоянная метка происхождения без подсветки строки', () => {
@@ -179,5 +192,35 @@ describe('ApplicationAttachmentDetail — метки дополнения (#1685
     expect(rows).toHaveLength(2);
     expect(rows[0].find(BADGE).exists()).toBe(false);
     expect(rows[1].find(BADGE).text()).toBe('На согласовании');
+  });
+});
+
+// jsdom не считает ни каскад, ни медиазапросы, ни перенос строк во флексе, поэтому
+// правила раскладки стережём чтением SFC. Сам эффект - замером в браузере на 320/390.
+describe('ApplicationAttachmentDetail — метка не наезжает на соседние поля', () => {
+  it('в карточке метка занимает строку целиком и не прижимается вправо', () => {
+    expect(rule(SFC, '.el-row .el-cell--key .supplement-line')).toMatch(/flex:\s*0 0 100%/);
+    expect(rule(SFC, '.el-row .el-cell--key .supplement-badge')).not.toMatch(/margin-left:\s*auto/);
+  });
+
+  // Держим смысл, а не число: важно, что вертикальный отступ есть и что высоту поля
+  // задаёт содержимое. Фиксированная высота тут была причиной наложений - `min-height`
+  // на флекс-элементе отменяет автоматический минимум, и содержимое печаталось поверх
+  // разделителя. Поэтому замок заодно запрещает её вернуть.
+  it('поле карточки держит вертикальный отступ - перенос не ложится на пунктир', () => {
+    const decls = rule(SFC, '.el-table .el-row .el-cell');
+    const padding = decls.match(/padding:\s*(\d+)px 0/);
+    expect(padding, `вертикальный отступ поля не задан: ${decls}`).not.toBeNull();
+    expect(Number(padding[1])).toBeGreaterThanOrEqual(3);
+    expect(decls, 'фиксированная высота поля отменяет автоминимум флекса').not.toMatch(/min-height:\s*\d/);
+  });
+
+  // Тап по строке оставляет :hover залипшим, и пузырёк подсказки повис бы поперёк
+  // соседних карточек - на тач-экране показывать его нечему и незачем.
+  it('подсказки по data-hint показываются только там, где есть курсор', () => {
+    expect(SFC).toMatch(
+      /@media \(hover: hover\) \{[^@]*\.supplement-badge\[data-hint\]:hover::after/
+    );
+    expect(SFC).not.toMatch(/^\.supplement-badge\[data-hint\]:hover::after/m);
   });
 });

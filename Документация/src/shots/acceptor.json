@@ -104,6 +104,32 @@
       ]
     },
     {
+      "id": "acceptor-supplement",
+      "goto": "/center",
+      "waitFor": "[data-testid=\"center-row-323\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"center-row-323\"]"
+        },
+        {
+          "wait": "[data-testid=\"supplement-button-accept\"]"
+        }
+      ],
+      "clip": {
+        "selector": ".action-bar-root",
+        "pad": {
+          "x": 30,
+          "y": 12
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"supplement-actions\"]",
+          "badge": 1
+        }
+      ]
+    },
+    {
       "id": "acceptor-assign",
       "goto": "/center",
       "waitFor": "[data-testid=\"center-input-search\"]",

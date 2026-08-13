@@ -131,6 +131,45 @@ describe('useEdgeSwipeOpen', () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
+  // Волна 6: «при свайпе предупреждения ещё открывается навигация» и «листал таблицу
+  // вправо - постоянно открывалась навигация». Оба случая - один жест на двух хозяев.
+  it('лента листается, даже когда её содержимое пока помещается', () => {
+    build();
+    const scroller = document.createElement('div');
+    scroller.style.overflowX = 'auto';
+    // Переполнения ещё нет: записей мало. Жест всё равно принадлежит ленте.
+    Object.defineProperty(scroller, 'scrollWidth', { value: 300 });
+    Object.defineProperty(scroller, 'clientWidth', { value: 300 });
+    const child = document.createElement('span');
+    scroller.appendChild(child);
+    document.body.appendChild(scroller);
+    swipe(60, 300, { target: child });
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('элемент со своим горизонтальным жестом меню не отдаёт', () => {
+    build();
+    const panel = document.createElement('aside');
+    panel.setAttribute('data-swipe-own', '');
+    const inner = document.createElement('div');
+    panel.appendChild(inner);
+    document.body.appendChild(panel);
+    swipe(60, 300, { target: inner });
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('пока страница разъезжается вбок, свайп листает её, а не открывает меню', () => {
+    build();
+    const de = document.documentElement;
+    const scrollW = Object.getOwnPropertyDescriptor(de, 'scrollWidth');
+    Object.defineProperty(de, 'scrollWidth', { value: 900, configurable: true });
+    Object.defineProperty(de, 'clientWidth', { value: 390, configurable: true });
+    swipe(60, 300);
+    expect(onOpen).not.toHaveBeenCalled();
+    if (scrollW) Object.defineProperty(de, 'scrollWidth', scrollW);
+    else delete de.scrollWidth;
+  });
+
   it('при выключенном гейте (открытая панель или модалка) жест игнорируется', () => {
     build();
     enabled = false;

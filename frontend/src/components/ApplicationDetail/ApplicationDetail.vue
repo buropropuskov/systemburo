@@ -629,14 +629,20 @@
 
           <!-- Раунды дополнения (#1685): показываем только когда они у заявки есть -
                у подавляющего большинства заявок дополнений нет, и пустая карточка
-               в колонке была бы шумом. -->
-          <SupplementPanel
+               в колонке была бы шумом. Обёртка нужна для order на мобилке; v-if на
+               ней же, а не на панели - пустой div в промоутнутой ленте забирал бы
+               свой gap. -->
+          <div
             v-if="hasSupplements"
-            :supplements="supplements"
-            :current-user-id="currentUserId"
-            :loading="supplementsLoading"
-            :error="supplementsError"
-          />
+            class="detail-order-supplement"
+          >
+            <SupplementPanel
+              :supplements="supplements"
+              :current-user-id="currentUserId"
+              :loading="supplementsLoading"
+              :error="supplementsError"
+            />
+          </div>
 
           <div
             v-if="can('center.application_history')"
@@ -3150,8 +3156,8 @@ export default {
        .detail-content, где order работает КРОСС-колоночно. sheetScroll (свайп W3.9)
        остаётся на .detail-content: contents только на КОЛОНКАХ, не на самом контейнере.
        Порядок: сообщение(1) -> форвард(2) -> вопросы(3) -> пикер вложений(4) ->
-       выбранное вложение(5) -> комментарий+согласование(6) -> инфо(7) -> статус(8) ->
-       история(9). */
+       выбранное вложение(5) -> комментарий+согласование(6) -> дополнения(7) ->
+       инфо(8) -> статус(9) -> история(10). */
     .detail-content {
         gap: 10px;
         padding: 12px;
@@ -3184,9 +3190,13 @@ export default {
        действия внизу списка. Показывается только когда есть что комментировать. */
     .comment-action-section { order: 0; }
     .detail-order-confirmation { order: 6; }
-    .basic-info-section { order: 7; }
-    .application-status-section { order: 8; }
-    .history-button-section { order: 9; }
+    /* Дополнения - под согласование (раунд и есть повторный круг согласования) и
+       заведомо ниже сообщения, действий и вложений. Без своего order панель шла с
+       нулевым (дефолт) и вставала в самый верх ленты, до сообщения. */
+    .detail-order-supplement { order: 7; }
+    .basic-info-section { order: 8; }
+    .application-status-section { order: 9; }
+    .history-button-section { order: 10; }
 
     /* Промоутнутые секции не сжимаем - иначе flex-column режет высокий контент
        (пикер/вложение) вместо скролла .detail-content (ср. .detail-main-column > *). */
@@ -3195,6 +3205,7 @@ export default {
     .detail-order-questions,
     .detail-order-selected-attachment,
     .detail-order-confirmation,
+    .detail-order-supplement,
     .message-section,
     .basic-info-section,
     .application-status-section,

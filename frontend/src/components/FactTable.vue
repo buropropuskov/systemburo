@@ -183,7 +183,14 @@
               :style="{ animationDelay: `${index * 0.1}s` }"
               @click="openItemDetails(item)"
             >
-              <div class="fact-row rt-row">
+              <!-- rt-pass: строка собирается талоном на мобилке (responsive-tables.css,
+                   часть 3) - той же, что у таблицы «по заявке» под ней: обе стоят на
+                   одном экране, и разнобой между ними виден целиком. Только для машин:
+                   у людей нет ни номера, ни кнопок прохода, талону не из чего собраться. -->
+              <div
+                class="fact-row rt-row"
+                :class="{ 'rt-pass': tableType === 'cars' }"
+              >
                 <!-- Служебные въезд/выезд - всегда первые (только cars) -->
                 <div
                   v-if="tableType === 'cars'"
@@ -222,7 +229,7 @@
                 <!-- Конфигурируемые столбцы -->
                 <div
                   v-if="tableType === 'cars' && isFieldVisible('car_number')"
-                  class="col number-col"
+                  class="col number-col rt-pass__plate"
                   :style="getColStyle('car_number')"
                   data-label="Номер Т/С"
                 >
@@ -230,7 +237,7 @@
                 </div>
                 <div
                   v-if="tableType === 'cars' && isFieldVisible('car_brand')"
-                  class="col brand-col"
+                  class="col brand-col rt-pass__mark"
                   :style="getColStyle('car_brand')"
                   data-label="Марка"
                 >
@@ -349,14 +356,15 @@
                   @click.stop
                 >
                   <button
-                    class="delete-btn"
+                    class="delete-btn rt-pass__act rt-pass__act--danger"
                     @click="deleteItem(item)"
                   >
                     <img
                       src="@/assets/icons/trashcan.png"
                       alt="Удалить"
-                      class="delete-icon"
+                      class="delete-icon rt-pass__act-icon"
                     >
+                    <span class="rt-pass__act-label">Удалить</span>
                   </button>
                 </div>
               </div>
@@ -412,6 +420,7 @@ import ExcelJS from 'exceljs';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { idFilterSet } from '@/utils/idFilter';
 import { pickOverflowFields, columnMinWidth, measureRowAvailableWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 
 export default {
   name: 'FactTable',
@@ -441,6 +450,12 @@ export default {
     grid: { type: Boolean, default: false }
   },
   emits: ['refresh-data', 'open-application'],
+  setup() {
+    // Порог тот же, что у card-правил responsive-tables.css: брейкпоинт компонента
+    // обязан совпадать с брейкпоинтом инфраструктуры, которой он пользуется.
+    const { isNarrow } = useNarrowScreen(767.98);
+    return { isNarrow };
+  },
   data() {
     return {
       sortField: null,
@@ -580,6 +595,12 @@ export default {
       },
       immediate: true
     },
+    // Поворот телефона и переход через брейкпоинт меняют правила подбора столбцов:
+    // ResizeObserver сам по себе сюда не доедет, ширина карточки при повороте может
+    // и не измениться (планшет 768 <-> 767).
+    isNarrow() {
+      this.recalcOverflowFields();
+    },
     // Применяем фактовые настройки таблицы (#345 PR-B).
     tableData: {
       immediate: true,
@@ -654,14 +675,22 @@ export default {
      * Пересчитывает, какие столбцы не помещаются в текущую ширину таблицы.
      */
     recalcOverflowFields() {
+      // На телефоне строка идёт карточкой: у каждого поля своя строка, за ширину
+      // они не конкурируют, и прятать нечего. Подбор здесь не просто бесполезен, а
+      // вреден: он мерит скрытую строку заголовков, получает ноль, берёт ширину
+      // карточки (368 на 390) против 260 служебных и оставляет ровно `keepAtLeast`
+      // столбца из девяти - а «Подробнее» у таблицы «по факту» нет, и остальные
+      // значения не видны нигде.
+      if (this.isNarrow) {
+        this.overflowFields = [];
+        return;
+      }
       const host = this.$el && this.$el.querySelector('.card-content');
       if (!host) return;
       const reserved = SERVICE_COLUMNS_WIDTH.passage
         + SERVICE_COLUMNS_WIDTH.actions;
       // Мерим строку заголовков, а не всю область: её ширина уже без отступов и
-      // зазоров между ячейками (#1097 S8 волна 4). Ноль означает, что шапка
-      // скрыта - на мобилке строки идут карточками, там остаётся прежний
-      // источник ширины, и набор скрытых столбцов не меняется.
+      // зазоров между ячейками (#1097 S8 волна 4).
       const measured = measureRowAvailableWidth(host.querySelector('.header-row'));
       this.overflowFields = pickOverflowFields({
         fields: this.configuredFields(),
@@ -690,7 +719,8 @@ export default {
     isFieldVisible(fieldName) {
       const v = this.fieldsVisibility[fieldName];
       if (v === false) return false;
-      // Не поместившиеся по ширине (#1307): значения остаются в карточке строки.
+      // Не поместившиеся по ширине (#1307). Панели «Подробнее» здесь нет, поэтому
+      // набор пуст везде, где строка идёт карточкой, - см. recalcOverflowFields.
       return !this.overflowFields.includes(fieldName);
     },
     // Запись добавлена вручную без заявки (#1049): application_id === null.
@@ -1415,8 +1445,13 @@ export default {
   cursor: pointer;
 }
 
-.fact-item:hover {
-  background-color: var(--surface-2);
+/* Тач-экран hover не отдаёт, но :hover после тапа залипает до следующего касания -
+   подсветка висела на карточке, по которой уже отработали (эталон §1.5). Гейтим
+   ровно то, до чего на телефоне можно дотронуться: строку и кнопки карточки. */
+@media (hover: hover) {
+  .fact-item:hover {
+    background-color: var(--surface-2);
+  }
 }
 
 @keyframes fadeInUp {
@@ -1460,9 +1495,11 @@ export default {
   padding: 0;
 }
 
-.action-btn:hover:not(:disabled) {
-  background: var(--surface-2);
-  border-color: var(--text-muted);
+@media (hover: hover) {
+  .action-btn:hover:not(:disabled) {
+    background: var(--surface-2);
+    border-color: var(--text-muted);
+  }
 }
 
 .action-btn:disabled {
@@ -1499,8 +1536,10 @@ export default {
   justify-content: center;
 }
 
-.delete-btn:hover:not(:disabled) {
-  background-color: transparent;
+@media (hover: hover) {
+  .delete-btn:hover:not(:disabled) {
+    background-color: transparent;
+  }
 }
 
 .delete-btn:disabled {
@@ -1515,8 +1554,10 @@ export default {
   transition: opacity 0.2s ease;
 }
 
-.delete-btn:hover:not(:disabled) .delete-icon {
-  opacity: 1;
+@media (hover: hover) {
+  .delete-btn:hover:not(:disabled) .delete-icon {
+    opacity: 1;
+  }
 }
 
 .no-data-message {
@@ -1579,22 +1620,60 @@ export default {
 }
 
 @media (max-width: 767.98px) {
+  /* Высота - по содержимому в обе стороны. `min-height: 222px` из базовых стилей
+     держит на десктопе ряд с карточкой-подсказкой; на телефоне подсказка стоит
+     отдельным блоком, а резерв высоты остаётся резервом под список, которого может
+     не быть вовсе: пустая таблица «по факту» занимала 222px + шапку 68 при том, что
+     показывала одну строку «Заявок на машины по факту нет».
+
+     Карточки строк лежат на подложке страницы: своя рамка со скруглением 30px
+     рисовала вокруг них вторую рамку, а внутри неё карточки со своими 15px читались
+     как «скруглённое внутри непонятно чего». Заголовок отделяет линия снизу - как в
+     шапке списка Центра. */
   .fact-table-card {
     width: 100%;
     height: auto;
+    min-height: 0;
     max-height: none;
+    border: none;
+    border-radius: 0;
+    background: transparent;
   }
 
-  /* Заголовок и «Обновить» - одной строкой (#1097 S6). В настройках шапки здесь
-     только сама кнопка, поэтому выносить её отдельным элементом, как в
-     CarsTable/PeopleTable, не нужно - хватает направления строки. */
+  /* Шапка блока - один ряд в 48px (контракт волны 6, те же числа у соседних
+     экранов): имя блока кеглем 18, «Обновить» у правого края, переноса нет. В
+     настройках шапки здесь только сама кнопка, поэтому выносить её отдельным
+     элементом, как в CarsTable/PeopleTable, не нужно.
+
+     Боковой отступ слагаемыми, а не числом: отступ тела списка + рамка карточки +
+     её внутренний отступ - заголовок стоит над текстом карточек. Прежние 16px по
+     кругу давали шапку в 68px над пустой таблицей. */
   .card-header {
     flex-direction: row;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
-    gap: 12px;
-    height: auto;
-    padding: 16px;
+    gap: 8px;
+    height: 48px;
+    padding: 0 calc(8px + 1px + 14px);
+  }
+
+  .card-title {
+    font-size: 18px;
+  }
+
+  .card-header__settings {
+    margin-left: auto;
+  }
+
+  /* Строка «Заявок по факту нет» - подпись под шапкой, а не пустой экран: центровка
+     по вертикали вместе с flex-grow растягивала её на всю высоту карточки. Боковой
+     отступ добирает до вертикали заголовка: 8px тело списка уже дало. */
+  .no-data-message {
+    flex-grow: 0;
+    justify-content: flex-start;
+    padding: 14px calc(1px + 14px);
+    font-size: 13px;
+    text-align: left;
   }
 
   /* flex-basis именно 0, а не auto: перенос строк во flex считается по
@@ -1624,6 +1703,15 @@ export default {
      матчит (соседние .fact-item, не .fact-row), спейсинг карточек добираем тут. */
   .fact-item + .fact-item {
     margin-top: 8px;
+  }
+
+  /* Отступ тела списка - первое слагаемое бокового отступа шапки: карточки стоят на
+     8px от края блока, заголовок - на 8 + рамка карточки + её внутренний отступ, то
+     есть ровно над текстом карточек. Асимметричный зазор под десктопный скроллбар
+     (padding-right 4 + margin-right 4) при этом снимается. */
+  .fact-body {
+    padding: 0 8px;
+    margin-right: 0;
   }
 
   /* Значения в карточке не обрезаем многоточием - там больше горизонтального
@@ -1689,18 +1777,23 @@ export default {
     border-bottom: none !important;
   }
 
-  .fact-table-card .rt-row > [data-label] ~ [data-label] {
+  /* Только в режиме people: у машин строка собирается талоном, где единственная
+     горизонтальная линия - линия отрыва, и пунктиры её глушат. */
+  .fact-table-card .rt-row:not(.rt-pass) > [data-label] ~ [data-label] {
     border-top: 1px dashed color-mix(in srgb, var(--border) 60%, var(--surface));
   }
 
   /* Ячейки прохода делят верхнюю строку пополам - единственные, кто выходит из
-     «своя строка каждому». Пунктир им не нужен: между кнопками одного ряда он лёг бы
-     вертикальной чертой посреди строки, а поле под ними свой верхний пунктир
-     сохраняет - он и отделяет ряд действий от данных. */
+     «своя строка каждому». Это шапка талона: то, ради чего экран открывают.
+
+     Базис ровно половина, а не 0 с ростом: перенос строк во flex считается по
+     базисам ДО распределения свободного места, поэтому при нулевом базисе в первую
+     строку набиралась ещё и следующая ячейка, свободного места не оставалось, и обе
+     кнопки схлопывались друг на друга. */
   .fact-table-card .rt-row > .entry-col,
   .fact-table-card .rt-row > .exit-col {
     width: auto !important;
-    flex: 1 1 0 !important;
+    flex: 0 0 calc(50% - 4px) !important;
     padding: 5px 0 !important;
     border-top: none !important;
   }
@@ -1731,13 +1824,47 @@ export default {
     display: block !important;
   }
 
-  /* Тач-таргет >=44px (WCAG) для кнопок Въезд/Выезд/удаления. */
+  /* Подвал талона: статус своей строкой, под ним «Удалить» в свою половину карточки -
+     ровно как «Въезд»/«Выезд» сверху. Порядок задаём заведомо большими числами:
+     разметочный `order` колонки действий (9999) соседствует с порядком настраиваемых
+     столбцов, и статус оказывался бы после неё. «Подробнее» здесь нет - столбцы по
+     приоритету не прячутся, прятать нечего.
+
+     Прежде обе ячейки шли по содержимому в одной строке, а действия прижимались
+     вправо автополем: подвал читался как «бейдж слева, кнопка вжата в правый угол».
+     Половина строки - тот же базис, что у кнопок прохода, и та же причина брать
+     именно базис: перенос во flex считается по базисам ДО распределения места.
+
+     `overflow: visible` обязателен: базовый `.col { overflow: hidden }` обрезает
+     невидимый ::before, которым кнопка добирает зону нажатия до 44px. */
+  .fact-table-card .rt-pass > .status-col {
+    order: 9999 !important;
+    flex: 0 0 100% !important;
+    width: 100% !important;
+  }
+
+  .fact-table-card .rt-pass > .actions-col {
+    order: 10001 !important;
+    flex: 0 0 calc(50% - 4px) !important;
+    width: auto !important;
+  }
+
+  .fact-table-card .rt-pass > .status-col,
+  .fact-table-card .rt-pass > .actions-col {
+    overflow: visible;
+    padding: 10px 0 0;
+  }
+
+  /* Кнопки прохода - главное действие экрана: 44px и крупная подпись. */
   .action-btn {
     min-width: 70px;
     height: 44px;
-    font-size: 13px;
+    font-size: 15px;
+    font-weight: 700;
   }
 
+  /* Режим people: талона нет, кнопка удаления остаётся тач-таргетом 44px. У машин
+     её перебивает пилюля подвала из rt-pass. */
   .delete-btn {
     width: 44px;
     height: 44px;

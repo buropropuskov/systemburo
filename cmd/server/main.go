@@ -624,11 +624,11 @@ func main() {
 	// уведомление. См. ReminderService.SendPendingReminders.
 	go startReminderScheduler(ctxSig, reminderService, time.Hour)
 
-	// Предупреждение об истекающем завтра пропуске (#1748, S4): раз в сутки отбирает
-	// заявки с активным вложением на завтра и шлёт инициатору. См.
-	// ExpiryNotifyService.NotifyExpiringTomorrow. Дедупликация от повторных
+	// Предупреждение об истекающем пропуске (#1748, S4): ежедневно в 09:00 по рабочей
+	// зоне отбирает заявки, чей общий срок кончается через три дня или завтра, и шлёт
+	// инициатору. См. ExpiryNotifyService.NotifyExpiringSoon. Дедупликация от повторных
 	// рестартов - внутри сервиса (по существующему уведомлению за последние сутки).
-	go startExpiryNotifyScheduler(ctxSig, expiryNotifyService, 24*time.Hour)
+	go startExpiryNotifyScheduler(ctxSig, expiryNotifyService, resetLoc)
 
 	// Архив access_denials: 3 мес retention, цикл раз в сутки.
 	go startAccessDenialsArchiver(ctxSig, accessDenialService, 90*24*time.Hour, 24*time.Hour)
@@ -1061,15 +1061,32 @@ func startReminderScheduler(ctx context.Context, svc services.ReminderService, i
 	}
 }
 
-// startExpiryNotifyScheduler запускает периодический прогон предупреждений об
-// истекающем завтра пропуске (#1748, S4). Первый прогон — сразу при старте; далее —
-// каждый interval, пока ctx не отменён. Задача суточная, но при рестарте сервиса
-// может отработать чаще - от повторной рассылки защищает сам сервис.
-func startExpiryNotifyScheduler(ctx context.Context, svc services.ExpiryNotifyService, interval time.Duration) {
-	if err := svc.NotifyExpiringTomorrow(ctx); err != nil {
-		slog.Error("initial expiry notify run failed", "error", err)
+// startExpiryNotifyScheduler гоняет предупреждения об истекающем пропуске (#1748, S4)
+// ежедневно в services.ExpiryNotifyRunHour по location. Прогона при старте нет
+// намеренно: раньше задача висела на тикере от момента запуска, и перезапуск бэкенда
+// среди ночи переносил рассылку на ночь - человек получал предупреждение в три часа
+// вместо утра. От повторов внутри одних суток защищает сам сервис.
+func startExpiryNotifyScheduler(ctx context.Context, svc services.ExpiryNotifyService, location *time.Location) {
+	next := nextDailyRun(time.Now(), services.ExpiryNotifyRunHour, location)
+	timer := time.NewTimer(time.Until(next))
+	defer timer.Stop()
+	slog.Info("планировщик предупреждений об истечении пропуска запущен", "next_run", next.Format(time.RFC3339))
+
+	select {
+	case <-ctx.Done():
+		slog.Info("expiry notify scheduler stopped")
+		return
+	case <-timer.C:
 	}
-	ticker := time.NewTicker(interval)
+
+	run := func() {
+		if err := svc.NotifyExpiringSoon(ctx); err != nil {
+			slog.Error("expiry notify run failed", "error", err)
+		}
+	}
+	run()
+
+	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
 	for {
 		select {
@@ -1077,11 +1094,20 @@ func startExpiryNotifyScheduler(ctx context.Context, svc services.ExpiryNotifySe
 			slog.Info("expiry notify scheduler stopped")
 			return
 		case <-ticker.C:
-			if err := svc.NotifyExpiringTomorrow(ctx); err != nil {
-				slog.Error("expiry notify run failed", "error", err)
-			}
+			run()
 		}
 	}
+}
+
+// nextDailyRun возвращает ближайшее наступление часа hour по location: сегодняшнее,
+// если оно ещё впереди, иначе завтрашнее.
+func nextDailyRun(now time.Time, hour int, location *time.Location) time.Time {
+	local := now.In(location)
+	next := time.Date(local.Year(), local.Month(), local.Day(), hour, 0, 0, 0, location)
+	if !next.After(local) {
+		next = next.Add(24 * time.Hour)
+	}
+	return next
 }
 
 // startFileArchiveWorker обслуживает файловый архив бланков (#1615, B1):

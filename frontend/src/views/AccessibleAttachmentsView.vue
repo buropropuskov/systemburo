@@ -5,6 +5,13 @@
         <h3 class="management-title">
           Доступные мне
         </h3>
+        <!-- Счётчик записей рядом с заголовком - только на мобилке: на десктопе то же
+             число уже стоит в подвале списка («Всего: N»). -->
+        <span
+          v-if="isNarrow"
+          class="management-count"
+          data-testid="aa-count-badge"
+        >{{ total }}</span>
         <div class="header-controls">
           <RefreshButton
             :loading="listLoading"
@@ -205,18 +212,23 @@
                   {{ typeLabel(a.attachment_type) }}
                 </Badge>
                 <span class="attachment-card__org">{{ orgLine(a) }}</span>
-                <span
-                  v-if="dateRange(a)"
-                  class="attachment-card__date"
-                  data-testid="aa-card-date"
-                >
-                  {{ dateRange(a) }}
-                </span>
-                <StatusBadge
-                  v-if="statusText(a)"
-                  class="attachment-card__status"
-                  :status="statusText(a)"
-                />
+                <!-- Срок и статус живут в шапке только на десктопе. На телефоне они
+                     делили строку с организацией, ряд ломался на три и высоты
+                     разъезжались - срок ушёл в мету, статус в подвал (мокап). -->
+                <template v-if="!isNarrow">
+                  <span
+                    v-if="dateRange(a)"
+                    class="attachment-card__date"
+                    data-testid="aa-card-date"
+                  >
+                    {{ dateRange(a) }}
+                  </span>
+                  <StatusBadge
+                    v-if="statusText(a)"
+                    class="attachment-card__status"
+                    :status="statusText(a)"
+                  />
+                </template>
               </div>
               <div class="attachment-card__name">
                 {{ displayName(a) }}
@@ -227,11 +239,32 @@
               >
                 {{ metaLine(a) }}
               </div>
+              <!-- Мобилка: срок и места одной серой строкой, без подписи поля. -->
               <div
-                v-if="a.places"
+                v-if="isNarrow && (dateRange(a) || a.places)"
+                class="attachment-card__meta attachment-card__meta--term"
+              >
+                <span
+                  v-if="dateRange(a)"
+                  data-testid="aa-card-date"
+                >{{ dateRange(a) }}</span>
+                <span v-if="dateRange(a) && a.places"> · </span>
+                <span v-if="a.places">{{ a.places }}</span>
+              </div>
+              <div
+                v-if="!isNarrow && a.places"
                 class="attachment-card__places"
               >
                 <span class="attachment-card__places-label">Места:</span> {{ a.places }}
+              </div>
+              <div
+                v-if="isNarrow && statusText(a)"
+                class="attachment-card__foot"
+              >
+                <StatusBadge
+                  class="attachment-card__status"
+                  :status="statusText(a)"
+                />
               </div>
             </button>
 
@@ -477,8 +510,13 @@ const hasActiveFilters = computed(() => !!search.value.trim() || secondaryFilter
 
 // Мобилка: вторичные фильтры сворачиваются в кнопку «Фильтр» + FilterSheet; поиск
 // остаётся снаружи. Точка-индикатор на кнопке - по secondaryFiltersActive, БЕЗ
-// поиска (он виден отдельно), как hasModalFilters в Центре.
-const { isNarrow } = useNarrowScreen();
+// поиска (он виден отдельно), как hasModalFilters в Центре. Этим же флагом собрана
+// мобильная раскладка карточки и счётчик в шапке.
+//
+// Порог 767.98, а не 768: на нём стоят все мобильные правила этого экрана,
+// RefreshButton (круг 36px) и card-конверсия responsive-tables.css. На ровно 768px
+// разные пороги дали бы гибрид - мобильная разметка без мобильных стилей.
+const { isNarrow } = useNarrowScreen(767.98);
 const showFilterSheet = ref(false);
 
 const items = ref([]);
@@ -904,17 +942,6 @@ onBeforeUnmount(() => {
   }
 }
 
-/* Мобилка (<=768, инлайн-фильтры скрыты): поиск в один ряд с кнопкой «Фильтр».
-   flex-basis:0 (не auto) - иначе basis по длинному placeholder распирает поиск и
-   flex-wrap переносит кнопку на строку ниже; с basis 0 поиск растёт заполняя
-   остаток после кнопки, и обе держатся в одной строке. */
-@media (max-width: 768px) {
-  .filters__search {
-    flex: 1 1 0;
-    min-width: 0;
-  }
-}
-
 .content-container {
   display: flex;
   height: 540px;
@@ -1229,6 +1256,213 @@ onBeforeUnmount(() => {
   .cards-list,
   .detail-section {
     overflow-y: visible;
+  }
+}
+
+/* ── Телефон: экран по мокапу docs/mockups/mobile-ux.html, с одним отступлением ──
+   Порог 767.98 - тот же, на котором стоит isNarrow этого экрана, RefreshButton
+   сворачивается в круг 36px и таблицы становятся карточками
+   (responsive-tables.css). Разметка и стили переключаются одним порогом, гибрида
+   на ровно 768px нет.
+
+   Отступление от мокапа - панель. В мокапе карточки лежат на голой подложке, и
+   так это и было сделано, но мокап рисовался для одного экрана в отрыве от
+   соседей: на живом телефоне «Доступные мне» без скругления стоят подряд с
+   «Моими сотрудниками» и «Моими автомобилями», где панель списка скруглена, и
+   владелец прочитал разнобой как поломку («квадратная»). Панель вернули; если
+   когда-нибудь плоскую подложку захотят снова - её надо вводить сразу на всех
+   трёх экранах, иначе вернётся та же претензия.
+
+   Боковые отступы блоков собраны так, чтобы шапка, полоса поиска и карточки
+   стояли на одной вертикали, а не тремя разными уступами: рамки контролов - по
+   рамке карточек, текст шапки - по тексту карточек. */
+@media (max-width: 767.98px) {
+  /* Панель держит свой контур и на телефоне: без скругления экран читался
+     коробкой с прямыми углами (претензия владельца, волна 6) - тем более рядом с
+     «Моими сотрудниками»/«Моими автомобилями», где панель списка скруглена.
+     overflow остаётся visible: hidden сделал бы панель скроллпортом, и sticky
+     у шапки со строкой поиска перестал бы липнуть под app bar (перестал бы молча -
+     правило осталось бы валидным). Верхние углы поэтому закрывает сама шапка.
+     Селектор составной - AdminPageShell задаёт скругление карточке через
+     :deep(.dashboard-card) той же специфичности, и при равной исход решал бы
+     порядок загрузки чанков (оба - lazy route-чанки). */
+  .accessible-attachments.dashboard-card {
+    border-radius: var(--radius-lg, 20px);
+    overflow: visible;
+  }
+
+  /* Шапка экрана - одна строка 48px: заголовок, счётчик записей, «Обновить».
+     Было ~130px до строки поиска: заголовок стоял отдельной строкой с воздухом,
+     а «Обновить» уезжало под него.
+
+     Боковой отступ собран из слагаемых, а не записан числом: заголовок стоит на
+     той же вертикали, что текст карточек, а тот отбит от рамки панели отступом
+     списка (8) + рамкой карточки (1) + её внутренним отступом (14). Радиус на 1px
+     меньше панельного - шапка лежит внутри её рамки; фон у обеих --surface,
+     поэтому при прокрутке скруглённые углы липкой шапки не видны. */
+  .management-header {
+    position: sticky;
+    top: var(--mobile-header-height, 55px);
+    z-index: 20;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: 8px;
+    height: 48px;
+    padding: 0 calc(8px + 1px + 14px);
+    border-radius: calc(var(--radius-lg, 20px) - 1px) calc(var(--radius-lg, 20px) - 1px) 0 0;
+    background: var(--surface);
+  }
+
+  /* flex: 0 1 auto, а не 1 1 auto: растущий заголовок отжимал счётчик вправо, и
+     тот вставал вплотную к «Обновить» вместо имени экрана (претензия владельца:
+     «название + бейдж рядом, обновить с другой стороны»). Группу действий вправо
+     двигает margin-left: auto у .header-controls - как во втором ряду Центра.
+     min-width: 0 обязателен: flex-элемент не сжимается ниже min-content, и
+     заголовок выдавил бы счётчик с «Обновить» за край вместо многоточия.
+     18px - кегль имени экрана в проекте (.center__title, .employeesview__title):
+     на мобилке эта строка и есть имя экрана. */
+  .management-title {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 18px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .management-count {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 7px;
+    border-radius: var(--radius-pill);
+    background: var(--accent-tint);
+    color: var(--accent-text);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .header-controls {
+    margin-left: auto;
+    flex-shrink: 0;
+    gap: 6px;
+  }
+
+  /* Поиск и «Фильтр» - своя полоса 36px сразу под шапкой. flex-basis: 0 (не auto)
+     обязателен: basis по длинному placeholder распирает поиск, и во flex-строке
+     кнопка «Фильтр» не помещается рядом. Перенос выключен - в полосе ровно два
+     элемента, и переносить второй некуда.
+
+     Боковой отступ 8px - такой же, как у списка: рамка поиска встаёт ровно над
+     рамкой первой карточки (рамки равняем по рамкам, текст - по тексту). */
+  .filters {
+    position: sticky;
+    top: calc(var(--mobile-header-height, 55px) + 48px);
+    z-index: 19;
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 8px;
+    background: var(--surface);
+  }
+
+  .filters__search {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .filters__search-input {
+    height: 36px;
+    padding: 0 12px 0 32px;
+  }
+
+  .filters__search-icon {
+    left: 11px;
+    width: 14px;
+    height: 14px;
+  }
+
+  /* Карточки лежат внутри панели, поэтому боковой отступ 8px - иначе их рамка
+     упирается в рамку панели и читается двойной линией. Столько же у полосы
+     поиска над ними, так что рамки всех блоков стоят на одной вертикали. */
+  .cards-list {
+    gap: 8px;
+    padding: 12px 8px;
+  }
+
+  /* padding карточки - эталонный 10px 14px (тот же, что глобальный rt-row в
+     responsive-tables.css): иначе текст карточек «Доступных мне» стоял бы на 2px
+     левее, чем на соседних экранах со списками. */
+  .attachment-card {
+    gap: 4px;
+    padding: 10px 14px;
+  }
+
+  /* Бейдж типа читается первым, организация занимает остаток строки с многоточием.
+     Перенос выключен: срок и статус из шапки ушли (в мету и в подвал), переносить
+     в ней больше нечего - именно перенос давал ряды разной высоты. */
+  .attachment-card__head {
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .attachment-card__org {
+    min-width: 0;
+    font-size: 14px;
+  }
+
+  .attachment-card__name {
+    font-size: 15px;
+  }
+
+  /* Срок и места - одна строка; в отличие от номера с отправителем её режем не
+     многоточием, а переносом: список мест бывает длиннее строки, и «Дебаркадер
+     №1, №…» скрывает ровно то, ради чего строку и читают. */
+  .attachment-card__meta--term {
+    overflow: visible;
+    white-space: normal;
+  }
+
+  /* Статус - в подвале карточки, отбитый линией. */
+  .attachment-card__foot {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid color-mix(in srgb, var(--border) 60%, var(--surface));
+  }
+
+  /* Подвал списка - такая же карточка, как строки над ним: без своего контура он
+     висел оторванной полосой под последней карточкой. Боковой отступ и внутренний
+     padding те же, что у карточек - подвал стоит с ними на одной вертикали. */
+  .list-footer {
+    margin: 0 8px 12px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    font-size: 13px;
+  }
+
+  /* Деталь вложения: боковой отступ тот же 8px, что у списка, чтобы её блоки
+     стояли на одной вертикали с карточками. Своих 15px здесь быть не должно -
+     вместе с отступом страницы и внутренним отступом блока вложения они давали
+     три разных уступа, и ленты машин/ТМЦ/сотрудников оказывались уже списка. */
+  .detail-section {
+    gap: 12px;
+    padding: 12px 8px;
+  }
+
+  .application-block {
+    padding: 12px;
+    border-radius: var(--radius-md);
+  }
+
+  .application-block__grid {
+    gap: 10px 16px;
   }
 }
 </style>
