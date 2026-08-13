@@ -449,7 +449,6 @@
           :selected-date="selectedDate"
           :current-user-id="currentUserId"
           :current-user-name="currentUserName"
-          :loading="isRefreshing"
           :grid="gridMode"
           @refresh-data="refreshData"
           @open-application="handleOpenApplication"
@@ -692,7 +691,6 @@ export default {
     data() {
         return {
             tableData: null,
-            isRefreshing: false,
             searchQuery: '',
             // Мультивыбор справочников (#1398): пустой массив - фильтр выключен.
             selectedOrganizationIds: [],
@@ -1065,13 +1063,8 @@ export default {
         },
 
         async refreshData() {
-            this.isRefreshing = true;
-            try {
-                await this.fetchTableData();
-                this.$emit('refresh-data');
-            } finally {
-                this.isRefreshing = false;
-            }
+            await this.fetchTableData();
+            this.$emit('refresh-data');
         },
 
         // Ручные записи появились в текущей и fact-таблице (#1049) - перегружаем строки

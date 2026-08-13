@@ -61,12 +61,48 @@ describe('ProcessingAnalytics — мобильный каркас карточе
     expect(ruleFor(cardMedia, '.proc__journal')).toBeNull();
   });
 
-  it('поиск в журнале растягивается на всю ширину ряда фильтров на телефоне', () => {
+  it('на телефоне поиск журнала сворачивается в иконку 40x40, а не тянется на всю ширину (волна 8)', () => {
     expect(headMedia).toBeTruthy();
-    expect(ruleFor(headMedia, '.proc__journal-search')).toBe('width: 100%;');
+    expect(ruleFor(headMedia, '.proc__journal-search-icon')).toContain('width: 40px;');
+    expect(ruleFor(headMedia, '.proc__journal-search-icon')).toContain('height: 40px;');
   });
 
-  it('кнопка «Сбросить» в журнале той же высоты, что поиск и диапазон дат (35px)', () => {
-    expect(ruleFor(headMedia, '.proc__journal-reset')).toBe('height: 35px;');
+  it('оверлей поиска журнала раскрывается через clip-path, не отдельным рядом', () => {
+    const enterFrom = ruleFor(headMedia, '.proc-journal-search-enter-from');
+    expect(enterFrom).toBe('clip-path: inset(0 0 0 100%);');
+  });
+
+  it('дропдаун роли журнала на телефоне - фиксированной ширины и первый в порядке ряда фильтров', () => {
+    expect(ruleFor(headMedia, '.proc__journal-role-dropdown')).toContain('order: 1;');
+    expect(ruleFor(headMedia, '.proc__journal-role-dropdown')).toContain('width: 165px;');
+  });
+
+  it('кнопка «Сбросить» в журнале той же высоты, что дата (35px), и в одном ряду с дропдауном роли', () => {
+    const rule = ruleFor(headMedia, '.proc__journal-reset');
+    expect(rule).toContain('height: 35px;');
+    // order:2 ставит её сразу за дропдауном (order:1), до ряда даты (order:3) -
+    // тот самый перенос "Сбросить в одну строку с выпадающей кнопкой" (волна 8).
+    expect(rule).toContain('order: 2;');
+    expect(rule).toContain('margin-left: auto;');
+  });
+
+  it('ряд даты журнала переносится на новую строку через flex-basis: 100%, а не полагается на порядок соседей', () => {
+    const rule = ruleFor(headMedia, '.proc__journal-daterow');
+    expect(rule).toContain('order: 3;');
+    expect(rule).toContain('flex: 1 1 100%;');
+  });
+
+  // Замок на реальный баг стенда (волна 8): базовое display:contents стояло
+  // ПОСЛЕ @media(max-width:768px) в файле - при равной специфичности более
+  // позднее правило побеждает НЕЗАВИСИМО от того, было ли оно внутри media,
+  // и мобильный display:flex молча перебивался обратно в contents на ЛЮБОЙ
+  // ширине. Ряд даты и поиск-иконка вместо своей строки съезжали в общий ряд
+  // с дропдауном роли.
+  it('базовое .proc__journal-daterow{display:contents} объявлено РАНЬШЕ мобильного @media, а не позже', () => {
+    const baseIdx = SFC.indexOf('.proc__journal-daterow {\n  display: contents;');
+    const mediaIdx = SFC.indexOf('@media (max-width: 768px)');
+    expect(baseIdx).toBeGreaterThan(-1);
+    expect(mediaIdx).toBeGreaterThan(-1);
+    expect(baseIdx).toBeLessThan(mediaIdx);
   });
 });

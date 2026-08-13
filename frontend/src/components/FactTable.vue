@@ -16,7 +16,8 @@
       </div>
       <div class="card-header__settings">
         <RefreshButton
-          @refresh="$emit('refresh-data')"
+          :loading="refreshing"
+          @refresh="handleManualRefresh"
         />
       </div>
     </div>
@@ -158,11 +159,19 @@
       
       <!-- Тело таблицы -->
       <div class="fact-container">
-        <!-- Спиннер ТОЛЬКО когда показывать нечего (первая загрузка). На обновлении
-             таблица остаётся на месте: её подмена спиннером схлопывает высоту
-             документа, и на телефоне страница прыгает в начало. -->
+        <!-- Спиннер ТОЛЬКО на первой загрузке (isLoading, свой внутренний флаг - волна 8).
+             Раньше гейтился пропом `loading` от родителя, а тот отражал ЕГО собственный
+             рефреш - дёргался на клик ЛЮБОЙ из трёх кнопок «Обновить» на экране. «По
+             факту» почти всегда пуста, поэтому чужой клик подменял "Заявок... нет"
+             спиннером и обратно - блок прыгал 94 -> 150 -> 94px без единой смены данных.
+             Тихие обновления (поллинг, SSE, свой клик «Обновить» - handleManualRefresh)
+             держат isLoading в покое: подмена списка спиннером на них схлопывает высоту
+             документа и на телефоне выбрасывает страницу в начало. -->
+        <!-- refreshing (иконка «Обновить» крутится) НЕ гейтит этот блок - только isLoading:
+             тихое обновление обязано остаться тихим, крутящаяся иконка - её собственный,
+             более мелкий сигнал. -->
         <div
-          v-if="loading && !filteredData.length"
+          v-if="isLoading && !filteredData.length"
           class="loading-message"
         >
           <LoaderSpinner :label="tableType === 'cars' ? 'Загрузка машин...' : 'Загрузка...'" />
@@ -445,7 +454,6 @@ export default {
     selectedDate: { type: Date, default: null },
     currentUserId: { type: Number, default: null },
     currentUserName: { type: String, default: '' },
-    loading: { type: Boolean, default: false },
     // Режим "Сетка" (#1289): границы ячеек. Управляется одним тумблером страницы.
     grid: { type: Boolean, default: false }
   },
@@ -458,6 +466,13 @@ export default {
   },
   data() {
     return {
+      // Свой флаг первой загрузки (волна 8) - `loading` проп родителя отражает ЕГО
+      // собственный рефреш (по клику любой из трёх кнопок «Обновить» на экране), а
+      // не факт того, что у ЭТОЙ таблицы ещё нет данных для первого показа.
+      isLoading: false,
+      // Иконка «Обновить» крутится, пока ручное обновление в полёте (эталон CarsTable/
+      // PeopleTable) - отдельно от isLoading, который держит только первый показ.
+      refreshing: false,
       sortField: null,
       sortDirection: 'desc',
       factData: [],
@@ -766,8 +781,11 @@ export default {
 
     // seq-токен против гонки конкурентных вызовов (поллинг + SSE-сигнал, #632/#840):
     // устаревший (медленно резолвнутый) ответ не должен затирать более свежие данные.
-    async _loadData() {
+    // silent=false (только первый вызов, см. isLoading в data()) показывает полноэкранный
+    // спиннер - на тихих обновлениях (поллинг, SSE, чужая кнопка «Обновить») он не нужен.
+    async _loadData(silent = false) {
       const seq = ++this.refreshSeq;
+      if (!silent) this.isLoading = true;
       try {
         await this.fetchUnloadingPlaces();
         await this.fetchLicensePlateFormats();
@@ -781,6 +799,8 @@ export default {
         }
       } catch (error) {
         console.error(`Ошибка при загрузке данных по факту (${this.tableType}):`, error);
+      } finally {
+        if (!silent) this.isLoading = false;
       }
     },
 
@@ -790,6 +810,21 @@ export default {
 
     async silentRefresh() {
       await this._loadData(true);
+    },
+
+    // Клик по «Обновить» этой карточки раньше только гонял метаданные таблицы через
+    // родителя ($emit('refresh-data')) и вовсе не перезагружал СВОИ строки - тихо
+    // ждал следующего поллинга/SSE. Теперь зовёт и то, и другое: родитель обновляет
+    // конфиг колонок, а silentRefresh - сам список (тихо, без спиннера - иначе клик
+    // по этой кнопке мигал бы спиннером ровно так же, как раньше мигал от ЧУЖИХ).
+    async handleManualRefresh() {
+      this.$emit('refresh-data');
+      this.refreshing = true;
+      try {
+        await this.silentRefresh();
+      } finally {
+        this.refreshing = false;
+      }
     },
 
     async fetchUnloadingPlaces() {
@@ -1112,7 +1147,9 @@ export default {
 
     startPolling() {
       if (this.pollingInterval) return;
-      this.silentRefresh();
+      // Только самый первый вызов - не тихий: показывать нечего, спиннер уместен, если
+      // сеть медленная. Дальше (таймер, SSE, ручное «Обновить») - без него, см. isLoading.
+      this.loadData();
       this.pollingInterval = setInterval(() => {
         // На живом SSE поллинг молчит (обновление уже пришло сигналом tables.refresh) -
         // таймер остаётся подстраховкой на 60с и мгновенно подхватывает при разрыве (#840).
@@ -1628,16 +1665,17 @@ export default {
 
      Рамка и фон блока - на месте: без них таблица «по факту» (почти всегда пустая)
      схлопывалась в голый абзац текста под заголовком - "куда она делась?". Радиус
-     30px десктопа заменён на 15px - тот же, что у строк-талонов, чтобы контейнер и
-     строки читались одним блоком, а не «скруглённым внутри непонятно чего» (та же
-     мера, что и у CarsTable/PeopleTable ниже). Заголовок отделяет линия снизу. */
+     тот же, что на десктопе (30px) - владелец забраковал 15px волны 7 отдельно
+     ("скруглить как и по факту", "таблицам больше скругление нужно дать, как и
+     было"); значение общее с CarsTable/PeopleTable ниже. Заголовок отделяет линия
+     снизу. */
   .fact-table-card {
     width: 100%;
     height: auto;
     min-height: 0;
     max-height: none;
     border: 1px solid var(--border);
-    border-radius: var(--radius-md, 15px);
+    border-radius: 30px;
     background: var(--surface);
   }
 
@@ -1646,16 +1684,17 @@ export default {
      настройках шапки здесь только сама кнопка, поэтому выносить её отдельным
      элементом, как в CarsTable/PeopleTable, не нужно.
 
-     Боковой отступ слагаемыми, а не числом: отступ тела списка + рамка карточки +
-     её внутренний отступ - заголовок стоит над текстом карточек. Прежние 16px по
-     кругу давали шапку в 68px над пустой таблицей. */
+     Боковой отступ слагаемыми, а не числом: рамка карточки + внутренний отступ
+     строки - заголовок стоит над текстом карточек (тело списка своего бокового
+     отступа больше не добавляет, см. `.fact-body` ниже). Прежние 16px по кругу
+     давали шапку в 68px над пустой таблицей. */
   .card-header {
     flex-direction: row;
     flex-wrap: nowrap;
     align-items: center;
     gap: 8px;
     height: 48px;
-    padding: 0 calc(8px + 1px + 14px);
+    padding: 0 calc(1px + 14px);
   }
 
   .card-title {
@@ -1705,7 +1744,9 @@ export default {
      контейнера и был «квадратом в квадрате». Строки идут вплотную (зазора нет),
      разделяет только горизонтальная черта; скругление контейнера получают
      исключительно верхний край первой строки и нижний край последней - середина
-     остаётся прямоугольной. */
+     остаётся прямоугольной. Радиус строки равен радиусу контейнера (30px) - строка
+     стоит вплотную к рамке (см. `.fact-body` ниже), поэтому кривые продолжают
+     друг друга без излома. */
   .fact-item + .fact-item {
     margin-top: 0;
   }
@@ -1727,21 +1768,27 @@ export default {
   }
 
   .fact-table-card .fact-item:first-child .rt-pass {
-    border-top-left-radius: var(--radius-md, 15px) !important;
-    border-top-right-radius: var(--radius-md, 15px) !important;
+    border-top-left-radius: 30px !important;
+    border-top-right-radius: 30px !important;
   }
 
   .fact-table-card .fact-item:last-child .rt-pass {
-    border-bottom-left-radius: var(--radius-md, 15px) !important;
-    border-bottom-right-radius: var(--radius-md, 15px) !important;
+    border-bottom-left-radius: 30px !important;
+    border-bottom-right-radius: 30px !important;
   }
 
-  /* Отступ тела списка - первое слагаемое бокового отступа шапки: карточки стоят на
-     8px от края блока, заголовок - на 8 + рамка карточки + её внутренний отступ, то
-     есть ровно над текстом карточек. Асимметричный зазор под десктопный скроллбар
-     (padding-right 4 + margin-right 4) при этом снимается. */
+  /* Тело списка без бокового отступа - строка стоит вплотную к рамке карточки,
+     её собственный `padding: 10px 14px` (часть 1 responsive-tables.css) уже даёт
+     воздух вокруг текста. Добавленные волной 7 8px были лишним отступом (жалоба
+     владельца) и вдобавок отрывали разделитель строк и линию отрыва талона
+     (`.rt-pass::before`, её расчёт базиса рассчитан ровно на этот случай - строка
+     вплотную к краю карточки) от рамки на те же 8px с каждой стороны - обе
+     линии не доставали до краёв. `.card-header` above выравнивается по той же
+     вертикали через `calc(1px + 14px)`. Асимметричный зазор десктопного
+     скроллбара (padding-right 4 + margin-right 4 в базовых стилях) на мобилке не
+     нужен - скролл тач, и margin-right снимаем. */
   .fact-body {
-    padding: 0 8px;
+    padding: 0;
     margin-right: 0;
   }
 

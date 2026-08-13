@@ -734,6 +734,7 @@ import Badge from '@/components/ui/Badge.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import { sanitizeHtml } from '@/utils/sanitize'
 import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack'
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock'
 
 /** Слой панели заявки - то же значение, что у неё в стилях (.application-detail). */
 const DETAIL_STACK_LAYER = 10002
@@ -1203,6 +1204,10 @@ export default {
         // пересылка), Escape закрывает его, а до панели доходит, когда она верхняя.
         setModalOpen(this, true, DETAIL_STACK_LAYER);
         document.addEventListener('keydown', this.handleDetailEscape);
+        // Панель заявки - полноэкранное окно на мобилке (bottom-sheet), и фон под
+        // ней (Центр/кабинет) должен стоять на месте, как под любым другим окном
+        // проекта - через общий замок (владелец по стопке, не голое присвоение).
+        setBodyScrollLock(this, true);
     },
     beforeUnmount() {
         if (this.eventStreamOff) {
@@ -1212,6 +1217,7 @@ export default {
         eventStream.disconnect();
         document.removeEventListener('keydown', this.handleDetailEscape);
         releaseModal(this);
+        releaseBodyScrollLock(this);
         if (this.closeTimer) clearTimeout(this.closeTimer);
     },
     methods: {
@@ -2570,9 +2576,14 @@ export default {
     row-gap: 8px;
     flex-wrap: wrap;
     justify-content: flex-end;
-    /* Растёт/сжимается и переносится сама - крестику-соседу больше некуда
-       уезжать: он не участвует в этом переносе. */
-    flex: 1 1 auto;
+    /* Сжимается и переносится сама - крестику-соседу больше некуда уезжать: он не
+       участвует в этом переносе. БЕЗ flex-grow (было flex: 1 1 auto) - растущая
+       обёртка занимала всю ширину шапки до крестика, и на переносе строки бейдж/
+       кнопки позиционировались justify-content'ом ОТНОСИТЕЛЬНО ЭТОЙ ШИРОКОЙ рамки,
+       а не своего содержимого - на 390 бейдж повисал с 98px пустоты слева
+       (владелец: "зачем отцентровал"). Без роста блок хугает контент, как и до
+       обёртки. */
+    flex-shrink: 1;
     min-width: 0;
 }
 
@@ -3114,6 +3125,15 @@ export default {
         flex-wrap: wrap;
         justify-content: flex-start;
         row-gap: 8px;
+    }
+
+    /* Крестик на мобилке вне потока (position: absolute выше), поэтому здесь
+       единственный видимый ребёнок .detail-header-right - .detail-header-actions.
+       Её собственный justify-content: flex-end (для desktop, чтобы упираться в
+       крестик) на мобилке разворачивал бейдж и кнопки к ПРАВОМУ краю шапки - как
+       было до обёртки, здесь нужен flex-start (прижим к заголовку, слева). */
+    .detail-header-actions {
+        justify-content: flex-start;
     }
 
     /* Ряд автора вырос до трёх кнопок (#1685): "Дополнить" + "Продублировать" +

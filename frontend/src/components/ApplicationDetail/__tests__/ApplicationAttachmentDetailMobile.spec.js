@@ -1,8 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
 import ApplicationAttachmentDetail from '../ApplicationAttachmentDetail.vue';
+
+const SOURCE = readFileSync(
+  path.resolve(__dirname, '../ApplicationAttachmentDetail.vue'),
+  'utf8',
+);
 
 vi.mock('@/api/applicationAssignments', () => ({
   assignElementTables: vi.fn().mockResolvedValue({}),
@@ -205,5 +212,29 @@ describe('ApplicationAttachmentDetail — на широком экране по�
     const wrapper = await mountCars();
     const input = wrapper.find('[data-testid="attachment-elements-search"] input');
     expect(input.attributes('placeholder')).toBe('Номер, марка, место');
+  });
+});
+
+/*
+ * Волна 8, п.2: на мобилке поиск внутри карточки вложения был ужат до 26px -
+ * мельче даже собственных 30px десктопного варианта. Владелец: «Поиск очень
+ * маленький, нихера не видно, не могу попасть пальцем». jsdom не считает
+ * media-запросы, поэтому геометрию стережём чтением самого SFC (как в
+ * AccessibleAttachmentsMobile.spec.js), а факт применения подтверждён
+ * замером в браузере.
+ */
+describe('ApplicationAttachmentDetail — геометрия мобильного экрана (чтение SFC)', () => {
+  const mobileBlock = SOURCE.slice(SOURCE.indexOf('@media (max-width: 767.98px)'));
+
+  it('поиск внутри карточки вложения поднят до 36px тач-таргета, кегль читаем', () => {
+    const searchRule = mobileBlock.match(/\.el-section__head \.el-search\s*\{[^}]*\}/)[0];
+    expect(searchRule).toMatch(/height:\s*36px/);
+    expect(searchRule).not.toMatch(/height:\s*26px/);
+
+    const inputRule = mobileBlock.match(
+      /\.el-section__head \.el-search :deep\(\.search__input\)\s*\{[^}]*\}/,
+    )[0];
+    expect(inputRule).toMatch(/font-size:\s*1[34]px/);
+    expect(inputRule).not.toMatch(/font-size:\s*12px/);
   });
 });
