@@ -142,6 +142,8 @@ WITH participants AS (
 	-- этой ветки заявитель видел в получателях только себя.
 	SELECT aa.user_id, 'acceptor'::text, false, NULL::text, NULL::text, NULL::timestamptz
 	FROM application_approvers aa
+	JOIN users au ON au.id = aa.user_id
+	WHERE au.is_active AND NOT au.is_banned AND NOT au.is_super_admin
 )
 SELECT
 	p.user_id,

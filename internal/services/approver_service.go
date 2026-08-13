@@ -94,7 +94,9 @@ func (s *approverService) GetRecipients(ctx context.Context) ([]models.Applicati
 		Table("application_approvers aa").
 		Select(`aa.user_id, u.username, u.last_name, u.first_name, u.middle_name, aa.display_name`).
 		Joins("JOIN users u ON u.id = aa.user_id").
-		Where("u.is_active AND NOT u.is_banned").
+		// Супер-администратор в получателях не нужен: он числится принимающим ради
+		// доступа, а не как адресат заявки, и в списке только сбивал бы заявителя.
+		Where("u.is_active AND NOT u.is_banned AND NOT u.is_super_admin").
 		Order("u.last_name, u.first_name").
 		Scan(&rows).Error
 	if err != nil {

@@ -65,7 +65,10 @@
               >
                 {{ displayName(participant) }}
               </span>
+              <!-- Принимающим бейджа роли не рисуем: заявка уходит им по умолчанию, и
+                   подпись «Принимающий» у каждого второго участника ничего не сообщала. -->
               <Badge
+                v-if="participant.primary_role !== 'acceptor'"
                 :variant="roleVariant(participant.primary_role)"
                 size="sm"
                 data-testid="app-participants-role"
