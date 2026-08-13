@@ -22,4 +22,13 @@ describe('forms.css — тач-таргет базовой кнопки', () => 
     expect(minHeight, `min-height не задан: ${rule[1]}`).not.toBeNull();
     expect(Number(minHeight[1])).toBeGreaterThanOrEqual(36);
   });
+
+  // Минимум базовой пилюли достался и компактному варианту, который стоит в строках
+  // заголовков: кнопка «Задать вопрос» выросла с 26 до 36 и раздула шапку блока вопросов.
+  it('.lk-button--sm остаётся компактным и не наследует минимум базовой', () => {
+    const rule = FORMS_CSS.match(/\.lk-button--sm\s*\{([^}]*)\}/);
+
+    expect(rule, 'правило .lk-button--sm не найдено').not.toBeNull();
+    expect(rule[1], `компактный вариант не снимает минимум: ${rule[1]}`).toMatch(/min-height:\s*0/);
+  });
 });
