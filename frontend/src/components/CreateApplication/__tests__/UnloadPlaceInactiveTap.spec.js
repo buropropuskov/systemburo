@@ -77,6 +77,31 @@ describe.each([
     expect(w.find('.inactive-tooltip').exists()).toBe(false);
   });
 
+  it('тап по другому закрытому месту продлевает показ, а не гасит его старым таймером', async () => {
+    const w = await mountForm();
+    vi.useFakeTimers();
+
+    try {
+      await w.findAll('.unloading__item')[1].trigger('click');
+      await w.vm.$nextTick();
+
+      vi.advanceTimersByTime(2000);
+      await w.findAll('.unloading__item')[2].trigger('click');
+      await w.vm.$nextTick();
+
+      // Старый таймер отсчитал бы своё через 500 мс и погасил чужую подсказку.
+      vi.advanceTimersByTime(1000);
+      await w.vm.$nextTick();
+      expect(w.find('.inactive-tooltip-content').text()).toBe('Недоступно');
+
+      vi.advanceTimersByTime(1500);
+      await w.vm.$nextTick();
+      expect(w.find('.inactive-tooltip').exists()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('подсказка гаснет сама через 2.5 с', async () => {
     const w = await mountForm();
     vi.useFakeTimers();
