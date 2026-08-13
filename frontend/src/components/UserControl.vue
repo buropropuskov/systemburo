@@ -372,7 +372,6 @@
               </div>
             </div>
           </div>
-        </div>
           <div
             v-if="filteredUsers.length === 0"
             class="no-users"
