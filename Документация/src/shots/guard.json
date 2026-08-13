@@ -222,7 +222,7 @@
       "waitFor": "[data-testid=\"pdc-accept\"]",
       "clip": {
         "selector": ".pdc-modal",
-        "pad": 40
+        "pad": 90
       },
       "highlight": [
         {

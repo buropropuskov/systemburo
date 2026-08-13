@@ -1334,8 +1334,8 @@
       "clip": {
         "selector": ".data__list",
         "pad": {
-          "x": 70,
-          "y": 50
+          "x": 30,
+          "y": 80
         }
       },
       "highlight": [
@@ -1344,10 +1344,8 @@
           "badge": 1
         },
         {
-          "selector": ".actions-col",
-          "nth": 1,
-          "badge": 2,
-          "badgeInside": true
+          "selector": ".header-col.actions-col",
+          "badge": 2
         },
         {
           "selector": "[data-testid=\"employees-clear-btn\"]",
@@ -1943,11 +1941,8 @@
       "goto": "/personal-cabinet",
       "waitFor": "[data-testid=\"ob-applications-head\"]",
       "clip": {
-        "selector": "[data-testid=\"ob-applications-head\"]",
-        "pad": {
-          "x": 40,
-          "y": 120
-        }
+        "selector": ".applications-card",
+        "pad": 24
       },
       "highlight": [
         {
@@ -1957,6 +1952,11 @@
         {
           "selector": "[data-testid=\"lk-button-updates\"]",
           "badge": 2
+        },
+        {
+          "selector": ".cabinet__filter-dropdown",
+          "badge": 3,
+          "badgeInside": true
         }
       ]
     },
@@ -2043,6 +2043,41 @@
       ],
       "clip": {
         "selector": ".confirm-dialog, .modal-overlay .modal",
+        "pad": 40
+      },
+      "highlight": []
+    },
+    {
+      "id": "user-tour",
+      "goto": "/news",
+      "waitFor": "[data-testid=\"ob-start-button\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"ob-start-button\"]"
+        },
+        {
+          "wait": ".driver-popover"
+        }
+      ],
+      "clip": {
+        "full": true
+      },
+      "highlight": []
+    },
+    {
+      "id": "user-blanks",
+      "goto": "/personal-cabinet",
+      "waitFor": "[data-testid=\"ob-application-download\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"ob-application-download\"]"
+        },
+        {
+          "wait": "[data-testid=\"download-blanks-modal\"]"
+        }
+      ],
+      "clip": {
+        "selector": ".dbm-modal",
         "pad": 40
       },
       "highlight": []

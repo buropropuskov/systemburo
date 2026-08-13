@@ -161,6 +161,43 @@
         "pad": 40
       },
       "highlight": []
+    },
+    {
+      "id": "acceptor-moderation",
+      "goto": "/admin/organizations",
+      "waitFor": "[data-testid=\"orgs-moderation-card\"]",
+      "clip": {
+        "selector": "[data-testid=\"orgs-moderation-card\"]",
+        "pad": 40
+      },
+      "highlight": []
+    },
+    {
+      "id": "acceptor-blanks",
+      "goto": "/center",
+      "waitFor": ".download-btn",
+      "prepare": [
+        {
+          "click": ".download-btn"
+        },
+        {
+          "wait": "[data-testid=\"download-blanks-modal\"]"
+        }
+      ],
+      "clip": {
+        "selector": ".dbm-modal",
+        "pad": 40
+      },
+      "highlight": []
+    },
+    {
+      "id": "acceptor-notifications",
+      "goto": "/notification-settings",
+      "waitFor": "body",
+      "clip": {
+        "full": true
+      },
+      "highlight": []
     }
   ]
 }
