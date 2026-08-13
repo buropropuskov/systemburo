@@ -9,6 +9,7 @@ import {
   validatePartValue,
   formatPartValue,
   initializeNumberParts,
+  formatNumberForDisplay,
 } from '../useNumberFormat'
 
 describe('filterCyrillicLetters', () => {
@@ -243,5 +244,45 @@ describe('initializeNumberParts', () => {
 
   it('returns empty array when format is undefined', () => {
     expect(initializeNumberParts(undefined)).toEqual([])
+  })
+})
+
+describe('formatNumberForDisplay', () => {
+  // Стандартный российский формат: буква, 3 цифры, 2 буквы, 2-3 цифры региона
+  // ("В 746 КУ 964") - тот же состав ячеек, каким форма ручного ввода собирает номер.
+  const RU_FORMAT = {
+    format: { id: 1, name: 'Российский', is_default: true },
+    cells: [
+      { cell_type: 'letters', alphabet_type: 'cyrillic', max_length: 1 },
+      { cell_type: 'numbers', max_length: 3 },
+      { cell_type: 'letters', alphabet_type: 'cyrillic', max_length: 2 },
+      { cell_type: 'numbers', max_length: 3, min_length: 2 },
+    ],
+  }
+
+  it('раскладывает слитный номер по формату и собирает с пробелами', () => {
+    expect(formatNumberForDisplay('В746КУ964', [RU_FORMAT])).toBe('В 746 КУ 964')
+  })
+
+  it('номер, уже собранный с пробелами, остаётся с пробелами', () => {
+    expect(formatNumberForDisplay('В 746 КУ 964', [RU_FORMAT])).toBe('В 746 КУ 964')
+  })
+
+  it('приводит буквы к верхнему регистру, как и раскладка по ячейкам', () => {
+    expect(formatNumberForDisplay('в746ку964', [RU_FORMAT])).toBe('В 746 КУ 964')
+  })
+
+  it('номер, не подошедший ни под один формат, возвращается без изменений', () => {
+    expect(formatNumberForDisplay('ABCDEFGH123456', [RU_FORMAT])).toBe('ABCDEFGH123456')
+  })
+
+  it('без списка форматов возвращает номер как есть', () => {
+    expect(formatNumberForDisplay('В746КУ964', [])).toBe('В746КУ964')
+    expect(formatNumberForDisplay('В746КУ964', null)).toBe('В746КУ964')
+  })
+
+  it('пустой номер возвращается как есть', () => {
+    expect(formatNumberForDisplay('', [RU_FORMAT])).toBe('')
+    expect(formatNumberForDisplay(null, [RU_FORMAT])).toBe(null)
   })
 })

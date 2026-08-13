@@ -359,8 +359,10 @@ import BaseModal from '@/components/ui/BaseModal.vue'
 import ApplicationAssignModal from './ApplicationAssignModal.vue'
 import SearchComponent from '@/components/SearchComponent.vue'
 import { assignElementTables, assignCarUnloadPlaces } from '@/api/applicationAssignments'
+import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions'
 import { matchesSearchFuzzy } from '@/utils/searchVariants'
+import { formatNumberForDisplay } from '@/composables/useNumberFormat'
 import {
     SUPPLEMENT_ACCEPTED,
     SUPPLEMENT_APPROVED,
@@ -509,6 +511,10 @@ export default {
             isNarrowViewport: false,
             resizeObserver: null,
             viewportQuery: null,
+            // Форматы гос. номеров - только для колонки "Гос. номер" (машины). Грузим
+            // один раз при монтировании, не на каждую строку: справочник общий для
+            // всей ленты, matchNumberToFormat раскладывает каждую строку в JS.
+            licensePlateFormats: [],
             // Ширина колонок с чипами: по ней считаем, сколько названий влезает
             // целиком. Пусто до первого замера - тогда работает запасной расчёт.
             chipColumnWidths: {},
@@ -577,7 +583,9 @@ export default {
                         compactLabel: 'Гос. номер и марка',
                         grow: 22, min: 114,
                         growCompact: 38, minCompact: 140,
-                        value: row => row.car_number,
+                        // Номера машин, заведённых импортом бланка, хранятся слитно -
+                        // раскладываем по формату для показа (#1392 разбор карточки).
+                        value: row => formatNumberForDisplay(row.car_number, this.licensePlateFormats),
                         sub: brand
                     },
                     {
@@ -740,9 +748,16 @@ export default {
             return this.rows.filter(row => matchesSearchFuzzy(this.searchText(row), this.searchVariants));
         },
 
+        /**
+         * На мобилке заголовок блока и поле поиска делят одну строку (el-section__head
+         * nowrap): полные подписи не влезают - "Номер, марка, место" (129px) режется уже
+         * на 320px (108 доступно), "ФИО, должность, место" (150px) - и на 320, и на 360
+         * (135 доступно). "Место" из подписи убираем: оно и так следует из открытой
+         * карточки вложения, а укороченные варианты (78/94px) помещаются с запасом.
+         */
         searchPlaceholder() {
-            if (this.type === 'cars') return 'Номер, марка, место';
-            if (this.type === 'people') return 'ФИО, должность, место';
+            if (this.type === 'cars') return this.isNarrowViewport ? 'Номер, марка' : 'Номер, марка, место';
+            if (this.type === 'people') return this.isNarrowViewport ? 'ФИО, должность' : 'ФИО, должность, место';
             return 'Наименование';
         },
 
@@ -796,6 +811,10 @@ export default {
             this.viewportQuery.addEventListener('change', this.onViewportChange);
         }
 
+        // Только для машин - колонка "Гос. номер" единственная, что использует
+        // форматы. У сотрудников/ТМЦ запрос не нужен вовсе.
+        if (this.type === 'cars') this.loadLicensePlateFormats();
+
         // Режим считаем по ширине блока, а не окна: в детали заявки колонка
         // узкая даже на широком экране, в "Доступных мне" - наоборот.
         if (typeof ResizeObserver !== 'undefined' && this.$refs.dataSection) {
@@ -833,6 +852,16 @@ export default {
 
         onViewportChange(event) {
             this.isNarrowViewport = event.matches;
+        },
+
+        /** Тот же эндпоинт и разбор ответа, что у CarsTable/VehicleForm. */
+        async loadLicensePlateFormats() {
+            try {
+                const response = await apiRequest('/license-plate-formats', {});
+                if (response.ok) this.licensePlateFormats = await response.json();
+            } catch (error) {
+                console.error('Ошибка при загрузке форматов номеров:', error);
+            }
         },
 
         /**
