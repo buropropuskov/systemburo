@@ -87,28 +87,55 @@
          (оверлей 10002, карточки из заявки 10003-10005), иначе окно откроется под ней.
          Видимостью управляет show, а не v-if по самому запросу: снятие окна родительским
          v-if убивает его анимацию закрытия, поэтому запрос переживает закрытие и
-         заменяется только при следующем открытии. -->
-    <ConfirmationModal
+         заменяется только при следующем открытии. Общий контракт окон (#1097) - выезд
+         снизу листом с ползунком на мобилке, закрытие по оверлею/Escape/свайпу - тот же
+         BaseModal, что и у остальных окон заявки (образец - BlacklistOverrideModal).
+         Тестиды confirmation-confirm/confirmation-cancel оставлены как есть - на них
+         завязан e2e ApplicationDetailModal.cjs. -->
+    <BaseModal
       v-if="supplementPrompt"
       :show="supplementPromptOpen"
       :title="supplementPrompt.title"
-      :message="supplementPrompt.message"
-      :confirm-text="supplementPrompt.confirmText"
-      cancel-text="Отмена"
+      width="420px"
+      radius="30px"
       :z-index="10006"
-      @confirm="confirmSupplementAction"
-      @cancel="closeSupplementPrompt"
+      content-class="supplement-confirm-modal"
+      @close="closeSupplementPrompt"
     >
-      <label class="supplement-comment">
-        <span class="supplement-comment__label">Комментарий (необязательно)</span>
-        <textarea
-          v-model="supplementComment"
-          class="lk-textarea supplement-comment__input"
-          data-testid="supplement-decision-comment"
-          rows="3"
-        />
-      </label>
-    </ConfirmationModal>
+      <div class="supplement-confirm-body">
+        <p class="supplement-confirm-message">
+          {{ supplementPrompt.message }}
+        </p>
+        <label class="supplement-comment">
+          <span class="supplement-comment__label">Комментарий (необязательно)</span>
+          <textarea
+            v-model="supplementComment"
+            class="lk-textarea supplement-comment__input"
+            data-testid="supplement-decision-comment"
+            rows="3"
+          />
+        </label>
+      </div>
+
+      <template #actions>
+        <button
+          type="button"
+          class="lk-button lk-button--ghost"
+          data-testid="confirmation-cancel"
+          @click="closeSupplementPrompt"
+        >
+          Отмена
+        </button>
+        <button
+          type="button"
+          class="lk-button lk-button--primary"
+          data-testid="confirmation-confirm"
+          @click="confirmSupplementAction"
+        >
+          {{ supplementPrompt.confirmText }}
+        </button>
+      </template>
+    </BaseModal>
 
     <div class="action-buttons-wrapper">
       <!-- Режим центра заявок -->
@@ -522,7 +549,7 @@
 import { apiRequest } from '@/api/client'
 import { useUiStore } from '@/stores/ui'
 import { useNarrowScreen } from '@/composables/useNarrowScreen'
-import ConfirmationModal from '@/components/ConfirmationModal.vue'
+import BaseModal from '@/components/ui/BaseModal.vue'
 import Badge from '@/components/ui/Badge.vue'
 import {
     approveSupplement,
@@ -540,7 +567,7 @@ import {
 
 export default {
     name: 'ApplicationActionBar',
-    components: { ConfirmationModal, Badge },
+    components: { BaseModal, Badge },
     props: {
         application: {
             type: Object,
@@ -1219,6 +1246,17 @@ export default {
        и около 780 кнопка уезжала за границу окна и обрезалась - замерено в
        браузере, правый край 788 при окне 780. */
     max-width: 100%;
+}
+
+.supplement-confirm-body {
+    padding: 20px;
+}
+
+.supplement-confirm-message {
+    margin: 0 0 16px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--text-muted);
 }
 
 .supplement-comment {
