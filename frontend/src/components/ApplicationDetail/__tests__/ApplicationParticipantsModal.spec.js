@@ -122,8 +122,11 @@ describe('ApplicationParticipantsModal (#1952)', () => {
   it('роли подписаны по-русски', async () => {
     const wrapper = await mountModal();
 
+    // Принимающему бейдж роли не рисуем: заявка уходит принимающим по умолчанию, и
+    // подпись у каждого второго участника ничего не сообщала.
     const roles = wrapper.findAll(ROLE).map((b) => b.text());
-    expect(new Set(roles)).toEqual(new Set(['Отправитель', 'Принимающий', 'Согласующий', 'Читатель']));
+    expect(new Set(roles)).toEqual(new Set(['Отправитель', 'Согласующий', 'Читатель']));
+    expect(roles).not.toContain('Принимающий');
   });
 
   it('человек с несколькими ролями - одна строка со старшей ролью, остальные рядом текстом', async () => {
