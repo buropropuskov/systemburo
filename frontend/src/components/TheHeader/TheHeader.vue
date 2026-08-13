@@ -219,10 +219,6 @@ export default {
       this.initIntersectionObserver();
     });
     this._onDocumentClick = () => {
-      // Глобальный вопрос подтверждения телепортирован в body, поэтому клик по его
-      // кнопкам всплывает сюда как «мимо панели». Без гейта панель уведомлений
-      // схлопывалась бы ровно в тот момент, когда человек отвечает на её же вопрос.
-      if (this.uiStore.confirmState) return;
       if (this.showNotifications) {
         this.showNotifications = false;
       }

@@ -5,7 +5,7 @@
         v-if="state"
         class="confirm-overlay"
         data-testid="confirm-overlay"
-        @click.self="cancel"
+        @click="onOverlayClick"
       >
         <div
           class="confirm-dialog"
@@ -68,9 +68,19 @@ export default {
       ui.resolveConfirm(false);
     }
 
+    // Диалог блокирующий и поднимается из панелей и меню, которые закрываются по клику
+    // на document (панель уведомлений в шапке, дропдауны). Ответ обнуляет confirmState
+    // синхронно, поэтому проверка «вопрос сейчас открыт» на всплывшем клике уже слепа -
+    // клик не должен доходить до подложки вовсе, иначе она схлопывается ровно в момент
+    // ответа на свой же вопрос (#2058).
+    function onOverlayClick(e) {
+      e.stopPropagation();
+      if (e.target === e.currentTarget) cancel();
+    }
+
     useEscapeClose(cancel, () => !!state.value);
 
-    return { state, confirm, cancel };
+    return { state, confirm, cancel, onOverlayClick };
   },
 };
 </script>

@@ -11,6 +11,7 @@ vi.mock('@/stores/permissions', () => ({
 }))
 
 import TheHeader from '@/components/TheHeader/TheHeader.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useUiStore } from '@/stores/ui'
 
 function mountHeader() {
@@ -28,12 +29,16 @@ function mountHeader() {
 }
 
 /**
- * Глобальный ConfirmDialog телепортирован в body, поэтому клик по его кнопкам для
- * шапки выглядит как «мимо панели». Без гейта панель уведомлений закрывалась бы ровно
- * в тот момент, когда человек отвечает на её же вопрос об очистке (#2058).
+ * Панель уведомлений закрывается по клику на document, а глобальный вопрос подтверждения
+ * телепортирован в body - его кнопки для шапки выглядят как «мимо панели». Клик по ответу
+ * не должен уносить панель, из которой вопрос и был задан (#2058).
+ *
+ * Тест жмёт НАСТОЯЩУЮ кнопку диалога, а не document.body: ответ обнуляет confirmState
+ * синхронно, ещё до всплытия клика, и проверка «вопрос сейчас открыт» на этом пути слепа.
  */
 describe('TheHeader — панель уведомлений и глобальный вопрос подтверждения', () => {
   let wrapper
+  let dialog
   beforeEach(() => {
     setActivePinia(createPinia())
     global.IntersectionObserver = class {
@@ -42,7 +47,10 @@ describe('TheHeader — панель уведомлений и глобальн�
       disconnect() {}
     }
   })
-  afterEach(() => wrapper?.unmount())
+  afterEach(() => {
+    wrapper?.unmount()
+    dialog?.unmount()
+  })
 
   it('клик мимо панели закрывает её, пока вопрос не открыт', async () => {
     wrapper = mountHeader()
@@ -55,15 +63,51 @@ describe('TheHeader — панель уведомлений и глобальн�
     expect(wrapper.vm.showNotifications).toBe(false)
   })
 
-  it('клик по кнопкам открытого вопроса панель не закрывает', async () => {
+  it('ответ «Очистить» в диалоге панель не закрывает', async () => {
     wrapper = mountHeader()
+    dialog = mount(ConfirmDialog, { attachTo: document.body })
     await flushPromises()
     wrapper.vm.showNotifications = true
-    useUiStore().confirm({ message: 'Все уведомления будут удалены.' })
 
-    document.body.click()
+    const answered = useUiStore().confirm({ message: 'Все уведомления будут удалены.' })
     await flushPromises()
 
+    document.querySelector('[data-testid="confirm-ok"]').click()
+    await flushPromises()
+
+    await expect(answered).resolves.toBe(true)
+    expect(wrapper.vm.showNotifications).toBe(true)
+  })
+
+  it('отказ в диалоге панель не закрывает', async () => {
+    wrapper = mountHeader()
+    dialog = mount(ConfirmDialog, { attachTo: document.body })
+    await flushPromises()
+    wrapper.vm.showNotifications = true
+
+    const answered = useUiStore().confirm({ message: 'Все уведомления будут удалены.' })
+    await flushPromises()
+
+    document.querySelector('[data-testid="confirm-cancel"]').click()
+    await flushPromises()
+
+    await expect(answered).resolves.toBe(false)
+    expect(wrapper.vm.showNotifications).toBe(true)
+  })
+
+  it('клик по затемнению диалога закрывает вопрос, но не панель', async () => {
+    wrapper = mountHeader()
+    dialog = mount(ConfirmDialog, { attachTo: document.body })
+    await flushPromises()
+    wrapper.vm.showNotifications = true
+
+    const answered = useUiStore().confirm({ message: 'Все уведомления будут удалены.' })
+    await flushPromises()
+
+    document.querySelector('[data-testid="confirm-overlay"]').click()
+    await flushPromises()
+
+    await expect(answered).resolves.toBe(false)
     expect(wrapper.vm.showNotifications).toBe(true)
   })
 })
