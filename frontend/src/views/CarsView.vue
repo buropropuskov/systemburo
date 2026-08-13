@@ -3040,7 +3040,9 @@ export default {
         width: auto !important;
         min-width: 0 !important;
         align-self: flex-start;
-        justify-content: flex-end;
+        /* Базовое правило поля карточки несёт flex-start с !important - без такой же
+           пометки кнопки липнут к бейджу вместо правого края. */
+        justify-content: flex-end !important;
         gap: 6px;
         margin-top: 2px;
         padding-top: 8px;
