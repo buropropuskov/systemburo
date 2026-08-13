@@ -560,7 +560,7 @@ def check_make_completeness(text, problems):
     сервер, и незаписанная цель означает, что о ней не узнают.
     """
     try:
-        with open("Makefile", encoding="utf-8") as fh:
+        with open(os.path.join(REPO, "Makefile"), encoding="utf-8") as fh:
             body = fh.read()
     except OSError:
         problems.append("%s: не найден Makefile" % DEPLOY)
