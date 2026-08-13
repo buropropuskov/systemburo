@@ -182,6 +182,24 @@ export function matchNumberToFormat(rawNumber, formats) {
     return null
 }
 
+/**
+ * Собирает номер обратно с пробелами по формату - для ВЫВОДА в списках/деталях, а не
+ * для ввода. У машин, заведённых импортом бланка, гос. номер хранится слитно (formatId
+ * не сохраняется), и печатался одним словом ("K321HT777") вместо принятого в системе
+ * вида с пробелами ("В 746 КУ 964"), как его собирает форма ручного ввода
+ * (VehicleForm numberParts.join(' ')).
+ * @param {string} rawNumber - номер как он есть (с пробелами, слитно или в любом регистре)
+ * @param {{format: object, cells: object[]}[]} formats
+ * @returns {string} номер с пробелами по формату; не подошёл ни под один формат -
+ *   исходная строка без изменений (без порчи)
+ */
+export function formatNumberForDisplay(rawNumber, formats) {
+    if (!rawNumber) return rawNumber
+    const matched = matchNumberToFormat(rawNumber, formats)
+    if (!matched) return rawNumber
+    return matched.parts.join(' ')
+}
+
 export function useNumberFormat() {
     return {
         filterCyrillicLetters,
@@ -193,6 +211,7 @@ export function useNumberFormat() {
         validatePartValue,
         formatPartValue,
         initializeNumberParts,
-        matchNumberToFormat
+        matchNumberToFormat,
+        formatNumberForDisplay
     }
 }

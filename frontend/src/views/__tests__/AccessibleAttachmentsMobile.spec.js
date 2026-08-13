@@ -200,16 +200,22 @@ describe('«Доступные мне» - геометрия мобильног�
   });
 
   /*
-   * Волна 6: снятый контур панели владелец забраковал («почему страница стала
-   * квадратной») - рядом с «Моими сотрудниками»/«Моими автомобилями», где панель
-   * списка скруглена, плоский экран читался коробкой. Скругление вернули, но
-   * overflow остаётся visible: hidden сделал бы панель скроллпортом и молча убил
-   * бы sticky у шапки. Верхние углы поэтому дублирует сама шапка - без этого её
-   * прямые углы торчали бы из скруглённых углов панели.
+   * Волна 7: владелец забраковал волну 6 с другой стороны - "шапка закрепляется,
+   * за шапкой видно скроллящиеся элементы", "скроллится только список сам".
+   * Панель теперь фиксированной высотой вьюпорта (100dvh за вычетом сайтовой
+   * шапки и отступов AdminPageShell), overflow: hidden - контент внутри не
+   * должен вытекать наружу и тянуть за собой document scroll. Шапка экрана и
+   * полоса поиска больше не sticky (скроллить им не от чего убегать - панель
+   * сама не скроллится), а просто закреплённый первый ряд flex-колонки.
+   * Верхние углы по-прежнему дублирует сама шапка радиусом на 1px меньше
+   * панельного - без этого её прямой угол торчал бы из скруглённого угла панели.
    */
-  it('панель держит скругление, а липкая шапка повторяет её верхние углы', () => {
-    const panel = mobileBlock.match(/\.accessible-attachments\.dashboard-card\s*\{[^}]*\}/)[0];
-    expect(panel).toContain('overflow: visible');
+  it('панель фиксированной высоты, скругление держит и не отдаёт скролл наружу', () => {
+    const panel = mobileBlock.match(/\.admin-page \.accessible-attachments\.dashboard-card\s*\{[^}]*\}/)[0];
+    expect(panel).toContain('overflow: hidden');
+    expect(panel).toContain('height: calc(100dvh');
+    expect(panel).toContain('!important');
+    expect(panel).toContain('display: flex');
     expect(panel).not.toContain('border: none');
 
     // Радиус панели читаем из самого правила, а верхние углы шапки требуем
@@ -220,8 +226,24 @@ describe('«Доступные мне» - геометрия мобильног�
     expect(panelRadius).not.toBe('0px');
 
     const header = mobileBlock.match(/\.management-header\s*\{[^}]*\}/)[0];
-    expect(header).toContain('position: sticky');
+    expect(header).not.toContain('position: sticky');
+    expect(header).toContain('flex-shrink: 0');
     const corner = `calc(${panelRadius} - 1px)`;
     expect(header).toContain(`border-radius: ${corner} ${corner} 0 0;`);
+  });
+
+  it('лента списка и деталь вложения скроллятся сами - панель и документ не скроллятся', () => {
+    expect(SOURCE).toMatch(/data-scroll-own[\s\S]{0,40}data-testid="aa-skeleton"/);
+    expect(SOURCE).toMatch(/data-scroll-own[\s\S]{0,40}data-testid="aa-list"/);
+    expect(SOURCE).toContain('class="detail-scroll"');
+
+    expect(mobileBlock).toMatch(/\.cards-list\s*\{[^}]*overflow-y:\s*auto/);
+    expect(mobileBlock).toMatch(/\.detail-scroll\s*\{[^}]*overflow-y:\s*auto/);
+
+    // content-container больше не отдаёт переполнение наружу - AdminPageShell
+    // форсит на этом классе overflow:visible!important с той же специфичностью
+    // (0,3,0), поэтому переопределение обязано быть составным и тоже !important.
+    const container = mobileBlock.match(/\.admin-page \.accessible-attachments \.content-container\s*\{[^}]*\}/)[0];
+    expect(container).toContain('overflow: hidden !important');
   });
 });

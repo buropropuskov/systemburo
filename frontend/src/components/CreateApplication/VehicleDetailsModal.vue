@@ -514,6 +514,7 @@ import AddToBlacklistModal from '@/components/admin/blacklist/AddToBlacklistModa
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useEscapeClose } from '@/composables/useEscapeClose';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { usePermissionsStore } from '@/stores/permissions';
 import { getModalActionPermission } from '@/constants/detailModalActions';
 import { useDeletionsStore } from '@/stores/deletions';
@@ -599,8 +600,10 @@ export default {
             getScrollTop: () => sheetBody.value?.scrollTop ?? 0,
             handleSelector: '.sheet-handle',
         });
+        const { isNarrow } = useNarrowScreen();
         return {
             onOverlayMousedown, onOverlayMouseup,
+            isNarrow,
             sheetBody,
             sheetOffset: swipe.offset,
             sheetDragging: swipe.isDragging,
@@ -670,7 +673,10 @@ export default {
             const application = this.canOpenApplication ? 1 : 0;
             return history + application;
         },
+        // На телефоне в строку шапки помещается только короткое имя: длинный вариант
+        // отжимал крестик и переносился на вторую строку рядом с кнопками действий.
         modalTitle() {
+            if (this.isNarrow) return 'Информация';
             const count = this.visibleActionsCount;
             if (count >= 2) return 'Информация';
             if (count === 1) return 'Детальная информация';
