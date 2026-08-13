@@ -350,7 +350,12 @@
               @mousedown="preview ? null : onRowMouseDown($event, item)"
               @mouseenter="preview ? null : dragOver(item.id)"
             >
-              <div class="item-data rt-row">
+              <!-- rt-pass: строка собирается талоном на мобилке (responsive-tables.css,
+                   часть 3). Талон определяется наличием кнопок прохода, а не тем, машина
+                   в строке или человек: сверху «Вход»/«Выход», ниже линия отрыва, под ней
+                   ФИО одной строкой и данные, в подвале статус и действия. Разнобой с
+                   таблицей машин на том же экране владелец засчитывает как дефект. -->
+              <div class="item-data rt-row rt-pass">
                 <div
                   class="col entry-col"
                   style="order: 0;"
@@ -492,7 +497,7 @@
                 >
                   <button
                     type="button"
-                    class="expand-btn"
+                    class="expand-btn rt-pass__act"
                     :class="{ 'expand-btn--open': expandedRows[item.id] }"
                     :aria-expanded="!!expandedRows[item.id]"
                     :aria-label="expandedRows[item.id] ? 'Скрыть' : 'Подробнее'"
@@ -512,6 +517,9 @@
                         stroke-linejoin="round"
                       />
                     </svg>
+                    <!-- Подпись видна только в карточке: в таблице на месте кнопки
+                         узкий служебный столбец, туда влезает лишь значок. -->
+                    <span class="rt-pass__act-label">{{ expandedRows[item.id] ? 'Скрыть' : 'Подробнее' }}</span>
                   </button>
                 </div>
                 <div
@@ -532,15 +540,16 @@
                   />
                   <button
                     v-else
-                    class="delete-btn"
+                    class="delete-btn rt-pass__act rt-pass__act--danger"
                     :disabled="preview || isLoading"
                     @click="preview ? null : removeItemWithNotification(item)"
                   >
                     <img
                       src="@/assets/icons/trashcan.png"
                       alt="Удалить"
-                      class="delete-icon"
+                      class="delete-icon rt-pass__act-icon"
                     >
+                    <span class="rt-pass__act-label">Удалить</span>
                   </button>
                 </div>
               </div>
@@ -643,8 +652,31 @@ import AnimatedCounter from './ui/AnimatedCounter.vue';
 import ExcelJS from 'exceljs';
 import { bulkMoveEmployeesTable, bulkAddEmployeesTable, bulkUnbindEmployeesTable } from '@/api/employees';
 import { pickOverflowFields, columnMinWidth, measureRowAvailableWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 
 const ENLARGED_KEY_PREFIX = 'enlarged-mode:people:';
+
+/**
+ * Состав карточки на телефоне: что видно сразу, остальное - в «Подробнее».
+ *
+ * Набор назван владельцем дословно - ФИО одной строкой, организация, срок действия.
+ * Статус в него добавлен потому, что живёт не строкой поля, а бейджем в подвале.
+ * Должность, гражданство, компания, номер заявки и время прохода уходят под кнопку.
+ *
+ * Подбор столбцов по ширине (#1307) карточке не подходит: поля стоят своими
+ * строками и за ширину не конкурируют, а мерить он пытается скрытую строку
+ * заголовков. Скатывался он всегда в одно и то же - оставить `keepAtLeast` столбца
+ * из десяти, то есть фамилию и имя, - поэтому в карточке не было ни отчества, ни
+ * организации, ни срока.
+ */
+const MOBILE_CARD_FIELDS = [
+  'last_name',
+  'first_name',
+  'middle_name',
+  'organization',
+  'valid_until',
+  'status',
+];
 
 export default {
   name: 'PeopleTable',
@@ -662,9 +694,12 @@ export default {
   },
   setup() {
     const { isPortrait, isCompact } = useOrientation();
+    // Порог тот же, что у card-правил responsive-tables.css: брейкпоинт компонента
+    // обязан совпадать с брейкпоинтом инфраструктуры, которой он пользуется.
+    const { isNarrow } = useNarrowScreen(767.98);
     const permissionsStore = usePermissionsStore();
     const rowSelection = useRowSelection();
-    return { isPortrait, isCompact, permissionsStore, ...rowSelection };
+    return { isPortrait, isCompact, isNarrow, permissionsStore, ...rowSelection };
   },
   props: {
     tableName: {
@@ -875,6 +910,11 @@ export default {
       this.saveEnlargedToStorage(value);
       // У увеличенного режима свой набор видимых столбцов - пересобираем подгонку.
       this.$nextTick(() => this.recalcOverflowFields());
+    },
+    // Поворот телефона и переход через брейкпоинт меняют правила подбора столбцов:
+    // ResizeObserver сюда не доедет - ширина карточки при этом может не измениться.
+    isNarrow() {
+      this.recalcOverflowFields();
     },
     // Строки, ушедшие из видимого списка (фильтр/поиск/удаление/поллинг),
     // убираем из выделения - счётчик "Выбрано: N" не должен врать (#1194).
@@ -1525,6 +1565,8 @@ export default {
         const visible = v === undefined ? true : v;
         if (!visible) return false;
       }
+      // На телефоне состав карточки задан списком, а не подбором по ширине.
+      if (this.isNarrow) return MOBILE_CARD_FIELDS.includes(fieldName);
       if (this.isCompact) {
         const p = this.fieldPriorities[fieldName];
         if (typeof p === 'number' && p > this.compactPriorityThreshold) return false;
@@ -1555,15 +1597,18 @@ export default {
      * Пересчитывает, какие столбцы не помещаются в текущую ширину таблицы.
      */
     recalcOverflowFields() {
+      // В карточке столбцы за ширину не конкурируют - состав задан MOBILE_CARD_FIELDS.
+      if (this.isNarrow) {
+        this.overflowFields = [];
+        return;
+      }
       const host = this.$el && this.$el.querySelector('.card-content');
       if (!host) return;
       const reserved = SERVICE_COLUMNS_WIDTH.passage
         + (this.can('entity.employees.delete') ? SERVICE_COLUMNS_WIDTH.actions : 0)
         + SERVICE_COLUMNS_WIDTH.expand;
       // Мерим строку заголовков, а не всю область: её ширина уже без отступов и
-      // зазоров между ячейками (#1097 S8 волна 4). Ноль означает, что шапка
-      // скрыта - на мобилке строки идут карточками, там остаётся прежний
-      // источник ширины, и набор скрытых столбцов не меняется.
+      // зазоров между ячейками (#1097 S8 волна 4).
       const measured = measureRowAvailableWidth(host.querySelector('.header-row'));
       this.overflowFields = pickOverflowFields({
         fields: this.configuredFields(),
@@ -1596,6 +1641,9 @@ export default {
       } else {
         const v = this.fieldsVisibility[fieldName];
         if (v === false) return 'col--collapsed';
+      }
+      if (this.isNarrow) {
+        return MOBILE_CARD_FIELDS.includes(fieldName) ? '' : 'col--collapsed';
       }
       if (this.isCompact) {
         const p = this.fieldPriorities[fieldName];
@@ -1640,6 +1688,10 @@ export default {
     },
 
     hiddenInPortraitFields() {
+      // В карточке «Подробнее» показывает всё, что не вошло в её состав.
+      if (this.isNarrow) {
+        return this.configuredFields().filter(name => !MOBILE_CARD_FIELDS.includes(name));
+      }
       const portrait = this.isCompact
         ? Object.keys(this.fieldsVisibility)
           .filter(name => this.fieldsVisibility[name] !== false)
@@ -2377,22 +2429,32 @@ export default {
 }
 
 @media (max-width: 767.98px) {
+  /* Карточки строк лежат на подложке страницы: собственная рамка панели со
+     скруглением 30px рисовала вокруг них вторую рамку, и карточка со своими 15px
+     читалась как «скруглённая внутри непонятно чего» (та же правка, что вывела из
+     второй рамки список «Доступных мне», #2052). Заголовок отделяет линия снизу. */
   .selected-table-card {
     max-height: none;
     height: auto;
+    border: none;
+    border-radius: 0;
+    background: transparent;
   }
 
   /* Заголовок и «Обновить» - одной строкой (#1097 S6), счётчик и тумблеры
      переносятся ниже: .card-header__settings занимает всю ширину и попадает на
      вторую строку, «Обновить» держится за заголовком через order. Колоночной
-     шапку больше не делаем - в ней заголовок оставался один в строке. */
+     шапку больше не делаем - в ней заголовок оставался один в строке.
+
+     Боковых отступов нет: рамки, от которой они отступали, на телефоне тоже нет, а
+     16px слева уводили заголовок с той вертикали, по которой стоят карточки. */
   .card-header {
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
     gap: 12px;
     height: auto;
-    padding: 16px;
+    padding: 12px 0;
   }
 
   /* flex-basis именно 0, а не auto: перенос строк во flex считается по
@@ -2443,6 +2505,13 @@ export default {
      матчит (соседние .item-row, не .item-data), спейсинг карточек добираем тут. */
   .item-row + .item-row {
     margin-top: 8px;
+  }
+
+  /* Зазор под десктопный скроллбар: без рамки панели он сдвигал бы карточки строк
+     на 8px вправо относительно заголовка блока. */
+  .items-body {
+    padding-right: 0;
+    margin-right: 0;
   }
 
   /* Значения в карточке не обрезаем многоточием - там больше горизонтального
@@ -2515,8 +2584,31 @@ export default {
     border-bottom: none !important;
   }
 
-  .selected-table-card .rt-row > [data-label] ~ [data-label] {
-    border-top: 1px dashed color-mix(in srgb, var(--border) 60%, var(--surface));
+  /* ФИО одной строкой: три ячейки имени идут по содержимому и читаются как одно
+     значение - это заголовок карточки, ровно как номер в талоне машины. Раньше
+     каждая занимала свою строку, и карточка открывалась столбцом «Иванов / Иван /
+     Иванович», причём отчество в неё вообще не попадало.
+
+     Базис auto с разрешённым сжатием, а не `0 0 auto`: ФИО длиннее строки тогда
+     переносится на вторую, а не выдавливает карточку. Зазор ряда (8px) между
+     словами имени вдвое шире пробела - гасим отрицательным полем у первых двух. */
+  .selected-table-card .rt-row > .last-name-col,
+  .selected-table-card .rt-row > .first-name-col,
+  .selected-table-card .rt-row > .middle-name-col {
+    flex: 0 1 auto !important;
+    width: auto !important;
+    padding-top: 8px !important;
+    /* `!important` не перестраховка: размер строки задан ниже по файлу правилом
+       `.selected-table-card .items-body .col { font-size: var(--table-font-size) }` -
+       специфичность та же (0,3,0), а объявлено оно позже медиазапроса и выигрывает
+       тай-брейк. Тем же лечится крупный номер в талоне машины. */
+    font-size: 16px !important;
+    font-weight: 700;
+  }
+
+  .selected-table-card .rt-row > .last-name-col,
+  .selected-table-card .rt-row > .first-name-col {
+    margin-right: -4px;
   }
 
   /* Ячейки прохода делят верхнюю строку пополам - единственные, кто выходит из
@@ -2541,27 +2633,46 @@ export default {
     min-width: 0;
   }
 
-  /* «Подробнее» и корзина - двумя последними строками карточки, в этом порядке.
-     Порядок задаём обоим служебным столбцам, а не правим один: их разметочные `order`
-     (9997 и 9999) соседствуют с порядком статуса (9998), и шеврон оказывался ПЕРЕД
-     статусом, то есть посреди карточки - между именем и бейджем. Пара заведомо больших
-     чисел уводит оба в конец независимо от настроек столбцов. */
-  .selected-table-card .rt-row > .expand-col {
+  /* Подвал талона: статус своей строкой, под ним «Подробнее» и «Удалить» пополам -
+     ровно как «Вход»/«Выход» сверху, только пилюлями в 28px (раскладка и числа те же,
+     что у таблицы машин: обе таблицы открывают один и тот же экран поста).
+
+     Порядок задаём всем трём заведомо большими числами, а не правим один столбец: их
+     разметочные `order` (9997-9999) соседствуют с порядком настраиваемых, и шеврон
+     оказывался посреди карточки - между именем и бейджем.
+
+     Базис половины, а не «0 с ростом»: перенос во flex считается по базисам ДО
+     распределения свободного места, и с нулевым базисом кнопки схлопывались бы друг
+     на друга. Единственной кнопке достаётся левая половина - к правому краю карточки
+     она не жмётся.
+
+     `overflow: visible` обязателен: базовый `.col { overflow: hidden }` обрезает
+     невидимый ::before, которым пилюля добирает зону нажатия до 44px. */
+  .selected-table-card .rt-pass > .status-col {
+    order: 9999 !important;
+    flex: 0 0 100% !important;
+    width: 100% !important;
+  }
+
+  .selected-table-card .rt-pass > .expand-col {
     order: 10000 !important;
   }
 
-  .selected-table-card .rt-row > .actions-col {
+  .selected-table-card .rt-pass > .actions-col {
     order: 10001 !important;
   }
 
-  /* И делят её между собой: своя строка каждой отдавала 88px карточки под две
-     44-пиксельные кнопки, причём шеврон висел один посреди пустой полосы. Ширина по
-     содержимому - второе и последнее исключение из «своя строка каждому». */
-  .selected-table-card .rt-row > .expand-col,
-  .selected-table-card .rt-row > .actions-col {
-    flex: 0 0 auto !important;
+  .selected-table-card .rt-pass > .expand-col,
+  .selected-table-card .rt-pass > .actions-col {
+    flex: 0 0 calc(50% - 4px) !important;
     width: auto !important;
-    padding-top: 8px;
+  }
+
+  .selected-table-card .rt-pass > .status-col,
+  .selected-table-card .rt-pass > .expand-col,
+  .selected-table-card .rt-pass > .actions-col {
+    overflow: visible;
+    padding: 10px 0 0;
   }
 
   .selected-table-card .rt-row > [data-label]::before {
@@ -2583,26 +2694,21 @@ export default {
     display: block !important;
   }
 
-  /* Тач-таргет >=44px (WCAG) для кнопок Вход/Выход/удаления/раскрытия. */
+  /* Кнопки прохода - главное действие экрана: 44px и крупная подпись. */
   .action-btn {
     min-width: 70px;
     height: 44px;
     font-size: 13px;
   }
 
-  .delete-btn {
-    width: 44px;
-    height: 44px;
+  /* Шеврон в пилюле «Подробнее» показывает раскрытие поворотом - саму пилюлю при
+     этом не вертим, её `transform: none` приходит из rt-pass. */
+  .selected-table-card .rt-pass > .expand-col .expand-btn svg {
+    transition: transform 0.2s ease;
   }
 
-  /* #1097 S9. Селектор с карточкой обязателен, а не просто `.expand-btn`: базовое
-     правило `.expand-btn { width: 22px; height: 22px }` стоит НИЖЕ этого медиазапроса,
-     специфичность у них равная (медиазапрос её не поднимает), и побеждало позднее -
-     тач-таргет 44px был мёртвым, шеврон оставался 22px на любой мобилке. Упростишь
-     селектор обратно - правило снова перестанет применяться, молча. */
-  .selected-table-card .expand-btn {
-    width: 44px;
-    height: 44px;
+  .selected-table-card .rt-pass > .expand-col .expand-btn--open svg {
+    transform: rotate(180deg);
   }
 }
 
