@@ -1445,8 +1445,13 @@ export default {
   cursor: pointer;
 }
 
-.fact-item:hover {
-  background-color: var(--surface-2);
+/* Тач-экран hover не отдаёт, но :hover после тапа залипает до следующего касания -
+   подсветка висела на карточке, по которой уже отработали (эталон §1.5). Гейтим
+   ровно то, до чего на телефоне можно дотронуться: строку и кнопки карточки. */
+@media (hover: hover) {
+  .fact-item:hover {
+    background-color: var(--surface-2);
+  }
 }
 
 @keyframes fadeInUp {
@@ -1490,9 +1495,11 @@ export default {
   padding: 0;
 }
 
-.action-btn:hover:not(:disabled) {
-  background: var(--surface-2);
-  border-color: var(--text-muted);
+@media (hover: hover) {
+  .action-btn:hover:not(:disabled) {
+    background: var(--surface-2);
+    border-color: var(--text-muted);
+  }
 }
 
 .action-btn:disabled {
@@ -1529,8 +1536,10 @@ export default {
   justify-content: center;
 }
 
-.delete-btn:hover:not(:disabled) {
-  background-color: transparent;
+@media (hover: hover) {
+  .delete-btn:hover:not(:disabled) {
+    background-color: transparent;
+  }
 }
 
 .delete-btn:disabled {
@@ -1545,8 +1554,10 @@ export default {
   transition: opacity 0.2s ease;
 }
 
-.delete-btn:hover:not(:disabled) .delete-icon {
-  opacity: 1;
+@media (hover: hover) {
+  .delete-btn:hover:not(:disabled) .delete-icon {
+    opacity: 1;
+  }
 }
 
 .no-data-message {
@@ -1629,28 +1640,38 @@ export default {
     background: transparent;
   }
 
-  /* Заголовок и «Обновить» - одной строкой (#1097 S6). В настройках шапки здесь
-     только сама кнопка, поэтому выносить её отдельным элементом, как в
-     CarsTable/PeopleTable, не нужно - хватает направления строки.
+  /* Шапка блока - один ряд в 48px (контракт волны 6, те же числа у соседних
+     экранов): имя блока кеглем 18, «Обновить» у правого края, переноса нет. В
+     настройках шапки здесь только сама кнопка, поэтому выносить её отдельным
+     элементом, как в CarsTable/PeopleTable, не нужно.
 
-     Высота ряда 48px и боковых отступов нет: рамки, от которой они отступали,
-     на телефоне тоже нет, а padding 16px давал шапку в 68px над пустой таблицей. */
+     Боковой отступ слагаемыми, а не числом: отступ тела списка + рамка карточки +
+     её внутренний отступ - заголовок стоит над текстом карточек. Прежние 16px по
+     кругу давали шапку в 68px над пустой таблицей. */
   .card-header {
     flex-direction: row;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
-    gap: 12px;
-    min-height: 48px;
-    height: auto;
-    padding: 0;
+    gap: 8px;
+    height: 48px;
+    padding: 0 calc(8px + 1px + 14px);
+  }
+
+  .card-title {
+    font-size: 18px;
+  }
+
+  .card-header__settings {
+    margin-left: auto;
   }
 
   /* Строка «Заявок по факту нет» - подпись под шапкой, а не пустой экран: центровка
-     по вертикали вместе с flex-grow растягивала её на всю высоту карточки. */
+     по вертикали вместе с flex-grow растягивала её на всю высоту карточки. Боковой
+     отступ добирает до вертикали заголовка: 8px тело списка уже дало. */
   .no-data-message {
     flex-grow: 0;
     justify-content: flex-start;
-    padding: 14px 0;
+    padding: 14px calc(1px + 14px);
     font-size: 13px;
     text-align: left;
   }
@@ -1684,10 +1705,12 @@ export default {
     margin-top: 8px;
   }
 
-  /* Зазор под десктопный скроллбар: без рамки карточки он сдвигал бы карточки
-     строк на 8px вправо относительно заголовка блока. */
+  /* Отступ тела списка - первое слагаемое бокового отступа шапки: карточки стоят на
+     8px от края блока, заголовок - на 8 + рамка карточки + её внутренний отступ, то
+     есть ровно над текстом карточек. Асимметричный зазор под десктопный скроллбар
+     (padding-right 4 + margin-right 4) при этом снимается. */
   .fact-body {
-    padding-right: 0;
+    padding: 0 8px;
     margin-right: 0;
   }
 
