@@ -26,7 +26,6 @@ class ApplicationDetailModal {
     this.supplementRoundBadge = page.getByTestId('app-detail-supplement-round-badge');
     this.supplementPanel = page.getByTestId('supplement-panel');
     this.supplementActions = page.getByTestId('supplement-actions');
-    this.supplementActionsLabel = this.supplementActions.locator('.supplement-actions__label');
     this.supplementApproveButton = page.getByTestId('supplement-button-approve');
     this.supplementAcceptButton = page.getByTestId('supplement-button-accept');
     this.supplementMyVote = page.getByTestId('supplement-my-vote');
