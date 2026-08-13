@@ -49,14 +49,35 @@ export function useEdgeSwipeOpen(onOpen, options = {}) {
   // идёт на каждом касании, а нужные контейнеры лежат близко к цели.
   function insideHorizontalScroller(target) {
     let node = target;
-    for (let depth = 0; node && node.nodeType === 1 && depth < 8; depth += 1) {
-      if (node.scrollWidth - node.clientWidth > 1) {
-        const { overflowX } = window.getComputedStyle(node);
-        if (overflowX === 'auto' || overflowX === 'scroll') return true;
-      }
+    for (let depth = 0; node && node.nodeType === 1 && depth < 24; depth += 1) {
+      // Переполнение ПРЯМО СЕЙЧАС не требуем: лента, в которой пока помещается всё,
+      // всё равно листается вбок, как только данных станет больше, а решение о жесте
+      // принимается в момент касания (#1097 волна 6: «листал таблицу вправо - у меня
+      // постоянно открывалась навигация»).
+      const { overflowX } = window.getComputedStyle(node);
+      if (overflowX === 'auto' || overflowX === 'scroll') return true;
       node = node.parentElement;
     }
     return false;
+  }
+
+  /**
+   * Элемент заявил собственный горизонтальный жест (`data-swipe-own`) - меню в него
+   * не лезет. Так панель предупреждения на подаче заявки смахивается вправо, не
+   * вытягивая заодно навигацию: до этого один жест обслуживали оба обработчика.
+   */
+  function ownsHorizontalGesture(target) {
+    return !!target?.closest?.('[data-swipe-own]');
+  }
+
+  /**
+   * Страница сама прокручивается вбок - палец листает её, а не открывает меню.
+   * Горизонтальный разъезд на телефоне сам по себе дефект и чинится отдельно, но
+   * пока он есть, меню не должно выпрыгивать на каждое движение вбок.
+   */
+  function documentScrollsHorizontally() {
+    const de = document.documentElement;
+    return de.scrollWidth - de.clientWidth > 1;
   }
 
   function release() {
@@ -74,7 +95,9 @@ export function useEdgeSwipeOpen(onOpen, options = {}) {
     // Кромка принадлежит системному «Назад» - не наш жест, молча пропускаем.
     if (touch.clientX < deadZone) return;
     if (e.target?.closest?.('textarea, input, select, [contenteditable="true"]')) return;
+    if (ownsHorizontalGesture(e.target)) return;
     if (insideHorizontalScroller(e.target)) return;
+    if (documentScrollsHorizontally()) return;
     startX = touch.clientX;
     startY = touch.clientY;
     tracking = true;
