@@ -979,7 +979,11 @@ export default {
     font-size: 14px;
     font-weight: 500;
     text-align: center;
-    max-width: calc(100% - 32px);
+    /* Пилюля раньше сжималась по контенту (max-width как потолок) - текст жался
+       узкой колонкой. Владелец просил ширину, не кегль: теперь пилюля занимает
+       доступную ширину формы. */
+    width: calc(100% - 32px);
+    box-sizing: border-box;
     box-shadow: 0 2px 10px var(--shadow-drop);
 }
 

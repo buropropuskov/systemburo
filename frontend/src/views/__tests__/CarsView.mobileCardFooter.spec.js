@@ -129,6 +129,20 @@ describe('CarsView — CSS-контракт подвала карточки на
     expect(actionsRule).toMatch(/align-self:\s*flex-start/);
   });
 
+  // Четвёртый круг замечаний владельца (#1097 w11): бейдж и кнопки уже выровнены по
+  // align-self: flex-start (см. тест выше), но серая линия подвала всё равно рвалась.
+  // Причина - border-top рисуют ДВА РАЗНЫХ элемента (.status-col и .actions-col), а
+  // между ними column-gap: 8px родителя - пустое место без бордюра, где линия физически
+  // прерывается, хотя цвет/толщина границ совпадают. margin-left на actions-col тянет
+  // её бокс (а с ним border-top) вплотную к status-col, закрывая зазор.
+  it('actions-col компенсирует column-gap родителя отрицательным margin-left - линия подвала не рвётся', () => {
+    const parentRule = rule(MOBILE_76798, '.rt-table .car-row.rt-row');
+    const actionsRule = rule(MOBILE_76798, '.car-row.rt-row > .actions-col');
+    expect(parentRule, 'базовое правило .car-row.rt-row не найдено в 767.98-блоке').not.toBeNull();
+    expect(parentRule).toMatch(/column-gap:\s*8px/);
+    expect(actionsRule).toMatch(/margin-left:\s*-8px/);
+  });
+
   it('номер и марка делят одну строку карточки (не 100% каждая)', () => {
     const numberRule = rule(MOBILE_76798, '.rt-table .car-row.rt-row > .car-number-col');
     const brandRule = rule(MOBILE_76798, '.rt-table .car-row.rt-row > .brand-col');

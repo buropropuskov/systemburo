@@ -1760,7 +1760,7 @@ export default {
   }
 
   .fact-table-card .fact-item:not(:last-child) .rt-pass {
-    border-bottom: 1px solid var(--border) !important;
+    border-bottom: 2px solid var(--border) !important;
   }
 
   .fact-table-card .fact-item:last-child .rt-pass {

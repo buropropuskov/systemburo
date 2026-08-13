@@ -9,19 +9,11 @@
         class="supplement-actions"
         data-testid="supplement-actions"
       >
-        <!-- Номер раунда бейджем, а не отдельной подписью: рядом в шапке уже стоит
-             "+ Дополнение №N на согласовании" (ApplicationDetail.vue openSupplementBadge),
-             вторая надпись с тем же смыслом только дублировала её. Стиль и текст "Доп. №N" -
-             тот же, что у метки раунда в составе вложения (ApplicationAttachmentDetail.vue). -->
-        <Badge
-          variant="primary"
-          size="sm"
-          dot
-          class="supplement-round-badge"
-          data-testid="supplement-round-badge"
-        >
-          Доп. №{{ actionableRound.number }}
-        </Badge>
+        <!-- Номер раунда без отдельного бейджа: рядом в шапке уже стоит "+ Дополнение №N
+             на согласовании" (ApplicationDetail.vue openSupplementBadge), а этот ряд
+             вёрстка держит прямо под ней ("под шапкой") - бейдж "Доп. №N" здесь только
+             дублировал ту же надпись и на мобилке растягивался на всю ширину. Кнопка
+             решения несёт номер сама - см. "Согласовать доп. №N" ниже. -->
         <Badge
           v-if="supplementVoteBadge"
           :variant="mySupplementVoteStatus === 'approved' ? 'success' : 'danger'"
@@ -38,7 +30,7 @@
             :disabled="supplementBusy"
             @click="askSupplementAction('approve')"
           >
-            Согласовать
+            Согласовать доп. №{{ actionableRound.number }}
           </button>
           <button
             class="lk-button lk-button--danger"
@@ -67,7 +59,7 @@
             :disabled="supplementBusy"
             @click="askSupplementAction('accept')"
           >
-            Принять
+            Принять доп. №{{ actionableRound.number }}
           </button>
           <button
             class="lk-button lk-button--danger"
@@ -1199,7 +1191,10 @@ export default {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 8px;
+    /* Ряд решения по дополнению стоит первым в колонке (ApplicationDetail.vue держит
+       его под заголовком "+ Дополнение №N на согласовании") - обычного 8px между ним
+       и рядом действий заявки не хватало, кнопки читались слипшимися с шапкой. */
+    gap: 14px;
 }
 
 .supplement-actions {
@@ -1220,10 +1215,6 @@ export default {
        ниже), на широких места хватает, а между ними, около 780, кнопка уезжала
        за границу окна и обрезалась - замерено в браузере, правый край 788 при окне 780. */
     max-width: 100%;
-}
-
-.supplement-round-badge {
-    margin-right: 2px;
 }
 
 .supplement-comment {
@@ -1306,15 +1297,6 @@ export default {
     .supplement-actions {
         align-self: stretch;
         justify-content: flex-start;
-    }
-
-    /* Бейдж "Доп. №N" - на свою строку, обе кнопки решения - вместе на
-       следующую (#1097 w8: "Дополнение и Согласовать на одной строке, Отказать
-       на другой, всё раздуло"). flex-basis:100% у первого элемента wrap-ряда
-       обрывает строку сразу после него - остальные (обе кнопки) переносятся
-       вместе, не разрываясь друг от друга. Высота блока 94px -> ~66px. */
-    .supplement-round-badge {
-        flex-basis: 100%;
     }
 
     .confirm-btn,

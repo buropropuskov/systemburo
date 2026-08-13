@@ -1581,6 +1581,12 @@ export default {
     margin: 0;
 }
 
+/* Кнопка повтора - единственное действие на пустом экране, поэтому добираем ей норму
+   тач-таргета здесь, а не общим правилом пилюли (то раздувает кнопки всей системы). */
+.list-error-state .lk-button {
+    min-height: 36px;
+}
+
 /* Ошибка догрузки следующей порции (#1173) - компактный вариант рядом с sentinel. */
 .sentinel-error {
     display: flex;
@@ -1941,6 +1947,13 @@ export default {
         margin-top: 2px;
         padding-top: 8px;
         border-top: 1px solid color-mix(in srgb, var(--border) 45%, var(--surface)) !important;
+        /* Настоящая причина разрыва линии подвала: .status-col и .actions-col - два
+           РАЗНЫХ flex-элемента, у каждого свой border-top, а между ними column-gap: 8px
+           родителя (.employee-row.rt-row) - это пустое место без бордюра, в котором линия
+           физически прерывается, хотя цвет/толщина границ совпадают. margin-left тянет
+           бокс .actions-col (а с ним и border-top) вплотную к .status-col, закрывая зазор;
+           кнопки внутри не сдвигаются - их прижимает вправо justify-content: flex-end. */
+        margin-left: -8px;
     }
 
     /* Действия - компактные бейджи 28px в подвале карточки. Прежние пилюли 44px
