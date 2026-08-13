@@ -127,8 +127,8 @@
             <input
               v-model="passportSeriesNumber"
               class="name__input"
-              placeholder="XXXX XXXXXX"
-              @input="formatPassport"
+              placeholder="Введите серию и номер паспорта"
+              maxlength="100"
             >
           </div>
           <div
@@ -500,18 +500,6 @@ export default {
             if (!text) return '';
             if (text.length <= maxLength) return text;
             return text.substring(0, maxLength) + '...';
-        },
-
-        formatPassport(event) {
-            let value = event.target.value.replace(/\D/g, '');
-            if (value.length > 10) {
-                value = value.slice(0, 10);
-            }
-            if (value.length > 4) {
-                value = value.slice(0, 4) + ' ' + value.slice(4);
-            }
-            this.passportSeriesNumber = value;
-            event.target.value = value;
         },
 
         handlePatentInput() {
