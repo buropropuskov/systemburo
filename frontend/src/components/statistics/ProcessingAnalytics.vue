@@ -181,8 +181,8 @@
             v-else
             class="proc__card proc__card--table proc__card--scroll"
           >
-            <table class="proc__table proc__table--rating">
-              <thead>
+            <table class="proc__table proc__table--rating rt-table">
+              <thead class="rt-head-row">
                 <tr>
                   <th class="proc__rank-h">#</th>
                   <th>Согласующий</th>
@@ -194,14 +194,25 @@
                 <tr
                   v-for="(a, i) in approvers"
                   :key="i"
+                  class="rt-row"
                 >
-                  <td class="proc__rank">{{ i + 1 }}</td>
+                  <td
+                    class="proc__rank"
+                    data-label="Место"
+                  >{{ i + 1 }}</td>
                   <td
                     class="proc__ellipsis"
+                    data-label="Согласующий"
                     :title="a.name"
                   >{{ a.name }}</td>
-                  <td class="proc__num">{{ fmtDur(a.avg_response_time) }}</td>
-                  <td class="proc__num">{{ fmtCount(a.votes_count) }}</td>
+                  <td
+                    class="proc__num"
+                    data-label="Время реакции"
+                  >{{ fmtDur(a.avg_response_time) }}</td>
+                  <td
+                    class="proc__num"
+                    data-label="Нагрузка"
+                  >{{ fmtCount(a.votes_count) }}</td>
                 </tr>
                 <tr v-if="approvers.length === 0">
                   <td
@@ -229,8 +240,8 @@
             v-else
             class="proc__card proc__card--table proc__card--scroll"
           >
-            <table class="proc__table proc__table--rating">
-              <thead>
+            <table class="proc__table proc__table--rating rt-table">
+              <thead class="rt-head-row">
                 <tr>
                   <th class="proc__rank-h">#</th>
                   <th>Принимающий</th>
@@ -242,14 +253,25 @@
                 <tr
                   v-for="(a, i) in acceptors"
                   :key="i"
+                  class="rt-row"
                 >
-                  <td class="proc__rank">{{ i + 1 }}</td>
+                  <td
+                    class="proc__rank"
+                    data-label="Место"
+                  >{{ i + 1 }}</td>
                   <td
                     class="proc__ellipsis"
+                    data-label="Принимающий"
                     :title="a.name"
                   >{{ a.name }}</td>
-                  <td class="proc__num">{{ fmtDur(a.avg_acceptance_time) }}</td>
-                  <td class="proc__num">{{ fmtCount(a.accepts_count) }}</td>
+                  <td
+                    class="proc__num"
+                    data-label="Время принятия"
+                  >{{ fmtDur(a.avg_acceptance_time) }}</td>
+                  <td
+                    class="proc__num"
+                    data-label="Принято"
+                  >{{ fmtCount(a.accepts_count) }}</td>
                 </tr>
                 <tr v-if="acceptors.length === 0">
                   <td
@@ -285,8 +307,8 @@
           v-else
           class="proc__card proc__card--table proc__card--scroll"
         >
-          <table class="proc__table proc__table--breakdown">
-            <thead>
+          <table class="proc__table proc__table--breakdown rt-table">
+            <thead class="rt-head-row">
               <tr>
                 <th>{{ breakdownNameHeader }}</th>
                 <th class="proc__num">Согласование</th>
@@ -299,15 +321,29 @@
               <tr
                 v-for="(o, i) in breakdownRows"
                 :key="i"
+                class="rt-row"
               >
                 <td
                   class="proc__ellipsis"
+                  :data-label="breakdownNameHeader"
                   :title="o.label"
                 >{{ o.label }}</td>
-                <td class="proc__num">{{ fmtDur(o.avg_approval_time) }}</td>
-                <td class="proc__num">{{ fmtDur(o.avg_acceptance_time) }}</td>
-                <td class="proc__num">{{ fmtDur(o.avg_processing_time) }}</td>
-                <td class="proc__num">{{ fmtCount(o.applications_count) }}</td>
+                <td
+                  class="proc__num"
+                  data-label="Согласование"
+                >{{ fmtDur(o.avg_approval_time) }}</td>
+                <td
+                  class="proc__num"
+                  data-label="Принятие"
+                >{{ fmtDur(o.avg_acceptance_time) }}</td>
+                <td
+                  class="proc__num"
+                  data-label="Обработка"
+                >{{ fmtDur(o.avg_processing_time) }}</td>
+                <td
+                  class="proc__num"
+                  data-label="Заявок"
+                >{{ fmtCount(o.applications_count) }}</td>
               </tr>
               <tr v-if="breakdownRows.length === 0">
                 <td
@@ -354,8 +390,8 @@
         v-else
         class="proc__card proc__card--table proc__card--scroll"
       >
-        <table class="proc__table proc__table--stuck">
-          <thead>
+        <table class="proc__table proc__table--stuck rt-table">
+          <thead class="rt-head-row">
             <tr>
               <th class="proc__col-app">Заявка</th>
               <th>Согласующий</th>
@@ -367,8 +403,9 @@
             <tr
               v-for="(a, i) in stuck"
               :key="`${a.application_id}-${i}`"
+              class="rt-row"
             >
-              <td>
+              <td data-label="Заявка">
                 <button
                   type="button"
                   class="proc__stuck-app proc__journal-app--copy"
@@ -378,10 +415,17 @@
               </td>
               <td
                 class="proc__ellipsis"
+                data-label="Согласующий"
                 :title="a.approver_name"
               >{{ a.approver_name }}</td>
-              <td class="proc__num">{{ waitingText(a.waiting_days) }}</td>
-              <td class="proc__num">{{ fmtCount(a.reminder_count) }}</td>
+              <td
+                class="proc__num"
+                data-label="Ждёт"
+              >{{ waitingText(a.waiting_days) }}</td>
+              <td
+                class="proc__num"
+                data-label="Напоминаний"
+              >{{ fmtCount(a.reminder_count) }}</td>
             </tr>
             <tr v-if="stuck.length === 0">
               <td
@@ -459,11 +503,12 @@
       />
       <div
         v-else
-        class="proc__card proc__card--scroll proc__journal"
+        class="proc__card proc__card--scroll proc__journal rt-table"
       >
         <!-- Шапка ленты: те же классы ячеек, что у строк, поэтому колонки совпадают
-             по ширине без отдельной таблицы разметки. -->
-        <div class="proc__journal-line proc__journal-head">
+             по ширине без отдельной таблицы разметки. На телефоне строка события
+             становится карточкой, и шапку прячет rt-head-row. -->
+        <div class="proc__journal-line proc__journal-head rt-head-row">
           <span class="proc__journal-role-h">Событие</span>
           <span class="proc__journal-actor">Кто</span>
           <span class="proc__journal-app">Заявка</span>
@@ -473,30 +518,39 @@
         <div
           v-for="e in journal"
           :key="`${e.application_id}-${e.role}-${e.occurred_at}`"
-          class="proc__journal-row"
+          class="proc__journal-row rt-row"
         >
+          <!-- Бейдж роли без data-label намеренно: в карточке он читается как
+               заголовок события, подпись «Событие: Согласование» была бы маслом масляным. -->
           <span
             class="proc__journal-role"
             :class="`proc__journal-role--${e.role}`"
           >{{ roleLabel(e.role) }}</span>
           <span
             class="proc__journal-actor"
+            data-label="Кто"
             :title="e.actor_name"
           >{{ e.actor_name }}</span>
           <button
             v-if="e.application_number"
             type="button"
             class="proc__journal-app proc__journal-app--copy"
+            data-label="Заявка"
             title="Скопировать номер заявки"
             @click="copyApplicationNumber(e.application_number)"
           >{{ e.application_number }}</button>
           <span
             v-else
             class="proc__journal-app"
+            data-label="Заявка"
           >—</span>
-          <span class="proc__journal-dur">{{ e.working_seconds == null ? '' : fmtDur(e.working_seconds) }}</span>
+          <span
+            class="proc__journal-dur"
+            data-label="Рабочее время"
+          >{{ e.working_seconds == null ? '' : fmtDur(e.working_seconds) }}</span>
           <span
             class="proc__journal-when"
+            data-label="Когда"
             :title="formatTimeAgo(e.occurred_at)"
           >{{ formatDateTime(e.occurred_at) }}</span>
         </div>
@@ -1336,16 +1390,28 @@ defineExpose({ refresh: reload });
   min-height: 190px;
 }
 
-/* ===== ДВЕ КОЛОНКИ ===== */
+/* ===== ДВЕ КОЛОНКИ =====
+   minmax(0, 1fr), а не 1fr: у трека 1fr минимум - min-content содержимого, и
+   `min-width: 460px` таблицы внутри тянул колонку до 474px независимо от того,
+   что карточка вокруг неё скроллится (`overflow-x: auto` зануляет автоминимум
+   только самому скроллеру, но не деду-гриду). На 390 обе карточки рейтинга
+   вставали шириной 474 в контейнер 368, распирали вкладку вправо, и вбок ехала
+   вся панель целиком вместо таблицы внутри блока. */
 .proc__cols {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 20px;
+}
+
+/* Тот же ноль-минимум нужен и самим секциям: без него распирает уже не трек,
+   а элемент грида (лечим родителя, а не блок внутри - #1685). */
+.proc__cols > .proc__group {
+  min-width: 0;
 }
 
 @media (max-width: 900px) {
   .proc__cols {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1681,6 +1747,81 @@ defineExpose({ refresh: reload });
   .proc__card--scroll :deep(thead th),
   .proc__card--scroll th {
     position: static;
+  }
+}
+
+/* ===== ТЕЛЕФОН: СТРОКА -> КАРТОЧКА (<=767.98) =====
+   Порог именно 767.98, как у responsive-tables.css: на ровно 768 иначе собирается
+   гибрид - подписи ячеек уже есть, а карточек ещё нет.
+
+   Таблицы вкладки держат минимум ширины (460/680/700), чтобы на десктопе колонки
+   не схлопывались, а узкий контейнер давал честный горизонтальный скролл внутри
+   карточки (#1251). На телефоне этот минимум ни к чему: строка становится карточкой
+   «подпись - значение», и скроллить вбок нечего. Сам минимум обязательно снять -
+   `.rt-table { overflow-x: hidden }` иначе не уберёт переполнение, а молча обрежет
+   карточку по правому краю. */
+@media (max-width: 767.98px) {
+  /* Двухклассовые селекторы: одноклассовые правила-источники объявлены выше по
+     файлу с той же специфичностью, и при равенстве побеждает более позднее - но
+     полагаться на порядок в SFC уже обжигало (#1550). */
+  .proc__table.proc__table--rating,
+  .proc__table.proc__table--breakdown,
+  .proc__table.proc__table--stuck {
+    min-width: 0;
+  }
+
+  .proc__journal .proc__journal-line,
+  .proc__journal .proc__journal-row {
+    min-width: 0;
+  }
+
+  /* Обрезка многоточием - приём узкой колонки. В карточке ФИО и название
+     организации показываем целиком: `max-width: 0` иначе схлопнет ячейку в ноль
+     (ширину от rt-* оно перебивает), а длинное слово без пробелов уедет за край. */
+  .rt-row > .proc__ellipsis,
+  .proc__journal-row > .proc__journal-actor {
+    flex: 0 0 auto;
+    max-width: none;
+    overflow: visible;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+  }
+
+  /* Бейдж события - заголовок карточки: по содержимому и слева, иначе ячейка
+     карточки растянула бы пилюлю на всю ширину. */
+  .proc__journal-row > .proc__journal-role {
+    align-self: flex-start;
+    width: auto;
+    margin-bottom: 2px;
+  }
+
+  /* Номер заявки копируется по тапу: зону нажатия доводим до 44px невидимым
+     псевдоэлементом, не раздувая саму строку карточки (эталон адаптива, §8).
+     Именно ::after - ::before у ячейки карточки занят подписью поля (rt-*). */
+  .proc__stuck-app,
+  .proc__journal-app--copy {
+    position: relative;
+  }
+
+  /* Обрезка номера многоточием нужна была узкой ячейке таблицы; в карточке номер
+     стоит отдельной строкой целиком. Снять `overflow: hidden` здесь обязательно:
+     он режет по границе кнопки и её собственную зону нажатия - тап мимо строки
+     номера уходил в соседнюю ячейку. */
+  .proc__stuck-app {
+    max-width: none;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  /* -15px по вертикали, а не -12: строка номера ростом 15px, и 12 дают 39 - до
+     44 не дотягивает. Считать надо от реальной высоты элемента, а не брать
+     число из соседнего компонента. */
+  .proc__stuck-app::after,
+  .proc__journal-app--copy::after {
+    content: '';
+    position: absolute;
+    inset: -15px -10px;
   }
 }
 </style>
