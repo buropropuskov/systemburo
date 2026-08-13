@@ -18,6 +18,12 @@ import (
 // RequirePermissionV2; история (GetHistory) доступна всем авторизованным.
 type ApproverService interface {
 	GetAll(ctx context.Context) ([]models.ApplicationApproverWithUser, error)
+
+	// GetRecipients отдаёт принимающих для строки получателей заявки - только
+	// отображаемые имена. Отдельно от GetAll по той же причине, что и IsApprover:
+	// тот закрыт правом администратора, а заявителю нужно видеть, кому уйдёт заявка.
+	GetRecipients(ctx context.Context) ([]models.ApplicationRecipient, error)
+
 	GetAvailableUsers(ctx context.Context) ([]models.AvailableApproverUser, error)
 	Create(ctx context.Context, userID int, createdByUsername string) error
 	Update(ctx context.Context, id int, displayName *string, actorUsername string) error
@@ -66,6 +72,55 @@ func (s *approverService) GetAll(ctx context.Context) ([]models.ApplicationAppro
 		for i := range result {
 			maskUserParts(masks, result[i].UserID, &result[i].LastName, &result[i].FirstName, &result[i].MiddleName)
 		}
+	}
+	return result, nil
+}
+
+// GetRecipients возвращает принимающих для строки получателей заявки: заявителю нужно
+// видеть, кому уйдёт заявка, а полный состав с организациями и должностями закрыт правом
+// администратора. Имя берётся из маски, если она задана, иначе собирается из ФИО; когда
+// работник не дал согласия на обработку персональных данных, вместо ФИО идёт логин - тем
+// же правилом, что и в остальных местах.
+func (s *approverService) GetRecipients(ctx context.Context) ([]models.ApplicationRecipient, error) {
+	var rows []struct {
+		UserID      int
+		Username    string
+		LastName    *string
+		FirstName   *string
+		MiddleName  *string
+		DisplayName *string
+	}
+	err := s.db.WithContext(ctx).
+		Table("application_approvers aa").
+		Select(`aa.user_id, u.username, u.last_name, u.first_name, u.middle_name, aa.display_name`).
+		Joins("JOIN users u ON u.id = aa.user_id").
+		Where("u.is_active AND NOT u.is_banned").
+		Order("u.last_name, u.first_name").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching recipients")
+	}
+
+	masks := loadConsentMasks(ctx, s.db)
+	result := make([]models.ApplicationRecipient, 0, len(rows))
+	for _, r := range rows {
+		if r.DisplayName != nil && strings.TrimSpace(*r.DisplayName) != "" {
+			result = append(result, models.ApplicationRecipient{UserID: r.UserID, Name: strings.TrimSpace(*r.DisplayName), Masked: true})
+			continue
+		}
+		last, first, middle := r.LastName, r.FirstName, r.MiddleName
+		maskUserParts(masks, r.UserID, &last, &first, &middle)
+		parts := make([]string, 0, 3)
+		for _, p := range []*string{last, first, middle} {
+			if p != nil && strings.TrimSpace(*p) != "" {
+				parts = append(parts, strings.TrimSpace(*p))
+			}
+		}
+		name := strings.Join(parts, " ")
+		if name == "" {
+			name = r.Username
+		}
+		result = append(result, models.ApplicationRecipient{UserID: r.UserID, Name: name})
 	}
 	return result, nil
 }
