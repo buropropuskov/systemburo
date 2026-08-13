@@ -1886,13 +1886,20 @@ export default {
        (разбор второго круга замечаний владельца, #1097 w8). Раньше бейдж делил строку с
        должностью: та несла пунктирную границу сверху, а бейдж - нет, но оба выравнивались
        по одной Y-координате через align-self: flex-start, поэтому бейдж вставал прямо на
-       чужую границу («стоит поперёк»). Здесь у бейджа и у actions-col ОДИНАКОВЫЙ отступ и
-       сплошная граница подвала - совпадать по границе им уже нечему. */
+       чужую границу («стоит поперёк»).
+
+       align-self: flex-start, а не center (третий круг замечаний, #1097 w9): бейдж и
+       кнопки - соседние ячейки одной обёрнутой flex-строки, их высоты по контенту не
+       совпадают ровно (badge ~27px против пилюль-кнопок 28px). center центрирует каждую
+       ячейку НЕЗАВИСИМО в высоте строки - верхние края (а с ними border-top) расходятся
+       на разницу высот, и сплошная линия подвала «переламывается» ровно после бейджа.
+       flex-start прижимает обе ячейки к верхнему краю строки - border-top гарантированно
+       на одной Y без зависимости от разницы высот контента. */
     .rt-table .employee-row.rt-row > .status-col {
         order: 10;
         flex: 0 0 auto !important;
         width: auto !important;
-        align-self: center;
+        align-self: flex-start;
         margin-top: 2px;
         padding-top: 8px;
         border-top: 1px solid color-mix(in srgb, var(--border) 45%, var(--surface)) !important;
@@ -1926,6 +1933,7 @@ export default {
         flex: 1 1 auto !important;
         width: auto !important;
         min-width: 0 !important;
+        align-self: flex-start;
         justify-content: flex-end;
         gap: 6px;
         margin-top: 2px;
