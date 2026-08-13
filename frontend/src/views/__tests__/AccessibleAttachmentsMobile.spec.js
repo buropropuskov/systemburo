@@ -199,9 +199,29 @@ describe('«Доступные мне» - геометрия мобильног�
     expect(mobileBlock).toMatch(/\.filters__search-input\s*\{[^}]*height:\s*36px/);
   });
 
-  it('панель под карточками не рисует свой контур', () => {
+  /*
+   * Волна 6: снятый контур панели владелец забраковал («почему страница стала
+   * квадратной») - рядом с «Моими сотрудниками»/«Моими автомобилями», где панель
+   * списка скруглена, плоский экран читался коробкой. Скругление вернули, но
+   * overflow остаётся visible: hidden сделал бы панель скроллпортом и молча убил
+   * бы sticky у шапки. Верхние углы поэтому дублирует сама шапка - без этого её
+   * прямые углы торчали бы из скруглённых углов панели.
+   */
+  it('панель держит скругление, а липкая шапка повторяет её верхние углы', () => {
     const panel = mobileBlock.match(/\.accessible-attachments\.dashboard-card\s*\{[^}]*\}/)[0];
-    expect(panel).toContain('border: none');
-    expect(panel).toContain('border-radius: 0');
+    expect(panel).toContain('overflow: visible');
+    expect(panel).not.toContain('border: none');
+
+    // Радиус панели читаем из самого правила, а верхние углы шапки требуем
+    // вывести из него же. Поменяют панель - тест упадёт, пока шапку не поправят
+    // следом: иначе её прямой угол снова вылезет поверх скруглённого угла панели.
+    const panelRadius = panel.match(/border-radius:\s*([^;]+);/)[1].trim();
+    expect(panelRadius).not.toBe('0');
+    expect(panelRadius).not.toBe('0px');
+
+    const header = mobileBlock.match(/\.management-header\s*\{[^}]*\}/)[0];
+    expect(header).toContain('position: sticky');
+    const corner = `calc(${panelRadius} - 1px)`;
+    expect(header).toContain(`border-radius: ${corner} ${corner} 0 0;`);
   });
 });
