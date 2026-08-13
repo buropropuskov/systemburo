@@ -3232,7 +3232,19 @@ export default {
             if (mode === 'merge') {
                 finalDraft = this.mergeDrafts(this.readOwnDraft() || {}, pending);
             }
-            finalDraft = { ...finalDraft, ownerId: this.draftOwnerId() };
+            // Шапку заявителя дубль не несёт: организация, компания, ФИО и телефон берутся
+            // из записи работника и в форме уже заполнены. Без переноса восстановление
+            // затрёт их пустыми значениями, а поля заблокированы - вернуть нечем.
+            finalDraft = {
+                organization: this.organization,
+                company: this.company,
+                organizationId: this.organizationId,
+                companyId: this.companyId,
+                responsiblePerson: this.responsiblePerson,
+                phoneNumber: this.phoneNumber,
+                ...finalDraft,
+                ownerId: this.draftOwnerId(),
+            };
             localStorage.setItem('draftApplicationState', JSON.stringify(finalDraft));
             this.restoreFromLocalStorage();
         },

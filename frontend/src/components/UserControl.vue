@@ -373,17 +373,17 @@
             </div>
           </div>
         </div>
+          <div
+            v-if="filteredUsers.length === 0"
+            class="no-users"
+          >
+            <p>{{ userSearch ? 'Пользователи не найдены' : 'Пользователи отсутствуют' }}</p>
+          </div>
+        </div>
         <div class="users-footer">
           <span class="items-count">{{ countLabel }}: {{ sortedUsers.length }}</span>
         </div>
       </div>
-    </div>
-
-    <div
-      v-if="filteredUsers.length === 0"
-      class="no-users"
-    >
-      <p>{{ userSearch ? 'Пользователи не найдены' : 'Пользователи отсутствуют' }}</p>
     </div>
 
     <!-- Модальное окно редактирования пользователя -->
@@ -3016,9 +3016,17 @@ export default {
 }
 
 .no-users {
-  text-align: center;
-  padding: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  padding: 32px 16px;
   color: var(--text-muted);
+}
+
+.no-users p {
+  margin: 0;
+  text-align: center;
 }
 
 /* Шапка модалки редактирования */

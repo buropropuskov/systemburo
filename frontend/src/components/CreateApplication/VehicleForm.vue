@@ -2199,6 +2199,17 @@ export default {
     border-bottom: none;
 }
 
+.mark__dropdown-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 56px;
+    padding: 16px 15px;
+    color: var(--text-muted);
+    font-size: 14px;
+    text-align: center;
+}
+
 .mark__item-text {
     font-size: 14px;
     color: var(--text);
