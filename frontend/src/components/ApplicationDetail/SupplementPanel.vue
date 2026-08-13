@@ -1,10 +1,34 @@
 <template>
   <div
     class="supplement-section"
+    :class="{ 'is-collapsed': isNarrow && collapsed }"
     data-testid="supplement-panel"
   >
     <div class="supplement-header">
-      <h4>Дополнения заявки</h4>
+      <!-- На мобилке заголовок - кнопка-дисклоужер (панель свёрнута по умолчанию),
+           на десктопе обычный заголовок: там панель видна целиком и сворачивать
+           нечего. Тег меняем, а не дублируем разметку скрытой копией - иначе на
+           узком экране в DOM два заголовка с одним data-testid. -->
+      <component
+        :is="isNarrow ? 'button' : 'div'"
+        class="supplement-title"
+        :type="isNarrow ? 'button' : null"
+        :aria-expanded="isNarrow ? String(!collapsed) : null"
+        :aria-controls="isNarrow ? bodyId : null"
+        :data-testid="isNarrow ? 'supplement-panel-toggle' : null"
+        @click="toggle"
+      >
+        <span
+          v-if="isNarrow"
+          class="supplement-chevron"
+          aria-hidden="true"
+        >&#9662;</span>
+        <h4>Дополнения заявки</h4>
+        <span
+          v-if="isNarrow && supplements.length"
+          class="supplement-count"
+        >{{ supplements.length }}</span>
+      </component>
       <div
         v-if="loading"
         class="supplement-loading"
@@ -17,7 +41,9 @@
     </div>
 
     <!-- Раунды недоступны: панель остаётся на месте с человеческим текстом, а не
-         пропадает - иначе «дополнение подавали, а его нигде нет». -->
+         пропадает - иначе «дополнение подавали, а его нигде нет». Ошибка живёт СНАРУЖИ
+         сворачиваемой части: свёрнутая панель прятала бы её вместе с раундами, и сбой
+         загрузки выглядел бы как «дополнений нет». -->
     <div
       v-if="error"
       class="supplement-error"
@@ -26,130 +52,142 @@
       {{ error }}
     </div>
 
-    <!-- Показываем ВСЕ раунды, новые сверху (порядок задаёт бэк). Закрытые не прячем:
-         по ним видно, почему добавленные строки так и не появились на посту, а самих
-         раундов у заявки единицы. -->
-    <div class="supplement-rounds">
-      <article
-        v-for="round in supplements"
-        :key="round.id"
-        class="supplement-round"
-        :data-testid="`supplement-round-${round.id}`"
-      >
-        <div class="round-head">
-          <span class="round-number">Дополнение №{{ round.number }}</span>
-          <span
-            class="supplement-status"
-            :class="statusClass(round.status)"
-          >
-            {{ statusText(round.status) }}
-          </span>
-        </div>
-
-        <div class="round-author">
-          Подал: {{ round.created_by_name || '-' }}
-          <span class="round-time">{{ formatDateTime(round.created_at) }}</span>
-        </div>
-
-        <div
-          v-if="countsLabel(round)"
-          class="round-counts"
-        >
-          Добавлено: {{ countsLabel(round) }}
-        </div>
-
-        <div
-          v-if="round.comment"
-          class="round-comment"
-        >
-          <span class="comment-label">Комментарий:</span>
-          <span class="comment-text">{{ round.comment }}</span>
-        </div>
-
-        <!-- Влитый раунд отдельного круга не проходил: голосовать по нему было некому,
-             и пустой заголовок «Согласующие (0)» только сбивал бы с толку. -->
-        <div
-          v-if="round.approvals && round.approvals.length"
-          class="round-approvals"
-        >
-          <h5>Согласующие дополнения ({{ round.approvals.length }}):</h5>
-          <div class="users-list">
-            <div
-              v-for="approval in round.approvals"
-              :key="approval.user_id"
-              class="user-item"
-              :class="{ 'is-me': approval.user_id === currentUserId }"
+    <div
+      :id="bodyId"
+      class="supplement-body"
+    >
+      <div class="supplement-body-inner">
+        <div class="supplement-body-pad">
+          <!-- Показываем ВСЕ раунды, новые сверху (порядок задаёт бэк). Закрытые не прячем:
+               по ним видно, почему добавленные строки так и не появились на посту, а самих
+               раундов у заявки единицы. -->
+          <div class="supplement-rounds">
+            <article
+              v-for="round in supplements"
+              :key="round.id"
+              class="supplement-round"
+              :data-testid="`supplement-round-${round.id}`"
             >
-              <div class="user-name-block">
-                {{ approval.full_name || approval.username }}
+              <div class="round-head">
+                <span class="round-number">Дополнение №{{ round.number }}</span>
                 <span
-                  v-if="approval.user_id === currentUserId"
-                  class="user-self"
-                >(вы)</span>
-              </div>
-
-              <div class="user-badge-status-row">
-                <span
-                  v-if="approval.required_approval"
-                  class="badge required-badge"
-                >Обязательно</span>
-                <span
-                  class="status-badge"
-                  :class="getStatusClass(voteStatus(approval))"
+                  class="supplement-status"
+                  :class="statusClass(round.status)"
                 >
-                  {{ getStatusText(voteStatus(approval)) }}
+                  {{ statusText(round.status) }}
                 </span>
               </div>
 
+              <div class="round-author">
+                Подал: {{ round.created_by_name || '-' }}
+                <span class="round-time">{{ formatDateTime(round.created_at) }}</span>
+              </div>
+
               <div
-                v-if="approval.approval_comment"
-                class="user-comment-block"
+                v-if="countsLabel(round)"
+                class="round-counts"
+              >
+                Добавлено: {{ countsLabel(round) }}
+              </div>
+
+              <div
+                v-if="round.comment"
+                class="round-comment"
               >
                 <span class="comment-label">Комментарий:</span>
-                <span class="comment-text">{{ approval.approval_comment }}</span>
+                <span class="comment-text">{{ round.comment }}</span>
+              </div>
+
+              <!-- Влитый раунд отдельного круга не проходил: голосовать по нему было некому,
+                 и пустой заголовок «Согласующие (0)» только сбивал бы с толку. -->
+              <div
+                v-if="round.approvals && round.approvals.length"
+                class="round-approvals"
+              >
+                <h5>Согласующие дополнения ({{ round.approvals.length }}):</h5>
+                <div class="users-list">
+                  <div
+                    v-for="approval in round.approvals"
+                    :key="approval.user_id"
+                    class="user-item"
+                    :class="{ 'is-me': approval.user_id === currentUserId }"
+                  >
+                    <div class="user-name-block">
+                      {{ approval.full_name || approval.username }}
+                      <span
+                        v-if="approval.user_id === currentUserId"
+                        class="user-self"
+                      >(вы)</span>
+                    </div>
+
+                    <div class="user-badge-status-row">
+                      <span
+                        v-if="approval.required_approval"
+                        class="badge required-badge"
+                      >Обязательно</span>
+                      <span
+                        class="status-badge"
+                        :class="getStatusClass(voteStatus(approval))"
+                      >
+                        {{ getStatusText(voteStatus(approval)) }}
+                      </span>
+                    </div>
+
+                    <div
+                      v-if="approval.approval_comment"
+                      class="user-comment-block"
+                    >
+                      <span class="comment-label">Комментарий:</span>
+                      <span class="comment-text">{{ approval.approval_comment }}</span>
+                    </div>
+
+                    <div
+                      v-if="approval.approval_datetime"
+                      class="user-time-block"
+                    >
+                      Время: {{ formatDateTime(approval.approval_datetime) }}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div
-                v-if="approval.approval_datetime"
-                class="user-time-block"
+                v-if="round.decided_at"
+                class="round-decision"
+                :data-testid="`supplement-decision-${round.id}`"
               >
-                Время: {{ formatDateTime(approval.approval_datetime) }}
+                <span class="decision-label">Решение:</span>
+                <span class="decision-value">{{ statusText(round.status) }}</span>
+                <span class="round-time">{{ formatDateTime(round.decided_at) }}</span>
+                <div
+                  v-if="round.decision_comment"
+                  class="user-comment-block"
+                >
+                  <span class="comment-label">Комментарий:</span>
+                  <span class="comment-text">{{ round.decision_comment }}</span>
+                </div>
               </div>
-            </div>
+            </article>
           </div>
-        </div>
 
-        <div
-          v-if="round.decided_at"
-          class="round-decision"
-          :data-testid="`supplement-decision-${round.id}`"
-        >
-          <span class="decision-label">Решение:</span>
-          <span class="decision-value">{{ statusText(round.status) }}</span>
-          <span class="round-time">{{ formatDateTime(round.decided_at) }}</span>
           <div
-            v-if="round.decision_comment"
-            class="user-comment-block"
+            v-if="!supplements.length && !loading && !error"
+            class="supplement-empty"
           >
-            <span class="comment-label">Комментарий:</span>
-            <span class="comment-text">{{ round.decision_comment }}</span>
+            Дополнений по заявке нет
           </div>
         </div>
-      </article>
-    </div>
-
-    <div
-      v-if="!supplements.length && !loading && !error"
-      class="supplement-empty"
-    >
-      Дополнений по заявке нет
+      </div>
     </div>
   </div>
 </template>
 
 <script>
+import { useId } from 'vue'
+
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import { useApprovalStatus } from '@/composables/useApprovalStatus'
+import { useNarrowScreen } from '@/composables/useNarrowScreen'
 import { supplementStatusText, supplementStatusClass, supplementCountsLabel } from '@/utils/supplementStatuses'
 
 export default {
@@ -174,9 +212,28 @@ export default {
         }
     },
     setup() {
-        return useApprovalStatus();
+        // Порог 768, а не 767.98: панель сворачивается ровно там, где ApplicationDetail
+        // промоутит колонки в одну ленту (`@media (max-width: 768px)`) и где включаются
+        // её собственные мобильные стили. Разъедь пороги - на 768px (портретный iPad)
+        // получился бы гибрид: блок уже в общей ленте, но ещё несворачиваемый.
+        const { isNarrow } = useNarrowScreen(768);
+        return { ...useApprovalStatus(), isNarrow, bodyId: `supplement-body-${useId()}` };
+    },
+    data() {
+        return {
+            // Свёрнуто при каждом открытии заявки: деталь размонтируется на закрытии
+            // (`v-if` у потребителей), состояние не переживает открытие следующей.
+            collapsed: true
+        };
     },
     methods: {
+        // На десктопе заголовок - не кнопка, но обработчик висит на том же узле:
+        // гасим клик здесь, чтобы разметка оставалась одна на оба режима.
+        toggle() {
+            if (!this.isNarrow) return;
+            this.collapsed = !this.collapsed;
+        },
+
         statusText(status) {
             return supplementStatusText(status);
         },
@@ -228,6 +285,51 @@ export default {
     justify-content: space-between;
     align-items: flex-start;
     margin-bottom: 15px;
+}
+
+.supplement-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+/* Кнопка-дисклоужер (только мобилка): тач-таргет 44px по WCAG 2.5.5, вид - обычный
+   заголовок панели. */
+button.supplement-title {
+    flex: 1;
+    min-height: 44px;
+    padding: 0;
+    background: none;
+    border: 0;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.supplement-chevron {
+    flex-shrink: 0;
+    font-size: 12px;
+    line-height: 1;
+    color: var(--text-muted);
+    transition: transform 0.2s ease;
+}
+
+.supplement-section.is-collapsed .supplement-chevron {
+    transform: rotate(-90deg);
+}
+
+/* Счётчик раундов в свёрнутом заголовке - та же пилюля, что у ветки заявки
+   (ForwardMessages .fm-count): свёрнутый блок обязан сказать, сколько в нём. */
+.supplement-count {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-text);
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+    padding: 2px 9px;
+    border-radius: 999px;
 }
 
 .supplement-header h4 {
@@ -479,6 +581,9 @@ export default {
 @media (max-width: 768px) {
     .supplement-section {
         padding: 12px;
+        /* Зазор между секциями на мобилке задаёт .detail-content { gap: 10px } -
+           собственный margin давал бы под панелью двойной отступ. */
+        margin-bottom: 0;
     }
 
     .round-head,
@@ -489,6 +594,45 @@ export default {
 
     .supplement-header h4 {
         font-size: 16px;
+    }
+
+    /* Отступ заголовка от содержимого живёт ВНУТРИ сворачиваемой части: оставь его
+       на .supplement-header - у свёрнутой панели снизу висело бы 15px пустоты, а при
+       раскрытии он появлялся бы рывком мимо анимации высоты. */
+    .supplement-header {
+        margin-bottom: 0;
+    }
+
+    .supplement-error {
+        margin: 12px 0 0;
+    }
+
+    /* Плавное сворачивание высотой (grid-rows 1fr<->0fr + min-height:0, урок #510):
+       height/display не анимируются, а раскрытие обязано двигать соседние секции. */
+    .supplement-body {
+        display: grid;
+        grid-template-rows: 1fr;
+        transition: grid-template-rows 0.25s ease;
+    }
+
+    .supplement-section.is-collapsed .supplement-body {
+        grid-template-rows: 0fr;
+    }
+
+    .supplement-body-inner {
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .supplement-body-pad {
+        padding-top: 15px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .supplement-body,
+    .supplement-chevron {
+        transition: none;
     }
 }
 </style>
