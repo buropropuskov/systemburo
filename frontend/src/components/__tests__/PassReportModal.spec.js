@@ -93,7 +93,7 @@ describe('PassReportModal', () => {
     expect(td(w, 'pass-report-live').text()).toContain('Выехало');
   });
 
-  it('пустая текущая смена (кейс 21:31) показывает подсказку про прошлые дни, непустая — нет', async () => {
+  it('пустые текущие отчётные сутки (кейс 21:31) показывают подсказку про прошлые дни, непустые — нет', async () => {
     getPassReportLive.mockResolvedValue({
       period_start: '2026-07-22T18:30:00Z',
       period_end: '2026-07-22T18:31:00Z',

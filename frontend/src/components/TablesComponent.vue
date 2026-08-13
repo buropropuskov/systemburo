@@ -321,6 +321,23 @@
           >
           Версии таблицы
         </RouterLink>
+        <!-- «История» переехала сюда из шапки таблицы: там на телефоне один ряд в
+             48px, и три группы контролов в него не влезали. Модалка живёт в самой
+             таблице, поэтому зовём её метод по ref. -->
+        <button
+          v-if="canTableHistory"
+          type="button"
+          class="actions-sheet__item"
+          data-testid="table-history-action"
+          @click="runSheetAction(openTableHistory)"
+        >
+          <img
+            src="@/assets/icons/clipboard.png"
+            class="actions-sheet__icon"
+            alt=""
+          >
+          История изменений
+        </button>
         <button
           v-if="canReport"
           type="button"
@@ -786,10 +803,17 @@ export default {
             return this.can(`table.${this.$route.params.tableName}.report`);
         },
 
+        // История таблицы. На десктопе её открывает кнопка в шапке самой таблицы, на
+        // телефоне шапка - один ряд в 48px, и кнопка уехала в лист «⋯» (волна 6).
+        canTableHistory() {
+            return this.can(`table.${this.$route.params.tableName}.history`);
+        },
+
         // Есть ли что показывать в листе «⋯»: без единого доступного действия кнопка
         // открывала бы пустое окно.
         hasSheetActions() {
-            return this.canVersions || this.canTrash || this.canExport || this.canReport;
+            return this.canVersions || this.canTrash || this.canExport || this.canReport
+                || (this.isNarrow && this.canTableHistory);
         },
 
         // Нижняя панель существует ради главного действия; «⋯» в ней - дубль кнопки
@@ -1001,6 +1025,21 @@ export default {
         runSheetAction(action) {
             this.showActionsSheet = false;
             action();
+        },
+
+        /**
+         * Открывает историю той таблицы, что сейчас на экране: у машин и у людей она
+         * своя - со своей моделью, фильтрами и выгрузкой, - и живёт внутри компонента
+         * таблицы. Рендерится ровно один из двух, поэтому и ref всегда один.
+         */
+        openTableHistory() {
+            const cars = this.$refs.carsTable;
+            if (cars) {
+                cars.openCarsTableHistory();
+                return;
+            }
+            const people = this.$refs.peopleTable;
+            if (people) people.openEmployeesHistory();
         },
 
         handleApplicationUpdate(updatedApp) {
@@ -1948,6 +1987,10 @@ export default {
         flex-direction: column;
     }
     
+    /* Вертикальные отступы карточки на телефоне отдаём содержимому: в свёрнутом
+       виде она вся состоит из одного переключателя, и padding 14px превращал полосу
+       подсказки в блок 74px. Своей высоты у неё теперь нет - ровно тач-таргет
+       переключателя (44px) плюс рамка, а в развёрнутом отступ снизу добирает текст. */
     .fact-hint-card {
         flex: none;
         width: 100%;
@@ -1957,6 +2000,23 @@ export default {
            он ужал бы переключатель и текст до ширины содержимого. */
         align-items: stretch;
         gap: 0;
+        padding: 0 16px;
+        transition: background-color 0.22s ease, border-color 0.22s ease;
+    }
+
+    /* Свёрнутая - тонкая подсказка, а не акцентная плашка: заливка акцентом во всю
+       ширину читалась как главный элемент экрана над таблицей поста. Остаётся тот
+       же акцент, но примесью (8% на поверхности) и текстом, а не фоном. Развёрнутая
+       заливку сохраняет - там она отделяет чужой текст из конструктора от таблицы. */
+    .fact-hint-card--collapsed {
+        background-color: var(--accent-tint-solid);
+        border-color: color-mix(in srgb, var(--accent) 30%, var(--surface));
+    }
+
+    .fact-hint-card--collapsed .fact-hint-card__toggle {
+        color: var(--accent-text);
+        font-size: 13px;
+        font-weight: 500;
     }
 
     .hint-content {
@@ -1976,7 +2036,8 @@ export default {
         justify-content: space-between;
         gap: 8px;
         width: 100%;
-        /* Тач-таргет 44px (WCAG 2.5.5) - вся ширина карточки, промахнуться негде. */
+        /* Тач-таргет 44px (WCAG 2.5.5) - вся ширина карточки, промахнуться негде.
+           Он же задаёт высоту свёрнутой подсказки: своих отступов у карточки нет. */
         min-height: 44px;
         padding: 0;
         background: none;
@@ -1986,6 +2047,7 @@ export default {
         font-size: 14px;
         font-weight: 600;
         color: var(--hint-card-text);
+        transition: color 0.22s ease;
     }
 
     /* Стрелка нарисована смотрящей вправо, поэтому «развёрнуто» - это повёрнутая
@@ -2017,8 +2079,11 @@ export default {
         overflow: hidden;
     }
 
+    /* Нижний отступ развёрнутой подсказки: у карточки своего больше нет, иначе текст
+       упирался бы в её нижнюю кромку. Задан содержимому, а не карточке, - иначе он
+       остался бы видимой полосой и в свёрнутом виде. */
     .fact-hint-card__collapse-inner .hint-content {
-        padding-top: 10px;
+        padding: 6px 0 14px;
     }
 
     /* Заголовок и «Инструкция» - в одну строку; длинное имя ужимается ellipsis,

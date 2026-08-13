@@ -104,9 +104,10 @@ describe('FactTable - пропуск "по факту" (#1132)', () => {
   it('"Выезд" шлёт territory-status=2 напрямую, без модалки', async () => {
     const wrapper = mountTable();
     await flushPromises();
-    // Машина уже на территории -> кнопка "Выезд" доступна.
-    wrapper.vm.factData[0].entry_checked = true;
-    await wrapper.vm.$nextTick();
+    // Машина уже на территории -> кнопка "Выезд" доступна. Состояние подменяем через
+    // setData: запись по ссылке (`vm.factData[0].x = ...`) до перерисовки не доходит,
+    // как только у компонента появляется setup() - vm отдаёт данные через свой прокси.
+    await wrapper.setData({ factData: [{ ...wrapper.vm.factData[0], entry_checked: true }] });
 
     await wrapper.get('.exit-btn').trigger('click');
     await flushPromises();

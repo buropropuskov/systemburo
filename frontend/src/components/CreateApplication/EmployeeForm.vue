@@ -2062,10 +2062,25 @@ export default {
         margin-bottom: 15px;
     }
 
-    /* С коротким текстом кнопка встаёт в строку с заголовком. */
+    /* Заголовок блока и кнопка «Добавить сущ.» - строго одна строка. nowrap, а не
+       перенос: флекс решает про перенос по НАТУРАЛЬНОЙ ширине элемента, до
+       flex-shrink, поэтому сжимаемый заголовок кнопку в строке не удерживал -
+       «Новый сотрудник» (182px при 18.72px по умолчанию) плюс кнопка 124px требовали
+       316px при 308 доступных на 360, и кнопка падала под заголовок.
+       Кегль заголовка задан явно (по умолчанию h3 = 18.72px): 15px совпадает с
+       подписью соседнего списка, на узких телефонах 14px - как у неё же. */
     .completion__header {
         align-items: center;
+        flex-wrap: nowrap;
         gap: 8px;
+    }
+
+    .completion__header h3 {
+        min-width: 0;
+        font-size: 15px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .completion__button {
@@ -2076,11 +2091,6 @@ export default {
     .tooltip-content {
         max-width: 100%;
         white-space: pre-line;
-    }
-
-    .completion__header {
-        flex-wrap: wrap;
-        gap: 10px;
     }
 
     .tooltip-content {
@@ -2108,6 +2118,19 @@ export default {
     .completion__button {
         height: 36px;
         font-size: 12px;
+    }
+}
+
+/* Узкие телефоны: на 320 ряду шапки формы остаётся 268px, а «Новый сотрудник» 15px
+   вместе с кнопкой требуют 278. Кегль как у подписи соседнего списка (14px) и более
+   плотные поля кнопки дают 262 - заголовок читается целиком, без многоточия. */
+@media (max-width: 480px) {
+    .completion__header h3 {
+        font-size: 14px;
+    }
+
+    .completion__button {
+        padding: 0 12px;
     }
 }
 </style>

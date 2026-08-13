@@ -1645,10 +1645,13 @@ onUnmounted(() => {
     width: 100%;
   }
 
+  /* Высота под палец: 26px давали промах по соседнему сегменту. 36 - принятая в
+     проекте норма компактного контрола (эталон §18). */
   .dashboard__seg-btn {
     flex: 1 1 0;
     text-align: center;
     padding: 6px 4px;
+    min-height: 36px;
     font-size: 11px;
     white-space: nowrap;
   }
