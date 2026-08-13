@@ -34,18 +34,27 @@ async function touchDrag(cdp, { x = 195, from = 700, to = 220, steps = 12 } = {}
   await new Promise((r) => setTimeout(r, 600));
 }
 
-/** Чужие области прокрутки в цепочке от точки касания вверх. */
-function nestedScrollersAt(ownAttr) {
+/**
+ * Снимок позиций прокрутки: страница и все области под точкой касания.
+ *
+ * Проверять «нет ни одного предка с overflow: auto» оказалось слишком грубо - такой
+ * контейнер, если он не переполнен и не зажат по высоте, жест не забирает, и гейт
+ * ругался на здоровые экраны. Поэтому смотрим не на объявления, а на факт: кто
+ * сдвинулся после настоящего драга. Забрал жест внутренний блок вместо страницы -
+ * это и есть дефект, который владелец описывает как «скроллю экран, а он пытается
+ * прокрутить список и стоит на месте».
+ */
+function scrollSnapshot(ownAttr) {
   const point = document.elementFromPoint(Math.round(innerWidth / 2), Math.round(innerHeight * 0.6));
-  const out = [];
+  const inner = [];
   for (let el = point; el && el !== document.documentElement; el = el.parentElement) {
-    if (el.closest(`[${ownAttr}]`)) return out; // область заявила прокрутку своей
+    if (ownAttr && el.closest(`[${ownAttr}]`)) break; // область заявила прокрутку своей
     const cs = getComputedStyle(el);
     if (cs.overflowY === 'auto' || cs.overflowY === 'scroll') {
-      out.push((el.className || '').toString().slice(0, 40) || el.tagName);
+      inner.push({ cls: (el.className || '').toString().slice(0, 40) || el.tagName, top: el.scrollTop });
     }
   }
-  return out;
+  return { page: window.scrollY, inner };
 }
 
 /** Узлы, вылезающие за правый край страницы (внутренние ленты не в счёт). */
@@ -121,6 +130,9 @@ function smallTargets(min) {
     if (r.width === 0 || r.height === 0) continue;
     const cs = getComputedStyle(el);
     if (cs.visibility === 'hidden') continue;
+    // Внутренности сторонних виджетов (легенда графиков) размечены своими ролями, но
+    // их геометрия не наша - чинить её мы всё равно не станем.
+    if (el.closest('.apexcharts-canvas, .apexcharts-legend')) continue;
     // Элемент в середине анимации появления или ухода уже/ещё не в своём размере.
     if (/-(enter|leave)-(from|to|active)\b/.test(el.className || '')) continue;
     if (cs.opacity !== '' && parseFloat(cs.opacity) < 0.9) continue;
@@ -141,4 +153,4 @@ function smallTargets(min) {
   return out.slice(0, 8);
 }
 
-module.exports = { touchDrag, nestedScrollersAt, horizontalOverflow, overlaps, smallTargets, OWN_SCROLL_ATTR };
+module.exports = { touchDrag, scrollSnapshot, horizontalOverflow, overlaps, smallTargets, OWN_SCROLL_ATTR };

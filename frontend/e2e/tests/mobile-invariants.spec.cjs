@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const { loginAsSuperAdminUI } = require('../helpers/auth');
 const {
-  touchDrag, nestedScrollersAt, horizontalOverflow, overlaps, smallTargets, OWN_SCROLL_ATTR,
+  touchDrag, scrollSnapshot, horizontalOverflow, overlaps, smallTargets, OWN_SCROLL_ATTR,
 } = require('../helpers/mobileInvariants');
 
 /**
@@ -42,20 +42,24 @@ test.describe('Мобильные инварианты', () => {
       await page.setViewportSize(MOBILE);
       await page.waitForTimeout(1500);
 
-      // 1. Никаких чужих областей прокрутки под пальцем.
-      const nested = await page.evaluate(nestedScrollersAt, OWN_SCROLL_ATTR);
-      expect(nested, `под пальцем чужие области прокрутки: ${JSON.stringify(nested)}`).toEqual([]);
-
-      // 2. Страница едет за пальцем. Только если ей есть куда ехать.
+      // 1-2. Палец двигает страницу, а не внутренний блок. Проверяем фактом, а не
+      // объявлениями: непереполненная область с `overflow: auto` жест не забирает.
       const scrollable = await page.evaluate(() => {
         const de = document.documentElement;
         return de.scrollHeight - de.clientHeight > 40;
       });
       if (scrollable) {
-        const before = await page.evaluate(() => window.scrollY);
+        const before = await page.evaluate(scrollSnapshot, OWN_SCROLL_ATTR);
         await touchDrag(cdp);
-        const after = await page.evaluate(() => window.scrollY);
-        expect(after, 'страница не сдвинулась от тач-драга').toBeGreaterThan(before);
+        const after = await page.evaluate(scrollSnapshot, OWN_SCROLL_ATTR);
+
+        expect(after.page, 'страница не сдвинулась от тач-драга').toBeGreaterThan(before.page);
+
+        const stolen = after.inner
+          .map((el, i) => ({ ...el, was: before.inner[i] ? before.inner[i].top : 0 }))
+          .filter((el) => el.top > el.was + 1);
+        expect(stolen, `жест забрал внутренний блок: ${JSON.stringify(stolen)}`).toEqual([]);
+
         await page.evaluate(() => window.scrollTo(0, 0));
         await page.waitForTimeout(300);
       }
