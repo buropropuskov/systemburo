@@ -321,6 +321,23 @@
           >
           Версии таблицы
         </RouterLink>
+        <!-- «История» переехала сюда из шапки таблицы: там на телефоне один ряд в
+             48px, и три группы контролов в него не влезали. Модалка живёт в самой
+             таблице, поэтому зовём её метод по ref. -->
+        <button
+          v-if="canTableHistory"
+          type="button"
+          class="actions-sheet__item"
+          data-testid="table-history-action"
+          @click="runSheetAction(openTableHistory)"
+        >
+          <img
+            src="@/assets/icons/clipboard.png"
+            class="actions-sheet__icon"
+            alt=""
+          >
+          История изменений
+        </button>
         <button
           v-if="canReport"
           type="button"
@@ -786,10 +803,17 @@ export default {
             return this.can(`table.${this.$route.params.tableName}.report`);
         },
 
+        // История таблицы. На десктопе её открывает кнопка в шапке самой таблицы, на
+        // телефоне шапка - один ряд в 48px, и кнопка уехала в лист «⋯» (волна 6).
+        canTableHistory() {
+            return this.can(`table.${this.$route.params.tableName}.history`);
+        },
+
         // Есть ли что показывать в листе «⋯»: без единого доступного действия кнопка
         // открывала бы пустое окно.
         hasSheetActions() {
-            return this.canVersions || this.canTrash || this.canExport || this.canReport;
+            return this.canVersions || this.canTrash || this.canExport || this.canReport
+                || (this.isNarrow && this.canTableHistory);
         },
 
         // Нижняя панель существует ради главного действия; «⋯» в ней - дубль кнопки
@@ -1001,6 +1025,21 @@ export default {
         runSheetAction(action) {
             this.showActionsSheet = false;
             action();
+        },
+
+        /**
+         * Открывает историю той таблицы, что сейчас на экране: у машин и у людей она
+         * своя - со своей моделью, фильтрами и выгрузкой, - и живёт внутри компонента
+         * таблицы. Рендерится ровно один из двух, поэтому и ref всегда один.
+         */
+        openTableHistory() {
+            const cars = this.$refs.carsTable;
+            if (cars) {
+                cars.openCarsTableHistory();
+                return;
+            }
+            const people = this.$refs.peopleTable;
+            if (people) people.openEmployeesHistory();
         },
 
         handleApplicationUpdate(updatedApp) {

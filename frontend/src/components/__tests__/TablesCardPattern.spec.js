@@ -40,6 +40,8 @@ const TABLES = [
     head: '.items-header',
     tail: /\.(status|expand|actions)-col$/,
     footCols: ['.status-col', '.expand-col', '.actions-col'],
+    body: '.items-body',
+    counter: true,
   },
   {
     file: 'PeopleTable.vue',
@@ -48,6 +50,8 @@ const TABLES = [
     head: '.items-header',
     tail: /\.(status|expand|actions)-col$/,
     footCols: ['.status-col', '.expand-col', '.actions-col'],
+    body: '.items-body',
+    counter: true,
   },
   {
     file: 'FactTable.vue',
@@ -57,6 +61,8 @@ const TABLES = [
     tail: /\.(status|actions)-col$/,
     // «Подробнее» здесь нет: столбцы в карточке не прячутся, прятать нечего.
     footCols: ['.status-col', '.actions-col'],
+    body: '.fact-body',
+    counter: false,
   },
 ];
 
@@ -230,6 +236,84 @@ describe.each(TABLES)('Карточка строки: $file', (table) => {
     // Закрепление полосы живёт в своём медиазапросе и обязано уцелеть.
     expect(declarationsFor(mediaBlocks(src, TABLET_UP).join('\n'), head).join('\n'))
       .toMatch(/position:\s*sticky/);
+  });
+});
+
+/**
+ * Шапка блока (волна 6). Контракт общий с «Моими сотрудниками» и «Доступными мне»,
+ * и держать его приходится замком: у таблиц поста шапка своя, scoped, правки соседних
+ * экранов сюда не достают, а разнобой владелец видит как «всё кривое».
+ *
+ * Претензия дословно: «Шапка Люди по заявке + обновить + людей зашло и тд… всё кривое,
+ * куча пустого места». Пустое место брал `flex-wrap: wrap`: три группы контролов не
+ * влезали в ряд и уезжали второй строкой, шапка вырастала до 97px при вьюпорте 390.
+ */
+describe.each(TABLES)('Шапка блока: $file', ({ file, body, counter }) => {
+  const src = source(file);
+  const mobile = mediaBlocks(src, MOBILE).join('\n');
+  const header = declarationsFor(mobile, '.card-header').join('\n');
+
+  it('один ряд в 48px, перенос запрещён', () => {
+    expect(header).toMatch(/height:\s*48px/);
+    expect(header).toMatch(/flex-wrap:\s*nowrap/);
+    // Базовый `min-height` (50px у таблиц по заявке) высоту 48 перебивает: минимум
+    // всегда сильнее заданной высоты, и ряд молча остаётся прежним.
+    if (/min-height/.test(declarationsFor(src, '.card-header').join('\n'))) {
+      expect(header).toMatch(/min-height:\s*0/);
+    }
+  });
+
+  it('имя экрана кеглем 18 на всех мобильных ширинах', () => {
+    expect(declarationsFor(mobile, '.card-title').join('\n')).toMatch(/font-size:\s*18px/);
+    // Уменьшать на узких нельзя: 0.95em из планшетного медиазапроса и давали
+    // «микроскопический» заголовок.
+    expect(mobile).not.toMatch(/font-size:\s*0\.9\d*em/);
+  });
+
+  it('боковой отступ записан слагаемыми и равен вертикали текста карточек', () => {
+    expect(header).toMatch(/padding:\s*0\s+calc\(8px\s*\+\s*1px\s*\+\s*14px\)/);
+    // Первое слагаемое - реальный отступ тела списка, иначе формула врёт.
+    expect(declarationsFor(mobile, body).join('\n')).toMatch(/padding:\s*0\s+8px/);
+  });
+
+  if (counter) {
+    it('счётчик остаётся в ряду, а не занимает свою строку', () => {
+      const groups = declarationsFor(mobile, '.card-header__settings').join('\n');
+      expect(groups).toMatch(/width:\s*auto/);
+      expect(groups).not.toMatch(/width:\s*100%/);
+      expect(groups).toMatch(/margin-left:\s*auto/);
+    });
+
+    it('лишние контролы уходят в переполнение, а не во вторую строку', () => {
+      // «История» - в лист «⋯» TablesComponent, тумблеры - про геометрию столбцов.
+      const hidden = selectorsWith(mobile, 'display: none');
+      expect(hidden).toContain('.history-btn');
+      expect(hidden).toContain('.enlarged-toggle');
+      expect(source('TablesComponent.vue')).toMatch(/data-testid="table-history-action"/);
+    });
+  }
+});
+
+/**
+ * История таблицы открывается из листа «⋯» по ref на компонент таблицы - связь,
+ * которую не проверяет ни один тип, и опечатка в имени метода молчит до тапа.
+ */
+describe('Лист «⋯»: история таблицы', () => {
+  const tables = source('TablesComponent.vue');
+
+  it('зовёт методы, которые у таблиц действительно объявлены', () => {
+    const block = tables.slice(tables.indexOf('openTableHistory()'), tables.indexOf('openTableHistory()') + 400);
+    const calls = [...block.matchAll(/\.(open\w*History)\(\)/g)].map((m) => m[1]);
+    expect(calls).toEqual(['openCarsTableHistory', 'openEmployeesHistory']);
+    expect(source('CarsTable.vue')).toMatch(/\n\s*openCarsTableHistory\(\)\s*\{/);
+    expect(source('PeopleTable.vue')).toMatch(/\n\s*openEmployeesHistory\(\)\s*\{/);
+  });
+
+  it('пункт листа гейтится правом на историю', () => {
+    expect(tables).toMatch(/v-if="canTableHistory"/);
+    expect(tables).toMatch(/canTableHistory\(\)\s*\{\s*return this\.can\(`table\.\$\{this\.\$route\.params\.tableName\}\.history`\)/);
+    // Без этого «⋯» не появится у того, кому доступна только история.
+    expect(tables).toMatch(/hasSheetActions\(\)[\s\S]{0,220}canTableHistory/);
   });
 });
 

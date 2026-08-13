@@ -10,8 +10,11 @@
   >
     <div class="card-header">
       <div class="card-header__title">
+        <!-- Хвост «по заявке» на телефоне скрыт: имя экрана кеглем 18 и так не
+             помещается рядом со счётчиком и «Обновить», а различает таблицы первая
+             половина - соседний блок называется «Автомобили по факту». -->
         <h3 class="card-title">
-          <span class="blue">Номера автомобилей</span> по заявке
+          <span class="blue">Номера автомобилей</span><span class="card-title__tail"> по заявке</span>
         </h3>
       </div>
       <div
@@ -25,10 +28,14 @@
         class="card-header__settings"
       >
         <span class="items-count">
+          <!-- Подпись счётчика на телефоне короче: отдельным классом, а не обрезкой,
+               иначе она съедает место у имени экрана (эталон §2.2). -->
           <span
             class="items-count__text"
             data-testid="ob-on-territory"
-          >Машин на территории: <AnimatedCounter :value="carsOnTerritory" /></span>
+          ><span class="items-count__label">Машин на территории:</span><span
+            class="items-count__label-short"
+          >На территории:</span> <AnimatedCounter :value="carsOnTerritory" /></span>
           <button
             v-if="can(`table.${tableName}.history`)"
             class="history-btn"
@@ -39,6 +46,7 @@
         </span>
         <SwitchToggle
           v-model="enlarged"
+          class="enlarged-toggle"
           data-testid="enlarged-toggle"
         />
         <SwitchToggle
@@ -2062,6 +2070,11 @@ export default {
   white-space: nowrap;
 }
 
+/* Короткая подпись счётчика включается только в мобильной шапке. */
+.items-count__label-short {
+  display: none;
+}
+
 @media (max-width: 1100px) {
   .card-header {
     gap: 8px;
@@ -2263,8 +2276,13 @@ export default {
   cursor: pointer;
 }
 
-.item-row:hover {
-  background-color: var(--surface-2);
+/* Тач-экран hover не отдаёт, но :hover после тапа залипает до следующего касания -
+   подсветка висела на карточке, по которой уже отработали (эталон §1.5). Гейтим
+   ровно то, до чего на телефоне можно дотронуться: строку и кнопки карточки. */
+@media (hover: hover) {
+  .item-row:hover {
+    background-color: var(--surface-2);
+  }
 }
 
 /* Подсветка ctrl/shift-выделенной строки (#1194) - тот же тон, что фон
@@ -2273,8 +2291,10 @@ export default {
   background-color: var(--accent-tint);
 }
 
-.item-row--selected:hover {
-  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+@media (hover: hover) {
+  .item-row--selected:hover {
+    background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  }
 }
 
 @keyframes fadeInUp {
@@ -2318,9 +2338,11 @@ export default {
   padding: 0;
 }
 
-.action-btn:hover:not(:disabled) {
-  background: var(--surface-2);
-  border-color: var(--text-muted);
+@media (hover: hover) {
+  .action-btn:hover:not(:disabled) {
+    background: var(--surface-2);
+    border-color: var(--text-muted);
+  }
 }
 
 .action-btn:disabled {
@@ -2357,8 +2379,10 @@ export default {
   justify-content: center;
 }
 
-.delete-btn:hover:not(:disabled) {
-  background-color: transparent;
+@media (hover: hover) {
+  .delete-btn:hover:not(:disabled) {
+    background-color: transparent;
+  }
 }
 
 .delete-btn:disabled {
@@ -2373,8 +2397,10 @@ export default {
   transition: opacity 0.2s ease;
 }
 
-.delete-btn:hover:not(:disabled) .delete-icon {
-  opacity: 1;
+@media (hover: hover) {
+  .delete-btn:hover:not(:disabled) .delete-icon {
+    opacity: 1;
+  }
 }
 
 .no-data-message {
@@ -2509,19 +2535,60 @@ export default {
     background: transparent;
   }
 
-  /* Заголовок и «Обновить» - одной строкой (#1097 S6), счётчик и тумблеры
-     переносятся ниже: .card-header__settings занимает всю ширину и попадает на
-     вторую строку, «Обновить» держится за заголовком через order. Колоночной
-     шапку больше не делаем - в ней заголовок оставался один в строке. */
-  /* Боковых отступов нет: рамки, от которой они отступали, на телефоне тоже нет, а
-     16px слева уводили заголовок с той вертикали, по которой стоят карточки. */
+  /* Шапка блока - один ряд в 48px (контракт волны 6, те же числа у «Моих
+     сотрудников» и «Доступных мне»): имя экрана кеглем 18, счётчик и «Обновить» у
+     правого края, переноса нет.
+
+     Перенос и был «кучей пустого места»: три группы контролов (счётчик с «Историей»
+     и два тумблера) в ряд не влезали, уезжали второй строкой и раздували шапку до
+     97px при вьюпорте 390. Лишнее уходит в переполнение - лист «⋯», - а не во
+     вторую строку.
+
+     Боковой отступ слагаемыми, а не числом: отступ тела списка + рамка карточки +
+     её внутренний отступ. Это ровно та вертикаль, на которой стоит текст карточек
+     под шапкой.
+
+     `min-height` из базовых стилей (50px) сбрасываем - с ним высота 48 не сойдётся. */
   .card-header {
     flex-direction: row;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
-    gap: 12px;
-    height: auto;
-    padding: 12px 0;
+    gap: 8px;
+    height: 48px;
+    min-height: 0;
+    padding: 0 calc(8px + 1px + 14px);
+  }
+
+  .card-title {
+    font-size: 18px;
+  }
+
+  .card-title__tail {
+    display: none;
+  }
+
+  .items-count__label {
+    display: none;
+  }
+
+  .items-count__label-short {
+    display: inline;
+  }
+
+  /* «История» переехала в лист «⋯» (TablesComponent) - в ряду для неё места нет, а
+     открывают её редко. Тумблер увеличенного режима скрыт по той же причине, что и
+     «Сетка»: оба про геометрию столбцов, а на телефоне строки идут карточками. */
+  .history-btn,
+  .enlarged-toggle {
+    display: none;
+  }
+
+  /* Режим мог остаться включённым с десктопа (он помнится в localStorage): там он
+     прячет столбец статуса прозрачностью, а в карточке это не узкий столбец, а
+     пустая строка на месте бейджа. */
+  .selected-table-card.enlarged .status-col {
+    opacity: 1;
+    pointer-events: auto;
   }
 
   /* flex-basis именно 0, а не auto: перенос строк во flex считается по
@@ -2559,12 +2626,25 @@ export default {
     width: 100%;
   }
 
+  /* Счётчик остаётся в ряду шапки (на него смотрит шаг обучения `ob-on-territory`),
+     но своей строки больше не занимает: ширина по содержимому, к правому краю его
+     подводит автополе, а «Обновить» идёт следом по order.
+
+     Автополе только у первого из двух: два `margin-left: auto` подряд делят
+     свободное место между собой и растаскивают группы по краям. */
   .card-header__settings,
   .card-header__actions {
-    order: 2;
-    width: 100%;
-    margin-left: 0;
+    order: 0;
+    width: auto;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+    gap: 8px;
+    margin-left: auto;
     justify-content: flex-end;
+  }
+
+  .card-header__actions ~ .card-header__settings {
+    margin-left: 0;
   }
 
   /* rt-row (#1097 S8) сидит на .item-data, а не на v-for-корне .item-row -
@@ -2574,10 +2654,12 @@ export default {
     margin-top: 8px;
   }
 
-  /* Зазор под десктопный скроллбар: без рамки панели он сдвигал бы карточки строк
-     на 8px вправо относительно заголовка блока. */
+  /* Отступ тела списка - первое слагаемое бокового отступа шапки: карточки стоят на
+     8px от края блока, заголовок - на 8 + рамка карточки + её внутренний отступ, то
+     есть ровно над текстом карточек. Асимметричный зазор под десктопный скроллбар
+     (padding-right 4 + margin-right 4) при этом снимается. */
   .items-body {
-    padding-right: 0;
+    padding: 0 8px;
     margin-right: 0;
   }
 
@@ -2908,9 +2990,11 @@ export default {
   transition: transform 0.2s ease, color 0.15s ease, background 0.15s ease;
 }
 
-.expand-btn:hover {
-  background: var(--surface-2);
-  color: var(--accent-text);
+@media (hover: hover) {
+  .expand-btn:hover {
+    background: var(--surface-2);
+    color: var(--accent-text);
+  }
 }
 
 .expand-btn--open {
