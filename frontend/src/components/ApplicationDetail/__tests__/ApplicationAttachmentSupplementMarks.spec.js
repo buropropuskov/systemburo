@@ -203,8 +203,16 @@ describe('ApplicationAttachmentDetail — метка не наезжает на 
     expect(rule(SFC, '.el-row .el-cell--key .supplement-badge')).not.toMatch(/margin-left:\s*auto/);
   });
 
+  // Держим смысл, а не число: важно, что вертикальный отступ есть и что высоту поля
+  // задаёт содержимое. Фиксированная высота тут была причиной наложений - `min-height`
+  // на флекс-элементе отменяет автоматический минимум, и содержимое печаталось поверх
+  // разделителя. Поэтому замок заодно запрещает её вернуть.
   it('поле карточки держит вертикальный отступ - перенос не ложится на пунктир', () => {
-    expect(rule(SFC, '.el-table .el-row .el-cell')).toMatch(/padding:\s*3px 0/);
+    const decls = rule(SFC, '.el-table .el-row .el-cell');
+    const padding = decls.match(/padding:\s*(\d+)px 0/);
+    expect(padding, `вертикальный отступ поля не задан: ${decls}`).not.toBeNull();
+    expect(Number(padding[1])).toBeGreaterThanOrEqual(3);
+    expect(decls, 'фиксированная высота поля отменяет автоминимум флекса').not.toMatch(/min-height:\s*\d/);
   });
 
   // Тап по строке оставляет :hover залипшим, и пузырёк подсказки повис бы поперёк
