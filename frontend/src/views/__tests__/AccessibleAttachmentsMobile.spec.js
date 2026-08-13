@@ -277,4 +277,30 @@ describe('«Доступные мне» - геометрия мобильног�
       /\.admin-page:has\(\.accessible-attachments\)\s*\{[^}]*background:\s*var\(--surface\)/,
     );
   });
+
+  /*
+   * Волна 9: box-shadow карточек и блока заявки в тёмной теме (--shadow-drop
+   * rgba(0,0,0,0.6)) читался чёрным прямоугольником позади блока. Владелец:
+   * "убери тени на этой странице". Карточки списка и блок заявки - свои
+   * стили этого экрана, тень снята прямо в правиле. Блок вложения -
+   * ApplicationAttachmentDetail, общий компонент, поэтому его тень глушится
+   * только здесь через :deep, а не в самом компоненте (другие экраны его
+   * не просили).
+   */
+  it('карточки списка, блок заявки и блок вложения - без декоративного box-shadow', () => {
+    const cardRule = SOURCE.match(/\.attachment-card\s*\{[^}]*\}/)[0];
+    expect(cardRule).not.toMatch(/box-shadow/);
+
+    const cardHoverRule = SOURCE.match(/\.attachment-card:hover\s*\{[^}]*\}/)[0];
+    expect(cardHoverRule).not.toMatch(/box-shadow/);
+
+    const cardActiveRule = SOURCE.match(/\.attachment-card--active\s*\{[^}]*\}/)[0];
+    expect(cardActiveRule).not.toMatch(/box-shadow/);
+
+    const applicationBlockRule = SOURCE.match(/\.application-block\s*\{[^}]*\}/)[0];
+    expect(applicationBlockRule).not.toMatch(/box-shadow/);
+
+    const detailOverrideRule = SOURCE.match(/\.detail-section :deep\(\.attachment-details\)\s*\{[^}]*\}/)[0];
+    expect(detailOverrideRule).toMatch(/box-shadow:\s*none/);
+  });
 });
