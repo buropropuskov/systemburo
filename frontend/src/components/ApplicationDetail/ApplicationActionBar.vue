@@ -140,7 +140,7 @@
             class="action-buttons-track"
           >
             <!-- Для пользователей, которые одновременно являются принимающими и ответственными -->
-            <template v-if="!busy && isApproverUser && (isResponsibleUser || hasNoApprovers) && application.status !== 'Отозвана'">
+            <template v-if="!busy && isApproverUser && isResponsibleUser && application.status !== 'Отозвана'">
               <!-- Если пользователь еще не голосовал -->
               <template v-if="!hasUserVoted">
                 <!-- Показываем кнопки согласования, если заявка не отклонена окончательно и не завершена -->
@@ -250,7 +250,7 @@
                         v-if="processing"
                         class="button-loading"
                       />
-                      <span v-else>Принять</span>
+                      <span v-else>{{ hasNoApprovers ? 'Согласовать и принять' : 'Принять' }}</span>
                     </button>
                     <button
                       class="reject-btn"
@@ -344,7 +344,7 @@
                     v-if="processing"
                     class="button-loading"
                   />
-                  <span v-else>Принять</span>
+                  <span v-else>{{ hasNoApprovers ? 'Согласовать и принять' : 'Принять' }}</span>
                 </button>
                 <button
                   class="reject-btn"
@@ -762,7 +762,7 @@ export default {
         // Кнопка "Согласовать"/"Согласовать и принять" видна только ответственному,
         // который ещё не голосовал, по не отклонённой и не завершённой заявке.
         showsApproveButton() {
-            if ((!this.isResponsibleUser && !this.hasNoApprovers) || this.hasUserVoted) return false;
+            if (!this.isResponsibleUser || this.hasUserVoted) return false;
             return this.application.confirmation !== 'Не согласовано' && this.application.status !== 'Завершено';
         },
 
@@ -988,18 +988,6 @@ export default {
         async handleCombinedAction(action) {
             this.$emit('processing-change', true);
             try {
-                // Согласующих нет - голос отправлять некуда: записи согласующего у этой
-                // заявки не существует, и сервер отверг бы обращение. Решение принимающего
-                // сразу переводит заявку: принять в работу либо отказать.
-                if (this.hasNoApprovers) {
-                    if (action === 'accept') {
-                        await this.acceptApplication();
-                    } else {
-                        await this.rejectApplication();
-                    }
-                    return;
-                }
-
                 const approvalResponse = await apiRequest(`/applications/${this.application.id}/approve`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
