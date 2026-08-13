@@ -37,6 +37,7 @@ const TABLES = [
     file: 'CarsTable.vue',
     card: '.selected-table-card',
     row: '.selected-table-card .item-data.rt-row',
+    wrap: '.item-row',
     head: '.items-header',
     tail: /\.(status|expand|actions)-col$/,
     footCols: ['.status-col', '.expand-col', '.actions-col'],
@@ -47,6 +48,7 @@ const TABLES = [
     file: 'PeopleTable.vue',
     card: '.selected-table-card',
     row: '.selected-table-card .item-data.rt-row',
+    wrap: '.item-row',
     head: '.items-header',
     tail: /\.(status|expand|actions)-col$/,
     footCols: ['.status-col', '.expand-col', '.actions-col'],
@@ -57,6 +59,7 @@ const TABLES = [
     file: 'FactTable.vue',
     card: '.fact-table-card',
     row: '.fact-table-card .fact-row.rt-row',
+    wrap: '.fact-item',
     head: '.fact-header',
     tail: /\.(status|actions)-col$/,
     // «Подробнее» здесь нет: столбцы в карточке не прячутся, прятать нечего.
@@ -393,9 +396,22 @@ describe('Талон проходной: общая инфраструктура
   it('номер крупный, и правило не убито переменной размера строки', () => {
     // У потребителей размер строки задан `.items-body .col { font-size: var(--table-font-size) }` -
     // правило и специфичнее глобального, и стоит ниже. Спасает только `!important`.
-    const decls = declarationsFor(mobile, '.rt-pass > .rt-pass__plate').join('\n');
+    const decls = declarationsFor(mobile, '.rt-table .rt-pass > .rt-pass__plate[data-label]').join('\n');
     expect(decls).toMatch(/font-size:\s*20px\s*!important/);
     expect(decls).toMatch(/font-variant-numeric:\s*tabular-nums\s*!important/);
+  });
+
+  it('номер и марка стоят в одну строку, а не друг под другом', () => {
+    // Базис по содержимому вместо 100% строки - тот же приём, что у ФИО в
+    // карточке человека: оба поля делят строку, а не идут отдельными рядами.
+    // `.rt-table` в селекторе - специфичность с запасом против `.rt-row > *`
+    // потребителя (эталон §8: тай-брейк по порядку загрузки чанков непредсказуем).
+    const plate = declarationsFor(mobile, '.rt-table .rt-pass > .rt-pass__plate[data-label]').join('\n');
+    const mark = declarationsFor(mobile, '.rt-table .rt-pass > .rt-pass__mark[data-label]').join('\n');
+    expect(plate).toMatch(/flex:\s*0\s+1\s+auto\s*!important/);
+    expect(plate).toMatch(/width:\s*auto\s*!important/);
+    expect(mark).toMatch(/flex:\s*0\s+1\s+auto\s*!important/);
+    expect(mark).toMatch(/width:\s*auto\s*!important/);
   });
 
   it('кнопка подвала - пилюля 28px с зоной нажатия 44px во всю свою ячейку', () => {
@@ -460,27 +476,28 @@ describe.each(TALON)('Талон проходной: раскладка $file', 
     dashed.forEach((s) => expect(s).toMatch(/:not\(\.rt-pass\)/));
   });
 
-  it('подвал: статус своей строкой, кнопки под ним пополам', () => {
+  it('подвал: статус скрыт, оставшиеся кнопки идут по возрастающим order', () => {
+    // Статус в карточке телефона не нужен - экран открывают ради проезда, а не ради
+    // состояния заявки. Он не занимает строку, а полностью убран из раскладки.
+    expect(declarationsFor(mobile, `${ROW} > .status-col`).join('\n'))
+      .toMatch(/display:\s*none\s*!important/);
+
     const order = (col) => {
       const decls = declarationsFor(mobile, `${ROW} > ${col}`).join('\n');
       return Number(decls.match(/order:\s*(\d+)\s*!important/)?.[1] ?? NaN);
     };
-    // Разметочные order служебных столбцов соседствуют с order настраиваемых, и без
-    // заведомо больших чисел статус с корзиной разъезжаются по середине карточки.
-    const orders = footCols.map(order);
-    expect(orders[0]).toBe(9999);
+    // Разметочные order оставшихся служебных столбцов соседствуют с order
+    // настраиваемых, и без заведомо больших чисел кнопки разъезжаются по середине
+    // карточки.
+    const rest = footCols.filter((col) => col !== '.status-col');
+    const orders = rest.map(order);
     orders.forEach((value, i) => {
       if (i > 0) expect(value).toBeGreaterThan(orders[i - 1]);
     });
 
-    // Бейдж статуса занимает строку целиком: делить её с кнопками он не может -
-    // на 320 половина остаётся 82px, и «Подробнее» в неё не влезает.
-    expect(declarationsFor(mobile, `${ROW} > .status-col`).join('\n'))
-      .toMatch(/flex:\s*0\s+0\s+100%\s*!important/);
-
     // Базовый `.col { overflow: hidden }` обрезал бы ::before пилюли, и зона нажатия
     // осталась бы 28px - палец мимо пилюли попадал бы в пустоту.
-    const geometry = footCols
+    const geometry = rest
       .map((c) => declarationsFor(mobile, `${ROW} > ${c}`).join('\n'))
       .join('\n');
     expect(geometry).toMatch(/overflow:\s*visible/);
@@ -513,5 +530,66 @@ describe('Карточка человека: ФИО одной строкой', 
       expect(declarationsFor(mobile, `.selected-table-card .rt-row > ${col}`).join('\n'))
         .toMatch(/width:\s*auto\s*!important/);
     });
+  });
+});
+
+/**
+ * Регрессия волны 6 (commit 119ba2ed): рамку и фон блока сняли совсем, и без
+ * строк (факт-таблица почти всегда пуста) от таблицы не оставалось ни одного
+ * видимого признака - "куда она делась?". Владелец потребовал рамку обратно, но
+ * без возврата к «квадрату в квадрате» (рамка блока 30px + рамка каждой строки
+ * 15px): решение - контейнер несёт рамку и фон, а скругление получают только
+ * верхний край первой строки и нижний последней, середина прямоугольная.
+ */
+describe.each(TALON)('Рамка контейнера без «квадрата в квадрате»: $file', ({ file, card, wrap }) => {
+  const mobile = mediaBlocks(source(file), MOBILE).join('\n');
+
+  it('контейнер несёт видимую рамку и фон, а не border:none', () => {
+    const decls = declarationsFor(mobile, card).join('\n');
+    expect(decls).toMatch(/border:\s*1px\s+solid\s+var\(--border\)/);
+    expect(decls).not.toMatch(/border:\s*none/);
+    expect(decls).toMatch(/background:\s*var\(--surface\)/);
+    expect(decls).not.toMatch(/background:\s*transparent/);
+  });
+
+  it('строки идут вплотную, без зазора карточек Центра', () => {
+    const gap = selectorsWith(mobile, 'margin-top: 8px');
+    expect(gap.some((s) => s.startsWith(wrap))).toBe(false);
+  });
+
+  it('у строки талона нет собственного скругления/рамки по кругу', () => {
+    const decls = declarationsFor(mobile, `${card} .rt-pass`).join('\n');
+    expect(decls).toMatch(/border-radius:\s*0\s*!important/);
+    expect(decls).toMatch(/border-left:\s*none\s*!important/);
+    expect(decls).toMatch(/border-right:\s*none\s*!important/);
+  });
+
+  it('скругление контейнера продолжается только в первой и последней строке', () => {
+    const first = declarationsFor(mobile, `${card} ${wrap}:first-child .rt-pass`).join('\n');
+    const last = declarationsFor(mobile, `${card} ${wrap}:last-child .rt-pass`).join('\n');
+    expect(first).toMatch(/border-top-left-radius:\s*var\(--radius-md,\s*15px\)\s*!important/);
+    expect(first).toMatch(/border-top-right-radius:\s*var\(--radius-md,\s*15px\)\s*!important/);
+    expect(last).toMatch(/border-bottom-left-radius:\s*var\(--radius-md,\s*15px\)\s*!important/);
+    expect(last).toMatch(/border-bottom-right-radius:\s*var\(--radius-md,\s*15px\)\s*!important/);
+    // Последняя строка не тянет собственный border-bottom - его закрывает рамка
+    // контейнера, повторный был бы двойной линией у самого края.
+    expect(last).toMatch(/border-bottom:\s*none\s*!important/);
+  });
+});
+
+/**
+ * Владелец на телефоне замерил кнопки «Въезд»/«Выезд» в 158x44px на карточке
+ * 370px - «огроменные». Норма проекта для контролов такого калибра 36px
+ * (эталон §18), не 44 (то был тач-таргет главного действия экрана, но с большим
+ * запасом по факту).
+ */
+describe.each(TALON)('Кнопки прохода приведены к норме 36px: $file', ({ file }) => {
+  const mobile = mediaBlocks(source(file), MOBILE).join('\n');
+
+  it('высота 36px, а не 44, вес не жирнее соседних пилюль', () => {
+    const decls = declarationsFor(mobile, '.action-btn').join('\n');
+    expect(decls).toMatch(/height:\s*36px/);
+    expect(decls).not.toMatch(/height:\s*44px/);
+    expect(decls).not.toMatch(/font-weight:\s*700/);
   });
 });

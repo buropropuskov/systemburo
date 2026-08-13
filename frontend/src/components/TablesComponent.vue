@@ -2013,12 +2013,6 @@ export default {
         border-color: color-mix(in srgb, var(--accent) 30%, var(--surface));
     }
 
-    .fact-hint-card--collapsed .fact-hint-card__toggle {
-        color: var(--accent-text);
-        font-size: 13px;
-        font-weight: 500;
-    }
-
     .hint-content {
         position: static;
         inset: auto;
