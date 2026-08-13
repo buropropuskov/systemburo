@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 
-// На телефоне живая лента не прокручивается сама (#1097 волна 5) и растёт по
-// содержимому - при полном лимите 15 записей блок распирает страницу (замер
-// на стенде: 1080px на ленту при вьюпорте 390). Проверяем, что подгрузка сама
-// просит у бэка меньше записей на узком экране, а не только красиво обрезается
-// в разметке (та резалась бы визуально, но не размером DOM/сети).
+// Волна 9 (#1097): на телефоне лента получила свою вертикальную прокрутку
+// (max-height 360px, как на десктопе, помечена data-scroll-own для гейта
+// мобильных инвариантов) - раздельный узкий лимит и кнопка «Показать ещё»
+// больше не нужны, оба брейкпоинта запрашивают и показывают одно и то же.
 const { state } = vi.hoisted(() => ({
   state: { passages: { people: [], cars: [] }, calls: [] },
 }));
@@ -58,7 +57,7 @@ afterEach(() => {
   window.matchMedia = origMatchMedia;
 });
 
-describe('StatisticsDashboard — лимит живой ленты по ширине экрана (#1097 w7)', () => {
+describe('StatisticsDashboard — лимит живой ленты одинаков на обоих брейкпоинтах (#1097 w9)', () => {
   it('на широком экране запрашивает 15 записей', async () => {
     mockNarrowViewport(false);
     mountDashboard();
@@ -66,11 +65,11 @@ describe('StatisticsDashboard — лимит живой ленты по шири
     expect(state.calls).toEqual([15]);
   });
 
-  it('на узком экране запрашивает 5 записей вместо 15', async () => {
+  it('на узком экране тоже запрашивает 15 записей', async () => {
     mockNarrowViewport(true);
     mountDashboard();
     await flushPromises();
-    expect(state.calls).toEqual([5]);
+    expect(state.calls).toEqual([15]);
   });
 });
 
@@ -86,46 +85,40 @@ function makeRows(n, prefix) {
   }));
 }
 
-describe('StatisticsDashboard — раскрытие ленты по тапу (#1097 w8)', () => {
-  it('на узком экране при >=5 записях показывает "Показать ещё" у каждой ленты отдельно', async () => {
+describe('StatisticsDashboard — своя прокрутка ленты на узком экране (#1097 w9)', () => {
+  it('на узком экране показывает все запрошенные записи без кнопки "Показать ещё"', async () => {
     mockNarrowViewport(true);
-    state.passages = { people: makeRows(20, 'Иванов'), cars: makeRows(20, 'А000АА') };
+    state.passages = { people: makeRows(15, 'Иванов'), cars: makeRows(15, 'А000АА') };
     const wrapper = mountDashboard();
     await flushPromises();
 
     const feeds = wrapper.findAll('.dashboard__feed');
     expect(feeds).toHaveLength(2);
-    expect(feeds[0].find('.dashboard__feed-more').exists()).toBe(true);
-    expect(feeds[1].find('.dashboard__feed-more').exists()).toBe(true);
+    expect(feeds[0].find('.dashboard__feed-more').exists()).toBe(false);
+    expect(feeds[1].find('.dashboard__feed-more').exists()).toBe(false);
+
+    const peopleRows = feeds[0].findAll('.dashboard__feed-row:not(.dashboard__feed-row--skeleton)');
+    const carsRows = feeds[1].findAll('.dashboard__feed-row:not(.dashboard__feed-row--skeleton)');
+    expect(peopleRows.length).toBe(15);
+    expect(carsRows.length).toBe(15);
   });
 
-  it('раскрытие ленты людей поднимает только её лимит, машины остаются свёрнуты', async () => {
+  it('лента помечена data-scroll-own - её прокрутка законна для гейта мобильных инвариантов', async () => {
     mockNarrowViewport(true);
-    state.passages = { people: makeRows(20, 'Иванов'), cars: makeRows(20, 'А000АА') };
+    state.passages = { people: makeRows(15, 'Иванов'), cars: makeRows(15, 'А000АА') };
     const wrapper = mountDashboard();
     await flushPromises();
 
-    const feeds = wrapper.findAll('.dashboard__feed');
-    await feeds[0].find('.dashboard__feed-more').trigger('click');
-    await flushPromises();
-
-    // Запрос ушёл с большим из двух активных потолков (15), а не свёрнутыми 5.
-    expect(state.calls.at(-1)).toBe(15);
-
-    const feedsAfter = wrapper.findAll('.dashboard__feed');
-    const peopleRows = feedsAfter[0].findAll('.dashboard__feed-row:not(.dashboard__feed-row--skeleton)');
-    const carsRows = feedsAfter[1].findAll('.dashboard__feed-row:not(.dashboard__feed-row--skeleton)');
-    expect(peopleRows.length).toBe(15);
-    expect(carsRows.length).toBe(5);
-
-    // Кнопка раскрытой ленты пропадает, у свёрнутой остаётся.
-    expect(feedsAfter[0].find('.dashboard__feed-more').exists()).toBe(false);
-    expect(feedsAfter[1].find('.dashboard__feed-more').exists()).toBe(true);
+    const lists = wrapper.findAll('.dashboard__feed-list');
+    expect(lists).toHaveLength(2);
+    for (const list of lists) {
+      expect(list.attributes('data-scroll-own')).toBeDefined();
+    }
   });
 
-  it('на широком экране кнопка "Показать ещё" не рендерится вовсе', async () => {
+  it('на широком экране лента тоже без кнопки "Показать ещё"', async () => {
     mockNarrowViewport(false);
-    state.passages = { people: makeRows(20, 'Иванов'), cars: makeRows(20, 'А000АА') };
+    state.passages = { people: makeRows(15, 'Иванов'), cars: makeRows(15, 'А000АА') };
     const wrapper = mountDashboard();
     await flushPromises();
 
