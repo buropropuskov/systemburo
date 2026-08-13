@@ -2176,19 +2176,33 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		}
 	}
 
-	// Добавляем обязательных из запроса
+	// req.RequiredUsers - список из формы подачи, дублирующий required_approval,
+	// который уже прочитан выше из organization_users/companies_users. Присланное
+	// значение признак не меняет ни в одну сторону (#2037): заявитель не назначает
+	// согласующих, он только видит состав организации, поэтому обязательность
+	// целиком определяется справочником.
+	//
+	// Раньше пользователь, не найденный среди responsibleUsers, тихо ДОБАВЛЯЛСЯ в
+	// согласующие (#2048): подделанный запрос с чужим user_id заводил в ответственные
+	// постороннего из другой организации, тот видел заявку целиком и мог её согласовать.
+	// Форма всегда шлёт id из состава уже прочитанной организации/компании (см. функцию
+	// отправки в CreateApplication.vue - список берётся из ответа /organizations/{id}/users
+	// и /companies/{id}/users), поэтому для легитимной подачи exists здесь истинно всегда,
+	// а расхождение - признак подделанного запроса. Отклоняем подачу целиком, а не тихо
+	// выбрасываем чужого пользователя: заявитель должен получить внятный отказ, а не
+	// заявку, тихо созданную без части того, что он просил.
 	if req.RequiredUsers != nil {
 		for _, reqUser := range *req.RequiredUsers {
 			exists := false
-			for i, ru := range responsibleUsers {
+			for _, ru := range responsibleUsers {
 				if ru.UserID == reqUser.UserID {
 					exists = true
-					responsibleUsers[i].RequiredApproval = reqUser.RequiredApproval
 					break
 				}
 			}
 			if !exists {
-				responsibleUsers = append(responsibleUsers, respUser{reqUser.UserID, false, reqUser.RequiredApproval})
+				tx.Rollback()
+				return nil, echo.NewHTTPError(http.StatusBadRequest, "Назначить согласующим можно только ответственного этой организации или компании")
 			}
 		}
 	}

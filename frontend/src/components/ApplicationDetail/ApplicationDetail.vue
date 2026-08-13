@@ -1,9 +1,15 @@
 <template>
-  <!-- Внешний контейнер для модального окна -->
-  <div
-    class="application-detail-overlay"
-    @click.self="closeApplicationDetail"
-  >
+  <!-- Закрытие проигрывается здесь, а не у родителя: он монтирует панель по v-if, и
+       без своей transition она пропадала мгновенно, тогда как окна проекта уезжают
+       плавно. Родителю о закрытии сообщаем после leave - тогда unmount не обрывает
+       анимацию на середине. -->
+  <transition name="detail-close">
+    <!-- Внешний контейнер для модального окна -->
+    <div
+      v-if="visible"
+      class="application-detail-overlay"
+      @click.self="closeApplicationDetail"
+    >
     <!-- Модальное окно пересылки -->
     <ForwardModal
       :show="showForwardModal"
@@ -689,7 +695,8 @@
       @confirm="confirmOverride"
       @close="showOverrideModal = false"
     />
-  </div>
+    </div>
+  </transition>
 </template>
 
 <script>
@@ -715,10 +722,17 @@ import EmployeeDetailsModal from '../CreateApplication/EmployeeDetailsModal.vue'
 import Badge from '@/components/ui/Badge.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import { sanitizeHtml } from '@/utils/sanitize'
-import { setModalOpen, releaseModal, isTopModal } from '@/utils/modalStack'
+import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack'
 
 /** Слой панели заявки - то же значение, что у неё в стилях (.application-detail). */
 const DETAIL_STACK_LAYER = 10002
+
+/**
+ * Длительность ухода панели. Совпадает с transition в стилях; о закрытии сообщаем
+ * родителю по её истечении, а не по `after-leave`: хук перехода не отрабатывает там,
+ * где браузерных переходов нет (jsdom), и панель осталась бы висеть.
+ */
+const DETAIL_CLOSE_MS = 200
 import ApplicationMessageModal from './ApplicationMessageModal.vue'
 import ApplicationParticipantsModal from './ApplicationParticipantsModal.vue'
 import ApplicationParticipantCard from './ApplicationParticipantCard.vue'
@@ -801,6 +815,10 @@ export default {
     },
     data() {
         return {
+            // Панель открыта. Гасим флаг при закрытии - это запускает leave, а
+            // родителю о закрытии сообщаем уже после него.
+            visible: true,
+            closeTimer: null,
             applicationData: { ...this.application },
             eventStreamOff: null,
             eventStreamAppId: null,
@@ -1183,6 +1201,7 @@ export default {
         eventStream.disconnect();
         document.removeEventListener('keydown', this.handleDetailEscape);
         releaseModal(this);
+        if (this.closeTimer) clearTimeout(this.closeTimer);
     },
     methods: {
         can(key) {
@@ -1195,8 +1214,13 @@ export default {
          */
         handleDetailEscape(e) {
             if (e.key !== 'Escape') return;
+            // Окно поверх панели забирает нажатие себе - и по стопке, и по пометке на
+            // событии: снятие со стопки происходит следующим тиком, а слушатели одного
+            // нажатия идут подряд, поэтому одной стопки мало.
+            if (isEscapeHandled(e)) return;
             if (!isTopModal(this)) return;
-            this.$emit('close');
+            markEscapeHandled(e);
+            this.close();
         },
 
         /**
@@ -1940,15 +1964,24 @@ export default {
         },
 
         close() {
-            // На мобилке (bottom-sheet) закрытие крестиком/overlay должно уезжать вниз, как
-            // свайп. У детали нет Vue-<transition> (родитель монтирует по v-if - мгновенный
-            // unmount без leave-слайда), поэтому доводим лист вниз программно тем же путём,
-            // что и свайп (dismissSheet), затем эмитим close. На десктопе закрываем сразу.
-            if (typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches) {
+            // На мобилке лист уезжает вниз тем же путём, что и свайп: dismissSheet ведёт
+            // жест до конца и сам эмитит close. На десктопе гасим флаг - закрытие
+            // проигрывает transition панели, а родителю сообщаем после leave.
+            // matchMedia есть не везде (в jsdom его нет вовсе), а закрытие обязано
+            // работать всегда: без проверки метод падал молча, и панель не закрывалась.
+            const isSheet = typeof window !== 'undefined'
+                && typeof window.matchMedia === 'function'
+                && window.matchMedia('(max-width: 768px)').matches;
+            if (isSheet) {
                 this.dismissSheet();
-            } else {
-                this.$emit('close');
+                return;
             }
+            if (this.closeTimer) return;
+            this.visible = false;
+            this.closeTimer = setTimeout(() => {
+                this.closeTimer = null;
+                this.$emit('close');
+            }, DETAIL_CLOSE_MS);
         },
 
         /**
@@ -2318,6 +2351,40 @@ export default {
     outline: none;
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.1);
+}
+
+/* Закрытие панели: затемнение гаснет, карточка чуть уходит вниз и тает. Только
+   opacity и transform - как у остальных окон проекта. На мобилке лист уезжает вниз
+   целиком, повторяя жест свайпа. */
+.detail-close-leave-active {
+    transition: opacity 0.2s ease;
+}
+
+.detail-close-leave-active .application-detail {
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.detail-close-leave-to {
+    opacity: 0;
+}
+
+.detail-close-leave-to .application-detail {
+    opacity: 0;
+    transform: translateY(8px);
+}
+
+@media (max-width: 768px) {
+    .detail-close-leave-to .application-detail {
+        transform: translateY(100%);
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .detail-close-leave-active,
+    .detail-close-leave-active .application-detail {
+        transition: none;
+    }
 }
 
 /* Остальные стили остаются без изменений */

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import ApplicationDetail from '../ApplicationDetail.vue';
@@ -36,15 +36,26 @@ const APPLICATION = {
   attachments: [],
 };
 
+/** Ждём, пока панель доиграет уход и сообщит о закрытии (transition 200 мс). */
+function waitForClose() {
+  return new Promise((resolve) => setTimeout(resolve, 260));
+}
+
 function pressEscape() {
   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
 }
 
+// Панель и окна слушают document, пока смонтированы: слой из прошлого кейса иначе
+// забирает Escape следующего.
+const opened = [];
+
 function mountDetail() {
-  return mount(ApplicationDetail, {
+  const wrapper = mount(ApplicationDetail, {
     props: { application: APPLICATION, mode: 'center' },
     global: { stubs: { teleport: true } },
   });
+  opened.push(wrapper);
+  return wrapper;
 }
 
 beforeEach(() => {
@@ -53,11 +64,16 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+afterEach(() => opened.splice(0).forEach((w) => w.unmount()));
+
 describe('ApplicationDetail: закрытие по Escape', () => {
-  it('Escape закрывает панель заявки', () => {
+  it('Escape закрывает панель заявки', async () => {
     const wrapper = mountDetail();
 
     pressEscape();
+    // Панель уходит с анимацией и сообщает о закрытии родителю после неё - иначе
+    // размонтирование обрывало бы уход на середине.
+    await waitForClose();
 
     expect(wrapper.emitted('close'), 'панель должна попросить родителя себя закрыть').toHaveLength(1);
   });
@@ -68,14 +84,17 @@ describe('ApplicationDetail: закрытие по Escape', () => {
       props: { show: true, title: 'Получатели заявки', zIndex: 12000 },
       global: { stubs: { teleport: true } },
     });
+    opened.push(modal);
 
     pressEscape();
+    await waitForClose();
 
     expect(modal.emitted('close'), 'верхнее окно закрывается').toHaveLength(1);
     expect(wrapper.emitted('close'), 'панель под ним остаётся открытой').toBeUndefined();
 
     modal.unmount();
     pressEscape();
+    await waitForClose();
 
     expect(wrapper.emitted('close'), 'после закрытия окна Escape доходит до панели').toHaveLength(1);
   });
