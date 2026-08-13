@@ -608,9 +608,13 @@ export default {
 
 <style scoped>
 /* Модальное окно теперь на BaseModal (шапка/крестик/overlay/Escape/bottom-sheet -
-   его контракт), здесь остаётся только вёрстка формы. */
+   его контракт). base-modal__body у BaseModal идёт БЕЗ padding (отступы несёт
+   содержимое) - без них поля упирались в края окна и на телефоне читались еле-еле
+   ("отступов нет по бокам"). Значение - как у соседних окон на BaseModal
+   (ChangePasswordModal/AttachmentMappingCopyModal): 20px по бокам вровень с
+   заголовком шапки. */
 .data__completion {
-    padding: 0;
+    padding: 14px 20px 18px;
 }
 
 .input__label {
@@ -986,6 +990,26 @@ export default {
 @media (max-width: 768px) {
     .completion__name-row {
         flex-direction: column;
+    }
+
+    /* Подписи чекбоксов привязки («Привязать к организации/компании») на телефоне
+       было еле видно - +2px к шрифту и увеличенный чекбокс (12px -> 18px, тот же приём,
+       что у выбора машин/сотрудников в ExistingCarsModal/ExistingEmployeesModal: видимый
+       квадрат остаётся некрупным, а тач-таргет строки дотягивает до нормы проекта 36px
+       через min-height, а не раздутый чекбокс). */
+    .binding-option {
+        min-height: 36px;
+        font-size: 14px;
+    }
+
+    .binding-option input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+    }
+
+    .user-binding-text {
+        font-size: 12px;
     }
 }
 </style>
