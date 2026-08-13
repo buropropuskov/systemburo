@@ -136,6 +136,121 @@
       "highlight": []
     },
     {
+      "id": "approver-tags",
+      "goto": "/center",
+      "waitFor": "[data-testid=\"center-row-322\"]",
+      "clip": {
+        "pad": 20
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"center-row-322\"] [data-testid=\"ob-center-blacklist-tag\"]"
+        },
+        {
+          "selector": "[data-testid=\"center-row-322\"] .rt-tag--roof"
+        },
+        {
+          "selector": "[data-testid=\"center-row-322\"] .rt-tag--parking"
+        },
+        {
+          "selector": "[data-testid=\"center-row-322\"] [data-testid=\"center-questions-badge-322\"]"
+        }
+      ]
+    },
+    {
+      "id": "approver-forward",
+      "goto": "/center",
+      "waitFor": "[data-testid=\"center-row-322\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"center-row-322\"]"
+        },
+        {
+          "wait": "[data-testid=\"app-detail-button-forward\"]"
+        },
+        {
+          "click": "[data-testid=\"app-detail-button-forward\"]"
+        },
+        {
+          "wait": "[data-testid=\"forward-modal-search\"]"
+        },
+        {
+          "fill": ["[data-testid=\"forward-modal-search\"]", "Захаров"]
+        },
+        {
+          "wait": "[data-testid=\"forward-modal-user-option\"]"
+        },
+        {
+          "click": "[data-testid=\"forward-modal-user-option\"]"
+        },
+        {
+          "wait": "[data-testid=\"forward-modal-user-settings\"]"
+        },
+        {
+          "click": ".setting-toggle",
+          "nth": 0
+        },
+        {
+          "click": ".setting-toggle",
+          "nth": 1
+        }
+      ],
+      "clip": {
+        "selector": ".forward-modal",
+        "pad": 30
+      },
+      "highlight": [
+        {
+          "selector": ".setting-toggle",
+          "nth": 0,
+          "badge": 1
+        },
+        {
+          "selector": ".setting-toggle",
+          "nth": 1,
+          "badge": 2
+        }
+      ]
+    },
+    {
+      "id": "approver-supplement",
+      "goto": "/center",
+      "waitFor": "[data-testid=\"center-row-323\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"center-row-323\"]"
+        },
+        {
+          "wait": "[data-testid=\"supplement-button-approve\"]"
+        }
+      ],
+      "clip": {
+        "selector": ".action-bar-root",
+        "pad": 30
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"supplement-actions\"]",
+          "badge": 1
+        }
+      ]
+    },
+    {
+      "id": "approver-notifications",
+      "goto": "/notification-settings",
+      "waitFor": ".notif-item__hint",
+      "clip": {
+        "selector": ".notif-category:has(.notif-item__hint)",
+        "pad": 20
+      },
+      "highlight": [
+        {
+          "selector": ".notif-item__hint",
+          "badge": 1
+        }
+      ]
+    },
+    {
       "id": "approver-blacklist",
       "goto": "/center",
       "waitFor": "[data-testid^=\"center-row-\"]",

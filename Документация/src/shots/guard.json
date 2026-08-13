@@ -215,6 +215,81 @@
         "pad": 40
       },
       "highlight": []
+    },
+    {
+      "id": "guard-consent",
+      "role": "first-login",
+      "waitFor": "[data-testid=\"pdc-accept\"]",
+      "clip": {
+        "selector": ".pdc-modal",
+        "pad": 40
+      },
+      "highlight": [
+        {
+          "selector": ".pdc-modal__doc",
+          "badge": 1,
+          "badgeInside": true
+        },
+        {
+          "selector": "[data-testid=\"pdc-agree\"]",
+          "badge": 2
+        },
+        {
+          "selector": "[data-testid=\"pdc-accept\"]",
+          "badge": 3
+        }
+      ]
+    },
+    {
+      "id": "guard-row-actions",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"ob-pass-row\"] .delete-btn",
+      "clip": {
+        "pad": {
+          "x": 260,
+          "y": 14
+        }
+      },
+      "highlight": [
+        {
+          "selector": "[data-testid=\"ob-pass-row\"] .delete-btn",
+          "badge": 1
+        }
+      ]
+    },
+    {
+      "id": "guard-fact-pass",
+      "goto": "/table/kpp-cargo",
+      "waitFor": "[data-testid=\"ob-fact-entry\"]",
+      "prepare": [
+        {
+          "click": "[data-testid=\"ob-fact-entry\"]"
+        },
+        {
+          "wait": ".base-modal"
+        }
+      ],
+      "clip": {
+        "selector": ".base-modal",
+        "pad": 40
+      },
+      "highlight": [
+        {
+          "selector": ".fact-pass__field",
+          "nth": 0,
+          "badge": 1
+        },
+        {
+          "selector": ".fact-pass__field",
+          "nth": 1,
+          "badge": 2
+        },
+        {
+          "selector": ".fact-pass__field",
+          "nth": 2,
+          "badge": 3
+        }
+      ]
     }
   ]
 }
