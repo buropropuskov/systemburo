@@ -1838,7 +1838,12 @@ export default {
        колонка действий без data-label, глобальное `[data-label]:last-child` до неё не
        достаёт и пунктир висел бы оторванной чертой над нижним краем карточки.
        white-space/overflow-wrap - потому что .employee-col держит nowrap ради десктопной
-       таблицы, и длинное ФИО или организация уезжали бы вправо за край. */
+       таблицы, и длинное ФИО или организация уезжали бы вправо за край.
+       break-word, а не anywhere: anywhere разрешает браузеру считать разрыв ПОСЕРЕДИНЕ
+       слова годной точкой при расчёте min-content для флекс-элемента, из-за чего значение
+       рвалось прямо внутри слова на увеличенном системном шрифте (тот же класс дефекта,
+       что «Российска|я Федераци|я» у карточки машины) - break-word ломает слово только
+       как последний выход, когда для него в принципе нет места на строке. */
     .employee-row.rt-row > .employee-col {
         align-items: center !important;
         justify-content: flex-start !important;
@@ -1847,7 +1852,7 @@ export default {
         border-bottom: none !important;
         text-align: left !important;
         white-space: normal;
-        overflow-wrap: anywhere;
+        overflow-wrap: break-word;
     }
 
     /* Должность и статус делят одну строку. В колоночном стеке бейдж занимал собственную

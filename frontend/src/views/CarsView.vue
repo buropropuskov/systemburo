@@ -569,209 +569,189 @@
       </button>
     </div>
 
-    <!-- Модальное окно добавления машины -->
-    <Teleport to="body">
-      <Transition name="modal-fade">
-        <div
-          v-if="showModal && currentFilter !== 'all_system'"
-          class="modal-overlay"
-          data-testid="cars-view-modal"
-          @click="closeModal"
-        >
-          <div
-            class="modal-content"
-            @click.stop
-          >
-            <div class="modal-header">
-              <div class="modal-header__top">
-                <h3>{{ editingCar ? 'Редактирование' : 'Добавление Т/С' }}</h3>
-              </div>
-              <button
-                class="modal-close"
-                data-testid="cars-view-modal-close"
-                @click="closeModal"
-              >
-                ×
-              </button>
-            </div>
-            <div class="modal-body">
-              <div class="data__completion">
-                <div class="completion__format">
-                  <div class="format__header">
-                    <label class="format__label">Формат номеров</label>
-                    <button
-                      class="add-button"
-                      :disabled="!canSaveCar"
-                      @click="saveCar"
-                    >
-                      {{ editingCar ? 'Сохранить' : 'Добавить' }}
-                    </button>
-                  </div>
-                  <div class="format__dropdown">
-                    <button
-                      class="dropdown__button"
-                      data-testid="cars-view-format-dropdown"
-                      @click="toggleFormatDropdown"
-                    >
-                      <div class="button__content">
-                        <span class="button__text">{{ selectedFormatText }}</span>
-                        <img
-                          src="@/assets/icons/arrow.png"
-                          class="button__arrow"
-                          :class="{ 'button__arrow--open': isFormatDropdownOpen }"
-                        >
-                      </div>
-                    </button>
-                    <transition name="dropdown">
-                      <div
-                        v-if="isFormatDropdownOpen"
-                        class="dropdown__menu"
-                      >
-                        <div 
-                          v-for="format in availableFormats" 
-                          :key="format.format.id"
-                          class="dropdown__item" 
-                          @click="selectFormat(format)"
-                        >
-                          <span class="item__text">{{ format.format.name }}</span>
-                        </div>
-                      </div>
-                    </transition>
-                  </div>
-                </div>
-                        
-                <div class="completion__fields">
-                  <div class="completion__number">
-                    <div class="completion__number-header">
-                      <label class="input__label">Номер Т/C <span class="required">*</span></label>
-                    </div>
-                                
-                    <!-- Динамический формат из базы данных -->
-                    <div
-                      v-if="selectedFormat"
-                      class="number__field"
-                    >
-                      <input 
-                        v-for="(cell, index) in selectedFormat.cells" 
-                        :key="index"
-                        v-model="numberParts[index]" 
-                        class="number__input"
-                        :placeholder="getPlaceholder(cell)"
-                        :maxlength="cell.max_length"
-                        :style="{ width: getInputWidth(cell) }"
-                        @input="validatePart(index, $event, cell)"
-                        @blur="formatPart(index, cell)"
-                      >
-                    </div>
-                    <div
-                      v-else
-                      class="no-format-message"
-                    >
-                      Выберите формат номера
-                    </div>
-                  </div>
-                            
-                  <div class="completion__mark">
-                    <div class="completion__mark-header">
-                      <label class="input__label">Марка Т/С <span class="required">*</span></label>
-                    </div>
-                    <div class="mark__field">
-                      <div class="mark__dropdown">
-                        <button
-                          class="mark__dropdown-button"
-                          @click="toggleMarkDropdown"
-                        >
-                          <div class="mark__button-content">
-                            <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
-                            <img
-                              src="@/assets/icons/arrow.png"
-                              class="mark__button-arrow"
-                              :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }"
-                            >
-                          </div>
-                        </button>
-                        <transition name="dropdown">
-                          <div
-                            v-if="isMarkDropdownOpen"
-                            class="mark__dropdown-menu"
-                          >
-                            <div class="mark__search">
-                              <input 
-                                v-model="markSearch" 
-                                class="mark__search-input"
-                                placeholder="Поиск марки..."
-                                @input="filterMarks"
-                              >
-                            </div>
-                            <div class="mark__dropdown-list">
-                              <div
-                                v-for="mark in filteredMarks"
-                                :key="mark.id"
-                                class="mark__dropdown-item"
-                                @click="selectMark(mark)"
-                              >
-                                <span class="mark__item-text">{{ mark.name }}</span>
-                              </div>
-                              <div
-                                v-if="!filteredMarks.length"
-                                class="mark__dropdown-empty"
-                              >
-                                Марки не найдены
-                              </div>
-                            </div>
-                          </div>
-                        </transition>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Привязка -->
-                <div
-                  v-if="currentFilter !== 'all_system'"
-                  class="completion__binding"
+    <!-- Модальное окно добавления машины - контракт окна из BaseModal (крестик,
+         overlay, Escape, свайп-вниз/bottom-sheet на мобилке), а не своя разметка. -->
+    <BaseModal
+      :show="showModal && currentFilter !== 'all_system'"
+      :title="editingCar ? 'Редактирование' : 'Добавление Т/С'"
+      width="500px"
+      radius="30px"
+      content-testid="cars-view-modal"
+      @close="closeModal"
+    >
+      <div class="data__completion">
+        <div class="completion__format">
+          <div class="format__header">
+            <label class="format__label">Формат номеров</label>
+            <button
+              class="add-button"
+              :disabled="!canSaveCar"
+              @click="saveCar"
+            >
+              {{ editingCar ? 'Сохранить' : 'Добавить' }}
+            </button>
+          </div>
+          <div class="format__dropdown">
+            <button
+              class="dropdown__button"
+              data-testid="cars-view-format-dropdown"
+              @click="toggleFormatDropdown"
+            >
+              <div class="button__content">
+                <span class="button__text">{{ selectedFormatText }}</span>
+                <img
+                  src="@/assets/icons/arrow.png"
+                  class="button__arrow"
+                  :class="{ 'button__arrow--open': isFormatDropdownOpen }"
                 >
-                  <label class="input__label">Привязка</label>
-                  <div class="binding-info">
-                    <p class="binding-note">
-                      <strong>Добавляемый автомобиль автоматически привязывается к аккаунту пользователя.</strong>
-                      Автомобиль можно привязать к организации или компании, для использования <strong>другими сотрудниками</strong>:
-                    </p>
+              </div>
+            </button>
+            <transition name="dropdown">
+              <div
+                v-if="isFormatDropdownOpen"
+                class="dropdown__menu"
+              >
+                <div 
+                  v-for="format in availableFormats" 
+                  :key="format.format.id"
+                  class="dropdown__item" 
+                  @click="selectFormat(format)"
+                >
+                  <span class="item__text">{{ format.format.name }}</span>
+                </div>
+              </div>
+            </transition>
+          </div>
+        </div>
+                        
+        <div class="completion__fields">
+          <div class="completion__number">
+            <div class="completion__number-header">
+              <label class="input__label">Номер Т/C <span class="required">*</span></label>
+            </div>
+                                
+            <!-- Динамический формат из базы данных -->
+            <div
+              v-if="selectedFormat"
+              class="number__field"
+            >
+              <input 
+                v-for="(cell, index) in selectedFormat.cells" 
+                :key="index"
+                v-model="numberParts[index]" 
+                class="number__input"
+                :placeholder="getPlaceholder(cell)"
+                :maxlength="cell.max_length"
+                :style="{ width: getInputWidth(cell) }"
+                @input="validatePart(index, $event, cell)"
+                @blur="formatPart(index, cell)"
+              >
+            </div>
+            <div
+              v-else
+              class="no-format-message"
+            >
+              Выберите формат номера
+            </div>
+          </div>
+                            
+          <div class="completion__mark">
+            <div class="completion__mark-header">
+              <label class="input__label">Марка Т/С <span class="required">*</span></label>
+            </div>
+            <div class="mark__field">
+              <div class="mark__dropdown">
+                <button
+                  class="mark__dropdown-button"
+                  @click="toggleMarkDropdown"
+                >
+                  <div class="mark__button-content">
+                    <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
+                    <img
+                      src="@/assets/icons/arrow.png"
+                      class="mark__button-arrow"
+                      :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }"
+                    >
                   </div>
-                  <div class="binding-options">
-                    <label
-                      v-if="ownershipInfo && ownershipInfo.has_organization"
-                      class="binding-option"
-                    >
-                      <input
-                        v-model="bindToOrganization"
-                        type="checkbox"
-                        :disabled="bindToCompany"
+                </button>
+                <transition name="dropdown">
+                  <div
+                    v-if="isMarkDropdownOpen"
+                    class="mark__dropdown-menu"
+                  >
+                    <div class="mark__search">
+                      <input 
+                        v-model="markSearch" 
+                        class="mark__search-input"
+                        placeholder="Поиск марки..."
+                        @input="filterMarks"
                       >
-                      <span>Привязать к организации<template v-if="ownershipInfo.organization_name"> «{{ ownershipInfo.organization_name }}»</template></span>
-                    </label>
-                    <label
-                      v-if="ownershipInfo && ownershipInfo.has_company"
-                      class="binding-option"
-                    >
-                      <input
-                        v-model="bindToCompany"
-                        type="checkbox"
-                        :disabled="bindToOrganization"
+                    </div>
+                    <div class="mark__dropdown-list">
+                      <div
+                        v-for="mark in filteredMarks"
+                        :key="mark.id"
+                        class="mark__dropdown-item"
+                        @click="selectMark(mark)"
                       >
-                      <span>Привязать к компании<template v-if="ownershipInfo.company_name"> «{{ ownershipInfo.company_name }}»</template></span>
-                    </label>
-                    <div class="user-binding">
-                      <span class="user-binding-text"><strong class="red">Внимание!</strong> При привязке автомобиля к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании. </span>
+                        <span class="mark__item-text">{{ mark.name }}</span>
+                      </div>
+                      <div
+                        v-if="!filteredMarks.length"
+                        class="mark__dropdown-empty"
+                      >
+                        Марки не найдены
+                      </div>
                     </div>
                   </div>
-                </div>
+                </transition>
               </div>
             </div>
           </div>
         </div>
-      </Transition>
-    </Teleport>
+
+        <!-- Привязка -->
+        <div
+          v-if="currentFilter !== 'all_system'"
+          class="completion__binding"
+        >
+          <label class="input__label">Привязка</label>
+          <div class="binding-info">
+            <p class="binding-note">
+              <strong>Добавляемый автомобиль автоматически привязывается к аккаунту пользователя.</strong>
+              Автомобиль можно привязать к организации или компании, для использования <strong>другими сотрудниками</strong>:
+            </p>
+          </div>
+          <div class="binding-options">
+            <label
+              v-if="ownershipInfo && ownershipInfo.has_organization"
+              class="binding-option"
+            >
+              <input
+                v-model="bindToOrganization"
+                type="checkbox"
+                :disabled="bindToCompany"
+              >
+              <span>Привязать к организации<template v-if="ownershipInfo.organization_name"> «{{ ownershipInfo.organization_name }}»</template></span>
+            </label>
+            <label
+              v-if="ownershipInfo && ownershipInfo.has_company"
+              class="binding-option"
+            >
+              <input
+                v-model="bindToCompany"
+                type="checkbox"
+                :disabled="bindToOrganization"
+              >
+              <span>Привязать к компании<template v-if="ownershipInfo.company_name"> «{{ ownershipInfo.company_name }}»</template></span>
+            </label>
+            <div class="user-binding">
+              <span class="user-binding-text"><strong class="red">Внимание!</strong> При привязке автомобиля к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании. </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </BaseModal>
     <ConfirmationModal
       :show="showDeleteCarModal"
       title="Подтверждение удаления"
@@ -826,6 +806,7 @@ import StatusBadge from '@/components/ui/StatusBadge.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsModal.vue';
 import ApplicationDetail from '@/components/ApplicationDetail/ApplicationDetail.vue';
+import BaseModal from '@/components/ui/BaseModal.vue';
 
 // Размер порции бесшовной подгрузки реестра машин (#1158, срез 2) - аналог
 // APPLICATIONS_PER_PAGE в ApplicationsCenter.
@@ -841,7 +822,8 @@ export default {
         StatusBadge,
         ConfirmationModal,
         VehicleDetailsModal,
-        ApplicationDetail
+        ApplicationDetail,
+        BaseModal
     },
     setup() {
         // Бесшовная подгрузка реестра машин порциями (#1158, срез 2): composable
@@ -2308,99 +2290,8 @@ export default {
     line-height: 150%; font-size: 14px;
 }
 
-/* Модальное окно */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: var(--overlay);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    backdrop-filter: blur(0.1px);
-    -webkit-backdrop-filter: blur(0.1px);
-}
-
-/* Анимация открытия/закрытия */
-.modal-fade-enter-active {
-    transition: opacity 0.18s ease;
-}
-.modal-fade-leave-active {
-    transition: opacity 0.18s ease;
-}
-.modal-fade-enter-from,
-.modal-fade-leave-to {
-    opacity: 0;
-}
-.modal-fade-enter-active .modal-content {
-    animation: modal-scale-in 0.18s ease;
-}
-@keyframes modal-scale-in {
-    from { transform: scale(0.96); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
-}
-
-.modal-content {
-    background: var(--surface);
-    border-radius: 20px;
-    padding: 0;
-    width: 500px;
-    max-width: 90vw;
-    max-height: calc(var(--app-vh, 1vh) * 90);
-    overflow: hidden;
-}
-
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    padding: 20px;
-    border-bottom: 1px solid var(--border);
-}
-
-.modal-header__top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex: 1;
-    height: 25px;
-}
-
-.modal-header h3 {
-    margin: 0;
-    color: var(--text);
-    font-size: 18px;
-}
-
-.modal-close {
-    background: none;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-    color: var(--text-muted);
-    padding: 0;
-    width: 30px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-left: 10px;
-}
-
-.modal-close:hover {
-    color: var(--text);
-}
-
-.modal-body {
-    padding: 20px;
-    max-height: calc(var(--app-vh, 1vh) * 70);
-    overflow-y: auto;
-}
-
-/* Стили формы добавления машины */
+/* Модальное окно добавления машины теперь на BaseModal (шапка/крестик/overlay/
+   Escape/bottom-sheet - его контракт), здесь остаётся только вёрстка формы. */
 .data__completion {
     padding: 0;
 }
@@ -2892,12 +2783,7 @@ export default {
     .completion__fields {
         flex-direction: column;
     }
-    
-    .modal-content {
-        width: 95vw;
-        margin: 10px;
-    }
-    
+
     .format-actions {
         flex-direction: column;
         width: 100%;
@@ -3017,7 +2903,12 @@ export default {
        колонка действий без data-label, глобальное `[data-label]:last-child` до неё не
        достаёт и пунктир висел бы оторванной чертой над нижним краем карточки.
        white-space/overflow-wrap - потому что .car-col держит nowrap ради десктопной
-       таблицы, и длинное название организации уезжало бы вправо за край. */
+       таблицы, и длинное название организации уезжало бы вправо за край.
+       break-word, а не anywhere: anywhere разрешает браузеру считать разрыв ПОСЕРЕДИНЕ
+       слова годной точкой при расчёте min-content для флекс-элемента, из-за чего значение
+       рвалось прямо внутри слова («Российска|я Федераци|я», формат номера) даже когда
+       слово почти помещалось целиком - break-word ломает слово только как последний
+       выход, когда для него в принципе нет места на строке. */
     .car-row.rt-row > .car-col {
         align-items: center !important;
         justify-content: flex-start !important;
@@ -3026,7 +2917,7 @@ export default {
         border-bottom: none !important;
         text-align: left !important;
         white-space: normal;
-        overflow-wrap: anywhere;
+        overflow-wrap: break-word;
     }
 
     /* Формат номера и статус делят одну строку. В колоночном стеке бейдж занимал собственную
@@ -3057,10 +2948,24 @@ export default {
        длинном названии формата пара с базисом по содержимому разъехалась бы обратно на две
        строки. С нулевым базисом формат занимает всё, что осталось от бейджа, и статус сам
        оказывается у правого края - без margin-left: auto, который забрал бы свободное место
-       раньше flex-grow и схлопнул формат в ноль. */
+       раньше flex-grow и схлопнул формат в ноль.
+
+       Подпись «Формат номера» переставлена НАД значением (flex-direction: column), а не
+       рядом с ним: доля format-col и без того урезана бейджем статуса, и с подписью в
+       той же строке значению оставалось ~120px из 194 - на увеличенном системном шрифте
+       "Российская"/"Федерация" туда не помещались целиком и рвались посреди слова даже
+       после замены anywhere на break-word (замерено: текст вылезал за границу колонки
+       на staging-данных). Подпись сверху отдаёт значению всю ширину колонки. */
     .rt-table .car-row.rt-row > .format-col {
         flex: 1 1 0 !important;
         width: auto !important;
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 2px;
+    }
+
+    .rt-table .car-row.rt-row > .format-col::before {
+        text-align: left;
     }
 
     /* Пунктир-разделитель полей достался бы бейджу отдельной чертой посреди общей строки -

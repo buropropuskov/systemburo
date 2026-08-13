@@ -479,6 +479,7 @@ import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock
 import { ref, getCurrentInstance } from 'vue';
 import { apiRequest } from '@/api/client';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import TableInfoModal from './TableInfoModal.vue';
 import EmployeeHistoryModal from './EmployeeHistoryModal.vue';
 import Badge from '@/components/ui/Badge.vue';
@@ -548,7 +549,9 @@ export default {
             getScrollTop: () => sheetBody.value?.scrollTop ?? 0,
             handleSelector: '.sheet-handle',
         });
+        const { isNarrow } = useNarrowScreen();
         return {
+            isNarrow,
             sheetBody,
             sheetOffset: swipe.offset,
             sheetDragging: swipe.isDragging,
@@ -595,7 +598,10 @@ export default {
             const application = (this.source !== 'application' && !!this.employee?.applicationId) ? 1 : 0;
             return history + application;
         },
+        // На телефоне в строку шапки помещается только короткое имя: длинный вариант
+        // отжимал крестик и переносился на вторую строку рядом с кнопками действий.
         modalTitle() {
+            if (this.isNarrow) return 'Информация';
             const count = this.visibleActionsCount;
             if (count >= 2) return 'Информация';
             if (count === 1) return 'Детальная информация';

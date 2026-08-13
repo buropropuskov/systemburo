@@ -227,9 +227,23 @@
     font-weight: 500 !important;
   }
 
-  /* Номер сверяют глазами с номером на бампере - крупно и моноширинными цифрами,
+  /* Номер и марка - одна строка карточки, а не два отдельных поля друг под
+     другом: владелец сверяет номер с маркой одним взглядом. `flex: 0 1 auto` -
+     тот же приём, что и у ФИО в талоне человека: базис по содержимому, а не
+     100% строки, поэтому оба поля встают рядом и делят строку.
+
+     Специфичность взята с запасом (.rt-table + .rt-pass + класс поля +
+     [data-label] = 4 селектора): базовое ".rt-table .rt-row > [data-label]"
+     из части 1 держит `width: 100% !important` при специфичности 3, а
+     потребитель может быть lazy-чанком и переопределить тем же числом с другой
+     стороны (эталон §8) - на равных запас важнее порядка загрузки.
+
+     Номер сверяют глазами с номером на бампере - крупно и моноширинными цифрами,
      чтобы разряды не плясали. */
-  .rt-pass > .rt-pass__plate {
+  .rt-table .rt-pass > .rt-pass__plate[data-label] {
+    flex: 0 1 auto !important;
+    width: auto !important;
+    min-width: 0;
     font-size: 20px !important;
     font-weight: 800 !important;
     letter-spacing: 0.04em !important;
@@ -237,8 +251,12 @@
     padding-top: 8px !important;
   }
 
-  /* Марка - подпись под номером, а не равноправное поле. */
-  .rt-pass > .rt-pass__mark {
+  /* Марка - рядом с номером в одной строке, приглушённым цветом. */
+  .rt-table .rt-pass > .rt-pass__mark[data-label] {
+    flex: 0 1 auto !important;
+    width: auto !important;
+    min-width: 0;
+    padding-top: 8px !important;
     color: var(--text-muted) !important;
   }
 

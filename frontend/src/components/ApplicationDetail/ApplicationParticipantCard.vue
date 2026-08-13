@@ -182,12 +182,16 @@
           <span class="pcard__comment-label">Комментарий:</span>
           <span class="pcard__comment-text">{{ participant.approval_comment }}</span>
         </div>
+        <!-- approval_datetime - момент решения по ИСХОДНОЙ заявке (application_responsible_users),
+             голоса по дополнениям сюда не попадают (application_participants.go не смотрит раунды).
+             При открытом раунде дополнения дата тут может быть старой - подпись явно называет,
+             к чему относится, чтобы не читалась как решение по текущему раунду. -->
         <p
           v-if="participant.approval_datetime"
           class="pcard__time"
           data-testid="app-participant-card-decided-at"
         >
-          Решение: {{ formatDateTime(participant.approval_datetime) }}
+          Решение по заявке: {{ formatDateTime(participant.approval_datetime) }}
         </p>
       </template>
     </div>

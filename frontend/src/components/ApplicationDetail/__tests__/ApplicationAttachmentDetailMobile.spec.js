@@ -147,6 +147,30 @@ describe('ApplicationAttachmentDetail — карточка вложения на
 
     expect(wrapper.find('.el-section__head h5').text()).toBe('ТМЦ');
   });
+
+  it('поиск машин: плейсхолдер укорочен без "место" - полный обрезается на 320/360 (#1392)', async () => {
+    const wrapper = await mountCars();
+    const input = wrapper.find('[data-testid="attachment-elements-search"] input');
+    expect(input.attributes('placeholder')).toBe('Номер, марка');
+  });
+
+  it('поиск сотрудников: плейсхолдер укорочен - полный обрезается на 320/360', async () => {
+    const wrapper = await mountDetail({
+      attachment: { id: 5, attachment_type: 'people', attachment_display_name: 'Люди' },
+      employees: [{ id: 6, last_name: 'Иванов', first_name: 'Иван', position: 'Водитель', target_tables: [] }],
+    });
+    const input = wrapper.find('[data-testid="attachment-elements-search"] input');
+    expect(input.attributes('placeholder')).toBe('ФИО, должность');
+  });
+
+  it('поиск ТМЦ: "Наименование" и так помещается, не сокращается', async () => {
+    const wrapper = await mountDetail({
+      attachment: { id: 7, attachment_type: 'items', attachment_display_name: 'Имущество' },
+      items: [{ id: 8, name: 'Ноутбук', count: 1 }],
+    });
+    const input = wrapper.find('[data-testid="attachment-elements-search"] input');
+    expect(input.attributes('placeholder')).toBe('Наименование');
+  });
 });
 
 describe('ApplicationAttachmentDetail — на широком экране подвал прежний', () => {
@@ -175,5 +199,11 @@ describe('ApplicationAttachmentDetail — на широком экране по�
 
     expect(wrapper.find('.c-sub').exists()).toBe(true);
     expect(wrapper.find('.el-section__head h5').text()).toBe('Автомобили');
+  });
+
+  it('на десктопе плейсхолдер поиска полный - строка не делит место с узкой шапкой', async () => {
+    const wrapper = await mountCars();
+    const input = wrapper.find('[data-testid="attachment-elements-search"] input');
+    expect(input.attributes('placeholder')).toBe('Номер, марка, место');
   });
 });
