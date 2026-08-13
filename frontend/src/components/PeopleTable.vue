@@ -2457,16 +2457,19 @@ export default {
 }
 
 @media (max-width: 767.98px) {
-  /* Карточки строк лежат на подложке страницы: собственная рамка панели со
-     скруглением 30px рисовала вокруг них вторую рамку, и карточка со своими 15px
-     читалась как «скруглённая внутри непонятно чего» (та же правка, что вывела из
-     второй рамки список «Доступных мне», #2052). Заголовок отделяет линия снизу. */
+  /* Убирать рамку панели целиком владелец не просил - без неё "куда пропала
+     таблица? почему нету границ таблицы?" (талон читается разрозненными строками,
+     а не таблицей). Радиус 30px десктопа заменён на 15px строки талона - тем же
+     контейнер и содержимое читаются одним блоком, а не «скруглённым внутри
+     непонятно чего». Против «квадрата в квадрате» отвечают уже сами строки ниже:
+     скругление получают только верхний край первой и нижний последней, а не
+     каждая. Заголовок отделяет линия снизу. */
   .selected-table-card {
     max-height: none;
     height: auto;
-    border: none;
-    border-radius: 0;
-    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md, 15px);
+    background: var(--surface);
   }
 
   /* Шапка блока - один ряд в 48px (контракт волны 6, те же числа у «Моих
@@ -2581,11 +2584,41 @@ export default {
     margin-left: 0;
   }
 
-  /* rt-row (#1097 S8) сидит на .item-data, а не на v-for-корне .item-row -
-     сиблинг-селектор ".rt-row + .rt-row" из responsive-tables.css поэтому не
-     матчит (соседние .item-row, не .item-data), спейсинг карточек добираем тут. */
+  /* Талон - не карточка со своим зазором (паттерн Центра), а строка настоящей
+     таблицы: рамку и фон блока теперь даёт сам `.selected-table-card` (выше).
+     Полный бордер+радиус части 1 responsive-tables.css у КАЖДОЙ строки поверх
+     рамки контейнера и был «квадратом в квадрате». Строки идут вплотную (зазора
+     нет), разделяет только горизонтальная черта; скругление контейнера получают
+     исключительно верхний край первой строки и нижний край последней - середина
+     остаётся прямоугольной. */
   .item-row + .item-row {
-    margin-top: 8px;
+    margin-top: 0;
+  }
+
+  .selected-table-card .rt-pass {
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-top: none !important;
+    background: transparent !important;
+  }
+
+  .selected-table-card .item-row:not(:last-child) .rt-pass {
+    border-bottom: 1px solid var(--border) !important;
+  }
+
+  .selected-table-card .item-row:last-child .rt-pass {
+    border-bottom: none !important;
+  }
+
+  .selected-table-card .item-row:first-child .rt-pass {
+    border-top-left-radius: var(--radius-md, 15px) !important;
+    border-top-right-radius: var(--radius-md, 15px) !important;
+  }
+
+  .selected-table-card .item-row:last-child .rt-pass {
+    border-bottom-left-radius: var(--radius-md, 15px) !important;
+    border-bottom-right-radius: var(--radius-md, 15px) !important;
   }
 
   /* Отступ тела списка - первое слагаемое бокового отступа шапки: карточки стоят на
@@ -2716,13 +2749,15 @@ export default {
     min-width: 0;
   }
 
-  /* Подвал талона: статус своей строкой, под ним «Подробнее» и «Удалить» пополам -
-     ровно как «Вход»/«Выход» сверху, только пилюлями в 28px (раскладка и числа те же,
-     что у таблицы машин: обе таблицы открывают один и тот же экран поста).
+  /* Статус в карточке телефона не нужен: экран открывают ради проезда, а не ради
+     состояния заявки, и своей строкой в подвале он только оттягивал место у кнопок
+     «Подробнее»/«Удалить» - было `order:9999; flex:0 0 100%`, разворачивающие его
+     отдельным рядом. Прячем целиком.
 
-     Порядок задаём всем трём заведомо большими числами, а не правим один столбец: их
-     разметочные `order` (9997-9999) соседствуют с порядком настраиваемых, и шеврон
-     оказывался посреди карточки - между именем и бейджем.
+     Подвал талона: «Подробнее» и «Удалить» пополам, пилюлями в 28px (раскладка и
+     числа те же, что у таблицы машин: обе таблицы открывают один и тот же экран
+     поста). Порядок задаём обоим заведомо большими числами, а не правим один
+     столбец: разметочные `order` (9998-9999) соседствуют с порядком настраиваемых.
 
      Базис половины, а не «0 с ростом»: перенос во flex считается по базисам ДО
      распределения свободного места, и с нулевым базисом кнопки схлопывались бы друг
@@ -2732,9 +2767,7 @@ export default {
      `overflow: visible` обязателен: базовый `.col { overflow: hidden }` обрезает
      невидимый ::before, которым пилюля добирает зону нажатия до 44px. */
   .selected-table-card .rt-pass > .status-col {
-    order: 9999 !important;
-    flex: 0 0 100% !important;
-    width: 100% !important;
+    display: none !important;
   }
 
   .selected-table-card .rt-pass > .expand-col {
@@ -2749,11 +2782,6 @@ export default {
   .selected-table-card .rt-pass > .actions-col {
     flex: 0 0 calc(50% - 4px) !important;
     width: auto !important;
-  }
-
-  .selected-table-card .rt-pass > .status-col,
-  .selected-table-card .rt-pass > .expand-col,
-  .selected-table-card .rt-pass > .actions-col {
     overflow: visible;
     padding: 10px 0 0;
   }
@@ -2777,10 +2805,13 @@ export default {
     display: block !important;
   }
 
-  /* Кнопки прохода - главное действие экрана: 44px и крупная подпись. */
+  /* Кнопки прохода - главное действие экрана, но не 44px "огромные": замер на
+     карточке 370px давал 158x44 - тач-таргет для двух кнопок в половину строки
+     взят с большим запасом. Норма проекта для контролов такого калибра - 36px
+     (эталон §18). */
   .action-btn {
     min-width: 70px;
-    height: 44px;
+    height: 36px;
     font-size: 13px;
   }
 
