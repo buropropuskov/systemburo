@@ -1269,11 +1269,19 @@ export default {
 
     /* Tablet и меньше: stacked layout (форма сверху, info снизу) */
     @media (max-width: 1024px) {
+        /* Прокрутку stacked-раскладки держит документ, а не .login__container:
+           свой скролл-контейнер клипал по СВОЕЙ рамке (уже экрана на padding),
+           и элементы, выезжающие по X из-за края экрана, обрезались внутри него. */
+        .login {
+            height: auto;
+            min-height: calc(var(--app-vh, 1vh) * 100);
+            min-height: min(calc(var(--app-vh, 1vh) * 100), 100svh);
+        }
+
         .login__container {
             flex-direction: column;
             align-items: center;
             gap: 30px;
-            overflow-y: auto;
             padding-bottom: 40px;
         }
 
