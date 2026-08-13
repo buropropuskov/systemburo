@@ -30,11 +30,21 @@
           >
             <div class="button__content">
               <span class="button__text">{{ selectedCitizenshipText }}</span>
-              <img
-                src="@/assets/icons/arrow.png"
+              <svg
                 class="button__arrow"
                 :class="{ 'button__arrow--open': isCitizenshipDropdownOpen }"
+                viewBox="0 0 10 6"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
               >
+                <path
+                  d="M1 1L5 5L9 1"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
             </div>
           </button>
           <transition name="dropdown">
@@ -154,11 +164,21 @@
             >
               <div class="permission__button-content">
                 <span class="permission__button-text">{{ selectedPermission || 'Не выбрано' }}</span>
-                <img
-                  src="@/assets/icons/arrow.png"
+                <svg
                   class="permission__button-arrow"
                   :class="{ 'permission__button-arrow--open': isPermissionDropdownOpen }"
+                  viewBox="0 0 10 6"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
                 >
+                  <path
+                    d="M1 1L5 5L9 1"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
               </div>
             </button>
             <transition name="dropdown">
@@ -681,13 +701,14 @@ export default {
 
 .button__arrow {
     width: 10px;
-    height: 10px;
+    height: 6px;
+    flex-shrink: 0;
+    color: var(--text-muted);
     transition: transform 0.2s;
-    transform: rotate(90deg);
 }
 
 .button__arrow--open {
-    transform: rotate(-90deg);
+    transform: rotate(180deg);
 }
 
 .dropdown__menu {
@@ -855,13 +876,14 @@ export default {
 
 .permission__button-arrow {
     width: 10px;
-    height: 10px;
+    height: 6px;
+    flex-shrink: 0;
+    color: var(--text-muted);
     transition: transform 0.2s;
-    transform: rotate(90deg);
 }
 
 .permission__button-arrow--open {
-    transform: rotate(-90deg);
+    transform: rotate(180deg);
 }
 
 .permission__dropdown-menu {

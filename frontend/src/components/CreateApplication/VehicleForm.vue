@@ -2125,7 +2125,9 @@ export default {
     border-radius: 15px;
     outline: none;
     cursor: pointer;
-    padding: 0 15px;
+    /* Правый паддинг больше левого - без запаса длинная марка обрезалась
+       эллипсисом впритык к стрелке, и они визуально слипались. */
+    padding: 0 20px 0 15px;
     transition: border-color 0.2s;
 }
 
@@ -2139,6 +2141,9 @@ export default {
     width: 100%;
     height: 100%;
     justify-content: space-between;
+    /* Тот же зазор, что у BaseDropdown.vue: без него текст и стрелка - соседние
+       flex-элементы без гарантированного расстояния - сходятся вплотную. */
+    gap: 10px;
 }
 
 .mark__button-text {
