@@ -51,15 +51,24 @@ describe('ApplicationDetail - шапка не растягивает .detail-hea
   });
 });
 
-// "Дополнение №4 Согласовать Отказать" на телефоне: метка+первая кнопка на одной
-// строке, вторая кнопка отдельно - блок раздувался (94px). Бейдж раунда теперь
-// занимает свою строку целиком (flex-basis:100% рвёт wrap-ряд сразу после него),
-// обе кнопки решения идут вместе следующей строкой.
-describe('ApplicationActionBar - бейдж раунда дополнения на своей строке на мобилке (#1097 w8)', () => {
-  it('.supplement-round-badge получает flex-basis: 100% внутри мобильного @media', () => {
-    const bodies = ruleAll(ACTION_BAR_SFC, '.supplement-round-badge');
-    const mobileBody = bodies.find((b) => /flex-basis/.test(b));
-    expect(mobileBody).toBeTruthy();
-    expect(mobileBody).toMatch(/flex-basis:\s*100%/);
+// Волна 11 (владелец): бейдж "Доп. №N" в самом ряду решения дублировал заголовок
+// "+ Дополнение №N на согласовании" из шапки заявки, а на мобилке (flex-basis:100%)
+// растягивался на всю ширину пилюлей без текста. Бейдж убран целиком - номер несёт
+// подпись кнопки ("Согласовать доп. №N"), а сам ряд решения принудительно встаёт под
+// заголовком шапки (.action-bar-root получает flex-basis:100% в .detail-header-actions),
+// а не бейдж внутри себя.
+describe('ApplicationActionBar - бейдж "Доп. №N" в ряду решения убран (#1097 w11)', () => {
+  it('в разметке ActionBar нет бейджа с testid supplement-round-badge', () => {
+    expect(ACTION_BAR_SFC).not.toMatch(/data-testid="supplement-round-badge"/);
+  });
+
+  it('ряд решения по-прежнему переносится (flex-wrap: wrap) - кнопки не сжаты в одну строку', () => {
+    const body = rule(ACTION_BAR_SFC, '.supplement-actions');
+    expect(body).toMatch(/flex-wrap:\s*wrap/);
+  });
+
+  it('панель действий заявки в шапке всегда встаёт под бейджем "+ Дополнение..." (flex-basis: 100%)', () => {
+    const body = rule(DETAIL_SFC, '.detail-header-actions :deep(.action-bar-root)');
+    expect(body).toMatch(/flex-basis:\s*100%/);
   });
 });

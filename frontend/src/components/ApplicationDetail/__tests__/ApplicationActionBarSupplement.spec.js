@@ -76,7 +76,9 @@ describe('ApplicationActionBar - кнопки раунда дополнения 
     expect(wrapper.find(APPROVE).exists()).toBe(true);
     expect(wrapper.find(REJECT).exists()).toBe(true);
     expect(wrapper.find(REVOKE).exists()).toBe(false);
-    expect(wrapper.find(ROW).text()).toContain('Доп. №2');
+    // Номер раунда несёт сама кнопка - отдельного бейджа с номером в ряду нет
+    // (владелец: убрать бейдж, шапка заявки уже называет раунд).
+    expect(wrapper.find(APPROVE).text()).toBe('Согласовать доп. №2');
   });
 
   it('проголосовавшему согласующему повторное голосование не предлагается - бейдж и отзыв', () => {
@@ -97,11 +99,13 @@ describe('ApplicationActionBar - кнопки раунда дополнения 
     expect(wrapper.find(MY_VOTE).text()).toContain('вы отказали');
   });
 
-  it('вместо надписи "Дополнение №N" стоит компактный бейдж - дубля с шапкой заявки нет', () => {
+  it('бейджа с номером раунда в ряду нет - дубля с шапкой заявки не заводим', () => {
+    // Шапка заявки уже показывает "+ Дополнение №N на согласовании"
+    // (ApplicationDetail.vue openSupplementBadge), а ряд решения стоит прямо под ней -
+    // повторный бейдж "Доп. №N" здесь только дублировал ту же надпись и на мобилке
+    // растягивался на всю ширину (владелец: "убери его вообще").
     const wrapper = mountBar();
-    const badge = wrapper.find('[data-testid="supplement-round-badge"]');
-    expect(badge.exists()).toBe(true);
-    expect(badge.text()).toContain('Доп. №2');
+    expect(wrapper.find('[data-testid="supplement-round-badge"]').exists()).toBe(false);
     expect(wrapper.find(ROW).text()).not.toContain('Дополнение №2');
   });
 
@@ -127,6 +131,8 @@ describe('ApplicationActionBar - кнопки раунда дополнения 
       supplements: [round({ status: 'approved', approvals: [] })],
     });
     expect(approved.find(ACCEPT).exists()).toBe(true);
+    // Тот же приём, что у "Согласовать": номер раунда несёт кнопка, не бейдж рядом.
+    expect(approved.find(ACCEPT).text()).toBe('Принять доп. №2');
     expect(approved.find(REFUSE).exists()).toBe(true);
   });
 
