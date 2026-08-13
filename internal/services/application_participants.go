@@ -135,6 +135,12 @@ WITH participants AS (
 	SELECT av.user_id, 'reader'::text, false, NULL::text, NULL::text, NULL::timestamptz
 	FROM application_viewers av
 	WHERE av.application_id = ?
+	UNION ALL
+	-- Принимающие: реестр не привязан к заявке, заявку видит любой из них и любой
+	-- может взять её в работу. Пока никто не взял, responsible_user_id пуст, и без
+	-- этой ветки заявитель видел в получателях только себя.
+	SELECT aa.user_id, 'acceptor'::text, false, NULL::text, NULL::text, NULL::timestamptz
+	FROM application_approvers aa
 )
 SELECT
 	p.user_id,
