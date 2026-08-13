@@ -359,7 +359,7 @@
             'unloading__item--active': selectedUnloadingPlaces.includes(place.id) && place.status === 'active',
             'unloading__item--inactive': place.status !== 'active'
           }"
-          @click="toggleUnloadingPlace(place)"
+          @click="toggleUnloadingPlace(place, $event)"
           @mouseenter="showInactiveTooltip(place, $event)"
           @mouseleave="hideInactiveTooltip"
         >
@@ -778,6 +778,7 @@ export default {
     },
     beforeUnmount() {
         if (this.hintTimer) clearTimeout(this.hintTimer);
+        if (this.inactiveTooltipTimer) clearTimeout(this.inactiveTooltipTimer);
         document.removeEventListener('click', this.handleDocumentClick);
         if (this.checkingTimeout) {
             clearTimeout(this.checkingTimeout);
@@ -1146,16 +1147,6 @@ export default {
             }
         },
 
-        getPlaceTooltip(place) {
-            if (place.status !== 'active') {
-                if (place.status_comment) {
-                    return `Недоступно: ${place.status_comment}`;
-                }
-                return 'Недоступно';
-            }
-            return '';
-        },
-
         showInactiveTooltip(place, event) {
             if (place.status !== 'active') {
                 const tooltipText = place.status_comment 
@@ -1178,6 +1169,10 @@ export default {
         },
 
         hideInactiveTooltip() {
+            if (this.inactiveTooltipTimer) {
+                clearTimeout(this.inactiveTooltipTimer);
+                this.inactiveTooltipTimer = null;
+            }
             this.inactiveTooltip.visible = false;
         },
 
@@ -1252,9 +1247,13 @@ export default {
             }
         },
         
-        toggleUnloadingPlace(place) {
-            // Не даем выбрать неактивное место
+        toggleUnloadingPlace(place, event) {
             if (place.status !== 'active') {
+                // На телефоне hover не наступает, и причина недоступности была недостижима:
+                // показываем её по тапу и гасим сама через пару секунд.
+                this.showInactiveTooltip(place, event);
+                if (this.inactiveTooltipTimer) clearTimeout(this.inactiveTooltipTimer);
+                this.inactiveTooltipTimer = setTimeout(() => this.hideInactiveTooltip(), 2500);
                 return;
             }
             
