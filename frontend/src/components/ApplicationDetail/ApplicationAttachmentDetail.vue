@@ -748,17 +748,8 @@ export default {
             return this.rows.filter(row => matchesSearchFuzzy(this.searchText(row), this.searchVariants));
         },
 
-        /**
-         * На мобилке заголовок блока и поле поиска делят одну строку (el-section__head
-         * nowrap): полные подписи не влезают - "Номер, марка, место" (129px) режется уже
-         * на 320px (108 доступно), "ФИО, должность, место" (150px) - и на 320, и на 360
-         * (135 доступно). "Место" из подписи убираем: оно и так следует из открытой
-         * карточки вложения, а укороченные варианты (78/94px) помещаются с запасом.
-         */
         searchPlaceholder() {
-            if (this.type === 'cars') return this.isNarrowViewport ? 'Номер, марка' : 'Номер, марка, место';
-            if (this.type === 'people') return this.isNarrowViewport ? 'ФИО, должность' : 'ФИО, должность, место';
-            return 'Наименование';
+            return 'Поиск..';
         },
 
         isFiltered() {

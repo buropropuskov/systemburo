@@ -34,7 +34,7 @@
             v-model="search"
             type="text"
             class="lk-input filters__search-input"
-            placeholder="Поиск"
+            placeholder="Поиск.."
             data-testid="aa-search"
             @input="onSearchInput"
           >
