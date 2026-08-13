@@ -244,7 +244,7 @@ var notificationCatalog = map[string]NotificationMeta{
 	NotificationTypeApplicationExpiring: {
 		Code: NotificationTypeApplicationExpiring, Category: NotificationCategoryPassage,
 		Label:       "Срок действия пропуска истекает",
-		Description: "Срок действия пропуска по заявке скоро истечёт.",
+		Description: "Срок действия пропуска по заявке истекает через три дня и накануне.",
 		Mandatory:   false, DefaultEnabled: true, Aggregatable: false, Priority: NotificationPriorityHigh, Order: 10,
 	},
 	NotificationTypeApplicationWithdrawn: {
