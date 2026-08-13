@@ -3,292 +3,294 @@
     class="tables"
     :class="{ 'tables--fab': showFabBar }"
   >
-    <div
-      ref="headerRef"
-      class="tables__header"
-    >
-      <h1
-        ref="titleRef"
-        class="tables__title"
+    <div class="tables__sticky-head">
+      <div
+        ref="headerRef"
+        class="tables__header"
       >
-        Таблица <span class="table-name">{{ tableDisplayName }}</span>
-      </h1>
-      <button
-        class="tables__instruction"
-        :class="{ 'tables__instruction--compact': instructionCompact }"
-        data-testid="ob-table-instruction"
-        :title="instructionCompact ? 'Инструкция' : null"
-        :aria-label="instructionCompact ? 'Инструкция' : null"
-        @click="openInstruction"
-      >
-        <img
-          src="@/assets/icons/instruction.png"
-          class="tables__icon"
+        <h1
+          ref="titleRef"
+          class="tables__title"
         >
-        <p
-          v-if="!instructionCompact"
-          class="instruction__text"
+          Таблица <span class="table-name">{{ tableDisplayName }}</span>
+        </h1>
+        <button
+          class="tables__instruction"
+          :class="{ 'tables__instruction--compact': instructionCompact }"
+          data-testid="ob-table-instruction"
+          :title="instructionCompact ? 'Инструкция' : null"
+          :aria-label="instructionCompact ? 'Инструкция' : null"
+          @click="openInstruction"
         >
-          Инструкция
-        </p>
-      </button>
-    </div>
-        
-    <!-- Модальное окно с инструкцией -->
-    <Teleport to="body">
-      <transition name="instruction-modal">
-        <div
-          v-if="showInstruction"
-          class="modal-overlay"
-          @mousedown="onOverlayMousedown"
-          @mouseup="onOverlayMouseup"
-        >
-          <div
-            class="instruction-modal-large"
-            @mousedown.stop
-          >
-            <div class="modal-header">
-              <h3>Инструкция по использованию таблицы <span class="blue">{{ tableDisplayName }}</span></h3>
-              <button
-                class="modal-close"
-                @click="closeInstruction"
-              >
-                ×
-              </button>
-            </div>
-            <div class="instruction-content">
-              <div
-                v-if="tableInstruction"
-                class="text-constructor-content"
-                v-html="sanitizedInstruction"
-              />
-              <div
-                v-else
-                class="no-instruction"
-              >
-                <div class="no-instruction-icon">
-                  📝
-                </div>
-                <h4>Инструкция не добавлена</h4>
-                <p>Для этой таблицы пока не создана и не написана инструкция.</p>
-                <p>Обратитесь к Бюро пропусков для добавления инструкции.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </transition>
-    </Teleport>
-
-    <div class="tables__filters">
-      <div class="filters__fields">
-        <!-- Десктоп: поле поиска видно всегда. На мобилке (#1097 S7) его заменяет
-             иконка-тоггл справа, а поле раскрывается оверлеем поверх ряда - механика
-             взята у Центра и кабинета (эталон §9.3), не изобретена заново. -->
-        <div
-          v-if="!isNarrow"
-          class="field search"
-        >
-          <input
-            v-model="searchQuery"
-            placeholder="Поиск.."
-            type="text"
-            class="field__input search"
-            @input="applyFilters"
-          >
           <img
-            src="@/assets/icons/search.png"
+            src="@/assets/icons/instruction.png"
             class="tables__icon"
           >
-        </div>
+          <p
+            v-if="!instructionCompact"
+            class="instruction__text"
+          >
+            Инструкция
+          </p>
+        </button>
+      </div>
 
-        <!-- Десктоп: вторичные фильтры инлайн в строке (как было). Видимость каждого
-             фильтра решает directoryFilters, а не v-if в шаблоне - иначе десктопный ряд
-             и мобильный лист со временем разъедутся по составу. data-testid у обеих
-             ветвей общий (`table-sheet-*`): ветки взаимоисключающие по isNarrow, дублей
-             в DOM нет, а переименование стоило бы правки спек без выгоды. -->
-        <template v-if="!isNarrow">
+      <!-- Модальное окно с инструкцией -->
+      <Teleport to="body">
+        <transition name="instruction-modal">
           <div
-            v-for="filter in directoryFilters"
-            :key="filter.field"
-            class="filters__control"
+            v-if="showInstruction"
+            class="modal-overlay"
+            @mousedown="onOverlayMousedown"
+            @mouseup="onOverlayMouseup"
           >
-            <BaseDropdown
-              :model-value="filter.values"
-              :options="filter.options"
-              :placeholder="filter.allLabel"
-              :summary-label="filter.summaryLabel"
-              :search-keys="filter.searchKeys"
-              :data-testid="filter.testid"
-              multiple
-              searchable
-              teleport
-              @update:model-value="ids => setMultiFilter(filter.field, ids)"
-            />
-          </div>
-
-          <!-- Новый DateFilter -->
-          <DateFilter
-            ref="dateFilter"
-            :mode="'range'"
-            :selected-date="selectedDate"
-            :date-range-start="dateRangeStart"
-            :date-range-end="dateRangeEnd"
-            @update:selected-date="updateSelectedDate"
-            @update:date-range-start="updateDateRangeStart"
-            @update:date-range-end="updateDateRangeEnd"
-            @apply="applyDateFilters"
-            @clear="clearDate"
-          />
-        </template>
-
-        <!-- Мобилка: вторичные фильтры свёрнуты в кнопку «Фильтр», поиск - в иконку. -->
-        <template v-else>
-          <FilterButton
-            :active="secondaryFiltersActive"
-            data-testid="table-filter-btn"
-            @click="showFilterSheet = true"
-          />
-
-          <button
-            type="button"
-            class="search-icon-btn"
-            :class="{ 'search-icon-btn--active': showMobileSearch || !!searchQuery.trim() }"
-            aria-label="Поиск по таблице"
-            data-testid="table-search-icon"
-            @click="toggleMobileSearch"
-          >
-            <img
-              src="@/assets/icons/search.png"
-              class="search-icon-btn__img"
-              alt=""
-            >
-          </button>
-
-          <!-- Действия таблицы (Версии/Отчёт/Экспорт/Корзина) свёрнуты в лист снизу:
-               четыре иконки без подписей занимали вторую строку шапки и не читались.
-               В строке остаются поиск, «Фильтр» и это «⋯» (мокап mobile-ux.html,
-               экран «Проходная»). -->
-          <button
-            v-if="hasSheetActions"
-            type="button"
-            class="more-icon-btn"
-            aria-label="Действия с таблицей"
-            data-testid="table-more-btn"
-            @click="showActionsSheet = true"
-          >
-            &#8943;
-          </button>
-
-          <!-- Поле раскрывается ВЛЕВО оверлеем поверх ряда через clip-path: ряд не
-               переставляется, кнопка «Фильтр» не уезжает, reflow нет. Иконка справа -
-               тоггл, крестик внутри поля - очистить и закрыть (зеркало Центра).
-               Правый вырез считается от числа кнопок справа: без «⋯» это 46px
-               (36 иконка + 10 зазор ряда), с ним - 92px. Значение приходит
-               переменной, чтобы правило осталось в CSS, а не ушло в inline. -->
-          <Transition name="table-search">
             <div
-              v-if="showMobileSearch"
-              class="tables__search-overlay"
-              :style="{ '--search-overlay-right': hasSheetActions ? '92px' : '46px' }"
+              class="instruction-modal-large"
+              @mousedown.stop
             >
-              <div class="field search">
-                <input
-                  ref="mobileSearchInput"
-                  v-model="searchQuery"
-                  placeholder="Поиск.."
-                  type="text"
-                  class="field__input search"
-                  data-testid="table-input-search"
-                  @input="applyFilters"
-                >
+              <div class="modal-header">
+                <h3>Инструкция по использованию таблицы <span class="blue">{{ tableDisplayName }}</span></h3>
                 <button
-                  v-if="searchQuery.trim()"
-                  type="button"
-                  class="tables__search-clear"
-                  aria-label="Очистить поиск"
-                  @click="clearMobileSearch"
+                  class="modal-close"
+                  @click="closeInstruction"
                 >
-                  &times;
+                  ×
                 </button>
               </div>
+              <div class="instruction-content">
+                <div
+                  v-if="tableInstruction"
+                  class="text-constructor-content"
+                  v-html="sanitizedInstruction"
+                />
+                <div
+                  v-else
+                  class="no-instruction"
+                >
+                  <div class="no-instruction-icon">
+                    📝
+                  </div>
+                  <h4>Инструкция не добавлена</h4>
+                  <p>Для этой таблицы пока не создана и не написана инструкция.</p>
+                  <p>Обратитесь к Бюро пропусков для добавления инструкции.</p>
+                </div>
+              </div>
             </div>
-          </Transition>
-        </template>
-      </div>
-      <!-- Десктоп: действия таблицы инлайн в шапке. На мобилке ряд расходится по
-           двум местам - главное действие уходит в нижнюю панель, остальные в лист
-           «⋯». v-if, а не скрытая копия: два узла с одним data-testid ломают
-           онбординг-тур и E2E (эталон §2.2). -->
-      <div
-        v-if="!isNarrow"
-        class="filters__options"
-      >
-        <button
-          v-if="canManualAdd"
-          class="options__manual-add"
-          data-testid="manual-add-button"
-          @click="showManualAdd = true"
-        >
-          <span class="options__manual-add-icon">+</span>
-          <span class="options__text">Добавить вручную</span>
-        </button>
-        <RouterLink
-          v-if="canVersions"
-          :to="`/table/${$route.params.tableName}/versions`"
-          class="options__versions-link"
-          title="Версии состояния таблицы"
-          data-testid="table-versions-link"
-          aria-label="Версии состояния таблицы"
-        >
-          <img
-            src="@/assets/icons/recent-changes.png"
-            class="options__icon"
-            alt=""
+          </div>
+        </transition>
+      </Teleport>
+
+      <div class="tables__filters">
+        <div class="filters__fields">
+          <!-- Десктоп: поле поиска видно всегда. На мобилке (#1097 S7) его заменяет
+               иконка-тоггл справа, а поле раскрывается оверлеем поверх ряда - механика
+               взята у Центра и кабинета (эталон §9.3), не изобретена заново. -->
+          <div
+            v-if="!isNarrow"
+            class="field search"
           >
-          <span class="options__text">Версии</span>
-        </RouterLink>
-        <RouterLink
-          v-if="canTrash"
-          :to="`/table/${$route.params.tableName}/trash`"
-          class="options__trash-link"
-          title="Корзина таблицы"
-          data-testid="table-trash-link"
-          aria-label="Корзина таблицы"
+            <input
+              v-model="searchQuery"
+              placeholder="Поиск.."
+              type="text"
+              class="field__input search"
+              @input="applyFilters"
+            >
+            <img
+              src="@/assets/icons/search.png"
+              class="tables__icon"
+            >
+          </div>
+
+          <!-- Десктоп: вторичные фильтры инлайн в строке (как было). Видимость каждого
+               фильтра решает directoryFilters, а не v-if в шаблоне - иначе десктопный ряд
+               и мобильный лист со временем разъедутся по составу. data-testid у обеих
+               ветвей общий (`table-sheet-*`): ветки взаимоисключающие по isNarrow, дублей
+               в DOM нет, а переименование стоило бы правки спек без выгоды. -->
+          <template v-if="!isNarrow">
+            <div
+              v-for="filter in directoryFilters"
+              :key="filter.field"
+              class="filters__control"
+            >
+              <BaseDropdown
+                :model-value="filter.values"
+                :options="filter.options"
+                :placeholder="filter.allLabel"
+                :summary-label="filter.summaryLabel"
+                :search-keys="filter.searchKeys"
+                :data-testid="filter.testid"
+                multiple
+                searchable
+                teleport
+                @update:model-value="ids => setMultiFilter(filter.field, ids)"
+              />
+            </div>
+
+            <!-- Новый DateFilter -->
+            <DateFilter
+              ref="dateFilter"
+              :mode="'range'"
+              :selected-date="selectedDate"
+              :date-range-start="dateRangeStart"
+              :date-range-end="dateRangeEnd"
+              @update:selected-date="updateSelectedDate"
+              @update:date-range-start="updateDateRangeStart"
+              @update:date-range-end="updateDateRangeEnd"
+              @apply="applyDateFilters"
+              @clear="clearDate"
+            />
+          </template>
+
+          <!-- Мобилка: вторичные фильтры свёрнуты в кнопку «Фильтр», поиск - в иконку. -->
+          <template v-else>
+            <FilterButton
+              :active="secondaryFiltersActive"
+              data-testid="table-filter-btn"
+              @click="showFilterSheet = true"
+            />
+
+            <button
+              type="button"
+              class="search-icon-btn"
+              :class="{ 'search-icon-btn--active': showMobileSearch || !!searchQuery.trim() }"
+              aria-label="Поиск по таблице"
+              data-testid="table-search-icon"
+              @click="toggleMobileSearch"
+            >
+              <img
+                src="@/assets/icons/search.png"
+                class="search-icon-btn__img"
+                alt=""
+              >
+            </button>
+
+            <!-- Действия таблицы (Версии/Отчёт/Экспорт/Корзина) свёрнуты в лист снизу:
+                 четыре иконки без подписей занимали вторую строку шапки и не читались.
+                 В строке остаются поиск, «Фильтр» и это «⋯» (мокап mobile-ux.html,
+                 экран «Проходная»). -->
+            <button
+              v-if="hasSheetActions"
+              type="button"
+              class="more-icon-btn"
+              aria-label="Действия с таблицей"
+              data-testid="table-more-btn"
+              @click="showActionsSheet = true"
+            >
+              &#8943;
+            </button>
+
+            <!-- Поле раскрывается ВЛЕВО оверлеем поверх ряда через clip-path: ряд не
+                 переставляется, кнопка «Фильтр» не уезжает, reflow нет. Иконка справа -
+                 тоггл, крестик внутри поля - очистить и закрыть (зеркало Центра).
+                 Правый вырез считается от числа кнопок справа: без «⋯» это 46px
+                 (36 иконка + 10 зазор ряда), с ним - 92px. Значение приходит
+                 переменной, чтобы правило осталось в CSS, а не ушло в inline. -->
+            <Transition name="table-search">
+              <div
+                v-if="showMobileSearch"
+                class="tables__search-overlay"
+                :style="{ '--search-overlay-right': hasSheetActions ? '92px' : '46px' }"
+              >
+                <div class="field search">
+                  <input
+                    ref="mobileSearchInput"
+                    v-model="searchQuery"
+                    placeholder="Поиск.."
+                    type="text"
+                    class="field__input search"
+                    data-testid="table-input-search"
+                    @input="applyFilters"
+                  >
+                  <button
+                    v-if="searchQuery.trim()"
+                    type="button"
+                    class="tables__search-clear"
+                    aria-label="Очистить поиск"
+                    @click="clearMobileSearch"
+                  >
+                    &times;
+                  </button>
+                </div>
+              </div>
+            </Transition>
+          </template>
+        </div>
+        <!-- Десктоп: действия таблицы инлайн в шапке. На мобилке ряд расходится по
+             двум местам - главное действие уходит в нижнюю панель, остальные в лист
+             «⋯». v-if, а не скрытая копия: два узла с одним data-testid ломают
+             онбординг-тур и E2E (эталон §2.2). -->
+        <div
+          v-if="!isNarrow"
+          class="filters__options"
         >
-          <img
-            src="@/assets/icons/trashcan.png"
-            class="options__icon"
-            alt=""
+          <button
+            v-if="canManualAdd"
+            class="options__manual-add"
+            data-testid="manual-add-button"
+            @click="showManualAdd = true"
           >
-          <span class="options__text">Корзина</span>
-        </RouterLink>
-        <button
-          v-if="canExport"
-          class="options__export"
-          @click="handleExport"
-        >
-          <img
-            src="@/assets/icons/export.png"
-            class="tables__icon"
+            <span class="options__manual-add-icon">+</span>
+            <span class="options__text">Добавить вручную</span>
+          </button>
+          <RouterLink
+            v-if="canVersions"
+            :to="`/table/${$route.params.tableName}/versions`"
+            class="options__versions-link"
+            title="Версии состояния таблицы"
+            data-testid="table-versions-link"
+            aria-label="Версии состояния таблицы"
           >
-          <p class="options__text">
-            Экспорт
-          </p>
-        </button>
-        <button
-          v-if="canReport"
-          class="options__export"
-          data-testid="pass-report-button"
-          @click="showPassReport = true"
-        >
-          <img
-            src="@/assets/icons/stats.png"
-            class="tables__icon"
+            <img
+              src="@/assets/icons/recent-changes.png"
+              class="options__icon"
+              alt=""
+            >
+            <span class="options__text">Версии</span>
+          </RouterLink>
+          <RouterLink
+            v-if="canTrash"
+            :to="`/table/${$route.params.tableName}/trash`"
+            class="options__trash-link"
+            title="Корзина таблицы"
+            data-testid="table-trash-link"
+            aria-label="Корзина таблицы"
           >
-          <p class="options__text">
-            Отчёт
-          </p>
-        </button>
+            <img
+              src="@/assets/icons/trashcan.png"
+              class="options__icon"
+              alt=""
+            >
+            <span class="options__text">Корзина</span>
+          </RouterLink>
+          <button
+            v-if="canExport"
+            class="options__export"
+            @click="handleExport"
+          >
+            <img
+              src="@/assets/icons/export.png"
+              class="tables__icon"
+            >
+            <p class="options__text">
+              Экспорт
+            </p>
+          </button>
+          <button
+            v-if="canReport"
+            class="options__export"
+            data-testid="pass-report-button"
+            @click="showPassReport = true"
+          >
+            <img
+              src="@/assets/icons/stats.png"
+              class="tables__icon"
+            >
+            <p class="options__text">
+              Отчёт
+            </p>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -428,15 +430,11 @@
       </div>
     </FilterSheet>
 
-    <!-- Мобилка: единственная прокручиваемая область экрана (см. @media 767.98
-         ниже) - таблица «по факту» и основная таблица едут вместе одним списком.
-         Не два раздельных скролла по компоненту: на /table/kpp_4 их две сразу
-         (факт + машины), и раздельные overflow-области были бы той самой
-         конкурирующей прокруткой, от которой уходим. -->
-    <div
-      class="tables__content"
-      data-scroll-own
-    >
+    <!-- Мобилка: содержимое едет вместе с документом (владелец: "скроллится вся
+         страница, кроме шапки") - своей прокрутки у блока нет, .tables__sticky-head
+         выше липнет к верху. Таблица «по факту» и основная таблица идут одним
+         списком - не два раздельных скролла по компоненту. -->
+    <div class="tables__content">
       <!-- Таблица по факту с подсказкой -->
       <div
         v-if="showFactTable"
@@ -1984,43 +1982,29 @@ export default {
    На ровно 768 (портретный iPad) правила расходились, и экран собирался гибридом -
    эталон §1.2. */
 @media (max-width: 767.98px) {
-    /* Модель прокрутки телефона (третья жалоба владельца на эту страницу):
-       "либо список не скроллится, либо страница не скроллится и список
-       скроллится" - выбрана вторая, тот же приём, что уже принят на "Доступные
-       мне" (AccessibleAttachmentsView). Панель занимает вьюпорт без своего
-       остатка (100dvh за вычетом шапки приложения TheHeader - она
-       position:sticky и остаётся в потоке, резервировать её ещё и padding'ом
-       не нужно), сама не скроллится, а внутри неё едет только `.tables__content`
-       (data-scroll-own в шаблоне). Раньше документ скроллился целиком - и на
-       первой загрузке короткий спиннер оставлял страницу короче вьюпорта,
-       палец упирался в конец документа и жест "замирал" до отпускания; в
-       CarsTable/FactTable под это был отдельный резерв высоты у спиннера,
-       который не спасал. Теперь у `.tables__content` всегда есть высота
-       вьюпорта независимо от того, сколько уже загрузилось внутри - замирать
-       нечему, резерв в дочерних таблицах убран как мёртвый код. */
-    .tables {
-        height: calc(100dvh - var(--mobile-header-height, 55px));
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-    }
-
-    .tables__header,
-    .tables__filters {
-        flex-shrink: 0;
-    }
-
-    .tables__content {
-        flex: 1 1 auto;
-        min-height: 0;
-        overflow-y: auto;
-        overscroll-behavior: contain;
+    /* Модель прокрутки телефона (четвёртый круг замечаний владельца): "скроллится
+       вся страница, кроме шапки" - панель фиксированной высоты с внутренней
+       прокруткой (волна 13) владелец забраковал вместе с той, что была до неё
+       (документ короче вьюпорта на первой загрузке). Возврат к прокрутке
+       документа: `.tables` в обычном потоке, своей высоты и overflow не задаёт -
+       скроллит страница целиком, как остальные списки (эталон §9, Центр и
+       кабинет). Заголовок, инструкция, фильтры и поиск закреплены общим блоком
+       `.tables__sticky-head` (см. ниже) под app bar (TheHeader, sticky top:0,
+       --mobile-header-height), тот же приём, что у `.center__header`. */
+    .tables__sticky-head {
+        position: sticky;
+        top: var(--mobile-header-height, 55px);
+        z-index: 20;
+        /* Непрозрачный фон обязателен - без него текст, уехавший под шапку при
+           скролле, просвечивал бы сквозь неё. Токен страницы (не --surface):
+           у `.tables` своего фона нет, страница и так того же цвета. */
+        background: var(--bg);
     }
 
     .fact-section {
         flex-direction: column;
     }
-    
+
     /* Вертикальные отступы карточки на телефоне отдаём содержимому: в свёрнутом
        виде она вся состоит из одного переключателя, и padding 14px превращал полосу
        подсказки в блок 74px. Своей высоты у неё теперь нет - ровно тач-таргет
