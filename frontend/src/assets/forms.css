@@ -45,6 +45,9 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
+  /* Норма тач-таргета проекта (эталон, раздел 18). Из отступов и кегля выходило 34,
+     и палец мазал по кнопкам вроде «Повторить» в блоке ошибки загрузки. */
+  min-height: 36px;
   padding: 8px 18px;
   border-radius: var(--radius-pill);
   border: 1px solid transparent;
