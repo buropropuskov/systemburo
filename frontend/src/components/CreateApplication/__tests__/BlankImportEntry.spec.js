@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { shallowMount } from '@vue/test-utils';
 import VehiclesList from '../VehiclesList.vue';
 import EmployeesList from '../EmployeesList.vue';
@@ -65,5 +65,32 @@ describe.each([
     const on = mountList({ canImport: true, importActive: true });
     expect(on.find(`[data-testid="${testid}"]`).text()).toBe('Закрыть импорт');
     expect(on.find(`[data-testid="${testid}"]`).attributes('aria-pressed')).toBe('true');
+  });
+
+  // На телефоне подпись выхода короче, иначе шапка блока не собирается в строку
+  // (заголовок + счётчик + бейдж + «Закрыть импорт» = 338px при 314 на 360).
+  it('на телефоне подпись выхода короткая, а доступное имя остаётся полным', async () => {
+    window.matchMedia = vi.fn().mockImplementation((query) => ({
+      matches: true,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+
+    const on = mountList({ canImport: true, importActive: true });
+    await on.vm.$nextTick();
+
+    const button = on.find(`[data-testid="${testid}"]`);
+    expect(button.text()).toBe('Закрыть');
+    // WCAG 2.5.3: видимая подпись - префикс доступного имени, голосовой командой
+    // «закрыть» кнопка по-прежнему находится.
+    expect(button.attributes('aria-label')).toBe('Закрыть импорт');
+  });
+
+  afterEach(() => {
+    delete window.matchMedia;
   });
 });
