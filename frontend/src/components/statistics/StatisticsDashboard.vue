@@ -534,6 +534,7 @@ import OnlineUsersModal from '@/components/statistics/OnlineUsersModal.vue';
 import PushAdoptionSummary from '@/components/statistics/PushAdoptionSummary.vue';
 import { getSummary, getTimeline, getRecentPassages, getInsights, getOnlinePeaks, getOnlineUsers } from '@/api/statistics.js';
 import { mergeFeed, feedRowKey } from './feedMerge.js';
+import { useNarrowScreen } from '@/composables/useNarrowScreen.js';
 
 const props = defineProps({
   from: {
@@ -609,6 +610,17 @@ const peopleFeed = ref([]);
 const carsFeed = ref([]);
 const feedLoading = ref(false);
 const feedRefreshing = ref(false);
+
+// На узком экране лента не прокручивается сама (#1097 волна 5 - вложенный
+// скроллпорт отбирает жест у страницы) и растёт по содержимому, поэтому 15
+// записей на телефоне превращаются в блок за 2000px высотой. Держим потолок
+// заметно ниже: и по числу запрошенных с бэка записей, и по накопленному
+// размеру ленты в mergeFeed (без второго лента всё равно доросла бы до
+// дефолтных 50 за несколько тиков поллинга, даже если запрашивать по 5).
+const { isNarrow } = useNarrowScreen();
+const FEED_LIMIT_DESKTOP = 15;
+const FEED_LIMIT_MOBILE = 5;
+const feedLimit = computed(() => (isNarrow.value ? FEED_LIMIT_MOBILE : FEED_LIMIT_DESKTOP));
 
 // ---- переключатели графика ----
 const metricOptions = [
@@ -913,11 +925,15 @@ async function loadDetailTimeline(metricKey) {
 async function loadFeed({ showSkeleton = false } = {}) {
   if (showSkeleton) feedLoading.value = true;
   try {
-    const data = await getRecentPassages(15);
+    const limit = feedLimit.value;
+    const data = await getRecentPassages(limit);
     const people = Array.isArray(data?.people) ? data.people : [];
     const cars = Array.isArray(data?.cars) ? data.cars : [];
-    peopleFeed.value = mergeFeed(peopleFeed.value, people);
-    carsFeed.value = mergeFeed(carsFeed.value, cars);
+    // На телефоне лента без своей прокрутки - потолок mergeFeed держим тем же
+    // лимитом (5), а не дефолтными 50, иначе за несколько тиков поллинга
+    // список всё равно дорастёт до полного размера.
+    peopleFeed.value = mergeFeed(peopleFeed.value, people, isNarrow.value ? limit : undefined);
+    carsFeed.value = mergeFeed(carsFeed.value, cars, isNarrow.value ? limit : undefined);
   } catch {
     // Фоновый сбой не должен очищать уже показанные ленты — чистим только при
     // первичной загрузке, где показать пустоту корректнее, чем скелетон навсегда.
