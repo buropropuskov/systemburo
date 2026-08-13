@@ -633,8 +633,34 @@ import AnimatedCounter from '@/components/ui/AnimatedCounter.vue';
 import ExcelJS from 'exceljs';
 import { bulkMoveCarsTable, bulkAddCarsTable, bulkUnbindCarsTable } from '@/api/cars';
 import { pickOverflowFields, columnMinWidth, measureRowAvailableWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 
 const ENLARGED_KEY_PREFIX = 'enlarged-mode:cars:';
+
+/**
+ * Состав карточки на телефоне: что видно сразу, остальное - в «Подробнее».
+ *
+ * Подбор столбцов по ширине (#1307) в карточке не работает и работать не может:
+ * поля стоят своими строками и за ширину не конкурируют, а мерить он пытается
+ * скрытую строку заголовков. Скатывался он всегда в одно и то же - оставить
+ * `keepAtLeast` столбца из девяти, поэтому в талоне были только номер и марка, а
+ * организация, срок и место уезжали под шеврон вместе с бейджем статуса.
+ *
+ * Набор - шапка талона из мокапа (docs/mockups/mobile-ux.html, экран «Проходная»):
+ * номер, марка, срок и место. Организация к ним добавлена по подсказке самого
+ * экрана - «спроси у водителя организацию и найди её в списке», - а статус нужен
+ * подвалу. Компания и номер заявки остаются в «Подробнее»: на посту по ним не
+ * сверяют, а карточку они удлиняют на две строки.
+ */
+const MOBILE_CARD_FIELDS = [
+  'car_number',
+  'car_brand',
+  'organization',
+  'unload_place',
+  'valid_until',
+  'time_range',
+  'status',
+];
 
 export default {
   name: 'CarsTable',
@@ -652,9 +678,12 @@ export default {
   },
   setup() {
     const { isPortrait, isCompact } = useOrientation();
+    // Порог тот же, что у card-правил responsive-tables.css: брейкпоинт компонента
+    // обязан совпадать с брейкпоинтом инфраструктуры, которой он пользуется.
+    const { isNarrow } = useNarrowScreen(767.98);
     const permissionsStore = usePermissionsStore();
     const rowSelection = useRowSelection();
-    return { isPortrait, isCompact, permissionsStore, ...rowSelection };
+    return { isPortrait, isCompact, isNarrow, permissionsStore, ...rowSelection };
   },
   props: {
     tableName: { type: String, default: '' },
@@ -847,6 +876,11 @@ export default {
       this.saveEnlargedToStorage(value);
       // У увеличенного режима свой набор видимых столбцов - пересобираем подгонку.
       this.$nextTick(() => this.recalcOverflowFields());
+    },
+    // Поворот телефона и переход через брейкпоинт меняют правила подбора столбцов:
+    // ResizeObserver сюда не доедет - ширина карточки при этом может не измениться.
+    isNarrow() {
+      this.recalcOverflowFields();
     },
     // Строки, ушедшие из видимого списка (фильтр/поиск/удаление/поллинг),
     // убираем из выделения - счётчик "Выбрано: N" не должен врать (#1194).
@@ -1524,6 +1558,8 @@ export default {
         const visible = v === undefined ? true : v;
         if (!visible) return false;
       }
+      // На телефоне состав карточки задан списком, а не подбором по ширине.
+      if (this.isNarrow) return MOBILE_CARD_FIELDS.includes(fieldName);
       // В портретном компактном режиме показываем только столбцы с priority<=threshold.
       if (this.isCompact) {
         const p = this.fieldPriorities[fieldName];
@@ -1561,15 +1597,18 @@ export default {
      * Пересчитывает, какие столбцы не помещаются в текущую ширину таблицы.
      */
     recalcOverflowFields() {
+      // В карточке столбцы за ширину не конкурируют - состав задан MOBILE_CARD_FIELDS.
+      if (this.isNarrow) {
+        this.overflowFields = [];
+        return;
+      }
       const host = this.$el && this.$el.querySelector('.card-content');
       if (!host) return;
       const reserved = SERVICE_COLUMNS_WIDTH.passage
         + (this.can('entity.cars.delete') ? SERVICE_COLUMNS_WIDTH.actions : 0)
         + SERVICE_COLUMNS_WIDTH.expand;
       // Мерим строку заголовков, а не всю область: её ширина уже без отступов и
-      // зазоров между ячейками (#1097 S8 волна 4). Ноль означает, что шапка
-      // скрыта - на мобилке строки идут карточками, там остаётся прежний
-      // источник ширины, и набор скрытых столбцов не меняется.
+      // зазоров между ячейками (#1097 S8 волна 4).
       const measured = measureRowAvailableWidth(host.querySelector('.header-row'));
       this.overflowFields = pickOverflowFields({
         fields: this.configuredFields(),
@@ -1603,6 +1642,9 @@ export default {
         const v = this.fieldsVisibility[fieldName];
         if (v === false) return 'col--collapsed';
       }
+      if (this.isNarrow) {
+        return MOBILE_CARD_FIELDS.includes(fieldName) ? '' : 'col--collapsed';
+      }
       if (this.isCompact) {
         const p = this.fieldPriorities[fieldName];
         if (typeof p === 'number' && p > this.compactPriorityThreshold) {
@@ -1619,6 +1661,10 @@ export default {
      * "Подробнее" под строкой - показать пользователю недостающие поля.
      */
     hiddenInPortraitFields() {
+      // В карточке «Подробнее» показывает всё, что не вошло в её состав.
+      if (this.isNarrow) {
+        return this.configuredFields().filter(name => !MOBILE_CARD_FIELDS.includes(name));
+      }
       const portrait = this.isCompact
         ? Object.keys(this.fieldsVisibility)
           .filter(name => this.fieldsVisibility[name] !== false)
@@ -2451,22 +2497,31 @@ export default {
 }
 
 @media (max-width: 767.98px) {
+  /* Карточки строк лежат на подложке страницы: собственная рамка панели со
+     скруглением 30px рисовала вокруг них вторую рамку, и талон со своими 15px
+     читался как «скруглённый внутри непонятно чего» (та же правка, что вывела из
+     второй рамки список «Доступных мне», #2052). Заголовок отделяет линия снизу. */
   .selected-table-card {
     max-height: none;
     height: auto;
+    border: none;
+    border-radius: 0;
+    background: transparent;
   }
 
   /* Заголовок и «Обновить» - одной строкой (#1097 S6), счётчик и тумблеры
      переносятся ниже: .card-header__settings занимает всю ширину и попадает на
      вторую строку, «Обновить» держится за заголовком через order. Колоночной
      шапку больше не делаем - в ней заголовок оставался один в строке. */
+  /* Боковых отступов нет: рамки, от которой они отступали, на телефоне тоже нет, а
+     16px слева уводили заголовок с той вертикали, по которой стоят карточки. */
   .card-header {
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
     gap: 12px;
     height: auto;
-    padding: 16px;
+    padding: 12px 0;
   }
 
   /* flex-basis именно 0, а не auto: перенос строк во flex считается по
@@ -2517,6 +2572,13 @@ export default {
      матчит (соседние .item-row, не .item-data), спейсинг карточек добираем тут. */
   .item-row + .item-row {
     margin-top: 8px;
+  }
+
+  /* Зазор под десктопный скроллбар: без рамки панели он сдвигал бы карточки строк
+     на 8px вправо относительно заголовка блока. */
+  .items-body {
+    padding-right: 0;
+    margin-right: 0;
   }
 
   /* Значения в карточке не обрезаем многоточием - там больше горизонтального
@@ -2612,13 +2674,26 @@ export default {
     min-width: 0;
   }
 
-  /* Подвал талона: статус слева, «Подробнее» и «Удалить» справа - одной строкой.
-     Порядок задаём всем трём заведомо большими числами, а не правим один столбец:
-     разметочные `order` служебных (9998 и 9999) соседствуют с порядком настраиваемых
-     столбцов, и в таблице людей шеврон с 9997 оказывался ПЕРЕД статусом, то есть
-     посреди карточки. */
+  /* Подвал талона: статус своей строкой, под ним «Подробнее» и «Удалить» пополам -
+     ровно как «Въезд»/«Выезд» сверху, только пилюлями в 28px. Порядок задаём всем
+     трём заведомо большими числами, а не правим один столбец: разметочные `order`
+     служебных (9998 и 9999) соседствуют с порядком настраиваемых столбцов, и в
+     таблице людей шеврон с 9997 оказывался ПЕРЕД статусом, то есть посреди карточки.
+
+     Было: все три ячейки по содержимому в одной строке, кнопки прижаты вправо
+     автополем. При скрытом бейдже статуса (а он скрывался - подбор по ширине
+     оставлял в карточке два столбца) строка оказывалась пустой, и обе кнопки
+     висели в правом углу карточки - владелец забраковал именно это.
+
+     Базис половины, а не «0 с ростом»: перенос во flex считается по базисам ДО
+     распределения свободного места, и с нулевым базисом в строку набиралась бы ещё
+     и следующая ячейка, а кнопки схлопывались бы друг на друга (уже случалось с
+     кнопками прохода). Единственной кнопке (нет права на удаление либо прятать
+     нечего) достаётся левая половина - к правому краю она не жмётся. */
   .selected-table-card .rt-pass > .status-col {
     order: 9999 !important;
+    flex: 0 0 100% !important;
+    width: 100% !important;
   }
 
   .selected-table-card .rt-pass > .expand-col {
@@ -2629,32 +2704,20 @@ export default {
     order: 10001 !important;
   }
 
-  /* Ширина по содержимому - единственное исключение из «своя строка каждому» помимо
-     кнопок прохода: своя строка каждой отдавала бы три полосы карточки под бейдж и
-     две кнопки.
-
-     `overflow: visible` обязателен: базовый `.col { overflow: hidden }` обрезает
+  /* `overflow: visible` обязателен: базовый `.col { overflow: hidden }` обрезает
      невидимый ::before, которым кнопки подвала добирают зону нажатия до 44px, - палец
      мимо пилюли попадал бы в пустоту. */
+  .selected-table-card .rt-pass > .expand-col,
+  .selected-table-card .rt-pass > .actions-col {
+    flex: 0 0 calc(50% - 4px) !important;
+    width: auto !important;
+  }
+
   .selected-table-card .rt-pass > .status-col,
   .selected-table-card .rt-pass > .expand-col,
   .selected-table-card .rt-pass > .actions-col {
-    flex: 0 0 auto !important;
-    width: auto !important;
     overflow: visible;
     padding: 10px 0 0;
-  }
-
-  /* Действия прижаты вправо, статус остаётся слева. Автополе у обеих кнопок, и оно
-     гасится у «Удалить», когда перед ним стоит «Подробнее»: два автополя подряд
-     делят свободное место между собой и растаскивают кнопки по краям. */
-  .selected-table-card .rt-pass > .expand-col,
-  .selected-table-card .rt-pass > .actions-col {
-    margin-left: auto;
-  }
-
-  .selected-table-card .rt-pass > .expand-col ~ .actions-col {
-    margin-left: 0;
   }
 
   .selected-table-card .rt-row > [data-label]::before {
