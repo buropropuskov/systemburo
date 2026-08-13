@@ -76,7 +76,7 @@ describe('ApplicationActionBar - кнопки раунда дополнения 
     expect(wrapper.find(APPROVE).exists()).toBe(true);
     expect(wrapper.find(REJECT).exists()).toBe(true);
     expect(wrapper.find(REVOKE).exists()).toBe(false);
-    expect(wrapper.find(ROW).text()).toContain('Дополнение №2');
+    expect(wrapper.find(ROW).text()).toContain('Доп. №2');
   });
 
   it('проголосовавшему согласующему повторное голосование не предлагается - бейдж и отзыв', () => {
@@ -95,6 +95,26 @@ describe('ApplicationActionBar - кнопки раунда дополнения 
     });
     expect(wrapper.find(REVOKE).exists()).toBe(true);
     expect(wrapper.find(MY_VOTE).text()).toContain('вы отказали');
+  });
+
+  it('вместо надписи "Дополнение №N" стоит компактный бейдж - дубля с шапкой заявки нет', () => {
+    const wrapper = mountBar();
+    const badge = wrapper.find('[data-testid="supplement-round-badge"]');
+    expect(badge.exists()).toBe(true);
+    expect(badge.text()).toContain('Доп. №2');
+    expect(wrapper.find(ROW).text()).not.toContain('Дополнение №2');
+  });
+
+  it('бейдж голоса раскрашен по исходу: согласовал - success, отказал - danger', () => {
+    const approved = mountBar({
+      supplements: [round({ approvals: [{ user_id: 1, approval_status: 'approved' }] })],
+    });
+    expect(approved.find(MY_VOTE).classes()).toContain('badge--success');
+
+    const rejected = mountBar({
+      supplements: [round({ status: 'rejected', approvals: [{ user_id: 1, approval_status: 'rejected' }] })],
+    });
+    expect(rejected.find(MY_VOTE).classes()).toContain('badge--danger');
   });
 
   it('принимающий получает решение только по согласованному раунду', () => {
