@@ -599,11 +599,21 @@
             >
               <div class="button__content">
                 <span class="button__text">{{ selectedFormatText }}</span>
-                <img
-                  src="@/assets/icons/arrow.png"
+                <svg
                   class="button__arrow"
                   :class="{ 'button__arrow--open': isFormatDropdownOpen }"
+                  viewBox="0 0 10 6"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
                 >
+                  <path
+                    d="M1 1L5 5L9 1"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
               </div>
             </button>
             <transition name="dropdown">
@@ -667,11 +677,21 @@
                 >
                   <div class="mark__button-content">
                     <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
-                    <img
-                      src="@/assets/icons/arrow.png"
+                    <svg
                       class="mark__button-arrow"
                       :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }"
+                      viewBox="0 0 10 6"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
                     >
+                      <path
+                        d="M1 1L5 5L9 1"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
                   </div>
                 </button>
                 <transition name="dropdown">
@@ -2356,13 +2376,14 @@ export default {
 
 .button__arrow {
     width: 10px;
-    height: 10px;
+    height: 6px;
+    flex-shrink: 0;
+    color: var(--text-muted);
     transition: transform 0.2s;
-    transform: rotate(90deg);
 }
 
 .button__arrow--open {
-    transform: rotate(-90deg);
+    transform: rotate(180deg);
 }
 
 .dropdown__menu {
@@ -2509,6 +2530,7 @@ export default {
 .mark__button-content {
     display: flex;
     align-items: center;
+    gap: 10px;
     width: 100%;
     height: 100%;
     justify-content: space-between;
@@ -2517,17 +2539,24 @@ export default {
 .mark__button-text {
     font-size: 14px;
     color: var(--text);
+    /* Без нулевого минимума флекс-элемент не сжимается ниже своего текста,
+       и длинная марка лезет под стрелку вместо многоточия. */
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .mark__button-arrow {
     width: 10px;
-    height: 10px;
+    height: 6px;
+    flex-shrink: 0;
+    color: var(--text-muted);
     transition: transform 0.2s;
-    transform: rotate(90deg);
 }
 
 .mark__button-arrow--open {
-    transform: rotate(-90deg);
+    transform: rotate(180deg);
 }
 
 .mark__dropdown-menu {
