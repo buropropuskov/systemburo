@@ -213,18 +213,24 @@
 
                   <!-- Метка дополнения (#1685) живёт в ключевой колонке: она есть у
                        всех трёх типов вложения, а колонка действий - только у машин
-                       и сотрудников. -->
-                  <Badge
+                       и сотрудников. Обёртка нужна карточке: она забирает строку
+                       ячейки целиком, и метка встаёт под значением всегда в одном
+                       месте, а не там, где её оставила длина наименования. -->
+                  <div
                     v-if="col.type === 'key' && supplementMarks[row.id]"
-                    class="supplement-badge"
-                    :variant="supplementMarks[row.id].variant"
-                    size="sm"
-                    dot
-                    :data-hint="supplementMarks[row.id].hint"
-                    data-testid="attachment-supplement-badge"
+                    class="supplement-line"
                   >
-                    {{ supplementMarks[row.id].text }}
-                  </Badge>
+                    <Badge
+                      class="supplement-badge"
+                      :variant="supplementMarks[row.id].variant"
+                      size="sm"
+                      dot
+                      :data-hint="supplementMarks[row.id].hint"
+                      data-testid="attachment-supplement-badge"
+                    >
+                      {{ supplementMarks[row.id].text }}
+                    </Badge>
+                  </div>
                 </div>
 
                 <div
@@ -1662,15 +1668,21 @@ export default {
     z-index: 5;
 }
 
-.val[data-hint]:hover::after,
-.val[data-hint]:hover::before,
-.chip[data-hint]:hover::after,
-.chip[data-hint]:hover::before,
-.blacklist-badge[data-hint]:hover::after,
-.blacklist-badge[data-hint]:hover::before,
-.supplement-badge[data-hint]:hover::after,
-.supplement-badge[data-hint]:hover::before {
-    opacity: 1;
+/* Показ подсказки гейтим наличием курсора: на тач-экране :hover после тапа по строке
+   залипает, и тёмный пузырёк шириной до 240px остаётся висеть поверх соседних полей и
+   строк выше - метка дополнения читалась как "написанная поперёк карточки в случайном
+   месте". Пальцу подсказка всё равно недоступна: навести, не нажав, нечем. */
+@media (hover: hover) {
+    .val[data-hint]:hover::after,
+    .val[data-hint]:hover::before,
+    .chip[data-hint]:hover::after,
+    .chip[data-hint]:hover::before,
+    .blacklist-badge[data-hint]:hover::after,
+    .blacklist-badge[data-hint]:hover::before,
+    .supplement-badge[data-hint]:hover::after,
+    .supplement-badge[data-hint]:hover::before {
+        opacity: 1;
+    }
 }
 
 .qty {
@@ -1914,10 +1926,16 @@ export default {
        Разделитель полей рисуем сверху, а не снизу: у машин и сотрудников последней в
        строке стоит колонка действий без подписи, поэтому глобальное
        `[data-label]:last-child` не снимало пунктир с последнего поля и он висел
-       оторванной чертой над нижним краем карточки. */
+       оторванной чертой над нижним краем карточки.
+
+       Вертикальные 3px карточку не удлиняют: у поля в одну строку они целиком уходят
+       в запас до min-height (20px текста + 6 против 30). Работают они только там, где
+       поле переросло 30px - у наименования ТМЦ с переносом и у ячейки с меткой
+       дополнения: без них нижняя строка ложилась вплотную на пунктир следующего поля
+       и слипалась с пилюлей «N шт» под ним. */
     .el-table .el-row .el-cell {
         min-height: 30px;
-        padding: 0 !important;
+        padding: 3px 0 !important;
         gap: 8px;
         align-items: center;
         justify-content: flex-start !important;
@@ -1974,8 +1992,20 @@ export default {
         margin-top: 0;
     }
 
+    /* Метка дополнения занимает строку ячейки целиком и начинается слева - место у неё
+       теперь одно при любом содержимом. Прежний `margin-left: auto` прижимал её к
+       правому краю той строки, куда её занесло переносом: у короткого наименования -
+       справа от значения, у длинного - под ним, у гос. номера с длинной маркой - под
+       маркой. Нижние 4px не дают пилюле лечь на пунктир следующего поля. */
+    .el-row .el-cell--key .supplement-line {
+        flex: 0 0 100%;
+        min-width: 0;
+        padding-bottom: 4px;
+    }
+
     .el-row .el-cell--key .supplement-badge {
-        margin-left: auto;
+        max-width: 100%;
+        margin-top: 0;
     }
 
     .blacklist-override-btn {
