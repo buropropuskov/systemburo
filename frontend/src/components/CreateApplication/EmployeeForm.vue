@@ -927,16 +927,6 @@ export default {
     }
 },
 
-        getTableTooltip(table) {
-            if (table.table.status !== 'active') {
-                if (table.table.status_comment) {
-                    return `Недоступно: ${table.table.status_comment}`;
-                }
-                return 'Недоступно';
-            }
-            return '';
-        },
-
         formatNameField(fieldName) {
             if (this[fieldName]) {
                 this[fieldName] = this.formatName(this[fieldName]);
