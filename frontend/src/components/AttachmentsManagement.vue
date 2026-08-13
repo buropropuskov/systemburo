@@ -1221,9 +1221,10 @@ export default {
   color: var(--success-text);
 }
 
+/* Все три бейджа одной формы: заливка плюс цвет текста, без рамки. Рамка была только
+   у ТМЦ и делала его на два пиксела выше остальных в той же строке. */
 .type-badge.items {
   background: var(--warning-bg);
-  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
   color: var(--warning-text);
 }
 
