@@ -246,4 +246,35 @@ describe('«Доступные мне» - геометрия мобильног�
     const container = mobileBlock.match(/\.admin-page \.accessible-attachments \.content-container\s*\{[^}]*\}/)[0];
     expect(container).toContain('overflow: hidden !important');
   });
+
+  /*
+   * Волна 8, п.1: «Заявка», «Посмотреть файл» и карточка вложения - три прямых
+   * ребёнка .detail-scroll, а gap самого .detail-section разводит только её
+   * «шапку» (.detail-back) с .detail-scroll. Без своего flex+gap .detail-scroll
+   * был block-контейнером, и блоки стояли встык без зазора. Проверяем оба
+   * правила: базовое (15px, действует и на десктопе) и мобильное (12px).
+   */
+  it('.detail-scroll сама разводит вложенные блоки зазором - и на десктопе, и на мобилке', () => {
+    const baseBlock = SOURCE.slice(0, SOURCE.indexOf('@media (max-width: 767.98px)'));
+    const baseRule = baseBlock.match(/\.detail-scroll\s*\{[^}]*\}/)[0];
+    expect(baseRule).toContain('display: flex');
+    expect(baseRule).toMatch(/gap:\s*15px/);
+
+    const mobileRule = mobileBlock.match(/\.detail-scroll\s*\{[^}]*\}/)[0];
+    expect(mobileRule).toMatch(/gap:\s*12px/);
+  });
+
+  /*
+   * Волна 8, п.3: AdminPageShell красит .admin-page только padding'ом - гутер
+   * вокруг фикс-высоты панели прозрачный и в тёмной теме показывает фон body
+   * (#1f2229 против #272b33 у панели), особенно заметно в прямых углах гутера,
+   * где скруглённая панель отступает от его прямоугольной рамки ("чёрные
+   * квадратные углы внизу", claim владельца). :has() красит гутер именно этого
+   * экрана в --surface, не трогая остальные admin-страницы.
+   */
+  it('гутер вокруг панели красится в --surface на мобилке - иначе видно фон body по углам', () => {
+    expect(mobileBlock).toMatch(
+      /\.admin-page:has\(\.accessible-attachments\)\s*\{[^}]*background:\s*var\(--surface\)/,
+    );
+  });
 });

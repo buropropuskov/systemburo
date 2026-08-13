@@ -1872,22 +1872,25 @@ export default {
         text-overflow: ellipsis;
     }
 
+    /* 36px - тач-таргет заголовков этого экрана (RefreshButton, шапки
+       справочников); прежние 26px были меньше даже собственных 30px десктопа -
+       владелец не мог попасть пальцем ("Поиск очень маленький"). */
     .el-section__head .el-search {
         flex: 1 1 auto;
         width: auto;
         min-width: 0;
-        height: 26px;
+        height: 36px;
         margin-left: 0;
         padding: 0 10px;
     }
 
     .el-section__head .el-search :deep(.search__input) {
-        font-size: 12px;
+        font-size: 14px;
     }
 
     .el-section__head .el-search :deep(.search__icon) {
-        width: 13px;
-        height: 13px;
+        width: 15px;
+        height: 15px;
     }
 
     /* Строку разворачивает в карточку глобальный responsive-tables.css:
