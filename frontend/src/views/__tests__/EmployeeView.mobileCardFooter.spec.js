@@ -123,6 +123,19 @@ describe('EmployeeView — CSS-контракт подвала карточки 
     expect(actionsRule).toMatch(/align-self:\s*flex-start/);
   });
 
+  // Четвёртый круг замечаний владельца (#1097 w11): тот же разрыв линии подвала, что
+  // чинили в CarsView. border-top рисуют ДВА РАЗНЫХ элемента (.status-col и
+  // .actions-col), а между ними column-gap: 8px родителя - пустое место без бордюра,
+  // где линия физически прерывается, хотя цвет/толщина границ совпадают. margin-left
+  // на actions-col тянет её бокс (а с ним border-top) вплотную к status-col.
+  it('actions-col компенсирует column-gap родителя отрицательным margin-left - линия подвала не рвётся', () => {
+    const parentRule = rule(MOBILE_76798, '.rt-table .employee-row.rt-row');
+    const actionsRule = rule(MOBILE_76798, '.employee-row.rt-row > .actions-col');
+    expect(parentRule, 'базовое правило .employee-row.rt-row не найдено в 767.98-блоке').not.toBeNull();
+    expect(parentRule).toMatch(/column-gap:\s*8px/);
+    expect(actionsRule).toMatch(/margin-left:\s*-8px/);
+  });
+
   it('должность больше не делит базис с бейджем - у неё нет собственного правила флекс-базиса 0', () => {
     // position-col раньше несла flex: 1 1 0, чтобы уступить место бейджу в общей
     // строке; теперь бейдж в подвале, и должность занимает строку по умолчанию (100%).
