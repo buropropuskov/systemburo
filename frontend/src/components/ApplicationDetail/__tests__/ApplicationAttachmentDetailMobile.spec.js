@@ -237,4 +237,22 @@ describe('ApplicationAttachmentDetail — геометрия мобильног�
     expect(inputRule).toMatch(/font-size:\s*1[34]px/);
     expect(inputRule).not.toMatch(/font-size:\s*12px/);
   });
+
+  /*
+   * Волна 9: поиск, растущий через flex:1 1 auto, отбирал ширину у заголовка -
+   * на 320/360px "Автомобили"/"Сотрудники" резались до "А..."/"С..." (замер:
+   * на 320px доступно 242px, заголовку доставалось 61 из нужных 93). Заголовок
+   * и счётчик больше не участвуют в shrink наравне с полем - у поиска свой пол.
+   */
+  it('заголовок и счётчик не отдают ширину растущему полю поиска', () => {
+    const h5Rule = mobileBlock.match(/\.el-section__head h5\s*\{[^}]*\}/)[0];
+    expect(h5Rule).toMatch(/flex-shrink:\s*0/);
+
+    const countRule = mobileBlock.match(/\.el-section__head \.el-count\s*\{[^}]*\}/)[0];
+    expect(countRule).toMatch(/flex-shrink:\s*0/);
+
+    const searchRule = mobileBlock.match(/\.el-section__head \.el-search\s*\{[^}]*\}/)[0];
+    expect(searchRule).not.toMatch(/flex:\s*1 1 auto/);
+    expect(searchRule).toMatch(/min-width:\s*70px/);
+  });
 });

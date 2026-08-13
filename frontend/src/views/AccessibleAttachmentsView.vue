@@ -990,9 +990,8 @@ onBeforeUnmount(() => {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 15px;
-  box-shadow: var(--shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.06));
   cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease;
   animation: card-in 0.3s ease-out forwards;
   opacity: 0;
   transform: translateY(10px);
@@ -1005,13 +1004,11 @@ onBeforeUnmount(() => {
 
 .attachment-card:hover {
   border-color: var(--accent);
-  box-shadow: 0 3px 10px rgba(79, 91, 223, 0.15);
 }
 
 .attachment-card--active {
   border-color: var(--accent);
   background: var(--accent-tint);
-  box-shadow: 0 3px 10px rgba(79, 91, 223, 0.18);
 }
 
 .attachment-card__head {
@@ -1146,7 +1143,15 @@ onBeforeUnmount(() => {
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 16px 18px;
-  box-shadow: var(--shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.06));
+}
+
+/* ApplicationAttachmentDetail - общий компонент (используется и в CarsView,
+   EmployeeView, ApplicationDetail), поэтому тень снимаем только здесь через
+   :deep, а не в самом компоненте: чужие экраны не просили убрать тень.
+   В тёмной теме --shadow-drop даёт rgba(0,0,0,0.6) - на карточке вложения
+   это читалось чёрным прямоугольником позади блока. */
+.detail-section :deep(.attachment-details) {
+  box-shadow: none;
 }
 
 .application-block__title {
