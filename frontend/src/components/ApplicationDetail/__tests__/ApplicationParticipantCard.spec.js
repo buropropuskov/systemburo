@@ -80,6 +80,17 @@ describe('ApplicationParticipantCard (#1952)', () => {
       .toContain('12.05.2026');
   });
 
+  // approval_datetime - решение по исходной заявке, а не по текущему раунду
+  // дополнения (application_participants.go голоса по раундам не собирает).
+  // Подпись называет это явно, иначе при открытом раунде дата читается как
+  // ответ по нему.
+  it('подпись даты решения называет её решением по заявке, не по раунду', () => {
+    const wrapper = mountCard();
+
+    expect(wrapper.find('[data-testid="app-participant-card-decided-at"]').text())
+      .toContain('Решение по заявке:');
+  });
+
   it('должность и место работы - из ответа, а не из ФИО', () => {
     const wrapper = mountCard();
 

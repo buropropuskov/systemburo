@@ -187,78 +187,83 @@
           </div>
         </div>
         <div class="detail-header-right">
-          <!-- Второй бейдж: идёт повторный круг по дополнению (#1685). Рядом с бейджем
-               согласования, а не вместо него - статус заявки остаётся «Согласовано»,
-               потому что от него зависит допуск уже выданных пропусков. -->
-          <transition name="fade">
-            <Badge
-              v-if="openSupplementBadge"
-              class="supplement-round-badge"
-              :variant="openSupplementBadge.variant"
-              size="md"
-              dot
-              :title="openSupplementBadge.hint"
-              data-testid="app-detail-supplement-round-badge"
+          <!-- Бейдж и action-bar в своей обёртке: у неё свой flex-wrap, поэтому
+               перенос их содержимого не выталкивает крестик на отдельную строку
+               (#1685 -> регрессия шапки, замерено в браузере). -->
+          <div class="detail-header-actions">
+            <!-- Второй бейдж: идёт повторный круг по дополнению (#1685). Рядом с бейджем
+                 согласования, а не вместо него - статус заявки остаётся «Согласовано»,
+                 потому что от него зависит допуск уже выданных пропусков. -->
+            <transition name="fade">
+              <Badge
+                v-if="openSupplementBadge"
+                class="supplement-round-badge"
+                :variant="openSupplementBadge.variant"
+                size="md"
+                dot
+                :title="openSupplementBadge.hint"
+                data-testid="app-detail-supplement-round-badge"
+              >
+                {{ openSupplementBadge.text }}
+              </Badge>
+            </transition>
+            <ApplicationActionBar
+              v-if="mode !== 'center' || can('action.approve.application')"
+              :application="applicationData"
+              :current-user-id="currentUserId"
+              :responsible-users="responsibleUsers"
+              :approvers="approvers"
+              :is-approver="isApprover"
+              :mode="mode"
+              :processing="processingApplication"
+              :updating-confirmation="updatingConfirmation"
+              :action-comment="actionComment"
+              :has-unoverridden-blacklist-flags="!!applicationData.has_unoverridden_blacklist_flags"
+              :ready="actionsReady"
+              :supplements="supplements"
+              @action-completed="handleActionCompleted"
+              @processing-change="processingApplication = $event"
+              @updating-confirmation-change="updatingConfirmation = $event"
+              @comment-clear="clearCommentFromLocalStorage"
             >
-              {{ openSupplementBadge.text }}
-            </Badge>
-          </transition>
-          <ApplicationActionBar
-            v-if="mode !== 'center' || can('action.approve.application')"
-            :application="applicationData"
-            :current-user-id="currentUserId"
-            :responsible-users="responsibleUsers"
-            :approvers="approvers"
-            :is-approver="isApprover"
-            :mode="mode"
-            :processing="processingApplication"
-            :updating-confirmation="updatingConfirmation"
-            :action-comment="actionComment"
-            :has-unoverridden-blacklist-flags="!!applicationData.has_unoverridden_blacklist_flags"
-            :ready="actionsReady"
-            :supplements="supplements"
-            @action-completed="handleActionCompleted"
-            @processing-change="processingApplication = $event"
-            @updating-confirmation-change="updatingConfirmation = $event"
-            @comment-clear="clearCommentFromLocalStorage"
-          >
-            <template #user-actions>
-              <transition name="fade">
-                <button
-                  v-if="canSupplementApplication || tourOnlyActions"
-                  class="supplement-btn"
-                  :class="{ 'is-tour-stub': !canSupplementApplication }"
-                  :disabled="!canSupplementApplication"
-                  data-testid="app-detail-button-supplement"
-                  @click="showSupplementModal = true"
-                >
-                  Дополнить
-                </button>
-              </transition>
-              <BaseDropdown
-                class="duplicate-dropdown"
-                data-testid="ob-detail-duplicate"
-                :options="duplicatePresets"
-                :model-value="null"
-                label-key="label"
-                value-key="key"
-                placeholder="Продублировать"
-                @update:model-value="handleDuplicatePreset"
-              />
-              <transition name="fade">
-                <button
-                  v-if="canWithdraw || tourOnlyActions"
-                  class="withdraw-btn"
-                  :class="{ 'is-tour-stub': !canWithdraw }"
-                  :disabled="!canWithdraw"
-                  data-testid="ob-detail-revoke"
-                  @click="withdrawApplication"
-                >
-                  Отозвать
-                </button>
-              </transition>
-            </template>
-          </ApplicationActionBar>
+              <template #user-actions>
+                <transition name="fade">
+                  <button
+                    v-if="canSupplementApplication || tourOnlyActions"
+                    class="supplement-btn"
+                    :class="{ 'is-tour-stub': !canSupplementApplication }"
+                    :disabled="!canSupplementApplication"
+                    data-testid="app-detail-button-supplement"
+                    @click="showSupplementModal = true"
+                  >
+                    Дополнить
+                  </button>
+                </transition>
+                <BaseDropdown
+                  class="duplicate-dropdown"
+                  data-testid="ob-detail-duplicate"
+                  :options="duplicatePresets"
+                  :model-value="null"
+                  label-key="label"
+                  value-key="key"
+                  placeholder="Продублировать"
+                  @update:model-value="handleDuplicatePreset"
+                />
+                <transition name="fade">
+                  <button
+                    v-if="canWithdraw || tourOnlyActions"
+                    class="withdraw-btn"
+                    :class="{ 'is-tour-stub': !canWithdraw }"
+                    :disabled="!canWithdraw"
+                    data-testid="ob-detail-revoke"
+                    @click="withdrawApplication"
+                  >
+                    Отозвать
+                  </button>
+                </transition>
+              </template>
+            </ApplicationActionBar>
+          </div>
 
           <button
             class="close-detail-btn"
@@ -2544,9 +2549,31 @@ export default {
        больше, и на промежуточных ширинах, около 780, кнопка уезжала за край окна:
        карточка кончалась на 761, а кнопка шла до 788. Замерено в браузере. */
     min-width: 0;
+    /* nowrap - перенос содержимого отдан вложенной .detail-header-actions (см.
+       ниже); если бы переносился этот уровень целиком, крестик мог уйти на
+       отдельную СВОЮ строку и всё равно уехать вниз - именно так и было, замерено
+       на ширине 900: closeTop 159.6 при cardTop 45. */
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    /* .detail-header центрирует своих детей по высоте (align-items: center) - без
+       этого правая часть, чья высота гуляет от переноса ряда дополнения (#1685) и
+       собственного flex-wrap, всплывала бы вверх-вниз вместе с левой колонкой.
+       Прижимаем к верху шапки: замерено, closeTop гулял 93.8-201.8px на разных
+       ширинах при неизменном cardTop=45. */
+    align-self: flex-start;
+}
+
+.detail-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    row-gap: 8px;
     flex-wrap: wrap;
     justify-content: flex-end;
-    row-gap: 8px;
+    /* Растёт/сжимается и переносится сама - крестику-соседу больше некуда
+       уезжать: он не участвует в этом переносе. */
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .supplement-round-badge {
@@ -2586,6 +2613,12 @@ export default {
     justify-content: center;
     border-radius: 50%;
     transition: all 0.2s ease;
+    /* Ряд дополнения (#1685) сделал ApplicationActionBar двухрядным - крестик
+       без своего align-self центрировался по высоте самого высокого соседа и
+       уезжал вниз на 30-100px в зависимости от ширины окна. Прижимаем к верху
+       шапки независимо от высоты соседей. Замерено в браузере. */
+    align-self: flex-start;
+    flex-shrink: 0;
 }
 
 .close-detail-btn:hover {
