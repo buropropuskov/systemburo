@@ -52,12 +52,12 @@ describe('ApplicationDetail - шапка не растягивает .detail-hea
 });
 
 // "Дополнение №4 Согласовать Отказать" на телефоне: метка+первая кнопка на одной
-// строке, вторая кнопка отдельно - блок раздувался (94px). Метка теперь занимает
-// свою строку целиком (flex-basis:100% рвёт wrap-ряд сразу после неё), обе кнопки
-// решения идут вместе следующей строкой.
-describe('ApplicationActionBar - метка дополнения на своей строке на мобилке (#1097 w8)', () => {
-  it('.supplement-actions__label получает flex-basis: 100% внутри мобильного @media', () => {
-    const bodies = ruleAll(ACTION_BAR_SFC, '.supplement-actions__label');
+// строке, вторая кнопка отдельно - блок раздувался (94px). Бейдж раунда теперь
+// занимает свою строку целиком (flex-basis:100% рвёт wrap-ряд сразу после него),
+// обе кнопки решения идут вместе следующей строкой.
+describe('ApplicationActionBar - бейдж раунда дополнения на своей строке на мобилке (#1097 w8)', () => {
+  it('.supplement-round-badge получает flex-basis: 100% внутри мобильного @media', () => {
+    const bodies = ruleAll(ACTION_BAR_SFC, '.supplement-round-badge');
     const mobileBody = bodies.find((b) => /flex-basis/.test(b));
     expect(mobileBody).toBeTruthy();
     expect(mobileBody).toMatch(/flex-basis:\s*100%/);

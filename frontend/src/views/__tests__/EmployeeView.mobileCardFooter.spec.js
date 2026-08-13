@@ -103,7 +103,6 @@ describe('EmployeeView — CSS-контракт подвала карточки 
     expect(statusRule, 'правило .status-col не найдено в 767.98-блоке').not.toBeNull();
     expect(statusRule).toMatch(/order:\s*10/);
     expect(statusRule).toMatch(/border-top:\s*1px solid/);
-    expect(statusRule).not.toMatch(/align-self:\s*flex-start/);
   });
 
   it('actions-col делит строку с бейджем (не 100% ширины) и идёт следом по order', () => {
@@ -111,6 +110,17 @@ describe('EmployeeView — CSS-контракт подвала карточки 
     expect(actionsRule, 'правило .actions-col не найдено в 767.98-блоке').not.toBeNull();
     expect(actionsRule).toMatch(/order:\s*11/);
     expect(actionsRule).not.toMatch(/width:\s*100%/);
+  });
+
+  // Третий круг замечаний владельца (#1097 w9): бейдж и кнопки "Изменить"/"Удалить"
+  // стояли на разной высоте, серая линия подвала обрывалась после бейджа - то же самое,
+  // что чинили в CarsView. align-self: flex-start на ОБЕИХ ячейках прижимает их к
+  // верхнему краю строки, border-top совпадает независимо от разницы высот контента.
+  it('бейдж и кнопки подвала прижаты к верхнему краю строки - border-top не переламывается', () => {
+    const statusRule = rule(MOBILE_76798, '.rt-table .employee-row.rt-row > .status-col');
+    const actionsRule = rule(MOBILE_76798, '.employee-row.rt-row > .actions-col');
+    expect(statusRule).toMatch(/align-self:\s*flex-start/);
+    expect(actionsRule).toMatch(/align-self:\s*flex-start/);
   });
 
   it('должность больше не делит базис с бейджем - у неё нет собственного правила флекс-базиса 0', () => {

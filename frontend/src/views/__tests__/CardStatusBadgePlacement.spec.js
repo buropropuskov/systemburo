@@ -31,18 +31,25 @@ function rule(src, selector) {
 describe('бейдж статуса в карточке не наезжает на соседнее поле', () => {
     // Бейдж и колонка действий несут ОДИНАКОВЫЙ отступ и сплошную границу подвала -
     // совпадать по чужому пунктиру им уже нечему (это и было причиной наложения).
+    //
+    // align-self: flex-start (третий круг замечаний, #1097 w9): бейдж и кнопки -
+    // соседние ячейки одной строки подвала, их высоты по контенту не совпадают ровно,
+    // и align-self: center центрировал каждую ячейку независимо - верхние края (а с
+    // ними border-top) расходились, серая линия подвала переламывалась после бейджа.
+    // flex-start прижимает обе ячейки к верхнему краю строки - border-top гарантированно
+    // на одной Y.
     it('сотрудники: бейдж стоит в подвале карточки, а не на пунктире соседнего поля', () => {
         const statusRule = rule(employees, '.rt-table .employee-row.rt-row > .status-col');
         expect(statusRule).toMatch(/order:\s*10/);
         expect(statusRule).toMatch(/border-top:\s*1px solid/);
-        expect(statusRule).not.toMatch(/align-self:\s*flex-start/);
+        expect(statusRule).toMatch(/align-self:\s*flex-start/);
     });
 
     it('машины: бейдж стоит в подвале карточки, а не на пунктире соседнего поля', () => {
         const statusRule = rule(cars, '.rt-table .car-row.rt-row > .status-col');
         expect(statusRule).toMatch(/order:\s*10/);
         expect(statusRule).toMatch(/border-top:\s*1px solid/);
-        expect(statusRule).not.toMatch(/align-self:\s*flex-start/);
+        expect(statusRule).toMatch(/align-self:\s*flex-start/);
     });
 
     // height: 100% у ячейки десктопной таблицы в карточке смысла не имеет, а процент

@@ -408,7 +408,14 @@
             />
           </div>
 
-          <div class="dashboard__feed-list">
+          <!-- Своя вертикальная прокрутка (волна 9): та же область, что на
+               десктопе (max-height 360px), помечена data-scroll-own - гейт
+               мобильных инвариантов считает её законной, а не воровкой жеста
+               у страницы. -->
+          <div
+            class="dashboard__feed-list"
+            data-scroll-own
+          >
             <template v-if="feedLoading">
               <div
                 v-for="n in 5"
@@ -448,19 +455,6 @@
               </div>
             </template>
           </div>
-
-          <!-- Раскрытие по тапу (#1097 волна 8): владелец не мог увидеть
-               записи за пределами свёрнутого потолка. Раздельная кнопка на
-               каждую ленту - раскрытие только этой ленты, соседняя остаётся
-               компактной. -->
-          <button
-            v-if="isNarrow && !feedExpanded.people && peopleFeed.length >= FEED_LIMIT_MOBILE"
-            type="button"
-            class="lk-button lk-button--secondary lk-button--sm dashboard__feed-more"
-            @click="expandFeed('people')"
-          >
-            Показать ещё
-          </button>
         </div>
 
         <!-- Лента машин -->
@@ -476,7 +470,10 @@
             />
           </div>
 
-          <div class="dashboard__feed-list">
+          <div
+            class="dashboard__feed-list"
+            data-scroll-own
+          >
             <template v-if="feedLoading">
               <div
                 v-for="n in 5"
@@ -519,15 +516,6 @@
               </div>
             </template>
           </div>
-
-          <button
-            v-if="isNarrow && !feedExpanded.cars && carsFeed.length >= FEED_LIMIT_MOBILE"
-            type="button"
-            class="lk-button lk-button--secondary lk-button--sm dashboard__feed-more"
-            @click="expandFeed('cars')"
-          >
-            Показать ещё
-          </button>
         </div>
       </div>
     </div>
@@ -556,7 +544,6 @@ import OnlineUsersModal from '@/components/statistics/OnlineUsersModal.vue';
 import PushAdoptionSummary from '@/components/statistics/PushAdoptionSummary.vue';
 import { getSummary, getTimeline, getRecentPassages, getInsights, getOnlinePeaks, getOnlineUsers } from '@/api/statistics.js';
 import { mergeFeed, feedRowKey } from './feedMerge.js';
-import { useNarrowScreen } from '@/composables/useNarrowScreen.js';
 
 const props = defineProps({
   from: {
@@ -633,33 +620,11 @@ const carsFeed = ref([]);
 const feedLoading = ref(false);
 const feedRefreshing = ref(false);
 
-// На узком экране лента не прокручивается сама (#1097 волна 5 - вложенный
-// скроллпорт отбирает жест у страницы) и растёт по содержимому, поэтому 15
-// записей на телефоне превращаются в блок за 2000px высотой. Держим потолок
-// заметно ниже по умолчанию - и по числу запрошенных с бэка записей, и по
-// накопленному размеру ленты в mergeFeed. Владелец хочет видеть остальные
-// записи (волна 8), поэтому у каждой ленты свой флаг раскрытия: по тапу
-// «Показать ещё» потолок этой ленты поднимается до десктопных 15, соседняя
-// лента остаётся свёрнутой - обе разом к прежним 2000+px не возвращаются,
-// раскрытие только по явному действию на каждую ленту.
-const { isNarrow } = useNarrowScreen();
-const FEED_LIMIT_DESKTOP = 15;
-const FEED_LIMIT_MOBILE = 5;
-const feedExpanded = reactive({ people: false, cars: false });
-
-function feedCap(key) {
-  if (!isNarrow.value) return FEED_LIMIT_DESKTOP;
-  return feedExpanded[key] ? FEED_LIMIT_DESKTOP : FEED_LIMIT_MOBILE;
-}
-
-// Раскрытие само по себе не тянет новые записи - без немедленного дозапроса
-// кнопка бы просто исчезала, а список оставался тем же (данные сверх старого
-// потолка бэк не присылал вовсе, лимит запроса зависел от feedCap). Дозапрос
-// без скелетона - как ручное обновление, доливает записи через mergeFeed.
-async function expandFeed(key) {
-  feedExpanded[key] = true;
-  await loadFeed();
-}
+// Волна 5 держала на телефоне лишь 5 записей и без кнопки «Показать ещё» -
+// у ленты не было своей прокрутки, и полные 15 записей растягивали блок на
+// 2000+px. Волна 9 отдаёт ленте свою прокрутку (see .dashboard__feed-list в
+// шаблоне, data-scroll-own), поэтому лимит теперь один на оба брейкпоинта.
+const FEED_LIMIT = 15;
 
 // ---- переключатели графика ----
 const metricOptions = [
@@ -964,19 +929,12 @@ async function loadDetailTimeline(metricKey) {
 async function loadFeed({ showSkeleton = false } = {}) {
   if (showSkeleton) feedLoading.value = true;
   try {
-    // Один запрос отдаёт обе ленты, поэтому лимит запроса - больший из двух
-    // активных потолков: раскрытие только одной ленты не должно урезать
-    // данные для второй (mergeFeed ниже всё равно обрежет её по своему
-    // потолку отдельно).
-    const limit = Math.max(feedCap('people'), feedCap('cars'));
-    const data = await getRecentPassages(limit);
+    // Один запрос отдаёт обе ленты.
+    const data = await getRecentPassages(FEED_LIMIT);
     const people = Array.isArray(data?.people) ? data.people : [];
     const cars = Array.isArray(data?.cars) ? data.cars : [];
-    // На телефоне лента без своей прокрутки - потолок mergeFeed держим по
-    // текущему состоянию раскрытия (5 или 15), а не дефолтными 50, иначе за
-    // несколько тиков поллинга список всё равно дорастёт до полного размера.
-    peopleFeed.value = mergeFeed(peopleFeed.value, people, isNarrow.value ? feedCap('people') : undefined);
-    carsFeed.value = mergeFeed(carsFeed.value, cars, isNarrow.value ? feedCap('cars') : undefined);
+    peopleFeed.value = mergeFeed(peopleFeed.value, people);
+    carsFeed.value = mergeFeed(carsFeed.value, cars);
   } catch {
     // Фоновый сбой не должен очищать уже показанные ленты — чистим только при
     // первичной загрузке, где показать пустоту корректнее, чем скелетон навсегда.
@@ -1737,21 +1695,6 @@ onUnmounted(() => {
     gap: 10px;
   }
 
-  /* Своей прокрутки у ленты на телефоне нет (#1097 волна 5): вложенный
-     скроллпорт внутри прокручиваемой страницы отбирает жест у окна, и
-     пролистывание рвётся. Лента растёт по содержимому, прокручивается
-     страница. Замер стенда: было `max-height: 320` при содержимом 1080. */
-  .dashboard__feed-list {
-    max-height: none;
-    overflow: visible;
-  }
-
-  /* Кнопка раскрытия ленты (волна 8): во всю ширину карточки, отделена от
-     последней строки рамкой блока (border у .dashboard__feed уже есть). */
-  .dashboard__feed-more {
-    width: calc(100% - 28px);
-    margin: 10px 14px 14px;
-  }
 }
 
 @media (max-width: 480px) {

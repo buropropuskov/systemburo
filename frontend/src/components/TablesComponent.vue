@@ -2004,6 +2004,13 @@ export default {
     .fact-hint-card--collapsed {
         background-color: var(--accent-tint-solid);
         border-color: color-mix(in srgb, var(--accent) 30%, var(--surface));
+        /* --hint-card-text в светлой теме = --accent-contrast (белый) - рассчитан на
+           сплошную акцентную заливку развёрнутой карточки, а не на 8%-подмес выше.
+           На нём подпись «Подсказка» пропадала (белое на белом). Переопределяем саму
+           ПЕРЕМЕННУЮ в области видимости свёрнутого состояния, а не color в
+           .fact-hint-card__toggle - тот текстом задаёт единый вид для обоих состояний
+           (замок TablesComponent.factHint.spec.js) и должен остаться нетронутым. */
+        --hint-card-text: var(--accent-text);
     }
 
     .hint-content {
