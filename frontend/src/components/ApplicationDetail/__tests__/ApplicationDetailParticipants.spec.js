@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
@@ -23,6 +25,17 @@ import ApplicationParticipantsModal from '../ApplicationParticipantsModal.vue';
 
 const PARTICIPANTS_BTN = '[data-testid="app-detail-button-participants"]';
 const FORWARD_BTN = '[data-testid="app-detail-button-forward"]';
+
+const SFC = readFileSync(resolve(__dirname, '../ApplicationDetail.vue'), 'utf8');
+
+/** Тело ПЕРВОГО правила для селектора без переносов и комментариев (см. паттерн
+ *  в ApplicationDetailHeaderMobileAlignment.spec.js). */
+function rule(src, selector) {
+  const stripped = src.replace(/\/\*[\s\S]*?\*\//g, ' ');
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const found = stripped.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`));
+  return found ? found[1].replace(/\s+/g, ' ').trim() : null;
+}
 
 function mountDetail(props = {}) {
   return shallowMount(ApplicationDetail, {
@@ -81,5 +94,29 @@ describe('ApplicationDetail - кнопка «Получатели» (#1952)', ()
 
     expect(wrapper.findComponent(ApplicationParticipantsModal).props('show')).toBe(false);
     expect(wrapper.emitted('close')).toBeFalsy();
+  });
+
+  it('title дублирует подпись - кнопка объясняет себя даже без текста', async () => {
+    const wrapper = mountDetail();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find(PARTICIPANTS_BTN).attributes('title')).toBe('Получатели');
+  });
+});
+
+// Ряд заголовка (title/дата/"Переслать"/"Получатели") тесен уже на десктопе, не только
+// на мобилке: полная пилюля "Получатели" первой не помещается и переносится одна,
+// оторванно от даты - владелец увидел это на 1440/1100 при исправной раскладке на
+// 1920/1280 (замерено в браузере). jsdom не считает @container, поэтому эффект
+// стережём чтением исходника: кнопка сжимается в тот же кружок-иконку, что и на
+// мобилке, но по ширине самого ряда, а не окна.
+describe('ApplicationDetail - "Получатели" сжимается в иконку на тесном ряду заголовка (десктоп)', () => {
+  it('.detail-title-row - контейнер по инлайн-размеру для @container ниже', () => {
+    expect(rule(SFC, '.detail-title-row')).toMatch(/container-type:\s*inline-size/);
+  });
+
+  it('@container сворачивает пилюлю в кружок-иконку и прячет подпись', () => {
+    expect(SFC).toMatch(/@container\s*\([^)]*\)\s*\{[^}]*\.participants-btn\s*\{[^}]*border-radius:\s*50%/s);
+    expect(SFC).toMatch(/@container\s*\([^)]*\)\s*\{[\s\S]*?\.participants-btn__text\s*\{\s*display:\s*none;/);
   });
 });
