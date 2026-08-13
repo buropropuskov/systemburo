@@ -181,6 +181,7 @@
           <div
             v-if="listLoading && !items.length"
             class="cards-list"
+            data-scroll-own
             data-testid="aa-skeleton"
           >
             <SkeletonCard
@@ -193,6 +194,7 @@
           <div
             v-else-if="items.length"
             class="cards-list"
+            data-scroll-own
             data-testid="aa-list"
           >
             <button
@@ -325,84 +327,91 @@
             <span class="detail-back__arrow" aria-hidden="true">←</span> К списку
           </button>
 
-          <template v-if="detail">
-            <div class="application-block">
-              <h4 class="application-block__title">
-                <!-- Номер печатается как есть: application_number реальных заявок уже
-                     начинается с «№», свой знак давал «Заявка № № 20260808/027». -->
-                <span>Заявка&#32;<template v-if="detail.attachment.application_number">{{ detail.attachment.application_number }}</template></span>
-                <StatusBadge
-                  v-if="statusText(detail.attachment)"
-                  :status="statusText(detail.attachment)"
-                />
-              </h4>
-              <div class="application-block__grid">
-                <div
-                  v-if="detail.attachment.organization_name"
-                  class="application-block__row"
-                >
-                  <span class="application-block__label">Организация</span>
-                  <span class="application-block__value">{{ detail.attachment.organization_name }}</span>
-                </div>
-                <div
-                  v-if="detail.attachment.company_name"
-                  class="application-block__row"
-                >
-                  <span class="application-block__label">Компания</span>
-                  <span class="application-block__value">{{ detail.attachment.company_name }}</span>
-                </div>
-                <div
-                  v-if="senderName(detail.attachment)"
-                  class="application-block__row"
-                  data-testid="ob-aa-sender"
-                >
-                  <span class="application-block__label">Отправитель</span>
-                  <span class="application-block__value">{{ senderName(detail.attachment) }}</span>
-                </div>
-                <div
-                  v-if="detail.attachment.sending_datetime"
-                  class="application-block__row"
-                >
-                  <span class="application-block__label">Отправлена</span>
-                  <span class="application-block__value">{{ formatDateTime(detail.attachment.sending_datetime) }}</span>
+          <!-- Прокручивается только эта область: кнопка "К списку" и шапка/поиск
+               экрана остаются на месте, страница целиком не скроллится. -->
+          <div
+            class="detail-scroll"
+            data-scroll-own
+          >
+            <template v-if="detail">
+              <div class="application-block">
+                <h4 class="application-block__title">
+                  <!-- Номер печатается как есть: application_number реальных заявок уже
+                       начинается с «№», свой знак давал «Заявка № № 20260808/027». -->
+                  <span>Заявка&#32;<template v-if="detail.attachment.application_number">{{ detail.attachment.application_number }}</template></span>
+                  <StatusBadge
+                    v-if="statusText(detail.attachment)"
+                    :status="statusText(detail.attachment)"
+                  />
+                </h4>
+                <div class="application-block__grid">
+                  <div
+                    v-if="detail.attachment.organization_name"
+                    class="application-block__row"
+                  >
+                    <span class="application-block__label">Организация</span>
+                    <span class="application-block__value">{{ detail.attachment.organization_name }}</span>
+                  </div>
+                  <div
+                    v-if="detail.attachment.company_name"
+                    class="application-block__row"
+                  >
+                    <span class="application-block__label">Компания</span>
+                    <span class="application-block__value">{{ detail.attachment.company_name }}</span>
+                  </div>
+                  <div
+                    v-if="senderName(detail.attachment)"
+                    class="application-block__row"
+                    data-testid="ob-aa-sender"
+                  >
+                    <span class="application-block__label">Отправитель</span>
+                    <span class="application-block__value">{{ senderName(detail.attachment) }}</span>
+                  </div>
+                  <div
+                    v-if="detail.attachment.sending_datetime"
+                    class="application-block__row"
+                  >
+                    <span class="application-block__label">Отправлена</span>
+                    <span class="application-block__value">{{ formatDateTime(detail.attachment.sending_datetime) }}</span>
+                  </div>
                 </div>
               </div>
-            </div>
+
+              <div
+                v-if="detail.attachment.has_blank"
+                class="detail-actions"
+              >
+                <button
+                  type="button"
+                  class="lk-button lk-button--primary"
+                  :disabled="previewLoading"
+                  data-testid="aa-preview-blank"
+                  @click="openPreview"
+                >
+                  {{ previewLoading ? 'Загрузка...' : 'Посмотреть файл' }}
+                </button>
+              </div>
+
+              <!-- AvailableAttachment не несёт roof_access/free_parking/custom_values -
+                   эти опц. блоки детали просто не отрисуются (v-if по undefined). -->
+              <!-- Карточку машины/сотрудника здесь не открываем: обработчиков нет,
+                   поэтому строка не должна выглядеть кликабельной (#1392). -->
+              <ApplicationAttachmentDetail
+                :attachment="detail.attachment"
+                :cars="detail.cars || []"
+                :employees="detail.employees || []"
+                :items="detail.items || []"
+                :interactive="false"
+              />
+            </template>
 
             <div
-              v-if="detail.attachment.has_blank"
-              class="detail-actions"
+              v-else
+              class="detail-loading"
+              data-testid="aa-detail-loading"
             >
-              <button
-                type="button"
-                class="lk-button lk-button--primary"
-                :disabled="previewLoading"
-                data-testid="aa-preview-blank"
-                @click="openPreview"
-              >
-                {{ previewLoading ? 'Загрузка...' : 'Посмотреть файл' }}
-              </button>
+              <SkeletonCard :lines="6" />
             </div>
-
-            <!-- AvailableAttachment не несёт roof_access/free_parking/custom_values -
-                 эти опц. блоки детали просто не отрисуются (v-if по undefined). -->
-            <!-- Карточку машины/сотрудника здесь не открываем: обработчиков нет,
-                 поэтому строка не должна выглядеть кликабельной (#1392). -->
-            <ApplicationAttachmentDetail
-              :attachment="detail.attachment"
-              :cars="detail.cars || []"
-              :employees="detail.employees || []"
-              :items="detail.items || []"
-              :interactive="false"
-            />
-          </template>
-
-          <div
-            v-else
-            class="detail-loading"
-            data-testid="aa-detail-loading"
-          >
-            <SkeletonCard :lines="6" />
           </div>
         </div>
       </div>
@@ -1277,18 +1286,59 @@ onBeforeUnmount(() => {
    стояли на одной вертикали, а не тремя разными уступами: рамки контролов - по
    рамке карточек, текст шапки - по тексту карточек. */
 @media (max-width: 767.98px) {
-  /* Панель держит свой контур и на телефоне: без скругления экран читался
-     коробкой с прямыми углами (претензия владельца, волна 6) - тем более рядом с
-     «Моими сотрудниками»/«Моими автомобилями», где панель списка скруглена.
-     overflow остаётся visible: hidden сделал бы панель скроллпортом, и sticky
-     у шапки со строкой поиска перестал бы липнуть под app bar (перестал бы молча -
-     правило осталось бы валидным). Верхние углы поэтому закрывает сама шапка.
-     Селектор составной - AdminPageShell задаёт скругление карточке через
-     :deep(.dashboard-card) той же специфичности, и при равной исход решал бы
-     порядок загрузки чанков (оба - lazy route-чанки). */
-  .accessible-attachments.dashboard-card {
+  /* Скролл на телефоне - НЕ общий контракт AdminPageShell ("прокручивается
+     документ, внутри всё overflow:visible"). Тот контракт держит sticky-шапки
+     поверх едущего контента - именно на это владелец и пожаловался ("шапка
+     закрепляется, за шапкой видно скроллящиеся элементы"). Master-detail этого
+     экрана переведён на другую схему: сама панель стоит фиксированной высотой
+     вьюпорта, документ не скроллится вовсе, скроллится только видимая внутренняя
+     лента (список или деталь) - тот же паттерн, что уже работает на десктопе
+     (fixed content-container 540px + внутренний scroll cards-list).
+
+     Высота - 100dvh за вычетом сайтовой шапки и обеих (верх/низ) отступов
+     AdminPageShell на этом экране (padding: var(--gutter)); dvh, а не vh, чтобы
+     не зависеть от сворачивания адресной строки. Панель+эти отступы в сумме
+     равны 100dvh, поэтому document.scrollHeight совпадает с вьюпортом и странице
+     нечем прокручиваться.
+
+     Селектор с префиксом .admin-page и !important на height - обязательны:
+     AdminPageShell тем же !important заставляет .dashboard-card{height:auto} на
+     этом пороге, и оба правила - lazy route-чанки; префикс поднимает
+     специфичность моего правила выше правила shell'а (0,4,0 против 0,3,0), и
+     победа больше не зависит от порядка загрузки чанков. */
+  .admin-page .accessible-attachments.dashboard-card {
+    height: calc(100dvh - var(--mobile-header-height, 55px) - var(--gutter, 12px) * 2) !important;
+    display: flex;
+    flex-direction: column;
     border-radius: var(--radius-lg, 20px);
-    overflow: visible;
+    overflow: hidden;
+  }
+
+  /* content-container - та же history: AdminPageShell форсит height:auto и
+     overflow:visible на этом классе с !important (для карточек управления,
+     растущих сколько угодно). Здесь наоборот - контейнеру нужно заполнить
+     фиксированную высоту панели и не отдавать переполнение наружу. */
+  .admin-page .accessible-attachments .content-container {
+    height: auto !important;
+    max-height: none !important;
+    overflow: hidden !important;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  /* Единственный видимый ребёнок content-container (список ИЛИ деталь -
+     остальное скрыто display:none/v-if) заполняет всю оставшуюся высоту, и уже
+     ВНУТРИ него включается прокрутка (.cards-list / .detail-scroll ниже). */
+  .list-section,
+  .detail-section {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  /* Деталь сама не скроллится - см. .detail-scroll: там кнопка "К списку"
+     остаётся на месте, а едет только содержимое под ней. */
+  .detail-section {
+    overflow-y: hidden;
   }
 
   /* Шапка экрана - одна строка 48px: заголовок, счётчик записей, «Обновить».
@@ -1298,12 +1348,13 @@ onBeforeUnmount(() => {
      Боковой отступ собран из слагаемых, а не записан числом: заголовок стоит на
      той же вертикали, что текст карточек, а тот отбит от рамки панели отступом
      списка (8) + рамкой карточки (1) + её внутренним отступом (14). Радиус на 1px
-     меньше панельного - шапка лежит внутри её рамки; фон у обеих --surface,
-     поэтому при прокрутке скруглённые углы липкой шапки не видны. */
+     меньше панельного - шапка лежит внутри её рамки; фон у обеих --surface.
+
+     Не sticky: панель теперь стоит фиксированной высотой вьюпорта и сама не
+     скроллится (см. .dashboard-card выше), скроллить шапке не от чего убегать -
+     она просто закреплённый первый ряд flex-колонки (flex-shrink: 0). */
   .management-header {
-    position: sticky;
-    top: var(--mobile-header-height, 55px);
-    z-index: 20;
+    flex-shrink: 0;
     justify-content: flex-start;
     flex-wrap: nowrap;
     gap: 8px;
@@ -1357,11 +1408,13 @@ onBeforeUnmount(() => {
      элемента, и переносить второй некуда.
 
      Боковой отступ 8px - такой же, как у списка: рамка поиска встаёт ровно над
-     рамкой первой карточки (рамки равняем по рамкам, текст - по тексту). */
+     рамкой первой карточки (рамки равняем по рамкам, текст - по тексту).
+
+     Не sticky - по той же причине, что и .management-header: fixed-height
+     панель сама не скроллится, полоса поиска просто второй закреплённый ряд
+     (flex-shrink: 0). */
   .filters {
-    position: sticky;
-    top: calc(var(--mobile-header-height, 55px) + 48px);
-    z-index: 19;
+    flex-shrink: 0;
     flex-wrap: nowrap;
     gap: 8px;
     padding: 8px;
@@ -1386,10 +1439,34 @@ onBeforeUnmount(() => {
 
   /* Карточки лежат внутри панели, поэтому боковой отступ 8px - иначе их рамка
      упирается в рамку панели и читается двойной линией. Столько же у полосы
-     поиска над ними, так что рамки всех блоков стоят на одной вертикали. */
+     поиска над ними, так что рамки всех блоков стоят на одной вертикали.
+
+     overflow-y: auto возвращает внутренний скролл, снятый общим блоком
+     @media(max-width:900px) выше по файлу (там - overflow-y: visible, под
+     старую схему "скроллится документ"): здесь именно эта лента - единственная
+     прокручиваемая область экрана, помечена data-scroll-own в шаблоне.
+     overscroll-behavior: contain не даёт перетягиванию на границе ленты
+     просочиться выше (страница и так не скроллится, но резинка iOS иначе
+     дёргает всю панель). */
   .cards-list {
     gap: 8px;
     padding: 12px 8px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  /* Деталь вложения: кнопка "К списку" - закреплённая шапка панели, содержимое
+     под ней - единственная прокручиваемая область (data-scroll-own в шаблоне).
+     Тот же приём, что у .cards-list. */
+  .detail-back {
+    flex-shrink: 0;
+  }
+
+  .detail-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   /* padding карточки - эталонный 10px 14px (тот же, что глобальный rt-row в

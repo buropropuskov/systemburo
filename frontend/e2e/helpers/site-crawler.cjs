@@ -122,7 +122,7 @@ async function closeOpenedOverlays(page) {
     await page.keyboard.press('Escape');
     await page.waitForTimeout(150);
     // Иногда модалка не закрывается на Escape - клик по body вне модалки
-    const overlay = page.locator('.modal-overlay, .form-modal, .rename-modal, .permission-tree-modal').first();
+    const overlay = page.locator('.base-modal-overlay, .modal-overlay, .form-modal, .rename-modal, .permission-tree-modal').first();
     if (await overlay.isVisible({ timeout: 200 }).catch(() => false)) {
       await page.keyboard.press('Escape');
       await page.waitForTimeout(150);
