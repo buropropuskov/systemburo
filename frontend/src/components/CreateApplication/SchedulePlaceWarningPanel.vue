@@ -229,6 +229,7 @@ const shown = computed(
         data-testid="schedule-warning-panel"
         role="status"
         aria-live="polite"
+        data-swipe-own
         @pointerdown="onPointerDown"
         @pointermove="onPointerMove"
         @pointerup="onPointerUp"
