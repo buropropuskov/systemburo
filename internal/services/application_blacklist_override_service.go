@@ -23,7 +23,7 @@ type OverrideBlacklistFlagRequest struct {
 // OverrideBlacklistFlag фиксирует решение ответственного "всё равно пропустить" по
 // помеченному элементу заявки (#481, срез 4): пишет аудит-запись (кто/когда/коммент +
 // снимок совпавшего значения) и тем самым снимает блокировку согласования по этому флагу.
-// Только ответственный по заявке. Идемпотентно: повторный override того же флага не
+// Ответственный по заявке либо принимающий. Идемпотентно: повторный override того же флага не
 // плодит дубль (uniqueIndex на flag_id) и возвращает успех.
 func (s *applicationService) OverrideBlacklistFlag(ctx context.Context, username string, applicationID int, req OverrideBlacklistFlagRequest) error {
 	user, err := s.getUserByUsername(ctx, username)
@@ -35,16 +35,15 @@ func (s *applicationService) OverrideBlacklistFlag(ctx context.Context, username
 		return echo.NewHTTPError(http.StatusBadRequest, "Комментарий к пропуску обязателен")
 	}
 
-	// Подтвердить пропуск может только ответственный по заявке (как и голосовать).
-	var responsibleID int
-	if err := s.db.WithContext(ctx).Raw(
-		"SELECT id FROM application_responsible_users WHERE application_id = ? AND user_id = ?",
-		applicationID, user.ID,
-	).Scan(&responsibleID).Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки прав на заявку")
+	// Подтвердить пропуск может ответственный по заявке либо принимающий: решение
+	// о возможном обходе ЧС принимает тот, кто первым дошёл до заявки, а отменять
+	// подтверждение оба могли и раньше - проверка та же.
+	allowed, err := s.canManageBlacklistOverride(ctx, applicationID, user.ID)
+	if err != nil {
+		return err
 	}
-	if responsibleID == 0 {
-		return echo.NewHTTPError(http.StatusForbidden, "Вы не ответственный по этой заявке")
+	if !allowed {
+		return echo.NewHTTPError(http.StatusForbidden, "Недостаточно прав для подтверждения пропуска")
 	}
 
 	// Флаг должен существовать и принадлежать этой заявке.

@@ -401,12 +401,14 @@
               :employees="attachmentEmployees"
               :items="attachmentItems"
               :loading="loadingAttachmentDetails"
-              :can-override="isResponsibleUser"
+              :can-override="canOverrideBlacklist"
+              :can-remove="canRemoveElements"
               :can-assign="canAssignPlaces"
               :application-id="applicationData.id"
               @open-vehicle="openVehicleModal"
               @open-employee="openEmployeeModal"
               @override-element="openOverrideModal"
+              @remove-element="openRemovalModal"
               @assignments-changed="loadAttachmentDetails(selectedAttachment.id)"
             />
           </div>
@@ -680,7 +682,7 @@
       :current-user-name="currentUserName"
       :show-car-features="true"
       :source="'application'"
-      :can-override="isResponsibleUser"
+      :can-override="canOverrideBlacklist"
       :can-cancel-override="canManageBlacklistOverride"
       @close="showVehicleModal = false"
       @override="onCardOverride('vehicle')"
@@ -695,11 +697,19 @@
       :current-user-id="currentUserId"
       :current-user-name="currentUserName"
       :source="'application'"
-      :can-override="isResponsibleUser"
+      :can-override="canOverrideBlacklist"
       :can-cancel-override="canManageBlacklistOverride"
       @close="showEmployeeModal = false"
       @override="onCardOverride('employee')"
       @cancel-override="onCardCancelOverride('employee')"
+    />
+
+    <ElementRemovalModal
+      :show="showRemovalModal"
+      :label="removalLabel"
+      :submitting="removalSubmitting"
+      @confirm="confirmRemoval"
+      @close="showRemovalModal = false"
     />
 
     <BlacklistOverrideModal
@@ -731,6 +741,7 @@ import ApplicationQuestions from './ApplicationQuestions.vue'
 import ApplicationActionBar from './ApplicationActionBar.vue'
 import ApplicationAttachmentDetail from './ApplicationAttachmentDetail.vue'
 import BlacklistOverrideModal from './BlacklistOverrideModal.vue'
+import ElementRemovalModal from './ElementRemovalModal.vue'
 import VehicleDetailsModal from '../CreateApplication/VehicleDetailsModal.vue'
 import EmployeeDetailsModal from '../CreateApplication/EmployeeDetailsModal.vue'
 import Badge from '@/components/ui/Badge.vue'
@@ -757,6 +768,7 @@ import { ref } from 'vue'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 import SupplementModal from '../CreateApplication/SupplementModal.vue'
 import SupplementPanel from './SupplementPanel.vue'
+import { removeApplicationElements } from '@/api/applicationAssignments'
 
 // Статусы, в которых заявку ещё можно дополнить (#1685). Зеркало
 // services.supplementAllowedStatuses - остальные бэк отклоняет с 409.
@@ -775,6 +787,7 @@ export default {
         ApplicationActionBar,
         ApplicationAttachmentDetail,
         BlacklistOverrideModal,
+        ElementRemovalModal,
         VehicleDetailsModal,
         EmployeeDetailsModal,
         Badge,
@@ -902,7 +915,11 @@ export default {
             showOverrideModal: false,
             overrideFlag: null,
             overrideLabel: '',
-            overrideSubmitting: false
+            overrideSubmitting: false,
+            showRemovalModal: false,
+            removalLabel: '',
+            removalElementId: null,
+            removalSubmitting: false
         }
     },
     computed: {
@@ -940,6 +957,24 @@ export default {
         isResponsibleUser() {
             if (!this.currentUserId || !this.responsibleUsers.length) return false;
             return this.responsibleUsers.some(user => user.id === this.currentUserId);
+        },
+
+        /**
+         * Пропустить помеченный элемент вправе и согласующий, и принимающий - кто
+         * первым дошёл до заявки. Отменять подтверждение оба могли и раньше.
+         */
+        canOverrideBlacklist() {
+            return this.isResponsibleUser || this.isApprover;
+        },
+
+        /**
+         * Состав поданной заявки правит только принимающий, и только пока заявка не
+         * закрыта: белый список статусов повторяет серверный гард.
+         */
+        canRemoveElements() {
+            if (!this.isApprover) return false;
+            const status = this.applicationData && this.applicationData.status;
+            return ['Непрочитано', 'В обработке', 'В работе'].includes(status);
         },
 
         isApprover() {
@@ -2083,6 +2118,44 @@ export default {
                 blacklist_similar: employee.blacklist_similar || null
             };
             this.showEmployeeModal = true;
+        },
+
+        openRemovalModal({ label, id }) {
+            this.removalLabel = label || '';
+            this.removalElementId = id || null;
+            this.showRemovalModal = true;
+        },
+
+        async confirmRemoval(reason) {
+            if (!this.removalElementId || !this.selectedAttachment) return;
+            const elementType = this.selectedAttachment.attachment_type === 'people' ? 'people' : 'cars';
+            this.removalSubmitting = true;
+            try {
+                await removeApplicationElements(this.applicationData.id, {
+                    elementType,
+                    elementIds: [this.removalElementId],
+                    reason
+                });
+                useDeletionsStore().notify({
+                    prefix: 'Убрано из заявки: ',
+                    bold: this.removalLabel || 'элемент',
+                    type: 'success'
+                });
+                this.showRemovalModal = false;
+                await Promise.all([
+                    this.loadAttachmentDetails(this.selectedAttachment.id),
+                    this.refreshApplicationGate()
+                ]);
+                this.$emit('application-changed', this.applicationData);
+            } catch (error) {
+                useDeletionsStore().notify({
+                    prefix: 'Не удалось убрать из заявки: ',
+                    bold: error.message || 'ошибка',
+                    type: 'error'
+                });
+            } finally {
+                this.removalSubmitting = false;
+            }
         },
 
         openOverrideModal({ label, flag }) {

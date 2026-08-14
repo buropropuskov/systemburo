@@ -443,6 +443,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// полем is_blacklisted (#1528/#1530), список ЧС в браузер больше не грузится.
 	vblGroup.GET("", vehicleBlacklist.GetAll, requireBlacklist)
 	vblGroup.GET("/check", vehicleBlacklist.Check)
+	// Предпросмотр последствий внесения - под правом: в ответе ФИО, номера заявок и посты.
+	vblGroup.GET("/impact", vehicleBlacklist.Impact, requireBlacklist)
 	vblGroup.GET("/history", vehicleBlacklist.GetAllHistory, requireBlacklist)
 	vblGroup.GET("/:id/history", vehicleBlacklist.GetHistory, requireBlacklist)
 	vblGroup.POST("", vehicleBlacklist.Create, requireBlacklist)
@@ -460,6 +462,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// остаётся открытым: форма проверяет конкретного человека, не выгружая список.
 	pblGroup.GET("", personBlacklist.GetAll, requireBlacklist)
 	pblGroup.GET("/check", personBlacklist.Check)
+	pblGroup.GET("/impact", personBlacklist.Impact, requireBlacklist)
 	pblGroup.GET("/history", personBlacklist.GetAllHistory, requireBlacklist)
 	pblGroup.GET("/:id/history", personBlacklist.GetHistory, requireBlacklist)
 	pblGroup.POST("", personBlacklist.Create, requireBlacklist)
@@ -887,6 +890,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.POST("/:id/take-to-work", app.TakeApplicationToWork)
 	// #1393 - принимающий доназначает посты и места элементам заявки
 	apg.PUT("/:id/elements/tables", app.AssignElementTables)
+	// Принимающий убирает человека или машину из поданной заявки: решение для случая,
+	// когда пропустить помеченный элемент нельзя, а заявку провести надо.
+	apg.DELETE("/:id/elements", app.RemoveApplicationElements)
 	apg.PUT("/:id/elements/unload-places", app.AssignCarUnloadPlaces)
 	apg.POST("/:id/revoke-from-work", app.RevokeApplicationFromWork)
 	apg.POST("/:id/restore-to-work", app.RestoreApplicationToWork)

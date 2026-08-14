@@ -46,3 +46,22 @@ export async function assignCarUnloadPlaces(applicationId, { carIds, placeIds, m
   });
   return unwrap(res, 'Не удалось обновить места разгрузки');
 }
+
+/**
+ * Убирает людей или машины из поданной заявки. Доступно принимающему.
+ * Удаление мягкое: строка уходит в корзину, история остаётся.
+ * @param {number} applicationId
+ * @param {{elementType: 'cars'|'people', elementIds: number[], reason: string}} params
+ * @returns {Promise<{data?: {removed: number}}>}
+ */
+export async function removeApplicationElements(applicationId, { elementType, elementIds, reason }) {
+  const res = await apiRequest(`/applications/${applicationId}/elements`, {
+    method: 'DELETE',
+    body: JSON.stringify({
+      element_type: elementType,
+      element_ids: elementIds,
+      reason,
+    }),
+  });
+  return unwrap(res, 'Не удалось убрать элемент из заявки');
+}
