@@ -122,11 +122,14 @@
                         :data-testid="`custom-row-${i}`"
                       >
                         <input
+                          ref="labelInputs"
                           v-model="cf.label"
                           class="lk-input ctable-input"
+                          :class="{ 'ctable-input--invalid': invalidCustomIndex === i }"
                           maxlength="200"
                           placeholder="Заголовок"
                           :data-testid="`custom-label-${i}`"
+                          @input="invalidCustomIndex = null"
                         >
                         <input
                           v-model="cf.placeholder"
@@ -264,6 +267,9 @@ export default {
       originalCustom: '',
       deletedCustomIds: [],
       customUidSeq: 0,
+      // Индекс поля, у которого не заполнен заголовок: подсвечивается после
+      // неудачной попытки сохранить. Уведомление не говорит, какое поле пустое.
+      invalidCustomIndex: null,
     };
   },
   computed: {
@@ -394,8 +400,13 @@ export default {
     },
     async save() {
       if (!this.isDirty || this.isSaving) return;
-      if (this.customFields.some((c) => !c.label.trim())) {
+      const emptyIndex = this.customFields.findIndex((c) => !c.label.trim());
+      if (emptyIndex !== -1) {
+        this.invalidCustomIndex = emptyIndex;
         useDeletionsStore().notify({ prefix: 'Заполните ', bold: 'заголовок поля', type: 'error' });
+        const inputs = this.$refs.labelInputs;
+        const input = Array.isArray(inputs) ? inputs[emptyIndex] : inputs;
+        input?.focus();
         return;
       }
       this.isSaving = true;
@@ -720,6 +731,10 @@ export default {
 .ctable-row {
   padding: 7px 12px;
   border-top: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
+}
+
+.ctable-input--invalid {
+  border-color: var(--danger);
 }
 
 .ctable-input {

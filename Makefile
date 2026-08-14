@@ -189,7 +189,14 @@ entity:
 staging-entity:
 	docker compose -f docker-compose.base.yml -f docker-compose.staging.yml exec backend ./server entity $(ARGS)
 
+CONFIRM_DEPLOY_ENTITY_PURGE = Данные организации будут удалены из базы рабочего сервера и с диска\nфизически и необратимо. Вернуть их можно только разворотом того же пакета.
+
+# Подтверждение спрашивается только на purge с -apply: остальные подкоманды либо
+# ничего не меняют, либо обратимы (retire снимается restore). Строка purge с -apply
+# отличается от предыдущей строки истории оболочки одним ключом, поэтому вопрос тут
+# нужен так же, как в deploy-cleanup.
 deploy-entity:
+	$(if $(and $(findstring purge,$(ARGS)),$(findstring -apply,$(ARGS))),$(call confirm,СНЕСТИ,$(CONFIRM_DEPLOY_ENTITY_PURGE)))
 	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec backend ./server entity $(ARGS)
 
 # Наполнение проверочного стенда вымышленными данными. Без ARGS показывает план и
