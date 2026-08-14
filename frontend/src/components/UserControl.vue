@@ -388,7 +388,7 @@
     <!-- Модальное окно редактирования пользователя -->
     <BaseModal
       :show="showEditModal && !!selectedUser"
-      width="880px"
+      width="1040px"
       content-class="user-edit-modal"
       radius="45px"
       :z-index="1001"
@@ -408,7 +408,7 @@
           class="modal-header-actions"
         >
           <button
-            class="lk-button lk-button--secondary"
+            class="lk-button lk-button--secondary lk-button--sm"
             @click="openHistory(selectedUser)"
           >
             История
@@ -416,7 +416,7 @@
           <template v-if="selectedUser.is_active !== false">
             <button
               v-if="isLockedOut(selectedUser)"
-              class="lk-button lk-button--primary"
+              class="lk-button lk-button--primary lk-button--sm"
               data-testid="user-reset-lockout"
               :disabled="lockoutResetting"
               :title="lockoutTitle(selectedUser)"
@@ -439,7 +439,7 @@
             >
               <template #trigger="{ toggle }">
                 <button
-                  class="lk-button lk-button--secondary"
+                  class="lk-button lk-button--secondary lk-button--sm"
                   data-testid="user-reset-onboarding"
                   @click="toggle"
                 >
@@ -452,7 +452,7 @@
             </BaseDropdown>
             <button
               v-if="canManageAccess"
-              class="lk-button lk-button--secondary"
+              class="lk-button lk-button--secondary lk-button--sm"
               data-testid="user-access"
               @click="openAccess(selectedUser)"
             >
@@ -460,7 +460,7 @@
             </button>
             <button
               v-if="canImpersonate"
-              class="lk-button lk-button--secondary"
+              class="lk-button lk-button--secondary lk-button--sm"
               data-testid="user-impersonate"
               :disabled="impersonating"
               title="Открыть систему глазами этого пользователя. Действие пишется в журнал."
@@ -470,7 +470,7 @@
             </button>
             <button
               v-if="selectedUserIsSecurity"
-              class="lk-button lk-button--secondary"
+              class="lk-button lk-button--secondary lk-button--sm"
               data-testid="user-access-places"
               @click="openAccessPlaces(selectedUser)"
             >
@@ -480,7 +480,7 @@
           <template v-else>
             <span class="archive-badge">В архиве</span>
             <button
-              class="lk-button lk-button--primary"
+              class="lk-button lk-button--primary lk-button--sm"
               @click="restoreUser(selectedUser)"
             >
               Восстановить
@@ -3054,6 +3054,15 @@ export default {
   gap: 8px;
   /* Прижать кнопки «История»/«Сбросить обучение» к правому краю шапки (перед крестиком). */
   margin-left: auto;
+  /* У охранника кнопок на одну больше («Места доступа»), и ряд перестаёт помещаться:
+     разрешаем перенос вместо вылезания за край. */
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 6px;
+}
+
+.modal-title-group {
+  min-width: 0;
 }
 
 /* Сброс обучения открывается списком туров, но в ряду шапки остаётся кнопкой -

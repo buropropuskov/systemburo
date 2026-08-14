@@ -332,6 +332,8 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 		SupplementID     *int    `gorm:"column:supplement_id"`
 		SupplementNumber *int    `gorm:"column:supplement_number"`
 		SupplementStatus *string `gorm:"column:supplement_status"`
+		// Точное попадание в действующий чёрный список - см. empRow.IsBlacklisted.
+		IsBlacklisted bool `gorm:"column:is_blacklisted"`
 	}
 	cars := make([]carRow, 0)
 	if err := s.db.WithContext(ctx).Raw(`
@@ -350,7 +352,17 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 			comp.id   AS company_id,
 			c.supplement_id,
 			sup.number AS supplement_number,
-			sup.status AS supplement_status
+			sup.status AS supplement_status,
+			EXISTS(
+				SELECT 1 FROM vehicle_blacklists vbl
+				WHERE vbl.is_active
+				  AND LOWER(TRIM(vbl.car_number)) = LOWER(TRIM(c.car_number))
+				  AND (
+				        c.mark_id = vbl.mark_id
+				        OR (c.mark_id IS NULL
+				            AND LOWER(TRIM(COALESCE(c.mark_name, c.car_brand))) = LOWER(TRIM(vbl.mark_name)))
+				      )
+			) AS is_blacklisted
 		FROM cars c
 		JOIN attachments a ON c.attachment_id = a.id
 		JOIN applications app ON a.application_id = app.id
@@ -385,6 +397,7 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 		}
 
 		result = append(result, CarWithPlaces{
+			IsBlacklisted:    car.IsBlacklisted,
 			ID:               car.ID,
 			CarNumber:        car.CarNumber,
 			CarBrand:         car.CarBrand,
@@ -432,6 +445,10 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 		SupplementID     *int    `gorm:"column:supplement_id"`
 		SupplementNumber *int    `gorm:"column:supplement_number"`
 		SupplementStatus *string `gorm:"column:supplement_status"`
+		// Точное попадание в действующий чёрный список - строка в заявке остаётся,
+		// но помечается зачёркнутой. Считается на чтении, а не хранится: запись
+		// могли внести после подачи заявки, и тогда флага в ней нет.
+		IsBlacklisted bool `gorm:"column:is_blacklisted"`
 	}
 	employees := make([]empRow, 0)
 	if err := s.db.WithContext(ctx).Raw(`
@@ -454,7 +471,14 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 			comp.id   AS company_id,
 			e.supplement_id,
 			sup.number AS supplement_number,
-			sup.status AS supplement_status
+			sup.status AS supplement_status,
+			EXISTS(
+				SELECT 1 FROM person_blacklists pbl
+				WHERE pbl.is_active
+				  AND LOWER(TRIM(pbl.last_name)) = LOWER(TRIM(e.last_name))
+				  AND LOWER(TRIM(pbl.first_name)) = LOWER(TRIM(e.first_name))
+				  AND LOWER(TRIM(COALESCE(pbl.middle_name, ''))) = LOWER(TRIM(COALESCE(e.middle_name, '')))
+			) AS is_blacklisted
 		FROM employees e
 		JOIN attachments a ON e.attachment_id = a.id
 		LEFT JOIN citizenships ci ON e.citizenship_id = ci.id
@@ -489,6 +513,7 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 		}
 
 		result = append(result, EmployeeWithTables{
+			IsBlacklisted:        emp.IsBlacklisted,
 			ID:                   emp.ID,
 			LastName:             emp.LastName,
 			FirstName:            emp.FirstName,

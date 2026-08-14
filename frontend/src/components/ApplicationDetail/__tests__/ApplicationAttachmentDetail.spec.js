@@ -526,3 +526,63 @@ describe('ApplicationAttachmentDetail — поиск по списку (#1392)',
     expect(wrapper.find('[data-testid="attachment-flagged-summary"]').text()).toBe('1 похоже на ЧС');
   });
 });
+
+describe('ApplicationAttachmentDetail — кнопка "Убрать" элемента из заявки', () => {
+  function mountCarsWith(cars, props = {}) {
+    return mount(ApplicationAttachmentDetail, {
+      props: {
+        attachment: { id: 1, attachment_type: 'cars', attachment_display_name: 'Машины' },
+        cars,
+        ...props,
+      },
+    });
+  }
+
+  it('canRemove=true: кнопка есть у любой строки, а не только у помеченной', () => {
+    const wrapper = mountCarsWith([car()], { canRemove: true });
+    expect(wrapper.find('[data-testid="element-remove-btn"]').exists()).toBe(true);
+  });
+
+  it('canRemove=false (дефолт): кнопки нет', () => {
+    const wrapper = mountCarsWith([car({ blacklist_similar: flag() })]);
+    expect(wrapper.find('[data-testid="element-remove-btn"]').exists()).toBe(false);
+  });
+
+  it('клик эмитит remove-element с идентификатором и подписью строки, но не открывает карточку', async () => {
+    const wrapper = mountCarsWith([car({ id: 7, car_number: 'А123ВС' })], { canRemove: true });
+    await wrapper.find('[data-testid="element-remove-btn"]').trigger('click');
+
+    const removed = wrapper.emitted('remove-element');
+    expect(removed).toHaveLength(1);
+    expect(removed[0][0].id).toBe(7);
+    expect(removed[0][0].label).toContain('А123ВС');
+    expect(wrapper.emitted('open-vehicle')).toBeUndefined();
+  });
+});
+
+describe('ApplicationAttachmentDetail — строка, попавшая в чёрный список после подачи', () => {
+  it('is_blacklisted: строка перечёркнута, но остаётся в списке', () => {
+    const wrapper = mount(ApplicationAttachmentDetail, {
+      props: {
+        attachment: { id: 1, attachment_type: 'cars', attachment_display_name: 'Машины' },
+        cars: [car({ id: 3, car_number: 'Ч 001 СС 777', is_blacklisted: true })],
+      },
+    });
+
+    const rows = wrapper.findAll('[data-testid="attachment-element-row"]');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].classes()).toContain('el-row--blacklisted');
+    expect(rows[0].text()).toContain('Ч 001 СС 777');
+  });
+
+  it('чистая строка не перечёркивается', () => {
+    const wrapper = mount(ApplicationAttachmentDetail, {
+      props: {
+        attachment: { id: 1, attachment_type: 'cars', attachment_display_name: 'Машины' },
+        cars: [car({ id: 4 })],
+      },
+    });
+
+    expect(wrapper.find('[data-testid="attachment-element-row"]').classes()).not.toContain('el-row--blacklisted');
+  });
+});

@@ -147,6 +147,7 @@
                   supplementMarks[row.id] ? supplementMarks[row.id].rowClass : null,
                   {
                     'el-row--flagged': isFlagged(row),
+                    'el-row--blacklisted': row.is_blacklisted,
                     'el-row--clickable': isClickable
                   }
                 ]"
@@ -256,6 +257,16 @@
                   >
                     {{ blacklistLabel(row.blacklist_similar) }}
                   </Badge>
+                  <button
+                    v-if="canRemove"
+                    type="button"
+                    class="lk-button lk-button--ghost element-remove-btn"
+                    data-testid="element-remove-btn"
+                    data-hint="Убрать из заявки"
+                    @click.stop="$emit('remove-element', { label: rowLabel(row), id: row.id })"
+                  >
+                    Убрать
+                  </button>
                 </div>
               </div>
             </div>
@@ -483,8 +494,14 @@ export default {
             type: Boolean,
             default: false
         },
-        // Показываем "Пропустить" только ответственному - у остальных нет права на override.
+        // Показываем "Пропустить" ответственному и принимающему - право на подтверждение
+        // пропуска у них общее.
         canOverride: {
+            type: Boolean,
+            default: false
+        },
+        // "Убрать" - только принимающему: он единственный, кто правит состав поданной заявки.
+        canRemove: {
             type: Boolean,
             default: false
         },
@@ -504,7 +521,7 @@ export default {
             default: null
         }
     },
-    emits: ['open-vehicle', 'open-employee', 'override-element', 'assignments-changed'],
+    emits: ['open-vehicle', 'open-employee', 'override-element', 'remove-element', 'assignments-changed'],
     data() {
         return {
             containerWidth: 0,
@@ -1736,6 +1753,22 @@ export default {
 
 .blacklist-badge {
     flex-shrink: 0;
+}
+
+/* Строка, попавшая в чёрный список после подачи: из заявки не исчезает - заявка
+   документ, - но перечёркивается, чтобы её не приняли за действующую. */
+.el-row--blacklisted .el-cell,
+.el-row--blacklisted .c-num {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  color: var(--text-muted);
+}
+
+.element-remove-btn {
+  padding: 2px 10px;
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--danger-text);
 }
 
 .blacklist-override-btn {

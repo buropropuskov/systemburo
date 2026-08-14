@@ -237,6 +237,9 @@ type ApplicationService interface {
 	AssignElementTables(ctx context.Context, username string, applicationID int, req AssignElementTablesRequest) error
 	// AssignCarUnloadPlaces назначает или снимает места разгрузки у машин заявки (#1393).
 	AssignCarUnloadPlaces(ctx context.Context, username string, applicationID int, req AssignCarUnloadPlacesRequest) error
+	// RemoveApplicationElements убирает людей или машины из поданной заявки; доступно
+	// принимающему. Возвращает число реально убранных элементов.
+	RemoveApplicationElements(ctx context.Context, username string, applicationID int, req RemoveApplicationElementsRequest) (int, error)
 	// UpdateApplicationItemsStatus активирует все машины и сотрудников заявки (status->1) и
 	// пишет историю попадания в таблицу проходной. username - актор истории.
 	UpdateApplicationItemsStatus(ctx context.Context, applicationID int, username string) error
@@ -743,6 +746,9 @@ type CarWithPlaces struct {
 	// BlacklistSimilar - предупреждение о возможном обходе ЧС (#481): заполнено, если
 	// номер близок к активной записи ЧС (но не точное совпадение). nil - элемент чист.
 	BlacklistSimilar *BlacklistFlagInfo `json:"blacklist_similar,omitempty"`
+	// IsBlacklisted - точное попадание в действующий чёрный список; строка остаётся в
+	// заявке, но показывается зачёркнутой.
+	IsBlacklisted bool `json:"is_blacklisted"`
 	// SupplementMark - каким раундом дополнения строка добавлена (#1685).
 	SupplementMark
 }
@@ -787,6 +793,9 @@ type EmployeeWithTables struct {
 	// BlacklistSimilar - предупреждение о возможном обходе ЧС (#481): заполнено, если
 	// ФИО близко к активной записи ЧС (но не точное совпадение). nil - элемент чист.
 	BlacklistSimilar *BlacklistFlagInfo `json:"blacklist_similar,omitempty"`
+	// IsBlacklisted - точное попадание в действующий чёрный список. Из заявки строка
+	// не исчезает (заявка - документ), но показывается зачёркнутой.
+	IsBlacklisted bool `json:"is_blacklisted"`
 	// SupplementMark - каким раундом дополнения строка добавлена (#1685).
 	SupplementMark
 }

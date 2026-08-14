@@ -34,6 +34,9 @@ type PersonBlacklistService interface {
 	// BulkRestore возвращает набор записей в чёрный список через Restore.
 	BulkRestore(ctx context.Context, ids []int, userID int) (*BulkOpResult, error)
 	Check(ctx context.Context, lastName, firstName, middleName string) (models.PersonBlacklistCheckResult, error)
+	// Impact - предпросмотр последствий внесения: сколько активных работников
+	// перестанет действовать, из каких таблиц постов они уйдут и в каких заявках есть.
+	Impact(ctx context.Context, lastName, firstName, middleName string) (*BlacklistImpact, error)
 	// FindSimilar - активные записи ЧС, чьё нормализованное ФИО БЛИЗКО (но не обязательно
 	// равно) нормализованному ФИО заявки: триграммная similarity + word_similarity (учёт
 	// отсутствия отчества), порог 0.7. Слой предупреждения о возможном обходе (#481): точное
@@ -543,4 +546,9 @@ func personFullName(e models.PersonBlacklist) string {
 		fio += " " + strings.TrimSpace(*e.MiddleName)
 	}
 	return fio
+}
+
+// Impact - см. PersonBlacklistService.Impact.
+func (s *personBlacklistService) Impact(ctx context.Context, lastName, firstName, middleName string) (*BlacklistImpact, error) {
+	return personBlacklistImpact(ctx, s.db, lastName, firstName, middleName)
 }

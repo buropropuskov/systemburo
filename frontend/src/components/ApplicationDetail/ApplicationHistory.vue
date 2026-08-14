@@ -725,6 +725,7 @@ export default {
                 'confirmation_change': 'dot-system',
                 'status_change': 'dot-system',
                 'blacklist_override': 'dot-success',
+                'element_removed': 'dot-reject',
                 'blacklist_override_revoke': 'dot-warning',
                 'question_created': 'dot-info'
             };
@@ -787,7 +788,8 @@ export default {
                 'confirmation_change': 'Статус согласования изменился',
                 'status_change': 'Статус заявки изменился',
                 'blacklist_override': 'Подтвердил(-а) пропуск (возможный обход ЧС)',
-                'blacklist_override_revoke': 'Отменил(-а) подтверждение пропуска'
+                'blacklist_override_revoke': 'Отменил(-а) подтверждение пропуска',
+                'element_removed': 'Убрал(-а) из заявки'
             };
             
             let text = texts[item.action_type] || item.action_type;
