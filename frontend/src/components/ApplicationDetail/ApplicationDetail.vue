@@ -401,7 +401,7 @@
               :employees="attachmentEmployees"
               :items="attachmentItems"
               :loading="loadingAttachmentDetails"
-              :can-override="isResponsibleUser"
+              :can-override="canOverrideBlacklist"
               :can-assign="canAssignPlaces"
               :application-id="applicationData.id"
               @open-vehicle="openVehicleModal"
@@ -680,7 +680,7 @@
       :current-user-name="currentUserName"
       :show-car-features="true"
       :source="'application'"
-      :can-override="isResponsibleUser"
+      :can-override="canOverrideBlacklist"
       :can-cancel-override="canManageBlacklistOverride"
       @close="showVehicleModal = false"
       @override="onCardOverride('vehicle')"
@@ -695,7 +695,7 @@
       :current-user-id="currentUserId"
       :current-user-name="currentUserName"
       :source="'application'"
-      :can-override="isResponsibleUser"
+      :can-override="canOverrideBlacklist"
       :can-cancel-override="canManageBlacklistOverride"
       @close="showEmployeeModal = false"
       @override="onCardOverride('employee')"
@@ -940,6 +940,14 @@ export default {
         isResponsibleUser() {
             if (!this.currentUserId || !this.responsibleUsers.length) return false;
             return this.responsibleUsers.some(user => user.id === this.currentUserId);
+        },
+
+        /**
+         * Пропустить помеченный элемент вправе и согласующий, и принимающий - кто
+         * первым дошёл до заявки. Отменять подтверждение оба могли и раньше.
+         */
+        canOverrideBlacklist() {
+            return this.isResponsibleUser || this.isApprover;
         },
 
         isApprover() {
