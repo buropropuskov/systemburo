@@ -274,9 +274,12 @@ describe.each(TABLES)('Шапка блока: $file', ({ file, body, counter }) 
   });
 
   it('боковой отступ записан слагаемыми и равен вертикали текста карточек', () => {
-    expect(header).toMatch(/padding:\s*0\s+calc\(8px\s*\+\s*1px\s*\+\s*14px\)/);
-    // Первое слагаемое - реальный отступ тела списка, иначе формула врёт.
-    expect(declarationsFor(mobile, body).join('\n')).toMatch(/padding:\s*0\s+8px/);
+    expect(header).toMatch(/padding:\s*0\s+calc\(1px\s*\+\s*14px\)/);
+    // Тело списка своего бокового отступа больше не добавляет (волна 8: лишний слой
+    // 8px давал заявленный владельцем "лишний боковой отступ" и отрывал разделитель
+    // строк/линию отрыва талона от рамки карточки) - строка стоит вплотную к рамке,
+    // и формула шапки считает только рамку + отступ самой строки.
+    expect(declarationsFor(mobile, body).join('\n')).toMatch(/padding:\s*0\s*;/);
   });
 
   if (counter) {
@@ -540,16 +543,23 @@ describe('Карточка человека: ФИО одной строкой', 
  * без возврата к «квадрату в квадрате» (рамка блока 30px + рамка каждой строки
  * 15px): решение - контейнер несёт рамку и фон, а скругление получают только
  * верхний край первой строки и нижний последней, середина прямоугольная.
+ *
+ * Волна 8: владелец забраковал 15px волны 7 отдельно ("скруглить как и по факту",
+ * "таблицам больше скругление нужно дать, как и было") - радиус вернулся к
+ * десктопным 30px и одинаков у контейнера и у скруглённых строк, чтобы кривые
+ * продолжали друг друга без излома (строка стоит вплотную к рамке - см. отдельный
+ * замок на `.items-body`/`.fact-body` выше).
  */
 describe.each(TALON)('Рамка контейнера без «квадрата в квадрате»: $file', ({ file, card, wrap }) => {
   const mobile = mediaBlocks(source(file), MOBILE).join('\n');
 
-  it('контейнер несёт видимую рамку и фон, а не border:none', () => {
+  it('контейнер несёт видимую рамку, фон и радиус 30px, а не border:none', () => {
     const decls = declarationsFor(mobile, card).join('\n');
     expect(decls).toMatch(/border:\s*1px\s+solid\s+var\(--border\)/);
     expect(decls).not.toMatch(/border:\s*none/);
     expect(decls).toMatch(/background:\s*var\(--surface\)/);
     expect(decls).not.toMatch(/background:\s*transparent/);
+    expect(decls).toMatch(/border-radius:\s*30px/);
   });
 
   it('строки идут вплотную, без зазора карточек Центра', () => {
@@ -564,16 +574,38 @@ describe.each(TALON)('Рамка контейнера без «квадрата 
     expect(decls).toMatch(/border-right:\s*none\s*!important/);
   });
 
-  it('скругление контейнера продолжается только в первой и последней строке', () => {
+  it('скругление контейнера продолжается только в первой и последней строке, тем же радиусом 30px', () => {
     const first = declarationsFor(mobile, `${card} ${wrap}:first-child .rt-pass`).join('\n');
     const last = declarationsFor(mobile, `${card} ${wrap}:last-child .rt-pass`).join('\n');
-    expect(first).toMatch(/border-top-left-radius:\s*var\(--radius-md,\s*15px\)\s*!important/);
-    expect(first).toMatch(/border-top-right-radius:\s*var\(--radius-md,\s*15px\)\s*!important/);
-    expect(last).toMatch(/border-bottom-left-radius:\s*var\(--radius-md,\s*15px\)\s*!important/);
-    expect(last).toMatch(/border-bottom-right-radius:\s*var\(--radius-md,\s*15px\)\s*!important/);
+    expect(first).toMatch(/border-top-left-radius:\s*30px\s*!important/);
+    expect(first).toMatch(/border-top-right-radius:\s*30px\s*!important/);
+    expect(last).toMatch(/border-bottom-left-radius:\s*30px\s*!important/);
+    expect(last).toMatch(/border-bottom-right-radius:\s*30px\s*!important/);
     // Последняя строка не тянет собственный border-bottom - его закрывает рамка
     // контейнера, повторный был бы двойной линией у самого края.
     expect(last).toMatch(/border-bottom:\s*none\s*!important/);
+  });
+});
+
+/**
+ * Волна 8: разделитель между строками и линия отрыва талона не доставали до краёв
+ * карточки, а боковой отступ читался как лишний - обе жалобы были следствием ОДНОГО
+ * слоя. `.items-body`/`.fact-body` добавляли 8px поверх собственного `padding: 10px
+ * 14px` строки (часть 1 responsive-tables.css), и разделитель/линия отрыва (её
+ * расчёт базиса в responsive-tables.css рассчитан на строку ВПЛОТНУЮ к рамке
+ * контейнера) обрывались на те же 8px раньше края. Замок читает СПИСОК всех
+ * card-правил компонента и требует отсутствия бокового `padding`/`margin` у тела
+ * списка - разделитель и линия отрыва при этом автоматически достают до краёв,
+ * потому что их геометрия считается от границ строки, а строка равна карточке.
+ */
+describe.each(TALON)('Тело списка вплотную к рамке - без лишнего бокового отступа: $file', ({ file, body }) => {
+  const mobile = mediaBlocks(source(file), MOBILE).join('\n');
+
+  it('padding и margin-right тела списка обнулены', () => {
+    const decls = declarationsFor(mobile, body).join('\n');
+    expect(decls).toMatch(/padding:\s*0\s*;/);
+    expect(decls).not.toMatch(/padding:\s*0\s+\d/);
+    expect(decls).toMatch(/margin-right:\s*0\s*;/);
   });
 });
 

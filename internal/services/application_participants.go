@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"slices"
 	"sort"
 	"time"
 
@@ -135,6 +136,14 @@ WITH participants AS (
 	SELECT av.user_id, 'reader'::text, false, NULL::text, NULL::text, NULL::timestamptz
 	FROM application_viewers av
 	WHERE av.application_id = ?
+	UNION ALL
+	-- Принимающие: реестр не привязан к заявке, заявку видит любой из них и любой
+	-- может взять её в работу. Пока никто не взял, responsible_user_id пуст, и без
+	-- этой ветки заявитель видел в получателях только себя.
+	SELECT aa.user_id, 'acceptor'::text, false, NULL::text, NULL::text, NULL::timestamptz
+	FROM application_approvers aa
+	JOIN users au ON au.id = aa.user_id
+	WHERE au.is_active AND NOT au.is_banned AND NOT au.is_super_admin
 )
 SELECT
 	p.user_id,
@@ -215,7 +224,12 @@ func mergeParticipantRows(rows []participantRow) []ApplicationParticipant {
 			})
 		}
 		p := &result[pos]
-		p.Roles = append(p.Roles, r.Role)
+		// Роль добавляем один раз: принимающий приходит двумя строками - из реестра
+		// принимающих и из responsible_user_id взятой в работу заявки, - и без проверки
+		// в наборе ролей появлялось бы два одинаковых значения.
+		if !slices.Contains(p.Roles, r.Role) {
+			p.Roles = append(p.Roles, r.Role)
+		}
 		if r.Role == ParticipantRoleApprover {
 			p.RequiredApproval = r.RequiredApproval
 			p.ApprovalStatus = r.ApprovalStatus

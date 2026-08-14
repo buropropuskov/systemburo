@@ -94,7 +94,7 @@
                 </div>
                 <div class="custom-body">
                   <p class="custom-hint">
-                    Произвольные текстовые поля заявки. Перетаскивание за ⠿ задаёт порядок в форме подачи.
+                    Произвольные текстовые поля заявки. Стрелки справа задают порядок в форме подачи.
                   </p>
 
                   <div
@@ -109,7 +109,6 @@
                     class="ctable"
                   >
                     <div class="ctable-head">
-                      <span />
                       <span>Заголовок</span>
                       <span>Плейсхолдер</span>
                       <span class="ctable-head--c">Обязат.</span>
@@ -122,13 +121,15 @@
                         class="ctable-row"
                         :data-testid="`custom-row-${i}`"
                       >
-                        <span class="ctable-grip">⠿</span>
                         <input
+                          ref="labelInputs"
                           v-model="cf.label"
                           class="lk-input ctable-input"
+                          :class="{ 'ctable-input--invalid': invalidCustomIndex === i }"
                           maxlength="200"
                           placeholder="Заголовок"
                           :data-testid="`custom-label-${i}`"
+                          @input="invalidCustomIndex = null"
                         >
                         <input
                           v-model="cf.placeholder"
@@ -266,6 +267,9 @@ export default {
       originalCustom: '',
       deletedCustomIds: [],
       customUidSeq: 0,
+      // Индекс поля, у которого не заполнен заголовок: подсвечивается после
+      // неудачной попытки сохранить. Уведомление не говорит, какое поле пустое.
+      invalidCustomIndex: null,
     };
   },
   computed: {
@@ -396,8 +400,13 @@ export default {
     },
     async save() {
       if (!this.isDirty || this.isSaving) return;
-      if (this.customFields.some((c) => !c.label.trim())) {
+      const emptyIndex = this.customFields.findIndex((c) => !c.label.trim());
+      if (emptyIndex !== -1) {
+        this.invalidCustomIndex = emptyIndex;
         useDeletionsStore().notify({ prefix: 'Заполните ', bold: 'заголовок поля', type: 'error' });
+        const inputs = this.$refs.labelInputs;
+        const input = Array.isArray(inputs) ? inputs[emptyIndex] : inputs;
+        input?.focus();
         return;
       }
       this.isSaving = true;
@@ -692,7 +701,7 @@ export default {
 .ctable-head,
 .ctable-row {
   display: grid;
-  grid-template-columns: 18px 1.2fr 1.2fr 84px 96px;
+  grid-template-columns: 1.2fr 1.2fr 84px 96px;
   gap: 8px;
   align-items: center;
 }
@@ -724,11 +733,8 @@ export default {
   border-top: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 
-.ctable-grip {
-  color: var(--text-muted);
-  cursor: grab;
-  text-align: center;
-  font-size: 13px;
+.ctable-input--invalid {
+  border-color: var(--danger);
 }
 
 .ctable-input {

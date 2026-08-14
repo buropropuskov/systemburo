@@ -220,10 +220,16 @@ export default {
     opacity: 0.8;
 }
 
+/* Высота и прокрутка как в списке машин: не меньше 180px, дальше внутренняя прокрутка.
+   Прежние 300px делали список ТМЦ выше остальных на той же форме. */
 .table-body {
-    max-height: 300px;
+    flex: 1;
+    min-height: 180px;
     overflow-y: auto;
     background: var(--surface);
+    border-bottom-left-radius: 20px;
+    border-bottom-right-radius: 20px;
+    scrollbar-width: thin;
     position: relative;
 }
 
@@ -289,12 +295,13 @@ export default {
 }
 
 .number-col {
-    width: 8%;
+    /* 10% - как столбец нумерации в списках машин и сотрудников на той же форме */
+    width: 10%;
     text-align: center;
 }
 
 .name-col {
-    width: 55%;
+    width: 53%;
 }
 
 .quantity-col {

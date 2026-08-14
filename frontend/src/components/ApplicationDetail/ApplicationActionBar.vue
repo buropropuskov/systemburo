@@ -9,13 +9,19 @@
         class="supplement-actions"
         data-testid="supplement-actions"
       >
-        <span
-          class="supplement-actions__label"
-          :class="supplementVoteBadge ? supplementVoteBadge.class : null"
+        <!-- Номер раунда без отдельного бейджа: рядом в шапке уже стоит "+ Дополнение №N
+             на согласовании" (ApplicationDetail.vue openSupplementBadge), а этот ряд
+             вёрстка держит прямо под ней ("под шапкой") - бейдж "Доп. №N" здесь только
+             дублировал ту же надпись и на мобилке растягивался на всю ширину. Кнопка
+             решения несёт номер сама - см. "Согласовать доп. №N" ниже. -->
+        <Badge
+          v-if="supplementVoteBadge"
+          :variant="mySupplementVoteStatus === 'approved' ? 'success' : 'danger'"
+          size="sm"
           data-testid="supplement-my-vote"
         >
-          Дополнение №{{ actionableRound.number }}<template v-if="supplementVoteBadge">, {{ supplementVoteBadge.text }}</template>
-        </span>
+          {{ supplementVoteBadge.text }}
+        </Badge>
 
         <template v-if="canVoteOnSupplement">
           <button
@@ -24,7 +30,7 @@
             :disabled="supplementBusy"
             @click="askSupplementAction('approve')"
           >
-            Согласовать
+            Согласовать доп. №{{ actionableRound.number }}
           </button>
           <button
             class="lk-button lk-button--danger"
@@ -53,7 +59,7 @@
             :disabled="supplementBusy"
             @click="askSupplementAction('accept')"
           >
-            Принять
+            Принять доп. №{{ actionableRound.number }}
           </button>
           <button
             class="lk-button lk-button--danger"
@@ -81,28 +87,55 @@
          (оверлей 10002, карточки из заявки 10003-10005), иначе окно откроется под ней.
          Видимостью управляет show, а не v-if по самому запросу: снятие окна родительским
          v-if убивает его анимацию закрытия, поэтому запрос переживает закрытие и
-         заменяется только при следующем открытии. -->
-    <ConfirmationModal
+         заменяется только при следующем открытии. Общий контракт окон (#1097) - выезд
+         снизу листом с ползунком на мобилке, закрытие по оверлею/Escape/свайпу - тот же
+         BaseModal, что и у остальных окон заявки (образец - BlacklistOverrideModal).
+         Тестиды confirmation-confirm/confirmation-cancel оставлены как есть - на них
+         завязан e2e ApplicationDetailModal.cjs. -->
+    <BaseModal
       v-if="supplementPrompt"
       :show="supplementPromptOpen"
       :title="supplementPrompt.title"
-      :message="supplementPrompt.message"
-      :confirm-text="supplementPrompt.confirmText"
-      cancel-text="Отмена"
+      width="420px"
+      radius="30px"
       :z-index="10006"
-      @confirm="confirmSupplementAction"
-      @cancel="closeSupplementPrompt"
+      content-class="supplement-confirm-modal"
+      @close="closeSupplementPrompt"
     >
-      <label class="supplement-comment">
-        <span class="supplement-comment__label">Комментарий (необязательно)</span>
-        <textarea
-          v-model="supplementComment"
-          class="lk-textarea supplement-comment__input"
-          data-testid="supplement-decision-comment"
-          rows="3"
-        />
-      </label>
-    </ConfirmationModal>
+      <div class="supplement-confirm-body">
+        <p class="supplement-confirm-message">
+          {{ supplementPrompt.message }}
+        </p>
+        <label class="supplement-comment">
+          <span class="supplement-comment__label">Комментарий (необязательно)</span>
+          <textarea
+            v-model="supplementComment"
+            class="lk-textarea supplement-comment__input"
+            data-testid="supplement-decision-comment"
+            rows="3"
+          />
+        </label>
+      </div>
+
+      <template #actions>
+        <button
+          type="button"
+          class="lk-button lk-button--ghost"
+          data-testid="confirmation-cancel"
+          @click="closeSupplementPrompt"
+        >
+          Отмена
+        </button>
+        <button
+          type="button"
+          class="lk-button lk-button--primary"
+          data-testid="confirmation-confirm"
+          @click="confirmSupplementAction"
+        >
+          {{ supplementPrompt.confirmText }}
+        </button>
+      </template>
+    </BaseModal>
 
     <div class="action-buttons-wrapper">
       <!-- Режим центра заявок -->
@@ -236,7 +269,7 @@
                         v-if="processing"
                         class="button-loading"
                       />
-                      <span v-else>Принять</span>
+                      <span v-else>{{ hasNoApprovers ? 'Согласовать и принять' : 'Принять' }}</span>
                     </button>
                     <button
                       class="reject-btn"
@@ -330,7 +363,7 @@
                     v-if="processing"
                     class="button-loading"
                   />
-                  <span v-else>Принять</span>
+                  <span v-else>{{ hasNoApprovers ? 'Согласовать и принять' : 'Принять' }}</span>
                 </button>
                 <button
                   class="reject-btn"
@@ -516,7 +549,8 @@
 import { apiRequest } from '@/api/client'
 import { useUiStore } from '@/stores/ui'
 import { useNarrowScreen } from '@/composables/useNarrowScreen'
-import ConfirmationModal from '@/components/ConfirmationModal.vue'
+import BaseModal from '@/components/ui/BaseModal.vue'
+import Badge from '@/components/ui/Badge.vue'
 import {
     approveSupplement,
     revokeSupplementApproval,
@@ -533,7 +567,7 @@ import {
 
 export default {
     name: 'ApplicationActionBar',
-    components: { ConfirmationModal },
+    components: { BaseModal, Badge },
     props: {
         application: {
             type: Object,
@@ -711,6 +745,13 @@ export default {
         // updateConfirmationBasedOnApprovals: все обязательные approved / при отсутствии
         // обязательных - хотя бы один approved; заявка без согласующих - принять можно.
         // По этому решаем: комбо-кнопка "Согласовать и принять" vs просто "Согласовать".
+        // У заявки нет ни одного согласующего: согласовывать некому, и решение принимающего
+        // заменяет согласование. Такому принимающему показываем ту же комбо-кнопку, что и
+        // совмещённой роли, а голос за него не отправляем - записи согласующего нет.
+        hasNoApprovers() {
+            return !Array.isArray(this.responsibleUsers) || this.responsibleUsers.length === 0;
+        },
+
         approvingCompletesConfirmation() {
             const users = this.responsibleUsers.map(u =>
                 u.id === this.currentUserId ? { ...u, approval_status: 'approved' } : u);
@@ -1177,14 +1218,19 @@ export default {
 </script>
 
 <style scoped>
-/* Корень бара: ряд дополнения над рядом кнопок заявки. Колонка с выравниванием по
-   правому краю - шапка детали складывает элементы в строку и прижимает их вправо,
-   поэтому без flex-end ряды разъехались бы по левому краю. */
+/* Корень бара на десктопе: ряд решения по дополнению и ряд действий заявки стоят
+   в ОДНУ строку (владелец: "всё в одну строку" - #1097 w12). Было flex-direction:
+   column - "Согласовать доп. №N"/"Отказать" и статус заявки читались двумя
+   строками даже там, где по ширине спокойно помещались в одну. flex-wrap:wrap -
+   аварийный сброс на совсем узких/нестандартных десктопных ширинах, не для
+   мобилки (там ниже свой @media возвращает колонку). justify-content:flex-end -
+   шапка детали прижимает содержимое вправо, к крестику. */
 .action-bar-root {
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 14px;
 }
 
 .supplement-actions {
@@ -1193,26 +1239,24 @@ export default {
     justify-content: flex-end;
     gap: 8px;
     flex-wrap: wrap;
-    /* Отдельным блоком, а не продолжением шапки: рядом стоят статус заявки и её
-       собственные кнопки, и без границы всё это читалось одной кашей - особенно у того,
-       кто и согласующий, и принимающий сразу. Подложка нейтральная, смысл несёт метка. */
-    padding: 6px 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface-sunken);
-    /* Без ограничения ширины переносить ряду не от чего: родитель - колонка, и ряд
-       просто растёт за её правый край. На узких экранах это скрыто (там свой блок
-       ниже), на широких места хватает, а между ними, около 780, кнопка уезжала
-       за границу окна и обрезалась - замерено в браузере, правый край 788 при окне 780. */
+    /* Без отдельного контейнера: кнопки решения по раунду стоят прямо в шапке, не
+       отгорожены рамкой и подложкой от кнопок самой заявки (владелец: "убрать
+       блок, обводку с тёмным фоном"). Ограничение ширины остаётся - переносить
+       ряду иначе не от чего (родитель - колонка, ряд растёт за её правый край),
+       и около 780 кнопка уезжала за границу окна и обрезалась - замерено в
+       браузере, правый край 788 при окне 780. */
     max-width: 100%;
 }
 
-.supplement-actions__label {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--accent-text);
-    white-space: nowrap;
-    margin-right: 2px;
+.supplement-confirm-body {
+    padding: 20px;
+}
+
+.supplement-confirm-message {
+    margin: 0 0 16px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--text-muted);
 }
 
 .supplement-comment {
@@ -1287,8 +1331,12 @@ export default {
        перенос.
        Прижим влево - потому что мобильная шапка детали стоит на justify-content:
        flex-start: при десктопном flex-end широкий ряд дополнения растягивал корень, и
-       ряд кнопок самой заявки уезжал к правому краю (замер: x=134 при остальном на 0). */
+       ряд кнопок самой заявки уезжал к правому краю (замер: x=134 при остальном на 0).
+       flex-direction: column возвращает мобилке прежнюю раскладку (ряд дополнения
+       НАД кнопками заявки) - десктопная строка в одну линию сюда не годится, "Согласовать
+       дополнение"/"Отказать" и кнопки заявки вместе не влезают в 390. */
     .action-bar-root {
+        flex-direction: column;
         align-items: flex-start;
     }
 
@@ -1296,6 +1344,7 @@ export default {
         align-self: stretch;
         justify-content: flex-start;
     }
+
     .confirm-btn,
     .reject-btn,
     .accept-btn {

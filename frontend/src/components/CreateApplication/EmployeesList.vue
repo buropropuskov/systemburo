@@ -569,12 +569,16 @@ export default {
     opacity: 0.8;
 }
 
+/* Высота и прокрутка как в списке машин: карточка занимает не меньше 180px и растёт
+   под содержимое, переполнение уходит во внутреннюю прокрутку. */
 .table-body {
-    max-height: 180px;
+    flex: 1;
+    min-height: 180px;
     overflow-y: auto;
     background: var(--surface);
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+    border-bottom-left-radius: 20px;
+    border-bottom-right-radius: 20px;
+    scrollbar-width: thin;
 }
 
 .table-body::-webkit-scrollbar {

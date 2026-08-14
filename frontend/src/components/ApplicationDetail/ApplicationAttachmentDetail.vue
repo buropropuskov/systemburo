@@ -581,8 +581,12 @@ export default {
                         cls: 'c-key',
                         label: 'Гос. номер',
                         compactLabel: 'Гос. номер и марка',
-                        grow: 22, min: 114,
-                        growCompact: 38, minCompact: 140,
+                        // min/minCompact расширены под бейдж статуса дополнения ("На
+                        // согласовании" и длиннее): при старых 114/140 фон бейджа не
+                        // покрывал строки текста, и пилюля дополнения ложилась в три
+                        // строки (владелец: "жирный шарик" из-за узкой колонки).
+                        grow: 26, min: 160,
+                        growCompact: 40, minCompact: 190,
                         // Номера машин, заведённых импортом бланка, хранятся слитно -
                         // раскладываем по формату для показа (#1392 разбор карточки).
                         value: row => formatNumberForDisplay(row.car_number, this.licensePlateFormats),
@@ -748,17 +752,8 @@ export default {
             return this.rows.filter(row => matchesSearchFuzzy(this.searchText(row), this.searchVariants));
         },
 
-        /**
-         * На мобилке заголовок блока и поле поиска делят одну строку (el-section__head
-         * nowrap): полные подписи не влезают - "Номер, марка, место" (129px) режется уже
-         * на 320px (108 доступно), "ФИО, должность, место" (150px) - и на 320, и на 360
-         * (135 доступно). "Место" из подписи убираем: оно и так следует из открытой
-         * карточки вложения, а укороченные варианты (78/94px) помещаются с запасом.
-         */
         searchPlaceholder() {
-            if (this.type === 'cars') return this.isNarrowViewport ? 'Номер, марка' : 'Номер, марка, место';
-            if (this.type === 'people') return this.isNarrowViewport ? 'ФИО, должность' : 'ФИО, должность, место';
-            return 'Наименование';
+            return 'Поиск..';
         },
 
         isFiltered() {
@@ -1484,6 +1479,20 @@ export default {
     margin-top: 3px;
 }
 
+/* Ключевая колонка машины на десктопе не уже 160px (расширена под этот же бейдж -
+   см. min/minCompact у колонки 'number'), но на мобильной карточке (@768, узкий
+   экран) поле снова может оказаться уже текста, а Badge.vue держит его в один ряд
+   (white-space: nowrap): пилюля зажималась по max-width, и буквы вылезали наружу
+   без фона под ними. Разрешаем перенос текста внутри самого бейджа - фон растёт
+   вместе с ним, вместо того чтобы обрезать или ронять содержимое за свои границы.
+   Три класса нужны, чтобы перебить scoped white-space: nowrap из Badge.vue по
+   специфичности. */
+.el-cell--key .supplement-line .supplement-badge {
+    white-space: normal;
+    text-align: left;
+    line-height: 1.3;
+}
+
 @keyframes slideIn {
     from {
         opacity: 0;
@@ -1864,30 +1873,48 @@ export default {
         gap: 8px;
     }
 
+    /* flex-shrink: 0 - заголовок не отдаёт ширину растущему поиску. Раньше оба
+       делили shrink поровну по content-basis, и на 320-360px "Автомобили"/
+       "Сотрудники" резались до "А..."/"С..." (замер: доступно 242px на 320px,
+       заголовку доставалось всего 61px из нужных 93). Ellipsis оставлен
+       страховкой на непредвиденно длинный текст, а не рабочим режимом. */
     .el-section__head h5 {
         min-width: 0;
+        flex-shrink: 0;
         font-size: 15px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
 
+    /* Счётчик - тоже не резервный донор ширины: без flex-shrink:0 трёхзначный
+       итог (сотня машин/сотрудников) сжимался бы наравне с заголовком. */
+    .el-section__head .el-count {
+        flex-shrink: 0;
+    }
+
+    /* 36px - тач-таргет заголовков этого экрана (RefreshButton, шапки
+       справочников); прежние 26px были меньше даже собственных 30px десктопа -
+       владелец не мог попасть пальцем ("Поиск очень маленький").
+       min-width: 70px - пол, ниже которого полю сжиматься некуда: заголовок и
+       счётчик теперь забирают свою ширину первыми (flex-shrink:0 выше), и без
+       пола поиск ужимался бы вплоть до одной иконки. */
     .el-section__head .el-search {
-        flex: 1 1 auto;
+        flex: 1 1 0;
         width: auto;
-        min-width: 0;
-        height: 26px;
+        min-width: 70px;
+        height: 36px;
         margin-left: 0;
         padding: 0 10px;
     }
 
     .el-section__head .el-search :deep(.search__input) {
-        font-size: 12px;
+        font-size: 14px;
     }
 
     .el-section__head .el-search :deep(.search__icon) {
-        width: 13px;
-        height: 13px;
+        width: 15px;
+        height: 15px;
     }
 
     /* Строку разворачивает в карточку глобальный responsive-tables.css:

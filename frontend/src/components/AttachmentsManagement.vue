@@ -93,11 +93,11 @@
                 class="table-col name-col"
                 data-label="Наименование"
               >
-                <span
-                  class="truncate-text"
-                  :title="a.display_name"
-                >
-                  {{ a.display_name }}
+                <div class="name-with-badges">
+                  <span
+                    class="truncate-text"
+                    :title="a.display_name"
+                  >{{ a.display_name }}</span>
                   <span
                     class="type-badge"
                     :class="a.attachment_type"
@@ -106,7 +106,7 @@
                     v-if="!a.is_active"
                     class="inactive-badge"
                   >(архив)</span>
-                </span>
+                </div>
               </div>
             </div>
 
@@ -1180,13 +1180,34 @@ export default {
 }
 
 /* Бейдж типа вложения (tonal pill) */
+/* Имя и бейджи стоят в одной строке: обрезается только имя, бейджи целиком */
+.name-with-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.name-with-badges .truncate-text {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.name-with-badges .type-badge,
+.name-with-badges .inactive-badge {
+  flex: 0 0 auto;
+  margin-left: 0;
+}
+
 .type-badge {
+  display: inline-flex;
+  align-items: center;
   font-size: 0.7em;
-  padding: 2px 8px;
+  line-height: 1;
+  padding: 4px 8px;
   border-radius: 999px;
   margin-left: 6px;
   font-weight: 500;
-  vertical-align: middle;
   white-space: nowrap;
 }
 
@@ -1200,9 +1221,10 @@ export default {
   color: var(--success-text);
 }
 
+/* Все три бейджа одной формы: заливка плюс цвет текста, без рамки. Рамка была только
+   у ТМЦ и делала его на два пиксела выше остальных в той же строке. */
 .type-badge.items {
   background: var(--warning-bg);
-  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
   color: var(--warning-text);
 }
 

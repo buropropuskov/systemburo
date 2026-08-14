@@ -1421,6 +1421,24 @@ export default {
             };
             if (this.organizationId) await collect(`/organizations/${this.organizationId}/users`);
             if (this.companyId) await collect(`/companies/${this.companyId}/users`);
+
+            // Принимающие: заявка уходит им, и в получателях они должны быть видны
+            // всегда - даже когда согласующих у организации нет. Имя приходит готовым:
+            // маска, если администратор её задал, иначе ФИО.
+            try {
+                const r = await apiRequest('/application-approvers/recipients', {});
+                if (r.ok) {
+                    const recipients = await r.json();
+                    (recipients || []).forEach(u => {
+                        if (u.user_id && !byId.has(u.user_id)) {
+                            byId.set(u.user_id, { user_id: u.user_id, name: u.name });
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки принимающих:', error);
+            }
+
             this.defaultApprovers = Array.from(byId.values());
         },
 
@@ -3105,14 +3123,19 @@ export default {
                 if (parsedData) {
 
                     this.message = parsedData.message || '';
-                    this.organization = parsedData.organization || '';
-                    this.company = parsedData.company || '';
+                    // Шапку заявителя берём из черновика только если она там есть. Пустое
+                    // значение не затираем: организация, компания, ФИО и телефон приходят
+                    // из записи работника и уже подставлены, а поля нередактируемы -
+                    // затёртое вручную не вернуть. Черновики, сохранённые до этой правки,
+                    // несут пустую шапку и без проверки обнуляли форму при каждом открытии.
+                    if (parsedData.organization) this.organization = parsedData.organization;
+                    if (parsedData.company) this.company = parsedData.company;
                     // Черновики, сохранённые до #1437, id не несут: у них поле было
                     // нередактируемым, поэтому наименование отвечает записи профиля.
                     if ('organizationId' in parsedData) this.organizationId = parsedData.organizationId || null;
                     if ('companyId' in parsedData) this.companyId = parsedData.companyId || null;
-                    this.responsiblePerson = parsedData.responsiblePerson || '';
-                    this.phoneNumber = formatRussianPhone(parsedData.phoneNumber || '');
+                    if (parsedData.responsiblePerson) this.responsiblePerson = parsedData.responsiblePerson;
+                    if (parsedData.phoneNumber) this.phoneNumber = formatRussianPhone(parsedData.phoneNumber);
                     this.consentGiven = parsedData.consentGiven || false;
                     this.readers = parsedData.readers || [];
 
@@ -3232,7 +3255,19 @@ export default {
             if (mode === 'merge') {
                 finalDraft = this.mergeDrafts(this.readOwnDraft() || {}, pending);
             }
-            finalDraft = { ...finalDraft, ownerId: this.draftOwnerId() };
+            // Шапку заявителя дубль не несёт: организация, компания, ФИО и телефон берутся
+            // из записи работника и в форме уже заполнены. Без переноса восстановление
+            // затрёт их пустыми значениями, а поля заблокированы - вернуть нечем.
+            finalDraft = {
+                organization: this.organization,
+                company: this.company,
+                organizationId: this.organizationId,
+                companyId: this.companyId,
+                responsiblePerson: this.responsiblePerson,
+                phoneNumber: this.phoneNumber,
+                ...finalDraft,
+                ownerId: this.draftOwnerId(),
+            };
             localStorage.setItem('draftApplicationState', JSON.stringify(finalDraft));
             this.restoreFromLocalStorage();
         },

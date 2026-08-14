@@ -1,6 +1,6 @@
 # Backend — Архитектура
 
-Go 1.25, Echo v4, GORM, PostgreSQL 16.
+Go 1.26, Echo v4, GORM, PostgreSQL 16.
 
 ## Запуск приложения
 

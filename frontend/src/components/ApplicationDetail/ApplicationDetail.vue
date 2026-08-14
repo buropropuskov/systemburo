@@ -153,12 +153,15 @@
             <!-- Получатели (#1952): кто видит заявку и кто по ней голосует. Своего
                  гейта у кнопки нет - метод отдаёт список тому, кому видна сама
                  заявка, а она уже открыта. -->
-            <!-- aria-label дублирует подпись: на мобилке текст скрыт, и без него
-                 кнопка остаётся безымянным кружком для скринридера. -->
+            <!-- aria-label дублирует подпись: на мобилке и в сжатом виде (см. ниже)
+                 текст скрыт, и без него кнопка остаётся безымянным кружком для
+                 скринридера. title - та же подпись хинтом при наведении: без
+                 текста кружок ничего не объясняет визуально. -->
             <button
               class="participants-btn"
               data-testid="app-detail-button-participants"
               aria-label="Получатели"
+              title="Получатели"
               @click="showParticipantsModal = true"
             >
               <svg
@@ -734,6 +737,7 @@ import Badge from '@/components/ui/Badge.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import { sanitizeHtml } from '@/utils/sanitize'
 import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack'
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock'
 
 /** Слой панели заявки - то же значение, что у неё в стилях (.application-detail). */
 const DETAIL_STACK_LAYER = 10002
@@ -1203,6 +1207,10 @@ export default {
         // пересылка), Escape закрывает его, а до панели доходит, когда она верхняя.
         setModalOpen(this, true, DETAIL_STACK_LAYER);
         document.addEventListener('keydown', this.handleDetailEscape);
+        // Панель заявки - полноэкранное окно на мобилке (bottom-sheet), и фон под
+        // ней (Центр/кабинет) должен стоять на месте, как под любым другим окном
+        // проекта - через общий замок (владелец по стопке, не голое присвоение).
+        setBodyScrollLock(this, true);
     },
     beforeUnmount() {
         if (this.eventStreamOff) {
@@ -1212,6 +1220,7 @@ export default {
         eventStream.disconnect();
         document.removeEventListener('keydown', this.handleDetailEscape);
         releaseModal(this);
+        releaseBodyScrollLock(this);
         if (this.closeTimer) clearTimeout(this.closeTimer);
     },
     methods: {
@@ -2470,6 +2479,11 @@ export default {
     align-items: center;
     gap: 20px;
     flex-wrap: wrap;
+    /* Контейнерный запрос ниже мерит именно этот ряд, а не вьюпорт: ширина
+       заголовка "плавает" от длины номера заявки и от соседней правой колонки
+       (бейдж дополнения/панель действий), поэтому фиксированный breakpoint по
+       окну то срабатывал бы рано, то поздно. */
+    container-type: inline-size;
 }
 
 .detail-title {
@@ -2515,7 +2529,10 @@ export default {
 }
 
 /* Получатели (#1952) - вторичное действие рядом с "Переслать": та же пилюля и та
-   же высота, но контурная, чтобы не спорить с основным действием шапки. */
+   же высота, но контурная, чтобы не спорить с основным действием шапки.
+   Отрицательный отступ подтягивает её к "Переслать": общий gap ряда (20px, тот же,
+   что между заголовком и датой) для двух смежных действий читался слишком разреженно
+   (владелец: "отступ между кнопками слишком большой"). */
 .participants-btn {
     display: inline-flex;
     align-items: center;
@@ -2528,7 +2545,8 @@ export default {
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    margin-left: -10px;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, margin 0.15s ease;
 }
 
 .participants-btn:hover {
@@ -2537,6 +2555,36 @@ export default {
 
 .participants-btn__icon {
     flex-shrink: 0;
+}
+
+/* Ряд заголовка тесен уже на десктопе (не только на мобилке): полная пилюля
+   "Получатели" - самый широкий необязательный элемент ряда, и когда соседняя
+   правая колонка шапки разрастается (бейдж дополнения + панель действий),
+   именно она первой не помещается и переносится одна, оторванно от даты и
+   "Переслать" (замерено в браузере - разрыв на 1440/1100 при 1920 и 1280 в
+   порядке). Сжимаем её в такой же кружок с иконкой, что и на мобилке (см.
+   @media 768px ниже), но по контейнеру самого ряда - тогда сжатие срабатывает
+   ровно там, где не хватает места, а не по случайной ширине окна. */
+@container (max-width: 1040px) {
+    .participants-btn {
+        width: 30px;
+        height: 30px;
+        min-width: 30px;
+        padding: 0;
+        gap: 0;
+        /* Тут "Получатели" уже кружок с иконкой, а не пилюля с подписью - полные -10px
+           пилюльного режима смотрелись слишком тесно рядом с "Переслать". Было -6px
+           (гэп 14px) - владелец попросил ещё плотнее и на 1440, и на 1920 (ряд шапки
+           там сжат до кружка тем же контейнерным запросом, ширина ряда своя, не от
+           вьюпорта). */
+        margin-left: -12px;
+        border-radius: 50%;
+        justify-content: center;
+    }
+
+    .participants-btn__text {
+        display: none;
+    }
 }
 
 .detail-header-right {
@@ -2570,9 +2618,14 @@ export default {
     row-gap: 8px;
     flex-wrap: wrap;
     justify-content: flex-end;
-    /* Растёт/сжимается и переносится сама - крестику-соседу больше некуда
-       уезжать: он не участвует в этом переносе. */
-    flex: 1 1 auto;
+    /* Сжимается и переносится сама - крестику-соседу больше некуда уезжать: он не
+       участвует в этом переносе. БЕЗ flex-grow (было flex: 1 1 auto) - растущая
+       обёртка занимала всю ширину шапки до крестика, и на переносе строки бейдж/
+       кнопки позиционировались justify-content'ом ОТНОСИТЕЛЬНО ЭТОЙ ШИРОКОЙ рамки,
+       а не своего содержимого - на 390 бейдж повисал с 98px пустоты слева
+       (владелец: "зачем отцентровал"). Без роста блок хугает контент, как и до
+       обёртки. */
+    flex-shrink: 1;
     min-width: 0;
 }
 
@@ -3116,6 +3169,26 @@ export default {
         row-gap: 8px;
     }
 
+    /* Крестик на мобилке вне потока (position: absolute выше), поэтому здесь
+       единственный видимый ребёнок .detail-header-right - .detail-header-actions.
+       Её собственный justify-content: flex-end (для desktop, чтобы упираться в
+       крестик) на мобилке разворачивал бейдж и кнопки к ПРАВОМУ краю шапки - как
+       было до обёртки, здесь нужен flex-start (прижим к заголовку, слева). */
+    .detail-header-actions {
+        justify-content: flex-start;
+    }
+
+    /* Ряд действий заявки (в т.ч. решение по раунду дополнения) - на своей
+       строке, ПОД бейджем "+ Дополнение №N на согласовании": .detail-header-actions
+       на мобилке остаётся flex-рядом с переносом, и без явного flex-basis панель
+       вставала бы рядом с бейджем, а не под ним (владелец: "размести кнопки под
+       шапкой"). На десктопе это правило снято намеренно - там всё должно стоять
+       в одну строку с бейджем, а не переноситься под него (владелец: "всё в
+       одну строку"). */
+    .detail-header-actions :deep(.action-bar-root) {
+        flex-basis: 100%;
+    }
+
     /* Ряд автора вырос до трёх кнопок (#1685): "Дополнить" + "Продублировать" +
        "Отозвать" в nowrap не влезают в 390 (378px против 366 доступных). Разрешаем
        перенос именно этому ряду - nowrap в ActionBar ставился ради пары
@@ -3167,13 +3240,17 @@ export default {
     }
 
     /* "Получатели" сворачивается в такой же круг: ряд заголовка на 390 несёт дату
-       и кнопки-иконки, и пилюля с подписью выдавила бы их на лишнюю строку. */
+       и кнопки-иконки, и пилюля с подписью выдавила бы их на лишнюю строку.
+       margin-left сбрасываем: desktop-подтяжка к "Переслать" (-10px) здесь лишняя -
+       строка и так сжата своим gap:8px (см. .detail-title-row выше), а с отрицательным
+       отступом поверх круги наложились бы друг на друга. */
     .participants-btn {
         width: 30px;
         height: 30px;
         min-width: 30px;
         padding: 0;
         gap: 0;
+        margin-left: 0;
         border-radius: 50%;
         justify-content: center;
     }

@@ -408,7 +408,14 @@
             />
           </div>
 
-          <div class="dashboard__feed-list">
+          <!-- Своя вертикальная прокрутка (волна 9): та же область, что на
+               десктопе (max-height 360px), помечена data-scroll-own - гейт
+               мобильных инвариантов считает её законной, а не воровкой жеста
+               у страницы. -->
+          <div
+            class="dashboard__feed-list"
+            data-scroll-own
+          >
             <template v-if="feedLoading">
               <div
                 v-for="n in 5"
@@ -463,7 +470,10 @@
             />
           </div>
 
-          <div class="dashboard__feed-list">
+          <div
+            class="dashboard__feed-list"
+            data-scroll-own
+          >
             <template v-if="feedLoading">
               <div
                 v-for="n in 5"
@@ -534,7 +544,6 @@ import OnlineUsersModal from '@/components/statistics/OnlineUsersModal.vue';
 import PushAdoptionSummary from '@/components/statistics/PushAdoptionSummary.vue';
 import { getSummary, getTimeline, getRecentPassages, getInsights, getOnlinePeaks, getOnlineUsers } from '@/api/statistics.js';
 import { mergeFeed, feedRowKey } from './feedMerge.js';
-import { useNarrowScreen } from '@/composables/useNarrowScreen.js';
 
 const props = defineProps({
   from: {
@@ -611,16 +620,11 @@ const carsFeed = ref([]);
 const feedLoading = ref(false);
 const feedRefreshing = ref(false);
 
-// На узком экране лента не прокручивается сама (#1097 волна 5 - вложенный
-// скроллпорт отбирает жест у страницы) и растёт по содержимому, поэтому 15
-// записей на телефоне превращаются в блок за 2000px высотой. Держим потолок
-// заметно ниже: и по числу запрошенных с бэка записей, и по накопленному
-// размеру ленты в mergeFeed (без второго лента всё равно доросла бы до
-// дефолтных 50 за несколько тиков поллинга, даже если запрашивать по 5).
-const { isNarrow } = useNarrowScreen();
-const FEED_LIMIT_DESKTOP = 15;
-const FEED_LIMIT_MOBILE = 5;
-const feedLimit = computed(() => (isNarrow.value ? FEED_LIMIT_MOBILE : FEED_LIMIT_DESKTOP));
+// Волна 5 держала на телефоне лишь 5 записей и без кнопки «Показать ещё» -
+// у ленты не было своей прокрутки, и полные 15 записей растягивали блок на
+// 2000+px. Волна 9 отдаёт ленте свою прокрутку (see .dashboard__feed-list в
+// шаблоне, data-scroll-own), поэтому лимит теперь один на оба брейкпоинта.
+const FEED_LIMIT = 15;
 
 // ---- переключатели графика ----
 const metricOptions = [
@@ -925,15 +929,12 @@ async function loadDetailTimeline(metricKey) {
 async function loadFeed({ showSkeleton = false } = {}) {
   if (showSkeleton) feedLoading.value = true;
   try {
-    const limit = feedLimit.value;
-    const data = await getRecentPassages(limit);
+    // Один запрос отдаёт обе ленты.
+    const data = await getRecentPassages(FEED_LIMIT);
     const people = Array.isArray(data?.people) ? data.people : [];
     const cars = Array.isArray(data?.cars) ? data.cars : [];
-    // На телефоне лента без своей прокрутки - потолок mergeFeed держим тем же
-    // лимитом (5), а не дефолтными 50, иначе за несколько тиков поллинга
-    // список всё равно дорастёт до полного размера.
-    peopleFeed.value = mergeFeed(peopleFeed.value, people, isNarrow.value ? limit : undefined);
-    carsFeed.value = mergeFeed(carsFeed.value, cars, isNarrow.value ? limit : undefined);
+    peopleFeed.value = mergeFeed(peopleFeed.value, people);
+    carsFeed.value = mergeFeed(carsFeed.value, cars);
   } catch {
     // Фоновый сбой не должен очищать уже показанные ленты — чистим только при
     // первичной загрузке, где показать пустоту корректнее, чем скелетон навсегда.
@@ -1694,14 +1695,6 @@ onUnmounted(() => {
     gap: 10px;
   }
 
-  /* Своей прокрутки у ленты на телефоне нет (#1097 волна 5): вложенный
-     скроллпорт внутри прокручиваемой страницы отбирает жест у окна, и
-     пролистывание рвётся. Лента растёт по содержимому, прокручивается
-     страница. Замер стенда: было `max-height: 320` при содержимом 1080. */
-  .dashboard__feed-list {
-    max-height: none;
-    overflow: visible;
-  }
 }
 
 @media (max-width: 480px) {

@@ -929,6 +929,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// всем авторизованным (как и раньше - без checkAdmin).
 	aag := protected.Group("/application-approvers")
 	aag.GET("", approvers.GetAll, requireDirectories)
+	// Получатели заявки: только отображаемые имена, поэтому без права на справочники -
+	// иначе заявитель не видел бы, кому уходит его заявка.
+	aag.GET("/recipients", approvers.GetRecipients)
 	aag.GET("/available-users", approvers.GetAvailableUsers, requireDirectories)
 	aag.GET("/history", approvers.GetHistory)
 	// Ответ про себя доступен любому авторизованному: карточке заявки нужно знать,

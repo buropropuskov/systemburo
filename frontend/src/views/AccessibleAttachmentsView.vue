@@ -34,7 +34,7 @@
             v-model="search"
             type="text"
             class="lk-input filters__search-input"
-            placeholder="Поиск"
+            placeholder="Поиск.."
             data-testid="aa-search"
             @input="onSearchInput"
           >
@@ -990,9 +990,8 @@ onBeforeUnmount(() => {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 15px;
-  box-shadow: var(--shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.06));
   cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease;
   animation: card-in 0.3s ease-out forwards;
   opacity: 0;
   transform: translateY(10px);
@@ -1005,13 +1004,11 @@ onBeforeUnmount(() => {
 
 .attachment-card:hover {
   border-color: var(--accent);
-  box-shadow: 0 3px 10px rgba(79, 91, 223, 0.15);
 }
 
 .attachment-card--active {
   border-color: var(--accent);
   background: var(--accent-tint);
-  box-shadow: 0 3px 10px rgba(79, 91, 223, 0.18);
 }
 
 .attachment-card__head {
@@ -1130,12 +1127,31 @@ onBeforeUnmount(() => {
   padding: 15px;
 }
 
+/* Блок заявки, кнопка «Посмотреть файл» и карточка вложения - три прямых
+   ребёнка этой обёртки (.detail-section.gap разводит только её саму со
+   «шапкой» .detail-back, до вложенных блоков не достаёт). Без своего flex+gap
+   .detail-scroll был обычным блочным контейнером - блоки стояли встык без
+   зазора («Заявка», «Посмотреть файл», карточка вложения слипались). */
+.detail-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
 .application-block {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 16px 18px;
-  box-shadow: var(--shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.06));
+}
+
+/* ApplicationAttachmentDetail - общий компонент (используется и в CarsView,
+   EmployeeView, ApplicationDetail), поэтому тень снимаем только здесь через
+   :deep, а не в самом компоненте: чужие экраны не просили убрать тень.
+   В тёмной теме --shadow-drop даёт rgba(0,0,0,0.6) - на карточке вложения
+   это читалось чёрным прямоугольником позади блока. */
+.detail-section :deep(.attachment-details) {
+  box-shadow: none;
 }
 
 .application-block__title {
@@ -1465,6 +1481,7 @@ onBeforeUnmount(() => {
   .detail-scroll {
     flex: 1 1 auto;
     min-height: 0;
+    gap: 12px;
     overflow-y: auto;
     overscroll-behavior: contain;
   }
@@ -1552,6 +1569,22 @@ onBeforeUnmount(() => {
 @media (max-width: 768px) {
   .blank-preview-modal.base-modal {
     border-radius: 16px 16px 0 0;
+  }
+}
+
+/* AdminPageShell не красит .admin-page (только padding) - гутер вокруг панели
+   прозрачный и показывает фон body. В светлой теме --bg и --surface совпадают
+   (оба белые), дефект не виден; в тёмной они разные (#1f2229 против #272b33),
+   и на фикс-высоте панели (см. .dashboard-card ниже) гутер упирается прямо в
+   нижний край экрана - в её ПРЯМЫХ углах, где скруглённая панель отступает от
+   прямоугольной рамки гутера, получается тёмный прямоугольный клин ("чёрные
+   квадратные углы внизу"). Красим именно гутер этого экрана в --surface -
+   тогда рамка сливается с панелью, как уже происходит в светлой теме.
+   :has() выбирает .admin-page только когда внутри лежит эта панель - другие
+   admin-страницы не трогаем. */
+@media (max-width: 767.98px) {
+  .admin-page:has(.accessible-attachments) {
+    background: var(--surface);
   }
 }
 </style>

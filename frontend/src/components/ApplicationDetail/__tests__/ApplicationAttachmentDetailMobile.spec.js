@@ -1,8 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
 import ApplicationAttachmentDetail from '../ApplicationAttachmentDetail.vue';
+
+const SOURCE = readFileSync(
+  path.resolve(__dirname, '../ApplicationAttachmentDetail.vue'),
+  'utf8',
+);
 
 vi.mock('@/api/applicationAssignments', () => ({
   assignElementTables: vi.fn().mockResolvedValue({}),
@@ -148,28 +155,28 @@ describe('ApplicationAttachmentDetail — карточка вложения на
     expect(wrapper.find('.el-section__head h5').text()).toBe('ТМЦ');
   });
 
-  it('поиск машин: плейсхолдер укорочен без "место" - полный обрезается на 320/360 (#1392)', async () => {
+  it('поиск машин: плейсхолдер везде "Поиск.."', async () => {
     const wrapper = await mountCars();
     const input = wrapper.find('[data-testid="attachment-elements-search"] input');
-    expect(input.attributes('placeholder')).toBe('Номер, марка');
+    expect(input.attributes('placeholder')).toBe('Поиск..');
   });
 
-  it('поиск сотрудников: плейсхолдер укорочен - полный обрезается на 320/360', async () => {
+  it('поиск сотрудников: плейсхолдер везде "Поиск.."', async () => {
     const wrapper = await mountDetail({
       attachment: { id: 5, attachment_type: 'people', attachment_display_name: 'Люди' },
       employees: [{ id: 6, last_name: 'Иванов', first_name: 'Иван', position: 'Водитель', target_tables: [] }],
     });
     const input = wrapper.find('[data-testid="attachment-elements-search"] input');
-    expect(input.attributes('placeholder')).toBe('ФИО, должность');
+    expect(input.attributes('placeholder')).toBe('Поиск..');
   });
 
-  it('поиск ТМЦ: "Наименование" и так помещается, не сокращается', async () => {
+  it('поиск ТМЦ: плейсхолдер везде "Поиск.."', async () => {
     const wrapper = await mountDetail({
       attachment: { id: 7, attachment_type: 'items', attachment_display_name: 'Имущество' },
       items: [{ id: 8, name: 'Ноутбук', count: 1 }],
     });
     const input = wrapper.find('[data-testid="attachment-elements-search"] input');
-    expect(input.attributes('placeholder')).toBe('Наименование');
+    expect(input.attributes('placeholder')).toBe('Поиск..');
   });
 });
 
@@ -201,9 +208,51 @@ describe('ApplicationAttachmentDetail — на широком экране по�
     expect(wrapper.find('.el-section__head h5').text()).toBe('Автомобили');
   });
 
-  it('на десктопе плейсхолдер поиска полный - строка не делит место с узкой шапкой', async () => {
+  it('на десктопе плейсхолдер поиска тоже "Поиск.."', async () => {
     const wrapper = await mountCars();
     const input = wrapper.find('[data-testid="attachment-elements-search"] input');
-    expect(input.attributes('placeholder')).toBe('Номер, марка, место');
+    expect(input.attributes('placeholder')).toBe('Поиск..');
+  });
+});
+
+/*
+ * Волна 8, п.2: на мобилке поиск внутри карточки вложения был ужат до 26px -
+ * мельче даже собственных 30px десктопного варианта. Владелец: «Поиск очень
+ * маленький, нихера не видно, не могу попасть пальцем». jsdom не считает
+ * media-запросы, поэтому геометрию стережём чтением самого SFC (как в
+ * AccessibleAttachmentsMobile.spec.js), а факт применения подтверждён
+ * замером в браузере.
+ */
+describe('ApplicationAttachmentDetail — геометрия мобильного экрана (чтение SFC)', () => {
+  const mobileBlock = SOURCE.slice(SOURCE.indexOf('@media (max-width: 767.98px)'));
+
+  it('поиск внутри карточки вложения поднят до 36px тач-таргета, кегль читаем', () => {
+    const searchRule = mobileBlock.match(/\.el-section__head \.el-search\s*\{[^}]*\}/)[0];
+    expect(searchRule).toMatch(/height:\s*36px/);
+    expect(searchRule).not.toMatch(/height:\s*26px/);
+
+    const inputRule = mobileBlock.match(
+      /\.el-section__head \.el-search :deep\(\.search__input\)\s*\{[^}]*\}/,
+    )[0];
+    expect(inputRule).toMatch(/font-size:\s*1[34]px/);
+    expect(inputRule).not.toMatch(/font-size:\s*12px/);
+  });
+
+  /*
+   * Волна 9: поиск, растущий через flex:1 1 auto, отбирал ширину у заголовка -
+   * на 320/360px "Автомобили"/"Сотрудники" резались до "А..."/"С..." (замер:
+   * на 320px доступно 242px, заголовку доставалось 61 из нужных 93). Заголовок
+   * и счётчик больше не участвуют в shrink наравне с полем - у поиска свой пол.
+   */
+  it('заголовок и счётчик не отдают ширину растущему полю поиска', () => {
+    const h5Rule = mobileBlock.match(/\.el-section__head h5\s*\{[^}]*\}/)[0];
+    expect(h5Rule).toMatch(/flex-shrink:\s*0/);
+
+    const countRule = mobileBlock.match(/\.el-section__head \.el-count\s*\{[^}]*\}/)[0];
+    expect(countRule).toMatch(/flex-shrink:\s*0/);
+
+    const searchRule = mobileBlock.match(/\.el-section__head \.el-search\s*\{[^}]*\}/)[0];
+    expect(searchRule).not.toMatch(/flex:\s*1 1 auto/);
+    expect(searchRule).toMatch(/min-width:\s*70px/);
   });
 });

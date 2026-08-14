@@ -76,7 +76,9 @@ describe('ApplicationActionBar - кнопки раунда дополнения 
     expect(wrapper.find(APPROVE).exists()).toBe(true);
     expect(wrapper.find(REJECT).exists()).toBe(true);
     expect(wrapper.find(REVOKE).exists()).toBe(false);
-    expect(wrapper.find(ROW).text()).toContain('Дополнение №2');
+    // Номер раунда несёт сама кнопка - отдельного бейджа с номером в ряду нет
+    // (владелец: убрать бейдж, шапка заявки уже называет раунд).
+    expect(wrapper.find(APPROVE).text()).toBe('Согласовать доп. №2');
   });
 
   it('проголосовавшему согласующему повторное голосование не предлагается - бейдж и отзыв', () => {
@@ -97,6 +99,28 @@ describe('ApplicationActionBar - кнопки раунда дополнения 
     expect(wrapper.find(MY_VOTE).text()).toContain('вы отказали');
   });
 
+  it('бейджа с номером раунда в ряду нет - дубля с шапкой заявки не заводим', () => {
+    // Шапка заявки уже показывает "+ Дополнение №N на согласовании"
+    // (ApplicationDetail.vue openSupplementBadge), а ряд решения стоит прямо под ней -
+    // повторный бейдж "Доп. №N" здесь только дублировал ту же надпись и на мобилке
+    // растягивался на всю ширину (владелец: "убери его вообще").
+    const wrapper = mountBar();
+    expect(wrapper.find('[data-testid="supplement-round-badge"]').exists()).toBe(false);
+    expect(wrapper.find(ROW).text()).not.toContain('Дополнение №2');
+  });
+
+  it('бейдж голоса раскрашен по исходу: согласовал - success, отказал - danger', () => {
+    const approved = mountBar({
+      supplements: [round({ approvals: [{ user_id: 1, approval_status: 'approved' }] })],
+    });
+    expect(approved.find(MY_VOTE).classes()).toContain('badge--success');
+
+    const rejected = mountBar({
+      supplements: [round({ status: 'rejected', approvals: [{ user_id: 1, approval_status: 'rejected' }] })],
+    });
+    expect(rejected.find(MY_VOTE).classes()).toContain('badge--danger');
+  });
+
   it('принимающий получает решение только по согласованному раунду', () => {
     const pending = mountBar({ currentUserId: APPROVER_ROLE_ID, responsibleUsers: [] });
     expect(pending.find(ACCEPT).exists()).toBe(false);
@@ -107,6 +131,8 @@ describe('ApplicationActionBar - кнопки раунда дополнения 
       supplements: [round({ status: 'approved', approvals: [] })],
     });
     expect(approved.find(ACCEPT).exists()).toBe(true);
+    // Тот же приём, что у "Согласовать": номер раунда несёт кнопка, не бейдж рядом.
+    expect(approved.find(ACCEPT).text()).toBe('Принять доп. №2');
     expect(approved.find(REFUSE).exists()).toBe(true);
   });
 
@@ -207,12 +233,12 @@ describe('ApplicationActionBar - выполнение действий по ра
   it('закрытие гасит окно через show, не снимая его родительским v-if - иначе уход не проиграется', async () => {
     const wrapper = mountBar();
     await wrapper.find(APPROVE).trigger('click');
-    const modal = wrapper.findComponent({ name: 'ConfirmationModal' });
+    const modal = wrapper.findComponent({ name: 'BaseModal' });
     expect(modal.props('show')).toBe(true);
 
     await wrapper.find('[data-testid="confirmation-cancel"]').trigger('click');
-    expect(wrapper.findComponent({ name: 'ConfirmationModal' }).exists()).toBe(true);
-    expect(wrapper.findComponent({ name: 'ConfirmationModal' }).props('show')).toBe(false);
+    expect(wrapper.findComponent({ name: 'BaseModal' }).exists()).toBe(true);
+    expect(wrapper.findComponent({ name: 'BaseModal' }).props('show')).toBe(false);
   });
 
   it('ошибка бэка уходит наверх человеческим текстом, кнопки остаются рабочими', async () => {
@@ -229,5 +255,19 @@ describe('ApplicationActionBar - выполнение действий по ра
     // Окно с введённым комментарием живо, повтор возможен без потери ввода.
     expect(wrapper.find(CONFIRM).exists()).toBe(true);
     expect(wrapper.find(APPROVE).attributes('disabled')).toBeUndefined();
+  });
+
+  it('окно решения по раунду держит общий контракт (#1097): BaseModal, ползунок-свайп, скругление 30px', async () => {
+    const wrapper = mountBar();
+    await wrapper.find(APPROVE).trigger('click');
+
+    const modal = wrapper.findComponent({ name: 'BaseModal' });
+    expect(modal.exists()).toBe(true);
+    // Bottom-sheet со свайпом-вниз и закрытие по оверлею включены по умолчанию -
+    // замок ловит, если их когда-нибудь явно отключат (:sheet-swipe="false" и т.п.).
+    expect(modal.props('sheetSwipe')).toBe(true);
+    expect(modal.props('closeOnOverlay')).toBe(true);
+    expect(modal.props('radius')).toBe('30px');
+    expect(wrapper.find('.sheet-handle').exists()).toBe(true);
   });
 });

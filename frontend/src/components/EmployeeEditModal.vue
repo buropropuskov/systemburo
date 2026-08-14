@@ -30,11 +30,21 @@
           >
             <div class="button__content">
               <span class="button__text">{{ selectedCitizenshipText }}</span>
-              <img
-                src="@/assets/icons/arrow.png"
+              <svg
                 class="button__arrow"
                 :class="{ 'button__arrow--open': isCitizenshipDropdownOpen }"
+                viewBox="0 0 10 6"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
               >
+                <path
+                  d="M1 1L5 5L9 1"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
             </div>
           </button>
           <transition name="dropdown">
@@ -117,8 +127,8 @@
             <input
               v-model="passportSeriesNumber"
               class="name__input"
-              placeholder="XXXX XXXXXX"
-              @input="formatPassport"
+              placeholder="Введите серию и номер паспорта"
+              maxlength="100"
             >
           </div>
           <div
@@ -154,11 +164,21 @@
             >
               <div class="permission__button-content">
                 <span class="permission__button-text">{{ selectedPermission || 'Не выбрано' }}</span>
-                <img
-                  src="@/assets/icons/arrow.png"
+                <svg
                   class="permission__button-arrow"
                   :class="{ 'permission__button-arrow--open': isPermissionDropdownOpen }"
+                  viewBox="0 0 10 6"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
                 >
+                  <path
+                    d="M1 1L5 5L9 1"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
               </div>
             </button>
             <transition name="dropdown">
@@ -482,18 +502,6 @@ export default {
             return text.substring(0, maxLength) + '...';
         },
 
-        formatPassport(event) {
-            let value = event.target.value.replace(/\D/g, '');
-            if (value.length > 10) {
-                value = value.slice(0, 10);
-            }
-            if (value.length > 4) {
-                value = value.slice(0, 4) + ' ' + value.slice(4);
-            }
-            this.passportSeriesNumber = value;
-            event.target.value = value;
-        },
-
         handlePatentInput() {
             if (this.patentNumber.trim() !== '') {
                 this.selectedPermission = 'Не выбрано';
@@ -608,9 +616,13 @@ export default {
 
 <style scoped>
 /* Модальное окно теперь на BaseModal (шапка/крестик/overlay/Escape/bottom-sheet -
-   его контракт), здесь остаётся только вёрстка формы. */
+   его контракт). base-modal__body у BaseModal идёт БЕЗ padding (отступы несёт
+   содержимое) - без них поля упирались в края окна и на телефоне читались еле-еле
+   ("отступов нет по бокам"). Значение - как у соседних окон на BaseModal
+   (ChangePasswordModal/AttachmentMappingCopyModal): 20px по бокам вровень с
+   заголовком шапки. */
 .data__completion {
-    padding: 0;
+    padding: 14px 20px 18px;
 }
 
 .input__label {
@@ -677,13 +689,14 @@ export default {
 
 .button__arrow {
     width: 10px;
-    height: 10px;
+    height: 6px;
+    flex-shrink: 0;
+    color: var(--text-muted);
     transition: transform 0.2s;
-    transform: rotate(90deg);
 }
 
 .button__arrow--open {
-    transform: rotate(-90deg);
+    transform: rotate(180deg);
 }
 
 .dropdown__menu {
@@ -851,13 +864,14 @@ export default {
 
 .permission__button-arrow {
     width: 10px;
-    height: 10px;
+    height: 6px;
+    flex-shrink: 0;
+    color: var(--text-muted);
     transition: transform 0.2s;
-    transform: rotate(90deg);
 }
 
 .permission__button-arrow--open {
-    transform: rotate(-90deg);
+    transform: rotate(180deg);
 }
 
 .permission__dropdown-menu {
@@ -986,6 +1000,26 @@ export default {
 @media (max-width: 768px) {
     .completion__name-row {
         flex-direction: column;
+    }
+
+    /* Подписи чекбоксов привязки («Привязать к организации/компании») на телефоне
+       было еле видно - +2px к шрифту и увеличенный чекбокс (12px -> 18px, тот же приём,
+       что у выбора машин/сотрудников в ExistingCarsModal/ExistingEmployeesModal: видимый
+       квадрат остаётся некрупным, а тач-таргет строки дотягивает до нормы проекта 36px
+       через min-height, а не раздутый чекбокс). */
+    .binding-option {
+        min-height: 36px;
+        font-size: 14px;
+    }
+
+    .binding-option input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+    }
+
+    .user-binding-text {
+        font-size: 12px;
     }
 }
 </style>

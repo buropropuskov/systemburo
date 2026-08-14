@@ -599,11 +599,21 @@
             >
               <div class="button__content">
                 <span class="button__text">{{ selectedFormatText }}</span>
-                <img
-                  src="@/assets/icons/arrow.png"
+                <svg
                   class="button__arrow"
                   :class="{ 'button__arrow--open': isFormatDropdownOpen }"
+                  viewBox="0 0 10 6"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
                 >
+                  <path
+                    d="M1 1L5 5L9 1"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
               </div>
             </button>
             <transition name="dropdown">
@@ -667,11 +677,21 @@
                 >
                   <div class="mark__button-content">
                     <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
-                    <img
-                      src="@/assets/icons/arrow.png"
+                    <svg
                       class="mark__button-arrow"
                       :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }"
+                      viewBox="0 0 10 6"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
                     >
+                      <path
+                        d="M1 1L5 5L9 1"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
                   </div>
                 </button>
                 <transition name="dropdown">
@@ -730,7 +750,6 @@
               <input
                 v-model="bindToOrganization"
                 type="checkbox"
-                :disabled="bindToCompany"
               >
               <span>Привязать к организации<template v-if="ownershipInfo.organization_name"> «{{ ownershipInfo.organization_name }}»</template></span>
             </label>
@@ -741,7 +760,6 @@
               <input
                 v-model="bindToCompany"
                 type="checkbox"
-                :disabled="bindToOrganization"
               >
               <span>Привязать к компании<template v-if="ownershipInfo.company_name"> «{{ ownershipInfo.company_name }}»</template></span>
             </label>
@@ -1060,18 +1078,6 @@ export default {
             this.searchTimeout = setTimeout(() => {
                 this.fetchCars({ withPlaces: false });
             }, 300);
-        },
-
-        bindToOrganization(newVal) {
-            if (newVal) {
-                this.bindToCompany = false;
-            }
-        },
-        
-        bindToCompany(newVal) {
-            if (newVal) {
-                this.bindToOrganization = false;
-            }
         }
     },
     async mounted() {
@@ -2256,6 +2262,12 @@ export default {
     margin: 0;
 }
 
+/* Кнопка повтора - единственное действие на пустом экране, поэтому добираем ей норму
+   тач-таргета здесь, а не общим правилом пилюли (то раздувает кнопки всей системы). */
+.list-error-state .lk-button {
+    min-height: 36px;
+}
+
 /* Ошибка догрузки следующей порции (#1173) - компактный вариант рядом с sentinel. */
 .sentinel-error {
     display: flex;
@@ -2291,9 +2303,13 @@ export default {
 }
 
 /* Модальное окно добавления машины теперь на BaseModal (шапка/крестик/overlay/
-   Escape/bottom-sheet - его контракт), здесь остаётся только вёрстка формы. */
+   Escape/bottom-sheet - его контракт). base-modal__body у BaseModal идёт БЕЗ padding
+   (отступы несёт содержимое) - без них поля упирались в края окна и на телефоне
+   читались еле-еле ("отступов нет по бокам"). Значение - как у соседних окон на
+   BaseModal (ChangePasswordModal/AttachmentMappingCopyModal): 20px по бокам вровень
+   с заголовком шапки. */
 .data__completion {
-    padding: 0;
+    padding: 14px 20px 18px;
 }
 
 .input__label {
@@ -2360,13 +2376,14 @@ export default {
 
 .button__arrow {
     width: 10px;
-    height: 10px;
+    height: 6px;
+    flex-shrink: 0;
+    color: var(--text-muted);
     transition: transform 0.2s;
-    transform: rotate(90deg);
 }
 
 .button__arrow--open {
-    transform: rotate(-90deg);
+    transform: rotate(180deg);
 }
 
 .dropdown__menu {
@@ -2513,6 +2530,7 @@ export default {
 .mark__button-content {
     display: flex;
     align-items: center;
+    gap: 10px;
     width: 100%;
     height: 100%;
     justify-content: space-between;
@@ -2521,17 +2539,24 @@ export default {
 .mark__button-text {
     font-size: 14px;
     color: var(--text);
+    /* Без нулевого минимума флекс-элемент не сжимается ниже своего текста,
+       и длинная марка лезет под стрелку вместо многоточия. */
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .mark__button-arrow {
     width: 10px;
-    height: 10px;
+    height: 6px;
+    flex-shrink: 0;
+    color: var(--text-muted);
     transition: transform 0.2s;
-    transform: rotate(90deg);
 }
 
 .mark__button-arrow--open {
-    transform: rotate(-90deg);
+    transform: rotate(180deg);
 }
 
 .mark__dropdown-menu {
@@ -2789,11 +2814,31 @@ export default {
         width: 100%;
     }
     
-    /* Кнопка сохранения в модалке машины. Шапка списка со своей компактной
-       геометрией - в блоке 767.98 ниже, поэтому правило скоуплено на модалку:
-       без этого «Добавить» в шапке растягивалось на всю строку. */
-    .format__header .add-button {
-        width: 100%;
+    /* Кнопка сохранения в модалке машины - по содержимому, а не на всю ширину
+       (третий круг замечаний владельца, #1097 w9): прежний width:100% растягивал
+       «Добавить»/«Сохранить» в «сосиску» на всю строку шапки, из-за чего подпись
+       «Формат номеров» слева не помещалась и переносилась на вторую строку.
+       .format__header остаётся flex + justify-content:space-between - кнопка
+       по содержимому справа, подпись слева на одной строке. */
+
+    /* Подписи чекбоксов привязки («Привязать к организации/компании») на телефоне
+       было еле видно - +2px к шрифту и увеличенный чекбокс (12px -> 18px, тот же приём,
+       что у выбора машин/сотрудников в ExistingCarsModal/ExistingEmployeesModal: видимый
+       квадрат остаётся некрупным, а тач-таргет строки дотягивает до нормы проекта 36px
+       через min-height, а не раздутый чекбокс). */
+    .binding-option {
+        min-height: 36px;
+        font-size: 14px;
+    }
+
+    .binding-option input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+    }
+
+    .user-binding-text {
+        font-size: 12px;
     }
 }
 
@@ -2944,42 +2989,53 @@ export default {
         min-width: 0 !important;
     }
 
-    /* Базис 0, а не auto: перенос во флексе решается по базису ДО сжатия, поэтому при
-       длинном названии формата пара с базисом по содержимому разъехалась бы обратно на две
-       строки. С нулевым базисом формат занимает всё, что осталось от бейджа, и статус сам
-       оказывается у правого края - без margin-left: auto, который забрал бы свободное место
-       раньше flex-grow и схлопнул формат в ноль.
-
-       Подпись «Формат номера» переставлена НАД значением (flex-direction: column), а не
-       рядом с ним: доля format-col и без того урезана бейджем статуса, и с подписью в
-       той же строке значению оставалось ~120px из 194 - на увеличенном системном шрифте
-       "Российская"/"Федерация" туда не помещались целиком и рвались посреди слова даже
-       после замены anywhere на break-word (замерено: текст вылезал за границу колонки
-       на staging-данных). Подпись сверху отдаёт значению всю ширину колонки. */
-    .rt-table .car-row.rt-row > .format-col {
-        flex: 1 1 0 !important;
+    /* Номер и марка - одна строка карточки, приёмом талона проходной (см.
+       responsive-tables.css rt-pass__plate/rt-pass__mark): владелец сверяет номер с
+       маркой одним взглядом, а совмещённая строка освобождает высоту сверху карточки -
+       раньше её съедала пара «формат номера + бейдж статуса», сам бейдж теперь стоит в
+       подвале карточки (см. .status-col ниже), поэтому format-col занимает свою строку
+       целиком и не нуждается в колоночной раскладке. border-top: none у brand-col - она
+       делит строку с car-number-col, а не начинает свою, пунктир-разделитель ей не нужен. */
+    .rt-table .car-row.rt-row > .car-number-col {
+        flex: 0 1 auto !important;
         width: auto !important;
-        flex-direction: column !important;
-        align-items: flex-start !important;
-        gap: 2px;
+        min-width: 0;
+        font-weight: 700;
+    }
+
+    .rt-table .car-row.rt-row > .brand-col {
+        flex: 1 1 auto !important;
+        width: auto !important;
+        min-width: 0;
+        color: var(--text-muted);
+        border-top: none !important;
     }
 
     .rt-table .car-row.rt-row > .format-col::before {
         text-align: left;
     }
 
-    /* Пунктир-разделитель полей достался бы бейджу отдельной чертой посреди общей строки -
-       у ячейки, которая строку не начинает, его снимаем.
+    /* Бейдж статуса - в подвал карточки, одной строкой с кнопками «Изменить»/«Удалить»
+       (разбор второго круга замечаний владельца, #1097 w8). Раньше бейдж делил строку с
+       format-col: тот нёс пунктирную границу сверху, а бейдж - нет, но оба выравнивались
+       по одной Y-координате через align-self: flex-start, поэтому бейдж вставал прямо на
+       чужую границу («стоит поперёк»).
 
-       align-self прибивает бейдж к ПЕРВОЙ строке пары, а не к середине поля: подпись
-       «Формат номера» вместе со значением на 320px переносится, поле вырастает до
-       50-60px, и отцентрованный бейдж вставал ровно посреди карточки - «воткнулся по
-       середине». Сверху он теперь стоит вплотную под своим пунктиром. */
+       align-self: flex-start, а не center (третий круг замечаний, #1097 w9): бейдж и
+       кнопки - соседние ячейки одной обёрнутой flex-строки, их высоты по контенту не
+       совпадают ровно (badge ~27px против пилюль-кнопок 28px). center центрирует каждую
+       ячейку НЕЗАВИСИМО в высоте строки - верхние края (а с ними border-top) расходятся
+       на разницу высот, и сплошная линия подвала «переламывается» ровно после бейджа.
+       flex-start прижимает обе ячейки к верхнему краю строки - border-top гарантированно
+       на одной Y без зависимости от разницы высот контента. */
     .rt-table .car-row.rt-row > .status-col {
+        order: 10;
         flex: 0 0 auto !important;
         width: auto !important;
         align-self: flex-start;
-        border-top: none !important;
+        margin-top: 2px;
+        padding-top: 8px;
+        border-top: 1px solid color-mix(in srgb, var(--border) 45%, var(--surface)) !important;
     }
 
     .car-row.rt-row > .car-col ~ .car-col {
@@ -2996,14 +3052,29 @@ export default {
        обрезала бы кнопки / «Только просмотр». Подвал карточки отделён сплошной линией:
        пунктир остаётся разделителем полей, сплошная - границей данных и действий.
        !important нужен, чтобы перебить пунктир из сиблинг-правила выше: оно специфичнее
-       (0,4,0 против 0,3,0) и иначе выигрывает. */
+       (0,4,0 против 0,3,0) и иначе выигрывает. order/flex ставят колонку действий ПОСЛЕ
+       бейджа статуса в той же строке подвала (order: 11 > 10 у .status-col), а
+       justify-content прижимает кнопки к правому краю, оставляя бейдж слева. */
     .car-row.rt-row > .actions-col {
-        width: 100% !important;
+        order: 11;
+        flex: 1 1 auto !important;
+        width: auto !important;
         min-width: 0 !important;
+        align-self: flex-start;
+        /* Базовое правило поля карточки несёт flex-start с !important - без такой же
+           пометки кнопки липнут к бейджу вместо правого края. */
+        justify-content: flex-end !important;
         gap: 6px;
         margin-top: 2px;
         padding-top: 8px;
         border-top: 1px solid color-mix(in srgb, var(--border) 45%, var(--surface)) !important;
+        /* Настоящая причина разрыва линии подвала: .status-col и .actions-col - два
+           РАЗНЫХ flex-элемента, у каждого свой border-top, а между ними column-gap: 8px
+           родителя (.car-row.rt-row) - это пустое место без бордюра, в котором линия
+           физически прерывается, хотя цвет/толщина границ совпадают. margin-left тянет
+           бокс .actions-col (а с ним и border-top) вплотную к .status-col, закрывая зазор;
+           кнопки внутри не сдвигаются - их прижимает вправо justify-content: flex-end. */
+        margin-left: -8px;
     }
 
     /* Действия - компактные бейджи 28px в подвале карточки. Прежние пилюли 44px

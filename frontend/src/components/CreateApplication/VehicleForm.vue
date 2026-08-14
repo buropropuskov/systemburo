@@ -261,12 +261,25 @@
                 @click="toggleMarkDropdown"
               >
                 <div class="mark__button-content">
-                  <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
-                  <img
-                    src="@/assets/icons/arrow.png"
+                  <span
+                    class="mark__button-text"
+                    :title="selectedMark || ''"
+                  >{{ selectedMark || 'Выберите марку' }}</span>
+                  <svg
                     class="mark__button-arrow"
                     :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }"
+                    viewBox="0 0 10 6"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
                   >
+                    <path
+                      d="M1 1L5 5L9 1"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
                 </div>
               </button>
               <transition name="dropdown">
@@ -2112,7 +2125,9 @@ export default {
     border-radius: 15px;
     outline: none;
     cursor: pointer;
-    padding: 0 15px;
+    /* Правый паддинг больше левого - без запаса длинная марка обрезалась
+       эллипсисом впритык к стрелке, и они визуально слипались. */
+    padding: 0 20px 0 15px;
     transition: border-color 0.2s;
 }
 
@@ -2126,6 +2141,9 @@ export default {
     width: 100%;
     height: 100%;
     justify-content: space-between;
+    /* Тот же зазор, что у BaseDropdown.vue: без него текст и стрелка - соседние
+       flex-элементы без гарантированного расстояния - сходятся вплотную. */
+    gap: 10px;
 }
 
 .mark__button-text {
@@ -2135,12 +2153,22 @@ export default {
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 150px;
+    /* Без min-width: 0 flex-элемент с white-space: nowrap отказывается сжиматься
+       ниже собственной content-ширины (дефолтный min-width: auto у flex-детей) -
+       ellipsis объявлен, но не срабатывает, и длинная марка вылезает за поле. */
+    min-width: 0;
     display: block;
 }
 
+/* Стрелка - тот же inline SVG-шеврон, что у BaseDropdown.vue (см. другие дропдауны
+   проекта): растровый arrow.png 10x10 на Retina-экранах масштабируется блоками
+   пикселей и выглядит зазубренным, SVG чёткий на любом DPI. Поворот 90/-90deg (не
+   0/180, как у BaseDropdown) сохранён - это боковое меню (dropdown__menu открывается
+   вправо от кнопки), не выпадающее вниз. */
 .mark__button-arrow {
     width: 10px;
     height: 10px;
+    color: var(--text-muted);
     transition: transform 0.2s;
     transform: rotate(90deg);
     flex-shrink: 0;
@@ -2197,6 +2225,17 @@ export default {
 
 .mark__dropdown-item:last-child {
     border-bottom: none;
+}
+
+.mark__dropdown-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 56px;
+    padding: 16px 15px;
+    color: var(--text-muted);
+    font-size: 14px;
+    text-align: center;
 }
 
 .mark__item-text {

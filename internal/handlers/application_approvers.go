@@ -34,6 +34,22 @@ func (h *ApproverHandler) GetAll(c echo.Context) error {
 	return RespondSuccess(c, result)
 }
 
+// GetRecipients godoc
+// @Summary      Принимающие для строки получателей заявки
+// @Description  Отдаёт только отображаемые имена: маску, если она задана администратором, иначе ФИО. Доступно любому авторизованному работнику.
+// @Tags         application-approvers
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {array} models.ApplicationRecipient
+// @Router       /application-approvers/recipients [get]
+func (h *ApproverHandler) GetRecipients(c echo.Context) error {
+	result, err := h.service.GetRecipients(c.Request().Context())
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, result)
+}
+
 // GetAvailableUsers godoc
 // @Summary      Пользователи, доступные для назначения утверждающими
 // @Tags         application-approvers

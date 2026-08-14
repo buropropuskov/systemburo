@@ -47,7 +47,7 @@ curl http://localhost:8080/health
 ## 2. Без Docker
 
 ### Требования
-- Go 1.25+
+- Go 1.26+
 - Node.js 18+
 - PostgreSQL 16
 - npm
