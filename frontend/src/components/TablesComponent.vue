@@ -2004,7 +2004,8 @@ export default {
            потом прилипал - это и читается как «уехало на пять пикселей». Заодно
            фон дотягивается до краёв экрана, а не обрывается по отступу. */
         margin: calc(var(--gutter) * -1) calc(var(--gutter) * -1) 0;
-        padding: var(--gutter) var(--gutter) 0;
+        padding: var(--gutter) var(--gutter) 12px;
+        border-bottom: 1px solid var(--border);
     }
 
     .fact-section {
@@ -2143,6 +2144,10 @@ export default {
         flex-direction: column;
         gap: 15px;
         align-items: flex-start;
+        /* Линию рисует сам липкий блок - он растянут до краёв экрана, а поле
+           фильтров обрывалось бы по отступу страницы. */
+        border-bottom: none;
+        padding-bottom: 0;
     }
 
     .filters__fields {
