@@ -147,6 +147,7 @@
                   supplementMarks[row.id] ? supplementMarks[row.id].rowClass : null,
                   {
                     'el-row--flagged': isFlagged(row),
+                    'el-row--blacklisted': row.is_blacklisted,
                     'el-row--clickable': isClickable
                   }
                 ]"
@@ -1752,6 +1753,15 @@ export default {
 
 .blacklist-badge {
     flex-shrink: 0;
+}
+
+/* Строка, попавшая в чёрный список после подачи: из заявки не исчезает - заявка
+   документ, - но перечёркивается, чтобы её не приняли за действующую. */
+.el-row--blacklisted .el-cell,
+.el-row--blacklisted .c-num {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  color: var(--text-muted);
 }
 
 .element-remove-btn {

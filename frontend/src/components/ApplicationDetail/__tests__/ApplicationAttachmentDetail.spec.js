@@ -559,3 +559,30 @@ describe('ApplicationAttachmentDetail — кнопка "Убрать" элеме
     expect(wrapper.emitted('open-vehicle')).toBeUndefined();
   });
 });
+
+describe('ApplicationAttachmentDetail — строка, попавшая в чёрный список после подачи', () => {
+  it('is_blacklisted: строка перечёркнута, но остаётся в списке', () => {
+    const wrapper = mount(ApplicationAttachmentDetail, {
+      props: {
+        attachment: { id: 1, attachment_type: 'cars', attachment_display_name: 'Машины' },
+        cars: [car({ id: 3, car_number: 'Ч 001 СС 777', is_blacklisted: true })],
+      },
+    });
+
+    const rows = wrapper.findAll('[data-testid="attachment-element-row"]');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].classes()).toContain('el-row--blacklisted');
+    expect(rows[0].text()).toContain('Ч 001 СС 777');
+  });
+
+  it('чистая строка не перечёркивается', () => {
+    const wrapper = mount(ApplicationAttachmentDetail, {
+      props: {
+        attachment: { id: 1, attachment_type: 'cars', attachment_display_name: 'Машины' },
+        cars: [car({ id: 4 })],
+      },
+    });
+
+    expect(wrapper.find('[data-testid="attachment-element-row"]').classes()).not.toContain('el-row--blacklisted');
+  });
+});

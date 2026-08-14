@@ -746,6 +746,9 @@ type CarWithPlaces struct {
 	// BlacklistSimilar - предупреждение о возможном обходе ЧС (#481): заполнено, если
 	// номер близок к активной записи ЧС (но не точное совпадение). nil - элемент чист.
 	BlacklistSimilar *BlacklistFlagInfo `json:"blacklist_similar,omitempty"`
+	// IsBlacklisted - точное попадание в действующий чёрный список; строка остаётся в
+	// заявке, но показывается зачёркнутой.
+	IsBlacklisted bool `json:"is_blacklisted"`
 	// SupplementMark - каким раундом дополнения строка добавлена (#1685).
 	SupplementMark
 }
@@ -790,6 +793,9 @@ type EmployeeWithTables struct {
 	// BlacklistSimilar - предупреждение о возможном обходе ЧС (#481): заполнено, если
 	// ФИО близко к активной записи ЧС (но не точное совпадение). nil - элемент чист.
 	BlacklistSimilar *BlacklistFlagInfo `json:"blacklist_similar,omitempty"`
+	// IsBlacklisted - точное попадание в действующий чёрный список. Из заявки строка
+	// не исчезает (заявка - документ), но показывается зачёркнутой.
+	IsBlacklisted bool `json:"is_blacklisted"`
 	// SupplementMark - каким раундом дополнения строка добавлена (#1685).
 	SupplementMark
 }
