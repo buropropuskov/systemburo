@@ -1,6 +1,6 @@
 module systemburo
 
-go 1.25.12
+go 1.25.13
 
 require (
 	filippo.io/age v1.3.1
