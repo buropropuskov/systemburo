@@ -526,3 +526,36 @@ describe('ApplicationAttachmentDetail — поиск по списку (#1392)',
     expect(wrapper.find('[data-testid="attachment-flagged-summary"]').text()).toBe('1 похоже на ЧС');
   });
 });
+
+describe('ApplicationAttachmentDetail — кнопка "Убрать" элемента из заявки', () => {
+  function mountCarsWith(cars, props = {}) {
+    return mount(ApplicationAttachmentDetail, {
+      props: {
+        attachment: { id: 1, attachment_type: 'cars', attachment_display_name: 'Машины' },
+        cars,
+        ...props,
+      },
+    });
+  }
+
+  it('canRemove=true: кнопка есть у любой строки, а не только у помеченной', () => {
+    const wrapper = mountCarsWith([car()], { canRemove: true });
+    expect(wrapper.find('[data-testid="element-remove-btn"]').exists()).toBe(true);
+  });
+
+  it('canRemove=false (дефолт): кнопки нет', () => {
+    const wrapper = mountCarsWith([car({ blacklist_similar: flag() })]);
+    expect(wrapper.find('[data-testid="element-remove-btn"]').exists()).toBe(false);
+  });
+
+  it('клик эмитит remove-element с идентификатором и подписью строки, но не открывает карточку', async () => {
+    const wrapper = mountCarsWith([car({ id: 7, car_number: 'А123ВС' })], { canRemove: true });
+    await wrapper.find('[data-testid="element-remove-btn"]').trigger('click');
+
+    const removed = wrapper.emitted('remove-element');
+    expect(removed).toHaveLength(1);
+    expect(removed[0][0].id).toBe(7);
+    expect(removed[0][0].label).toContain('А123ВС');
+    expect(wrapper.emitted('open-vehicle')).toBeUndefined();
+  });
+});

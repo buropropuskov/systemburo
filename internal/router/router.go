@@ -887,6 +887,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.POST("/:id/take-to-work", app.TakeApplicationToWork)
 	// #1393 - принимающий доназначает посты и места элементам заявки
 	apg.PUT("/:id/elements/tables", app.AssignElementTables)
+	// Принимающий убирает человека или машину из поданной заявки: решение для случая,
+	// когда пропустить помеченный элемент нельзя, а заявку провести надо.
+	apg.DELETE("/:id/elements", app.RemoveApplicationElements)
 	apg.PUT("/:id/elements/unload-places", app.AssignCarUnloadPlaces)
 	apg.POST("/:id/revoke-from-work", app.RevokeApplicationFromWork)
 	apg.POST("/:id/restore-to-work", app.RestoreApplicationToWork)

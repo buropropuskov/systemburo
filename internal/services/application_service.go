@@ -237,6 +237,9 @@ type ApplicationService interface {
 	AssignElementTables(ctx context.Context, username string, applicationID int, req AssignElementTablesRequest) error
 	// AssignCarUnloadPlaces назначает или снимает места разгрузки у машин заявки (#1393).
 	AssignCarUnloadPlaces(ctx context.Context, username string, applicationID int, req AssignCarUnloadPlacesRequest) error
+	// RemoveApplicationElements убирает людей или машины из поданной заявки; доступно
+	// принимающему. Возвращает число реально убранных элементов.
+	RemoveApplicationElements(ctx context.Context, username string, applicationID int, req RemoveApplicationElementsRequest) (int, error)
 	// UpdateApplicationItemsStatus активирует все машины и сотрудников заявки (status->1) и
 	// пишет историю попадания в таблицу проходной. username - актор истории.
 	UpdateApplicationItemsStatus(ctx context.Context, applicationID int, username string) error
