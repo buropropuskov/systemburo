@@ -94,7 +94,7 @@
                 </div>
                 <div class="custom-body">
                   <p class="custom-hint">
-                    Произвольные текстовые поля заявки. Перетаскивание за ⠿ задаёт порядок в форме подачи.
+                    Произвольные текстовые поля заявки. Стрелки справа задают порядок в форме подачи.
                   </p>
 
                   <div
@@ -109,7 +109,6 @@
                     class="ctable"
                   >
                     <div class="ctable-head">
-                      <span />
                       <span>Заголовок</span>
                       <span>Плейсхолдер</span>
                       <span class="ctable-head--c">Обязат.</span>
@@ -122,7 +121,6 @@
                         class="ctable-row"
                         :data-testid="`custom-row-${i}`"
                       >
-                        <span class="ctable-grip">⠿</span>
                         <input
                           v-model="cf.label"
                           class="lk-input ctable-input"
@@ -692,7 +690,7 @@ export default {
 .ctable-head,
 .ctable-row {
   display: grid;
-  grid-template-columns: 18px 1.2fr 1.2fr 84px 96px;
+  grid-template-columns: 1.2fr 1.2fr 84px 96px;
   gap: 8px;
   align-items: center;
 }
@@ -722,13 +720,6 @@ export default {
 .ctable-row {
   padding: 7px 12px;
   border-top: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
-}
-
-.ctable-grip {
-  color: var(--text-muted);
-  cursor: grab;
-  text-align: center;
-  font-size: 13px;
 }
 
 .ctable-input {
