@@ -77,7 +77,12 @@ func (s *applicationService) RemoveApplicationElements(ctx context.Context, user
 			}
 			removed++
 
-			comment := fmt.Sprintf("%s убран(а) из заявки принимающим. Причина: %s", label, reason)
+			// Род зависит от того, что убрали: «Машина ... убрана», «Иванов ... убран».
+			removedWord := "убран(а)"
+			if req.ElementType == "cars" {
+				removedWord = "убрана"
+			}
+			comment := fmt.Sprintf("%s %s из заявки принимающим. Причина: %s", label, removedWord, reason)
 			if err := s.recorder.Record(ctx, tx, entityType, &elementID, "delete", &actx.userID,
 				carAuditDetails{Comment: &comment}); err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка записи в историю элемента")
