@@ -173,7 +173,7 @@
                           v-for="chip in visibleChips(row, col)"
                           :key="chip.key"
                           class="chip"
-                          :class="{ 'chip--more': chip.isMore }"
+                          :class="{ 'chip--more': chip.isMore, 'chip--solo': chip.isSolo }"
                           :data-hint="chip.hint"
                           :data-testid="chip.isMore ? 'attachment-chip-more' : 'attachment-chip'"
                         >{{ chip.text }}</span>
@@ -1085,7 +1085,11 @@ export default {
                 key: `chip-${index}`,
                 text,
                 hint: names.length > limit ? null : hint,
-                isMore: false
+                isMore: false,
+                // Единственное название сжимается по ячейке и обрезается многоточием -
+                // полное видно в подсказке. Соседи по колонке так не жмутся: там вместо
+                // обрезки показывается счётчик.
+                isSolo: names.length === 1
             }));
 
             if (names.length > limit) {
@@ -1733,6 +1737,13 @@ export default {
     text-overflow: ellipsis;
 }
 
+/* Одиночный чип уступает ширине ячейки: без снятого flex-shrink он не сжимался и
+   уезжал под обрезку ячейки без многоточия («Дебаркадер №1» читался как «Дебаркадер»). */
+.chip--solo {
+    flex-shrink: 1;
+    min-width: 0;
+}
+
 .chip--more {
     border-style: dashed;
     border-color: rgba(79, 91, 223, 0.4);
@@ -1913,8 +1924,6 @@ export default {
   border-bottom-left-radius: 0;
   padding-left: 6px;
   padding-right: 7px;
-  /* Разделительная линия внутри общей заливки. */
-  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--danger-text) 35%, transparent);
 }
 
 .split-btn__caret {

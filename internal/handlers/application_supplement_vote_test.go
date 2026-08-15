@@ -64,15 +64,28 @@ func suppVoteReadVote(t *testing.T, db *gorm.DB, supplementID, userID int) model
 
 // suppVoteFlag - предупреждение о возможном обходе ЧС по строке заявки. supplementID nil -
 // флаг исходного состава подачи.
+// suppVoteFlag - пометка о сходстве в заявке. Ссылается на настоящую запись чёрного
+// списка: пометка на снятый запрет заявку не держит, поэтому фиктивный
+// matched_blacklist_id гейт бы не включил.
 func suppVoteFlag(t *testing.T, db *gorm.DB, appID int, supplementID *int, value string) {
 	t.Helper()
+	mark := seedMark(t, db, "SuppVote_"+value)
+	entry := models.VehicleBlacklist{
+		CarNumber: value,
+		MarkID:    mark.ID,
+		MarkName:  mark.Name,
+		Reason:    "похожий номер",
+		IsActive:  true,
+	}
+	require.NoError(t, db.Create(&entry).Error)
+
 	require.NoError(t, db.Create(&models.ApplicationBlacklistFlag{
 		ApplicationID:      appID,
 		SupplementID:       supplementID,
 		ElementType:        models.BlacklistElementCar,
 		ElementID:          1,
 		ElementNormalized:  value,
-		MatchedBlacklistID: 1,
+		MatchedBlacklistID: entry.ID,
 		MatchedValue:       value,
 		MatchedReason:      "похожий номер",
 		Similarity:         0.9,
