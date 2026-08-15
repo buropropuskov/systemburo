@@ -175,6 +175,7 @@
                           class="chip"
                           :class="{ 'chip--more': chip.isMore, 'chip--solo': chip.isSolo }"
                           :data-hint="chip.hint"
+                          :title="chip.hint"
                           :data-testid="chip.isMore ? 'attachment-chip-more' : 'attachment-chip'"
                         ><span class="chip__text">{{ chip.text }}</span></span>
                         <span
@@ -1793,14 +1794,16 @@ export default {
 
 /* Подсказка проекта: тёмный пузырёк по data-hint, а не браузерный title. */
 .val[data-hint],
-.chip[data-hint],
 .blacklist-badge[data-hint],
 .supplement-badge[data-hint] {
     position: relative;
 }
 
+/* У чипа своей подсказки нет: она рисовалась псевдоэлементом внутри него, а чип,
+   строка чипов и сама ячейка обрезают содержимое (overflow: hidden держит раскладку
+   таблицы) - подсказку срезало на всех трёх уровнях, и полное название не показывалось
+   вовсе. Поэтому у чипов подсказка нативная, через title: её не обрезает ничто. */
 .val[data-hint]::after,
-.chip[data-hint]::after,
 .blacklist-badge[data-hint]::after,
 .supplement-badge[data-hint]::after {
     content: attr(data-hint);

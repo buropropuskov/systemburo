@@ -8,7 +8,13 @@
         @mousedown="onOverlayMousedown"
         @mouseup="onOverlayMouseup"
       >
-        <div class="modal-wrapper">
+        <!-- Обёртка занимает всю площадь затемнения, поэтому клик по фону приходит
+             сюда, а не на оверлей: закрытие висит на обоих. -->
+        <div
+          class="modal-wrapper"
+          @mousedown="onOverlayMousedown"
+          @mouseup="onOverlayMouseup"
+        >
           <!-- Основное модальное окно с деталями ТС -->
           <div
             class="modal-content compact-modal main-modal"

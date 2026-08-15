@@ -7,7 +7,11 @@
         :style="{ zIndex: overlayZIndex }"
         @click.self="close"
       >
-        <div class="modal-wrapper">
+        <!-- Клик по фону приходит в обёртку: она занимает всю площадь затемнения. -->
+        <div
+          class="modal-wrapper"
+          @click.self="close"
+        >
           <!-- Основное модальное окно с деталями сотрудника -->
           <div
             class="modal-content compact-modal main-modal"
