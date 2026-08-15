@@ -79,7 +79,7 @@
         data-testid="impact-confirm"
         @click="$emit('confirm')"
       >
-        Внести в чёрный список
+        {{ confirmLabel }}
       </button>
     </template>
   </BaseModal>
@@ -108,6 +108,12 @@ export default {
         submitting: {
             type: Boolean,
             default: false
+        },
+        /** Надпись кнопки: внесение и возврат из архива приводят к одному итогу,
+            но называются по-разному. */
+        confirmLabel: {
+            type: String,
+            default: 'Внести в чёрный список'
         }
     },
     emits: ['confirm', 'close'],

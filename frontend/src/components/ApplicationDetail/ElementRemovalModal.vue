@@ -30,7 +30,7 @@
           class="lk-textarea"
           rows="3"
           maxlength="1000"
-          placeholder="Например: числится в розыске, пропускать нельзя"
+          placeholder="Напишите причину"
           data-testid="removal-reason"
           @keydown.enter.ctrl="submit"
         />

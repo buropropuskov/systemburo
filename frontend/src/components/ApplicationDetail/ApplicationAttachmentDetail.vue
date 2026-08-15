@@ -238,15 +238,45 @@
                   v-if="hasStateColumn"
                   class="c-state"
                 >
-                  <button
+                  <!-- Две кнопки в узкую ячейку не влезали: на помеченной строке
+                       остаётся одна «Пропустить», а «Убрать» уходит в её меню. -->
+                  <div
                     v-if="canOverride && isFlagged(row)"
-                    type="button"
-                    class="lk-button lk-button--danger blacklist-override-btn"
-                    data-testid="blacklist-override-btn"
-                    @click.stop="$emit('override-element', { label: rowLabel(row), flag: row.blacklist_similar })"
+                    class="row-actions"
                   >
-                    Пропустить
-                  </button>
+                    <button
+                      type="button"
+                      class="lk-button lk-button--danger blacklist-override-btn"
+                      data-testid="blacklist-override-btn"
+                      @click.stop="toggleRowMenu(row.id)"
+                    >
+                      Пропустить
+                      <span class="row-actions__caret">⌄</span>
+                    </button>
+                    <div
+                      v-if="openRowMenu === row.id"
+                      class="row-actions__menu"
+                      data-testid="row-actions-menu"
+                    >
+                      <button
+                        type="button"
+                        class="row-actions__item"
+                        data-testid="row-action-override"
+                        @click.stop="chooseOverride(row)"
+                      >
+                        Пропустить
+                      </button>
+                      <button
+                        v-if="canRemove"
+                        type="button"
+                        class="row-actions__item row-actions__item--danger"
+                        data-testid="row-action-remove"
+                        @click.stop="chooseRemove(row)"
+                      >
+                        Убрать из заявки
+                      </button>
+                    </div>
+                  </div>
                   <Badge
                     v-else-if="row.blacklist_similar"
                     class="blacklist-badge"
@@ -258,7 +288,7 @@
                     {{ blacklistLabel(row.blacklist_similar) }}
                   </Badge>
                   <button
-                    v-if="canRemove"
+                    v-if="canRemove && !(canOverride && isFlagged(row))"
                     type="button"
                     class="lk-button lk-button--ghost element-remove-btn"
                     data-testid="element-remove-btn"
@@ -524,6 +554,9 @@ export default {
     emits: ['open-vehicle', 'open-employee', 'override-element', 'remove-element', 'assignments-changed'],
     data() {
         return {
+            // Идентификатор строки, у которой открыто меню действий: одно на таблицу,
+            // чтобы два меню не висели одновременно.
+            openRowMenu: null,
             containerWidth: 0,
             isNarrowViewport: false,
             resizeObserver: null,
@@ -817,6 +850,10 @@ export default {
         }
     },
     mounted() {
+        // Меню действий строки закрывается кликом мимо него - иначе висит открытым,
+        // пока не нажмут саму кнопку.
+        document.addEventListener('click', this.closeRowMenuOnOutside);
+
         if (typeof window.matchMedia === 'function') {
             this.viewportQuery = window.matchMedia('(max-width: 767.98px)');
             this.isNarrowViewport = this.viewportQuery.matches;
@@ -843,6 +880,7 @@ export default {
         this.$nextTick(this.measureChipColumns);
     },
     beforeUnmount() {
+        document.removeEventListener('click', this.closeRowMenuOnOutside);
         if (this.resizeObserver) {
             this.resizeObserver.disconnect();
             this.resizeObserver = null;
@@ -1173,6 +1211,26 @@ export default {
 
         employeeFullName(employee) {
             return [employee.last_name, employee.first_name, employee.middle_name].filter(Boolean).join(' ');
+        },
+
+        closeRowMenuOnOutside(event) {
+            if (this.openRowMenu === null) return;
+            if (event.target && event.target.closest && event.target.closest('.row-actions')) return;
+            this.openRowMenu = null;
+        },
+
+        toggleRowMenu(rowID) {
+            this.openRowMenu = this.openRowMenu === rowID ? null : rowID;
+        },
+
+        chooseOverride(row) {
+            this.openRowMenu = null;
+            this.$emit('override-element', { label: this.rowLabel(row), flag: row.blacklist_similar });
+        },
+
+        chooseRemove(row) {
+            this.openRowMenu = null;
+            this.$emit('remove-element', { label: this.rowLabel(row), id: row.id });
         },
 
         blacklistVariant(flag) {
@@ -1765,6 +1823,51 @@ export default {
   text-decoration-color: var(--danger);
   text-decoration-thickness: 2px;
   color: var(--text-muted);
+}
+
+.row-actions {
+  position: relative;
+}
+
+.row-actions__caret {
+  margin-left: 4px;
+  font-size: 10px;
+  line-height: 1;
+}
+
+/* Меню открывается вверх и вправо от кнопки: строка узкая, вниз оно упирается в
+   следующую строку таблицы. */
+.row-actions__menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 4px);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  min-width: 170px;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+
+.row-actions__item {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  font-size: 12px;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.row-actions__item:hover {
+  background: var(--accent-tint);
+}
+
+.row-actions__item--danger {
+  color: var(--danger-text);
 }
 
 .element-remove-btn {
