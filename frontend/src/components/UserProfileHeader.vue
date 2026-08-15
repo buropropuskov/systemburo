@@ -22,7 +22,6 @@
               <NavIcon
                 class="icon"
                 name="data-processing"
-                :size="16"
               />
               <span class="badge-text">{{ consentBadgeLabel }}</span>
             </span>
@@ -142,7 +141,6 @@
                 <NavIcon
                   class="icon"
                   name="center"
-                  :size="16"
                 />
                 <span class="badge-text">{{ email }}</span>
               </div>

@@ -172,7 +172,7 @@
                         >
                           <g
                             fill="none"
-                            stroke="#a2a2a2"
+                            stroke="currentColor"
                             stroke-width="1.8"
                             stroke-linecap="round"
                           >
@@ -217,7 +217,7 @@
                         >
                           <g
                             fill="none"
-                            stroke="#a2a2a2"
+                            stroke="currentColor"
                             stroke-width="1.8"
                             stroke-linecap="round"
                             stroke-linejoin="round"
