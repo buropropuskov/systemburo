@@ -5,9 +5,9 @@
         v-if="show"
         class="modal-overlay"
         :style="{ zIndex: overlayZIndex }"
-        @click.self="close"
       >
-        <!-- Клик по фону приходит в обёртку: она занимает всю площадь затемнения. -->
+        <!-- Клик мимо окна приходит в обёртку: она занимает всю площадь затемнения,
+             до самого затемнения событие не доходит. -->
         <div
           class="modal-wrapper"
           @click.self="close"
