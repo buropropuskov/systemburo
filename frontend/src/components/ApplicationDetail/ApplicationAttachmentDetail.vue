@@ -177,7 +177,10 @@
                           :data-hint="chip.hint"
                           :title="chip.hint"
                           :data-testid="chip.isMore ? 'attachment-chip-more' : 'attachment-chip'"
-                        ><span class="chip__text">{{ chip.text }}</span></span>
+                        ><span
+                          class="chip__text"
+                          :title="chip.hint"
+                        >{{ chip.text }}</span></span>
                         <span
                           v-if="!chipItems(row, col).length && !canAssign"
                           class="chip chip--empty"
@@ -1845,7 +1848,6 @@ export default {
 }
 
 .val[data-hint]::before,
-.chip[data-hint]::before,
 .blacklist-badge[data-hint]::before,
 .supplement-badge[data-hint]::before {
     content: '';
