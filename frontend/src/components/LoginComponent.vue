@@ -8,7 +8,12 @@
     data-theme="light"
     @mousemove="handleMouseMove"
   >
-    <div class="login-background">
+    <!-- v-once: наполнение фона - константы, но :style/:class лишают ноды хойста,
+         и каждый mousemove (параллакс сетки) диффил бы все сорок с лишним. -->
+    <div
+      v-once
+      class="login-background"
+    >
       <div
         v-for="(orb, i) in backgroundOrbs"
         :key="i"
@@ -29,6 +34,7 @@
          ширине (preserveAspectRatio none): формы плавные, искажение не читается,
          зато экран заполнен и на телефоне. -->
     <svg
+      v-once
       class="login-scene"
       viewBox="0 0 1440 900"
       preserveAspectRatio="none"
@@ -234,6 +240,7 @@
 
     <!-- Линии-траектории в небе: спокойный ритм поверх сетки. -->
     <svg
+      v-once
       class="login-lines"
       viewBox="0 0 1440 900"
       preserveAspectRatio="none"
@@ -1017,7 +1024,7 @@ export default {
         height: 100%;
         top: 0;
         left: 0;
-        z-index: 1;
+        z-index: 2;
         pointer-events: none;
     }
 
@@ -1027,7 +1034,7 @@ export default {
         height: 100%;
         top: 0;
         left: 0;
-        z-index: 2;
+        z-index: 3;
         pointer-events: none;
     }
 
@@ -1073,7 +1080,7 @@ export default {
     .floating-shape {
         position: absolute;
         border-radius: 50%;
-        z-index: 3;
+        z-index: 4;
         animation-iteration-count: infinite;
         animation-timing-function: ease-in-out;
         will-change: transform;

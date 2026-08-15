@@ -281,6 +281,23 @@ describe('LoginComponent: фон экрана', () => {
     })
   })
 
+  // Сетка, пейзаж, линии и шары - четыре наложенных слоя. При равных z-index
+  // порядок держался бы только очерёдностью в шаблоне: перестановка блоков
+  // роняла бы пейзаж под сетку молча, без единой ошибки.
+  it('держит слои фона явной лестницей z-index', () => {
+    const layers = ['.login-pattern', '.login-scene', '.login-lines', '.floating-shape']
+    const depths = layers.map((sel) => {
+      const rule = SFC.match(new RegExp(`\\${sel} \\{[^}]+\\}`))
+      expect(rule, `слой ${sel} пропал из стилей`).not.toBeNull()
+      const z = rule[0].match(/z-index: (\d+);/)
+      expect(z, `${sel} остался без z-index`).not.toBeNull()
+      return Number(z[1])
+    })
+    depths.forEach((z, i) => {
+      if (i > 0) expect(z, `${layers[i]} не выше ${layers[i - 1]}`).toBeGreaterThan(depths[i - 1])
+    })
+  })
+
   it('снимает движение при prefers-reduced-motion', () => {
     const block = SFC.match(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\n {4}\}\n/)
     expect(block, 'блок prefers-reduced-motion пропал').not.toBeNull()
