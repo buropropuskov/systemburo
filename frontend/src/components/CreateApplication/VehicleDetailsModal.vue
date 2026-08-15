@@ -592,7 +592,9 @@ export default {
     emits: ['close', 'open-application', 'override', 'cancel-override'],
     setup(props, { emit }) {
         const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
-        useEscapeClose(() => emit('close'), () => props.show);
+        // Слой карточки: из заявки она лежит поверх её панели (10003), иначе 10001 -
+// то же значение, что у оверлея, чтобы Escape закрывал именно верхнее окно.
+useEscapeClose(() => emit('close'), () => props.show, props.source === 'application' ? 10003 : 10001);
         // Bottom-sheet свайп-вниз-закрытие на мобилке (#1097 r2). getScrollTop от тела:
         // свайп из контента закрывает, только когда прокручено вверх; с ползунка - всегда.
         const sheetBody = ref(null);

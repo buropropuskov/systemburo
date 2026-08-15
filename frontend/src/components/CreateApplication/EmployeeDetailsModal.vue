@@ -476,6 +476,7 @@
 
 <script>
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack';
 import { ref, getCurrentInstance } from 'vue';
 import { apiRequest } from '@/api/client';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
@@ -720,6 +721,8 @@ export default {
         handler(val) {
             // Контракт окна: фон под листом не прокручивается.
             setBodyScrollLock(this, val);
+            // И место в стопке окон - чтобы Escape закрывал только верхнее.
+            setModalOpen(this, val, this.overlayZIndex);
             if (val) {
                 this.loadHistory();
                 this.loadEmployeeStatus(); // для EmployeeDetailsModal
@@ -743,17 +746,26 @@ export default {
     },
     mounted() {
         document.addEventListener('keydown', this.handleEscKey);
+        if (this.show) setModalOpen(this, true, this.overlayZIndex);
     },
     beforeUnmount() {
         document.removeEventListener('keydown', this.handleEscKey);
+        releaseModal(this);
         releaseBodyScrollLock(this);
     },
     methods: {
-        // Закрытие по Escape (фон закрывается через @click.self на оверлее).
+        /**
+         * Закрытие по Escape (фон закрывается через @click.self на оверлее).
+         *
+         * Через общую стопку окон: карточка, открытая из заявки, лежит поверх её панели,
+         * и без стопки одно нажатие закрывало обе - панель считала себя верхней.
+         */
         handleEscKey(e) {
-            if (e.key === 'Escape' && this.show) {
-                this.close();
-            }
+            if (e.key !== 'Escape' || !this.show) return;
+            if (isEscapeHandled(e)) return;
+            if (!isTopModal(this)) return;
+            markEscapeHandled(e);
+            this.close();
         },
         close() {
     this.$emit('close');
