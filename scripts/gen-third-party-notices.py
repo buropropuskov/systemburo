@@ -305,6 +305,16 @@ def collect_go() -> list[Component]:
     components = []
     for path, version in seen:
         pkg_dir = mod_cache / f"{escape_module_path(path)}@{version}"
+        # Не скачанный модуль и модуль без файла лицензии выглядят одинаково -
+        # текста нет в обоих случаях. Разница существенная: во втором случае это
+        # правда о пакете, в первом - пустой кэш, и молча записать «текста
+        # лицензии нет» значило бы соврать заказчику в юридическом документе.
+        if not pkg_dir.is_dir():
+            raise SystemExit(
+                f"нет каталога модуля {pkg_dir}: выполните go mod download и повторите - "
+                "иначе отсутствие лицензии в кэше уйдёт в перечень как отсутствие лицензии "
+                "у самого модуля"
+            )
         found = find_license_file(pkg_dir)
         license_text = found[1] if found else ""
         holder = extract_copyright(license_text)
@@ -313,7 +323,7 @@ def collect_go() -> list[Component]:
             Component(path, version, spdx, holder, license_text, find_notice_file(pkg_dir))
         )
 
-    components.sort(key=lambda c: c.name.lower())
+    components.sort(key=lambda c: (c.name.lower(), c.version))
     return components
 
 
