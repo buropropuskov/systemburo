@@ -267,11 +267,31 @@ describe('LoginComponent: фон экрана', () => {
     wrapper.unmount()
   })
 
+  // Круги плавали на этом экране с самого начала - их убрали заодно с
+  // добавленными поверх, хотя просили снять только добавленные. Замок держит
+  // исходные семь поимённо: переписывая фон, их легко потерять снова, и ни один
+  // тест выше этого не заметит.
+  it('держит семь исходных плавающих кругов', () => {
+    const wrapper = mountLogin()
+    const shapes = wrapper.findAll('.floating-shape')
+    expect(shapes.length, 'исходные круги пропали с экрана входа').toBe(7)
+    for (let n = 1; n <= 7; n += 1) {
+      expect(
+        wrapper.find(`.shape-${n}`).exists(),
+        `круг shape-${n} пропал - у каждого свой размер и место`,
+      ).toBe(true)
+      expect(SFC, `правило .shape-${n} пропало из стилей`).toMatch(
+        new RegExp(`\\.shape-${n} \\{[^}]*width:`),
+      )
+    }
+    wrapper.unmount()
+  })
+
   // Покачивание на top/margin дало бы пересчёт раскладки вместо композита.
   it('анимирует фон только transform и opacity', () => {
-    const frames = SFC.match(/@keyframes (line-sway) \{[\s\S]*?\n {4}\}/g)
+    const frames = SFC.match(/@keyframes (line-sway|float) \{[\s\S]*?\n {4}\}/g)
     expect(frames, 'кадры анимаций фона не найдены').not.toBeNull()
-    expect(frames.length).toBe(1)
+    expect(frames.length).toBe(2)
     frames.forEach((frame) => {
       const props = [...frame.matchAll(/^\s{12}([a-z-]+):/gm)].map((m) => m[1])
       expect(props.length).toBeGreaterThan(0)
@@ -283,7 +303,7 @@ describe('LoginComponent: фон экрана', () => {
   // порядок держался бы только очерёдностью в шаблоне: перестановка блоков
   // роняла бы пейзаж под сетку молча, без единой ошибки.
   it('держит слои фона явной лестницей z-index', () => {
-    const layers = ['.login-pattern', '.login-scene', '.login-lines']
+    const layers = ['.login-pattern', '.login-scene', '.login-lines', '.login-background']
     const depths = layers.map((sel) => {
       const rule = SFC.match(new RegExp(`\\${sel} \\{[^}]+\\}`))
       expect(rule, `слой ${sel} пропал из стилей`).not.toBeNull()
@@ -299,7 +319,7 @@ describe('LoginComponent: фон экрана', () => {
   it('снимает движение при prefers-reduced-motion', () => {
     const block = SFC.match(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\n {4}\}\n/)
     expect(block, 'блок prefers-reduced-motion пропал').not.toBeNull()
-    ;['.login-lines__group']
+    ;['.login-lines__group', '.floating-shape']
       .forEach((sel) => expect(block[0]).toContain(sel))
   })
 })

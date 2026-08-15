@@ -224,7 +224,19 @@
         />
       </g>
     </svg>
-        
+
+    <!-- Семь плавающих кругов - исходное оформление экрана входа, они здесь
+         с самого начала. Пейзаж и линии добавлены под них, а не вместо них. -->
+    <div class="login-background">
+      <div class="floating-shape shape-1" />
+      <div class="floating-shape shape-2" />
+      <div class="floating-shape shape-3" />
+      <div class="floating-shape shape-4" />
+      <div class="floating-shape shape-5" />
+      <div class="floating-shape shape-6" />
+      <div class="floating-shape shape-7" />
+    </div>
+
     <div class="login__container">
       <div class="login__active">
         <div class="login__header">
@@ -964,10 +976,108 @@ export default {
         }
     }
 
+    /* Круги идут поверх пейзажа и линий: они и раньше плыли над фоном, а не
+       тонули в нём. Отсюда четвёртая ступень лестницы, а не прежняя вторая -
+       вторую и третью заняли слои, добавленные под круги. */
+    .login-background {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        z-index: 4;
+        pointer-events: none;
+    }
+
+    .floating-shape {
+        position: absolute;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.3);
+        animation: float 15s infinite ease-in-out;
+        box-shadow: 0px 3px 10px rgba(0,0,0,0.1);
+    }
+
+    .shape-1 {
+        width: 250px;
+        height: 250px;
+        top: -50px;
+        left: -50px;
+        animation-delay: 0s;
+    }
+
+    .shape-2 {
+        width: 150px;
+        height: 150px;
+        bottom: 50px;
+        right: 100px;
+        animation-delay: -5s;
+    }
+
+    .shape-3 {
+        width: 100px;
+        height: 100px;
+        top: 50%;
+        left: 70%;
+        animation-delay: -10s;
+    }
+
+    .shape-4 {
+        width: 80px;
+        height: 80px;
+        top: 20%;
+        right: 10%;
+        animation-delay: -2s;
+        background: rgba(255, 255, 255, 0.15);
+        box-shadow: 0px 4px 15px rgba(0,0,0,0.2);
+    }
+
+    .shape-5 {
+        width: 120px;
+        height: 120px;
+        bottom: 40%;
+        left: 15%;
+        animation-delay: -7s;
+        background: rgba(255, 255, 255, 0.08);
+        box-shadow: 0px 5px 20px rgba(0,0,0,0.15);
+    }
+
+    .shape-6 {
+        width: 60px;
+        height: 60px;
+        top: 70%;
+        right: 25%;
+        animation-delay: -12s;
+        background: rgba(255, 255, 255, 0.12);
+        box-shadow: 0px 3px 12px rgba(0,0,0,0.18);
+    }
+
+    .shape-7 {
+        width: 180px;
+        height: 180px;
+        bottom: -30px;
+        right: -30px;
+        animation-delay: -8s;
+        background: rgba(255, 255, 255, 0.05);
+        box-shadow: 0px 6px 25px rgba(0,0,0,0.1);
+    }
+
+    @keyframes float {
+        0%, 100% {
+            transform: translate(0, 0) rotate(0deg);
+        }
+        33% {
+            transform: translate(30px, -50px) rotate(120deg);
+        }
+        66% {
+            transform: translate(-20px, 20px) rotate(240deg);
+        }
+    }
+
     /* Пользователь, попросивший меньше движения на уровне системы, получает
        статичный фон - анимации здесь чисто декоративные. */
     @media (prefers-reduced-motion: reduce) {
-        .login-lines__group {
+        .login-lines__group,
+        .floating-shape {
             animation: none;
         }
     }
@@ -1543,6 +1653,11 @@ export default {
 
         .time {
             font-size: 12px;
+        }
+
+        /* Круги занимают место и тормозят на мобильных - убираем. */
+        .floating-shape {
+            display: none;
         }
     }
 
