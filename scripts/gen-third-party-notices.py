@@ -376,6 +376,18 @@ def license_groups(components: list[Component]) -> list[tuple[str, list[Componen
     return ordered
 
 
+def fence_for(text: str) -> str:
+    """Подбирает ограждение блока длиннее любой цепочки обратных кавычек внутри.
+
+    Лицензии - чужой текст, и запрет на строку из трёх кавычек в нём ничем не
+    обеспечен. Ограждение фиксированной длины такой текст порвало бы: остаток
+    лицензии ушёл бы в разметку, а следующий блок склеился с предыдущим. Ловить
+    это глазами в файле на восемь тысяч строк нечем.
+    """
+    longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
+    return "`" * max(3, longest + 1)
+
+
 def md_escape(value: str) -> str:
     """Экранирует то, что порвало бы разметку таблицы."""
     return value.replace("|", "\\|").replace("\n", " ")
@@ -494,9 +506,10 @@ def render(npm: list[Component], go: list[Component]) -> str:
         add("")
         add("Компоненты: " + ", ".join(f"`{m.name}` {m.version}" for m in members))
         add("")
-        add("```text")
+        fence = fence_for(text)
+        add(fence + "text")
         out.extend(text.splitlines())
-        add("```")
+        add(fence)
         add("")
 
     with_notice = [c for c in npm + go if c.notice_text]
@@ -512,9 +525,10 @@ def render(npm: list[Component], go: list[Component]) -> str:
         for component in with_notice:
             add(f"### {component.title}")
             add("")
-            add("```text")
+            fence = fence_for(component.notice_text)
+            add(fence + "text")
             out.extend(component.notice_text.splitlines())
-            add("```")
+            add(fence)
             add("")
 
     missing = [c for c in npm + go if not c.license_text]
