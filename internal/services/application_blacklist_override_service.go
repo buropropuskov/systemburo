@@ -274,7 +274,10 @@ func hasUnoverriddenFlags(ctx context.Context, db *gorm.DB, applicationID int, s
 	query := db.WithContext(ctx).
 		Table("application_blacklist_flags f").
 		Where("f.application_id = ?", applicationID).
-		Where("NOT EXISTS (SELECT 1 FROM application_blacklist_overrides o WHERE o.flag_id = f.id)")
+		Where("NOT EXISTS (SELECT 1 FROM application_blacklist_overrides o WHERE o.flag_id = f.id)").
+		// Пометка - снимок на момент подачи. Если запись чёрного списка потом убрали,
+		// держать заявку из-за снятого запрета незачем: предупреждать больше не о чем.
+		Where(blacklistFlagStillActive)
 	if supplementID != nil {
 		query = query.Where("f.supplement_id = ?", *supplementID)
 	}
@@ -284,3 +287,13 @@ func hasUnoverriddenFlags(ctx context.Context, db *gorm.DB, applicationID int, s
 	}
 	return cnt > 0, nil
 }
+
+// blacklistFlagStillActive - условие «запрет, на который ссылается пометка, ещё действует».
+// Пометка хранит снимок совпавшей записи, поэтому без этой проверки снятая из чёрного
+// списка машина продолжала бы держать заявку на согласовании.
+const blacklistFlagStillActive = `(
+	    (f.element_type = 'car' AND EXISTS (
+	       SELECT 1 FROM vehicle_blacklists vb WHERE vb.id = f.matched_blacklist_id AND vb.is_active))
+	 OR (f.element_type = 'employee' AND EXISTS (
+	       SELECT 1 FROM person_blacklists pb WHERE pb.id = f.matched_blacklist_id AND pb.is_active))
+	  )`

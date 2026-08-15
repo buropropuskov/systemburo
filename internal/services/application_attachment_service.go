@@ -213,6 +213,12 @@ func (s *applicationService) fetchBlacklistFlags(ctx context.Context, elementTyp
 		FROM application_blacklist_flags f
 		LEFT JOIN application_blacklist_overrides o ON o.flag_id = f.id
 		WHERE f.application_id = ? AND f.element_type = ? AND f.element_id IN ?
+		  AND (
+		        (f.element_type = 'car' AND EXISTS (
+		           SELECT 1 FROM vehicle_blacklists vb WHERE vb.id = f.matched_blacklist_id AND vb.is_active))
+		     OR (f.element_type = 'employee' AND EXISTS (
+		           SELECT 1 FROM person_blacklists pb WHERE pb.id = f.matched_blacklist_id AND pb.is_active))
+		      )
 		ORDER BY f.id`, applicationID, elementType, ids).Scan(&rows).Error; err != nil {
 		slog.Warn("fetch blacklist flags failed", "err", err, "element_type", elementType)
 		return out
