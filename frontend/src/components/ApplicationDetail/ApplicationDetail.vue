@@ -672,7 +672,6 @@
       </div>
     </div>
     <VehicleDetailsModal
-      v-if="showVehicleModal"
       :show="showVehicleModal"
       :vehicle="selectedVehicle"
       :all-unloading-places="allUnloadingPlaces"
@@ -690,7 +689,6 @@
     />
 
     <EmployeeDetailsModal
-      v-if="showEmployeeModal"
       :show="showEmployeeModal"
       :employee="selectedEmployee"
       :all-tables="allTables"
