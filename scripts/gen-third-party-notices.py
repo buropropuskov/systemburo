@@ -49,35 +49,24 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 NOTICES_PATH = REPO_ROOT / "THIRD-PARTY-NOTICES.md"
 
-# Имена, под которыми пакеты кладут текст лицензии. Порядок значим: сначала
-# точные имена, потом варианты написания. COPYING - традиция проектов GNU,
-# LICENCE - британское написание, встречается у отдельных пакетов npm.
-LICENSE_FILENAMES = (
-    "LICENSE",
-    "LICENSE.md",
-    "LICENSE.txt",
-    "LICENSE-MIT",
-    "LICENSE-MIT.txt",
-    "MIT-LICENSE",
-    "MIT-LICENSE.txt",
-    "LICENCE",
-    "LICENCE.md",
-    "LICENCE.txt",
-    "COPYING",
-    "COPYING.md",
-    "COPYING.txt",
-    "LICENSE.BSD",
-    "LICENSE.APACHE2",
+# Имена, под которыми пакеты кладут текст лицензии. Перечислять их поимённо
+# бесполезно: LICENSE, LICENCE (британское написание), COPYING (традиция GNU),
+# LICENSE-MPL и MIT-LICENSE.txt - всё это встречается в одном node_modules.
+LICENSE_FILE_RE = re.compile(
+    r"^(licen[cs]e|copying)([-._].*)?$|^[a-z0-9]+[-_]licen[cs]e(\..*)?$", re.IGNORECASE
 )
 
-# Строка об авторских правах, а не всякая строка со словом copyright. Без
-# требования года и знака в перечень попадали обрывки самого текста лицензии:
-# перенос абзаца Apache-2.0 начинается словом "copyright notice that is included
-# in", а в отказе от гарантий встречается "COPYRIGHT HOLDERS BE LIABLE" - оба
-# выглядели правообладателем и печатались вместо него.
-COPYRIGHT_RE = re.compile(
-    r"^\s*(?:\(c\)|©)?\s*(?:Copyright|COPYRIGHT)\b(?=.*(?:\(c\)|©|\b(?:19|20)\d{2}\b))"
-)
+# Строка об авторских правах, а не всякая строка со словом copyright. Отбор идёт
+# по началу строки: настоящее уведомление открывает её словом Copyright с
+# заглавной (иногда после решётки заголовка Markdown или звёздочки комментария),
+# а обрывки самого текста лицензии - перенос абзаца Apache-2.0 «copyright notice
+# that is included in» и подобные - начинаются со строчной.
+#
+# Года требовать нельзя: «Copyright Node.js contributors. All rights reserved» и
+# «Copyright Julian Gruber» - полноценные уведомления без года, и требование
+# выбрасывало их у полутора десятков компонентов, подставляя вместо них ложное
+# «не указан в поставке пакета».
+COPYRIGHT_RE = re.compile(r"^[\s#*/-]*(?:\(c\)|©)?\s*(?:Copyright|COPYRIGHT)\b")
 
 # Условие 4(d) лицензии Apache-2.0: если у компонента есть файл NOTICE, его
 # содержимое обязано сопровождать поставку - названия лицензии тут мало.
@@ -107,20 +96,26 @@ def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
-def find_license_file(pkg_dir: Path) -> tuple[str, str] | None:
-    """Возвращает (имя файла, текст) первой найденной лицензии пакета."""
+def find_license_text(pkg_dir: Path) -> str:
+    """Собирает тексты ВСЕХ файлов лицензий пакета, а не первый попавшийся.
+
+    Двойная лицензия раскладывается по файлам: `dompurify` кладёт рядом LICENSE
+    (Apache-2.0) и LICENSE-MPL. Взяв первый, перечень обещал бы читателю выбор
+    между двумя лицензиями и приводил текст только одной - ровно на том
+    компоненте, который сам же помечает требующим внимания.
+    """
     if not pkg_dir.is_dir():
-        return None
-    for name in LICENSE_FILENAMES:
-        candidate = pkg_dir / name
-        if candidate.is_file():
-            return name, read_text(candidate).strip()
-    # Регистр имени у части пакетов отличается (license, License.md). Перебор
-    # каталога дороже прямой проверки, поэтому идёт вторым заходом.
-    for entry in sorted(pkg_dir.iterdir()):
-        if entry.is_file() and entry.name.lower().split(".")[0] in ("license", "licence", "copying"):
-            return entry.name, read_text(entry).strip()
-    return None
+        return ""
+    found = sorted(
+        entry for entry in pkg_dir.iterdir() if entry.is_file() and LICENSE_FILE_RE.match(entry.name)
+    )
+    if not found:
+        return ""
+    if len(found) == 1:
+        return read_text(found[0]).strip()
+    # Имя файла остаётся в тексте: без него два текста подряд читаются как один,
+    # и непонятно, где кончается Apache и начинается MPL.
+    return "\n\n".join(f"===== {entry.name} =====\n{read_text(entry).strip()}" for entry in found)
 
 
 def find_notice_file(pkg_dir: Path) -> str:
@@ -141,21 +136,22 @@ def extract_copyright(text: str, fallback: str = "") -> str:
     """
     lines = []
     for line in text.splitlines():
-        if COPYRIGHT_RE.match(line):
-            cleaned = line.strip().rstrip(".")
-            # Шаблонная строка из неподставленного текста Apache-2.0 -
-            # правообладателя не называет, брать её нельзя.
-            if "[yyyy] [name of copyright owner]" in cleaned:
-                continue
-            # Отказ от гарантий набран прописными целиком; строка оттуда
-            # правообладателем не является.
-            letters = [ch for ch in cleaned if ch.isalpha()]
-            if letters and sum(ch.isupper() for ch in letters) / len(letters) > 0.8:
-                continue
-            if cleaned not in lines:
-                lines.append(cleaned)
-        if len(lines) >= 3:
-            break
+        if not COPYRIGHT_RE.match(line):
+            continue
+        cleaned = line.strip().lstrip("#*/- ").strip().rstrip(".")
+        # Шаблонная строка из неподставленного текста Apache-2.0 -
+        # правообладателя не называет, брать её нельзя.
+        if "[yyyy] [name of copyright owner]" in cleaned:
+            continue
+        # Отказ от гарантий набран прописными целиком; строка оттуда
+        # правообладателем не является.
+        letters = [ch for ch in cleaned if ch.isalpha()]
+        if letters and sum(ch.isupper() for ch in letters) / len(letters) > 0.8:
+            continue
+        if cleaned not in lines:
+            lines.append(cleaned)
+    # Числа лицензий не ограничиваем: у `confbox` их шесть, и обрезанное на трёх
+    # уведомление ровно то, ради чего файл и заведён, теряет три четверти.
     if lines:
         return "; ".join(lines)
     return fallback
@@ -210,58 +206,66 @@ class Component:
         return f"{self.name} {self.version}"
 
 
-def collect_npm() -> list[Component]:
+def dedupe(components: list[Component]) -> list[Component]:
+    """Убирает повторы имени с версией.
+
+    Один и тот же пакет установлен по нескольким путям, когда соседям нужны
+    разные версии. Условия при этом одни, и повторять строку незачем; две разные
+    версии одного пакета остаются двумя строками - в поставку уходят обе.
+    """
+    unique = {}
+    for component in components:
+        unique.setdefault((component.name, component.version), component)
+    return sorted(unique.values(), key=lambda c: (c.name.lower(), c.version))
+
+
+def collect_npm() -> tuple[list[Component], list[Component]]:
+    """Возвращает (компоненты, сборки под конкретную платформу).
+
+    Платформенные сборки (`@napi-rs/canvas-linux-x64-gnu` и её собратья под
+    macOS и Windows) вынесены отдельно намеренно. Они значатся в файле замка все
+    сразу, а устанавливается ровно одна - та, что подошла машине. Собери
+    перечень по установленному, и на машине разработчика с macOS в него ушли бы
+    сборки под macOS, а в контейнер уезжают линуксовые: файл начал бы зависеть
+    от того, кто его собирал, и `--check` падал бы у каждого второго. Поэтому
+    они берутся из замка, без обращения к диску, и попадают в свой раздел.
+    """
     lock_path = REPO_ROOT / "frontend" / "package-lock.json"
     lock = json.loads(read_text(lock_path))
     packages = lock.get("packages", {})
 
-    components = []
+    components: list[Component] = []
+    platform: list[Component] = []
     for key, entry in packages.items():
         # Пустой ключ - сам проект, dev - только сборка.
         if not key or entry.get("dev"):
             continue
+        name = key.split("node_modules/")[-1]
+        version = entry.get("version", "")
+
+        if entry.get("os") or entry.get("cpu"):
+            platform.append(Component(name, version, entry.get("license", ""), "", ""))
+            continue
+
         pkg_dir = REPO_ROOT / "frontend" / key
         meta_path = pkg_dir / "package.json"
         if not meta_path.is_file():
-            # Сборки под чужую платформу (`@napi-rs/canvas-android-arm64` и
-            # подобные) значатся в замке, но не устанавливаются и в поставку не
-            # попадают: система работает в контейнере Linux. Отсутствие всего
-            # остального означает, что зависимости просто не установлены.
-            if entry.get("optional") and (entry.get("os") or entry.get("cpu")):
-                continue
             raise SystemExit(
                 f"нет каталога {pkg_dir.relative_to(REPO_ROOT)}: выполните npm ci в frontend/ "
                 "и повторите - перечень собирается по установленным пакетам, а не по одному замку"
             )
         meta = json.loads(read_text(meta_path))
 
-        found = find_license_file(pkg_dir)
-        license_text = found[1] if found else ""
+        license_text = find_license_text(pkg_dir)
         # Пакет вправе положить текст лицензии, не назвав её: у `png-js` поля
         # license нет ни в замке, ни в описании, а MIT лежит файлом рядом.
         spdx = entry.get("license") or spdx_of(meta) or guess_spdx(license_text)
         holder = extract_copyright(license_text, author_of(meta))
-        name = key.split("node_modules/")[-1]
         components.append(
-            Component(
-                name,
-                entry.get("version", ""),
-                spdx,
-                holder,
-                license_text,
-                find_notice_file(pkg_dir),
-            )
+            Component(name, version, spdx, holder, license_text, find_notice_file(pkg_dir))
         )
 
-    # Один и тот же пакет установлен по нескольким путям, когда соседям нужны
-    # разные версии. Условия при этом одни, и повторять строку незачем; две
-    # разные версии одного пакета остаются двумя строками - в поставку уходят
-    # обе.
-    unique = {}
-    for component in components:
-        unique.setdefault((component.name, component.version), component)
-
-    return sorted(unique.values(), key=lambda c: (c.name.lower(), c.version))
+    return dedupe(components), dedupe(platform)
 
 
 def escape_module_path(path: str) -> str:
@@ -315,8 +319,7 @@ def collect_go() -> list[Component]:
                 "иначе отсутствие лицензии в кэше уйдёт в перечень как отсутствие лицензии "
                 "у самого модуля"
             )
-        found = find_license_file(pkg_dir)
-        license_text = found[1] if found else ""
+        license_text = find_license_text(pkg_dir)
         holder = extract_copyright(license_text)
         spdx = guess_spdx(license_text)
         components.append(
@@ -406,7 +409,7 @@ def render_table(components: list[Component]) -> list[str]:
     return lines
 
 
-def render(npm: list[Component], go: list[Component]) -> str:
+def render(npm: list[Component], platform: list[Component], go: list[Component]) -> str:
     out: list[str] = []
     add = out.append
 
@@ -430,13 +433,14 @@ def render(npm: list[Component], go: list[Component]) -> str:
     add("Тексты лицензий приведены на языке подлинника: юридическую силу имеет он, а не пересказ.")
     add("")
 
-    nonpermissive = [c for c in npm + go if needs_attention(c.spdx)]
+    nonpermissive = [c for c in npm + platform + go if needs_attention(c.spdx)]
 
     add("## 1. Сводка")
     add("")
     add("| Показатель | Значение |")
     add("|---|---|")
     add(f"| Компонентов интерфейса | {len(npm)} |")
+    add(f"| Сборок под конкретную платформу | {len(platform)} |")
     add(f"| Компонентов серверной части | {len(go)} |")
     add(f"| Различных текстов лицензий | {len(license_groups(npm + go))} |")
     add("")
@@ -461,6 +465,21 @@ def render(npm: list[Component], go: list[Component]) -> str:
     for line in render_table(npm):
         add(line)
     add("")
+
+    if platform:
+        section += 1
+        add(f"## {section}. Сборки под конкретную платформу")
+        add("")
+        add(
+            "Часть компонентов интерфейса поставляется отдельной сборкой под каждую платформу. "
+            "В файле замка значатся все сразу, а устанавливается одна - подошедшая машине; на "
+            "сервере системы это сборка под Linux. Лицензия взята из объявления пакета: тексты "
+            "лежат в тех сборках, которые на этой машине не установлены."
+        )
+        add("")
+        for line in render_table(platform):
+            add(line)
+        add("")
 
     section += 1
     add(f"## {section}. Компоненты серверной части")
@@ -501,7 +520,11 @@ def render(npm: list[Component], go: list[Component]) -> str:
 
     groups = license_groups(npm + go)
     for index, (text, members) in enumerate(groups, start=1):
-        spdx = members[0].spdx
+        # Группа сводится по совпадению текста, а объявленная лицензия у её
+        # участников может различаться: `dompurify` объявляет выбор между MPL и
+        # Apache, соседи по тексту - просто Apache. Заголовок по первому
+        # участнику выдавал бы двойную лицензию за одиночную.
+        spdx = " / ".join(sorted({member.spdx for member in members}))
         add(f"### {section}.{index}. {spdx}")
         add("")
         add("Компоненты: " + ", ".join(f"`{m.name}` {m.version}" for m in members))
@@ -558,7 +581,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    rendered = render(collect_npm(), collect_go())
+    npm, platform = collect_npm()
+    rendered = render(npm, platform, collect_go())
 
     if args.check:
         if not NOTICES_PATH.is_file():

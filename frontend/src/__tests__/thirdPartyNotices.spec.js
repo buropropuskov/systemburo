@@ -25,19 +25,26 @@ const notices = fs.readFileSync(path.join(repoRoot, 'THIRD-PARTY-NOTICES.md'), '
 const REMEDY = 'выполните python3 scripts/gen-third-party-notices.py и закоммитьте результат'
 
 /**
- * Строки таблицы раздела о компонентах интерфейса: имя пакета -> версии.
- * @returns {Map<string, Set<string>>}
+ * Текст раздела по его заголовку, до следующего заголовка того же уровня.
+ * @param {RegExp} heading заголовок раздела
+ * @returns {string}
  */
-function listedComponents() {
-  const start = notices.search(/^## \d+\. Компоненты интерфейса$/m)
-  expect(start, 'в перечне нет раздела о компонентах интерфейса').toBeGreaterThan(-1)
-
+function section(heading) {
+  const start = notices.search(heading)
+  expect(start, `в перечне нет раздела ${heading}`).toBeGreaterThan(-1)
   const tail = notices.slice(start + 1)
   const end = tail.search(/^## /m)
-  const section = end === -1 ? tail : tail.slice(0, end)
+  return end === -1 ? tail : tail.slice(0, end)
+}
 
+/**
+ * Строки таблицы раздела: имя пакета -> версии.
+ * @param {string} text текст раздела
+ * @returns {Map<string, Set<string>>}
+ */
+function rowsOf(text) {
   const found = new Map()
-  for (const [, name, version] of section.matchAll(/^\| `([^`]+)` \| ([^|]+) \|/gm)) {
+  for (const [, name, version] of text.matchAll(/^\| `([^`]+)` \| ([^|]+) \|/gm)) {
     if (!found.has(name)) found.set(name, new Set())
     found.get(name).add(version.trim())
   }
@@ -45,58 +52,79 @@ function listedComponents() {
 }
 
 /**
- * Производственное замыкание из файла замка: всё, до чего дотягиваются
- * dependencies. Пакеты, собранные под чужую платформу, пропускаются - они
- * значатся в замке, но не устанавливаются и в поставку не попадают.
- * @returns {Map<string, Set<string>>}
+ * Производственное замыкание из файла замка.
+ *
+ * Сборки под конкретную платформу (у них в замке заданы os или cpu) идут
+ * отдельным списком: в замке значатся все сразу, а устанавливается одна, и
+ * перечень собирает их из замка, не заглядывая на диск.
+ * @returns {{main: Map<string, Set<string>>, platform: Map<string, Set<string>>}}
  */
 function productionClosure() {
-  const found = new Map()
+  const main = new Map()
+  const platform = new Map()
   Object.entries(lock.packages).forEach(([key, entry]) => {
     if (!key || entry.dev) return
-    if (entry.os || entry.cpu) return
+    const target = entry.os || entry.cpu ? platform : main
     const name = key.split('node_modules/').pop()
-    if (!found.has(name)) found.set(name, new Set())
-    found.get(name).add(entry.version)
+    if (!target.has(name)) target.set(name, new Set())
+    target.get(name).add(entry.version)
   })
-  return found
+  return { main, platform }
+}
+
+/**
+ * Пары «имя версия», которые есть в ожидаемом наборе и отсутствуют в перечне.
+ * @param {Map<string, Set<string>>} expected
+ * @param {Map<string, Set<string>>} listed
+ * @returns {string[]}
+ */
+function absent(expected, listed) {
+  const gaps = []
+  expected.forEach((versions, name) => {
+    versions.forEach((version) => {
+      if (!listed.get(name)?.has(version)) gaps.push(`${name} ${version}`)
+    })
+  })
+  return gaps.sort()
 }
 
 describe('перечень сторонних компонентов', () => {
-  const listed = listedComponents()
+  const interfaceRows = rowsOf(section(/^## \d+\. Компоненты интерфейса$/m))
+  const platformRows = rowsOf(section(/^## \d+\. Сборки под конкретную платформу$/m))
   const closure = productionClosure()
 
   it('находит зависимости, по которым идёт проверка', () => {
-    expect(closure.size).toBeGreaterThan(100)
-    expect(listed.size).toBeGreaterThan(100)
+    expect(closure.main.size).toBeGreaterThan(100)
+    expect(interfaceRows.size).toBeGreaterThan(100)
+    expect(closure.platform.size).toBeGreaterThan(0)
   })
 
   it('называет каждую зависимость, уходящую в поставку', () => {
-    const missing = []
-    closure.forEach((versions, name) => {
-      versions.forEach((version) => {
-        if (!listed.get(name)?.has(version)) missing.push(`${name} ${version}`)
-      })
-    })
-    expect(missing.sort(), `зависимости нет в перечне: ${REMEDY}`).toEqual([])
+    expect(absent(closure.main, interfaceRows), `зависимости нет в перечне: ${REMEDY}`).toEqual([])
+  })
+
+  // Сборки под чужую платформу в поставку не попадают, но перечень их называет:
+  // иначе он зависел бы от того, на какой машине его собрали, и на macOS
+  // получался бы другой файл, чем в контейнере.
+  it('называет сборки под каждую платформу, а не под свою', () => {
+    expect(absent(closure.platform, platformRows), `сборки нет в перечне: ${REMEDY}`).toEqual([])
   })
 
   it('не называет того, чего в зависимостях уже нет', () => {
     const installed = new Map()
-    Object.entries(lock.packages).forEach(([key, entry]) => {
-      if (!key || entry.dev) return
-      const name = key.split('node_modules/').pop()
+    closure.main.forEach((versions, name) => installed.set(name, new Set(versions)))
+    closure.platform.forEach((versions, name) => {
       if (!installed.has(name)) installed.set(name, new Set())
-      installed.get(name).add(entry.version)
+      versions.forEach((version) => installed.get(name).add(version))
     })
 
-    const orphaned = []
-    listed.forEach((versions, name) => {
-      versions.forEach((version) => {
-        if (!installed.get(name)?.has(version)) orphaned.push(`${name} ${version}`)
-      })
+    const listed = new Map(interfaceRows)
+    platformRows.forEach((versions, name) => {
+      if (!listed.has(name)) listed.set(name, new Set())
+      versions.forEach((version) => listed.get(name).add(version))
     })
-    expect(orphaned.sort(), `перечень отстал от зависимостей: ${REMEDY}`).toEqual([])
+
+    expect(absent(listed, installed), `перечень отстал от зависимостей: ${REMEDY}`).toEqual([])
   })
 
   it('приводит текст лицензии, а не одно её название', () => {
@@ -104,14 +132,18 @@ describe('перечень сторонних компонентов', () => {
     expect(blocks.length).toBeGreaterThan(100)
   })
 
-  it('выносит отдельно то, что разрешительной лицензией не покрыто', () => {
-    // apexcharts с четвёртой версии распространяется по двойной лицензии:
-    // бесплатная годится организациям с выручкой ниже порога, который заказчик
-    // перешагивает. Пока пакет в зависимостях, перечень обязан называть это
-    // прямо, а не растворять его среди двух сотен строк MIT.
-    const apex = /^\| `apexcharts` \|/m.test(notices)
-    if (!apex) return
-    const section = notices.search(/^## \d+\. Условия, требующие отдельного внимания$/m)
-    expect(section, 'apexcharts в перечне есть, а раздела об особых условиях нет').toBeGreaterThan(-1)
+  // apexcharts с четвёртой версии распространяется по двойной лицензии:
+  // бесплатная годится организациям с выручкой ниже порога, который заказчик
+  // перешагивает. Пока пакет в зависимостях, перечень обязан называть это
+  // прямо, а не растворять его среди двух сотен строк MIT. Проверяется именно
+  // строка внутри раздела: наличия самого раздела мало - туда попадают и другие
+  // компоненты, и apexcharts мог бы выпасть из него незамеченным.
+  it('выносит apexcharts в раздел особых условий, пока он в зависимостях', () => {
+    if (!closure.main.has('apexcharts')) return
+    const attention = rowsOf(section(/^## \d+\. Условия, требующие отдельного внимания$/m))
+    expect(
+      [...(attention.get('apexcharts') ?? [])],
+      'apexcharts в зависимостях, но в разделе особых условий его нет',
+    ).toEqual([...closure.main.get('apexcharts')])
   })
 })
