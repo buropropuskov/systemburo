@@ -143,14 +143,15 @@ describe('ApplicationAttachmentDetail — кнопка "Пропустить" ov
     });
   }
 
-  it('canOverride=true: на помеченной строке есть кнопка "Пропустить"', () => {
+  it('canOverride=true: на помеченной строке есть кнопка «Принять» и стрелка меню', () => {
     const wrapper = mountCarsWith([car({ blacklist_similar: flag() })], { canOverride: true });
     const btn = wrapper.find('[data-testid="blacklist-override-btn"]');
     expect(btn.exists()).toBe(true);
-    expect(btn.text()).toContain('Пропустить');
+    expect(btn.text()).toContain('Принять');
+    expect(wrapper.find('[data-testid="row-actions-toggle"]').exists()).toBe(true);
   });
 
-  it('canOverride=false (дефолт): кнопки "Пропустить" нет даже на помеченной строке', () => {
+  it('canOverride=false (дефолт): кнопки действия нет даже на помеченной строке', () => {
     const wrapper = mountCarsWith([car({ blacklist_similar: flag() })]);
     expect(wrapper.find('.blacklist-override-btn').exists()).toBe(false);
   });
@@ -160,11 +161,10 @@ describe('ApplicationAttachmentDetail — кнопка "Пропустить" ov
     expect(wrapper.find('.blacklist-override-btn').exists()).toBe(false);
   });
 
-  it('клик по "Пропустить" открывает меню, выбор пункта эмитит override-element, но НЕ open-vehicle', async () => {
+  it('клик по «Принять» сразу эмитит override-element, но НЕ open-vehicle', async () => {
     const f = flag();
     const wrapper = mountCarsWith([car({ car_number: 'А123ВС', blacklist_similar: f })], { canOverride: true });
-    await wrapper.find('.blacklist-override-btn').trigger('click');
-    await wrapper.find('[data-testid="row-action-override"]').trigger('click');
+    await wrapper.find('[data-testid="blacklist-override-btn"]').trigger('click');
 
     const emitted = wrapper.emitted('override-element');
     expect(emitted).toHaveLength(1);
@@ -183,8 +183,7 @@ describe('ApplicationAttachmentDetail — кнопка "Пропустить" ov
       },
       global: { stubs: { Teleport: true } },
     });
-    await wrapper.find('.blacklist-override-btn').trigger('click');
-    await wrapper.find('[data-testid="row-action-override"]').trigger('click');
+    await wrapper.find('[data-testid="blacklist-override-btn"]').trigger('click');
     expect(wrapper.emitted('override-element')[0][0]).toEqual({ label: 'Иваноф Иван Иванович', flag: f });
   });
 });
@@ -550,20 +549,20 @@ describe('ApplicationAttachmentDetail — кнопка "Убрать" элеме
     expect(wrapper.find('[data-testid="element-remove-btn"]').exists()).toBe(true);
   });
 
-  it('на помеченной строке отдельной кнопки нет - «Убрать» лежит в меню «Пропустить»', async () => {
+  it('на помеченной строке отдельной кнопки нет - «Убрать» лежит в меню под стрелкой', async () => {
     const wrapper = mountCarsWith([car({ blacklist_similar: flag() })], { canOverride: true, canRemove: true });
 
     expect(wrapper.find('[data-testid="element-remove-btn"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="row-actions-menu"]').exists()).toBe(false);
 
-    await wrapper.find('[data-testid="blacklist-override-btn"]').trigger('click');
+    await wrapper.find('[data-testid="row-actions-toggle"]').trigger('click');
     expect(wrapper.find('[data-testid="row-actions-menu"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="row-action-remove"]').exists()).toBe(true);
   });
 
   it('пункт «Убрать из заявки» эмитит remove-element и закрывает меню', async () => {
     const wrapper = mountCarsWith([car({ id: 9, car_number: 'А123ВС', blacklist_similar: flag() })], { canOverride: true, canRemove: true });
-    await wrapper.find('[data-testid="blacklist-override-btn"]').trigger('click');
+    await wrapper.find('[data-testid="row-actions-toggle"]').trigger('click');
     await wrapper.find('[data-testid="row-action-remove"]').trigger('click');
 
     const removed = wrapper.emitted('remove-element');

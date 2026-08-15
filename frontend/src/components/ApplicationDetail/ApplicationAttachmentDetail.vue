@@ -244,43 +244,73 @@
                     v-if="canOverride && isFlagged(row)"
                     class="row-actions"
                   >
-                    <button
-                      type="button"
-                      class="lk-button lk-button--danger blacklist-override-btn"
-                      data-testid="blacklist-override-btn"
-                      @click.stop="toggleRowMenu(row.id, $event)"
-                    >
-                      Пропустить
-                      <span class="row-actions__caret">▾</span>
-                    </button>
+                    <!-- Сдвоенная кнопка: слева действие, справа стрелка меню.
+                         Разделены линией, чтобы было видно, что нажатия разные. -->
+                    <div class="split-btn">
+                      <button
+                        type="button"
+                        class="lk-button lk-button--danger split-btn__main"
+                        data-testid="blacklist-override-btn"
+                        @click.stop="chooseOverride(row)"
+                      >
+                        Принять
+                      </button>
+                      <button
+                        type="button"
+                        class="lk-button lk-button--danger split-btn__toggle"
+                        :class="{ 'split-btn__toggle--open': openRowMenu === row.id }"
+                        data-testid="row-actions-toggle"
+                        aria-label="Другие действия"
+                        @click.stop="toggleRowMenu(row.id, $event)"
+                      >
+                        <svg
+                          class="split-btn__caret"
+                          width="10"
+                          height="10"
+                          viewBox="0 0 10 10"
+                          fill="none"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M2 3.5 5 6.5 8 3.5"
+                            stroke="currentColor"
+                            stroke-width="1.6"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          />
+                        </svg>
+                      </button>
+                    </div>
                     <!-- Меню телепортируется в body: ячейка состояния узкая и с
                          overflow: hidden, внутри неё список обрезался целиком. -->
                     <Teleport to="body">
-                      <div
-                        v-if="openRowMenu === row.id"
-                        class="row-actions__menu"
-                        :style="rowMenuStyle"
-                        data-testid="row-actions-menu"
-                        @click.stop
-                      >
-                        <button
-                          type="button"
-                          class="row-actions__item"
-                          data-testid="row-action-override"
-                          @click.stop="chooseOverride(row)"
+                      <transition name="row-menu">
+                        <div
+                          v-if="openRowMenu === row.id"
+                          class="row-actions__menu"
+                          :style="rowMenuStyle"
+                          data-testid="row-actions-menu"
+                          @click.stop
                         >
-                          Пропустить
-                        </button>
-                        <button
-                          v-if="canRemove"
-                          type="button"
-                          class="row-actions__item row-actions__item--danger"
-                          data-testid="row-action-remove"
-                          @click.stop="chooseRemove(row)"
-                        >
-                          Убрать из заявки
-                        </button>
-                      </div>
+                          <button
+                            type="button"
+                            class="row-actions__item"
+                            data-testid="row-action-override"
+                            @click.stop="chooseOverride(row)"
+                          >
+                            Принять
+                          </button>
+                          <button
+                            v-if="canRemove"
+                            type="button"
+                            class="row-actions__item row-actions__item--danger"
+                            data-testid="row-action-remove"
+                            @click.stop="chooseRemove(row)"
+                          >
+                            Убрать из заявки
+                          </button>
+                        </div>
+                      </transition>
                     </Teleport>
                   </div>
                   <Badge
@@ -665,7 +695,7 @@ export default {
                         cls: 'c-places',
                         label: 'Места разгрузки',
                         assignKind: 'places',
-                        grow: 30, min: 100,
+                        grow: 30, min: 128,
                         growCompact: 36, minCompact: 124,
                         field: 'unload_places',
                         nameKey: 'name',
@@ -1854,15 +1884,63 @@ export default {
   position: relative;
 }
 
-.row-actions__caret {
-  margin-left: 4px;
-  font-size: 10px;
-  line-height: 1;
+/* Сдвоенная кнопка: действие и стрелка меню разделены линией, но выглядят
+   одной кнопкой - у крайних скруглены только внешние углы. */
+.split-btn {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
+.split-btn__main,
+.split-btn__toggle {
+  padding: 5px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.split-btn__main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  padding-right: 7px;
+}
+
+.split-btn__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  padding-left: 6px;
+  padding-right: 7px;
+  /* Разделительная линия внутри общей заливки. */
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--danger-text) 35%, transparent);
+}
+
+.split-btn__caret {
+  transition: transform 180ms ease;
+}
+
+.split-btn__toggle--open .split-btn__caret {
+  transform: rotate(180deg);
 }
 
 /* Меню открывается вверх и вправо от кнопки: строка узкая, вниз оно упирается в
    следующую строку таблицы. */
+/* Раскрытие меню: только transform и opacity - остальное дёргает раскладку. */
+.row-menu-enter-active,
+.row-menu-leave-active {
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.row-menu-enter-from,
+.row-menu-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+}
+
 .row-actions__menu {
+  transform-origin: top right;
   /* Слой выше карточки заявки (10002) и карточки элемента (10003), но ниже истории. */
   z-index: 10004;
   display: flex;

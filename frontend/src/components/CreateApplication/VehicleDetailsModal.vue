@@ -1974,9 +1974,16 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
   min-height: 120px;
 }
 
-.modal-fade-enter-active,
+/* Появление и скрытие - как у остальных окон (BaseModal): затемнение гаснет
+   прозрачностью, само окно приезжает масштабом. Прежние правила задавали переход
+   корню перехода (.modal-overlay), а не окну внутри него, поэтому затемнение
+   плавно гасло, а окно прыгало. */
+.modal-fade-enter-active {
+  transition: opacity 0.3s ease;
+}
+
 .modal-fade-leave-active {
-  transition: all 0.4s ease;
+  transition: opacity 0.2s ease;
 }
 
 .modal-fade-enter-from,
@@ -1984,26 +1991,34 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
   opacity: 0;
 }
 
-.modal-fade-enter-active .modal-overlay,
-.modal-fade-leave-active .modal-overlay {
-  transition: all 0.4s ease;
+.modal-fade-enter-active .modal-content {
+  animation: details-modal-in 0.3s ease;
 }
 
-.modal-fade-enter-active .modal-content,
 .modal-fade-leave-active .modal-content {
-  transition: all 0.4s ease;
+  animation: details-modal-out 0.2s ease;
 }
 
-.modal-fade-enter-from .modal-overlay,
-.modal-fade-leave-to .modal-overlay {
-  background: transparent;
-  backdrop-filter: blur(0px);
+@keyframes details-modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
-.modal-fade-enter-from .modal-content,
-.modal-fade-leave-to .modal-content {
-  opacity: 0;
-  transform: scale(0.9) translateY(-20px);
+@keyframes details-modal-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
 }
 
 .place-slide-enter-active,
