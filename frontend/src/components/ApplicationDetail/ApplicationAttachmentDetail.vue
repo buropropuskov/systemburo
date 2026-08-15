@@ -176,7 +176,7 @@
                           :class="{ 'chip--more': chip.isMore, 'chip--solo': chip.isSolo }"
                           :data-hint="chip.hint"
                           :data-testid="chip.isMore ? 'attachment-chip-more' : 'attachment-chip'"
-                        >{{ chip.text }}</span>
+                        ><span class="chip__text">{{ chip.text }}</span></span>
                         <span
                           v-if="!chipItems(row, col).length && !canAssign"
                           class="chip chip--empty"
@@ -1742,6 +1742,17 @@ export default {
 .chip--solo {
     flex-shrink: 1;
     min-width: 0;
+}
+
+/* Текст обязан лежать в своём элементе: сам чип - inline-flex, а на flex-контейнере
+   text-overflow не действует, поэтому многоточия не появлялось, сколько ни ставь
+   overflow: hidden на чип. */
+.chip__text {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .chip--more {

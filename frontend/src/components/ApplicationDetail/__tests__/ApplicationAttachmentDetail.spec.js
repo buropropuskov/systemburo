@@ -615,3 +615,43 @@ describe('ApplicationAttachmentDetail — строка, попавшая в чё
     expect(wrapper.find('[data-testid="attachment-element-row"]').classes()).not.toContain('el-row--blacklisted');
   });
 });
+
+describe('ApplicationAttachmentDetail — обрезка длинного значения в чипе', () => {
+  it('единственное место разгрузки лежит в отдельном элементе под многоточие и помечено chip--solo', () => {
+    const wrapper = mount(ApplicationAttachmentDetail, {
+      props: {
+        attachment: { id: 1, attachment_type: 'cars', attachment_display_name: 'Машины' },
+        cars: [car({ unload_places: [{ id: 1, name: 'Дебаркадер №1' }] })],
+      },
+      global: { stubs: { Teleport: true } },
+    });
+
+    const chip = wrapper.find('[data-testid="attachment-chip"]');
+    expect(chip.exists()).toBe(true);
+    // Многоточие рисует CSS, а проверить в jsdom можно структуру: текст обязан лежать
+    // в своём элементе - на самом чипе (inline-flex) text-overflow не работает.
+    expect(chip.classes()).toContain('chip--solo');
+    expect(chip.find('.chip__text').text()).toBe('Дебаркадер №1');
+    // Полное название остаётся в подсказке.
+    expect(chip.attributes('data-hint')).toBe('Дебаркадер №1');
+  });
+
+  it('несколько мест схлопываются в счётчик, а не обрезаются', () => {
+    const wrapper = mount(ApplicationAttachmentDetail, {
+      props: {
+        attachment: { id: 1, attachment_type: 'cars', attachment_display_name: 'Машины' },
+        cars: [car({
+          unload_places: [
+            { id: 1, name: 'Дебаркадер №1' },
+            { id: 2, name: 'Дебаркадер №2' },
+            { id: 3, name: 'Дебаркадер №3' },
+          ],
+        })],
+      },
+      global: { stubs: { Teleport: true } },
+    });
+
+    const solo = wrapper.findAll('[data-testid="attachment-chip"]').filter((c) => c.classes().includes('chip--solo'));
+    expect(solo).toHaveLength(0);
+  });
+});
