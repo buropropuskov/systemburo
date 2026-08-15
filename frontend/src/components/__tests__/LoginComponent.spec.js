@@ -237,6 +237,6 @@ describe('LoginComponent: фон экрана', () => {
   })
 
   it('не ссылается на растровые ассеты вне каталога иконок', () => {
-    expect(SFC).not.toMatch(/@\/assets\/[^/'")]+\.(png|jpe?g|webp)/)
+    expect(SFC).not.toMatch(/@\/assets\/(?!icons\/)[^'")]+\.(png|jpe?g|webp)/)
   })
 })
