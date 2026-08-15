@@ -131,6 +131,7 @@ describe('ApplicationAttachmentDetail — подсветка возможног�
 });
 
 describe('ApplicationAttachmentDetail — кнопка "Пропустить" override (#481, срез 6a)', () => {
+  // Меню действий строки телепортируется в body - стабим Teleport, иначе find его не видит.
   function mountCarsWith(cars, props = {}) {
     return mount(ApplicationAttachmentDetail, {
       props: {
@@ -138,6 +139,7 @@ describe('ApplicationAttachmentDetail — кнопка "Пропустить" ov
         cars,
         ...props,
       },
+      global: { stubs: { Teleport: true } },
     });
   }
 
@@ -179,6 +181,7 @@ describe('ApplicationAttachmentDetail — кнопка "Пропустить" ov
         employees: [employee({ last_name: 'Иваноф', first_name: 'Иван', blacklist_similar: f })],
         canOverride: true,
       },
+      global: { stubs: { Teleport: true } },
     });
     await wrapper.find('.blacklist-override-btn').trigger('click');
     await wrapper.find('[data-testid="row-action-override"]').trigger('click');
@@ -530,6 +533,7 @@ describe('ApplicationAttachmentDetail — поиск по списку (#1392)',
 });
 
 describe('ApplicationAttachmentDetail — кнопка "Убрать" элемента из заявки', () => {
+  // Меню действий строки телепортируется в body - стабим Teleport, иначе find его не видит.
   function mountCarsWith(cars, props = {}) {
     return mount(ApplicationAttachmentDetail, {
       props: {
@@ -537,6 +541,7 @@ describe('ApplicationAttachmentDetail — кнопка "Убрать" элеме
         cars,
         ...props,
       },
+      global: { stubs: { Teleport: true } },
     });
   }
 

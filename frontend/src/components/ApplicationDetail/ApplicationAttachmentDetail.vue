@@ -248,34 +248,40 @@
                       type="button"
                       class="lk-button lk-button--danger blacklist-override-btn"
                       data-testid="blacklist-override-btn"
-                      @click.stop="toggleRowMenu(row.id)"
+                      @click.stop="toggleRowMenu(row.id, $event)"
                     >
                       Пропустить
-                      <span class="row-actions__caret">⌄</span>
+                      <span class="row-actions__caret">▾</span>
                     </button>
-                    <div
-                      v-if="openRowMenu === row.id"
-                      class="row-actions__menu"
-                      data-testid="row-actions-menu"
-                    >
-                      <button
-                        type="button"
-                        class="row-actions__item"
-                        data-testid="row-action-override"
-                        @click.stop="chooseOverride(row)"
+                    <!-- Меню телепортируется в body: ячейка состояния узкая и с
+                         overflow: hidden, внутри неё список обрезался целиком. -->
+                    <Teleport to="body">
+                      <div
+                        v-if="openRowMenu === row.id"
+                        class="row-actions__menu"
+                        :style="rowMenuStyle"
+                        data-testid="row-actions-menu"
+                        @click.stop
                       >
-                        Пропустить
-                      </button>
-                      <button
-                        v-if="canRemove"
-                        type="button"
-                        class="row-actions__item row-actions__item--danger"
-                        data-testid="row-action-remove"
-                        @click.stop="chooseRemove(row)"
-                      >
-                        Убрать из заявки
-                      </button>
-                    </div>
+                        <button
+                          type="button"
+                          class="row-actions__item"
+                          data-testid="row-action-override"
+                          @click.stop="chooseOverride(row)"
+                        >
+                          Пропустить
+                        </button>
+                        <button
+                          v-if="canRemove"
+                          type="button"
+                          class="row-actions__item row-actions__item--danger"
+                          data-testid="row-action-remove"
+                          @click.stop="chooseRemove(row)"
+                        >
+                          Убрать из заявки
+                        </button>
+                      </div>
+                    </Teleport>
                   </div>
                   <Badge
                     v-else-if="row.blacklist_similar"
@@ -404,6 +410,7 @@ import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions'
 import { matchesSearchFuzzy } from '@/utils/searchVariants'
 import { formatNumberForDisplay } from '@/composables/useNumberFormat'
+import { getViewportZoom } from '@/utils/viewportScale'
 import {
     SUPPLEMENT_ACCEPTED,
     SUPPLEMENT_APPROVED,
@@ -557,6 +564,7 @@ export default {
             // Идентификатор строки, у которой открыто меню действий: одно на таблицу,
             // чтобы два меню не висели одновременно.
             openRowMenu: null,
+            rowMenuStyle: null,
             containerWidth: 0,
             isNarrowViewport: false,
             resizeObserver: null,
@@ -1219,8 +1227,25 @@ export default {
             this.openRowMenu = null;
         },
 
-        toggleRowMenu(rowID) {
-            this.openRowMenu = this.openRowMenu === rowID ? null : rowID;
+        /**
+         * Меню лежит в body, поэтому его место считаем от кнопки. Координаты делим на
+         * масштаб страницы: при зуме больше 100% rect и координаты окна расходятся, и
+         * меню уезжает от кнопки (тот же расчёт, что у выпадающих списков).
+         */
+        toggleRowMenu(rowID, event) {
+            if (this.openRowMenu === rowID) {
+                this.openRowMenu = null;
+                return;
+            }
+            const zoom = getViewportZoom();
+            const rect = event.currentTarget.getBoundingClientRect();
+            const right = (window.innerWidth - rect.right / zoom);
+            this.rowMenuStyle = {
+                position: 'fixed',
+                top: `${rect.bottom / zoom + 4}px`,
+                right: `${right}px`,
+            };
+            this.openRowMenu = rowID;
         },
 
         chooseOverride(row) {
@@ -1838,10 +1863,8 @@ export default {
 /* Меню открывается вверх и вправо от кнопки: строка узкая, вниз оно упирается в
    следующую строку таблицы. */
 .row-actions__menu {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 4px);
-  z-index: 5;
+  /* Слой выше карточки заявки (10002) и карточки элемента (10003), но ниже истории. */
+  z-index: 10004;
   display: flex;
   flex-direction: column;
   min-width: 170px;
@@ -1879,8 +1902,9 @@ export default {
 
 .blacklist-override-btn {
     flex-shrink: 0;
-    padding: 5px 12px;
-    font-size: 12px;
+    /* Ячейка состояния - 112px: со стрелкой кнопка влезает только в компактном виде. */
+    padding: 5px 8px;
+    font-size: 11px;
     white-space: nowrap;
 }
 
