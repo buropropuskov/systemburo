@@ -8,21 +8,6 @@
     data-theme="light"
     @mousemove="handleMouseMove"
   >
-    <!-- v-once: наполнение фона - константы, но :style/:class лишают ноды хойста,
-         и каждый mousemove (параллакс сетки) диффил бы все сорок с лишним. -->
-    <div
-      v-once
-      class="login-background"
-    >
-      <div
-        v-for="(orb, i) in backgroundOrbs"
-        :key="i"
-        class="floating-shape"
-        :class="`floating-shape--${orb.path}`"
-        :style="orbStyle(orb)"
-      />
-    </div>
-
     <div
       class="login-pattern"
       :style="parallaxStyle"
@@ -213,29 +198,6 @@
         <path d="M0 800C170 764 300 790 480 780s330-56 520-34 270 56 440 30V900H0Z" />
       </g>
 
-      <!-- Огни вдоль кромки: тёплые точки оживляют силуэт и дают глазу, за что
-           зацепиться. Мерцание разнесено по фазам, чтобы не пульсировали хором. -->
-      <g
-        v-for="(light, i) in parkLights"
-        :key="`l${i}`"
-      >
-        <circle
-          class="login-scene__glow"
-          :cx="light.x"
-          :cy="light.y"
-          :r="light.r * 9"
-          fill="#FFD9A0"
-          :style="{ animationDuration: `${light.dur}s`, animationDelay: `${light.delay}s` }"
-        />
-        <circle
-          class="login-scene__light"
-          :cx="light.x"
-          :cy="light.y"
-          :r="light.r"
-          fill="#FFF0D2"
-          :style="{ animationDuration: `${light.dur}s`, animationDelay: `${light.delay}s` }"
-        />
-      </g>
     </svg>
 
     <!-- Линии-траектории в небе: спокойный ритм поверх сетки. -->
@@ -500,27 +462,6 @@ export default {
             showPasswordRecovery: false,
             cooldownSeconds: 0,
             cooldownTimer: null,
-            /* Боке над пейзажем: размер, положение в процентах, прозрачность и
-               своя длительность дрейфа у каждого шара. Разные фазы (delay) не
-               дают им двигаться строем - иначе фон читается как один слой. */
-            backgroundOrbs: [
-                { left: -4, top: -6, size: 260, alpha: 0.12, dur: 46, delay: 0, path: 'a' },
-                { left: 78, top: 6, size: 190, alpha: 0.1, dur: 52, delay: -8, path: 'b' },
-                { left: 92, top: 28, size: 120, alpha: 0.07, dur: 38, delay: -14, path: 'c' },
-                { left: 63, top: 50, size: 150, alpha: 0.09, dur: 44, delay: -6, path: 'a' },
-                { left: 87, top: 72, size: 220, alpha: 0.08, dur: 56, delay: -20, path: 'b' },
-                { left: 70, top: 86, size: 90, alpha: 0.07, dur: 40, delay: -12, path: 'c' },
-                { left: 46, top: 68, size: 72, alpha: 0.06, dur: 36, delay: -3, path: 'a' },
-                { left: 30, top: 90, size: 130, alpha: 0.06, dur: 48, delay: -25, path: 'b' },
-                { left: 16, top: 44, size: 110, alpha: 0.05, dur: 42, delay: -9, path: 'c' },
-                { left: 4, top: 72, size: 62, alpha: 0.06, dur: 34, delay: -16, path: 'a' },
-                { left: 52, top: 16, size: 56, alpha: 0.06, dur: 30, delay: -5, path: 'b' },
-                { left: 36, top: 32, size: 40, alpha: 0.05, dur: 32, delay: -11, path: 'c' },
-                { left: 84, top: 50, size: 46, alpha: 0.07, dur: 28, delay: -2, path: 'a' },
-                { left: 24, top: 60, size: 36, alpha: 0.05, dur: 33, delay: -19, path: 'b' },
-                { left: 66, top: 24, size: 34, alpha: 0.06, dur: 31, delay: -7, path: 'c' },
-                { left: 95, top: 90, size: 160, alpha: 0.05, dur: 50, delay: -22, path: 'a' }
-            ],
             /* Кроны вдоль кромки холмов. y - точка посадки на гребне, r задаёт
                разброс высот: ровный ряд одинаковых деревьев читается как забор. */
             midTrees: [
@@ -535,16 +476,6 @@ export default {
                 { x: 130, y: 786, r: 30 }, { x: 205, y: 792, r: 20 }, { x: 400, y: 784, r: 26 },
                 { x: 660, y: 770, r: 34 }, { x: 745, y: 766, r: 22 }, { x: 980, y: 766, r: 28 },
                 { x: 1215, y: 778, r: 32 }, { x: 1300, y: 782, r: 21 }
-            ],
-            parkLights: [
-                { x: 168, y: 700, r: 2.6, dur: 7, delay: 0 },
-                { x: 356, y: 690, r: 2.2, dur: 9, delay: -3 },
-                { x: 560, y: 676, r: 2.8, dur: 8, delay: -5 },
-                { x: 806, y: 664, r: 2.3, dur: 10, delay: -1 },
-                { x: 1046, y: 672, r: 2.7, dur: 7.5, delay: -6 },
-                { x: 1268, y: 684, r: 2.2, dur: 9.5, delay: -2 },
-                { x: 470, y: 792, r: 3.2, dur: 8.5, delay: -4 },
-                { x: 880, y: 776, r: 3, dur: 11, delay: -7 }
             ],
             backgroundLines: [
                 { d: 'M-40 250C260 210 520 300 820 258s420-98 700-126', w: 1.6, alpha: 0.18, dur: 40, delay: 0 },
@@ -678,18 +609,6 @@ export default {
         handleMouseMove(e) {
             this.mouseX = e.clientX;
             this.mouseY = e.clientY;
-        },
-        orbStyle(orb) {
-            return {
-                left: `${orb.left}%`,
-                top: `${orb.top}%`,
-                width: `${orb.size}px`,
-                height: `${orb.size}px`,
-                background: `rgba(255, 255, 255, ${orb.alpha})`,
-                animationDuration: `${orb.dur}s`,
-                animationDelay: `${orb.delay}s`,
-                boxShadow: orb.size >= 120 ? '0 6px 24px rgba(0, 0, 0, 0.12)' : 'none'
-            };
         },
         resetAnimations() {
             if (this.animationTimeout) {
@@ -983,15 +902,6 @@ export default {
         perspective: 1000px;
     }
 
-    .login-background {
-        position: absolute;
-        width: 100%;
-        height: 100%;
-        top: 0;
-        left: 0;
-        z-index: 0;
-    }
-
     /* Собственная графика вместо снимка: сетка постов с узлами на пересечениях
        и два световых пятна - под формой слева и в глубине справа. Рисуется
        градиентами, поэтому весит ноль и не боится масштаба экрана. */
@@ -1038,97 +948,11 @@ export default {
         pointer-events: none;
     }
 
-    .login-scene__light {
-        opacity: 0.85;
-        animation-name: light-pulse;
-        animation-iteration-count: infinite;
-        animation-timing-function: ease-in-out;
-    }
-
-    .login-scene__glow {
-        opacity: 0.18;
-        animation-name: glow-pulse;
-        animation-iteration-count: infinite;
-        animation-timing-function: ease-in-out;
-    }
-
-    @keyframes light-pulse {
-        0%, 100% {
-            opacity: 0.85;
-        }
-        50% {
-            opacity: 0.5;
-        }
-    }
-
-    @keyframes glow-pulse {
-        0%, 100% {
-            opacity: 0.18;
-        }
-        50% {
-            opacity: 0.08;
-        }
-    }
-
     .login-lines__group {
         animation-name: line-sway;
         animation-iteration-count: infinite;
         animation-timing-function: ease-in-out;
         will-change: transform;
-    }
-
-    .floating-shape {
-        position: absolute;
-        border-radius: 50%;
-        z-index: 4;
-        animation-iteration-count: infinite;
-        animation-timing-function: ease-in-out;
-        will-change: transform;
-    }
-
-    /* Три траектории вместо одной: шары одного пути двигаются согласованно, но
-       разные пути и фазы убирают ощущение строя. Только transform - слои не
-       пересчитывают раскладку. */
-    .floating-shape--a {
-        animation-name: orb-drift-a;
-    }
-
-    .floating-shape--b {
-        animation-name: orb-drift-b;
-    }
-
-    .floating-shape--c {
-        animation-name: orb-drift-c;
-    }
-
-    @keyframes orb-drift-a {
-        0%, 100% {
-            transform: translate3d(0, 0, 0);
-        }
-        50% {
-            transform: translate3d(26px, -34px, 0);
-        }
-    }
-
-    @keyframes orb-drift-b {
-        0%, 100% {
-            transform: translate3d(0, 0, 0);
-        }
-        33% {
-            transform: translate3d(-22px, 16px, 0);
-        }
-        66% {
-            transform: translate3d(15px, 28px, 0);
-        }
-    }
-
-    @keyframes orb-drift-c {
-        0%, 100% {
-            transform: translate3d(0, 0, 0) scale(1);
-        }
-        50% {
-            transform: translate3d(-16px, -20px, 0) scale(1.07);
-        }
     }
 
     @keyframes line-sway {
@@ -1143,10 +967,7 @@ export default {
     /* Пользователь, попросивший меньше движения на уровне системы, получает
        статичный фон - анимации здесь чисто декоративные. */
     @media (prefers-reduced-motion: reduce) {
-        .floating-shape,
-        .login-lines__group,
-        .login-scene__light,
-        .login-scene__glow {
+        .login-lines__group {
             animation: none;
         }
     }
@@ -1722,11 +1543,6 @@ export default {
 
         .time {
             font-size: 12px;
-        }
-
-        /* Floating shapes занимают место и тормозят на мобильных - убираем */
-        .floating-shape {
-            display: none;
         }
     }
 
