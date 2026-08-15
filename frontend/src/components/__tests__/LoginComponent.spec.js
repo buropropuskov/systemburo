@@ -239,4 +239,52 @@ describe('LoginComponent: фон экрана', () => {
   it('не ссылается на растровые ассеты вне каталога иконок', () => {
     expect(SFC).not.toMatch(/@\/assets\/(?!icons\/)[^'")]+\.(png|jpe?g|webp)/)
   })
+
+  // Плоская заливка читалась пустым экраном: глубину даёт разница планов, а не
+  // их наличие. Замок держит все три - убрав средний, легко не заметить потерю.
+  it('держит три плана пейзажа с разной прозрачностью', () => {
+    const wrapper = mountLogin()
+    const scene = wrapper.find('.login-scene')
+    expect(scene.exists()).toBe(true)
+
+    const depth = {}
+    scene.element.querySelectorAll('[fill]').forEach((el) => {
+      const plane = el.getAttribute('fill').match(/ls(Far|Mid|Near)/)
+      if (plane) depth[plane[1]] = el.getAttribute('opacity')
+    })
+    ;['Far', 'Mid', 'Near'].forEach((plane) => {
+      expect(depth[plane], `план ${plane} пропал или потерял opacity`).toBeTruthy()
+    })
+    // Дальний светлее ближнего - это и есть воздушная перспектива.
+    expect(Number(depth.Far)).toBeLessThan(Number(depth.Mid))
+    expect(Number(depth.Mid)).toBeLessThan(Number(depth.Near))
+    wrapper.unmount()
+  })
+
+  it('оживляет фон шарами, линиями и огнями', () => {
+    const wrapper = mountLogin()
+    expect(wrapper.findAll('.floating-shape').length).toBeGreaterThanOrEqual(12)
+    expect(wrapper.findAll('.login-lines__group').length).toBeGreaterThanOrEqual(3)
+    expect(wrapper.findAll('.login-scene__light').length).toBeGreaterThanOrEqual(6)
+    wrapper.unmount()
+  })
+
+  // Дрейф на width/top/left дал бы пересчёт раскладки шестнадцати слоёв сразу.
+  it('анимирует фон только transform и opacity', () => {
+    const frames = SFC.match(/@keyframes (orb-drift-\w|line-sway|light-pulse|glow-pulse) \{[\s\S]*?\n {4}\}/g)
+    expect(frames, 'кадры анимаций фона не найдены').not.toBeNull()
+    expect(frames.length).toBe(6)
+    frames.forEach((frame) => {
+      const props = [...frame.matchAll(/^\s{12}([a-z-]+):/gm)].map((m) => m[1])
+      expect(props.length).toBeGreaterThan(0)
+      props.forEach((prop) => expect(['transform', 'opacity']).toContain(prop))
+    })
+  })
+
+  it('снимает движение при prefers-reduced-motion', () => {
+    const block = SFC.match(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\n {4}\}\n/)
+    expect(block, 'блок prefers-reduced-motion пропал').not.toBeNull()
+    ;['.floating-shape', '.login-lines__group', '.login-scene__light', '.login-scene__glow']
+      .forEach((sel) => expect(block[0]).toContain(sel))
+  })
 })
