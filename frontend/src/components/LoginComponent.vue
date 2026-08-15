@@ -1,6 +1,6 @@
 <template>
-  <!-- Экран входа лежит на светлой фотографии, которая темы не знает: в тёмной
-       палитре заголовок и карточка контактов на ней пропадали. Поэтому вход -
+  <!-- Экран входа лежит на фирменном синем, который темы не знает: в тёмной
+       палитре заголовок и карточка контактов на нём пропадали. Поэтому вход -
        «светлый остров»: локальный data-theme перекрывает выбранную тему только
        внутри этого экрана (см. assets/tokens.css). -->
   <div
@@ -19,7 +19,7 @@
     </div>
         
     <div
-      class="background-image"
+      class="login-pattern"
       :style="parallaxStyle"
     />
         
@@ -688,17 +688,24 @@ export default {
         z-index: 0;
     }
 
-    .background-image {
+    /* Собственная графика вместо снимка: сетка постов с узлами на пересечениях
+       и два световых пятна - под формой слева и в глубине справа. Рисуется
+       градиентами, поэтому весит ноль и не боится масштаба экрана. */
+    .login-pattern {
         position: absolute;
         width: 100%;
         height: 100%;
         top: 0;
         left: 0;
-        background-image: url('@/assets/background.png');
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-        opacity: 0.35;
+        background-image:
+            radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.55) 0 1.5px, transparent 2px),
+            linear-gradient(to right, rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+            radial-gradient(115% 85% at 14% 26%, rgba(255, 255, 255, 0.22), transparent 62%),
+            radial-gradient(95% 80% at 86% 96%, rgba(23, 29, 96, 0.4), transparent 68%);
+        background-size: 96px 96px, 96px 96px, 96px 96px, 100% 100%, 100% 100%;
+        background-position: 48px 48px, 0 0, 0 0, 0 0, 0 0;
+        opacity: 0.9;
         z-index: 1;
         transition: transform 0.1s ease-out;
         will-change: transform;
