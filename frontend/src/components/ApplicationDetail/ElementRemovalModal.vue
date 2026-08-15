@@ -113,6 +113,7 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  padding: 20px;
 }
 
 .removal-lead {
@@ -129,5 +130,12 @@ export default {
   color: var(--danger-text);
   font-weight: 600;
   font-size: 14px;
+}
+</style>
+
+<!-- не scoped: см. BlacklistOverrideModal - контент телепортится в body. -->
+<style>
+.base-modal.el-removal-modal {
+  border-radius: 30px;
 }
 </style>
