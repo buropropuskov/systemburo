@@ -144,7 +144,7 @@ describe('vite.config: инлайн иконок', () => {
   });
 
   it('прочим ассетам оставляет штатное правило по размеру', () => {
-    expect(limit(path.join(ROOT, 'src/assets/background.png'))).toBeUndefined();
+    expect(limit(path.join(ROOT, 'src/assets/onboarding/demo-applications.png'))).toBeUndefined();
     expect(limit(path.join(ROOT, 'src/assets/onboarding/demo-cars.png'))).toBeUndefined();
   });
 });

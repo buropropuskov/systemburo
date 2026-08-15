@@ -1,3 +1,6 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
@@ -215,5 +218,25 @@ describe('LoginComponent — 500 сбой на стороне сервера', (
     expect(localStorage.getItem('loginCooldownUntil')).toBeNull()
     expect(wrapper.find('[data-testid="login-button-submit"]').attributes('disabled')).toBeUndefined()
     wrapper.unmount()
+  })
+})
+
+// Фон входа рисуется градиентами: снимок неизвестного происхождения оттуда убран,
+// и вернуться картинкой он не должен. jsdom стили не считает, поэтому читаем SFC.
+describe('LoginComponent: фон экрана', () => {
+  const SFC = fs.readFileSync(
+    path.join(import.meta.dirname, '..', 'LoginComponent.vue'),
+    'utf8',
+  )
+
+  it('рисует фон градиентами, а не файлом', () => {
+    const layer = SFC.match(/\.login-pattern \{[^}]+\}/)
+    expect(layer, 'слой .login-pattern пропал из стилей').not.toBeNull()
+    expect(layer[0]).toMatch(/gradient\(/)
+    expect(layer[0]).not.toMatch(/url\(/)
+  })
+
+  it('не ссылается на растровые ассеты вне каталога иконок', () => {
+    expect(SFC).not.toMatch(/@\/assets\/(?!icons\/)[^'")]+\.(png|jpe?g|webp)/)
   })
 })
