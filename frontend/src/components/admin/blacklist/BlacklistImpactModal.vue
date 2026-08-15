@@ -125,6 +125,7 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  padding: 20px;
 }
 
 .impact-lead {
@@ -175,5 +176,13 @@ export default {
   margin: 0;
   font-size: 13px;
   color: var(--text-muted);
+}
+</style>
+
+<!-- не scoped: контент BaseModal телепортится в body и несёт data-v самого BaseModal,
+     поэтому радиус задаём глобально двойным классом - как в BlacklistOverrideModal. -->
+<style>
+.base-modal.bl-impact-modal {
+  border-radius: 30px;
 }
 </style>

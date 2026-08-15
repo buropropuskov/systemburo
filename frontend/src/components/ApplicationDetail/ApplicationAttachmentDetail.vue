@@ -1760,7 +1760,10 @@ export default {
 .el-row--blacklisted .el-cell,
 .el-row--blacklisted .c-num {
   text-decoration: line-through;
-  text-decoration-thickness: 1px;
+  /* Линия красная, а текст остаётся читаемым: перечёркивание тут - признак запрета,
+     и по цвету линии он различается с бледным «неактивно». */
+  text-decoration-color: var(--danger);
+  text-decoration-thickness: 2px;
   color: var(--text-muted);
 }
 
