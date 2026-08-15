@@ -337,6 +337,24 @@ def guess_spdx(text: str) -> str:
     return ""
 
 
+def needs_attention(spdx: str) -> bool:
+    """Требует ли лицензия чтения человеком, а не одного лишь уведомления.
+
+    Составные выражения разбираются по существу, иначе разрешительное «MIT AND
+    Zlib» у `pako` попадало в перечень особых условий наравне с платным порогом
+    выручки, а особый случай терял вес. Через AND лицензии складываются - нужны
+    все, и разрешительным считается только сочетание разрешительных. Через OR
+    даётся выбор, а выбор делает человек: такое остаётся в перечне намеренно.
+    """
+    cleaned = spdx.strip().strip("()").strip()
+    if cleaned in PERMISSIVE:
+        return False
+    if re.search(r"\bOR\b", cleaned, re.IGNORECASE):
+        return True
+    parts = [part.strip().strip("()") for part in re.split(r"\bAND\b", cleaned, flags=re.IGNORECASE)]
+    return not all(part in PERMISSIVE for part in parts)
+
+
 def license_groups(components: list[Component]) -> list[tuple[str, list[Component]]]:
     """Сводит компоненты с дословно совпадающим текстом лицензии в один блок."""
     groups: OrderedDict[str, list[Component]] = OrderedDict()
@@ -390,7 +408,7 @@ def render(npm: list[Component], go: list[Component]) -> str:
     add("Тексты лицензий приведены на языке подлинника: юридическую силу имеет он, а не пересказ.")
     add("")
 
-    nonpermissive = [c for c in npm + go if c.spdx.split(" OR ")[0].strip("() ") not in PERMISSIVE]
+    nonpermissive = [c for c in npm + go if needs_attention(c.spdx)]
 
     add("## 1. Сводка")
     add("")
@@ -405,9 +423,10 @@ def render(npm: list[Component], go: list[Component]) -> str:
         add("## 2. Условия, требующие отдельного внимания")
         add("")
         add(
-            "Перечисленное ниже не относится к разрешительным лицензиям вида MIT или Apache-2.0, "
-            "по которым достаточно сохранить уведомление. Условия таких компонентов читаются "
-            "отдельно."
+            "Перечисленным ниже компонентам одного сохранения уведомления мало: их условия либо "
+            "не сводятся к разрешительным, либо предлагают выбор между несколькими лицензиями, "
+            "и выбор делает человек. Читаются они отдельно, а не считаются разрешительными "
+            "заодно с остальными."
         )
         add("")
         for line in render_table(nonpermissive):

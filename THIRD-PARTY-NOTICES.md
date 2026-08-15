@@ -16,13 +16,13 @@
 
 ## 2. Условия, требующие отдельного внимания
 
-Перечисленное ниже не относится к разрешительным лицензиям вида MIT или Apache-2.0, по которым достаточно сохранить уведомление. Условия таких компонентов читаются отдельно.
+Перечисленным ниже компонентам одного сохранения уведомления мало: их условия либо не сводятся к разрешительным, либо предлагают выбор между несколькими лицензиями, и выбор делает человек. Читаются они отдельно, а не считаются разрешительными заодно с остальными.
 
 | Компонент | Версия | Лицензия | Правообладатель |
 |---|---|---|---|
 | `apexcharts` | 5.15.2 | SEE LICENSE IN LICENSE | не указан в поставке пакета |
 | `dompurify` | 3.4.13 | (MPL-2.0 OR Apache-2.0) | Dr.-Ing. Mario Heiderich, Cure53 |
-| `pako` | 1.0.11 | (MIT AND Zlib) | Copyright (C) 2014-2017 by Vitaly Puzrin and Andrei Tuputcyn |
+| `jszip` | 3.10.1 | (MIT OR GPL-3.0-or-later) | Copyright (c) 2009-2016 Stuart Knightley, David Duponchel, Franz Buchinger, António Afonso; Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/> |
 | `vue3-apexcharts` | 1.11.1 | see LICENSE in LICENSE | Juned Chhipa |
 
 ## 3. Компоненты интерфейса
