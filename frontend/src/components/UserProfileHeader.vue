@@ -19,12 +19,11 @@
             @click="revokeOwnConsent"
           >
             <span class="badge-content">
-              <svg
+              <NavIcon
                 class="icon"
-                viewBox="0 0 24 24"
-              >
-                <path d="M12,3L4,6V11.1C4,15.6 7.4,19.8 12,21C16.6,19.8 20,15.6 20,11.1V6L12,3M10.9,15.5L7.4,12L8.8,10.6L10.9,12.7L15.2,8.4L16.6,9.8L10.9,15.5Z" />
-              </svg>
+                name="data-processing"
+                :size="16"
+              />
               <span class="badge-text">{{ consentBadgeLabel }}</span>
             </span>
           </button>
@@ -49,11 +48,37 @@
             v-if="company"
             class="user-company"
           >
+            <!-- Здание компании: жилой корпус с рядами окон и пристройкой. -->
             <svg
               class="icon"
               viewBox="0 0 24 24"
             >
-              <path d="M18,15H16V17H18M18,11H16V13H18M20,19H12V17H14V15H12V13H14V11H12V9H20M10,7H8V5H10M10,11H8V9H10M10,15H8V13H10M10,19H8V17H10M6,7H4V5H6M6,11H4V9H6M6,15H4V13H6M6,19H4V17H6M12,7V3H2V21H22V7H12Z" />
+              <path d="M4 20.5V6.2a1 1 0 0 1 1-1h6.5a1 1 0 0 1 1 1v14.3" />
+              <path d="M12.5 10.5H19a1 1 0 0 1 1 1v9" />
+              <line
+                x1="6.6"
+                y1="9.5"
+                x2="9.9"
+                y2="9.5"
+              />
+              <line
+                x1="6.6"
+                y1="14.5"
+                x2="9.9"
+                y2="14.5"
+              />
+              <line
+                x1="15"
+                y1="15.5"
+                x2="17.6"
+                y2="15.5"
+              />
+              <line
+                x1="2.8"
+                y1="20.5"
+                x2="21.2"
+                y2="20.5"
+              />
             </svg>
             {{ company }}
           </div>
@@ -70,11 +95,26 @@
           class="user-detail"
         >
           <span class="detail-badge position-badge">
+            <!-- Должность: рабочий портфель. Прежний глиф - дом с меткой -
+                 к названию должности отношения не имел. -->
             <svg
               class="icon"
               viewBox="0 0 24 24"
             >
-              <path d="M12,3L2,12H5V20H19V12H22L12,3M12,7.7C14.1,7.7 15.8,9.4 15.8,11.5C15.8,14.5 12,18 12,18C12,18 8.2,14.5 8.2,11.5C8.2,9.4 9.9,7.7 12,7.7M12,10A1.5,1.5 0 0,0 10.5,11.5A1.5,1.5 0 0,0 12,13A1.5,1.5 0 0,0 13.5,11.5A1.5,1.5 0 0,0 12,10Z" />
+              <rect
+                x="3.5"
+                y="7.5"
+                width="17"
+                height="12.5"
+                rx="2.2"
+              />
+              <path d="M9 7.5V6.2a1.6 1.6 0 0 1 1.6-1.6h2.8A1.6 1.6 0 0 1 15 6.2v1.3" />
+              <line
+                x1="3.5"
+                y1="12.8"
+                x2="20.5"
+                y2="12.8"
+              />
             </svg>
             {{ position }}
           </span>
@@ -99,12 +139,11 @@
                 key="original"
                 class="badge-content"
               >
-                <svg
+                <NavIcon
                   class="icon"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M22 6C22 4.9 21.1 4 20 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6M20 6L12 11L4 6H20M20 18H4V8L12 13L20 8V18Z" />
-                </svg>
+                  name="center"
+                  :size="16"
+                />
                 <span class="badge-text">{{ email }}</span>
               </div>
               <div
@@ -136,11 +175,12 @@
                 key="original"
                 class="badge-content"
               >
+                <!-- Телефон: трубка по диагонали, скруглённая под наклоном. -->
                 <svg
                   class="icon"
                   viewBox="0 0 24 24"
                 >
-                  <path d="M6.62,10.79C8.06,13.62 10.38,15.94 13.21,17.38L15.41,15.18C15.69,14.9 16.08,14.82 16.43,14.93C17.55,15.3 18.75,15.5 20,15.5A1,1 0 0,1 21,16.5V20A1,1 0 0,1 20,21A17,17 0 0,1 3,4A1,1 0 0,1 4,3H7.5A1,1 0 0,1 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z" />
+                  <path d="M8.4 3.6 5.9 6.1a1.8 1.8 0 0 0-.4 1.9 19 19 0 0 0 10.5 10.5 1.8 1.8 0 0 0 1.9-.4l2.5-2.5-3.9-2.9-1.8 1.4a14.5 14.5 0 0 1-5.2-5.2l1.4-1.8-3.5-3.5Z" />
                 </svg>
                 <span class="badge-text">{{ formattedPhone }}</span>
               </div>
@@ -163,11 +203,24 @@
             @click="passwordModalOpen = true"
           >
             <span class="badge-content">
+              <!-- Пароль: замок с дужкой и скважиной. -->
               <svg
                 class="icon"
                 viewBox="0 0 24 24"
               >
-                <path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z" />
+                <rect
+                  x="4.5"
+                  y="10"
+                  width="15"
+                  height="10.5"
+                  rx="2.5"
+                />
+                <path d="M8 10V6.9a4 4 0 0 1 8 0V10" />
+                <circle
+                  cx="12"
+                  cy="15.2"
+                  r="1.4"
+                />
               </svg>
               <span class="badge-text">Пароль</span>
             </span>
@@ -190,12 +243,13 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import { useContactsStore } from '@/stores/contacts';
 import ChangePasswordModal from './ChangePasswordModal.vue';
+import NavIcon from './icons/NavIcon.vue';
 
 /** Вид согласия, которое спрашивают при первом входе. */
 const PD_PROCESSING = 'pd_processing';
 
 export default {
-  components: { ChangePasswordModal },
+  components: { ChangePasswordModal, NavIcon },
   props: {
     organization: { type: String, default: null },
     company: { type: String, default: null },
@@ -559,7 +613,13 @@ export default {
 .icon {
   width: 16px;
   height: 16px;
-  fill: currentColor;
+  /* Глифы кабинета рисуются обводкой, как набор навигации (navIcons.js):
+     единый вес линии и цвет от текста вместо заливки силуэтом. */
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   opacity: 0.8;
 }
 

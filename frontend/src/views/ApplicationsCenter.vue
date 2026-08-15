@@ -787,7 +787,7 @@
                         stroke-width="2"
                         stroke-linecap="round"
                         stroke-linejoin="round"
-                      ><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
+                      ><path d="M19.5 11l-7.8 7.8a4 4 0 0 1-5.7-5.7l8-8a2.5 2.5 0 0 1 3.6 3.6l-7.6 7.6a1 1 0 0 1-1.5-1.4l6.8-6.8" /></svg>
                     </Badge>
                     <Badge
                       v-if="application.has_unseen_questions"
@@ -807,7 +807,7 @@
                         stroke-width="2"
                         stroke-linecap="round"
                         stroke-linejoin="round"
-                      ><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
+                      ><path d="M4 5.5h16a1 1 0 0 1 1 1v8.5a1 1 0 0 1-1 1H9.5L5.5 20v-3.5H4a1 1 0 0 1-1-1V6.5a1 1 0 0 1 1-1z" /></svg>
                       <span class="rt-tag__text">Вопросы</span>
                       <span
                         class="rt-tag__q-dot"
