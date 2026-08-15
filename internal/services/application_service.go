@@ -60,7 +60,16 @@ var applicationsListSelect = `
 		EXISTS (SELECT 1 FROM application_reads ar WHERE ar.application_id = a.id AND ar.user_id = ?) as is_read,
 		EXISTS (SELECT 1 FROM attachments att WHERE att.application_id = a.id AND att.roof_access = true AND ` + forwardAttachmentVisible + `) as has_roof_access,
 		EXISTS (SELECT 1 FROM attachments att WHERE att.application_id = a.id AND att.free_parking = true AND ` + forwardAttachmentVisible + `) as has_free_parking,
-		(SELECT COUNT(*) FROM application_blacklist_flags f WHERE f.application_id = a.id AND NOT EXISTS (SELECT 1 FROM application_blacklist_overrides o WHERE o.flag_id = f.id)) as blacklist_flags_count,
+		(SELECT COUNT(*) FROM application_blacklist_flags f
+		  WHERE f.application_id = a.id
+		    AND NOT EXISTS (SELECT 1 FROM application_blacklist_overrides o WHERE o.flag_id = f.id)
+		    -- Снятый из чёрного списка запрет в счётчике не участвует: предупреждать не о чем.
+		    AND (
+		          (f.element_type = 'car' AND EXISTS (
+		             SELECT 1 FROM vehicle_blacklists vb WHERE vb.id = f.matched_blacklist_id AND vb.is_active))
+		       OR (f.element_type = 'employee' AND EXISTS (
+		             SELECT 1 FROM person_blacklists pb WHERE pb.id = f.matched_blacklist_id AND pb.is_active))
+		        )) as blacklist_flags_count,
 		(
 			EXISTS (SELECT 1 FROM application_questions q WHERE q.application_id = a.id
 				AND q.author_user_id <> ?

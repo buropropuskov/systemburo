@@ -16,6 +16,28 @@ const ruleBody = (selector) => {
   return at === -1 ? null : sfc.slice(at, sfc.indexOf('}', at));
 };
 
+// Ширина бейджей почты и телефона считается клонированием узла с УДАЛЕНИЕМ
+// `.icon` (см. measureBadgeWidths): часть глифов теперь приходит компонентом
+// NavIcon, и стоит ему перестать пробрасывать класс - замер молча начнёт
+// считать бейдж вместе с иконкой, а надпись «Скопировано!» будет обрезаться.
+describe('UserProfileHeader — глифы бейджей', () => {
+  it('все иконки несут класс .icon, по которому идёт замер ширины', () => {
+    const markup = sfc.slice(0, sfc.indexOf('</template>'));
+    const glyphs = markup.match(/<(svg|NavIcon)\b[^>]*/g) || [];
+
+    expect(glyphs.length).toBeGreaterThanOrEqual(6);
+    glyphs.forEach((tag) => expect(tag, `глиф без класса: ${tag}`).toMatch(/class="icon"/));
+  });
+
+  it('рисует глифы обводкой, а не заливкой силуэта', () => {
+    const icon = ruleBody('.icon');
+
+    expect(icon).not.toBeNull();
+    expect(icon).toMatch(/fill:\s*none/);
+    expect(icon).toMatch(/stroke:\s*currentColor/);
+  });
+});
+
 describe('UserProfileHeader — поля бейджа согласия', () => {
   it('сжатые поля объявлены селектором сильнее .detail-badge', () => {
     const compact = ruleBody('.detail-badge.consent-badge');
