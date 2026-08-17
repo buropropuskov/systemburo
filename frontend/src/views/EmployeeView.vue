@@ -525,7 +525,16 @@
             </p>
           </template>
           <template v-else-if="currentFilter === 'all_system'">
-            <p class="help__text">
+            <p
+              v-if="canManageAllEntities"
+              class="help__text"
+            >
+              Здесь отображаются <strong class="blue">все сотрудники</strong>, которые есть в системе. Как администратор вы можете изменить или удалить любую запись, к какой бы организации она ни была привязана. Добавлять сотрудников нужно на вкладках выше - там видно, за кем закрепится запись.
+            </p>
+            <p
+              v-else
+              class="help__text"
+            >
               Здесь отображаются <strong class="blue">все сотрудники</strong>, которые есть в системе. В этой вкладке доступен только просмотр, добавление, редактирование и удаление сотрудников недоступно.
             </p>
           </template>
@@ -555,6 +564,7 @@
       :editing-employee="editingEmployee"
       :citizenships="availableCitizenships"
       :ownership-info="ownershipInfo"
+      :foreign-record="!!editingEmployee && !employeeBelongsToUser(editingEmployee)"
       @saved="onEmployeeSaved"
       @close="closeModal"
     />
@@ -698,6 +708,12 @@ export default {
         },
         // Право удалять из реестра сотрудников (кнопка «Удалить»). Базовая роль
         // выдаёт по умолчанию; админ может отозвать ролью, не затрагивая изменение.
+        // Администратор системы: правит и удаляет запись независимо от привязки.
+        // Признак приходит из ownership-info - того же ответа, по которому решает
+        // бэкенд, иначе кнопка появилась бы там, где сервер отвечает 403.
+        canManageAllEntities() {
+            return this.ownershipInfo?.can_manage_all === true;
+        },
         canDeleteEmployees() {
             return usePermissionsStore().hasPermission('entity.employees.delete');
         },
@@ -847,10 +863,20 @@ export default {
         },
         /**
          * Можно ли редактировать/удалять сотрудника. Совпадает с backend
-         * canEditEmployee (unique_employee_service.go).
+         * canEditEmployee (unique_employee_service.go): администратор системы правит
+         * любую запись, остальные - свою, своей организации или своей компании.
          */
         canEditEmployee(emp) {
+            if (this.canManageAllEntities) return true;
             if (this.currentFilter === 'all_system') return false;
+            return this.employeeBelongsToUser(emp);
+        },
+        /**
+         * Сотрудник «свой»: запись автора, его организации или компании. Отдельно от
+         * canEditEmployee, потому что администратору право даёт роль, а карточке правки
+         * нужна именно принадлежность - чтобы не переписать чужую привязку своей.
+         */
+        employeeBelongsToUser(emp) {
             if (!this.ownershipInfo) return false;
             if (emp.user_id != null && emp.user_id === this.ownershipInfo.user_id) return true;
             if (emp.organization_id != null && this.ownershipInfo.organization_id != null
@@ -866,7 +892,7 @@ export default {
             return this.canEditEmployee(emp) && this.canDeleteEmployees;
         },
         canEditTooltip(emp) {
-            if (this.currentFilter === 'all_system') return 'В режиме «Все в системе» редактирование запрещено';
+            if (this.currentFilter === 'all_system' && !this.canManageAllEntities) return 'В режиме «Все в системе» редактирование доступно только администратору';
             if (!this.canEditEmployee(emp)) return 'Сотрудник не привязан к вашей организации/компании - редактирование запрещено';
             return 'Недостаточно прав для изменения или удаления';
         },
@@ -1070,6 +1096,9 @@ export default {
                 entry_date_to: employee.active_entry_date_to,
                 pass_time: employee.active_pass_time,
                 isActive: employee.status,
+                // Логин владельца сервер отдаёт только администратору, поэтому карточка
+                // рисует строку по факту наличия значения, а не по своей проверке роли.
+                user_name: employee.user_name || null,
                 target_tables: []
             };
             this.showDetailsModal = true;

@@ -1,0 +1,72 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { mount } from '@vue/test-utils';
+import { createPinia, setActivePinia } from 'pinia';
+
+const apiRequest = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+vi.mock('@/api/client', () => ({
+  apiRequest: (...args) => apiRequest(...args),
+}));
+vi.mock('@/api/blacklist', () => ({
+  checkPersonBlacklist: vi.fn().mockResolvedValue({ is_blacklisted: false }),
+  createPersonBlacklist: vi.fn().mockResolvedValue({}),
+  checkVehicleBlacklist: vi.fn().mockResolvedValue({ is_blacklisted: false }),
+  createVehicleBlacklist: vi.fn().mockResolvedValue({}),
+}));
+vi.mock('exceljs', () => ({ default: {} }));
+
+import EmployeeDetailsModal from '../EmployeeDetailsModal.vue';
+import VehicleDetailsModal from '../VehicleDetailsModal.vue';
+
+const stubs = {
+  teleport: true,
+  TableInfoModal: true,
+  EmployeeHistoryModal: true,
+  CarHistoryModal: true,
+  AddToBlacklistModal: true,
+  UnloadPlaceInfoModal: true,
+};
+
+// «Привязана к пользователю» в карточке видит только администратор, но роль здесь не
+// проверяется: логин владельца сервер отдаёт лишь ему (maskEmployeeOwners/maskCarOwners),
+// и строка гейтится наличием значения. Карточка живёт в заявке, проходной, реестре и на
+// странице чёрного списка - перечислять контексты пришлось бы заново при каждом новом.
+describe('Карточки сотрудника и машины - строка владельца записи', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    apiRequest.mockClear();
+  });
+
+  it('сотрудник: логин пришёл - строка есть', () => {
+    const wrapper = mount(EmployeeDetailsModal, {
+      props: { show: true, employee: { id: 1, last_name: 'Пешков', first_name: 'Иван', user_name: 'megobari' }, source: 'employeesview' },
+      global: { stubs },
+    });
+    const row = wrapper.find('[data-testid="employee-owner-login"]');
+    expect(row.exists()).toBe(true);
+    expect(row.text()).toBe('megobari');
+  });
+
+  it('сотрудник: логина нет - строки нет', () => {
+    const wrapper = mount(EmployeeDetailsModal, {
+      props: { show: true, employee: { id: 1, last_name: 'Пешков', first_name: 'Иван' }, source: 'employeesview' },
+      global: { stubs },
+    });
+    expect(wrapper.find('[data-testid="employee-owner-login"]').exists()).toBe(false);
+  });
+
+  it('машина: логин пришёл - строка есть, иначе нет', () => {
+    const withOwner = mount(VehicleDetailsModal, {
+      props: { show: true, vehicle: { id: 1, plateNumber: 'А111АА777', mark: 'Volvo', user_name: 'megobari' }, source: 'carsview' },
+      global: { stubs },
+    });
+    const row = withOwner.find('[data-testid="vehicle-owner-login"]');
+    expect(row.exists()).toBe(true);
+    expect(row.text()).toBe('megobari');
+
+    const withoutOwner = mount(VehicleDetailsModal, {
+      props: { show: true, vehicle: { id: 1, plateNumber: 'А111АА777', mark: 'Volvo' }, source: 'carsview' },
+      global: { stubs },
+    });
+    expect(withoutOwner.find('[data-testid="vehicle-owner-login"]').exists()).toBe(false);
+  });
+});

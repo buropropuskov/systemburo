@@ -208,6 +208,20 @@
                         <span class="detail-label">Компания:</span>
                         <span class="detail-value">{{ employee.company || '-' }}</span>
                       </div>
+                      <!-- За кем закреплена запись реестра. Сервер отдаёт логин только
+                           администратору, поэтому строку гейтим по наличию значения, а
+                           не по роли: карточка живёт в заявке, проходной и реестре, и
+                           перечислять контексты пришлось бы заново при каждом новом. -->
+                      <div
+                        v-if="employee.user_name"
+                        class="detail-item"
+                      >
+                        <span class="detail-label">Привязан к пользователю:</span>
+                        <span
+                          class="detail-value"
+                          data-testid="employee-owner-login"
+                        >{{ employee.user_name }}</span>
+                      </div>
                       <div class="detail-item">
                         <span class="detail-label">Действует до:</span>
                         <span class="detail-value">{{ formatDate(employee.entry_date_to) || '-' }}</span>

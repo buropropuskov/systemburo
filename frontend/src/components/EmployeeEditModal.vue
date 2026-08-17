@@ -200,8 +200,34 @@
         </div>
       </div>
 
+      <!-- Привязка чужой записи: администратор её не переносит на себя, поэтому
+           вместо переключателей «привязать к моей организации» показываем, за кем
+           запись закреплена. -->
+      <div
+        v-if="foreignRecord"
+        class="completion__binding"
+      >
+        <label class="input__label">Привязка</label>
+        <div class="binding-info">
+          <p
+            class="binding-note"
+            data-testid="employee-foreign-binding-note"
+          >
+            Запись закреплена за
+            <strong v-if="editingEmployee && editingEmployee.user_name">пользователем «{{ editingEmployee.user_name }}»</strong>
+            <strong v-else>другим пользователем</strong>
+            <template v-if="editingEmployee && editingEmployee.organization_name">, организация «{{ editingEmployee.organization_name }}»</template>
+            <template v-if="editingEmployee && editingEmployee.company_name">, компания «{{ editingEmployee.company_name }}»</template>.
+            Правка данных привязку не меняет.
+          </p>
+        </div>
+      </div>
+
       <!-- Привязка -->
-      <div class="completion__binding">
+      <div
+        v-else
+        class="completion__binding"
+      >
         <label class="input__label">Привязка</label>
         <div class="binding-info">
           <p class="binding-note">
@@ -264,6 +290,13 @@ export default {
         ownershipInfo: {
             type: Object,
             default: null
+        },
+        // Правим запись, которая не относится ни к пользователю, ни к его организации
+        // или компании - так бывает только у администратора. Принадлежность считает
+        // вью (employeeBelongsToUser), чтобы правило жило в одном месте.
+        foreignRecord: {
+            type: Boolean,
+            default: false
         }
     },
     emits: ['saved', 'close'],
@@ -483,6 +516,13 @@ export default {
                 return true;
             }
 
+            // У чужой записи привязку карточка не показывает и не отправляет, поэтому и
+            // сравнивать нечего: организация администратора не совпала бы с организацией
+            // записи, и «изменения» находились бы всегда.
+            if (this.foreignRecord) {
+                return false;
+            }
+
             const currentOrgId = this.bindToOrganization ? this.ownershipInfo.organization_id : null;
             if (currentOrgId !== this.originalEmployeeData.organization_id) {
                 return true;
@@ -553,11 +593,20 @@ export default {
                     citizenship_id: this.selectedCitizenship.id,
                     passport_series_number: this.passportSeriesNumber.trim(),
                     patent_number: this.isPatentRequired && this.patentNumber.trim() ? this.patentNumber.trim() : null,
-                    other_permission: this.isPatentRequired && this.selectedPermission !== 'Не выбрано' ? this.selectedPermission : null,
-                    user_id: this.ownershipInfo.user_id,
-                    organization_id: this.bindToOrganization ? this.ownershipInfo.organization_id : null,
-                    company_id: this.bindToCompany ? this.ownershipInfo.company_id : null
+                    other_permission: this.isPatentRequired && this.selectedPermission !== 'Не выбрано' ? this.selectedPermission : null
                 };
+                if (this.foreignRecord) {
+                    // Администратор правит запись чужой организации: привязку переносим
+                    // как есть. Прежде поля брались из ownership-info правящего, то есть
+                    // сотрудник контрагента переехал бы к бюро вместе с исправлением ФИО.
+                    // user_id не отправляем совсем - сервер сохранит прежнего владельца.
+                    employeeData.organization_id = this.editingEmployee?.organization_id ?? null;
+                    employeeData.company_id = this.editingEmployee?.company_id ?? null;
+                } else {
+                    employeeData.user_id = this.ownershipInfo.user_id;
+                    employeeData.organization_id = this.bindToOrganization ? this.ownershipInfo.organization_id : null;
+                    employeeData.company_id = this.bindToCompany ? this.ownershipInfo.company_id : null;
+                }
 
                 let response;
                 if (this.editingEmployee) {

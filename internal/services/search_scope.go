@@ -44,7 +44,7 @@ func applyRegistryScope(q *gorm.DB, alias string, req searchRequest) *gorm.DB {
 
 // searchCanSeeAllSystem -- вправе ли пользователь видеть системный срез реестров.
 //
-// Намеренно обёртка вокруг userCanSeeAllSystem, а не собственный предикат: поиск не
+// Намеренно обёртка вокруг userIsSystemAdmin, а не собственный предикат: поиск не
 // должен быть шире листинга ни для кого. В системе есть рассинхрон -- реестры гейтят
 // системный срез флагами is_super_admin/is_admin напрямую из users, минуя резолвер,
 // тогда как грант section.registry.all_system существует в каталоге и раздаётся ролям,
@@ -55,7 +55,7 @@ func applyRegistryScope(q *gorm.DB, alias string, req searchRequest) *gorm.DB {
 // второй перекос -- запись нашлась бы в поиске и не открылась в реестре. Когда
 // рассинхрон будут устранять, менять придётся ровно эту функцию.
 func searchCanSeeAllSystem(ctx context.Context, db *gorm.DB, userID int) bool {
-	return userCanSeeAllSystem(ctx, db, userID)
+	return userIsSystemAdmin(ctx, db, userID)
 }
 
 // matchRankExpr возвращает выражение ступени совпадения для сортировки: точное
