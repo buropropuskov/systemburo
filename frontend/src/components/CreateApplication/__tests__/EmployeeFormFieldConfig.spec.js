@@ -145,6 +145,7 @@ describe('EmployeeForm - потребление field-config (#529 H-6)', () => 
       props: { fieldConfig: {
         last_name: optional, first_name: optional, position: optional,
         citizenship: optional, passport: optional, patent: optional, target_tables: optional,
+        pd_consent: optional,
       } }
     });
     expect(w.vm.canAddEmployee).toBe(true);

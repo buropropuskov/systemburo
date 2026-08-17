@@ -30,8 +30,11 @@ const accentNames = namesFor('--icon-accent-filter', /img\[src\*="\/([^"/]+)\.pn
 const accentHashed = namesFor('--icon-accent-filter', /img\[src\*="\/([^"/]+)-"\]/g);
 
 describe('icon-theme.css', () => {
-  it('перечисляет непустой список однотонных иконок', () => {
-    expect(monoNames.length).toBeGreaterThan(20);
+  it('перечисляет ровно живые однотонные иконки', () => {
+    // Число тает с каждым глифом, переехавшим в SVG-реестр, и обнулится вместе с
+    // самим файлом. Точное значение, а не «больше N»: правка списка должна быть
+    // осознанной, иначе из него легко выпадает используемая иконка.
+    expect(monoNames.length).toBe(14);
   });
 
   it('каждой иконке даёт оба селектора: исходное имя и хэшированное', () => {
@@ -57,7 +60,7 @@ describe('icon-theme.css', () => {
   it('сине-голубые значки экрана входа темизацией не трогаются', () => {
     // Они лежат на светлом островке формы входа: осветлять там нечего, а инверсия
     // и вовсе поменяла бы им цвет.
-    ['email-blue', 'key-blue', 'phone-blue', 'right_arrow-blue'].forEach((n) => {
+    ['email-blue', 'key-blue', 'phone-blue'].forEach((n) => {
       expect(monoNames, `${n} не должна инвертироваться`).not.toContain(n);
       expect(accentNames, `${n} не должна осветляться`).not.toContain(n);
     });
@@ -141,7 +144,7 @@ describe('vite.config: инлайн иконок', () => {
   });
 
   it('прочим ассетам оставляет штатное правило по размеру', () => {
-    expect(limit(path.join(ROOT, 'src/assets/background.png'))).toBeUndefined();
+    expect(limit(path.join(ROOT, 'src/assets/onboarding/demo-applications.png'))).toBeUndefined();
     expect(limit(path.join(ROOT, 'src/assets/onboarding/demo-cars.png'))).toBeUndefined();
   });
 });

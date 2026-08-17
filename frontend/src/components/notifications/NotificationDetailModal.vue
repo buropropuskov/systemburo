@@ -165,7 +165,7 @@ const props = defineProps({
 const emit = defineEmits(['close', 'action', 'unread', 'delete']);
 
 const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
-useEscapeClose(() => emit('close'), () => props.show);
+useEscapeClose(() => emit('close'), () => props.show, 10500);
 
 // Bottom-sheet свайп-вниз-закрытие на мобилке - контракт окна проекта (#1097 R9).
 const bodyEl = ref(null);

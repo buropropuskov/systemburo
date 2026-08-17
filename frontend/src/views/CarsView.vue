@@ -544,7 +544,16 @@
             </p>
           </template>
           <template v-else-if="currentFilter === 'all_system'">
-            <p class="help__text">
+            <p
+              v-if="canManageAllEntities"
+              class="help__text"
+            >
+              Здесь отображаются <strong class="blue">все автомобили</strong>, которые есть в системе. Как администратор вы можете изменить или удалить любую машину, к какой бы организации она ни была привязана. Добавлять машины нужно на вкладках выше - там видно, за кем закрепится запись.
+            </p>
+            <p
+              v-else
+              class="help__text"
+            >
               Здесь отображаются <strong class="blue">все автомобили</strong>, которые есть в системе. В этой вкладке доступен только просмотр, добавление, редактирование и удаление машин недоступно.
             </p>
           </template>
@@ -572,7 +581,7 @@
     <!-- Модальное окно добавления машины - контракт окна из BaseModal (крестик,
          overlay, Escape, свайп-вниз/bottom-sheet на мобилке), а не своя разметка. -->
     <BaseModal
-      :show="showModal && currentFilter !== 'all_system'"
+      :show="showModal && (currentFilter !== 'all_system' || !!editingCar)"
       :title="editingCar ? 'Редактирование' : 'Добавление Т/С'"
       width="500px"
       radius="30px"
@@ -730,9 +739,36 @@
           </div>
         </div>
 
+        <!-- Привязка чужой записи: администратор её не переносит на себя, поэтому
+             вместо переключателей «привязать к моей организации» показываем, за кем
+             запись закреплена. -->
+        <div
+          v-if="editingForeignRecord"
+          class="completion__binding"
+        >
+          <label class="input__label">Привязка</label>
+          <div class="binding-info">
+            <p
+              class="binding-note"
+              data-testid="cars-foreign-binding-note"
+            >
+              Запись закреплена за
+              <strong v-if="editingCar.user_name">пользователем «{{ editingCar.user_name }}»</strong>
+              <strong v-else>другим пользователем</strong>
+              <template v-if="editingCar.organization_name">
+                , организация «{{ editingCar.organization_name }}»
+              </template>
+              <template v-if="editingCar.company_name">
+                , компания «{{ editingCar.company_name }}»
+              </template>.
+              Правка данных привязку не меняет.
+            </p>
+          </div>
+        </div>
+
         <!-- Привязка -->
         <div
-          v-if="currentFilter !== 'all_system'"
+          v-if="currentFilter !== 'all_system' && !editingForeignRecord"
           class="completion__binding"
         >
           <label class="input__label">Привязка</label>
@@ -951,6 +987,18 @@ export default {
         canDeleteCars() {
             return usePermissionsStore().hasPermission('entity.cars.delete');
         },
+        // Администратор системы: правит и удаляет запись независимо от привязки.
+        // Признак приходит из ownership-info - того же ответа, которым решает бэкенд,
+        // иначе кнопка появилась бы там, где сервер отвечает 403.
+        canManageAllEntities() {
+            return this.ownershipInfo?.can_manage_all === true;
+        },
+        // Правим запись, которая не относится ни к нам, ни к нашей организации или
+        // компании: так бывает только у администратора. Форма в этом режиме не
+        // предлагает переключатели привязки - они говорят про МОЮ организацию.
+        editingForeignRecord() {
+            return !!this.editingCar && !this.carBelongsToUser(this.editingCar);
+        },
         // Поиск по тексту выполняется на бэке через search_query (#1158, срез 2) -
         // здесь не дублируем, carsData уже отфильтрован сервером.
         sortedCars() {
@@ -1163,6 +1211,9 @@ export default {
                 entry_time_from: car.active_entry_time_from,
                 entry_time_to: car.active_entry_time_to,
                 isActive: car.status,
+                // Логин владельца сервер отдаёт только администратору, поэтому карточка
+                // рисует строку по факту наличия значения, а не по своей проверке роли.
+                user_name: car.user_name || null,
             };
             this.showDetailsViewModal = true;
         },
@@ -1183,11 +1234,22 @@ export default {
         /**
          * Можно ли текущему пользователю редактировать/удалять машину.
          * Логика совпадает с backend canEditCar (unique_car_service.go):
-         * автор, или организация совпадает, или компания совпадает.
-         * filter=all_system - read-only по согласованию (PR #198).
+         * администратор системы правит любую запись, остальные - свою, своей
+         * организации или своей компании. До этого вкладка «Все в системе» была
+         * read-only для всех (PR #198); бюро обязано чинить записи контрагентов.
          */
         canEditCar(car) {
+            if (this.canManageAllEntities) return true;
             if (this.currentFilter === 'all_system') return false;
+            return this.carBelongsToUser(car);
+        },
+        /**
+         * Машина «своя»: автор записи, её организация или компания совпадает с
+         * текущим пользователем. Вынесено из canEditCar, потому что администратору
+         * право даёт не принадлежность, а роль - а форме правки нужно знать именно
+         * принадлежность, чтобы не переписать чужую привязку своей.
+         */
+        carBelongsToUser(car) {
             if (!this.ownershipInfo) return false;
             if (car.user_id != null && car.user_id === this.ownershipInfo.user_id) return true;
             if (car.organization_id != null && this.ownershipInfo.organization_id != null
@@ -1203,7 +1265,7 @@ export default {
             return this.canEditCar(car) && this.canDeleteCars;
         },
         canEditTooltip(car) {
-            if (this.currentFilter === 'all_system') return 'В режиме «Все в системе» редактирование запрещено';
+            if (this.currentFilter === 'all_system' && !this.canManageAllEntities) return 'В режиме «Все в системе» редактирование доступно только администратору';
             if (!this.canEditCar(car)) return 'Машина не привязана к вашей организации/компании - редактирование запрещено';
             return 'Недостаточно прав для изменения или удаления';
         },
@@ -1460,6 +1522,13 @@ export default {
             const currentNumber = this.numberParts.join(' ');
             if (currentNumber !== this.originalCarData.number) {
                 return true;
+            }
+
+            // У чужой записи привязку форма не показывает и не отправляет, поэтому и
+            // сравнивать нечего: иначе организация администратора не совпала бы с
+            // организацией записи, и «изменения» находились бы всегда.
+            if (this.editingForeignRecord) {
+                return false;
             }
 
             // Проверяем изменения в привязке к организации
@@ -1741,11 +1810,20 @@ export default {
                 const carData = {
                     number: number,
                     mark: this.selectedMark,
-                    format_id: this.selectedFormat.format.id,
-                    user_id: this.ownershipInfo.user_id,
-                    organization_id: this.bindToOrganization ? this.ownershipInfo.organization_id : null,
-                    company_id: this.bindToCompany ? this.ownershipInfo.company_id : null
+                    format_id: this.selectedFormat.format.id
                 };
+                if (this.editingForeignRecord) {
+                    // Администратор правит машину чужой организации: привязку переносим
+                    // как есть. Прежние поля брались из ownership-info правящего, то есть
+                    // машина контрагента переехала бы к бюро вместе с исправлением марки.
+                    // user_id не отправляем вовсе - сервер сохранит прежнего владельца.
+                    carData.organization_id = this.editingCar.organization_id ?? null;
+                    carData.company_id = this.editingCar.company_id ?? null;
+                } else {
+                    carData.user_id = this.ownershipInfo.user_id;
+                    carData.organization_id = this.bindToOrganization ? this.ownershipInfo.organization_id : null;
+                    carData.company_id = this.bindToCompany ? this.ownershipInfo.company_id : null;
+                }
 
                 let response;
                 if (this.editingCar) {

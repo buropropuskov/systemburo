@@ -33,17 +33,34 @@
             fill="none"
             aria-hidden="true"
           >
-            <path
-              d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+            <g
               stroke="currentColor"
               stroke-width="1.8"
-            />
-            <path
-              d="M19.4 13a7.8 7.8 0 0 0 0-2l2-1.5-2-3.5-2.4 1a7.8 7.8 0 0 0-1.7-1L15 3H9l-.3 2.6a7.8 7.8 0 0 0-1.7 1l-2.4-1-2 3.5L4.6 11a7.8 7.8 0 0 0 0 2l-2 1.5 2 3.5 2.4-1c.5.4 1.1.8 1.7 1L9 21h6l.3-2.6c.6-.2 1.2-.6 1.7-1l2.4 1 2-3.5-2-1.5Z"
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linejoin="round"
-            />
+              stroke-linecap="round"
+            >
+              <line
+                x1="4"
+                y1="8"
+                x2="20"
+                y2="8"
+              />
+              <line
+                x1="4"
+                y1="16"
+                x2="20"
+                y2="16"
+              />
+              <circle
+                cx="9"
+                cy="8"
+                r="2.2"
+              />
+              <circle
+                cx="15"
+                cy="16"
+                r="2.2"
+              />
+            </g>
           </svg>
         </button>
         <button

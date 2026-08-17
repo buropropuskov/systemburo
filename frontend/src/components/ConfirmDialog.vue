@@ -78,7 +78,7 @@ export default {
       if (e.target === e.currentTarget) cancel();
     }
 
-    useEscapeClose(cancel, () => !!state.value);
+    useEscapeClose(cancel, () => !!state.value, 22000);
 
     return { state, confirm, cancel, onOverlayClick };
   },

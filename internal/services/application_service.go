@@ -60,7 +60,16 @@ var applicationsListSelect = `
 		EXISTS (SELECT 1 FROM application_reads ar WHERE ar.application_id = a.id AND ar.user_id = ?) as is_read,
 		EXISTS (SELECT 1 FROM attachments att WHERE att.application_id = a.id AND att.roof_access = true AND ` + forwardAttachmentVisible + `) as has_roof_access,
 		EXISTS (SELECT 1 FROM attachments att WHERE att.application_id = a.id AND att.free_parking = true AND ` + forwardAttachmentVisible + `) as has_free_parking,
-		(SELECT COUNT(*) FROM application_blacklist_flags f WHERE f.application_id = a.id AND NOT EXISTS (SELECT 1 FROM application_blacklist_overrides o WHERE o.flag_id = f.id)) as blacklist_flags_count,
+		(SELECT COUNT(*) FROM application_blacklist_flags f
+		  WHERE f.application_id = a.id
+		    AND NOT EXISTS (SELECT 1 FROM application_blacklist_overrides o WHERE o.flag_id = f.id)
+		    -- Снятый из чёрного списка запрет в счётчике не участвует: предупреждать не о чем.
+		    AND (
+		          (f.element_type = 'car' AND EXISTS (
+		             SELECT 1 FROM vehicle_blacklists vb WHERE vb.id = f.matched_blacklist_id AND vb.is_active))
+		       OR (f.element_type = 'employee' AND EXISTS (
+		             SELECT 1 FROM person_blacklists pb WHERE pb.id = f.matched_blacklist_id AND pb.is_active))
+		        )) as blacklist_flags_count,
 		(
 			EXISTS (SELECT 1 FROM application_questions q WHERE q.application_id = a.id
 				AND q.author_user_id <> ?
@@ -456,6 +465,9 @@ type VehicleInput struct {
 	// TargetTables — таблицы «Проезд» (#1036): машина видна только в них. Зеркало
 	// EmployeeInput.TargetTables.
 	TargetTables []int `json:"passage_tables"`
+	// PDConsent - см. EmployeeInput.PDConsent. У машин поле шаблона выключено по
+	// умолчанию, флаг приходит только когда администратор его включил.
+	PDConsent bool `json:"pd_consent"`
 }
 
 // EmployeeInput данные сотрудника при создании.
@@ -469,6 +481,9 @@ type EmployeeInput struct {
 	PatentNumber         *string `json:"patent_number"`
 	OtherPermission      *string `json:"other_permission"`
 	TargetTables         []int   `json:"target_tables"`
+	// PDConsent - заявитель подтвердил, что субъект дал согласие на обработку своих
+	// персональных данных. Только флаг: дату и автора отметки ставит сервер.
+	PDConsent bool `json:"pd_consent"`
 }
 
 // ItemInput данные ТМЦ при создании.
@@ -1789,6 +1804,8 @@ func employeeFieldPresent(e EmployeeInput, key string) bool {
 		return e.OtherPermission != nil && strings.TrimSpace(*e.OtherPermission) != ""
 	case "target_tables":
 		return len(e.TargetTables) > 0
+	case PDConsentFieldKey:
+		return e.PDConsent
 	}
 	return true
 }
@@ -1805,6 +1822,8 @@ func vehicleFieldPresent(v VehicleInput, key string) bool {
 		return len(v.UnloadPlaces) > 0
 	case "passage_tables":
 		return len(v.TargetTables) > 0
+	case PDConsentFieldKey:
+		return v.PDConsent
 	}
 	return true
 }
@@ -1818,6 +1837,33 @@ func itemFieldPresent(i ItemInput, key string) bool {
 		return i.Count >= 1
 	}
 	return true
+}
+
+// consentAt и consentBy превращают флаг согласия субъекта на обработку персональных
+// данных в пару «когда» и «кто». Время и автора ставит сервер: запрос несёт только флаг,
+// иначе датой согласия можно было бы прислать что угодно. Флаг снят - обе величины NULL,
+// отметки нет.
+//
+// Где стоит строгость: форма подачи не даёт добавить человека без галочки (поле
+// pd_consent в реестре полей видимо и обязательно по умолчанию), а сервер отказывает
+// только когда администратор ЯВНО настроил поле обязательным - тем же порядком, что и у
+// прочих полей вложения (#529 H-9: строгая серверная проверка включается настройкой,
+// иначе существующие шаблоны ломаются). Отдельная точка ввода - карточка реестра
+// сотрудников: там согласие требуется всегда, см. uniqueEmployeeService.Create.
+func consentAt(granted bool, at time.Time) *time.Time {
+	if !granted {
+		return nil
+	}
+	v := at
+	return &v
+}
+
+func consentBy(granted bool, userID int) *int {
+	if !granted {
+		return nil
+	}
+	v := userID
+	return &v
 }
 
 // validateConfiguredRequiredFields проверяет, что поля, явно настроенные админом
@@ -1997,7 +2043,7 @@ const (
 // Postgres для одного оператора), поэтому i-й id в результате соответствует i-й машине
 // входного среза - на этом порядке строится сопоставление с pending-флагами/аудитом/
 // привязками ниже.
-func insertCarsBatch(tx *gorm.DB, attID int, vehicles []VehicleInput, entryDateFrom, entryTimeFrom, entryDateTo, entryTimeTo *string) ([]int, error) {
+func insertCarsBatch(tx *gorm.DB, attID int, vehicles []VehicleInput, entryDateFrom, entryTimeFrom, entryDateTo, entryTimeTo *string, actorUserID int, submittedAt time.Time) ([]int, error) {
 	carIDs := make([]int, 0, len(vehicles))
 	for start := 0; start < len(vehicles); start += carInsertBatchSize {
 		end := start + carInsertBatchSize
@@ -2006,12 +2052,13 @@ func insertCarsBatch(tx *gorm.DB, attID int, vehicles []VehicleInput, entryDateF
 		}
 		chunk := vehicles[start:end]
 		placeholders := make([]string, 0, len(chunk))
-		args := make([]interface{}, 0, len(chunk)*8)
+		args := make([]interface{}, 0, len(chunk)*10)
 		for _, v := range chunk {
-			placeholders = append(placeholders, "(?, ?, ?, ?, ?::date, ?::time, ?::date, ?::time, 0)")
-			args = append(args, attID, v.CarNumber, v.CarBrand, v.UnloadPlace, entryDateFrom, entryTimeFrom, entryDateTo, entryTimeTo)
+			placeholders = append(placeholders, "(?, ?, ?, ?, ?::date, ?::time, ?::date, ?::time, 0, ?, ?)")
+			args = append(args, attID, v.CarNumber, v.CarBrand, v.UnloadPlace, entryDateFrom, entryTimeFrom, entryDateTo, entryTimeTo,
+				consentAt(v.PDConsent, submittedAt), consentBy(v.PDConsent, actorUserID))
 		}
-		query := "INSERT INTO cars (attachment_id, car_number, car_brand, unload_place, entry_date_from, entry_time_from, entry_date_to, entry_time_to, status) VALUES " +
+		query := "INSERT INTO cars (attachment_id, car_number, car_brand, unload_place, entry_date_from, entry_time_from, entry_date_to, entry_time_to, status, pd_consent_at, pd_consent_by_user_id) VALUES " +
 			strings.Join(placeholders, ", ") + " RETURNING id"
 		var chunkIDs []int
 		if err := tx.Raw(query, args...).Scan(&chunkIDs).Error; err != nil {
@@ -2300,7 +2347,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 				vehicles := *att.Data.Vehicles
 				// Машины остаются raw SQL (у Car нет шифрующих хуков), но одним пакетным
 				// multi-values INSERT вместо построчного (blank-import, срез A2A3).
-				carIDs, err := insertCarsBatch(tx, attID, vehicles, att.EntryDateFrom, att.EntryTimeFrom, att.EntryDateTo, att.EntryTimeTo)
+				carIDs, err := insertCarsBatch(tx, attID, vehicles, att.EntryDateFrom, att.EntryTimeFrom, att.EntryDateTo, att.EntryTimeTo, user.ID, baseTime)
 				if err != nil {
 					tx.Rollback()
 					slog.Error("Ошибка создания машин (batch)", "attachment_id", attID, "error", err)
@@ -2381,6 +2428,8 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 						PatentNumber:         nilIfBlankPtr(e.PatentNumber),
 						OtherPermission:      e.OtherPermission,
 						Status:               &statusZero,
+						PDConsentAt:          consentAt(e.PDConsent, baseTime),
+						PDConsentByUserID:    consentBy(e.PDConsent, user.ID),
 					})
 				}
 				// CreateInBatches, НЕ raw SQL: Employee.BeforeSave (models/employee.go)

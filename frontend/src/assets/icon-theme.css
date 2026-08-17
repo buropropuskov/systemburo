@@ -1,15 +1,15 @@
 /*
  * Растровые иконки в тёмных темах (#1415).
  *
- * 65 иконок лежат в PNG, и CSS их перекрасить не может: у растра нет
- * currentColor. Но 26 из них ОДНОТОННЫЕ и тёмные - такие честно
- * осветляются инверсией, глиф остаётся тем же. Цветные (флаги стран, значки
- * типов файлов, синие и красные пиктограммы) инвертировать нельзя: у них
- * поедет цвет, поэтому список задан поимённо, а не по каталогу.
+ * 26 иконок лежат в PNG, и CSS их перекрасить не может: у растра нет
+ * currentColor. Но 14 из них ОДНОТОННЫЕ и тёмные - такие честно
+ * осветляются инверсией, глиф остаётся тем же. Цветные (сине-голубые значки
+ * экрана входа) инвертировать нельзя: у них поедет цвет, поэтому список задан
+ * поимённо, а не по каталогу.
  *
- * Перевод в SVG с currentColor остаётся правильным решением на будущее - тогда
- * этот файл уйдёт целиком. Список получен классификацией по насыщенности и
- * средней яркости видимых пикселей, повторить: см. срез иконок в issue #1415.
+ * Файл уходит целиком, когда иконки переедут в SVG-реестр с currentColor:
+ * список тает с каждым переведённым глифом. Флаги стран и значки типов файлов
+ * из него уже ушли вместе с самими файлами - их ничто не использовало.
  *
  * Два селектора на иконку - потому что в разработке Vite отдаёт файл по
  * исходному имени, а в сборке добавляет хэш: /edit.png против /edit-a1b2c3.png.
@@ -48,44 +48,22 @@
   --icon-accent-filter: brightness(1.55) saturate(0.75);
 }
 
-img[src*="/access-"],
-img[src*="/access.png"],
-img[src*="/archive-"],
-img[src*="/archive.png"],
 img[src*="/arrow-"],
 img[src*="/arrow.png"],
-img[src*="/attachment_car-"],
-img[src*="/attachment_car.png"],
-img[src*="/attachment_item-"],
-img[src*="/attachment_item.png"],
-img[src*="/attachment_people-"],
-img[src*="/attachment_people.png"],
 img[src*="/calendar-"],
 img[src*="/calendar.png"],
 img[src*="/car-"],
 img[src*="/car.png"],
 img[src*="/clipboard-"],
 img[src*="/clipboard.png"],
-img[src*="/document-approval-"],
-img[src*="/document-approval.png"],
-img[src*="/document-"],
-img[src*="/document.png"],
 img[src*="/download-"],
 img[src*="/download.png"],
 img[src*="/edit-"],
 img[src*="/edit.png"],
 img[src*="/employees-"],
 img[src*="/employees.png"],
-img[src*="/envelope-"],
-img[src*="/envelope.png"],
 img[src*="/export-"],
 img[src*="/export.png"],
-img[src*="/logout-"],
-img[src*="/logout.png"],
-img[src*="/messages-"],
-img[src*="/messages.png"],
-img[src*="/newspaper-"],
-img[src*="/newspaper.png"],
 img[src*="/notifications-"],
 img[src*="/notifications.png"],
 img[src*="/recent-changes-"],
@@ -94,8 +72,6 @@ img[src*="/search-"],
 img[src*="/search.png"],
 img[src*="/stats-"],
 img[src*="/stats.png"],
-img[src*="/table-"],
-img[src*="/table.png"],
 img[src*="/trashcan-"],
 img[src*="/trashcan.png"],
 img[src*="/user-"],

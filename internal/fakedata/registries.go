@@ -283,6 +283,9 @@ func buildEmployeeRequest(refs registryRefs, s *employeeStreams) services.NewUni
 		Position:             &position,
 		PassportSeriesNumber: &passport,
 		OrganizationID:       &orgID,
+		// Согласие субъекта обязательно для новой записи реестра, а данные здесь
+		// вымышленные - отметку ставим сразу, иначе наполнение стенда не проходит гейт.
+		PDConsent: true,
 	}
 
 	// Компания -- не у каждого сотрудника: в отличие от организации, поле

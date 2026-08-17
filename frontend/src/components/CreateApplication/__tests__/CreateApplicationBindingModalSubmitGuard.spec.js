@@ -61,6 +61,9 @@ function fillStateWithNewEmployee(w) {
             middleName: '',
             passportSeriesNumber: '1234 567890',
             position: 'Инженер',
+            // Привязка к реестру идёт только для людей с отметкой согласия субъекта:
+            // без неё запись реестра не создаётся, и этот путь просто не запустится.
+            pdConsent: true,
             isExisting: false,
         }],
     };

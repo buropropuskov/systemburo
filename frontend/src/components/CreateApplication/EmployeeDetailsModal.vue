@@ -5,9 +5,13 @@
         v-if="show"
         class="modal-overlay"
         :style="{ zIndex: overlayZIndex }"
-        @click.self="close"
       >
-        <div class="modal-wrapper">
+        <!-- Клик мимо окна приходит в обёртку: она занимает всю площадь затемнения,
+             до самого затемнения событие не доходит. -->
+        <div
+          class="modal-wrapper"
+          @click.self="close"
+        >
           <!-- Основное модальное окно с деталями сотрудника -->
           <div
             class="modal-content compact-modal main-modal"
@@ -203,6 +207,34 @@
                       <div class="detail-item">
                         <span class="detail-label">Компания:</span>
                         <span class="detail-value">{{ employee.company || '-' }}</span>
+                      </div>
+                      <!-- За кем закреплена запись реестра. Сервер отдаёт логин только
+                           администратору, поэтому строку гейтим по наличию значения, а
+                           не по роли: карточка живёт в заявке, проходной и реестре, и
+                           перечислять контексты пришлось бы заново при каждом новом. -->
+                      <!-- Согласие субъекта на обработку персональных данных: показываем
+                           дату, когда отметка есть. Пустое поле у записей, заведённых до
+                           введения отметки, - строку тогда не рисуем, чтобы не читалось
+                           как «согласия нет». -->
+                      <div
+                        v-if="employee.pd_consent_at"
+                        class="detail-item"
+                      >
+                        <span class="detail-label">Согласие на обработку ПД:</span>
+                        <span
+                          class="detail-value"
+                          data-testid="employee-pd-consent-date"
+                        >получено {{ formatDate(employee.pd_consent_at) }}</span>
+                      </div>
+                      <div
+                        v-if="employee.user_name"
+                        class="detail-item"
+                      >
+                        <span class="detail-label">Привязан к пользователю:</span>
+                        <span
+                          class="detail-value"
+                          data-testid="employee-owner-login"
+                        >{{ employee.user_name }}</span>
                       </div>
                       <div class="detail-item">
                         <span class="detail-label">Действует до:</span>
@@ -476,6 +508,7 @@
 
 <script>
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack';
 import { ref, getCurrentInstance } from 'vue';
 import { apiRequest } from '@/api/client';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
@@ -720,6 +753,8 @@ export default {
         handler(val) {
             // Контракт окна: фон под листом не прокручивается.
             setBodyScrollLock(this, val);
+            // И место в стопке окон - чтобы Escape закрывал только верхнее.
+            setModalOpen(this, val, this.overlayZIndex);
             if (val) {
                 this.loadHistory();
                 this.loadEmployeeStatus(); // для EmployeeDetailsModal
@@ -743,17 +778,26 @@ export default {
     },
     mounted() {
         document.addEventListener('keydown', this.handleEscKey);
+        if (this.show) setModalOpen(this, true, this.overlayZIndex);
     },
     beforeUnmount() {
         document.removeEventListener('keydown', this.handleEscKey);
+        releaseModal(this);
         releaseBodyScrollLock(this);
     },
     methods: {
-        // Закрытие по Escape (фон закрывается через @click.self на оверлее).
+        /**
+         * Закрытие по Escape (фон закрывается через @click.self на оверлее).
+         *
+         * Через общую стопку окон: карточка, открытая из заявки, лежит поверх её панели,
+         * и без стопки одно нажатие закрывало обе - панель считала себя верхней.
+         */
         handleEscKey(e) {
-            if (e.key === 'Escape' && this.show) {
-                this.close();
-            }
+            if (e.key !== 'Escape' || !this.show) return;
+            if (isEscapeHandled(e)) return;
+            if (!isTopModal(this)) return;
+            markEscapeHandled(e);
+            this.close();
         },
         close() {
     this.$emit('close');
@@ -1723,9 +1767,16 @@ export default {
     min-height: 120px;
 }
 
-.modal-fade-enter-active,
+/* Появление и скрытие - как у остальных окон (BaseModal): затемнение гаснет
+   прозрачностью, само окно приезжает масштабом. Прежние правила задавали переход
+   корню перехода (.modal-overlay), а не окну внутри него, поэтому затемнение
+   плавно гасло, а окно прыгало. */
+.modal-fade-enter-active {
+    transition: opacity 0.3s ease;
+}
+
 .modal-fade-leave-active {
-    transition: all 0.4s ease;
+    transition: opacity 0.2s ease;
 }
 
 .modal-fade-enter-from,
@@ -1733,26 +1784,22 @@ export default {
     opacity: 0;
 }
 
-.modal-fade-enter-active .modal-overlay,
-.modal-fade-leave-active .modal-overlay {
-    transition: all 0.4s ease;
+.modal-fade-enter-active .modal-content {
+    animation: details-modal-in 0.3s ease;
 }
 
-.modal-fade-enter-active .modal-content,
 .modal-fade-leave-active .modal-content {
-    transition: all 0.4s ease;
+    animation: details-modal-out 0.2s ease;
 }
 
-.modal-fade-enter-from .modal-overlay,
-.modal-fade-leave-to .modal-overlay {
-    background: transparent;
- 
+@keyframes details-modal-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
 }
 
-.modal-fade-enter-from .modal-content,
-.modal-fade-leave-to .modal-content {
-    opacity: 0;
-    transform: scale(0.9) translateY(-20px);
+@keyframes details-modal-out {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.95); }
 }
 
 .place-slide-enter-active,
