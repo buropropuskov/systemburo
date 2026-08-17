@@ -38,8 +38,14 @@ jobs:
               - 'go.mod'
               - 'go.sum'
               - 'Dockerfile'
+              # Перечень сторонних компонентов стерегут два замка - Go-тест и
+              # спека фронта. Без этой строки правка одного лишь перечня не
+              # запускала ни одного из них: убрать из него строку и слить зелёным
+              # было бы можно.
+              - 'THIRD-PARTY-NOTICES.md'
             frontend:
               - 'frontend/**'
+              - 'THIRD-PARTY-NOTICES.md'
             infra:
               - 'docker-compose*.yml'
               - 'nginx/**'

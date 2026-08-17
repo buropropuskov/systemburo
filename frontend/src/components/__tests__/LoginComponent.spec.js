@@ -261,6 +261,25 @@ describe('LoginComponent: фон экрана', () => {
     wrapper.unmount()
   })
 
+  // Кроны деревьев на холмах владелец прочёл теми же кругами, что просил убрать:
+  // «вот ты вернул круги, но не убрал круги, которые добавил на волны». Планы
+  // пейзажа рисуются одними кривыми, круглого на них нет.
+  it('держит планы пейзажа кривыми, без круглых крон', () => {
+    const wrapper = mountLogin()
+    const scene = wrapper.find('.login-scene')
+    expect(scene.exists()).toBe(true)
+
+    scene.element.querySelectorAll('g[fill]').forEach((group) => {
+      const plane = group.getAttribute('fill').match(/ls(Mid|Near)/)
+      if (!plane) return
+      const round = [...group.querySelectorAll('ellipse, circle')]
+      expect(round.length, `на плане ${plane[1]} снова круглые кроны`).toBe(0)
+      const tags = [...group.children].map((el) => el.tagName.toLowerCase())
+      expect(tags, `план ${plane[1]} рисуется не только кривыми`).toEqual(['path'])
+    })
+    wrapper.unmount()
+  })
+
   it('оживляет фон линиями поверх волн', () => {
     const wrapper = mountLogin()
     expect(wrapper.findAll('.login-lines__group').length).toBeGreaterThanOrEqual(3)
