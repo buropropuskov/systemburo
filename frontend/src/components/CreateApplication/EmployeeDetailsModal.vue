@@ -208,6 +208,34 @@
                         <span class="detail-label">Компания:</span>
                         <span class="detail-value">{{ employee.company || '-' }}</span>
                       </div>
+                      <!-- За кем закреплена запись реестра. Сервер отдаёт логин только
+                           администратору, поэтому строку гейтим по наличию значения, а
+                           не по роли: карточка живёт в заявке, проходной и реестре, и
+                           перечислять контексты пришлось бы заново при каждом новом. -->
+                      <!-- Согласие субъекта на обработку персональных данных: показываем
+                           дату, когда отметка есть. Пустое поле у записей, заведённых до
+                           введения отметки, - строку тогда не рисуем, чтобы не читалось
+                           как «согласия нет». -->
+                      <div
+                        v-if="employee.pd_consent_at"
+                        class="detail-item"
+                      >
+                        <span class="detail-label">Согласие на обработку ПД:</span>
+                        <span
+                          class="detail-value"
+                          data-testid="employee-pd-consent-date"
+                        >получено {{ formatDate(employee.pd_consent_at) }}</span>
+                      </div>
+                      <div
+                        v-if="employee.user_name"
+                        class="detail-item"
+                      >
+                        <span class="detail-label">Привязан к пользователю:</span>
+                        <span
+                          class="detail-value"
+                          data-testid="employee-owner-login"
+                        >{{ employee.user_name }}</span>
+                      </div>
                       <div class="detail-item">
                         <span class="detail-label">Действует до:</span>
                         <span class="detail-value">{{ formatDate(employee.entry_date_to) || '-' }}</span>

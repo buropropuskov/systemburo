@@ -2607,8 +2607,13 @@ export default {
                 }
 
                 if (this.newEmployeesToBind.length > 0 && bindingData.employees.hasEmployeesForBinding) {
-                    const employeesToBind = this.newEmployeesToBind.filter(employee => 
+                    // Запись реестра хранит персональные данные, поэтому создаётся только
+                    // с подтверждённым согласием субъекта (гейт в uniqueEmployeeService.Create).
+                    // Отсеиваем неотмеченных здесь, чтобы не получать 400 на привязке: сама
+                    // заявка при этом уходит, просто человек не попадает в справочник.
+                    const employeesToBind = this.newEmployeesToBind.filter(employee =>
                         employee.passportSeriesNumber !== 'По факту' && employee.position !== 'По факту'
+                        && employee.pdConsent === true
                     );
                     
                     if (employeesToBind.length > 0) {
@@ -2622,6 +2627,7 @@ export default {
                                 passport_series_number: employee.passportSeriesNumber,
                                 patent_number: employee.patentNumber,
                                 other_permission: employee.otherPermission,
+                                pd_consent: true,
                                 user_id: null,
                                 organization_id: bindingData.employees.bindToOrganization ? this.organizationId : null,
                                 company_id: bindingData.employees.bindToCompany ? this.companyId : null

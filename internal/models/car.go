@@ -3,14 +3,14 @@ package models
 import "time"
 
 type Car struct {
-	ID                 int        `json:"id"`
+	ID           int        `json:"id"`
 	AttachmentID int        `gorm:"index" json:"attachment_id"`
 	Attachment   Attachment `gorm:"constraint:OnDelete:CASCADE" json:"-"`
 	// SupplementID - каким дополнением заявки добавлена машина (#1685). NULL - пришла с
 	// исходной подачей. По нему принятие дополнения активирует только его строки, а
 	// интерфейс выделяет новые. Без FK: дополнения не удаляются, отмена у них - статус.
-	SupplementID       *int    `gorm:"index" json:"supplement_id"`
-	CarNumber          *string `gorm:"size:50;index" json:"car_number"`
+	SupplementID       *int       `gorm:"index" json:"supplement_id"`
+	CarNumber          *string    `gorm:"size:50;index" json:"car_number"`
 	CarBrand           *string    `gorm:"size:100" json:"car_brand"` // deprecated: оставлен на N релизов, см. mark_name
 	MarkID             *int       `gorm:"index" json:"mark_id,omitempty"`
 	MarkName           *string    `gorm:"size:100" json:"mark_name,omitempty"` // snapshot имени марки на момент присвоения
@@ -25,6 +25,11 @@ type Car struct {
 	Status             *int       `gorm:"index" json:"status"`
 	DateAdded          *time.Time `json:"date_added"`
 	DateRemoved        *time.Time `json:"date_removed"`
+	// Согласие субъекта на обработку персональных данных: см. Employee.PDConsentAt.
+	// У машин поле шаблона по умолчанию выключено (номер и марка субъекта не
+	// идентифицируют), колонки заведены для случая, когда администратор его включит.
+	PDConsentAt       *time.Time `json:"pd_consent_at"`
+	PDConsentByUserID *int       `json:"pd_consent_by_user_id"`
 	// IsPurged - финальное удаление из корзины (#186). Запись остаётся в БД для
 	// аудита, но скрывается даже из корзины. Восстановление невозможно.
 	IsPurged          bool       `gorm:"default:false;index" json:"is_purged"`
@@ -46,8 +51,11 @@ type UniqueCar struct {
 	FormatID       *int          `json:"format_id"`
 	UserID         *int          `gorm:"index" json:"user_id"`
 	User           *User         `json:"-"`
-	Status         *bool         `gorm:"default:false" json:"status"`
-	CreatedAt      time.Time     `json:"created_at"`
+	// Согласие субъекта на обработку персональных данных: см. Employee.PDConsentAt.
+	PDConsentAt       *time.Time `json:"pd_consent_at"`
+	PDConsentByUserID *int       `json:"pd_consent_by_user_id"`
+	Status            *bool      `gorm:"default:false" json:"status"`
+	CreatedAt         time.Time  `json:"created_at"`
 }
 
 type CarUnloadPlace struct {
