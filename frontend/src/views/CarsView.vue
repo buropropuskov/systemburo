@@ -755,8 +755,12 @@
               Запись закреплена за
               <strong v-if="editingCar.user_name">пользователем «{{ editingCar.user_name }}»</strong>
               <strong v-else>другим пользователем</strong>
-              <template v-if="editingCar.organization_name">, организация «{{ editingCar.organization_name }}»</template>
-              <template v-if="editingCar.company_name">, компания «{{ editingCar.company_name }}»</template>.
+              <template v-if="editingCar.organization_name">
+                , организация «{{ editingCar.organization_name }}»
+              </template>
+              <template v-if="editingCar.company_name">
+                , компания «{{ editingCar.company_name }}»
+              </template>.
               Правка данных привязку не меняет.
             </p>
           </div>

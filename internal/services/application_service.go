@@ -1839,9 +1839,17 @@ func itemFieldPresent(i ItemInput, key string) bool {
 	return true
 }
 
-// consentAt и consentBy превращают флаг согласия из запроса в пару «когда» и «кто».
-// Время и автора ставит сервер: запрос несёт только флаг, иначе датой согласия можно
-// было бы прислать что угодно. Флаг снят - обе величины NULL, отметки нет.
+// consentAt и consentBy превращают флаг согласия субъекта на обработку персональных
+// данных в пару «когда» и «кто». Время и автора ставит сервер: запрос несёт только флаг,
+// иначе датой согласия можно было бы прислать что угодно. Флаг снят - обе величины NULL,
+// отметки нет.
+//
+// Где стоит строгость: форма подачи не даёт добавить человека без галочки (поле
+// pd_consent в реестре полей видимо и обязательно по умолчанию), а сервер отказывает
+// только когда администратор ЯВНО настроил поле обязательным - тем же порядком, что и у
+// прочих полей вложения (#529 H-9: строгая серверная проверка включается настройкой,
+// иначе существующие шаблоны ломаются). Отдельная точка ввода - карточка реестра
+// сотрудников: там согласие требуется всегда, см. uniqueEmployeeService.Create.
 func consentAt(granted bool, at time.Time) *time.Time {
 	if !granted {
 		return nil
@@ -1856,37 +1864,6 @@ func consentBy(granted bool, userID int) *int {
 	}
 	v := userID
 	return &v
-}
-
-// consentMissingError отвечает ошибкой, если поле согласия у этого вложения включено и
-// обязательно, а хотя бы одна строка пришла без отметки. Мерка та же, что у формы подачи
-// и у разбора бланка: merged-конфиг вложения, один источник вместо трёх пониманий.
-func consentMissingError(attachmentType string, overrides []models.AttachmentFieldConfig, data AttachmentContentData) error {
-	field, ok := mergedFieldByKey(MergeFieldConfig(attachmentType, overrides), PDConsentFieldKey)
-	if !ok || !field.Visible || !field.Required {
-		return nil
-	}
-
-	missing := false
-	if data.Employees != nil {
-		for _, e := range *data.Employees {
-			if !e.PDConsent {
-				missing = true
-			}
-		}
-	}
-	if data.Vehicles != nil {
-		for _, v := range *data.Vehicles {
-			if !v.PDConsent {
-				missing = true
-			}
-		}
-	}
-	if !missing {
-		return nil
-	}
-	return echo.NewHTTPError(http.StatusBadRequest,
-		"Без согласия субъекта на обработку персональных данных запись принять нельзя")
 }
 
 // validateConfiguredRequiredFields проверяет, что поля, явно настроенные админом
@@ -1911,15 +1888,6 @@ func (s *applicationService) validateAttachmentRequiredFields(ctx context.Contex
 		Find(&overrides).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки настройки полей")
 	}
-	// Согласие субъекта проверяем по merged-конфигу (реестр + оверрайды), а не по
-	// requiredFieldKeys: у прочих полей строгая проверка включается только явной
-	// настройкой администратора (#529 H-9), а здесь обязательность и есть дефолт -
-	// без отметки паспортные данные третьего лица принимать нельзя. Поэтому проверка
-	// стоит ДО раннего возврата: у вложения без единого оверрайда она всё равно нужна.
-	if err := consentMissingError(attachmentType, overrides, data); err != nil {
-		return err
-	}
-
 	required := requiredFieldKeys(overrides)
 	if len(required) == 0 {
 		return nil

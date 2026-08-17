@@ -1099,6 +1099,7 @@ export default {
                 // Логин владельца сервер отдаёт только администратору, поэтому карточка
                 // рисует строку по факту наличия значения, а не по своей проверке роли.
                 user_name: employee.user_name || null,
+                pd_consent_at: employee.pd_consent_at || null,
                 target_tables: []
             };
             this.showDetailsModal = true;

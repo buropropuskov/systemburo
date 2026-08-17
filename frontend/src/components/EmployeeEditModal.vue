@@ -200,6 +200,38 @@
         </div>
       </div>
 
+      <!-- Согласие субъекта на обработку персональных данных (152-ФЗ). У записи, где
+           согласие уже получено, показываем дату - подтверждать второй раз нечего. -->
+      <div class="completion__consent">
+        <label class="input__label">Согласие на обработку персональных данных</label>
+        <p
+          v-if="consentAlreadyGranted"
+          class="consent-granted"
+          data-testid="employee-consent-granted"
+        >
+          Получено {{ formatConsentDate(editingEmployee.pd_consent_at) }}
+        </p>
+        <label
+          v-else
+          class="consent-option"
+        >
+          <input
+            v-model="pdConsent"
+            type="checkbox"
+            data-testid="employee-registry-pd-consent"
+          >
+          <span>
+            Работник дал <a
+              href="/data-processing"
+              target="_blank"
+              rel="noopener"
+              class="blue"
+              @click.stop
+            >согласие</a> на обработку своих персональных данных<span class="required">*</span>
+          </span>
+        </label>
+      </div>
+
       <!-- Привязка чужой записи: администратор её не переносит на себя, поэтому
            вместо переключателей «привязать к моей организации» показываем, за кем
            запись закреплена. -->
@@ -216,8 +248,12 @@
             Запись закреплена за
             <strong v-if="editingEmployee && editingEmployee.user_name">пользователем «{{ editingEmployee.user_name }}»</strong>
             <strong v-else>другим пользователем</strong>
-            <template v-if="editingEmployee && editingEmployee.organization_name">, организация «{{ editingEmployee.organization_name }}»</template>
-            <template v-if="editingEmployee && editingEmployee.company_name">, компания «{{ editingEmployee.company_name }}»</template>.
+            <template v-if="editingEmployee && editingEmployee.organization_name">
+              , организация «{{ editingEmployee.organization_name }}»
+            </template>
+            <template v-if="editingEmployee && editingEmployee.company_name">
+              , компания «{{ editingEmployee.company_name }}»
+            </template>.
             Правка данных привязку не меняет.
           </p>
         </div>
@@ -332,6 +368,10 @@ export default {
             bindToOrganization: false,
             bindToCompany: false,
 
+            // Отметка о согласии субъекта. Для новой записи обязательна (сервер без неё
+            // не создаёт запись), у существующей заполняется только если согласия ещё нет.
+            pdConsent: false,
+
             // Для проверки изменений при редактировании
             originalEmployeeData: null
         };
@@ -363,7 +403,16 @@ export default {
                     return false;
                 }
             }
+            if (!this.consentAlreadyGranted && !this.pdConsent) {
+                return false;
+            }
             return true;
+        },
+
+        // Согласие у записи уже зафиксировано - повторно его не спрашиваем и снять
+        // галочкой не даём: отметка живёт в базе с датой и автором.
+        consentAlreadyGranted() {
+            return !!(this.editingEmployee && this.editingEmployee.pd_consent_at);
         },
 
         /**
@@ -387,6 +436,9 @@ export default {
                 && !this.patentNumber.trim()
                 && (this.selectedPermission === 'Не выбрано' || !this.selectedPermission)) {
                 reasons.push('Для этого гражданства нужен номер патента или иное разрешение на работы');
+            }
+            if (!this.consentAlreadyGranted && !this.pdConsent) {
+                reasons.push('Отметьте согласие работника на обработку персональных данных');
             }
             return reasons.join('. ');
         }
@@ -464,6 +516,9 @@ export default {
 
                 this.bindToOrganization = !!this.editingEmployee.organization_id;
                 this.bindToCompany = !!this.editingEmployee.company_id;
+                // У записи без отметки согласие подтверждают заново: галочку начинаем
+                // снятой, иначе правка «поставила» бы согласие сама собой.
+                this.pdConsent = false;
             } else {
                 this.resetForm();
             }
@@ -480,6 +535,7 @@ export default {
             this.selectedPermission = 'Не выбрано';
             this.bindToOrganization = false;
             this.bindToCompany = false;
+            this.pdConsent = false;
             this.originalEmployeeData = null;
         },
 
@@ -534,6 +590,14 @@ export default {
             }
 
             return false;
+        },
+
+        // Дата получения согласия: человеку нужен день, не отметка времени.
+        formatConsentDate(value) {
+            if (!value) return '';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return '';
+            return date.toLocaleDateString('ru-RU');
         },
 
         truncateText(text, maxLength) {
@@ -593,7 +657,8 @@ export default {
                     citizenship_id: this.selectedCitizenship.id,
                     passport_series_number: this.passportSeriesNumber.trim(),
                     patent_number: this.isPatentRequired && this.patentNumber.trim() ? this.patentNumber.trim() : null,
-                    other_permission: this.isPatentRequired && this.selectedPermission !== 'Не выбрано' ? this.selectedPermission : null
+                    other_permission: this.isPatentRequired && this.selectedPermission !== 'Не выбрано' ? this.selectedPermission : null,
+                    pd_consent: this.pdConsent || this.consentAlreadyGranted
                 };
                 if (this.foreignRecord) {
                     // Администратор правит запись чужой организации: привязку переносим
@@ -956,6 +1021,31 @@ export default {
 .permission__item-text {
     font-size: 14px;
     color: var(--text);
+}
+
+.completion__consent {
+    margin-top: 14px;
+}
+
+.consent-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    line-height: 1.35;
+    cursor: pointer;
+    margin-top: 6px;
+}
+
+.consent-option input[type="checkbox"] {
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.consent-granted {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: var(--text-muted);
 }
 
 .completion__binding {

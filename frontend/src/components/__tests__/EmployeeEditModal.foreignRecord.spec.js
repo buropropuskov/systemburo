@@ -66,7 +66,7 @@ describe('EmployeeEditModal - правка записи чужой органи�
 
   it('сохранение не подменяет владельца и переносит привязку записи как есть', async () => {
     const wrapper = mountModal({ editingEmployee: FOREIGN_EMPLOYEE, foreignRecord: true });
-    await wrapper.setData({ lastName: 'Пешков', firstName: 'Иоанн', selectedCitizenship: CITIZENSHIPS[0] });
+    await wrapper.setData({ lastName: 'Пешков', firstName: 'Иоанн', selectedCitizenship: CITIZENSHIPS[0], pdConsent: true });
 
     await wrapper.vm.saveEmployee();
 
@@ -94,7 +94,7 @@ describe('EmployeeEditModal - правка записи чужой органи�
   it('своя запись правится по-прежнему: привязка из переключателей и свой user_id', async () => {
     const own = { ...FOREIGN_EMPLOYEE, id: 8, organization_id: 10, user_id: 1, user_name: 'testadmin' };
     const wrapper = mountModal({ editingEmployee: own, foreignRecord: false });
-    await wrapper.setData({ lastName: 'Пешков', firstName: 'Иван', selectedCitizenship: CITIZENSHIPS[0] });
+    await wrapper.setData({ lastName: 'Пешков', firstName: 'Иван', selectedCitizenship: CITIZENSHIPS[0], pdConsent: true });
 
     expect(wrapper.find('[data-testid="employee-foreign-binding-note"]').exists()).toBe(false);
     const orgCheckbox = wrapper.findAll('.binding-option input[type="checkbox"]')[0];

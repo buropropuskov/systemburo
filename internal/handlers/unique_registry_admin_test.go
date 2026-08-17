@@ -46,11 +46,11 @@ func TestUniqueEmployees_AdminEditsForeignRecord_OwnerKept(t *testing.T) {
 	ownerHeader, ownerID := registryOwner(t, e, db, "regowner_emp", "Registry Owner Org")
 	adminHeader := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
 
-	rec := testutil.POST(t, e, "/unique-employees", `{"last_name":"Пешков","first_name":"Иван","passport_series_number":"4510 111222"}`, ownerHeader)
+	rec := testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Пешков","first_name":"Иван","passport_series_number":"4510 111222"}`, ownerHeader)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	created := testutil.ParseResponse[services.UniqueEmployeeResponse](t, rec)
 
-	rec = testutil.PUT(t, e, fmt.Sprintf("/unique-employees/%d", created.ID), `{"last_name":"Пешков","first_name":"Иоанн"}`, adminHeader)
+	rec = testutil.PUT(t, e, fmt.Sprintf("/unique-employees/%d", created.ID), `{"pd_consent":true,"last_name":"Пешков","first_name":"Иоанн"}`, adminHeader)
 	require.Equal(t, http.StatusOK, rec.Code, "администратор правит сотрудника чужой организации: %s", rec.Body.String())
 
 	var stored models.UniqueEmployee
@@ -70,11 +70,11 @@ func TestUniqueEmployees_ForeignUserCannotEditOrDelete(t *testing.T) {
 	ownerHeader, _ := registryOwner(t, e, db, "regowner_emp2", "Registry Owner Org 2")
 	strangerHeader, _ := registryOwner(t, e, db, "regstranger_emp", "Registry Stranger Org")
 
-	rec := testutil.POST(t, e, "/unique-employees", `{"last_name":"Одинцов","first_name":"Пётр"}`, ownerHeader)
+	rec := testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Одинцов","first_name":"Пётр"}`, ownerHeader)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	created := testutil.ParseResponse[services.UniqueEmployeeResponse](t, rec)
 
-	rec = testutil.PUT(t, e, fmt.Sprintf("/unique-employees/%d", created.ID), `{"last_name":"Одинцов","first_name":"Павел"}`, strangerHeader)
+	rec = testutil.PUT(t, e, fmt.Sprintf("/unique-employees/%d", created.ID), `{"pd_consent":true,"last_name":"Одинцов","first_name":"Павел"}`, strangerHeader)
 	assert.Equal(t, http.StatusForbidden, rec.Code, "посторонний пользователь не правит чужого сотрудника")
 
 	rec = testutil.DELETE(t, e, fmt.Sprintf("/unique-employees/%d", created.ID), strangerHeader)
@@ -90,7 +90,7 @@ func TestUniqueEmployees_AdminDeletesForeignRecord(t *testing.T) {
 	ownerHeader, _ := registryOwner(t, e, db, "regowner_emp3", "Registry Owner Org 3")
 	adminHeader := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
 
-	rec := testutil.POST(t, e, "/unique-employees", `{"last_name":"Кротов","first_name":"Семён"}`, ownerHeader)
+	rec := testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Кротов","first_name":"Семён"}`, ownerHeader)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	created := testutil.ParseResponse[services.UniqueEmployeeResponse](t, rec)
 
@@ -178,7 +178,7 @@ func TestUniqueRegistry_OwnerNameVisibleToAdminOnly(t *testing.T) {
 	ownerHeader, _ := registryOwner(t, e, db, "regowner_name", "Registry Name Org")
 	adminHeader := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
 
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"last_name":"Тихонов","first_name":"Лев"}`, ownerHeader).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Тихонов","first_name":"Лев"}`, ownerHeader).Code)
 	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-cars", `{"number":"Е555ЕЕ777","mark":"Ford"}`, ownerHeader).Code)
 
 	rec := testutil.GET(t, e, "/unique-employees?filter_type=all_system&per_page=50", adminHeader)

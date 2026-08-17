@@ -30,6 +30,7 @@ describe('EmployeeEditModal — серия и номер паспорта при
       lastName: 'Иванов',
       firstName: 'Иван',
       position: 'Монтажник',
+      pdConsent: true,
     });
 
     const input = wrapper.find('input[placeholder="Введите серию и номер паспорта"]');
@@ -45,6 +46,7 @@ describe('EmployeeEditModal — серия и номер паспорта при
       lastName: 'Иванов',
       firstName: 'Иван',
       position: 'Монтажник',
+      pdConsent: true,
       passportSeriesNumber: '   ',
     });
 
