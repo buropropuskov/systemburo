@@ -173,10 +173,14 @@
                           v-for="chip in visibleChips(row, col)"
                           :key="chip.key"
                           class="chip"
-                          :class="{ 'chip--more': chip.isMore }"
+                          :class="{ 'chip--more': chip.isMore, 'chip--solo': chip.isSolo }"
                           :data-hint="chip.hint"
+                          :title="chip.hint"
                           :data-testid="chip.isMore ? 'attachment-chip-more' : 'attachment-chip'"
-                        >{{ chip.text }}</span>
+                        ><span
+                          class="chip__text"
+                          :title="chip.hint"
+                        >{{ chip.text }}</span></span>
                         <span
                           v-if="!chipItems(row, col).length && !canAssign"
                           class="chip chip--empty"
@@ -238,15 +242,81 @@
                   v-if="hasStateColumn"
                   class="c-state"
                 >
-                  <button
+                  <!-- Две кнопки в узкую ячейку не влезали: на помеченной строке
+                       остаётся одна «Пропустить», а «Убрать» уходит в её меню. -->
+                  <div
                     v-if="canOverride && isFlagged(row)"
-                    type="button"
-                    class="lk-button lk-button--danger blacklist-override-btn"
-                    data-testid="blacklist-override-btn"
-                    @click.stop="$emit('override-element', { label: rowLabel(row), flag: row.blacklist_similar })"
+                    class="row-actions"
                   >
-                    Пропустить
-                  </button>
+                    <!-- Сдвоенная кнопка: слева действие, справа стрелка меню.
+                         Разделены линией, чтобы было видно, что нажатия разные. -->
+                    <div class="split-btn">
+                      <button
+                        type="button"
+                        class="lk-button lk-button--danger split-btn__main"
+                        data-testid="blacklist-override-btn"
+                        @click.stop="chooseOverride(row)"
+                      >
+                        Принять
+                      </button>
+                      <button
+                        type="button"
+                        class="lk-button lk-button--danger split-btn__toggle"
+                        :class="{ 'split-btn__toggle--open': openRowMenu === row.id }"
+                        data-testid="row-actions-toggle"
+                        aria-label="Другие действия"
+                        @click.stop="toggleRowMenu(row.id, $event)"
+                      >
+                        <svg
+                          class="split-btn__caret"
+                          width="10"
+                          height="10"
+                          viewBox="0 0 10 10"
+                          fill="none"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M2 3.5 5 6.5 8 3.5"
+                            stroke="currentColor"
+                            stroke-width="1.6"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                    <!-- Меню телепортируется в body: ячейка состояния узкая и с
+                         overflow: hidden, внутри неё список обрезался целиком. -->
+                    <Teleport to="body">
+                      <transition name="row-menu">
+                        <div
+                          v-if="openRowMenu === row.id"
+                          class="row-actions__menu"
+                          :style="rowMenuStyle"
+                          data-testid="row-actions-menu"
+                          @click.stop
+                        >
+                          <button
+                            type="button"
+                            class="row-actions__item"
+                            data-testid="row-action-override"
+                            @click.stop="chooseOverride(row)"
+                          >
+                            Принять
+                          </button>
+                          <button
+                            v-if="canRemove"
+                            type="button"
+                            class="row-actions__item row-actions__item--danger"
+                            data-testid="row-action-remove"
+                            @click.stop="chooseRemove(row)"
+                          >
+                            Убрать из заявки
+                          </button>
+                        </div>
+                      </transition>
+                    </Teleport>
+                  </div>
                   <Badge
                     v-else-if="row.blacklist_similar"
                     class="blacklist-badge"
@@ -258,7 +328,7 @@
                     {{ blacklistLabel(row.blacklist_similar) }}
                   </Badge>
                   <button
-                    v-if="canRemove"
+                    v-if="canRemove && !(canOverride && isFlagged(row))"
                     type="button"
                     class="lk-button lk-button--ghost element-remove-btn"
                     data-testid="element-remove-btn"
@@ -374,6 +444,7 @@ import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions'
 import { matchesSearchFuzzy } from '@/utils/searchVariants'
 import { formatNumberForDisplay } from '@/composables/useNumberFormat'
+import { getViewportZoom } from '@/utils/viewportScale'
 import {
     SUPPLEMENT_ACCEPTED,
     SUPPLEMENT_APPROVED,
@@ -524,6 +595,10 @@ export default {
     emits: ['open-vehicle', 'open-employee', 'override-element', 'remove-element', 'assignments-changed'],
     data() {
         return {
+            // Идентификатор строки, у которой открыто меню действий: одно на таблицу,
+            // чтобы два меню не висели одновременно.
+            openRowMenu: null,
+            rowMenuStyle: null,
             containerWidth: 0,
             isNarrowViewport: false,
             resizeObserver: null,
@@ -624,7 +699,7 @@ export default {
                         cls: 'c-places',
                         label: 'Места разгрузки',
                         assignKind: 'places',
-                        grow: 30, min: 100,
+                        grow: 30, min: 128,
                         growCompact: 36, minCompact: 124,
                         field: 'unload_places',
                         nameKey: 'name',
@@ -817,6 +892,10 @@ export default {
         }
     },
     mounted() {
+        // Меню действий строки закрывается кликом мимо него - иначе висит открытым,
+        // пока не нажмут саму кнопку.
+        document.addEventListener('click', this.closeRowMenuOnOutside);
+
         if (typeof window.matchMedia === 'function') {
             this.viewportQuery = window.matchMedia('(max-width: 767.98px)');
             this.isNarrowViewport = this.viewportQuery.matches;
@@ -843,6 +922,7 @@ export default {
         this.$nextTick(this.measureChipColumns);
     },
     beforeUnmount() {
+        document.removeEventListener('click', this.closeRowMenuOnOutside);
         if (this.resizeObserver) {
             this.resizeObserver.disconnect();
             this.resizeObserver = null;
@@ -1009,7 +1089,11 @@ export default {
                 key: `chip-${index}`,
                 text,
                 hint: names.length > limit ? null : hint,
-                isMore: false
+                isMore: false,
+                // Единственное название сжимается по ячейке и обрезается многоточием -
+                // полное видно в подсказке. Соседи по колонке так не жмутся: там вместо
+                // обрезки показывается счётчик.
+                isSolo: names.length === 1
             }));
 
             if (names.length > limit) {
@@ -1173,6 +1257,43 @@ export default {
 
         employeeFullName(employee) {
             return [employee.last_name, employee.first_name, employee.middle_name].filter(Boolean).join(' ');
+        },
+
+        closeRowMenuOnOutside(event) {
+            if (this.openRowMenu === null) return;
+            if (event.target && event.target.closest && event.target.closest('.row-actions')) return;
+            this.openRowMenu = null;
+        },
+
+        /**
+         * Меню лежит в body, поэтому его место считаем от кнопки. Координаты делим на
+         * масштаб страницы: при зуме больше 100% rect и координаты окна расходятся, и
+         * меню уезжает от кнопки (тот же расчёт, что у выпадающих списков).
+         */
+        toggleRowMenu(rowID, event) {
+            if (this.openRowMenu === rowID) {
+                this.openRowMenu = null;
+                return;
+            }
+            const zoom = getViewportZoom();
+            const rect = event.currentTarget.getBoundingClientRect();
+            const right = (window.innerWidth - rect.right / zoom);
+            this.rowMenuStyle = {
+                position: 'fixed',
+                top: `${rect.bottom / zoom + 4}px`,
+                right: `${right}px`,
+            };
+            this.openRowMenu = rowID;
+        },
+
+        chooseOverride(row) {
+            this.openRowMenu = null;
+            this.$emit('override-element', { label: this.rowLabel(row), flag: row.blacklist_similar });
+        },
+
+        chooseRemove(row) {
+            this.openRowMenu = null;
+            this.$emit('remove-element', { label: this.rowLabel(row), id: row.id });
         },
 
         blacklistVariant(flag) {
@@ -1620,6 +1741,24 @@ export default {
     text-overflow: ellipsis;
 }
 
+/* Одиночный чип уступает ширине ячейки: без снятого flex-shrink он не сжимался и
+   уезжал под обрезку ячейки без многоточия («Дебаркадер №1» читался как «Дебаркадер»). */
+.chip--solo {
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+/* Текст обязан лежать в своём элементе: сам чип - inline-flex, а на flex-контейнере
+   text-overflow не действует, поэтому многоточия не появлялось, сколько ни ставь
+   overflow: hidden на чип. */
+.chip__text {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .chip--more {
     border-style: dashed;
     border-color: rgba(79, 91, 223, 0.4);
@@ -1658,14 +1797,16 @@ export default {
 
 /* Подсказка проекта: тёмный пузырёк по data-hint, а не браузерный title. */
 .val[data-hint],
-.chip[data-hint],
 .blacklist-badge[data-hint],
 .supplement-badge[data-hint] {
     position: relative;
 }
 
+/* У чипа своей подсказки нет: она рисовалась псевдоэлементом внутри него, а чип,
+   строка чипов и сама ячейка обрезают содержимое (overflow: hidden держит раскладку
+   таблицы) - подсказку срезало на всех трёх уровнях, и полное название не показывалось
+   вовсе. Поэтому у чипов подсказка нативная, через title: её не обрезает ничто. */
 .val[data-hint]::after,
-.chip[data-hint]::after,
 .blacklist-badge[data-hint]::after,
 .supplement-badge[data-hint]::after {
     content: attr(data-hint);
@@ -1707,7 +1848,6 @@ export default {
 }
 
 .val[data-hint]::before,
-.chip[data-hint]::before,
 .blacklist-badge[data-hint]::before,
 .supplement-badge[data-hint]::before {
     content: '';
@@ -1760,8 +1900,100 @@ export default {
 .el-row--blacklisted .el-cell,
 .el-row--blacklisted .c-num {
   text-decoration: line-through;
-  text-decoration-thickness: 1px;
+  /* Линия красная, а текст остаётся читаемым: перечёркивание тут - признак запрета,
+     и по цвету линии он различается с бледным «неактивно». */
+  text-decoration-color: var(--danger);
+  text-decoration-thickness: 2px;
   color: var(--text-muted);
+}
+
+.row-actions {
+  position: relative;
+}
+
+/* Сдвоенная кнопка: действие и стрелка меню разделены линией, но выглядят
+   одной кнопкой - у крайних скруглены только внешние углы. */
+.split-btn {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
+.split-btn__main,
+.split-btn__toggle {
+  padding: 5px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.split-btn__main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  padding-right: 7px;
+}
+
+.split-btn__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  padding-left: 6px;
+  padding-right: 7px;
+}
+
+.split-btn__caret {
+  transition: transform 180ms ease;
+}
+
+.split-btn__toggle--open .split-btn__caret {
+  transform: rotate(180deg);
+}
+
+/* Меню открывается вверх и вправо от кнопки: строка узкая, вниз оно упирается в
+   следующую строку таблицы. */
+/* Раскрытие меню: только transform и opacity - остальное дёргает раскладку. */
+.row-menu-enter-active,
+.row-menu-leave-active {
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.row-menu-enter-from,
+.row-menu-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+}
+
+.row-actions__menu {
+  transform-origin: top right;
+  /* Слой выше карточки заявки (10002) и карточки элемента (10003), но ниже истории. */
+  z-index: 10004;
+  display: flex;
+  flex-direction: column;
+  min-width: 170px;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+
+.row-actions__item {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  font-size: 12px;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.row-actions__item:hover {
+  background: var(--accent-tint);
+}
+
+.row-actions__item--danger {
+  color: var(--danger-text);
 }
 
 .element-remove-btn {
@@ -1773,8 +2005,9 @@ export default {
 
 .blacklist-override-btn {
     flex-shrink: 0;
-    padding: 5px 12px;
-    font-size: 12px;
+    /* Ячейка состояния - 112px: со стрелкой кнопка влезает только в компактном виде. */
+    padding: 5px 8px;
+    font-size: 11px;
     white-space: nowrap;
 }
 

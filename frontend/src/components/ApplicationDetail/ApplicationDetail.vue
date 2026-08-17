@@ -672,7 +672,6 @@
       </div>
     </div>
     <VehicleDetailsModal
-      v-if="showVehicleModal"
       :show="showVehicleModal"
       :vehicle="selectedVehicle"
       :all-unloading-places="allUnloadingPlaces"
@@ -690,7 +689,6 @@
     />
 
     <EmployeeDetailsModal
-      v-if="showEmployeeModal"
       :show="showEmployeeModal"
       :employee="selectedEmployee"
       :all-tables="allTables"
@@ -2759,7 +2757,9 @@ export default {
 }
 
 .detail-left-column {
-    width: 240px;
+    /* 225, а не 240: 15px отданы таблице состава - в ней не помещалось
+       «Дебаркадер №1» в колонке мест разгрузки. */
+    width: 225px;
     border-right: 1px solid var(--border);
     overflow-y: auto;
     background: var(--surface-sunken);

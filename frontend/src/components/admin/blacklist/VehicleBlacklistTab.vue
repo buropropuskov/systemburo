@@ -78,12 +78,21 @@
       :current-user-name="currentUserName"
       @close="showDetails = false"
     />
+    <BlacklistImpactModal
+      :show="!!restoreItem"
+      :subject="restoreSubject"
+      :impact="restoreImpact"
+      confirm-label="Вернуть в чёрный список"
+      @confirm="confirmRestore"
+      @close="restoreItem = null"
+    />
   </div>
 </template>
 
 <script>
 import BlacklistTabBase from './BlacklistTabBase.vue';
 import BlacklistCreateModal from './BlacklistCreateModal.vue';
+import BlacklistImpactModal from './BlacklistImpactModal.vue';
 import VehicleBlacklistHistoryModal from './VehicleBlacklistHistoryModal.vue';
 import AddToBlacklistModal from './AddToBlacklistModal.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
@@ -97,6 +106,7 @@ import {
   purgeVehicleBlacklist,
   bulkArchiveVehicleBlacklist,
   bulkRestoreVehicleBlacklist,
+  vehicleBlacklistImpact,
 } from '@/api/blacklist';
 import { lookupUniqueCar } from '@/api/cars';
 import { formatDateTime } from '@/utils/datetime';
@@ -109,7 +119,7 @@ import carIcon from '@/assets/icons/car.png';
  */
 export default {
   name: 'VehicleBlacklistTab',
-  components: { BlacklistTabBase, BlacklistCreateModal, VehicleBlacklistHistoryModal, AddToBlacklistModal, ConfirmationModal, VehicleDetailsModal },
+  components: { BlacklistTabBase, BlacklistCreateModal, BlacklistImpactModal, VehicleBlacklistHistoryModal, AddToBlacklistModal, ConfirmationModal, VehicleDetailsModal },
   props: {
     currentUserName: { type: String, default: '' },
   },
@@ -118,6 +128,7 @@ export default {
     return {
       showCreate: false, archiveItem: null, showHistory: false, carIcon, detailsVehicle: null, showDetails: false,
       editItem: null, savingEdit: false, editError: '', purgeItem: null,
+      restoreItem: null, restoreSubject: '', restoreImpact: { matches: 0, tables: [], rows: [] },
     };
   },
   computed: {
@@ -212,7 +223,37 @@ export default {
         useDeletionsStore().notify({ prefix: 'Не удалось убрать: ', bold: e?.message || 'ошибка', type: 'error' });
       }
     },
+    /**
+     * Возврат из архива деактивирует совпадающие машины так же, как первичное
+     * внесение, поэтому и предупреждение то же: сначала показываем, где запись
+     * сейчас есть. Сбой предпросмотра возврату не мешает - он вспомогательный.
+     */
     async doRestore(item) {
+      try {
+        const impact = await vehicleBlacklistImpact({
+          carNumber: item.car_number,
+          markId: item.mark_id,
+        });
+        if (impact && impact.matches > 0) {
+          this.restoreItem = item;
+          this.restoreImpact = impact;
+          this.restoreSubject = this.primaryText(item);
+          return;
+        }
+      } catch (e) {
+        console.warn('Предпросмотр последствий возврата не удался, продолжаем', e);
+      }
+      await this.persistRestore(item);
+    },
+
+    /** Подтверждение из окна последствий возврата. */
+    confirmRestore() {
+      const item = this.restoreItem;
+      this.restoreItem = null;
+      if (item) this.persistRestore(item);
+    },
+
+    async persistRestore(item) {
       try {
         await restoreVehicleBlacklist(item.id);
         useDeletionsStore().notify({ prefix: 'Машина ', bold: this.primaryText(item), suffix: ' возвращена в чёрный список' });
