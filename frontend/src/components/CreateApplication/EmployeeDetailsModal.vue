@@ -224,7 +224,7 @@
                         <span
                           class="detail-value"
                           data-testid="employee-pd-consent-date"
-                        >получено {{ formatDate(employee.pd_consent_at) }}</span>
+                        >получено {{ formatConsentDate(employee.pd_consent_at) }}</span>
                       </div>
                       <div
                         v-if="employee.user_name"
@@ -907,6 +907,16 @@ export default {
         onPlaceLeave() {
             this.isMainShifted = false;
             this.selectedTable = null;
+        },
+
+        // Отметка согласия хранится полной меткой времени, а formatDate ниже рассчитан
+        // на «ГГГГ-ММ-ДД» из полей срока заявки: разбор по дефисам даёт «Invalid Date».
+        // Человеку нужен день, поэтому печатаем только дату.
+        formatConsentDate(value) {
+            if (!value) return '';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return '';
+            return date.toLocaleDateString('ru-RU');
         },
 
         formatDate(dateString) {
