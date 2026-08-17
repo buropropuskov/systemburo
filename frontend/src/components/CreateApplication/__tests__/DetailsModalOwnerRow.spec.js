@@ -46,6 +46,23 @@ describe('Карточки сотрудника и машины - строка �
     expect(row.text()).toBe('megobari');
   });
 
+  it('сотрудник: дата согласия печатается днём, а не «Invalid Date»', () => {
+    // formatDate карточки рассчитан на «ГГГГ-ММ-ДД» из полей срока заявки и на полной
+    // метке времени согласия ломался - живая проверка показала «получено Invalid Date».
+    const wrapper = mount(EmployeeDetailsModal, {
+      props: {
+        show: true,
+        employee: { id: 1, last_name: 'Пешков', first_name: 'Иван', pd_consent_at: '2026-08-17T20:30:00Z' },
+        source: 'employeesview',
+      },
+      global: { stubs },
+    });
+    const row = wrapper.find('[data-testid="employee-pd-consent-date"]');
+    expect(row.exists()).toBe(true);
+    expect(row.text()).toContain('17.08.2026');
+    expect(row.text()).not.toContain('Invalid');
+  });
+
   it('сотрудник: логина нет - строки нет', () => {
     const wrapper = mount(EmployeeDetailsModal, {
       props: { show: true, employee: { id: 1, last_name: 'Пешков', first_name: 'Иван' }, source: 'employeesview' },
