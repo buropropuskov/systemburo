@@ -143,6 +143,16 @@ describe('centerLabelPlugin', () => {
     expect(drawn.map((d) => d.text)).toEqual(['Работы', '8 шт']);
   });
 
+  it('без настроек берёт дефолты, а не падает', () => {
+    // Плагин общий: подпись и формат нужны не всякому кольцу.
+    const { chart, drawn } = fakeChart({
+      values: [2, 3],
+      arcs: THIRDS.slice(0, 2),
+    });
+    centerLabelPlugin().afterDatasetsDraw(chart);
+    expect(drawn.map((d) => d.text)).toEqual(['', '5']);
+  });
+
   it('кольца ещё нет - рисовать не по чему, и плагин молчит', () => {
     // Первый проход разметки идёт до построения дуг: без якоря середины
     // подпись поставить некуда.
