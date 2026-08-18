@@ -218,14 +218,14 @@
                   <p :class="{ 'active-sort': sortField === 'created_at' }">
                     Время
                   </p>
-                  <img
-                    src="@/assets/icons/sort.png"
+                  <AppIcon
+                    name="sort"
                     class="sort-icon"
                     :class="{
                       'sorted': sortField === 'created_at',
                       'desc': sortField === 'created_at' && sortDirection === 'desc'
                     }"
-                  >
+                  />
                 </div>
                 <div
                   class="header-col method-col"
@@ -234,14 +234,14 @@
                   <p :class="{ 'active-sort': sortField === 'method' }">
                     Метод
                   </p>
-                  <img
-                    src="@/assets/icons/sort.png"
+                  <AppIcon
+                    name="sort"
                     class="sort-icon"
                     :class="{
                       'sorted': sortField === 'method',
                       'desc': sortField === 'method' && sortDirection === 'desc'
                     }"
-                  >
+                  />
                 </div>
                 <div
                   class="header-col path-col"
@@ -250,14 +250,14 @@
                   <p :class="{ 'active-sort': sortField === 'url' }">
                     URL
                   </p>
-                  <img
-                    src="@/assets/icons/sort.png"
+                  <AppIcon
+                    name="sort"
                     class="sort-icon"
                     :class="{
                       'sorted': sortField === 'url',
                       'desc': sortField === 'url' && sortDirection === 'desc'
                     }"
-                  >
+                  />
                 </div>
                 <div
                   class="header-col status-col"
@@ -266,14 +266,14 @@
                   <p :class="{ 'active-sort': sortField === 'response_status' }">
                     Статус
                   </p>
-                  <img
-                    src="@/assets/icons/sort.png"
+                  <AppIcon
+                    name="sort"
                     class="sort-icon"
                     :class="{
                       'sorted': sortField === 'response_status',
                       'desc': sortField === 'response_status' && sortDirection === 'desc'
                     }"
-                  >
+                  />
                 </div>
                 <div
                   class="header-col user-col"
@@ -282,14 +282,14 @@
                   <p :class="{ 'active-sort': sortField === 'username' }">
                     Пользователь
                   </p>
-                  <img
-                    src="@/assets/icons/sort.png"
+                  <AppIcon
+                    name="sort"
                     class="sort-icon"
                     :class="{
                       'sorted': sortField === 'username',
                       'desc': sortField === 'username' && sortDirection === 'desc'
                     }"
-                  >
+                  />
                 </div>
                 <div
                   class="header-col duration-col"
@@ -298,14 +298,14 @@
                   <p :class="{ 'active-sort': sortField === 'duration_ms' }">
                     Отклик
                   </p>
-                  <img
-                    src="@/assets/icons/sort.png"
+                  <AppIcon
+                    name="sort"
                     class="sort-icon"
                     :class="{
                       'sorted': sortField === 'duration_ms',
                       'desc': sortField === 'duration_ms' && sortDirection === 'desc'
                     }"
-                  >
+                  />
                 </div>
               </div>
 
@@ -712,6 +712,7 @@ import RealTimeChart from '@/components/RealTimeChart.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import RefreshButton from '@/components/RefreshButton.vue'
 import AdminPageShell from '@/views/admin/AdminPageShell.vue'
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'RequestsView',
@@ -720,7 +721,8 @@ export default {
     RealTimeChart,
     LoaderSpinner,
     RefreshButton,
-    AdminPageShell
+    AdminPageShell,
+    AppIcon,
   },
   data() {
     return {
@@ -1404,17 +1406,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {

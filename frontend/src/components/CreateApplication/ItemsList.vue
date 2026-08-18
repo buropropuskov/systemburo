@@ -13,13 +13,13 @@
           <p :class="{ 'active-sort': sortField === 'number' }">
             №
           </p>
-          <img 
-            src="@/assets/icons/sort.png" 
-            class="sort-icon" 
-            :class="{ 
+          <AppIcon
+            name="sort"
+            class="sort-icon"
+            :class="{
               'desc': sortField === 'number' && sortDirection === 'desc'
-            }" 
-          >
+            }"
+          />
         </div>
         <div
           class="header-col name-col"
@@ -28,13 +28,13 @@
           <p :class="{ 'active-sort': sortField === 'name' }">
             Наименование
           </p>
-          <img 
-            src="@/assets/icons/sort.png" 
-            class="sort-icon" 
-            :class="{ 
+          <AppIcon
+            name="sort"
+            class="sort-icon"
+            :class="{
               'desc': sortField === 'name' && sortDirection === 'desc'
-            }" 
-          >
+            }"
+          />
         </div>
         <div
           class="header-col quantity-col"
@@ -43,13 +43,13 @@
           <p :class="{ 'active-sort': sortField === 'quantity' }">
             Количество
           </p>
-          <img 
-            src="@/assets/icons/sort.png" 
-            class="sort-icon" 
-            :class="{ 
+          <AppIcon
+            name="sort"
+            class="sort-icon"
+            :class="{
               'desc': sortField === 'quantity' && sortDirection === 'desc'
-            }" 
-          >
+            }"
+          />
         </div>
         <div class="header-col actions-col">
           Действия
@@ -117,8 +117,10 @@
 </template>
 
 <script>
+import AppIcon from '@/components/icons/AppIcon.vue';
 export default {
     name: 'ItemsList',
+    components: { AppIcon },
     props: {
         items: { type: Array, default: () => [] },
         sortField: { type: String, default: null },
@@ -208,6 +210,7 @@ export default {
 }
 
 .sort-icon {
+    color: var(--text-muted);
     width: 10px;
     height: 10px;
     transition: all 0.2s ease;

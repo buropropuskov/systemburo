@@ -447,14 +447,14 @@
             <p :class="{ 'active-sort': sortField === 'confirmation' }">
               Подтверждение
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'confirmation',
                 'desc': sortField === 'confirmation' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col number-col"
@@ -463,14 +463,14 @@
             <p :class="{ 'active-sort': sortField === 'number' }">
               Номер заявки
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'number',
                 'desc': sortField === 'number' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col date-col"
@@ -479,14 +479,14 @@
             <p :class="{ 'active-sort': sortField === 'date' }">
               Дата и время
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'date',
                 'desc': sortField === 'date' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col organization-col"
@@ -495,14 +495,14 @@
             <p :class="{ 'active-sort': sortField === 'organization' }">
               Организация
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'organization',
                 'desc': sortField === 'organization' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col sender-col"
@@ -511,14 +511,14 @@
             <p :class="{ 'active-sort': sortField === 'sender' }">
               Отправитель
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'sender',
                 'desc': sortField === 'sender' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col status-col"
@@ -527,14 +527,14 @@
             <p :class="{ 'active-sort': sortField === 'status' }">
               Статус заявки
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'status',
                 'desc': sortField === 'status' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div class="header-col tags-col">
             <p>Теги</p>
@@ -1003,6 +1003,7 @@ import { pendingApprovalDays, pendingApprovalLabel, pendingApprovalShort } from 
 import { stripHtml } from '@/utils/sanitize';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useRevealFirstApplication } from '@/composables/useRevealFirstApplication';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 // Размер порции бесшовной подгрузки Центра (#1158, срез 1) - аналог PER_PAGE
 // в AccessibleAttachmentsView/TableVersionsView.
@@ -1022,6 +1023,7 @@ export default {
         DownloadBlanksModal,
         Badge,
         BaseDropdown,
+        AppIcon,
     },
     emits: ['refresh-data'],
     setup() {
@@ -2985,17 +2987,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-    filter: var(--icon-ink-filter);
+    color: var(--text);
 }
 
 .sort-icon {
+    color: var(--text-muted);
     width: 12px;
     height: 12px;
     transition: .2s;
 }
 
 .sort-icon.sorted {
-    filter: var(--icon-ink-filter);
+    color: var(--text);
 }
 
 .sort-icon.desc {

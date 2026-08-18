@@ -97,14 +97,14 @@
               <p :class="{ 'active-sort': sortField === 'id' }">
                 ID
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'id',
                   'desc': sortField === 'id' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
             <div
               class="header-col name-col"
@@ -113,14 +113,14 @@
               <p :class="{ 'active-sort': sortField === 'name' }">
                 Наименование
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'name',
                   'desc': sortField === 'name' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
             <div class="header-col status-col">
               <p>Статус</p>
@@ -882,6 +882,7 @@ import WorkScheduleTab from '../WorkScheduleTab.vue';
 import WarningWindowsEditor from '../WarningWindowsEditor.vue';
 import UnloadPlaceHistoryModal from './UnloadPlaceHistoryModal.vue';
 import { bulkArchiveUnloadPlaces, bulkRestoreUnloadPlaces, getUnloadPlaceUsage, detachAllUnloadPlace, detachOrganizationFromUnloadPlace, detachCompanyFromUnloadPlace } from '@/api/unload-places';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   components: {
@@ -891,7 +892,8 @@ export default {
     BaseDropdown,
     WorkScheduleTab,
     WarningWindowsEditor,
-    UnloadPlaceHistoryModal
+    UnloadPlaceHistoryModal,
+    AppIcon,
   },
   setup() {
     // Колбэк закрытия присваивается в created (нужен доступ к this).
@@ -1907,17 +1909,18 @@ async uploadPhotoFiles(files) {
 }
 
 .header-col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {
