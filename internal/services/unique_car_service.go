@@ -595,6 +595,14 @@ func (s *uniqueCarService) Create(ctx context.Context, username string, req NewU
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка при создании автомобиля")
 	}
 
+	// Запись о заведении - для журнала реестра, см. uniqueEmployeeService.Create.
+	createComment := fmt.Sprintf("Автомобиль %s заведён в реестр",
+		strings.TrimSpace(strings.Join(nonEmptyStrings(car.Number, car.Mark), " ")))
+	if err := s.recorder.Record(ctx, nil, models.AuditEntityUniqueCar, &car.ID, "create",
+		&ownerInfo.UserID, carAuditDetails{Comment: &createComment}); err != nil {
+		slog.Error("не удалось записать создание автомобиля в журнал", "id", car.ID, "error", err)
+	}
+
 	slog.Info("уникальный автомобиль создан", "id", car.ID)
 	return carToResponse(&car), nil
 }

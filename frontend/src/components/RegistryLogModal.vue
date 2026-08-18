@@ -9,8 +9,7 @@
   >
     <div class="reglog">
       <p class="reglog__hint">
-        Журнал показывает, кто и когда заводил, правил и удалял записи. Удалённые записи
-        остаются только здесь: самой строки в реестре больше нет.
+        Кто и когда заводил, правил и удалял записи. Удалённые видны только здесь.
       </p>
 
       <div class="reglog__filters">
@@ -88,6 +87,30 @@ const ACTION_LABELS = {
   data_changed: 'Правка',
   delete: 'Удаление',
 };
+
+// Имена полей приходят из базы как есть (position, first_name, organization_id) - в
+// журнале для человека они читаются как мусор, поэтому переводим по словарю.
+const FIELD_LABELS = {
+  last_name: 'фамилия',
+  first_name: 'имя',
+  middle_name: 'отчество',
+  position: 'должность',
+  passport_series_number: 'паспортные данные',
+  patent_number: 'номер патента',
+  other_permission: 'иное разрешение на работы',
+  citizenship_id: 'гражданство',
+  organization_id: 'организация',
+  company_id: 'компания',
+  user_id: 'владелец записи',
+  pd_consent_at: 'согласие на обработку персональных данных',
+  number: 'номер',
+  mark: 'марка',
+  format_id: 'формат номера',
+};
+
+// Поля-привязки хранят идентификаторы: печатать «было «10», стало «пусто»» значит
+// показывать человеку номер строки чужой таблицы. Для них пишем сам факт правки.
+const REFERENCE_FIELDS = new Set(['citizenship_id', 'organization_id', 'company_id', 'user_id', 'format_id']);
 
 export default {
   name: 'RegistryLogModal',
@@ -169,9 +192,16 @@ export default {
     describe(item) {
       if (item.comment) return item.comment;
       if (item.action_type === 'data_changed' && item.field_name) {
+        const field = FIELD_LABELS[item.field_name] || item.field_name;
+        if (REFERENCE_FIELDS.has(item.field_name)) {
+          return `Изменено: ${field}`;
+        }
+        if (item.field_name === 'pd_consent_at') {
+          return item.new_value ? 'Подтверждено согласие на обработку персональных данных' : `Изменено: ${field}`;
+        }
         const from = item.old_value || 'пусто';
         const to = item.new_value || 'пусто';
-        return `${ACTION_LABELS.data_changed}: ${item.field_name}, было «${from}», стало «${to}»`;
+        return `Изменено: ${field}, было «${from}», стало «${to}»`;
       }
       return ACTION_LABELS[item.action_type] || item.action_type;
     },
@@ -188,11 +218,15 @@ export default {
 </script>
 
 <style scoped>
+/* Базовая модалка не даёт внутренних отступов (base-modal__body: padding 0) - их задаёт
+   содержимое. Без них текст и строки липли к самым краям окна, налезая на скругления. */
 .reglog {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    padding: 4px 20px 20px;
     max-height: 60vh;
+    min-width: 0;
 }
 
 .reglog__hint {
@@ -208,12 +242,13 @@ export default {
 }
 
 .reglog__filter {
-    width: 180px;
+    width: 170px;
     flex-shrink: 0;
 }
 
 .reglog__search {
     flex: 1;
+    min-width: 0;
 }
 
 .reglog__state {
@@ -237,31 +272,52 @@ export default {
     gap: 6px;
 }
 
+/* minmax(0, 1fr) в последней колонке: с обычным 1fr длинная строка события раздувает
+   сетку, и список выезжает за правый край окна. */
 .reglog__row {
     display: grid;
-    grid-template-columns: 130px 160px 1fr;
-    gap: 10px;
+    grid-template-columns: 118px 150px minmax(0, 1fr);
+    gap: 12px;
     align-items: baseline;
-    padding: 8px 10px;
+    padding: 8px 12px;
     border-radius: var(--radius-md);
     background: var(--surface-2);
     font-size: 13px;
+    min-width: 0;
 }
 
+/* Удаление выделяем мягким фоном, а не левым бордюром: на скруглённой строке он торчал
+   отдельной красной чёрточкой. */
 .reglog__row--delete {
-    border-left: 3px solid var(--danger);
+    background: var(--danger-bg);
+}
+
+.reglog__row--delete .reglog__what {
+    color: var(--danger-text);
 }
 
 .reglog__when {
     color: var(--text-muted);
     font-size: 12px;
+    white-space: nowrap;
 }
 
 .reglog__who {
     font-weight: 500;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.reglog__what {
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 @media (max-width: 768px) {
+    .reglog {
+        padding: 4px 14px 16px;
+    }
+
     .reglog__filters {
         flex-direction: column;
         align-items: stretch;
@@ -274,6 +330,10 @@ export default {
     .reglog__row {
         grid-template-columns: 1fr;
         gap: 2px;
+    }
+
+    .reglog__when {
+        white-space: normal;
     }
 }
 </style>

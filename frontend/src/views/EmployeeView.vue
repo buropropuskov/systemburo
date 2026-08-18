@@ -181,7 +181,7 @@
                  удалена запись - самой строки в реестре уже нет. -->
             <button
               v-if="canManageAllEntities"
-              class="lk-button lk-button--secondary"
+              class="log-button"
               data-testid="employees-registry-log"
               @click="showRegistryLog = true"
             >
@@ -1287,6 +1287,26 @@ export default {
     display: flex;
     gap: 8px;
     align-items: center;
+}
+
+/* Кнопка журнала стоит в шапке между «Добавить» и «Обновить», поэтому повторяет их
+   мерки: высота 25px, радиус 50px, текст 12px. Общий .lk-button здесь выбивался из
+   ряда - он крупнее и с другим радиусом. */
+.log-button {
+    height: 25px;
+    padding: 0 12px;
+    border-radius: 50px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.log-button:hover {
+    background: var(--surface-2);
 }
 
 .add-button {

@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"systemburo/internal/models"
@@ -244,4 +245,40 @@ func TestRegistryLog_CarDeletionLeavesTrace(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "удаление машины видно в журнале: %+v", items)
+}
+
+// Журнал показывает и заведение записи: без него история начиналась бы с середины, а
+// подпись в окне обещает «кто и когда заводил».
+func TestRegistryLog_CreationIsRecorded(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminHeader := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Новичков","first_name":"Илья"}`, adminHeader).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-cars", `{"number":"Н111НН777","mark":"Ford"}`, adminHeader).Code)
+
+	rec := testutil.GET(t, e, "/unique-employees/history?limit=20", adminHeader)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	employees := testutil.ParseResponse[[]services.UniqueEmployeeHistoryItem](t, rec)
+	foundEmployee := false
+	for _, it := range employees {
+		if it.ActionType == "create" && it.Comment != nil && strings.Contains(*it.Comment, "Новичков") {
+			foundEmployee = true
+		}
+	}
+	assert.True(t, foundEmployee, "заведение сотрудника видно в журнале: %+v", employees)
+
+	rec = testutil.GET(t, e, "/unique-cars/history?limit=20", adminHeader)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	cars := testutil.ParseResponse[[]services.UniqueCarHistoryItem](t, rec)
+	foundCar := false
+	for _, it := range cars {
+		if it.ActionType == "create" && it.Comment != nil && strings.Contains(*it.Comment, "Н111НН777") {
+			foundCar = true
+		}
+	}
+	assert.True(t, foundCar, "заведение машины видно в журнале: %+v", cars)
 }
