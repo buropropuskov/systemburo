@@ -140,14 +140,14 @@
               <p :class="{ 'active-sort': sortField === 'id' }">
                 ID
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{
                   'sorted': sortField === 'id',
                   'desc': sortField === 'id' && sortDirection === 'desc'
                 }"
-              >
+              />
             </div>
             <div
               class="header-col name-col"
@@ -156,14 +156,14 @@
               <p :class="{ 'active-sort': sortField === 'name' }">
                 Наименование
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{
                   'sorted': sortField === 'name',
                   'desc': sortField === 'name' && sortDirection === 'desc'
                 }"
-              >
+              />
             </div>
             <div
               class="header-col type-col"
@@ -172,14 +172,14 @@
               <p :class="{ 'active-sort': sortField === 'type' }">
                 Тип
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{
                   'sorted': sortField === 'type',
                   'desc': sortField === 'type' && sortDirection === 'desc'
                 }"
-              >
+              />
             </div>
             <div
               class="header-col users-col"
@@ -188,14 +188,14 @@
               <p :class="{ 'active-sort': sortField === 'user_count' }">
                 Пользователи
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{
                   'sorted': sortField === 'user_count',
                   'desc': sortField === 'user_count' && sortDirection === 'desc'
                 }"
-              >
+              />
             </div>
           </div>
 
@@ -765,6 +765,7 @@ import LoaderSpinner from './ui/LoaderSpinner.vue';
 import OrgHistoryModal from './OrgHistoryModal.vue';
 import BulkOperationsModal from './directories/BulkOperationsModal.vue';
 import DirectoryModeration from './directory/DirectoryModeration.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'OrganizationsManagement',
@@ -781,6 +782,7 @@ export default {
     LoaderSpinner,
     OrgHistoryModal,
     BulkOperationsModal,
+    AppIcon,
   },
   setup() {
     // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
@@ -1751,17 +1753,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {
