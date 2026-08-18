@@ -1031,8 +1031,8 @@ export default {
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    font-size: 13px;
-    line-height: 1.35;
+    font-size: 11px;
+    line-height: 1.3;
     cursor: pointer;
     margin-top: 6px;
 }
@@ -1044,7 +1044,7 @@ export default {
 
 .consent-granted {
     margin: 6px 0 0;
-    font-size: 13px;
+    font-size: 11px;
     color: var(--text-muted);
 }
 

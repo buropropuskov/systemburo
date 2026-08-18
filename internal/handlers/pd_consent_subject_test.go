@@ -282,3 +282,46 @@ func TestRegistryLog_CreationIsRecorded(t *testing.T) {
 	}
 	assert.True(t, foundCar, "заведение машины видно в журнале: %+v", cars)
 }
+
+// Журнал обязан отвечать на «кто, с кем, что сделал»: у каждого события есть снимок
+// объекта - ФИО работника (у машины номер с маркой) на момент действия. Без снимка после
+// удаления записи по её номеру уже не узнать, о ком речь.
+func TestRegistryLog_EventCarriesSubject(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminHeader := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+
+	rec := testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Субъектов","first_name":"Роман","position":"Слесарь"}`, adminHeader)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	created := testutil.ParseResponse[services.UniqueEmployeeResponse](t, rec)
+
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/unique-employees/%d", created.ID),
+		`{"pd_consent":true,"last_name":"Субъектов","first_name":"Роман","position":"Монтажник"}`, adminHeader).Code)
+	require.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/unique-employees/%d", created.ID), adminHeader).Code)
+
+	rec = testutil.GET(t, e, "/unique-employees/history?limit=30", adminHeader)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	items := testutil.ParseResponse[[]services.UniqueEmployeeHistoryItem](t, rec)
+
+	byAction := map[string]*services.UniqueEmployeeHistoryItem{}
+	for i := range items {
+		if items[i].UniqueEmployeeID == created.ID && byAction[items[i].ActionType] == nil {
+			byAction[items[i].ActionType] = &items[i]
+		}
+	}
+	for _, action := range []string{"create", "data_changed", "delete"} {
+		item := byAction[action]
+		require.NotNil(t, item, "событие %s есть в журнале: %+v", action, items)
+		require.NotNil(t, item.Subject, "у события %s есть снимок объекта", action)
+		assert.Contains(t, *item.Subject, "Субъектов", "снимок называет работника, событие %s", action)
+	}
+
+	// Запись удалена, а снимок в журнале остался - именно за этим он и нужен.
+	var gone int64
+	require.NoError(t, db.Model(&models.UniqueEmployee{}).Where("id = ?", created.ID).Count(&gone).Error)
+	require.Zero(t, gone)
+	assert.Contains(t, *byAction["delete"].Subject, "Субъектов")
+}

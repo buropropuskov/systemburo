@@ -15,12 +15,16 @@ import (
 // вложенным объектом, чтобы details->'metadata' вернул тот же jsonb, что давала
 // колонка cars_history.metadata.
 type carAuditDetails struct {
-	FieldName *string         `json:"field_name,omitempty"`
-	OldValue  *string         `json:"old_value,omitempty"`
-	NewValue  *string         `json:"new_value,omitempty"`
-	Comment   *string         `json:"comment,omitempty"`
-	TableID   *int            `json:"table_id,omitempty"`
-	Metadata  json.RawMessage `json:"metadata,omitempty"`
+	FieldName *string `json:"field_name,omitempty"`
+	OldValue  *string `json:"old_value,omitempty"`
+	NewValue  *string `json:"new_value,omitempty"`
+	Comment   *string `json:"comment,omitempty"`
+	// Subject -- к чему относится событие: ФИО работника либо номер и марка машины на
+	// момент действия. Снимок, а не ссылка: строку могут удалить, и тогда по entity_id
+	// уже не узнать, о ком речь, а в журнале реестра именно это и нужно прочитать.
+	Subject  *string         `json:"subject,omitempty"`
+	TableID  *int            `json:"table_id,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
 }
 
 // carsHistoryUnion - подзапрос-источник (#870, срез 1.12 -> read-switch F.5):
