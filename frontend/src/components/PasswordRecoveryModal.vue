@@ -35,11 +35,10 @@
         data-testid="recovery-copy-email"
         @click.stop="copyEmail"
       >
-        <img
-          src="@/assets/icons/email-blue.png"
+        <AppIcon
+          name="email"
           class="recovery-contact__icon"
-          alt=""
-        >
+        />
         <span class="recovery-contact__text">{{ bureauEmail }}</span>
       </button>
       <button
@@ -48,11 +47,10 @@
         data-testid="recovery-copy-phone"
         @click.stop="copyPhone"
       >
-        <img
-          src="@/assets/icons/phone-blue.png"
+        <AppIcon
+          name="phone"
           class="recovery-contact__icon"
-          alt=""
-        >
+        />
         <span class="recovery-contact__text">{{ bureauPhone }}</span>
       </button>
     </div>
@@ -72,6 +70,7 @@
 
 <script>
 import BaseModal from '@/components/ui/BaseModal.vue'
+import AppIcon from '@/components/icons/AppIcon.vue'
 import { useContactsStore } from '@/stores/contacts'
 
 // Фолбэк-контакты Бюро, если в настройках системы они ещё не заданы.
@@ -80,7 +79,7 @@ const FALLBACK_BUREAU_PHONE = '+7 (910) 083 00-55'
 
 export default {
   name: 'PasswordRecoveryModal',
-  components: { BaseModal },
+  components: { BaseModal, AppIcon },
 
   props: {
     show: {
@@ -223,6 +222,7 @@ export default {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
+  color: var(--accent-text);
 }
 
 .recovery-contact__text {
