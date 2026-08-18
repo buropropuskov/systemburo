@@ -87,6 +87,15 @@ describe('покрытие растровых иконок', () => {
     expect([...new Set(missing)], 'нарисуйте глиф в appIcons.js перед переводом экрана').toEqual([]);
   });
 
+  it('переведённые значки не возвращаются растром', () => {
+    // Срез считается сделанным, когда PNG удалён и ссылок на него не осталось:
+    // без такой пары замена молча откатывается обратной правкой одного файла.
+    const gone = ['sort', 'arrow', 'export'];
+    const back = gone.filter((n) => fs.existsSync(path.join(SRC, 'assets/icons', `${n}.png`)));
+    expect(back, 'растровый файл вернулся в assets').toEqual([]);
+    expect(gone.filter((n) => used.has(n)), 'разметка снова тянет растровый значок').toEqual([]);
+  });
+
   it('экран входа переведён на реестр целиком', () => {
     // Экран входа - доказательство схемы: если PNG вернётся сюда, значит замена
     // где-то откатилась (иконка полей, ключ на кнопке или контакты поддержки).
@@ -122,5 +131,49 @@ describe('значок сортировки', () => {
     const after = segments.map(rotated).map(key);
     expect(after.some((s) => !before.has(s)), 'повёрнутый значок неотличим от исходного')
       .toBe(true);
+  });
+});
+
+describe('значок раскрытия списка', () => {
+  // Потребители держат «свёрнуто» базовым состоянием и доворачивают значок на 90
+  // градусов (.select-arrow.arrow-open, .button__arrow--open, .rotated). Шеврон,
+  // перерисованный вниз, после такого доворота показывал бы открытый список
+  // закрытым, а разметка и стили при этом остались бы верными - направление
+  // ловится только здесь.
+  // Путь вида "m9.3 5.4 6.6 6.6-6.6 6.6": стартовая точка и относительные смещения.
+  const nums = appIcons.arrow.match(/d="m([^"]+)"/)[1].split(/[\s]+|(?=-)/).filter(Boolean).map(Number);
+  const points = [[nums[0], nums[1]]];
+  for (let i = 2; i < nums.length; i += 2) {
+    const [px, py] = points[points.length - 1];
+    points.push([px + nums[i], py + nums[i + 1]]);
+  }
+
+  it('нарисован ломаной из трёх точек - иначе проверка направления ниже слепа', () => {
+    expect(points, 'глиф перерисован другими фигурами - обнови разбор').toHaveLength(3);
+  });
+
+  it('шеврон смотрит вправо: вершина правее обоих концов', () => {
+    const [start, tip, end] = points;
+    expect(tip[0]).toBeGreaterThan(start[0]);
+    expect(tip[0]).toBeGreaterThan(end[0]);
+  });
+
+  it('обводка толще общей - на 8-10 px значок иначе вырождается в волосок', () => {
+    const width = Number(appIcons.arrow.match(/stroke-width="([\d.]+)"/)[1]);
+    expect(width).toBeGreaterThan(1.7);
+  });
+});
+
+describe('значок выгрузки', () => {
+  it('стрелка выходит вверх, а не входит вниз - иначе это download', () => {
+    // Знак «внешняя ссылка» (лист со стрелкой в угол) на кнопке «Экспорт» читается
+    // как «откроется в новом окне», поэтому здесь лоток и стрелка из него.
+    const [, x1, y1, , y2] = appIcons.export
+      .match(/<line x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)" y2="([\d.]+)"/)
+      .map(Number);
+    const tip = appIcons.export.match(/<polyline points="[\d.]+ [\d.]+ ([\d.]+) ([\d.]+)/).slice(1).map(Number);
+    expect(y1, 'стержень стрелки начинается сверху').toBeLessThan(y2);
+    expect(tip[1], 'остриё выше стержня').toBeLessThanOrEqual(y1);
+    expect(tip[0], 'остриё по центру стержня').toBeCloseTo(x1, 1);
   });
 });

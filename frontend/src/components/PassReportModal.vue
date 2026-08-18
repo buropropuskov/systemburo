@@ -198,12 +198,11 @@
                 data-testid="pass-report-export"
                 @click="exportToExcel"
               >
-                <img
+                <AppIcon
                   v-if="!isExporting"
-                  src="@/assets/icons/export.png"
+                  name="export"
                   class="pr-export__icon"
-                  alt=""
-                >
+                />
                 <span>{{ isExporting ? 'Формируем файл...' : 'Скачать в Excel' }}</span>
               </button>
             </template>
@@ -223,6 +222,7 @@ import carIcon from '@/assets/icons/car.png';
 import peopleIcon from '@/assets/icons/employees.png';
 import { getPassReportLive, listPassReports } from '@/api/pass-reports';
 import { useDeletionsStore } from '@/stores/deletions';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 
@@ -234,7 +234,8 @@ function ymd(d) {
 
 export default {
   name: 'PassReportModal',
-  components: { BaseModal, RefreshButton, DateFilter },
+  components: {
+  AppIcon, BaseModal, RefreshButton, DateFilter },
   props: {
     show: { type: Boolean, required: true },
     tableId: { type: Number, default: null },

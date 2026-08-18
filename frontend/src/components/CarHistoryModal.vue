@@ -32,12 +32,11 @@
                 aria-label="Экспорт в Excel"
                 @click="exportToExcel"
               >
-                <img
+                <AppIcon
                   v-if="!isExporting"
-                  src="@/assets/icons/export.png"
+                  name="export"
                   class="export-icon"
-                  alt=""
-                >
+                />
                 <span
                   v-if="!isExporting"
                   class="export-label"
@@ -77,11 +76,11 @@
                 >
                   <div class="select-trigger">
                     <span class="selected-value">{{ selectedUserName }}</span>
-                    <img 
-                      src="@/assets/icons/arrow.png" 
-                      class="select-arrow" 
+                    <AppIcon
+                      name="arrow"
+                      class="select-arrow"
                       :class="{ 'arrow-open': userDropdownOpen }"
-                    >
+                    />
                   </div>
                   <transition name="fade">
                     <div

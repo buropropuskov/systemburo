@@ -95,11 +95,11 @@
           >
             <div class="button__content">
               <span class="button__text">{{ selectedCitizenshipText }}</span>
-              <img
-                src="@/assets/icons/arrow.png"
+              <AppIcon
+                name="arrow"
                 class="button__arrow"
                 :class="{ 'button__arrow--up': citizenshipArrowUp }"
-              >
+              />
             </div>
           </button>
           <transition name="dropdown">
@@ -288,11 +288,11 @@
             >
               <div class="permission__button-content">
                 <span class="permission__button-text">{{ selectedPermission || (effectivePatentRequired ? 'Не выбрано' : 'Не требуется') }}</span>
-                <img
-                  src="@/assets/icons/arrow.png"
+                <AppIcon
+                  name="arrow"
                   class="permission__button-arrow"
                   :class="{ 'permission__button-arrow--up': permissionArrowUp }"
-                >
+                />
               </div>
             </button>
             <transition name="dropdown">
@@ -440,10 +440,12 @@ import { findDuplicateEmployee, employeeLabel } from '@/utils/applicationDuplica
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { getCurrentInstance } from 'vue'
 import { getViewportZoom } from '@/utils/viewportScale'
+import AppIcon from '@/components/icons/AppIcon.vue'
 
 export default {
     name: 'EmployeeForm',
     components: {
+        AppIcon,
         ExistingEmployeesModal,
         TargetTablesGrid
     },

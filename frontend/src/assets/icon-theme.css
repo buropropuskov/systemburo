@@ -48,8 +48,6 @@
   --icon-accent-filter: brightness(1.55) saturate(0.75);
 }
 
-img[src*="/arrow-"],
-img[src*="/arrow.png"],
 img[src*="/calendar-"],
 img[src*="/calendar.png"],
 img[src*="/car-"],
@@ -62,8 +60,6 @@ img[src*="/edit-"],
 img[src*="/edit.png"],
 img[src*="/employees-"],
 img[src*="/employees.png"],
-img[src*="/export-"],
-img[src*="/export.png"],
 img[src*="/notifications-"],
 img[src*="/notifications.png"],
 img[src*="/recent-changes-"],

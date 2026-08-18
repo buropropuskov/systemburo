@@ -155,13 +155,13 @@
                 >
                   <div class="select-trigger">
                     <span>{{ getFullDayName(modalDay) }}</span>
-                    <img
-                      src="@/assets/icons/arrow.png"
+                    <AppIcon
+                      name="arrow"
                       class="select-arrow"
                       :class="{ open: dayDropdownOpen }"
                       width="9"
                       height="9"
-                    >
+                    />
                   </div>
                   <transition name="dropdown">
                     <div
@@ -284,13 +284,13 @@
                 >
                   <div class="select-trigger">
                     <span>{{ getFullDayName(copySourceDay) }}</span>
-                    <img
-                      src="@/assets/icons/arrow.png"
+                    <AppIcon
+                      name="arrow"
                       class="select-arrow"
                       :class="{ open: copyDayDropdownOpen }"
                       width="9"
                       height="9"
-                    >
+                    />
                   </div>
                   <transition name="dropdown">
                     <div
@@ -412,10 +412,12 @@
 import { apiRequest } from '@/api/client';
 import { useDeletionsStore } from '@/stores/deletions';
 import ConfirmationModal from './ConfirmationModal.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'WorkScheduleTab',
-  components: { ConfirmationModal },
+  components: {
+  AppIcon, ConfirmationModal },
   props: {
     // Базовый URL ресурса-владельца окон, например '/system-tables/12' или
     // '/unload-places/5'. Компонент достраивает '/time-slots[/{id}]'.

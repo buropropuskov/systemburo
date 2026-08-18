@@ -398,11 +398,11 @@
                         @click="toggleTableTypeDropdown"
                       >
                         <span class="select-value">{{ getTableTypeLabel(selectedTable.table.table_type) }}</span>
-                        <img
-                          src="@/assets/icons/arrow.png"
+                        <AppIcon
+                          name="arrow"
                           class="select-arrow"
                           :class="{ rotated: tableTypeDropdownOpen }"
-                        >
+                        />
                       </div>
                       <transition name="dropdown-fade">
                         <div
