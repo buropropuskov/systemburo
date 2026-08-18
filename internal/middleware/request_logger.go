@@ -82,12 +82,13 @@ func RequestLogger(db *gorm.DB) echo.MiddlewareFunc {
 				return err
 			}
 
-			duration := time.Since(start).Milliseconds()
+			elapsed := time.Since(start)
 
 			method := c.Request().Method
 			url := maskSecretQuery(c.Request().URL)
 			status := c.Response().Status
-			durationInt := int(duration)
+			durationMs := int(elapsed.Milliseconds())
+			durationUs := elapsed.Microseconds()
 
 			var userID *int
 			var username *string
@@ -109,7 +110,8 @@ func RequestLogger(db *gorm.DB) echo.MiddlewareFunc {
 					Method:         &method,
 					URL:            &url,
 					ResponseStatus: &status,
-					DurationMs:     &durationInt,
+					DurationMs:     &durationMs,
+					DurationUs:     &durationUs,
 					CreatedAt:      start,
 				}
 				if dbErr := db.WithContext(ctx).Create(&log).Error; dbErr != nil {

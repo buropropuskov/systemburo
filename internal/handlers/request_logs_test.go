@@ -1,12 +1,16 @@
 package handlers_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Раздел «Мониторинг запросов» целиком admin-only (page.admin) -- авторизация на
@@ -50,4 +54,88 @@ func TestRequestLogs_Unauthorized(t *testing.T) {
 
 	rec := testutil.GET(t, e, "/request-logs", nil)
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+}
+
+// Длительности в шапке раздела считаются по микросекундной колонке и без учёта
+// долгоживущих соединений. До #2125 быстрые ответы округлялись до нуля, а одна
+// подписка на события длиной в двадцать секунд задирала среднее по всему журналу.
+func TestRequestLogs_Stats_DurationMetrics(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	now := time.Now().UTC()
+	insert := func(url string, durationUs int64, at time.Time) {
+		require.NoError(t, db.Exec(
+			`INSERT INTO request_logs (url, method, response_status, duration_ms, duration_us, created_at)
+			 VALUES (?,?,?,?,?,?)`,
+			url, "GET", 200, int(durationUs/1000), durationUs, at,
+		).Error)
+	}
+	// Девять быстрых ответов быстрее миллисекунды и один медленный: медиана должна
+	// остаться дробной, а p95 подняться к медленному.
+	for i := 0; i < 9; i++ {
+		insert("/api/fast-metrics-test", 300, now.Add(-time.Duration(i)*time.Minute))
+	}
+	insert("/api/slow-metrics-test", 200_000, now.Add(-10*time.Minute))
+	// Подписка на события: в журнале лежит время жизни соединения.
+	insert("/api/events?ticket=%2A%2A%2A", 20_000_000, now.Add(-11*time.Minute))
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	rec := testutil.GET(t, e, "/request-logs/stats", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var body struct {
+		Data struct {
+			Total          int64   `json:"total"`
+			Today          int64   `json:"today"`
+			AvgDuration    float64 `json:"avg_duration"`
+			MedianDuration float64 `json:"median_duration"`
+			P95Duration    float64 `json:"p95_duration"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+
+	assert.Equal(t, int64(11), body.Data.Total, "подписка остаётся в журнале, из счёта её не убирают")
+	assert.InDelta(t, 0.3, body.Data.MedianDuration, 0.01, "быстрый ответ не должен округляться до нуля")
+	assert.Greater(t, body.Data.P95Duration, body.Data.MedianDuration, "p95 обязан быть выше медианы")
+	assert.Less(t, body.Data.AvgDuration, 1000.0, "двадцатисекундная подписка не должна задирать среднее")
+}
+
+// Сутки для показателя «сегодня» режутся по московской полуночи. По UTC день
+// начинался в 03:00 МСК, и утренние обращения три часа не попадали в счётчик.
+func TestRequestLogs_Stats_TodayInMoscowDay(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	loc := services.AnalyticsLocation()
+	now := time.Now().In(loc)
+	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+
+	insert := func(at time.Time) {
+		require.NoError(t, db.Exec(
+			`INSERT INTO request_logs (url, method, response_status, duration_ms, duration_us, created_at)
+			 VALUES (?,?,?,?,?,?)`,
+			"/api/today-metrics-test", "GET", 200, 1, 1000, at.UTC(),
+		).Error)
+	}
+	insert(dayStart.Add(time.Minute))  // первая минута московских суток
+	insert(dayStart.Add(-time.Minute)) // последняя минута вчерашних
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	rec := testutil.GET(t, e, "/request-logs/stats", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var body struct {
+		Data struct {
+			Total int64 `json:"total"`
+			Today int64 `json:"today"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Equal(t, int64(2), body.Data.Total)
+	assert.Equal(t, int64(1), body.Data.Today, "во вчерашних сутках запись остаётся вчерашней")
 }

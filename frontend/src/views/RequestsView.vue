@@ -16,8 +16,13 @@
               <span class="stat-value">{{ stats.today || 0 }}</span>
             </span>
             <span class="stat-item">
-              <span class="stat-label">Среднее время:</span>
-              <span class="stat-value">{{ Math.round(stats.avg_duration || 0) }}мс</span>
+              <span
+                class="stat-label"
+                title="Медиана и 95-й перцентиль времени ответа за последний час. Долгоживущие подписки на события не учитываются: у них в журнале записано время жизни соединения, а не время ответа."
+              >Отклик:</span>
+              <span class="stat-value">
+                {{ formatMs(stats.median_duration, false) }} / {{ formatMs(stats.p95_duration) }}
+              </span>
             </span>
             <span class="stat-item">
               <span class="stat-label">Ошибки:</span>
@@ -291,7 +296,7 @@
                   @click="sortBy('duration_ms')"
                 >
                   <p :class="{ 'active-sort': sortField === 'duration_ms' }">
-                    Время
+                    Отклик
                   </p>
                   <img
                     src="@/assets/icons/sort.png"
@@ -362,7 +367,7 @@
                   </div>
                   <div class="table-col duration-col">
                     <span class="cell-content">
-                      {{ log.duration_ms || 0 }}мс
+                      {{ formatDuration(log) }}
                     </span>
                   </div>
                 </div>
@@ -471,7 +476,7 @@
 
                   <div class="detail-group">
                     <label class="detail-label">Время выполнения:</label>
-                    <span class="detail-value">{{ selectedLog.duration_ms || 0 }}мс</span>
+                    <span class="detail-value">{{ formatDuration(selectedLog) }}</span>
                   </div>
 
                   <div class="detail-group">
@@ -752,6 +757,8 @@ export default {
         total: 0,
         today: 0,
         avg_duration: 0,
+        median_duration: 0,
+        p95_duration: 0,
         error_rate: 0,
         requests_per_minute: 0
       },
@@ -1095,6 +1102,32 @@ export default {
       if (status < 400) return 'status-redirect';
       if (status < 500) return 'status-client-error';
       return 'status-server-error';
+    },
+
+    /**
+     * Длительность в миллисекундах для показа: до сотни миллисекунд с одним
+     * знаком после запятой, дальше целыми. Ответы быстрее миллисекунды раньше
+     * показывались нулём, потому что бэк округлял их вниз.
+     * @param {number} ms
+     * @param {boolean} [withUnit] дописать единицы измерения
+     * @returns {string}
+     */
+    formatMs(ms, withUnit = true) {
+      const value = Number(ms) || 0;
+      const rounded = value >= 100 ? Math.round(value) : Math.round(value * 10) / 10;
+      return withUnit ? rounded + 'мс' : String(rounded);
+    },
+
+    /**
+     * Длительность записи журнала: микросекунды точнее, миллисекунды остаются
+     * для записей, сделанных до перехода на них.
+     * @param {{duration_us?: number, duration_ms?: number}} log
+     * @returns {string}
+     */
+    formatDuration(log) {
+      if (!log) return '';
+      if (log.duration_us != null) return this.formatMs(log.duration_us / 1000);
+      return this.formatMs(log.duration_ms || 0);
     },
 
     formatJson(text) {
