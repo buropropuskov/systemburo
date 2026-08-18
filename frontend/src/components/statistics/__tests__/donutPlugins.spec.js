@@ -7,7 +7,7 @@ const DEG = Math.PI / 180;
  * Поддельный график с холстом-протоколом: плагины рисуют, а тест смотрит, что
  * именно и в каком месте они нарисовали.
  */
-function fakeChart({ values, labels = [], arcs, hidden = [], active = [], center }) {
+function fakeChart({ values, labels = [], arcs, hidden = [], active = [] }) {
   const drawn = [];
   const ctx = {
     font: '',
@@ -22,7 +22,7 @@ function fakeChart({ values, labels = [], arcs, hidden = [], active = [], center
   const chart = {
     ctx,
     data: { labels, datasets: [{ data: values }] },
-    options: { plugins: center ? { centerLabel: center } : {} },
+    options: { plugins: {} },
     getDatasetMeta: () => ({
       data: arcs.map((a, i) => ({
         startAngle: a.start,
@@ -106,16 +106,15 @@ describe('sliceLabelsPlugin', () => {
 });
 
 describe('centerLabelPlugin', () => {
-  const CENTER = { label: 'Всего', format: (v) => `${v} шт` };
+  const center = () => centerLabelPlugin({ label: 'Всего', format: (v) => `${v} шт` });
 
   it('без наведения показывает подпись итога и сумму видимых сегментов', () => {
     const { chart, drawn } = fakeChart({
       values: [12, 8],
       labels: ['A', 'B'],
       arcs: [{ start: 0, end: 180 * DEG, x: 90, y: 70 }, { start: 180 * DEG, end: 360 * DEG }],
-      center: CENTER,
     });
-    centerLabelPlugin.afterDatasetsDraw(chart);
+    center().afterDatasetsDraw(chart);
     expect(drawn.map((d) => d.text)).toEqual(['Всего', '20 шт']);
     // Обе строки стоят в середине кольца, одна над другой.
     expect(drawn.map((d) => d.x)).toEqual([90, 90]);
@@ -128,9 +127,8 @@ describe('centerLabelPlugin', () => {
       labels: ['A', 'B'],
       arcs: THIRDS.slice(0, 2),
       hidden: [1],
-      center: CENTER,
     });
-    centerLabelPlugin.afterDatasetsDraw(chart);
+    center().afterDatasetsDraw(chart);
     expect(drawn[1].text).toBe('12 шт');
   });
 
@@ -140,15 +138,16 @@ describe('centerLabelPlugin', () => {
       labels: ['Автозаявки', 'Работы'],
       arcs: THIRDS.slice(0, 2),
       active: [{ datasetIndex: 0, index: 1 }],
-      center: CENTER,
     });
-    centerLabelPlugin.afterDatasetsDraw(chart);
+    center().afterDatasetsDraw(chart);
     expect(drawn.map((d) => d.text)).toEqual(['Работы', '8 шт']);
   });
 
-  it('без настроек молчит: плагин общий, а подпись нужна не всякому графику', () => {
-    const { chart, drawn } = fakeChart({ values: [1], arcs: [{ start: 0, end: 360 * DEG }] });
-    centerLabelPlugin.afterDatasetsDraw(chart);
+  it('кольца ещё нет - рисовать не по чему, и плагин молчит', () => {
+    // Первый проход разметки идёт до построения дуг: без якоря середины
+    // подпись поставить некуда.
+    const { chart, drawn } = fakeChart({ values: [1], arcs: [] });
+    center().afterDatasetsDraw(chart);
     expect(drawn).toEqual([]);
   });
 });

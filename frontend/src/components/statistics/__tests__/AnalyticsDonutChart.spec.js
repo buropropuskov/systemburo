@@ -107,13 +107,38 @@ describe('AnalyticsDonutChart', () => {
       .toBe(' A: 1,7 проезда');
   });
 
-  it('центр кольца получает подпись и формат значения', async () => {
+  it('центр кольца подписан итогом по сегментам', async () => {
     const { config } = await build({ data: DATA, totalLabel: 'Всего вложений' });
-    const center = config.options.plugins.centerLabel;
-    expect(center.label).toBe('Всего вложений');
-    expect(center.format(20)).toBe('20');
     // Сами подписи рисуют плагины: без них кольцо осталось бы немым.
     expect(config.plugins.map((p) => p.id)).toEqual(['sliceLabels', 'centerLabel']);
+
+    const drawn = [];
+    const ctx = { save() {}, restore() {}, fillText: (text) => drawn.push(text) };
+    config.plugins[1].afterDatasetsDraw({
+      ctx,
+      data: config.data,
+      getDatasetMeta: () => ({ data: [{ x: 50, y: 50 }] }),
+      getDataVisibility: () => true,
+      getActiveElements: () => [],
+    });
+    expect(drawn).toEqual(['Всего вложений', '20']);
+  });
+
+  it('в настройках графика нет функций: Chart.js вызвал бы их как вычисляемые', async () => {
+    // Формат значения, положенный в options.plugins, Chart.js зовёт сам и
+    // передаёт свой контекст вместо числа - кольцо падало на отрисовке, а мок
+    // конструктора этого не показывал. Настройки плагинов идут замыканием.
+    const { config } = await build({ data: DATA });
+    const functionsIn = (value, path = 'options') => {
+      if (typeof value === 'function') return [path];
+      if (!value || typeof value !== 'object') return [];
+      return Object.entries(value).flatMap(([key, inner]) => functionsIn(inner, `${path}.${key}`));
+    };
+    // Обработчики подсказки - исключение: их Chart.js читает как обработчики.
+    const { tooltip, ...restPlugins } = config.options.plugins;
+    const { callbacks, ...restTooltip } = tooltip;
+    expect(functionsIn({ ...config.options, plugins: { ...restPlugins, tooltip: restTooltip } }))
+      .toEqual([]);
   });
 
   it('легенда стоит под кольцом', async () => {

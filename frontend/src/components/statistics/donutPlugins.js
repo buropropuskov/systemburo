@@ -75,42 +75,48 @@ export const sliceLabelsPlugin = {
 
 /**
  * Подпись в середине кольца: итог по видимым сегментам, а при наведении -
- * имя и значение самого сегмента. Настраивается через
- * `options.plugins.centerLabel`: `{ label, format }`.
+ * имя и значение самого сегмента.
+ *
+ * Подпись и форматирование берутся из замыкания, а не из
+ * `options.plugins.centerLabel`: всякую функцию внутри options Chart.js считает
+ * вычисляемой настройкой и зовёт её сам, передавая свой контекст. Формат
+ * значения, положенный туда, получал вместо числа объект и ронял отрисовку -
+ * в браузере, но не в юните: мок Chart.js настройки не разрешает.
+ *
+ * @param {{ label?: string, format?: (v: number) => string }} settings
+ * @returns {object} плагин Chart.js
  */
-export const centerLabelPlugin = {
-  id: 'centerLabel',
+export function centerLabelPlugin({ label = '', format = String } = {}) {
+  return {
+    id: 'centerLabel',
 
-  afterDatasetsDraw(chart) {
-    const settings = chart.options?.plugins?.centerLabel;
-    if (!settings) return;
+    afterDatasetsDraw(chart) {
+      // Середина кольца - центр самой дуги, а не области графика: легенда снизу
+      // забирает часть области, и кольцо в ней стоит выше центра.
+      const anchor = chart.getDatasetMeta(0)?.data?.[0];
+      if (!anchor) return;
 
-    // Середина кольца - центр самой дуги, а не области графика: легенда снизу
-    // забирает часть области, и кольцо в ней стоит выше центра.
-    const anchor = chart.getDatasetMeta(0)?.data?.[0];
-    if (!anchor) return;
+      const active = chart.getActiveElements?.()?.[0];
+      const hovered = active && chart.getDataVisibility(active.index) ? active.index : null;
+      const caption = hovered == null
+        ? String(label)
+        : String(chart.data.labels?.[hovered] ?? '');
+      const value = hovered == null
+        ? visibleEntries(chart).reduce((sum, entry) => sum + entry.value, 0)
+        : Number(chart.data.datasets[0].data[hovered]) || 0;
 
-    const active = chart.getActiveElements?.()?.[0];
-    const hovered = active && chart.getDataVisibility(active.index) ? active.index : null;
-    const format = settings.format ?? String;
-    const caption = hovered == null
-      ? String(settings.label ?? '')
-      : String(chart.data.labels?.[hovered] ?? '');
-    const value = hovered == null
-      ? visibleEntries(chart).reduce((sum, entry) => sum + entry.value, 0)
-      : Number(chart.data.datasets[0].data[hovered]) || 0;
-
-    const { ctx } = chart;
-    const family = fontFamily(chart);
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = `400 12px ${family}`;
-    ctx.fillStyle = '#a2a2a2';
-    ctx.fillText(caption, anchor.x, anchor.y - 12);
-    ctx.font = `700 20px ${family}`;
-    ctx.fillStyle = '#333333';
-    ctx.fillText(format(value), anchor.x, anchor.y + 10);
-    ctx.restore();
-  },
-};
+      const { ctx } = chart;
+      const family = fontFamily(chart);
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `400 12px ${family}`;
+      ctx.fillStyle = '#a2a2a2';
+      ctx.fillText(caption, anchor.x, anchor.y - 12);
+      ctx.font = `700 20px ${family}`;
+      ctx.fillStyle = '#333333';
+      ctx.fillText(format(value), anchor.x, anchor.y + 10);
+      ctx.restore();
+    },
+  };
+}

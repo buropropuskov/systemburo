@@ -143,10 +143,12 @@ const config = computed(() => ({
           },
         },
       },
-      centerLabel: { label: props.totalLabel, format: formatValue },
     },
   },
-  plugins: [sliceLabelsPlugin, centerLabelPlugin],
+  plugins: [
+    sliceLabelsPlugin,
+    centerLabelPlugin({ label: props.totalLabel, format: formatValue }),
+  ],
 }));
 
 useChartCanvas(canvas, config);
