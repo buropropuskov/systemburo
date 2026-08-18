@@ -20,10 +20,13 @@ vi.mock('chart.js', () => {
   ChartStub.register = () => {};
   return {
     Chart: ChartStub,
+    ArcElement: {},
     BarController: {},
     BarElement: {},
     CategoryScale: {},
+    DoughnutController: {},
     Filler: {},
+    Legend: {},
     LineController: {},
     LineElement: {},
     LinearScale: {},

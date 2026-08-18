@@ -1118,7 +1118,7 @@ onUnmounted(() => {
 
 @media (max-width: 900px) {
   .dashboard__attach {
-    /* minmax(0,1fr): иначе трек сайзится по min-content доната (apexcharts ~300px)
+    /* minmax(0,1fr): иначе трек сайзится по min-content доната (~300px)
        и на узком экране (<=320) вылезает за контейнер, вместо сжатия графика. */
     grid-template-columns: minmax(0, 1fr);
   }
