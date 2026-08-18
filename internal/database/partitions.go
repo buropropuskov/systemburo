@@ -35,6 +35,9 @@ func installLogPartitioning(db *gorm.DB) error {
 		if err := ensureLogDurationColumns(tx); err != nil {
 			return err
 		}
+		if err := ensureLogFilterIndexes(tx); err != nil {
+			return err
+		}
 		// Партиции на вчера..+7 дней, чтобы запись не падала до первого прохода воркера.
 		now := time.Now().UTC()
 		if err := ensureDailyPartitions(tx, "request_logs", now.AddDate(0, 0, -1), now.AddDate(0, 0, 7)); err != nil {
@@ -103,15 +106,31 @@ func ensurePartitionedRequestLogs(db *gorm.DB) error {
 		) PARTITION BY RANGE (created_at)`).Error; err != nil {
 		return err
 	}
-	for _, idx := range []string{
+	slog.Info("request_logs создана как партиционированная по created_at")
+	return nil
+}
+
+// ensureLogFilterIndexes держит индексы request_logs под фильтры экрана мониторинга.
+// Вызывается отдельно от создания таблицы: на уже установленных стендах таблица давно
+// есть, а индексов под статус и метод не было - выборка «только ошибки» шла
+// последовательным чтением всех партиций.
+//
+// Статус и метод идут в паре с created_at: журнал всегда читается за период и всегда
+// в порядке от свежих записей, поэтому одиночный индекс по статусу пришлось бы
+// досортировывать. CREATE INDEX на партиционированной таблице сам расходится по
+// партициям, включая созданные позже.
+func ensureLogFilterIndexes(db *gorm.DB) error {
+	stmts := []string{
 		`CREATE INDEX IF NOT EXISTS idx_request_logs_created_at ON request_logs (created_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_request_logs_user_id ON request_logs (user_id)`,
-	} {
-		if err := db.Exec(idx).Error; err != nil {
-			return err
+		`CREATE INDEX IF NOT EXISTS idx_request_logs_status_created ON request_logs (response_status, created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_request_logs_method_created ON request_logs (method, created_at DESC)`,
+	}
+	for _, stmt := range stmts {
+		if err := db.Exec(stmt).Error; err != nil {
+			return fmt.Errorf("index request_logs: %w", err)
 		}
 	}
-	slog.Info("request_logs создана как партиционированная по created_at")
 	return nil
 }
 

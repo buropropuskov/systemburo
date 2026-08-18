@@ -126,3 +126,24 @@ func TestLogAggregateKeepsMicroseconds(t *testing.T) {
 	require.Equal(t, int64(400), fastUs, "быстрый ответ не должен схлопываться в ноль")
 	require.Equal(t, int64(12_000), legacyUs, "старая запись читается из миллисекунд")
 }
+
+// Экран мониторинга фильтрует журнал по статусу и методу, всегда за период и всегда
+// от свежих записей. Без пары (поле, created_at) выборка «только ошибки» читала все
+// партиции последовательно, поэтому индексы досоздаются и на стендах, где таблица
+// была создана раньше них (#2125).
+func TestLogFilterIndexes(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+
+	for _, idx := range []string{
+		"idx_request_logs_status_created",
+		"idx_request_logs_method_created",
+	} {
+		var count int
+		require.NoError(t, db.Raw(
+			`SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND tablename='request_logs' AND indexname=?`,
+			idx,
+		).Scan(&count).Error)
+		require.Equal(t, 1, count, "индекс %s должен быть на request_logs", idx)
+	}
+}
