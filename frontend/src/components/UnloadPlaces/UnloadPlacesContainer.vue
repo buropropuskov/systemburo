@@ -637,10 +637,10 @@
                     title="Удалить"
                     @click="deletePhoto(photo)"
                   >
-                    <img
-                      src="@/assets/icons/trashcan.png"
+                    <AppIcon
+                      name="trashcan"
                       class="action-icon-small"
-                    >
+                    />
                   </button>
                 </div>
               </div>
@@ -2685,10 +2685,13 @@ async uploadPhotoFiles(files) {
 }
 
 .photo-delete-btn:hover .action-icon-small {
-  filter: brightness(0) invert(1);
+  color: var(--fill-text);
 }
 
 .action-icon-small {
+  /* Значок мельче 16px: общая обводка 1.7 садится в волосок, здесь плотнее. */
+  stroke-width: 2.2;
+  color: var(--text);
   width: 14px;
   height: 14px;
 }

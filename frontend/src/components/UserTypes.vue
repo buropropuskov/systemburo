@@ -168,10 +168,10 @@
                 class="delete-icon-btn"
                 @click="confirmDeleteType(selectedType)"
               >
-                <img
-                  src="@/assets/icons/delete.png"
+                <AppIcon
+                  name="delete"
                   class="delete-icon"
-                >
+                />
               </button>
             </div>
           </div>
@@ -1150,6 +1150,7 @@ export default {
 }
 
 .delete-icon {
+  color: var(--danger);
   width: 20px;
   height: 20px;
 }

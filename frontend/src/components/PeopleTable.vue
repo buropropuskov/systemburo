@@ -551,14 +551,14 @@
                   <button
                     v-else
                     class="delete-btn rt-pass__act rt-pass__act--danger"
+                    title="Удалить"
                     :disabled="preview || isLoading"
                     @click="preview ? null : removeItemWithNotification(item)"
                   >
-                    <img
-                      src="@/assets/icons/trashcan.png"
-                      alt="Удалить"
+                    <AppIcon
+                      name="trashcan"
                       class="delete-icon rt-pass__act-icon"
-                    >
+                    />
                     <span class="rt-pass__act-label">Удалить</span>
                   </button>
                 </div>
@@ -2343,6 +2343,9 @@ export default {
 }
 
 .delete-icon {
+  /* Значок мельче 16px: общая обводка 1.7 садится в волосок, здесь плотнее. */
+  stroke-width: 2.2;
+  color: var(--text);
   width: 14px;
   height: 14px;
   opacity: 0.7;

@@ -163,13 +163,13 @@
                 <div class="car-col actions-col">
                   <button 
                     class="delete-btn" 
+                    title="Удалить"
                     @click="deleteCar(car)"
                   >
-                    <img 
-                      src="@/assets/icons/trashcan.png" 
-                      alt="Удалить" 
+                    <AppIcon
+                      name="trashcan"
                       class="delete-icon"
-                    >
+                    />
                   </button>
                 </div>
               </div>
@@ -770,6 +770,7 @@ export default {
 }
 
 .delete-icon {
+  color: var(--text);
   width: 16px;
   height: 16px;
   opacity: 0.7;

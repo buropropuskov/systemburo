@@ -87,11 +87,10 @@
             :disabled="!items.length"
             @click="onClearAll"
           >
-            <img
-              src="@/assets/icons/trashcan.png"
+            <AppIcon
+              name="trashcan"
               class="trash-tool-btn__icon"
-              alt=""
-            >
+            />
             Очистить
           </button>
         </div>
@@ -295,10 +294,10 @@
                   data-testid="trash-purge-one"
                   @click="onPurgeOne(item.id)"
                 >
-                  <img
-                    src="@/assets/icons/trashcan.png"
-                    alt=""
-                  >
+                  <AppIcon
+                    name="trashcan"
+                    class="trash-icon-btn__icon"
+                  />
                 </button>
               </td>
             </tr>
@@ -1266,7 +1265,7 @@ export default {
   background: var(--border);
 }
 
-.trash-icon-btn img {
+.trash-icon-btn__icon {
   width: 20px;
   height: 20px;
 }

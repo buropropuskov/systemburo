@@ -366,13 +366,13 @@
                 >
                   <button
                     class="delete-btn rt-pass__act rt-pass__act--danger"
+                    title="Удалить"
                     @click="deleteItem(item)"
                   >
-                    <img
-                      src="@/assets/icons/trashcan.png"
-                      alt="Удалить"
+                    <AppIcon
+                      name="trashcan"
                       class="delete-icon rt-pass__act-icon"
-                    >
+                    />
                     <span class="rt-pass__act-label">Удалить</span>
                   </button>
                 </div>
@@ -430,10 +430,12 @@ import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { idFilterSet } from '@/utils/idFilter';
 import { pickOverflowFields, columnMinWidth, measureRowAvailableWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'FactTable',
   components: {
+    AppIcon,
     RefreshButton,
     LoaderSpinner,
     StatusBadge,
@@ -1585,6 +1587,7 @@ export default {
 }
 
 .delete-icon {
+  color: var(--text);
   width: 16px;
   height: 16px;
   opacity: 0.7;

@@ -161,12 +161,11 @@
                 title="Переименовать"
                 @click.stop="startRename(attachment)"
               >
-                <img
+                <AppIcon
                   v-if="isNarrow"
-                  src="@/assets/icons/edit.png"
-                  alt="Переименовать"
+                  name="edit"
                   class="edit-btn__icon"
-                >
+                />
                 <template v-else>
                   ✎
                 </template>
@@ -238,10 +237,12 @@ import { getViewportZoom } from '@/utils/viewportScale'
 import { useOnboardingStore } from '@/stores/onboarding';
 import { useDeletionsStore } from '@/stores/deletions';
 import ConfirmationModal from './ConfirmationModal.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
     name: 'BlankSelector',
     components: {
+      AppIcon,
         ConfirmationModal
     },
     props: {
@@ -1299,6 +1300,7 @@ export default {
     }
 
     .edit-btn__icon {
+        color: var(--text);
         width: 16px;
         height: 16px;
         opacity: 0.65;

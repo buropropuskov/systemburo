@@ -85,20 +85,20 @@
                 title="Редактировать"
                 @click="editSlot(slot)"
               >
-                <img
-                  src="@/assets/icons/edit.png"
+                <AppIcon
+                  name="edit"
                   class="icon"
-                >
+                />
               </button>
               <button
                 class="icon-btn"
                 title="Удалить"
                 @click="deleteSlot(slot)"
               >
-                <img
-                  src="@/assets/icons/trashcan.png"
+                <AppIcon
+                  name="trashcan"
                   class="icon"
-                >
+                />
               </button>
             </div>
           </div>
@@ -1232,6 +1232,9 @@ input:checked + .switch-slider:before {
   background-color: var(--border);
 }
 .icon {
+  /* Значок мельче 16px: общая обводка 1.7 садится в волосок, здесь плотнее. */
+  stroke-width: 2.2;
+  color: var(--text);
   width: 12px;
   height: 12px;
   opacity: 0.6;
