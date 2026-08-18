@@ -26,9 +26,10 @@ const stubs = {
   UnloadPlaceInfoModal: true,
 };
 
-// «Привязана к пользователю» в карточке видит только администратор, но роль здесь не
-// проверяется: логин владельца сервер отдаёт лишь ему (maskEmployeeOwners/maskCarOwners),
-// и строка гейтится наличием значения. Карточка живёт в заявке, проходной, реестре и на
+// «Запись закреплена за» в карточке видит только администратор, но роль здесь не
+// проверяется: сервер отдаёт значение лишь ему (maskEmployeeOwners/maskCarOwners), и
+// подпись гейтится наличием значения. В значении приходит ФИО владельца, а у не давшего
+// согласия на обработку своих данных - его логин с собачкой. Карточка живёт в заявке, проходной, реестре и на
 // странице чёрного списка - перечислять контексты пришлось бы заново при каждом новом.
 describe('Карточки сотрудника и машины - строка владельца записи', () => {
   beforeEach(() => {
@@ -43,7 +44,8 @@ describe('Карточки сотрудника и машины - строка �
     });
     const row = wrapper.find('[data-testid="employee-owner-login"]');
     expect(row.exists()).toBe(true);
-    expect(row.text()).toBe('megobari');
+    // Подпись под блоком, а не строка наравне с данными человека: сведения служебные.
+    expect(row.text()).toBe('Запись закреплена за: megobari');
   });
 
   it('сотрудник: дата согласия печатается днём, а не «Invalid Date»', () => {
@@ -78,7 +80,7 @@ describe('Карточки сотрудника и машины - строка �
     });
     const row = withOwner.find('[data-testid="vehicle-owner-login"]');
     expect(row.exists()).toBe(true);
-    expect(row.text()).toBe('megobari');
+    expect(row.text()).toBe('Запись закреплена за: megobari');
 
     const withoutOwner = mount(VehicleDetailsModal, {
       props: { show: true, vehicle: { id: 1, plateNumber: 'А111АА777', mark: 'Volvo' }, source: 'carsview' },

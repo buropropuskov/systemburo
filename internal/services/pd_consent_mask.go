@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -182,4 +183,35 @@ func loadConsentGrants(ctx context.Context, db *gorm.DB) map[int]string {
 		grants[r.UserID] = r.GrantedAt.UTC().Format(time.RFC3339)
 	}
 	return grants
+}
+
+// ownerDisplayName собирает «за кем закреплена запись» для реестров сотрудников и
+// машин: ФИО владельца, а у не давшего согласия на обработку своих данных - его логин
+// с собачкой (та же маска, что применяется к именам во всём интерфейсе).
+//
+// Логин остаётся и запасным вариантом: у части учётных записей ФИО не заполнено вовсе,
+// и пустая строка в карточке читалась бы как «ничей».
+func ownerDisplayName(masks map[int]string, userID *int, username, last, first, middle *string) *string {
+	if userID == nil {
+		return nil
+	}
+	if mask, ok := masks[*userID]; ok {
+		v := mask
+		return &v
+	}
+	parts := make([]string, 0, 3)
+	for _, p := range []*string{last, first, middle} {
+		if p != nil && strings.TrimSpace(*p) != "" {
+			parts = append(parts, strings.TrimSpace(*p))
+		}
+	}
+	if len(parts) == 0 {
+		if username == nil || strings.TrimSpace(*username) == "" {
+			return nil
+		}
+		v := "@" + strings.TrimSpace(*username)
+		return &v
+	}
+	v := strings.Join(parts, " ")
+	return &v
 }

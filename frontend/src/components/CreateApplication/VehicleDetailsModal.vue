@@ -232,19 +232,6 @@
                         <span class="detail-label">Компания:</span>
                         <span class="detail-value">{{ vehicle.company || '-' }}</span>
                       </div>
-                      <!-- За кем закреплена запись реестра. Сервер отдаёт логин только
-                           администратору, поэтому строку гейтим по наличию значения, а не
-                           по роли: карточка живёт в заявке, проходной и реестре. -->
-                      <div
-                        v-if="vehicle.user_name"
-                        class="detail-item"
-                      >
-                        <span class="detail-label">Привязана к пользователю:</span>
-                        <span
-                          class="detail-value"
-                          data-testid="vehicle-owner-login"
-                        >{{ vehicle.user_name }}</span>
-                      </div>
                       <div class="detail-item">
                         <span class="detail-label">Действует до:</span>
                         <span class="detail-value">{{ formatDate(vehicle.entry_date_to) || '-' }}</span>
@@ -254,6 +241,16 @@
                         <span class="detail-value">{{ formatTimeRange(vehicle.entry_time_from, vehicle.entry_time_to) || '-' }}</span>
                       </div>
                     </div>
+                    <!-- За кем закреплена запись реестра: служебная пометка бюро, поэтому
+                         подписью под блоком, а не строкой наравне с данными машины.
+                         Сервер отдаёт её только администратору, см. EmployeeDetailsModal. -->
+                    <p
+                      v-if="vehicle.user_name"
+                      class="owner-note"
+                      data-testid="vehicle-owner-login"
+                    >
+                      Запись закреплена за: {{ vehicle.user_name }}
+                    </p>
                   </div>
                 </div>
 
@@ -1728,6 +1725,13 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
 
 .detail-item.full-width {
   grid-column: 1 / -1;
+}
+
+.owner-note {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.75;
 }
 
 .detail-label {

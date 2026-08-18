@@ -157,3 +157,91 @@ func TestPDConsent_ConfiguredRequiredRejectsSubmitWithoutMark(t *testing.T) {
 	rec = submitFC(t, e, token, "Test Organization", "people", uaID, dataOK)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 }
+
+// След от удаления. Раньше запись реестра исчезала без всякой отметки: спросить «кем и
+// когда удалён сотрудник» было не у кого - строки нет, истории по её номеру нет.
+// Теперь удаление пишется в журнал реестра вместе с автором и снимком ФИО, и журнал
+// открывается администратору отдельным методом, не зависящим от существования записи.
+func TestRegistryLog_DeletionLeavesTraceWithAuthorAndName(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminHeader := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+	ownerHeader, _ := registryOwner(t, e, db, "reglog_owner", "Registry Log Org")
+
+	rec := testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Пропавшев","first_name":"Игнат"}`, ownerHeader)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	created := testutil.ParseResponse[services.UniqueEmployeeResponse](t, rec)
+
+	require.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/unique-employees/%d", created.ID), adminHeader).Code)
+
+	var gone int64
+	require.NoError(t, db.Model(&models.UniqueEmployee{}).Where("id = ?", created.ID).Count(&gone).Error)
+	require.Zero(t, gone, "запись действительно удалена")
+
+	rec = testutil.GET(t, e, "/unique-employees/history?limit=50", adminHeader)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	items := testutil.ParseResponse[[]services.UniqueEmployeeHistoryItem](t, rec)
+
+	var deletion *services.UniqueEmployeeHistoryItem
+	for i := range items {
+		if items[i].ActionType == "delete" && items[i].UniqueEmployeeID == created.ID {
+			deletion = &items[i]
+			break
+		}
+	}
+	require.NotNil(t, deletion, "удаление видно в журнале реестра: %+v", items)
+	require.NotNil(t, deletion.Comment)
+	assert.Contains(t, *deletion.Comment, "Пропавшев", "в журнале осталось имя удалённого - по номеру записи его уже не узнать")
+	require.NotNil(t, deletion.Username)
+	assert.Equal(t, "testadmin", *deletion.Username, "видно, кто удалил")
+	assert.False(t, deletion.CreatedAt.IsZero(), "видно, когда удалили")
+}
+
+// Журнал реестра - служебные сведения о том, кто из работников что делал, поэтому
+// открыт администратору. Владелец по-прежнему смотрит историю своей записи по её номеру.
+func TestRegistryLog_ClosedForOrdinaryUser(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	testutil.SeedTestData(t, db)
+
+	ownerHeader, _ := registryOwner(t, e, db, "reglog_plain", "Registry Log Plain Org")
+
+	assert.Equal(t, http.StatusForbidden, testutil.GET(t, e, "/unique-employees/history", ownerHeader).Code)
+	assert.Equal(t, http.StatusForbidden, testutil.GET(t, e, "/unique-cars/history", ownerHeader).Code)
+}
+
+// Удаление машины оставляет тот же след: номер с маркой в журнале и автор.
+func TestRegistryLog_CarDeletionLeavesTrace(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminHeader := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+	ownerHeader, _ := registryOwner(t, e, db, "reglog_car_owner", "Registry Log Car Org")
+
+	rec := testutil.POST(t, e, "/unique-cars", `{"number":"У777УУ777","mark":"Kamaz"}`, ownerHeader)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	created := testutil.ParseResponse[services.UniqueCarResponse](t, rec)
+
+	require.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/unique-cars/%d", created.ID), adminHeader).Code)
+
+	rec = testutil.GET(t, e, "/unique-cars/history?limit=50", adminHeader)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	items := testutil.ParseResponse[[]services.UniqueCarHistoryItem](t, rec)
+
+	found := false
+	for _, it := range items {
+		if it.ActionType == "delete" && it.UniqueCarID == created.ID && it.Comment != nil {
+			assert.Contains(t, *it.Comment, "У777УУ777")
+			require.NotNil(t, it.Username)
+			assert.Equal(t, "testadmin", *it.Username)
+			found = true
+		}
+	}
+	assert.True(t, found, "удаление машины видно в журнале: %+v", items)
+}
