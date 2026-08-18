@@ -812,6 +812,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	ucg.GET("/ownership-info", uc.GetOwnershipInfo)
 	ucg.GET("/lookup", uc.Lookup, requireBlacklist)
 	ucg.GET("/:id/history", uc.GetHistory)
+	// Журнал всего реестра (включая удалённые записи) - раньше конкретного /:id/history,
+	// иначе «history» попало бы в :id и разбор номера вернул бы 400.
+	ucg.GET("/history", uc.GetRegistryLog)
 
 	// Реестр сотрудников (unique_employees)
 	ueg := protected.Group("/unique-employees")
@@ -822,6 +825,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	ueg.GET("/ownership-info", ue.GetOwnershipInfo)
 	ueg.GET("/lookup", ue.Lookup, requireBlacklist)
 	ueg.GET("/:id/history", ue.GetHistory)
+	ueg.GET("/history", ue.GetRegistryLog)
 
 	// Обратная связь. Отправка (POST) и свои обращения (GET /my) - любому
 	// авторизованному; админ-операции (список/статистика/статус/прочтение) -

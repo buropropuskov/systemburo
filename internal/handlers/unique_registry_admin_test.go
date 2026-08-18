@@ -167,8 +167,10 @@ func TestUniqueCars_AdminDeletesForeignRecord(t *testing.T) {
 	assert.Zero(t, count, "запись удалена")
 }
 
-// Привязку записи к учётной записи видит только администратор: в карточке она стоит
-// рядом с данными человека, и соседям по организации знать чужие логины незачем.
+// Привязку записи к учётной записи видит только администратор: соседям по организации
+// знать, чья это запись, незачем. В значении едет ФИО владельца - логин человеку ничего
+// не говорит; у владельца без заполненного ФИО остаётся логин с собачкой, как и всюду в
+// интерфейсе.
 func TestUniqueRegistry_OwnerNameVisibleToAdminOnly(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -186,7 +188,8 @@ func TestUniqueRegistry_OwnerNameVisibleToAdminOnly(t *testing.T) {
 	adminEmployees := testutil.ParseResponse[[]services.UniqueEmployeeWithRelations](t, rec)
 	require.NotEmpty(t, adminEmployees)
 	require.NotNil(t, adminEmployees[0].UserName, "администратор видит, за кем закреплена запись")
-	assert.Equal(t, "regowner_name", *adminEmployees[0].UserName)
+	assert.Equal(t, "@regowner_name", *adminEmployees[0].UserName,
+		"ФИО у владельца не заполнено - остаётся логин с собачкой")
 
 	rec = testutil.GET(t, e, "/unique-employees?filter_type=user&per_page=50", ownerHeader)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -230,4 +233,37 @@ func TestUniqueRegistry_OwnershipInfoCarriesCanManageAll(t *testing.T) {
 		info = testutil.ParseMap(t, rec)
 		assert.Equal(t, false, info["can_manage_all"], "%s: обычный пользователь - только свои записи", path)
 	}
+}
+
+// Значение «за кем закреплена запись» собирается по тем же правилам, что имена во всём
+// интерфейсе: заполненное ФИО показывается как есть, а у работника, не давшего согласия
+// на обработку своих данных, вместо ФИО стоит его логин с собачкой (#1567).
+func TestUniqueRegistry_OwnerNameShowsFullNameAndRespectsConsentMask(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	adminHeader := testutil.AuthHeader(adminToken)
+	ownerHeader, ownerID := registryOwner(t, e, db, "regowner_fio", "Registry FIO Org")
+	require.NoError(t, db.Model(&models.User{}).Where("id = ?", ownerID).
+		Updates(map[string]interface{}{"last_name": "Пешков", "first_name": "Иван", "middle_name": "Сергеевич"}).Error)
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Тихонов","first_name":"Лев"}`, ownerHeader).Code)
+
+	ownerName := func() string {
+		rec := testutil.GET(t, e, "/unique-employees?filter_type=all_system&per_page=50", adminHeader)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		rows := testutil.ParseResponse[[]services.UniqueEmployeeWithRelations](t, rec)
+		require.NotEmpty(t, rows)
+		require.NotNil(t, rows[0].UserName)
+		return *rows[0].UserName
+	}
+
+	assert.Equal(t, "Пешков Иван Сергеевич", ownerName(), "показываем ФИО владельца, а не логин")
+
+	// Запрос согласия включён, владелец его не давал - ФИО скрыто общей маской.
+	enableConsent(t, e, adminToken, "<p>текст согласия</p>")
+	assert.Equal(t, "@regowner_fio", ownerName(), "без согласия владельца вместо ФИО стоит логин")
 }

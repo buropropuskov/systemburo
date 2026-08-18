@@ -56,24 +56,30 @@ type CarOwnerInfo struct {
 
 // UniqueCarWithRelations -- машина с данными связанных сущностей.
 type UniqueCarWithRelations struct {
-	ID                   int        `json:"id"`
-	Number               *string    `json:"number"`
-	Mark                 *string    `json:"mark"`
-	OrganizationID       *int       `json:"organization_id"`
-	CompanyID            *int       `json:"company_id"`
-	FormatID             *int       `json:"format_id"`
-	UserID               *int       `json:"user_id"`
-	Status               bool       `json:"status"`
-	CreatedAt            *time.Time `json:"created_at"`
-	OrganizationName     *string    `json:"organization_name"`
-	CompanyName          *string    `json:"company_name"`
-	FormatName           *string    `json:"format_name"`
-	UserName             *string    `json:"user_name"`
-	ActiveEntryDateTo    *string    `json:"active_entry_date_to"`
-	ActiveEntryTimeFrom  *string    `json:"active_entry_time_from"`
-	ActiveEntryTimeTo    *string    `json:"active_entry_time_to"`
-	ActiveAppOrgName     *string    `json:"active_app_org_name"`
-	ActiveAppCompanyName *string    `json:"active_app_company_name"`
+	ID               int        `json:"id"`
+	Number           *string    `json:"number"`
+	Mark             *string    `json:"mark"`
+	OrganizationID   *int       `json:"organization_id"`
+	CompanyID        *int       `json:"company_id"`
+	FormatID         *int       `json:"format_id"`
+	UserID           *int       `json:"user_id"`
+	Status           bool       `json:"status"`
+	CreatedAt        *time.Time `json:"created_at"`
+	OrganizationName *string    `json:"organization_name"`
+	CompanyName      *string    `json:"company_name"`
+	FormatName       *string    `json:"format_name"`
+	// UserName -- за кем закреплена запись: ФИО владельца, у не давшего согласия -
+	// логин с собачкой. Отдаётся только администратору, см. maskCarOwners.
+	UserName             *string `json:"user_name"`
+	OwnerUsername        *string `json:"-" gorm:"column:owner_username"`
+	OwnerLastName        *string `json:"-" gorm:"column:owner_last_name"`
+	OwnerFirstName       *string `json:"-" gorm:"column:owner_first_name"`
+	OwnerMiddleName      *string `json:"-" gorm:"column:owner_middle_name"`
+	ActiveEntryDateTo    *string `json:"active_entry_date_to"`
+	ActiveEntryTimeFrom  *string `json:"active_entry_time_from"`
+	ActiveEntryTimeTo    *string `json:"active_entry_time_to"`
+	ActiveAppOrgName     *string `json:"active_app_org_name"`
+	ActiveAppCompanyName *string `json:"active_app_company_name"`
 	// ActiveCarID -- id строки в cars активной заявки (заявочная таблица, не реестр).
 	// Нужен фронту, чтобы подтянуть статус территории и места разгрузки активной машины
 	// (current-status и cars/unload-places ключуются по cars.id, а не по unique_cars.id).
@@ -156,6 +162,9 @@ type UniqueCarService interface {
 	UpdateByNumber(ctx context.Context, username string, req UpdateCarByNumberRequest) (*UniqueCarResponse, error)
 	Delete(ctx context.Context, username string, id int) error
 	GetHistory(ctx context.Context, username string, id int) ([]UniqueCarHistoryItem, error)
+	// GetRegistryLog - журнал по всему реестру машин, включая удалённые записи.
+	// Зеркало UniqueEmployeeService.GetRegistryLog, причина описана там.
+	GetRegistryLog(ctx context.Context, username string, limit int) ([]UniqueCarHistoryItem, error)
 }
 
 type uniqueCarService struct {
@@ -247,14 +256,20 @@ func (s *uniqueCarService) LookupByNumberMark(ctx context.Context, number, mark 
 // среза, и право править чужую запись.
 const systemAdminExpr = "(u.is_super_admin OR u.is_admin)"
 
-// maskCarOwners убирает логин владельца из строк реестра машин, когда смотрящий не
-// администратор. Зеркало maskEmployeeOwners: причина и оговорка про write-path там же.
-func maskCarOwners(rows []UniqueCarWithRelations, canManageAll bool) {
-	if canManageAll {
+// maskCarOwners заполняет «за кем закреплена запись» администратору и убирает поле у
+// остальных. Зеркало maskEmployeeOwners: причина, маска имени и оговорка про write-path
+// описаны там.
+func maskCarOwners(ctx context.Context, db *gorm.DB, rows []UniqueCarWithRelations, canManageAll bool) {
+	if !canManageAll {
+		for i := range rows {
+			rows[i].UserName = nil
+		}
 		return
 	}
+	masks := loadNameMasks(ctx, db)
 	for i := range rows {
-		rows[i].UserName = nil
+		rows[i].UserName = ownerDisplayName(masks, rows[i].UserID,
+			rows[i].OwnerUsername, rows[i].OwnerLastName, rows[i].OwnerFirstName, rows[i].OwnerMiddleName)
 	}
 }
 
@@ -284,7 +299,9 @@ func userIsSystemAdmin(ctx context.Context, db *gorm.DB, userID int) bool {
 const carsListSelect = `uc.id, uc.number, uc.mark, uc.organization_id, uc.company_id,
 	uc.format_id, uc.user_id, uc.created_at,
 	o.name as organization_name, c.name as company_name,
-	lpf.name as format_name, u.username as user_name,
+	lpf.name as format_name,
+	u.username as owner_username, u.last_name as owner_last_name,
+	u.first_name as owner_first_name, u.middle_name as owner_middle_name,
 	COALESCE((
 		SELECT true FROM cars cr
 		JOIN attachments a ON cr.attachment_id = a.id
@@ -453,7 +470,7 @@ func (s *uniqueCarService) GetAll(ctx context.Context, username string, filterTy
 	if err := query.Scan(&cars).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching cars")
 	}
-	maskCarOwners(cars, ownerInfo.CanManageAll)
+	maskCarOwners(ctx, s.db, cars, ownerInfo.CanManageAll)
 
 	return cars, nil
 }
@@ -489,7 +506,7 @@ func (s *uniqueCarService) GetAllPaginated(ctx context.Context, username, filter
 	if err := dataQuery.Scan(&cars).Error; err != nil {
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching cars")
 	}
-	maskCarOwners(cars, ownerInfo.CanManageAll)
+	maskCarOwners(ctx, s.db, cars, ownerInfo.CanManageAll)
 
 	return cars, total, nil
 }
@@ -827,8 +844,11 @@ func (s *uniqueCarService) Delete(ctx context.Context, username string, id int) 
 		return err
 	}
 
+	// Номер и марку читаем ДО удаления: после него по id уже ничего не прочитать, а
+	// вопрос «кем и когда запись удалена» задают именно про исчезнувшую. Зеркало
+	// uniqueEmployeeService.Delete, там же объяснение общей транзакции.
 	var existing models.UniqueCar
-	if err := s.db.WithContext(ctx).Select("user_id, organization_id, company_id").
+	if err := s.db.WithContext(ctx).Select("user_id, organization_id, company_id, number, mark").
 		First(&existing, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return echo.NewHTTPError(http.StatusNotFound, "Car not found")
@@ -840,16 +860,31 @@ func (s *uniqueCarService) Delete(ctx context.Context, username string, id int) 
 		return echo.NewHTTPError(http.StatusForbidden, "You don't have permission to delete this car")
 	}
 
-	result := s.db.WithContext(ctx).Delete(&models.UniqueCar{}, id)
-	if result.Error != nil {
-		slog.Error("не удалось удалить уникальный автомобиль", "id", id, "error", result.Error)
+	plate := strings.TrimSpace(strings.Join(nonEmptyStrings(existing.Number, existing.Mark), " "))
+	if plate == "" {
+		plate = fmt.Sprintf("без номера (номер записи %d)", id)
+	}
+	comment := fmt.Sprintf("Автомобиль %s удалён из реестра", plate)
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Delete(&models.UniqueCar{}, id)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return s.recorder.Record(ctx, tx, models.AuditEntityUniqueCar, &id, "delete",
+			&ownerInfo.UserID, carAuditDetails{Comment: &comment})
+	})
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return echo.NewHTTPError(http.StatusNotFound, "Car not found")
+		}
+		slog.Error("не удалось удалить уникальный автомобиль", "id", id, "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting car")
 	}
-	if result.RowsAffected == 0 {
-		return echo.NewHTTPError(http.StatusNotFound, "Car not found")
-	}
 
-	slog.Info("уникальный автомобиль удалён", "id", id)
+	slog.Info("уникальный автомобиль удалён", "id", id, "actor_user_id", ownerInfo.UserID)
 	return nil
 }
 
@@ -923,6 +958,44 @@ func (s *uniqueCarService) GetHistory(ctx context.Context, username string, id i
 	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityUniqueCar, id).Scan(&items).Error; err != nil {
 		slog.Error("failed to load unique_car history", "id", id, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching history")
+	}
+	return items, nil
+}
+
+// GetRegistryLog отдаёт журнал реестра машин целиком: создания, правки полей и удаления,
+// с автором и временем. Зеркало uniqueEmployeeService.GetRegistryLog.
+func (s *uniqueCarService) GetRegistryLog(ctx context.Context, username string, limit int) ([]UniqueCarHistoryItem, error) {
+	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	if !ownerInfo.CanManageAll {
+		return nil, echo.NewHTTPError(http.StatusForbidden, "Журнал реестра доступен администратору")
+	}
+	if limit <= 0 || limit > registryLogMaxRows {
+		limit = registryLogMaxRows
+	}
+
+	const sql = `
+		SELECT m.id, m.unique_car_id, m.user_id, u.username,
+			u.last_name AS user_last_name, u.first_name AS user_first_name,
+			m.action_type, m.field_name, m.old_value, m.new_value, m.comment, m.created_at
+		FROM (
+			SELECT a.id, a.entity_id AS unique_car_id, a.actor_user_id AS user_id,
+				a.action AS action_type, a.details->>'field_name' AS field_name,
+				a.details->>'old_value' AS old_value, a.details->>'new_value' AS new_value,
+				a.details->>'comment' AS comment, a.created_at
+			FROM audit_log a
+			WHERE a.entity_type = ?
+		) m
+		LEFT JOIN users u ON u.id = m.user_id
+		ORDER BY m.created_at DESC, m.id DESC
+		LIMIT ?`
+
+	items := make([]UniqueCarHistoryItem, 0)
+	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityUniqueCar, limit).Scan(&items).Error; err != nil {
+		slog.Error("не удалось загрузить журнал реестра машин", "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching registry log")
 	}
 	return items, nil
 }

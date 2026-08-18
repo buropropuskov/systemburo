@@ -177,6 +177,15 @@
             >
               Добавить
             </button>
+            <!-- Журнал реестра открыт администратору, см. EmployeeView. -->
+            <button
+              v-if="canManageAllEntities"
+              class="lk-button lk-button--secondary"
+              data-testid="cars-registry-log"
+              @click="showRegistryLog = true"
+            >
+              Журнал
+            </button>
             <RefreshButton
               :loading="loading"
               @refresh="fetchCars"
@@ -806,6 +815,12 @@
         </div>
       </div>
     </BaseModal>
+    <RegistryLogModal
+      :show="showRegistryLog"
+      entity="cars"
+      @close="showRegistryLog = false"
+    />
+
     <ConfirmationModal
       :show="showDeleteCarModal"
       title="Подтверждение удаления"
@@ -855,6 +870,7 @@ import FilterButton from '@/components/ui/FilterButton.vue';
 import FilterSheet from '@/components/ui/FilterSheet.vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import RefreshButton from '@/components/RefreshButton.vue';
+import RegistryLogModal from '@/components/RegistryLogModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
@@ -872,6 +888,7 @@ export default {
         FilterButton,
         FilterSheet,
         RefreshButton,
+        RegistryLogModal,
         LoaderSpinner,
         StatusBadge,
         ConfirmationModal,
@@ -928,6 +945,7 @@ export default {
             showScopeSheet: false,
             ownershipInfo: null,
             showModal: false,
+            showRegistryLog: false,
             showDeleteCarModal: false,
             carToDelete: null,
             availableFormats: [],

@@ -5,13 +5,14 @@
         v-if="show"
         class="modal-overlay"
         :style="{ zIndex: overlayZIndex }"
+        @mousedown="onOverlayMousedown"
+        @mouseup="onOverlayMouseup"
       >
-        <!-- Клик мимо окна приходит в обёртку: она занимает всю площадь затемнения,
-             до самого затемнения событие не доходит. -->
-        <div
-          class="modal-wrapper"
-          @click.self="close"
-        >
+        <!-- Закрытие по клику мимо окна висит на самом затемнении, а не на обёртке:
+             у обёртки pointer-events: none, она целью события не становится вовсе, и
+             прежний @click.self на ней не срабатывал никогда. Через useOverlayClose,
+             чтобы выделение текста внутри окна, отпущенное на фоне, его не закрывало. -->
+        <div class="modal-wrapper">
           <!-- Основное модальное окно с деталями сотрудника -->
           <div
             class="modal-content compact-modal main-modal"
@@ -226,16 +227,6 @@
                           data-testid="employee-pd-consent-date"
                         >получено {{ formatConsentDate(employee.pd_consent_at) }}</span>
                       </div>
-                      <div
-                        v-if="employee.user_name"
-                        class="detail-item"
-                      >
-                        <span class="detail-label">Привязан к пользователю:</span>
-                        <span
-                          class="detail-value"
-                          data-testid="employee-owner-login"
-                        >{{ employee.user_name }}</span>
-                      </div>
                       <div class="detail-item">
                         <span class="detail-label">Действует до:</span>
                         <span class="detail-value">{{ formatDate(employee.entry_date_to) || '-' }}</span>
@@ -245,6 +236,18 @@
                         <span class="detail-value">{{ employee.pass_time || '-' }}</span>
                       </div>
                     </div>
+                    <!-- За кем закреплена запись реестра. Сведения служебные, для бюро,
+                         поэтому идут подписью под блоком, а не строкой наравне с данными
+                         человека. Сервер отдаёт их только администратору, поэтому строку
+                         гейтим наличием значения: карточка живёт в заявке, проходной,
+                         реестре и на странице чёрного списка. -->
+                    <p
+                      v-if="employee.user_name"
+                      class="owner-note"
+                      data-testid="employee-owner-login"
+                    >
+                      Запись закреплена за: {{ employee.user_name }}
+                    </p>
                   </div>
                 </div>
 
@@ -513,6 +516,7 @@ import { ref, getCurrentInstance } from 'vue';
 import { apiRequest } from '@/api/client';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
+import { useOverlayClose } from '@/composables/useOverlayClose';
 import TableInfoModal from './TableInfoModal.vue';
 import EmployeeHistoryModal from './EmployeeHistoryModal.vue';
 import Badge from '@/components/ui/Badge.vue';
@@ -583,8 +587,13 @@ export default {
             handleSelector: '.sheet-handle',
         });
         const { isNarrow } = useNarrowScreen();
+        // Закрытие по клику мимо окна. onClose зовёт close() компонента, а не голый
+        // emit: у карточки есть таймеры и подокна, их гасит именно close().
+        const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => inst?.proxy?.close?.());
         return {
             isNarrow,
+            onOverlayMousedown,
+            onOverlayMouseup,
             sheetBody,
             sheetOffset: swipe.offset,
             sheetDragging: swipe.isDragging,
@@ -1487,6 +1496,13 @@ export default {
 
 .detail-item.full-width {
     grid-column: 1 / -1;
+}
+
+.owner-note {
+    margin: 10px 0 0;
+    font-size: 11px;
+    color: var(--text-muted);
+    opacity: 0.75;
 }
 
 .detail-label {

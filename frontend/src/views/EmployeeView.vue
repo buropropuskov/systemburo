@@ -177,6 +177,16 @@
             >
               Добавить
             </button>
+            <!-- Журнал реестра открыт администратору: только там видно, кем и когда
+                 удалена запись - самой строки в реестре уже нет. -->
+            <button
+              v-if="canManageAllEntities"
+              class="lk-button lk-button--secondary"
+              data-testid="employees-registry-log"
+              @click="showRegistryLog = true"
+            >
+              Журнал
+            </button>
             <RefreshButton
               :loading="loading"
               @refresh="fetchEmployees"
@@ -559,6 +569,12 @@
       </button>
     </div>
 
+    <RegistryLogModal
+      :show="showRegistryLog"
+      entity="employees"
+      @close="showRegistryLog = false"
+    />
+
     <EmployeeEditModal
       :visible="showModal"
       :editing-employee="editingEmployee"
@@ -606,6 +622,7 @@ import FilterButton from '@/components/ui/FilterButton.vue';
 import FilterSheet from '@/components/ui/FilterSheet.vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import RefreshButton from '@/components/RefreshButton.vue';
+import RegistryLogModal from '@/components/RegistryLogModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import EmployeeEditModal from '@/components/EmployeeEditModal.vue';
@@ -622,6 +639,7 @@ export default {
         FilterButton,
         FilterSheet,
         RefreshButton,
+        RegistryLogModal,
         LoaderSpinner,
         StatusBadge,
         EmployeeEditModal,
@@ -678,6 +696,7 @@ export default {
             showScopeSheet: false,
             ownershipInfo: null,
             showModal: false,
+            showRegistryLog: false,
             availableCitizenships: [],
             editingEmployee: null,
             showDetailsModal: false,
