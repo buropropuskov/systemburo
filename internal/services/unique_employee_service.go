@@ -651,6 +651,19 @@ func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка при создании сотрудника")
 	}
 
+	// Запись о заведении - для журнала реестра: правки и удаления в нём есть, и без
+	// создания история записи начиналась бы с середины. Ошибка аудита саму запись не
+	// откатывает, она уже создана - логируем и идём дальше.
+	created := strings.TrimSpace(strings.Join(nonEmptyStrings(employee.LastName, employee.FirstName, employee.MiddleName), " "))
+	if created == "" {
+		created = fmt.Sprintf("без имени (номер записи %d)", employee.ID)
+	}
+	createComment := fmt.Sprintf("Сотрудник %s заведён в реестр", created)
+	if err := s.recorder.Record(ctx, nil, models.AuditEntityUniqueEmployee, &employee.ID, "create",
+		&ownerInfo.UserID, carAuditDetails{Comment: &createComment}); err != nil {
+		slog.Error("не удалось записать создание сотрудника в журнал", "id", employee.ID, "error", err)
+	}
+
 	slog.Info("уникальный сотрудник создан", "id", employee.ID)
 	return employeeToResponse(&employee), nil
 }
