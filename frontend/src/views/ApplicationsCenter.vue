@@ -362,13 +362,12 @@
           data-testid="center-button-export"
           @click="exportRegistry"
         >
-          <img
-            src="@/assets/icons/export.png"
+          <AppIcon
+            name="export"
             class="filter-btn__icon export-btn__icon"
             width="16"
             height="16"
-            alt=""
-          >
+          />
           <span class="export-btn__text">{{ exporting ? 'Готовим...' : 'Выгрузить' }}</span>
         </button>
 

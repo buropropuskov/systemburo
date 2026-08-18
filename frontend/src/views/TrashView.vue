@@ -75,11 +75,10 @@
             :disabled="!items.length || isExporting"
             @click="onExport"
           >
-            <img
-              src="@/assets/icons/export.png"
+            <AppIcon
+              name="export"
               class="trash-tool-btn__icon"
-              alt=""
-            >
+            />
             Экспорт
           </button>
           <button

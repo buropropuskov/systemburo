@@ -23,11 +23,11 @@
                 :disabled="filteredHistory.length === 0 || isExporting"
                 @click="exportToExcel"
               >
-                <img
+                <AppIcon
                   v-if="!isExporting"
-                  src="@/assets/icons/export.png"
+                  name="export"
                   class="export-icon"
-                >
+                />
                 <span v-if="!isExporting">Экспорт</span>
                 <div
                   v-else
@@ -65,11 +65,11 @@
                 >
                   <div class="select-trigger">
                     <span class="selected-value">{{ selectedUserName }}</span>
-                    <img
-                      src="@/assets/icons/arrow.png"
+                    <AppIcon
+                      name="arrow"
                       class="select-arrow"
                       :class="{ 'arrow-open': userDropdownOpen }"
-                    >
+                    />
                   </div>
                   <transition name="fade">
                     <div

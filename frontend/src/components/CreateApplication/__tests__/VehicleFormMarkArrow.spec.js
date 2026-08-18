@@ -78,4 +78,21 @@ describe('VehicleForm - стрелка "Марка Т/С" не растрова�
     const [, right, , left] = padding;
     expect(right).toBeGreaterThan(left);
   });
+
+  it('шеврон повёрнут в сторону меню: оно раскрывается вправо', () => {
+    // Шеврон нарисован остриём вниз, поэтому знак поворота решает, куда он смотрит.
+    // Пришёл он сюда из растровой стрелки, у которой остриё было вправо, и знак
+    // достался от неё - значок при этом стал показывать в сторону, противоположную
+    // раскрытию (см. .mark__dropdown-menu: left: 100%).
+    const base = cssRule('.mark__button-arrow');
+    const open = cssRule('.mark__button-arrow--open');
+    const menu = cssRule('.mark__dropdown-menu');
+
+    expect(menu, 'меню раскрывается вбок - иначе поворот стрелки надо считать заново')
+      .toMatch(/left:\s*100%/);
+    expect(base, 'остриё вниз + rotate(90deg) смотрит влево, от меню')
+      .toMatch(/transform:\s*rotate\(-90deg\)/);
+    expect(open, 'раскрытое состояние отражает стрелку в противоположную сторону')
+      .toMatch(/transform:\s*rotate\(90deg\)/);
+  });
 });
