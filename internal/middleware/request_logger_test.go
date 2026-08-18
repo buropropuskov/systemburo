@@ -1,8 +1,12 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"testing"
+	"time"
+
+	"systemburo/internal/models"
 
 	"github.com/stretchr/testify/require"
 )
@@ -32,14 +36,18 @@ func TestSkipRequestLog(t *testing.T) {
 		{"живой healthcheck не пишем", "/health", http.StatusOK, true},
 		{"упавший healthcheck пишем", "/health", http.StatusServiceUnavailable, false},
 
-		// Страница мониторинга опрашивает себя сама, раз в 5 и 30 секунд с каждой
-		// открытой вкладки. Чтение журнала в журнале не нужно, но отказ при чтении нужен.
-		{"корень раздела не пишем", "/api/request-logs", http.StatusOK, true},
+		// Страница мониторинга опрашивает себя сама: лента раз в пять секунд, график и
+		// метрики шапки раз в тридцать, с каждой открытой вкладки.
 		{"ленту не пишем", "/api/request-logs/realtime", http.StatusOK, true},
 		{"график не пишем", "/api/request-logs/timeline", http.StatusOK, true},
-		{"отказ в разделе пишем", "/api/request-logs/export", http.StatusForbidden, false},
-		// Тот же случай, что и с поиском: адрес, начинающийся так же, но другой раздел.
-		{"похожий раздел пишем", "/api/request-logs-summary", http.StatusOK, false},
+		{"метрики шапки не пишем", "/api/request-logs/stats", http.StatusOK, true},
+		{"отказ в ленте пишем", "/api/request-logs/realtime", http.StatusForbidden, false},
+
+		// Остальное в разделе человек вызывает руками. Выгрузка журнала обращений тем
+		// более должна оставлять след: кто и когда её скачал - это и есть предмет разбора.
+		{"список журнала пишем", "/api/request-logs", http.StatusOK, false},
+		{"выгрузку пишем", "/api/request-logs/export", http.StatusOK, false},
+		{"историю пишем", "/api/request-logs/history", http.StatusOK, false},
 	}
 
 	for _, tc := range cases {
@@ -47,4 +55,17 @@ func TestSkipRequestLog(t *testing.T) {
 			require.Equal(t, tc.want, skipRequestLog(tc.path, tc.status))
 		})
 	}
+}
+
+// Очередь писателя не бездонная, и после остановки в неё уже не пишут. Потерянные записи
+// считаются: журнал, потерявший часть обращений молча, хуже отсутствующего.
+func TestRequestLogWriterCountsDropped(t *testing.T) {
+	// База не нужна: пустая пачка до неё не доходит, а после остановки запись даже не
+	// доходит до очереди.
+	writer := NewRequestLogWriter(nil, WithRequestLogBatch(100, time.Hour))
+	writer.Shutdown(context.Background())
+
+	require.Equal(t, int64(0), writer.Dropped())
+	writer.Enqueue(models.RequestLogs{CreatedAt: time.Now()})
+	require.Equal(t, int64(1), writer.Dropped(), "запись после остановки должна попасть в счётчик потерь")
 }

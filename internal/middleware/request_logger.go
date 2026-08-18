@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"net/url"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -40,25 +39,29 @@ const (
 )
 
 // requestLogSkipPaths - адреса, которые не попадают в журнал обращений при успешном
-// ответе. Сюда идёт то, что вызывается не действием человека:
+// ответе. Сюда идёт только то, что вызывается не действием человека, а таймером:
 //   - /api/search - подсказки сквозного поиска летят на каждый введённый символ и в
 //     /admin/requests вытеснили бы всё остальное, ради чего журнал и заведён;
 //   - /health - проба готовности, которую дёргает docker и внешний монитор. На стенде
-//     это 87 тысяч записей, четверть журнала, и все одинаковые.
+//     это 87 тысяч записей, четверть журнала, и все одинаковые;
+//   - три адреса раздела мониторинга - страница опрашивает себя сама: ленту раз в пять
+//     секунд, график и метрики шапки раз в тридцать, и каждая открытая вкладка добавляет
+//     свой поток. Журнал, наполовину состоящий из чтения журнала, бесполезен.
 //
-// Отказы всё равно записываются - см. skipRequestLog. Упавший healthcheck это как раз
-// то, что нужно видеть при разборе инцидента, и таких записей единицы.
-var requestLogSkipPaths = []string{"/api/search", "/health"}
-
-// requestLogSkipPrefixes - разделы, которые не пишутся целиком, вместе с подпутями.
-// Страница мониторинга опрашивает себя сама: лента раз в 5 секунд, график раз в 30, и
-// каждая открытая вкладка добавляет свой поток. Журнал, наполовину состоящий из чтения
-// журнала, бесполезен.
+// Остальные адреса раздела (список, выгрузка, история, справочник пользователей) человек
+// вызывает руками, и они пишутся: кто и когда выгрузил журнал обращений - как раз то,
+// что нужно при разборе.
 //
-// Совпадение проверяется как «сам раздел или что-то под ним», не как обычный префикс
-// строки: иначе замолчал бы и соседний адрес вроде /api/request-logs-summary, причём
-// незаметно - пропажу записей в журнале никто не заметит.
-var requestLogSkipPrefixes = []string{"/api/request-logs"}
+// Сравнение точное, а не по префиксу: префикс заглушил бы и будущий соседний адрес вроде
+// /api/search-history, причём молча - пропажу записей в журнале никто не заметит.
+// Отказы всё равно записываются - см. skipRequestLog.
+var requestLogSkipPaths = []string{
+	"/api/search",
+	"/health",
+	"/api/request-logs/realtime",
+	"/api/request-logs/timeline",
+	"/api/request-logs/stats",
+}
 
 // skipRequestLog решает, пропускать ли запись. Успешный технический запрос не логируем,
 // а вот отказ или ошибку - да: именно они интересны при разборе инцидента, и их немного.
@@ -70,11 +73,6 @@ func skipRequestLog(path string, status int) bool {
 	}
 	for _, p := range requestLogSkipPaths {
 		if path == p {
-			return true
-		}
-	}
-	for _, p := range requestLogSkipPrefixes {
-		if path == p || strings.HasPrefix(path, p+"/") {
 			return true
 		}
 	}
@@ -121,6 +119,12 @@ type RequestLogWriter struct {
 	done     chan struct{}
 	stopOnce sync.Once
 	stopped  atomic.Bool
+	// stopCtx - срок, отведённый на слив очереди при остановке. Пишется до закрытия
+	// stop и читается писателем после того, как тот увидел закрытие, поэтому лишней
+	// синхронизации не нужно. Без него писатель мог бы возиться с недоступной базой
+	// дольше, чем main готов его ждать, и остаток очереди уходил бы вместе с процессом
+	// молча.
+	stopCtx context.Context
 
 	// dropped - записи, не попавшие в очередь: писатель не успевал за нагрузкой.
 	// Считаем и показываем в логе, а не теряем молча.
@@ -165,7 +169,9 @@ func NewRequestLogWriter(db *gorm.DB, opts ...RequestLogWriterOption) *RequestLo
 }
 
 // Enqueue кладёт готовую запись в очередь, минуя HTTP-слой. Отдельный метод нужен
-// тестам записи: сам путь через Middleware проверяется отдельно.
+// тестам записи: сам путь через Middleware проверяется отдельно. Появится второй
+// источник записей - см. условие в Shutdown: он рассчитывает, что к моменту слива
+// подавать уже некому.
 func (w *RequestLogWriter) Enqueue(entry models.RequestLogs) {
 	w.enqueue(entry)
 }
@@ -216,10 +222,16 @@ func (w *RequestLogWriter) Middleware() echo.MiddlewareFunc {
 }
 
 // Shutdown останавливает писателя и ждёт, пока принятые записи лягут в базу.
-// Вызывается после e.Shutdown: новых запросов уже нет, остаётся слить очередь.
+// Вызывается после e.Shutdown, и это условие обязательное: слив вычерпывает очередь до
+// пустой, поэтому запись, поданная одновременно со сливом, может не попасть ни в базу,
+// ни в счётчик потерь. Пока единственный источник записей - HTTP-обработчики, к этому
+// моменту уже завершённые.
 func (w *RequestLogWriter) Shutdown(ctx context.Context) {
 	w.stopped.Store(true)
-	w.stopOnce.Do(func() { close(w.stop) })
+	w.stopOnce.Do(func() {
+		w.stopCtx = ctx
+		close(w.stop)
+	})
 
 	select {
 	case <-w.done:
@@ -242,6 +254,12 @@ func (w *RequestLogWriter) enqueue(entry models.RequestLogs) {
 	default:
 		w.dropped.Add(1)
 	}
+}
+
+// Dropped - сколько записей не попало в очередь с момента запуска. Нужен диагностике и
+// тестам: потеря журнала иначе видна только в логе.
+func (w *RequestLogWriter) Dropped() int64 {
+	return w.dropped.Load()
 }
 
 // run - фоновый писатель: копит пачку и отдаёт её в базу по наполнению или по таймеру.
@@ -273,6 +291,12 @@ func (w *RequestLogWriter) run() {
 // обработчиками и потерять их на выходе - то же самое, что не записать вовсе.
 func (w *RequestLogWriter) drain(batch []models.RequestLogs) []models.RequestLogs {
 	for {
+		// Отведённый на остановку срок вышел: дальше вычерпывать бессмысленно, база
+		// всё равно не примет. Что осталось в очереди - потеряно, и об этом скажет
+		// ошибка последней пачки.
+		if w.stopCtx != nil && w.stopCtx.Err() != nil {
+			return batch
+		}
 		select {
 		case entry := <-w.queue:
 			batch = append(batch, entry)
@@ -292,9 +316,14 @@ func (w *RequestLogWriter) flush(batch []models.RequestLogs) []models.RequestLog
 		return batch
 	}
 
-	// Отдельный context: request-context обработчика давно отменён, а при остановке
-	// сервера отведённый на слив срок держит main.go.
-	ctx, cancel := context.WithTimeout(context.Background(), requestLogWriteTimeout)
+	// Отдельный context: request-context обработчика давно отменён. При остановке
+	// сервера отсчёт идёт от срока, отведённого на слив, - иначе пачки уходили бы по
+	// пять секунд каждая и переживали бы то время, что main готов ждать.
+	parent := context.Background()
+	if w.stopCtx != nil {
+		parent = w.stopCtx
+	}
+	ctx, cancel := context.WithTimeout(parent, requestLogWriteTimeout)
 	defer cancel()
 
 	if err := w.db.WithContext(ctx).CreateInBatches(batch, w.batchSize).Error; err != nil {
