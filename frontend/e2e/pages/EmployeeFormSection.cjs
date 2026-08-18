@@ -18,6 +18,10 @@ class EmployeeFormSection {
     this.citizenshipText = scope.locator('.citizenship__dropdown .dropdown__button .button__text');
     this.passageTiles = scope.locator('.passage__item');
     this.addButton = scope.locator('.data__completion button.add-button');
+    // Отметка согласия субъекта на обработку персональных данных: без неё «Добавить»
+    // остаётся заблокированной. Бюро может убрать поле настройкой вида вложения,
+    // поэтому в addEmployee отметка ставится по факту наличия.
+    this.pdConsentCheckbox = scope.getByTestId('employee-pd-consent');
     this.rows = scope.locator('.employees-table .table-row.rt-row');
   }
 
@@ -45,6 +49,10 @@ class EmployeeFormSection {
 
     await this.passageTile(passageTable).first().click();
     await expect(this.passageTile(passageTable).first()).toHaveClass(/passage__item--active/);
+
+    if (await this.pdConsentCheckbox.count() > 0) {
+      await this.pdConsentCheckbox.first().check();
+    }
 
     await this.addButton.first().click();
     await expect(this.row(lastName)).toHaveCount(1);
