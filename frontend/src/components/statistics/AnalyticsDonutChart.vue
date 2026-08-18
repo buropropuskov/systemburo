@@ -3,12 +3,11 @@
     class="donut-chart"
     :style="{ height: height + 'px' }"
   >
-    <VueApexCharts
+    <canvas
       v-if="hasData"
-      type="donut"
-      :height="height"
-      :options="options"
-      :series="series"
+      ref="canvas"
+      role="img"
+      :aria-label="totalLabel"
     />
     <div
       v-else
@@ -20,8 +19,9 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import VueApexCharts from 'vue3-apexcharts';
+import { computed, ref } from 'vue';
+import { centerLabelPlugin, sliceLabelsPlugin } from './donutPlugins';
+import { TOOLTIP_STYLE, lighten, useChartCanvas } from './useChartCanvas';
 
 const props = defineProps({
   /** Сегменты в форме [{ label, value }]; label — подпись доли (тип вложения, статус). */
@@ -61,6 +61,8 @@ const props = defineProps({
   },
 });
 
+const canvas = ref(null);
+
 // Нулевые сегменты не рисуем — пустые доли искажают кольцо и легенду.
 const segments = computed(() =>
   props.data
@@ -72,6 +74,12 @@ const hasData = computed(() => segments.value.length > 0);
 
 const labels = computed(() => segments.value.map((d) => d.label));
 const series = computed(() => segments.value.map((d) => d.value));
+
+// Палитру раскладываем по сегментам сами: сегментов может быть больше, чем
+// цветов, и тогда набор идёт по кругу.
+const segmentColors = computed(() =>
+  segments.value.map((_, i) => props.colors[i % props.colors.length]),
+);
 
 function pluralize(n) {
   const [one, few, many] = props.unitForms;
@@ -89,66 +97,61 @@ function formatValue(v) {
     : Math.round(num).toLocaleString('ru-RU');
 }
 
-const options = computed(() => ({
-  chart: {
-    type: 'donut',
-    height: props.height,
-    fontFamily: 'inherit',
-    toolbar: { show: false },
-    animations: { enabled: true, easing: 'easeinout', speed: 400 },
+const config = computed(() => ({
+  type: 'doughnut',
+  data: {
+    labels: labels.value,
+    datasets: [
+      {
+        data: series.value,
+        backgroundColor: segmentColors.value,
+        hoverBackgroundColor: segmentColors.value.map((c) => lighten(c, 0.06)),
+        borderColor: '#ffffff',
+        borderWidth: 2,
+        hoverBorderColor: '#ffffff',
+      },
+    ],
   },
-  colors: props.colors,
-  labels: labels.value,
-  stroke: { width: 2, colors: ['#fff'] },
-  dataLabels: {
-    enabled: true,
-    // Внутри сегмента — доля в процентах (val уже процент для donut).
-    formatter: (val) => `${Math.round(val)}%`,
-    style: { fontSize: '12px', fontWeight: 600 },
-    dropShadow: { enabled: false },
-  },
-  plotOptions: {
-    pie: {
-      donut: {
-        size: '64%',
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    // Толщина кольца: та же доля радиуса, что была у прежнего движка.
+    cutout: '64%',
+    animation: { duration: 400, easing: 'easeInOutQuad' },
+    plugins: {
+      legend: {
+        position: 'bottom',
         labels: {
-          show: true,
-          value: {
-            color: '#333',
-            fontSize: '20px',
-            fontWeight: 700,
-            formatter: (v) => formatValue(v),
-          },
-          total: {
-            show: true,
-            label: props.totalLabel,
-            color: '#a2a2a2',
-            fontSize: '12px',
-            formatter: (w) => {
-              const sum = w.globals.seriesTotals.reduce((a, b) => a + b, 0);
-              return formatValue(sum);
-            },
+          color: '#666',
+          font: { size: 12 },
+          usePointStyle: true,
+          pointStyle: 'rectRounded',
+          boxWidth: 10,
+          boxHeight: 10,
+          padding: 12,
+        },
+      },
+      tooltip: {
+        ...TOOLTIP_STYLE,
+        callbacks: {
+          // Имя сегмента уже стоит в строке значения — отдельный заголовок
+          // повторял бы его.
+          title: () => '',
+          label: (item) => {
+            const num = Number(item?.raw) || 0;
+            return ` ${item?.label}: ${formatValue(num)} ${pluralize(Math.round(num))}`;
           },
         },
       },
     },
   },
-  states: { hover: { filter: { type: 'lighten', value: 0.06 } } },
-  legend: {
-    position: 'bottom',
-    fontSize: '12px',
-    labels: { colors: '#666' },
-    markers: { width: 10, height: 10, radius: 4 },
-    itemMargin: { horizontal: 8, vertical: 2 },
-  },
-  tooltip: {
-    theme: 'dark',
-    y: {
-      formatter: (v) => `${formatValue(v)} ${pluralize(Math.round(Number(v) || 0))}`,
-      title: { formatter: (name) => `${name}:` },
-    },
-  },
+  plugins: [
+    sliceLabelsPlugin,
+    centerLabelPlugin({ label: props.totalLabel, format: formatValue }),
+  ],
 }));
+
+useChartCanvas(canvas, config);
 </script>
 
 <style scoped>
