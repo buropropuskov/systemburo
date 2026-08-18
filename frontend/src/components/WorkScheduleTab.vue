@@ -416,8 +416,7 @@ import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'WorkScheduleTab',
-  components: {
-  AppIcon, ConfirmationModal },
+  components: { AppIcon, ConfirmationModal },
   props: {
     // Базовый URL ресурса-владельца окон, например '/system-tables/12' или
     // '/unload-places/5'. Компонент достраивает '/time-slots[/{id}]'.

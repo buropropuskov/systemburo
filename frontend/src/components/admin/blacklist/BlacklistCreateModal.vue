@@ -230,8 +230,7 @@ import AppIcon from '@/components/icons/AppIcon.vue';
  */
 export default {
   name: 'BlacklistCreateModal',
-  components: {
-  AppIcon, BaseModal, FormField, BlacklistImpactModal },
+  components: { AppIcon, BaseModal, FormField, BlacklistImpactModal },
   props: {
     show: { type: Boolean, default: false },
     type: { type: String, required: true, validator: (v) => ['vehicle', 'person'].includes(v) },

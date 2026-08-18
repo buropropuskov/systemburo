@@ -234,8 +234,7 @@ function ymd(d) {
 
 export default {
   name: 'PassReportModal',
-  components: {
-  AppIcon, BaseModal, RefreshButton, DateFilter },
+  components: { AppIcon, BaseModal, RefreshButton, DateFilter },
   props: {
     show: { type: Boolean, required: true },
     tableId: { type: Number, default: null },

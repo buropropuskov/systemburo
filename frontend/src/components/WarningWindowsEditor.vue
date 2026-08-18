@@ -271,8 +271,7 @@ import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'WarningWindowsEditor',
-  components: {
-  AppIcon, ConfirmationModal },
+  components: { AppIcon, ConfirmationModal },
   props: {
     // Базовый URL ресурса-владельца окон, например '/unload-places/5' или
     // '/system-tables/12'. Компонент достраивает '/warning-windows[/{id}]'.

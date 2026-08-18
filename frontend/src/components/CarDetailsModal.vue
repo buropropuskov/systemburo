@@ -401,8 +401,7 @@ import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
     name: 'CarDetailsModal',
-    components: {
-  AppIcon, LoaderSpinner, CarHistoryModal },
+    components: { AppIcon, LoaderSpinner, CarHistoryModal },
   props: {
     car: {
       type: Object,
