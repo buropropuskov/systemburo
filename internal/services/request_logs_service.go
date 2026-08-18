@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -32,6 +34,37 @@ type requestLogsService struct {
 // NewRequestLogsService создаёт реализацию RequestLogsService.
 func NewRequestLogsService(db *gorm.DB) RequestLogsService {
 	return &requestLogsService{db: db}
+}
+
+// durationUsExpr -- длительность запроса в микросекундах. Записи, сделанные до
+// перехода на микросекунды, читаются из миллисекундной колонки (#2125).
+const durationUsExpr = "COALESCE(duration_us, duration_ms * 1000)"
+
+// streamingLogPaths -- пути, где записанная длительность это время жизни
+// соединения, а не время ответа. Подписка на события живёт минутами, и одна
+// такая запись перевешивала десятки тысяч обычных: среднее по журналу
+// показывало 5 секунд при реальных ответах в десятки миллисекунд.
+//
+// Из журнала такие обращения не исключаются - факт подключения виден в ленте.
+// Их не берут только расчёты длительности.
+var streamingLogPaths = []string{"/api/events"}
+
+// notStreamingSQL -- условие «это обычный запрос, а не долгоживущее соединение».
+// Пути берутся из константы кода, не из пользовательского ввода, поэтому
+// подставляются литералами.
+//
+// Разделитель адреса и query задан как chr(63), а не знаком вопроса в кавычках:
+// gorm считает вопросительный знак местом подстановки даже внутри строковой
+// константы, и аргументы запроса разъезжаются - в split_part уезжает дата.
+func notStreamingSQL() string {
+	if len(streamingLogPaths) == 0 {
+		return "TRUE"
+	}
+	quoted := make([]string, 0, len(streamingLogPaths))
+	for _, p := range streamingLogPaths {
+		quoted = append(quoted, "'"+p+"'")
+	}
+	return "split_part(COALESCE(url, ''), chr(63), 1) NOT IN (" + strings.Join(quoted, ", ") + ")"
 }
 
 func (s *requestLogsService) applyFilters(tx *gorm.DB, q models.RequestLogsQuery) *gorm.DB {
@@ -106,43 +139,70 @@ func (s *requestLogsService) GetUsers(ctx context.Context) ([]models.RequestLogs
 	return users, nil
 }
 
-// GetStats возвращает агрегированную статистику.
+// GetStats возвращает агрегированную статистику для шапки раздела.
+//
+// Считается одним проходом по таблице: раздельные COUNT/AVG давали пять
+// последовательных сканов всех партиций на каждое обновление экрана.
+//
+// Длительности берутся за последний час, а не за всю историю: шапка живого
+// журнала отвечает на вопрос «как система отвечает сейчас», а перцентиль по
+// всем тридцати суткам ещё и требовал бы сортировки миллионов строк каждые
+// полминуты.
 func (s *requestLogsService) GetStats(ctx context.Context) (*models.RequestLogsStats, error) {
-	var stats models.RequestLogsStats
+	now := time.Now().In(AnalyticsLocation())
+	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, AnalyticsLocation())
+	hourAgo := time.Now().UTC().Add(-1 * time.Hour)
 
-	// Total
-	if err := s.db.WithContext(ctx).Table("request_logs").Count(&stats.Total).Error; err != nil {
+	var row struct {
+		Total    int64
+		Today    int64
+		Errors   int64
+		LastHour int64
+		AvgUs    float64
+		MedianUs float64
+		P95Us    float64
+	}
+
+	// Окно длительностей: последний час и без долгоживущих подписок. Час задаётся
+	// параметром, поэтому подставляется третьим аргументом запроса.
+	recent := "created_at >= ? AND " + notStreamingSQL()
+	query := `
+		SELECT
+			COUNT(*)                                       AS total,
+			COUNT(*) FILTER (WHERE created_at >= ?)        AS today,
+			COUNT(*) FILTER (WHERE response_status >= 400) AS errors,
+			COUNT(*) FILTER (WHERE created_at >= ?)        AS last_hour,
+			COALESCE(AVG(` + durationUsExpr + `) FILTER (WHERE ` + recent + `), 0) AS avg_us,
+			COALESCE(percentile_cont(0.5) WITHIN GROUP (ORDER BY ` + durationUsExpr + `)
+				FILTER (WHERE ` + recent + `), 0) AS median_us,
+			COALESCE(percentile_cont(0.95) WITHIN GROUP (ORDER BY ` + durationUsExpr + `)
+				FILTER (WHERE ` + recent + `), 0) AS p95_us
+		FROM request_logs`
+
+	if err := s.db.WithContext(ctx).Raw(query, dayStart, hourAgo, hourAgo, hourAgo, hourAgo).Scan(&row).Error; err != nil {
+		slog.Error("request logs stats", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "failed to fetch stats")
 	}
 
-	// Today (по UTC -- created_at в БД хранится в UTC).
-	todayStart := time.Now().UTC().Truncate(24 * time.Hour)
-	s.db.WithContext(ctx).Table("request_logs").Where("created_at >= ?", todayStart).Count(&stats.Today)
-
-	// Avg duration
-	s.db.WithContext(ctx).Table("request_logs").
-		Select("COALESCE(AVG(duration_ms), 0)").
-		Row().
-		Scan(&stats.AvgDuration)
-
-	// Error rate (4xx + 5xx)
-	if stats.Total > 0 {
-		var errorCount int64
-		s.db.WithContext(ctx).Table("request_logs").
-			Where("response_status >= 400").
-			Count(&errorCount)
-		stats.ErrorRate = float64(errorCount) / float64(stats.Total) * 100
+	stats := models.RequestLogsStats{
+		Total:             row.Total,
+		Today:             row.Today,
+		AvgDuration:       usToMs(row.AvgUs),
+		MedianDuration:    usToMs(row.MedianUs),
+		P95Duration:       usToMs(row.P95Us),
+		RequestsPerMinute: float64(row.LastHour) / 60.0,
+	}
+	if row.Total > 0 {
+		stats.ErrorRate = float64(row.Errors) / float64(row.Total) * 100
 	}
 
-	// Requests per minute (за последний час)
-	hourAgo := time.Now().UTC().Add(-1 * time.Hour)
-	var lastHourCount int64
-	s.db.WithContext(ctx).Table("request_logs").
-		Where("created_at >= ?", hourAgo).
-		Count(&lastHourCount)
-	stats.RequestsPerMinute = float64(lastHourCount) / 60.0
-
 	return &stats, nil
+}
+
+// usToMs переводит микросекунды в миллисекунды, оставляя один знак после запятой:
+// ответы быстрее миллисекунды не должны выглядеть как нулевые.
+func usToMs(us float64) float64 {
+	return math.Round(us/100) / 10
 }
 
 // GetRealtime возвращает количество запросов за последнюю секунду и минуту.

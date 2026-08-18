@@ -24,17 +24,21 @@ type RequestLog struct {
 func (RequestLog) TableName() string { return "request_log" }
 
 type RequestLogs struct {
-	ID             int64     `json:"id"`
-	UserID         *int      `gorm:"index" json:"user_id"`
-	Username       *string   `gorm:"size:100" json:"username"`
-	Method         *string   `gorm:"size:10" json:"method"`
-	URL            *string   `gorm:"size:500" json:"url"`
-	Headers        *string   `gorm:"type:jsonb" json:"headers"`
-	RequestBody    *string   `gorm:"type:text" json:"request_body"`
-	ResponseStatus *int      `json:"response_status"`
-	ResponseBody   *string   `gorm:"type:text" json:"response_body"`
-	DurationMs     *int      `json:"duration_ms"`
-	CreatedAt      time.Time `json:"created_at"`
+	ID             int64   `json:"id"`
+	UserID         *int    `gorm:"index" json:"user_id"`
+	Username       *string `gorm:"size:100" json:"username"`
+	Method         *string `gorm:"size:10" json:"method"`
+	URL            *string `gorm:"size:500" json:"url"`
+	Headers        *string `gorm:"type:jsonb" json:"headers"`
+	RequestBody    *string `gorm:"type:text" json:"request_body"`
+	ResponseStatus *int    `json:"response_status"`
+	ResponseBody   *string `gorm:"type:text" json:"response_body"`
+	DurationMs     *int    `json:"duration_ms"`
+	// DurationUs -- длительность в микросекундах. Миллисекунды округлены вниз, и
+	// треть запросов отвечает быстрее миллисекунды: по ним перцентили вырождались
+	// в ноль (#2125). Указатель, потому что у записей до перехода значения нет.
+	DurationUs *int64    `json:"duration_us"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 func (RequestLogs) TableName() string { return "request_logs" }
@@ -51,11 +55,19 @@ type RequestLogsQuery struct {
 	PerPage int    `query:"per_page"`
 }
 
-// RequestLogsStats — агрегированная статистика по логам запросов.
+// RequestLogsStats — агрегированная статистика по логам запросов. Длительности
+// в миллисекундах с дробной частью: считаются по микросекундной колонке и не
+// округляются до нуля на быстрых ответах.
+//
+// Долгоживущие соединения (подписка на события) в длительности не учитываются:
+// у них в журнале записано время жизни соединения, и одно такое перевешивало
+// десятки тысяч обычных ответов, задирая среднее до секунд.
 type RequestLogsStats struct {
 	Total             int64   `json:"total"`
 	Today             int64   `json:"today"`
 	AvgDuration       float64 `json:"avg_duration"`
+	MedianDuration    float64 `json:"median_duration"`
+	P95Duration       float64 `json:"p95_duration"`
 	ErrorRate         float64 `json:"error_rate"`
 	RequestsPerMinute float64 `json:"requests_per_minute"`
 }
