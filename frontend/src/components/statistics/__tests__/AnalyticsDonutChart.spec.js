@@ -129,16 +129,16 @@ describe('AnalyticsDonutChart', () => {
     // передаёт свой контекст вместо числа - кольцо падало на отрисовке, а мок
     // конструктора этого не показывал. Настройки плагинов идут замыканием.
     const { config } = await build({ data: DATA });
+    // Два места, где функция законна и вызывается как обработчик: подсказка и
+    // подписи делений оси.
+    const allowed = [/^options\.plugins\.tooltip\.callbacks\./, /^options\.scales\.[^.]+\.ticks\.callback$/];
     const functionsIn = (value, path = 'options') => {
+      if (allowed.some((re) => re.test(path))) return [];
       if (typeof value === 'function') return [path];
       if (!value || typeof value !== 'object') return [];
       return Object.entries(value).flatMap(([key, inner]) => functionsIn(inner, `${path}.${key}`));
     };
-    // Обработчики подсказки - исключение: их Chart.js читает как обработчики.
-    const { tooltip, ...restPlugins } = config.options.plugins;
-    const { callbacks, ...restTooltip } = tooltip;
-    expect(functionsIn({ ...config.options, plugins: { ...restPlugins, tooltip: restTooltip } }))
-      .toEqual([]);
+    expect(functionsIn(config.options)).toEqual([]);
   });
 
   it('легенда стоит под кольцом', async () => {
