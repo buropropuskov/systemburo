@@ -283,8 +283,10 @@ export default {
 
 .bip__dropzone-icon {
   opacity: 0.8;
-  /* Значок книги Excel был зелёным цветом формата - остаётся им. */
-  color: var(--success);
+  /* Значок книги Excel был зелёным цветом формата - остаётся им. Берём
+     --success-text, а не --success: последний в проекте живёт рамкой и фоном,
+     а на поверхности карточки даёт 2.1 при норме 3.0 для графики. */
+  color: var(--success-text);
 }
 
 .bip__dropzone-title {

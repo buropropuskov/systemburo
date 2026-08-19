@@ -19,6 +19,16 @@ export function createIconComponent({ name, icons, defaultSize }) {
       name: {
         type: String,
         required: true,
+        // Имя вне реестра рисует пустой svg: разметка, стили и тесты при этом
+        // верны, а значка на экране нет. Молча это переживает и опечатка, и
+        // старый контракт пропа (BlacklistTabBase принимал путь к файлу).
+        validator: (value) => {
+          const known = Object.hasOwn(icons, value);
+          if (!known) {
+            console.warn(`${name}: глифа "${value}" нет в реестре - значок не нарисуется`);
+          }
+          return known;
+        },
       },
       size: {
         type: [Number, String],
