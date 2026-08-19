@@ -58,7 +58,11 @@ func TestRequestLogs_MonitoringKeyHolder_Ok(t *testing.T) {
 	testutil.GrantPermission(t, getUserID(t, db, "rlmonitor"), services.KeyPageAdminMonitoring)
 	h := testutil.AuthHeader(token)
 
-	for _, path := range []string{"/request-logs", "/request-logs/stats", "/request-logs/users", "/request-logs/export"} {
+	paths := []string{
+		"/request-logs", "/request-logs/stats", "/request-logs/users", "/request-logs/realtime",
+		"/request-logs/timeline", "/request-logs/history", "/request-logs/export",
+	}
+	for _, path := range paths {
 		rec := testutil.GET(t, e, path, h)
 		assert.Equal(t, http.StatusOK, rec.Code, "носитель page.admin.monitoring должен проходить на %s", path)
 	}
