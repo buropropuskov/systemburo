@@ -80,7 +80,9 @@ type TimelineQuery struct {
 	To       string `query:"to_date"`
 }
 
-// TimelinePoint — одна точка на графике таймлайна.
+// TimelinePoint — одна точка на графике таймлайна. Длительность в миллисекундах
+// с дробной частью: считается по микросекундной колонке и без долгоживущих
+// соединений, как и показатели шапки (#2125).
 type TimelinePoint struct {
 	Timestamp   string  `json:"timestamp"`
 	Count       int64   `json:"count"`

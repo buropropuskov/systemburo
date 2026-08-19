@@ -367,12 +367,13 @@
                 <button
                   v-if="selectedTable.table.is_active"
                   class="delete-icon-btn"
+                  title="Удалить таблицу"
                   @click="confirmDeleteTable(selectedTable)"
                 >
-                  <img
-                    src="@/assets/icons/delete.png"
+                  <AppIcon
+                    name="delete"
                     class="delete-icon"
-                  >
+                  />
                 </button>
               </div>
             </div>
@@ -2389,6 +2390,7 @@ export default {
 }
 
 .delete-icon {
+  color: var(--danger);
   width: 20px;
   height: 20px;
 }

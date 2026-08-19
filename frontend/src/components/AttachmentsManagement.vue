@@ -160,11 +160,10 @@
                   title="Переименовать"
                   @click="startNameEdit"
                 >
-                  <img
-                    src="@/assets/icons/edit.png"
+                  <AppIcon
+                    name="edit"
                     class="name-edit-icon"
-                    alt=""
-                  >
+                  />
                 </button>
               </template>
               <span
@@ -1676,6 +1675,7 @@ export default {
 }
 
 .name-edit-icon {
+  color: var(--text);
   width: 16px;
   height: 16px;
   display: block;

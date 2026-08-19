@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"systemburo/internal/models"
@@ -28,12 +29,76 @@ type RequestLogsService interface {
 }
 
 type requestLogsService struct {
-	db *gorm.DB
+	db    *gorm.DB
+	stats *statsCache
+}
+
+// statsCacheTTL -- срок жизни снимка показателей шапки. Равен периоду, с которым
+// их опрашивает экран: снимок гасит повторный расчёт от каждой открытой вкладки,
+// но не показывает вчерашнее.
+//
+// Константа кода, а не параметр окружения: крутить оператору тут нечего, а каждая
+// новая переменная тянет за собой проводку через compose, генератор .env и
+// приложение Б документации заказчика.
+const statsCacheTTL = 30 * time.Second
+
+// RequestLogsOption настраивает сервис журнала при создании.
+type RequestLogsOption func(*requestLogsService)
+
+// WithRequestLogsStatsCache задаёт свой срок жизни снимка показателей. Нулевой
+// (и отрицательный) оставляет расчёт на каждое обращение -- так проверяют сам
+// расчёт, не разбираясь, чей ответ вернулся.
+func WithRequestLogsStatsCache(ttl time.Duration) RequestLogsOption {
+	return func(s *requestLogsService) {
+		s.stats = &statsCache{ttl: ttl}
+	}
 }
 
 // NewRequestLogsService создаёт реализацию RequestLogsService.
-func NewRequestLogsService(db *gorm.DB) RequestLogsService {
-	return &requestLogsService{db: db}
+func NewRequestLogsService(db *gorm.DB, opts ...RequestLogsOption) RequestLogsService {
+	s := &requestLogsService{db: db, stats: &statsCache{ttl: statsCacheTTL}}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
+// statsCache -- снимок показателей шапки на срок ttl. Экран опрашивает их раз в
+// полминуты из каждой открытой вкладки, а расчёт берёт перцентили по журналу
+// целиком: без общего снимка каждая вкладка платит собственным сканом партиций.
+type statsCache struct {
+	mu    sync.Mutex
+	ttl   time.Duration
+	value *models.RequestLogsStats
+	at    time.Time
+}
+
+// get отдаёт снимок, пока он свежий, и считает под замком, когда протух:
+// одновременные читатели ждут один расчёт вместо того, чтобы запускать
+// одинаковый скан каждый за себя. Отказ базы не кэшируется -- иначе одна
+// неудача держала бы экран пустым весь срок жизни снимка.
+func (c *statsCache) get(ctx context.Context, now time.Time,
+	compute func(context.Context) (*models.RequestLogsStats, error)) (*models.RequestLogsStats, error) {
+	if c == nil || c.ttl <= 0 {
+		return compute(ctx)
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.value != nil && now.Sub(c.at) < c.ttl {
+		fresh := *c.value
+		return &fresh, nil
+	}
+
+	value, err := compute(ctx)
+	if err != nil {
+		return nil, err
+	}
+	c.value, c.at = value, now
+
+	fresh := *value
+	return &fresh, nil
 }
 
 // durationUsExpr -- длительность запроса в микросекундах. Записи, сделанные до
@@ -123,16 +188,25 @@ func (s *requestLogsService) GetLogs(ctx context.Context, q models.RequestLogsQu
 	return logs, total, nil
 }
 
-// GetUsers возвращает уникальных пользователей из логов.
+// GetUsers возвращает список учётных записей для фильтра «пользователь».
+//
+// Читается справочник, а не DISTINCT по журналу: уникальные значения из журнала
+// стоят полного скана всех партиций (сотни тысяч строк) ради сотни имён, которые
+// уже лежат в users.
+//
+// Учётные записи в архиве в список не попадают: фильтр отвечает на вопрос «за кем
+// посмотреть», а не «кто когда-либо обращался». Обращения уволенного в журнале
+// остаются и находятся поиском по имени.
 func (s *requestLogsService) GetUsers(ctx context.Context) ([]models.RequestLogsUser, error) {
 	users := make([]models.RequestLogsUser, 0)
 	err := s.db.WithContext(ctx).
-		Table("request_logs").
-		Select("DISTINCT user_id AS id, username").
-		Where("user_id IS NOT NULL AND username IS NOT NULL").
+		Table("users").
+		Select("id, username").
+		Where("is_active = ?", true).
 		Order("username").
 		Scan(&users).Error
 	if err != nil {
+		slog.Error("request logs users", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "failed to fetch users")
 	}
 
@@ -149,6 +223,11 @@ func (s *requestLogsService) GetUsers(ctx context.Context) ([]models.RequestLogs
 // всем тридцати суткам ещё и требовал бы сортировки миллионов строк каждые
 // полминуты.
 func (s *requestLogsService) GetStats(ctx context.Context) (*models.RequestLogsStats, error) {
+	return s.stats.get(ctx, time.Now(), s.computeStats)
+}
+
+// computeStats считает показатели шапки одним запросом.
+func (s *requestLogsService) computeStats(ctx context.Context) (*models.RequestLogsStats, error) {
 	now := time.Now().In(AnalyticsLocation())
 	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, AnalyticsLocation())
 	hourAgo := time.Now().UTC().Add(-1 * time.Hour)
@@ -206,19 +285,58 @@ func usToMs(us float64) float64 {
 }
 
 // GetRealtime возвращает количество запросов за последнюю секунду и минуту.
+//
+// Оба счётчика берутся одним проходом по минутному окну: вторая секунда лежит
+// внутри первой минуты, поэтому отдельный запрос за ней был лишним сканом.
+//
+// Отказ базы возвращается наверх. Раньше ошибки Count терялись, и лента
+// показывала честные нули вместо сообщения о том, что журнал недоступен.
 func (s *requestLogsService) GetRealtime(ctx context.Context) (*models.RealtimeStats, error) {
 	now := time.Now().UTC()
 	var stats models.RealtimeStats
 
-	s.db.WithContext(ctx).Table("request_logs").
-		Where("created_at >= ?", now.Add(-1*time.Second)).
-		Count(&stats.LastSecondCount)
-
-	s.db.WithContext(ctx).Table("request_logs").
+	err := s.db.WithContext(ctx).Table("request_logs").
+		Select("COUNT(*) FILTER (WHERE created_at >= ?) AS last_second_count, COUNT(*) AS last_minute_count",
+			now.Add(-1*time.Second)).
 		Where("created_at >= ?", now.Add(-1*time.Minute)).
-		Count(&stats.LastMinuteCount)
+		Scan(&stats).Error
+	if err != nil {
+		slog.Error("request logs realtime", "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "failed to fetch realtime stats")
+	}
 
 	return &stats, nil
+}
+
+// Потолки параметров графика. Оба приходят из адресной строки: без них запрос на
+// сто тысяч точек по столетнему шагу растягивает окно за пределы разумного (и за
+// границы типа при умножении), а журнал снова читается целиком.
+//
+// Экран просит не больше шестидесяти точек с шагом до недели.
+const (
+	timelineMaxPoints   = 500
+	timelineMaxInterval = 31 * 24 * 3600
+)
+
+// timelineWindow возвращает начало окна графика -- ровно те q.Limit интервалов,
+// которые попадут в ответ.
+//
+// Окно обязательное. Без него запрос группировал весь журнал и отбрасывал всё,
+// кроме последних точек, уже после чтения: на стенде это Parallel Seq Scan по
+// тридцати восьми партициям каждые тридцать секунд ради двадцати четырёх чисел.
+//
+// Отсчёт идёт от границы интервала, а не от «сейчас»: точки лежат по границам
+// интервалов, и окно должно накрывать целиком в том числе начатую сейчас.
+func timelineWindow(q models.TimelineQuery, now time.Time) time.Time {
+	base := now
+	if t, err := time.Parse(time.RFC3339, q.To); err == nil {
+		base = t
+	}
+
+	interval := int64(q.Interval)
+	bucket := base.Unix() / interval * interval
+
+	return time.Unix(bucket-int64(q.Limit-1)*interval, 0).UTC()
 }
 
 // GetTimeline возвращает точки для графика, сгруппированные по интервалу.
@@ -226,17 +344,25 @@ func (s *requestLogsService) GetTimeline(ctx context.Context, q models.TimelineQ
 	if q.Interval < 1 {
 		q.Interval = 60
 	}
+	if q.Interval > timelineMaxInterval {
+		q.Interval = timelineMaxInterval
+	}
 	if q.Limit < 1 {
 		q.Limit = 24
+	}
+	if q.Limit > timelineMaxPoints {
+		q.Limit = timelineMaxPoints
 	}
 
 	tx := s.db.WithContext(ctx).Table("request_logs")
 
-	if q.From != "" {
-		if t, err := time.Parse(time.RFC3339, q.From); err == nil {
-			tx = tx.Where("created_at >= ?", t)
-		}
+	// Нижняя граница есть всегда: заданная вызовом либо окно под запрошенные точки.
+	from := timelineWindow(q, time.Now())
+	if t, perr := time.Parse(time.RFC3339, q.From); perr == nil {
+		from = t
 	}
+	tx = tx.Where("created_at >= ?", from)
+
 	if q.To != "" {
 		if t, err := time.Parse(time.RFC3339, q.To); err == nil {
 			tx = tx.Where("created_at <= ?", t)
@@ -251,14 +377,16 @@ func (s *requestLogsService) GetTimeline(ctx context.Context, q models.TimelineQ
 	points := make([]models.TimelinePoint, 0)
 	err := tx.
 		Select(fmt.Sprintf(
-			"to_char(%s, 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS timestamp, COUNT(*) AS count, COALESCE(AVG(duration_ms), 0) AS avg_duration",
-			bucketExpr,
+			"to_char(%s, 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS timestamp, COUNT(*) AS count, "+
+				"COALESCE(AVG(%s) FILTER (WHERE %s), 0) / 1000.0 AS avg_duration",
+			bucketExpr, durationUsExpr, notStreamingSQL(),
 		)).
 		Group(bucketExpr).
 		Order(bucketExpr + " DESC").
 		Limit(q.Limit).
 		Scan(&points).Error
 	if err != nil {
+		slog.Error("request logs timeline", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "failed to fetch timeline")
 	}
 

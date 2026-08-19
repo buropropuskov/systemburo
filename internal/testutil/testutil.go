@@ -332,7 +332,10 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 		services.WithFeedbackPermissionResolver(permissionResolver))
 	newsService := services.NewNewsService(db, services.WithNewsNotifications(notificationServiceEarly))
 	notificationService := notificationServiceEarly
-	requestLogsService := services.NewRequestLogsService(db)
+	// Снимок показателей включён и в тестах: в проде он стоит между обработчиком и
+	// базой, и собирать приложение без него значило бы проверять другую цепочку.
+	// Секунда - чтобы соседние обращения внутри одного теста не читали вчерашнее.
+	requestLogsService := services.NewRequestLogsService(db, services.WithRequestLogsStatsCache(time.Second))
 	employeesHistoryService := services.NewEmployeesHistoryService(db)
 	approverService := services.NewApproverService(db)
 	consentService := services.NewConsentService(db)

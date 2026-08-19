@@ -256,11 +256,10 @@
             data-testid="table-trash-link"
             aria-label="Корзина таблицы"
           >
-            <img
-              src="@/assets/icons/trashcan.png"
+            <AppIcon
+              name="trashcan"
               class="options__icon"
-              alt=""
-            >
+            />
             <span class="options__text">Корзина</span>
           </RouterLink>
           <button
@@ -374,11 +373,10 @@
           data-testid="table-trash-link"
           @click="showActionsSheet = false"
         >
-          <img
-            src="@/assets/icons/trashcan.png"
+          <AppIcon
+            name="trashcan"
             class="actions-sheet__icon"
-            alt=""
-          >
+          />
           Корзина
         </RouterLink>
       </div>
@@ -1396,6 +1394,7 @@ export default {
 }
 
 .actions-sheet__icon {
+    color: var(--text);
     width: 20px;
     height: 20px;
     flex-shrink: 0;

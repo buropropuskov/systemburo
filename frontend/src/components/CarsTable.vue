@@ -519,14 +519,14 @@
                   <button
                     v-else
                     class="delete-btn rt-pass__act rt-pass__act--danger"
+                    title="Удалить"
                     :disabled="preview || isLoading"
                     @click="preview ? null : removeItemWithNotification(item)"
                   >
-                    <img
-                      src="@/assets/icons/trashcan.png"
-                      alt="Удалить"
+                    <AppIcon
+                      name="trashcan"
                       class="delete-icon rt-pass__act-icon"
-                    >
+                    />
                     <span class="rt-pass__act-label">Удалить</span>
                   </button>
                 </div>
@@ -2394,6 +2394,7 @@ export default {
 }
 
 .delete-icon {
+  color: var(--text);
   width: 16px;
   height: 16px;
   opacity: 0.7;

@@ -83,11 +83,10 @@
                 title="Редактировать"
                 @click="$emit('edit-item', item)"
               >
-                <img
-                  src="@/assets/icons/edit.png"
-                  alt="Редактировать"
+                <AppIcon
+                  name="edit"
                   class="edit-icon"
-                >
+                />
                 <span class="act-label">Изменить</span>
               </button>
               <button
@@ -95,11 +94,10 @@
                 title="Удалить"
                 @click="deleteItemWithAnimation(item.id)"
               >
-                <img
-                  src="@/assets/icons/trashcan.png"
-                  alt="Удалить"
+                <AppIcon
+                  name="trashcan"
                   class="delete-icon"
-                >
+                />
                 <span class="act-label">Удалить</span>
               </button>
             </div>
@@ -346,6 +344,9 @@ export default {
 }
 
 .edit-icon, .delete-icon {
+  /* Значок мельче 16px: общая обводка 1.7 садится в волосок, здесь плотнее. */
+  stroke-width: 2.2;
+    color: var(--text);
     width: 14px;
     height: 14px;
     opacity: 0.6;
