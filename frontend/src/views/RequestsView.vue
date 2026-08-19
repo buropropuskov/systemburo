@@ -116,20 +116,12 @@
               <option value="">
                 Все методы
               </option>
-              <option value="GET">
-                GET
-              </option>
-              <option value="POST">
-                POST
-              </option>
-              <option value="PUT">
-                PUT
-              </option>
-              <option value="DELETE">
-                DELETE
-              </option>
-              <option value="PATCH">
-                PATCH
+              <option
+                v-for="m in methodOptions"
+                :key="m"
+                :value="m"
+              >
+                {{ m }}
               </option>
             </select>
             <select
@@ -140,23 +132,12 @@
               <option value="">
                 Все статусы
               </option>
-              <option value="200">
-                200 OK
-              </option>
-              <option value="400">
-                400 Bad Request
-              </option>
-              <option value="401">
-                401 Unauthorized
-              </option>
-              <option value="403">
-                403 Forbidden
-              </option>
-              <option value="404">
-                404 Not Found
-              </option>
-              <option value="500">
-                500 Server Error
+              <option
+                v-for="o in statusOptions"
+                :key="o.value"
+                :value="o.value"
+              >
+                {{ o.label }}
               </option>
             </select>
             <select
@@ -179,15 +160,31 @@
               v-model="filterStartDate"
               type="date"
               class="date-input"
-              @change="refreshLogs"
+              @change="onDateFilterChange"
             >
             <input
               v-model="filterEndDate"
               type="date"
               class="date-input"
-              @change="refreshLogs"
+              @change="onDateFilterChange"
             >
           </div>
+          <button
+            v-for="preset in journalPresets"
+            :key="preset.key"
+            class="lk-button lk-button--sm"
+            :class="presetOn(preset.key) ? 'lk-button--secondary' : 'lk-button--ghost'"
+            :title="preset.title"
+            @click="togglePreset(preset.key)"
+          >
+            {{ preset.label }}
+          </button>
+          <ToggleSwitch
+            v-model="autoRefresh"
+            :title="refreshBlock || 'Список обновляется сам каждые 10 секунд'"
+          >
+            Лента{{ autoRefresh && refreshBlock ? ` (${refreshBlock})` : '' }}
+          </ToggleSwitch>
           <RefreshButton
             :loading="isLoading"
             @refresh="refreshLogs"
@@ -301,7 +298,7 @@
                   <button
                     :disabled="pagination.page <= 1"
                     class="pagination-btn"
-                    @click="prevPage"
+                    @click="goToPage(-1)"
                   >
                     &larr;
                   </button>
@@ -311,7 +308,7 @@
                   <button
                     :disabled="pagination.page >= totalPages"
                     class="pagination-btn"
-                    @click="nextPage"
+                    @click="goToPage(1)"
                   >
                     &rarr;
                   </button>
@@ -656,12 +653,18 @@ import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import RefreshButton from '@/components/RefreshButton.vue'
 import AdminPageShell from '@/views/admin/AdminPageShell.vue'
 import AppIcon from '@/components/icons/AppIcon.vue';
-import { SORTABLE_COLUMNS, journalStateFromQuery, mergeJournalQuery } from '@/utils/requestLogsQuery';
+import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import {
-  formatMs, formatDuration, formatDay, formatNum, formatTime,
-  formatFullDate, truncatePath, formatJson, getMethodClass, getStatusClass
+  SORTABLE_COLUMNS, METHOD_OPTIONS, STATUS_OPTIONS, JOURNAL_PRESETS,
+  journalStateFromQuery, mergeJournalQuery, statusFilterParams,
+  isJournalPresetOn, toggleJournalPreset
+} from '@/utils/requestLogsQuery';
+import { JOURNAL_REFRESH_MS, CHART_PERIODS, DEFAULT_CHART_PERIOD, journalRefreshBlock } from '@/utils/requestLogsLive';
+import {
+  formatMs, formatDuration, formatDay, formatNum, formatTime, formatFullDate,
+  truncatePath, formatJson, getMethodClass, getStatusClass, barHeight,
+  coverageNote as buildCoverageNote, p95Note as buildP95Note
 } from '@/utils/requestLogsFormat';
-
 
 export default {
   name: 'RequestsView',
@@ -672,6 +675,7 @@ export default {
     RefreshButton,
     AdminPageShell,
     AppIcon,
+    ToggleSwitch,
   },
   data() {
     return {
@@ -695,9 +699,19 @@ export default {
       filterUser: '',
       filterStartDate: '',
       filterEndDate: '',
+      // Момент, а не день: быстрый отбор «последний час» границей суток не
+      // выражается. Заданный момент перебивает поле «с».
+      filterSince: '',
+      filterMinDuration: '',
       sortField: 'created_at',
       sortDirection: 'desc',
       sortableColumns: SORTABLE_COLUMNS,
+      methodOptions: METHOD_OPTIONS,
+      statusOptions: STATUS_OPTIONS,
+      journalPresets: JOURNAL_PRESETS,
+      autoRefresh: true,
+      logsInterval: null,
+      tabHidden: false,
       // Номер последнего запроса списка. Список дёргают фильтр, сортировка,
       // страница и обновление подряд, а отвечают они не в том порядке, в каком
       // ушли: без номера медленный ответ прошлого фильтра затирает свежий.
@@ -726,17 +740,8 @@ export default {
       timelineData: [],
       realtimeInterval: null,
       timelineInterval: null,
-      chartPeriod: 'last-24h',
-      chartPeriods: [
-        { key: 'last-1m',    label: 'Минута',    title: 'за последнюю минуту',    interval: 1,      limit: 60, intervalHuman: '1 секунда',  xAxisLabel: 'с' },
-        { key: 'last-10m',   label: '10 минут',  title: 'за последние 10 минут',  interval: 10,     limit: 60, intervalHuman: '10 секунд',  xAxisLabel: '10с' },
-        { key: 'last-30m',   label: '30 минут',  title: 'за последние 30 минут',  interval: 30,     limit: 60, intervalHuman: '30 секунд',  xAxisLabel: '30с' },
-        { key: 'last-1h',    label: '1 час',     title: 'за последний час',       interval: 60,     limit: 60, intervalHuman: '1 минута',   xAxisLabel: 'мин' },
-        { key: 'last-24h',   label: '24 часа',   title: 'за последние 24ч',       interval: 3600,   limit: 24, intervalHuman: '1 час',      xAxisLabel: 'ч' },
-        { key: 'last-week',  label: 'Неделя',    title: 'за последнюю неделю',    interval: 21600,  limit: 28, intervalHuman: '6 часов',    xAxisLabel: '6ч' },
-        { key: 'last-month', label: 'Месяц',     title: 'за последний месяц',     interval: 86400,  limit: 30, intervalHuman: '1 сутки',    xAxisLabel: 'сут' },
-        { key: 'last-year',  label: 'Год',       title: 'за последний год',       interval: 604800, limit: 52, intervalHuman: '1 неделя',   xAxisLabel: 'нед' }
-      ]
+      chartPeriod: DEFAULT_CHART_PERIOD,
+      chartPeriods: CHART_PERIODS
     };
   },
   computed: {
@@ -747,43 +752,23 @@ export default {
     selectedPeriod() {
       return this.chartPeriods.find(p => p.key === this.chartPeriod) || this.chartPeriods[4];
     },
-    /**
-     * Что именно показано на вкладке: запрошенный период, сутки с записями и
-     * источник чисел. Раньше пустой месяц выглядел как «запросов не было», хотя
-     * данные просто ещё не свёрнуты.
-     * @returns {string}
-     */
     coverageNote() {
-      const c = this.history.coverage;
-      if (!c || !c.requested_from) return '';
-
-      const period = `${this.formatDay(c.requested_from)} - ${this.formatDay(c.requested_to)}`;
-      if (!c.days) {
-        return c.aggregated_through
-          ? `За период ${period} записей нет.`
-          : `За период ${period} записей нет: журнал ещё не сворачивался в суточные итоги.`;
-      }
-
-      const sources = {
-        aggregates: 'по свёрнутым итогам суток',
-        detailed: 'по подробным записям журнала',
-        mixed: 'по свёрнутым итогам и подробным записям'
-      };
-      const covered = c.from === c.to
-        ? this.formatDay(c.from)
-        : `${this.formatDay(c.from)} - ${this.formatDay(c.to)}`;
-      const source = sources[c.source] ? `, ${sources[c.source]}` : '';
-      return `Запрошен период ${period}. Записи есть за ${covered}, суток с данными: ${c.days}${source}.`;
+      return buildCoverageNote(this.history.coverage);
+    },
+    p95Note() {
+      return buildP95Note(this.history.coverage);
     },
     /**
-     * Оговорка про перцентиль. Пустая, когда весь период посчитан по самим
-     * записям и p95 честный.
+     * Причина, по которой живая лента сейчас стоит. Пустая - лента обновляется.
      * @returns {string}
      */
-    p95Note() {
-      const c = this.history.coverage;
-      if (!c || !c.days || c.exact_p95) return '';
-      return 'За свёрнутые сутки показано наибольшее суточное значение: отдельных длительностей у них уже нет.';
+    refreshBlock() {
+      return journalRefreshBlock({
+        tab: this.activeTab,
+        hidden: this.tabHidden,
+        hasSelection: Boolean(this.selectedLog),
+        page: this.pagination.page
+      });
     }
   },
   created() {
@@ -798,9 +783,11 @@ export default {
       this.fetchRealtime()
     ]);
     this.startPolling();
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
   },
   beforeUnmount() {
     this.stopPolling();
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
   },
   methods: {
     formatLogin,
@@ -850,16 +837,18 @@ export default {
       }
     },
     barHeight(value) {
-      const max = Math.max(...this.history.daily.map(d => d.requests), 1)
-      return Math.max(4, Math.round((value / max) * 100))
+      return barHeight(value, Math.max(...this.history.daily.map(d => d.requests), 1))
     },
     buildFilterParams() {
-      const params = {};
+      const params = { ...statusFilterParams(this.filterStatus) };
       if (this.searchQuery) params.search = this.searchQuery;
       if (this.filterMethod) params.method = this.filterMethod;
-      if (this.filterStatus) params.status = this.filterStatus;
       if (this.filterUser) params.user_id = this.filterUser;
-      if (this.filterStartDate) params.from_date = this.filterStartDate;
+      if (this.filterMinDuration) params.min_duration_ms = this.filterMinDuration;
+      // Момент быстрого отбора перебивает день из поля «с»: одну границу
+      // периода сервер принимает один раз.
+      if (this.filterSince) params.from_date = this.filterSince;
+      else if (this.filterStartDate) params.from_date = this.filterStartDate;
       if (this.filterEndDate) params.to_date = this.filterEndDate;
       return params;
     },
@@ -903,26 +892,34 @@ export default {
       }
     },
 
-
-
-
     /**
      * Читает отбор из адресной строки: присланная ссылка открывает тот же
      * экран, а обновление страницы его не теряет.
      */
     applyQueryToState() {
       const state = journalStateFromQuery(this.$route?.query || {});
+      this.applyJournalState(state);
+      this.pagination.page = state.page;
+      this.pagination.per_page = state.perPage;
+      this.perPage = String(state.perPage);
+    },
+
+    /**
+     * Раскладывает отбор по полям формы. Страницу и размер выставляет
+     * вызывающий: они меняются не всегда вместе с фильтрами.
+     * @param {object} state
+     */
+    applyJournalState(state) {
       this.searchQuery = state.search;
       this.filterMethod = state.method;
       this.filterStatus = state.status;
       this.filterUser = state.user;
       this.filterStartDate = state.from;
       this.filterEndDate = state.to;
+      this.filterSince = state.since;
+      this.filterMinDuration = state.minDuration;
       this.sortField = state.sort;
       this.sortDirection = state.order;
-      this.pagination.page = state.page;
-      this.pagination.per_page = state.perPage;
-      this.perPage = String(state.perPage);
     },
 
     /**
@@ -937,6 +934,8 @@ export default {
         user: this.filterUser,
         from: this.filterStartDate,
         to: this.filterEndDate,
+        since: this.filterSince,
+        minDuration: this.filterMinDuration,
         sort: this.sortField,
         order: this.sortDirection,
         page: this.pagination.page,
@@ -950,69 +949,48 @@ export default {
       if (next) this.$router.replace({ query: next }).catch(() => {});
     },
 
-    async fetchStats() {
+    /**
+     * Читает раздел журнала и отдаёт ответ обработчику. Сбой одного раздела не
+     * гасит остальные: список, график и показатели живут независимо.
+     * @param {string} path
+     * @param {(data: any) => void} apply
+     * @param {string} label что именно не удалось прочитать - для журнала ошибок
+     */
+    async loadSection(path, apply, label) {
       try {
-        const response = await apiRequest('/request-logs/stats');
-        if (response.ok) {
-          const data = await response.json();
-          if (data) {
-            this.stats = data;
-          }
-        }
+        const response = await apiRequest(path);
+        if (!response.ok) return;
+        const data = await response.json();
+        if (data) apply(data);
       } catch (error) {
-        console.error('Error fetching stats:', error);
+        console.error(`Не удалось загрузить: ${label}`, error);
       }
     },
 
-    async fetchRealtime() {
-      try {
-        const response = await apiRequest('/request-logs/realtime');
-        if (response.ok) {
-          const data = await response.json();
-          if (data) {
-            this.realtime = data;
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching realtime:', error);
-      }
+    fetchStats() {
+      return this.loadSection('/request-logs/stats', data => { this.stats = data; }, 'показатели');
     },
 
-    async fetchTimeline() {
-      try {
-        const p = this.selectedPeriod;
-        const params = new URLSearchParams({
-          interval: String(p.interval),
-          limit: String(p.limit)
-        });
-        const response = await apiRequest(`/request-logs/timeline?${params}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (Array.isArray(data)) {
-            this.timelineData = data;
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching timeline:', error);
-      }
+    fetchRealtime() {
+      return this.loadSection('/request-logs/realtime', data => { this.realtime = data; }, 'счётчики ленты');
+    },
+
+    fetchTimeline() {
+      const p = this.selectedPeriod;
+      const params = new URLSearchParams({ interval: String(p.interval), limit: String(p.limit) });
+      return this.loadSection(`/request-logs/timeline?${params}`, data => {
+        if (Array.isArray(data)) this.timelineData = data;
+      }, 'график');
     },
 
     onChartPeriodChange() {
       this.fetchTimeline();
     },
 
-    async fetchUsers() {
-      try {
-        const response = await apiRequest('/request-logs/users');
-        if (response.ok) {
-          const data = await response.json();
-          if (Array.isArray(data)) {
-            this.users = data;
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching users:', error);
-      }
+    fetchUsers() {
+      return this.loadSection('/request-logs/users', data => {
+        if (Array.isArray(data)) this.users = data;
+      }, 'список пользователей');
     },
 
     async exportLogs() {
@@ -1055,26 +1033,27 @@ export default {
       this.fetchStats();
     },
 
+    // Опросы в фоновой вкладке не идут вовсе: раздел сам же и вычищали от шума
+    // самозапросов, а показатели за время отсутствия догоняются при возврате.
     startPolling() {
       this.realtimeInterval = setInterval(() => {
-        this.fetchRealtime();
+        if (!this.tabHidden) this.fetchRealtime();
       }, 5000);
 
       this.timelineInterval = setInterval(() => {
+        if (this.tabHidden) return;
         this.fetchTimeline();
         this.fetchStats();
       }, 30000);
+
+      this.logsInterval = setInterval(this.tickLogs, JOURNAL_REFRESH_MS);
     },
 
     stopPolling() {
-      if (this.realtimeInterval) {
-        clearInterval(this.realtimeInterval);
-        this.realtimeInterval = null;
-      }
-      if (this.timelineInterval) {
-        clearInterval(this.timelineInterval);
-        this.timelineInterval = null;
-      }
+      [this.realtimeInterval, this.timelineInterval, this.logsInterval].forEach(clearInterval);
+      this.realtimeInterval = null;
+      this.timelineInterval = null;
+      this.logsInterval = null;
     },
 
     /**
@@ -1098,18 +1077,16 @@ export default {
       this.selectedLog = log;
     },
 
-    prevPage() {
-      if (this.pagination.page > 1) {
-        this.pagination.page--;
-        this.fetchLogs();
-      }
-    },
-
-    nextPage() {
-      if (this.pagination.page < this.totalPages) {
-        this.pagination.page++;
-        this.fetchLogs();
-      }
+    /**
+     * Перелистывание. Шаг за границы списка игнорируется: кнопки блокируются
+     * разметкой, но клавиатура и повторный клик до ответа сервера мимо неё.
+     * @param {number} step
+     */
+    goToPage(step) {
+      const page = this.pagination.page + step;
+      if (page < 1 || page > this.totalPages) return;
+      this.pagination.page = page;
+      this.fetchLogs();
     },
 
     changePageSize() {
@@ -1119,24 +1096,50 @@ export default {
     },
 
     clearFilters() {
-      this.searchQuery = '';
-      this.filterMethod = '';
-      this.filterStatus = '';
-      this.filterUser = '';
-      this.filterStartDate = '';
-      this.filterEndDate = '';
-      this.pagination.page = 1;
-      this.fetchLogs();
-      this.fetchStats();
+      this.applyJournalState(journalStateFromQuery({}));
+      this.refreshLogs();
     },
 
+    /**
+     * Быстрый отбор: включает или снимает набор обычных фильтров.
+     * @param {string} key
+     */
+    togglePreset(key) {
+      this.applyJournalState(toggleJournalPreset(this.journalState(), key));
+      this.refreshLogs();
+    },
 
+    presetOn(key) {
+      return isJournalPresetOn(this.journalState(), key);
+    },
 
+    /**
+     * Ввод даты руками снимает отбор «последний час»: иначе поле показывает
+     * день, а список отобран по моменту, и человек видит не то, что выбрал.
+     */
+    onDateFilterChange() {
+      this.filterSince = '';
+      this.refreshLogs();
+    },
 
+    /**
+     * Очередное самообновление ленты. Причины остановки собраны в refreshBlock,
+     * а незавершённый запрос второй раз не дёргается.
+     */
+    tickLogs() {
+      if (!this.autoRefresh || this.refreshBlock || this.isLoading) return;
+      this.fetchLogs();
+    },
 
-
-
-
+    onVisibilityChange() {
+      this.tabHidden = document.hidden;
+      // Вернувшись из фона, лента догоняет пропущенное сразу, а не через
+      // очередной интервал: иначе первое, что видит человек, - устаревший список.
+      if (!document.hidden) {
+        this.fetchRealtime();
+        this.tickLogs();
+      }
+    },
 
   }
 };
