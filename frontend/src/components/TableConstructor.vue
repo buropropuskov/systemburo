@@ -367,6 +367,7 @@
                 <button
                   v-if="selectedTable.table.is_active"
                   class="delete-icon-btn"
+                  title="Удалить таблицу"
                   @click="confirmDeleteTable(selectedTable)"
                 >
                   <AppIcon

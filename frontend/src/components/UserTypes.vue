@@ -166,6 +166,7 @@
               <button
                 v-else
                 class="delete-icon-btn"
+                title="Удалить тип"
                 @click="confirmDeleteType(selectedType)"
               >
                 <AppIcon
