@@ -149,3 +149,24 @@ export const TOOLTIP_STYLE = {
   cornerRadius: 6,
   displayColors: true,
 };
+
+/**
+ * Точка ряда под курсором: цвет ряда в белом кольце.
+ *
+ * Без явных цветов Chart.js берёт их у самого ряда - обводку из `borderColor`
+ * линии, заливку из `backgroundColor`, то есть из полупрозрачного градиента
+ * области. Точка выходит того же цвета, что линия под ней, и на графике её не
+ * видно. Белое кольцо отбивает её от линии в любой палитре ряда; так же
+ * рисовал маркер прежний движок.
+ *
+ * @param {string} color цвет ряда
+ * @returns {object} часть описания набора данных Chart.js
+ */
+export function hoverPointStyle(color) {
+  return {
+    pointHoverRadius: 6,
+    pointHoverBorderWidth: 3,
+    pointHoverBackgroundColor: color,
+    pointHoverBorderColor: '#ffffff',
+  };
+}

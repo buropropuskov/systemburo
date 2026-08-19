@@ -102,6 +102,15 @@ describe('AnalyticsBarChart', () => {
     expect(ds.categoryPercentage * ds.barPercentage).toBeCloseTo(0.62, 2);
   });
 
+  it('столбец под курсором светлеет, а не остаётся прежним', async () => {
+    const { config } = await build({ data: DATA, color: '#4F5BDF' });
+    const ds = config.data.datasets[0];
+    // Отклик на наведение был у прежнего движка; без него не видно, к какому
+    // столбцу относится всплывшая подсказка.
+    expect(ds.hoverBackgroundColor).not.toBe(ds.backgroundColor);
+    expect(ds.hoverBackgroundColor).toBe('rgb(93, 104, 226)');
+  });
+
   it('на узком экране сокращает число подписей оси X, бары не трогает', async () => {
     // 24 часовых бара с 12 подписями сливаются на 390px в «00:0002:00...» -
     // на узком экране число подписей падает, но категории (бары) остаются все.

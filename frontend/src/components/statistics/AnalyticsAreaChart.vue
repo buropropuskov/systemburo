@@ -25,6 +25,7 @@ import {
   AXIS_LABEL,
   GRID_COLOR,
   TOOLTIP_STYLE,
+  hoverPointStyle,
   useChartCanvas,
   verticalGradient,
 } from './useChartCanvas';
@@ -162,8 +163,7 @@ const config = computed(() => ({
         // Сглаживание кривой; 0.4 - привычный вид, который был у прежнего движка.
         tension: 0.4,
         pointRadius: 0,
-        pointHoverRadius: 5,
-        pointHoverBorderWidth: 2,
+        ...hoverPointStyle(props.color),
         // Разрыв на null не затягиваем: соединив соседей прямой, график
         // показал бы значение там, где данных нет.
         spanGaps: false,
