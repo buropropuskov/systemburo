@@ -16,7 +16,6 @@ import './assets/forms.css'
 import './assets/hints.css'
 import './assets/onboarding.css'
 import './assets/responsive-tables.css'
-import './assets/icon-theme.css'
 
 const app = createApp(App)
 app.config.globalProperties.$bus = bus

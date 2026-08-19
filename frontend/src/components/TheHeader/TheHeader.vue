@@ -285,8 +285,7 @@ export default {
     toggleMobileNav() {
       this.$bus.emit('mobile-nav-toggle');
     },
-    handleFeedbackSubmitted(message) {
-      console.log('Обратная связь отправлена:', message);
+    handleFeedbackSubmitted() {
       // Если мы на странице обратной связи, можно обновить список
       if (this.$route.path === '/feedback') {
         this.$emit('refresh-feedback');
@@ -299,7 +298,6 @@ export default {
       try {
         const authStore = useAuthStore();
         if (!authStore.token) {
-          console.log("Пользователь не авторизован");
           return;
         }
 
@@ -531,8 +529,8 @@ h3 {
 }
 
 /* Состояния колокольчика выражены подложкой и прозрачностью, а НЕ подменой filter:
-   filter у иконки занят темой (--icon-mono-filter осветляет глиф в тёмных темах),
-   и локальное значение делало колокольчик то серым, то чёрным на тёмном фоне. */
+   локальный grayscale/contrast делал колокольчик то серым, то чёрным на тёмном
+   фоне. Цвет глифа приходит от текста, менять его состоянию незачем. */
 .user__notifications--active {
   background-color: var(--surface-2);
 }

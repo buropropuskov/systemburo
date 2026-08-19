@@ -163,6 +163,15 @@ definitions:
       username:
         type: string
     type: object
+  models.ApplicationRecipient:
+    properties:
+      masked:
+        type: boolean
+      name:
+        type: string
+      user_id:
+        type: integer
+    type: object
   models.ArchiveDownloadRequest:
     properties:
       date_from:
@@ -1141,13 +1150,6 @@ definitions:
       user_type:
         type: string
     type: object
-  models.LogoutRequest:
-    properties:
-      refresh_token:
-        type: string
-      refreshToken:
-        type: string
-    type: object
   models.MappingInput:
     properties:
       cell_ref:
@@ -1627,13 +1629,6 @@ definitions:
       username:
         type: string
     type: object
-  models.RefreshTokenRequest:
-    properties:
-      refresh_token:
-        type: string
-      refreshToken:
-        type: string
-    type: object
   models.RegisterRequest:
     properties:
       company_id:
@@ -1772,6 +1767,10 @@ definitions:
       avg_duration:
         type: number
       error_rate:
+        type: number
+      median_duration:
+        type: number
+      p95_duration:
         type: number
       requests_per_minute:
         type: number
@@ -3067,9 +3066,10 @@ definitions:
         type: string
       approval_status:
         description: |-
-          Состояние голоса - только у согласующего (approver). У ответственного строка
-          в application_responsible_users та же, но голосовать он не может, и её
-          дефолтный pending читался бы как «не ответил», хотя его никто не спрашивал.
+          Состояние голоса согласующего - и обязательного, и остальных: голосуют все, у
+          кого есть строка в application_responsible_users, просто необязательный голос
+          на исход не влияет. Прятать его у необязательного значило бы показывать в
+          списке участников не то, что показывает карточка заявки.
         type: string
       company_id:
         type: integer
@@ -3103,6 +3103,11 @@ definitions:
         type: string
       primary_role:
         type: string
+      required_approval:
+        description: |-
+          RequiredApproval - голос этого согласующего обязателен для исхода заявки.
+          Карточка заявки метит таких подписью «Обязательно», список участников - тоже.
+        type: boolean
       roles:
         description: Roles - все роли человека в этой заявке, PrimaryRole - старшая
           из них.
@@ -3671,6 +3676,13 @@ definitions:
     type: object
   services.CarOwnerInfo:
     properties:
+      can_manage_all:
+        description: |-
+          CanManageAll -- администратор системы: правит и удаляет любую запись реестра,
+          кому бы она ни принадлежала. Уходит на фронт тем же ответом ownership-info,
+          который вью и так запрашивает: показ кнопок правки и серверный гейт обязаны
+          стоять на одном признаке, иначе получается "кнопка есть, а в ответ 403".
+        type: boolean
       company_id:
         type: integer
       company_name:
@@ -3730,6 +3742,11 @@ definitions:
         type: string
       id:
         type: integer
+      is_blacklisted:
+        description: |-
+          IsBlacklisted - точное попадание в действующий чёрный список; строка остаётся в
+          заявке, но показывается зачёркнутой.
+        type: boolean
       is_pending:
         description: IsPending - строка ещё не допущена на КПП.
         type: boolean
@@ -4295,6 +4312,11 @@ definitions:
         type: string
       patent_number:
         type: string
+      pd_consent:
+        description: |-
+          PDConsent - заявитель подтвердил, что субъект дал согласие на обработку своих
+          персональных данных. Только флаг: дату и автора отметки ставит сервер.
+        type: boolean
       position:
         type: string
       target_tables:
@@ -4304,6 +4326,12 @@ definitions:
     type: object
   services.EmployeeOwnerInfo:
     properties:
+      can_manage_all:
+        description: |-
+          CanManageAll -- администратор системы: правит и удаляет любую запись реестра
+          независимо от привязки. Тот же признак фронт берёт для показа кнопок, см.
+          CarOwnerInfo.CanManageAll.
+        type: boolean
       company_id:
         type: integer
       company_name:
@@ -4350,6 +4378,11 @@ definitions:
         type: string
       id:
         type: integer
+      is_blacklisted:
+        description: |-
+          IsBlacklisted - точное попадание в действующий чёрный список. Из заявки строка
+          не исчезает (заявка - документ), но показывается зачёркнутой.
+        type: boolean
       is_pending:
         description: IsPending - строка ещё не допущена на КПП.
         type: boolean
@@ -4726,6 +4759,13 @@ definitions:
         type: string
       patent_number:
         type: string
+      pd_consent:
+        description: |-
+          PDConsent - заявитель подтвердил, что субъект дал согласие на обработку своих
+          персональных данных (152-ФЗ). Для новой записи обязателен: в карточке вводят
+          паспорт и патент, то есть данные третьего лица. При правке существующей записи
+          флаг только ДОБАВЛЯЕТ отметку, если её не было, - снять согласие правкой нельзя.
+        type: boolean
       position:
         type: string
       user_id:
@@ -4903,6 +4943,27 @@ definitions:
     properties:
       target_id:
         type: integer
+    type: object
+  services.RemoveApplicationElementsRequest:
+    properties:
+      element_ids:
+        items:
+          type: integer
+        minItems: 1
+        type: array
+      element_type:
+        enum:
+        - people
+        - cars
+        type: string
+      reason:
+        maxLength: 1000
+        minLength: 1
+        type: string
+    required:
+    - element_ids
+    - element_type
+    - reason
     type: object
   services.RequiredUserInput:
     properties:
@@ -5381,6 +5442,10 @@ definitions:
         type: string
       old_value:
         type: string
+      subject:
+        description: Subject -- к какой машине относится событие (номер с маркой на
+          момент действия).
+        type: string
       unique_car_id:
         type: integer
       user_first_name:
@@ -5466,6 +5531,9 @@ definitions:
       user_id:
         type: integer
       user_name:
+        description: |-
+          UserName -- за кем закреплена запись: ФИО владельца, у не давшего согласия -
+          логин с собачкой. Отдаётся только администратору, см. maskCarOwners.
         type: string
     type: object
   services.UniqueEmployeeHistoryItem:
@@ -5483,6 +5551,11 @@ definitions:
       new_value:
         type: string
       old_value:
+        type: string
+      subject:
+        description: |-
+          Subject -- к кому относится событие (ФИО на момент действия). Пусто у событий,
+          записанных до введения снимка, если сама запись уже удалена.
         type: string
       unique_employee_id:
         type: integer
@@ -5518,6 +5591,8 @@ definitions:
       passport_series_number:
         type: string
       patent_number:
+        type: string
+      pd_consent_at:
         type: string
       position:
         type: string
@@ -5580,12 +5655,25 @@ definitions:
         type: string
       patent_number:
         type: string
+      pd_consent_at:
+        description: |-
+          PDConsentAt -- когда подтверждено согласие субъекта на обработку его данных.
+          NULL у записей, заведённых до введения поля: карточка так и пишет, что отметки нет.
+        type: string
       position:
         type: string
       status:
         type: boolean
       user_id:
         type: integer
+      user_name:
+        description: |-
+          UserName -- за кем закреплена запись: ФИО владельца, а у не давшего согласия на
+          обработку своих данных - логин с собачкой (общая маска loadNameMasks). Логин сам
+          по себе человеку ничего не говорит, поэтому показываем имя. Отдаётся только
+          администратору (см. maskEmployeeOwners): для остальных привязка к чужой учётной
+          записи - лишние сведения о людях другой организации.
+        type: string
     type: object
   services.UnloadPlaceBinding:
     properties:
@@ -5844,6 +5932,11 @@ definitions:
         items:
           type: integer
         type: array
+      pd_consent:
+        description: |-
+          PDConsent - см. EmployeeInput.PDConsent. У машин поле шаблона выключено по
+          умолчанию, флаг приходит только когда администратор его включил.
+        type: boolean
       unload_place:
         type: string
       unload_places:
@@ -6383,6 +6476,24 @@ paths:
       summary: Роли текущего пользователя в согласовании заявок
       tags:
       - application-approvers
+  /application-approvers/recipients:
+    get:
+      description: 'Отдаёт только отображаемые имена: маску, если она задана администратором,
+        иначе ФИО. Доступно любому авторизованному работнику.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.ApplicationRecipient'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Принимающие для строки получателей заявки
+      tags:
+      - application-approvers
   /applications:
     get:
       consumes:
@@ -6874,6 +6985,58 @@ paths:
       security:
       - BearerAuth: []
       summary: Расширенная информация о заявке
+      tags:
+      - applications
+  /applications/{id}/elements:
+    delete:
+      consumes:
+      - application/json
+      description: 'Принимающий убирает элемент из заявки: элемент, по которому решение
+        «пропустить» неприемлемо, иначе держал бы всю заявку. Удаление мягкое - строка
+        уходит в корзину, история сохраняется.'
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Тип элементов, идентификаторы и причина
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.RemoveApplicationElementsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: success + число убранных
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Удаление людей или машин из поданной заявки
       tags:
       - applications
   /applications/{id}/elements/tables:
@@ -11031,7 +11194,11 @@ paths:
     get:
       consumes:
       - application/json
-      description: Возвращает список ответственных пользователей компании
+      description: Возвращает список ответственных пользователей компании. Маршрут
+        открыт любому вошедшему (его же читает форма подачи заявки у своей компании),
+        поэтому required_approval виден только тем, у кого есть право на раздел справочников,
+        и заявителю - для его СОБСТВЕННОЙ компании (#2013). Остальным поле приходит
+        null.
       parameters:
       - description: ID компании
         in: path
@@ -13164,13 +13331,6 @@ paths:
       consumes:
       - application/json
       description: Отзывает refresh token
-      parameters:
-      - description: Refresh token для отзыва
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/models.LogoutRequest'
       produces:
       - application/json
       responses:
@@ -14540,7 +14700,11 @@ paths:
     get:
       consumes:
       - application/json
-      description: Возвращает список ответственных пользователей организации
+      description: Возвращает список ответственных пользователей организации. Маршрут
+        открыт любому вошедшему (его же читает форма подачи заявки у своей организации),
+        поэтому required_approval виден только тем, у кого есть право на раздел справочников,
+        и заявителю - для его СОБСТВЕННОЙ организации (#2013). Остальным поле приходит
+        null.
       parameters:
       - description: ID организации
         in: path
@@ -15227,6 +15391,51 @@ paths:
       summary: Весь журнал чёрного списка людей
       tags:
       - person-blacklist
+  /person-blacklist/impact:
+    get:
+      description: 'Где человек сейчас фигурирует: сколько активных строк перестанет
+        действовать, из каких таблиц постов они уйдут, в каких заявках есть. Ничего
+        не меняет.'
+      parameters:
+      - description: Фамилия
+        in: query
+        name: last_name
+        required: true
+        type: string
+      - description: Имя
+        in: query
+        name: first_name
+        required: true
+        type: string
+      - description: Отчество
+        in: query
+        name: middle_name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: success + данные предпросмотра
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Предпросмотр последствий внесения человека в чёрный список
+      tags:
+      - person-blacklist
   /public/documents:
     get:
       produces:
@@ -15252,13 +15461,6 @@ paths:
       consumes:
       - application/json
       description: Выдаёт новую пару access + refresh токенов по refresh token
-      parameters:
-      - description: Refresh token
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/models.RefreshTokenRequest'
       produces:
       - application/json
       responses:
@@ -17833,6 +18035,39 @@ paths:
       summary: Обновление уникальной машины по номеру
       tags:
       - unique-cars
+  /unique-cars/history:
+    get:
+      description: |-
+        Все события реестра: создание, правка полей, удаление - с автором и
+        временем. Единственный способ узнать, кем и когда удалена запись: у
+        исчезнувшей строки истории по id больше нет. Доступен администратору.
+      parameters:
+      - description: Сколько записей вернуть (по умолчанию и максимум 500)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.UniqueCarHistoryItem'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Не администратор
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Журнал реестра машин
+      tags:
+      - unique-cars
   /unique-cars/lookup:
     get:
       description: Поиск машины (LOWER/TRIM) для открытия карточки со страницы ЧС.
@@ -18067,6 +18302,39 @@ paths:
       security:
       - BearerAuth: []
       summary: История изменений мастер-сотрудника
+      tags:
+      - unique-employees
+  /unique-employees/history:
+    get:
+      description: |-
+        Все события реестра: создание, правка полей, удаление - с автором и
+        временем. Единственный способ узнать, кем и когда удалена запись: у
+        исчезнувшей строки истории по id больше нет. Доступен администратору.
+      parameters:
+      - description: Сколько записей вернуть (по умолчанию и максимум 500)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.UniqueEmployeeHistoryItem'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Не администратор
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Журнал реестра сотрудников
       tags:
       - unique-employees
   /unique-employees/lookup:
@@ -20692,6 +20960,47 @@ paths:
       security:
       - BearerAuth: []
       summary: Весь журнал чёрного списка машин
+      tags:
+      - vehicle-blacklist
+  /vehicle-blacklist/impact:
+    get:
+      description: 'Где машина сейчас фигурирует: какие активные строки перестанут
+        действовать, из каких таблиц постов уйдут, в каких заявках есть. Ничего не
+        меняет.'
+      parameters:
+      - description: Номер машины
+        in: query
+        name: car_number
+        required: true
+        type: string
+      - description: ID марки
+        in: query
+        name: mark_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: success + данные предпросмотра
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Предпросмотр последствий внесения машины в чёрный список
       tags:
       - vehicle-blacklist
   /work-modes:

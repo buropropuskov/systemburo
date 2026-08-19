@@ -1419,9 +1419,8 @@ export default {
   gap: 5px;
 }
 
-/* Подпись столбца сжимается с многоточием, а иконка сортировки - нет: раньше
-   длинный заголовок выталкивал её за пределы ячейки, и она либо срезалась,
-   либо наезжала на соседний столбец в режиме «Сетка» (#1307). */
+/* Подпись столбца сжимается с многоточием: раньше длинный заголовок распирал
+   ячейку и наезжал на соседний столбец в режиме «Сетка» (#1307). */
 .header-row .col > p {
   min-width: 0;
   overflow: hidden;
@@ -1430,30 +1429,8 @@ export default {
   margin: 0;
 }
 
-.header-row .col .sort-icon {
-  flex-shrink: 0;
-}
-
 .header-row .col:hover {
   color: var(--text);
-}
-
-.header-row .col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
-}
-
-.sort-icon {
-  width: 12px;
-  height: 12px;
-  transition: .2s;
-}
-
-.sort-icon.sorted {
-  filter: var(--icon-ink-filter);
-}
-
-.sort-icon.desc {
-  transform: rotate(180deg);
 }
 
 .active-sort {

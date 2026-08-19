@@ -1104,7 +1104,6 @@ export default {
 
                 if (response.ok) {
                     const tables = await response.json();
-                    console.log('Загруженные таблицы в CreateApplication:', tables);
                     this.allPassageTables = tables;
                 } else {
                     console.error("Ошибка при загрузке системных таблиц");

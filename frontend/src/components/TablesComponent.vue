@@ -1040,8 +1040,7 @@ export default {
             if (people) people.openEmployeesHistory();
         },
 
-        handleApplicationUpdate(updatedApp) {
-            console.log('Application updated:', updatedApp);
+        handleApplicationUpdate() {
             this.refreshData();
         },
 
@@ -1089,7 +1088,6 @@ export default {
                 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('Table data received:', data);
                     this.tableData = data;
 
                     await this.fetchOrganizationsForTable();
@@ -1112,7 +1110,6 @@ export default {
 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('Organizations loaded:', data);
                     this.organizations = data;
                 } else {
                     console.error("Ошибка при загрузке организаций");
