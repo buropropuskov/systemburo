@@ -98,14 +98,14 @@
                 <p :class="{ 'active-sort': sortField === 'id' }">
                   ID
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'id',
                     'desc': sortField === 'id' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col name-col"
@@ -114,14 +114,14 @@
                 <p :class="{ 'active-sort': sortField === 'name' }">
                   Наименование
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'name',
                     'desc': sortField === 'name' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col type-col"
@@ -130,14 +130,14 @@
                 <p :class="{ 'active-sort': sortField === 'type' }">
                   Тип
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'type',
                     'desc': sortField === 'type' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div class="header-col status-col">
                 <p>Статус</p>
@@ -398,11 +398,11 @@
                         @click="toggleTableTypeDropdown"
                       >
                         <span class="select-value">{{ getTableTypeLabel(selectedTable.table.table_type) }}</span>
-                        <img
-                          src="@/assets/icons/arrow.png"
+                        <AppIcon
+                          name="arrow"
                           class="select-arrow"
                           :class="{ rotated: tableTypeDropdownOpen }"
-                        >
+                        />
                       </div>
                       <transition name="dropdown-fade">
                         <div
@@ -918,6 +918,7 @@ import SystemTableHistoryModal from './SystemTableHistoryModal.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'TableConstructor',
@@ -935,6 +936,7 @@ export default {
     ConfirmationModal,
     BaseDropdown,
     AdminPageShell,
+    AppIcon,
   },
   setup() {
     const permissionsStore = usePermissionsStore();
@@ -1987,10 +1989,11 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
@@ -1998,7 +2001,7 @@ export default {
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {

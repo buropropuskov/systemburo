@@ -1,9 +1,12 @@
 import {
+  ArcElement,
   BarController,
   BarElement,
   CategoryScale,
   Chart,
+  DoughnutController,
   Filler,
+  Legend,
   LineController,
   LineElement,
   LinearScale,
@@ -17,10 +20,13 @@ import { watch, onBeforeUnmount } from 'vue';
 // пользуется аналитика, - импорт chart.js/auto тянул бы в сборку все типы
 // графиков разом, включая те, которых в системе нет.
 Chart.register(
+  ArcElement,
   BarController,
   BarElement,
   CategoryScale,
+  DoughnutController,
   Filler,
+  Legend,
   LineController,
   LineElement,
   LinearScale,
@@ -74,14 +80,39 @@ export function useChartCanvas(canvas, config) {
  * @returns {string}
  */
 export function withAlpha(color, alpha) {
+  const parts = parseHex(color);
+  if (!parts) return String(color ?? '').trim();
+  return `rgba(${parts.join(', ')}, ${alpha})`;
+}
+
+/**
+ * Цвет, подмешанный к белому, - подсветка сегмента под курсором.
+ *
+ * @param {string} color цвет в записи #rgb или #rrggbb
+ * @param {number} amount доля белого от 0 до 1
+ * @returns {string}
+ */
+export function lighten(color, amount) {
+  const parts = parseHex(color);
+  if (!parts) return String(color ?? '').trim();
+  const mixed = parts.map((c) => Math.round(c + (255 - c) * amount));
+  return `rgb(${mixed.join(', ')})`;
+}
+
+/**
+ * Составляющие цвета из шестнадцатеричной записи.
+ *
+ * @param {string} color цвет в записи #rgb или #rrggbb
+ * @returns {number[]|null} null для незнакомой записи
+ */
+function parseHex(color) {
   const hex = String(color ?? '').trim();
   const short = /^#([\da-f])([\da-f])([\da-f])$/i.exec(hex);
   const full = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex);
-  if (!short && !full) return hex;
-  const parts = short
+  if (!short && !full) return null;
+  return short
     ? short.slice(1).map((c) => parseInt(c + c, 16))
     : full.slice(1).map((c) => parseInt(c, 16));
-  return `rgba(${parts.join(', ')}, ${alpha})`;
 }
 
 /**

@@ -137,13 +137,13 @@
                 >
                   <div class="select-trigger">
                     <span>{{ dayOptionLabel(modalDay) }}</span>
-                    <img
-                      src="@/assets/icons/arrow.png"
+                    <AppIcon
+                      name="arrow"
                       class="select-arrow"
                       :class="{ open: dayDropdownOpen }"
                       width="9"
                       height="9"
-                    >
+                    />
                   </div>
                   <transition name="dropdown">
                     <div
@@ -267,10 +267,11 @@
 import { apiRequest } from '@/api/client';
 import { useDeletionsStore } from '@/stores/deletions';
 import ConfirmationModal from './ConfirmationModal.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'WarningWindowsEditor',
-  components: { ConfirmationModal },
+  components: { AppIcon, ConfirmationModal },
   props: {
     // Базовый URL ресурса-владельца окон, например '/unload-places/5' или
     // '/system-tables/12'. Компонент достраивает '/warning-windows[/{id}]'.

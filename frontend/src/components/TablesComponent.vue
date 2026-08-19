@@ -268,10 +268,10 @@
             class="options__export"
             @click="handleExport"
           >
-            <img
-              src="@/assets/icons/export.png"
+            <AppIcon
+              name="export"
               class="tables__icon"
-            >
+            />
             <p class="options__text">
               Экспорт
             </p>
@@ -361,11 +361,10 @@
           data-testid="table-export-action"
           @click="runSheetAction(handleExport)"
         >
-          <img
-            src="@/assets/icons/export.png"
+          <AppIcon
+            name="export"
             class="actions-sheet__icon"
-            alt=""
-          >
+          />
           Экспорт в Excel
         </button>
         <RouterLink
@@ -640,10 +639,12 @@ import FilterSheet from '@/components/ui/FilterSheet.vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { usePermissionsStore } from '@/stores/permissions';
 import { useOnboardingStore } from '@/stores/onboarding';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
     name: 'TablesComponent',
     components: {
+        AppIcon,
         BaseDropdown,
         DateFilter,
         FactTable,

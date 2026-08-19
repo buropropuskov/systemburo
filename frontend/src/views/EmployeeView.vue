@@ -181,7 +181,7 @@
                  удалена запись - самой строки в реестре уже нет. -->
             <button
               v-if="canManageAllEntities"
-              class="lk-button lk-button--secondary"
+              class="log-button"
               data-testid="employees-registry-log"
               @click="showRegistryLog = true"
             >
@@ -223,14 +223,14 @@
                 <p :class="{ 'active-sort': sortField === 'id' }">
                   №
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'id',
                     'desc': sortField === 'id' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col name-col"
@@ -239,14 +239,14 @@
                 <p :class="{ 'active-sort': sortField === 'last_name' }">
                   ФИО
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'last_name',
                     'desc': sortField === 'last_name' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col position-col"
@@ -255,14 +255,14 @@
                 <p :class="{ 'active-sort': sortField === 'position' }">
                   Должность
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'position',
                     'desc': sortField === 'position' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col status-col"
@@ -271,14 +271,14 @@
                 <p :class="{ 'active-sort': sortField === 'status' }">
                   Статус
                 </p>
-                <img
-                  src="@/assets/icons/sort.png"
+                <AppIcon
+                  name="sort"
                   class="sort-icon"
                   :class="{
                     'sorted': sortField === 'status',
                     'desc': sortField === 'status' && sortDirection === 'desc'
                   }"
-                >
+                />
               </div>
               <div
                 v-if="currentFilter === 'organization' || currentFilter === 'all_system'"
@@ -288,14 +288,14 @@
                 <p :class="{ 'active-sort': sortField === 'organization_name' }">
                   Организация
                 </p>
-                <img
-                  src="@/assets/icons/sort.png"
+                <AppIcon
+                  name="sort"
                   class="sort-icon"
                   :class="{
                     'sorted': sortField === 'organization_name',
                     'desc': sortField === 'organization_name' && sortDirection === 'desc'
                   }"
-                >
+                />
               </div>
               <div
                 v-if="currentFilter === 'company' || currentFilter === 'all_system'"
@@ -305,14 +305,14 @@
                 <p :class="{ 'active-sort': sortField === 'company_name' }">
                   Компания
                 </p>
-                <img
-                  src="@/assets/icons/sort.png"
+                <AppIcon
+                  name="sort"
                   class="sort-icon"
                   :class="{
                     'sorted': sortField === 'company_name',
                     'desc': sortField === 'company_name' && sortDirection === 'desc'
                   }"
-                >
+                />
               </div>
               <div class="header-col actions-col">
                 Действия
@@ -628,6 +628,7 @@ import StatusBadge from '@/components/ui/StatusBadge.vue';
 import EmployeeEditModal from '@/components/EmployeeEditModal.vue';
 import EmployeeDetailsModal from '@/components/CreateApplication/EmployeeDetailsModal.vue';
 import ApplicationDetail from '@/components/ApplicationDetail/ApplicationDetail.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 // Размер порции бесшовной подгрузки реестра сотрудников (#1158, срез 3) - аналог
 // CARS_PER_PAGE в CarsView.
@@ -644,7 +645,8 @@ export default {
         StatusBadge,
         EmployeeEditModal,
         EmployeeDetailsModal,
-        ApplicationDetail
+        ApplicationDetail,
+        AppIcon,
     },
     setup() {
         // Бесшовная подгрузка реестра сотрудников порциями (#1158, срез 3): composable
@@ -1289,6 +1291,26 @@ export default {
     align-items: center;
 }
 
+/* Кнопка журнала стоит в шапке между «Добавить» и «Обновить», поэтому повторяет их
+   мерки: высота 25px, радиус 50px, текст 12px. Общий .lk-button здесь выбивался из
+   ряда - он крупнее и с другим радиусом. */
+.log-button {
+    height: 25px;
+    padding: 0 12px;
+    border-radius: 50px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.log-button:hover {
+    background: var(--surface-2);
+}
+
 .add-button {
     background: var(--accent);
     color: var(--accent-contrast);
@@ -1373,17 +1395,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-    filter: var(--icon-ink-filter);
+    color: var(--text);
 }
 
 .sort-icon {
+    color: var(--text-muted);
     width: 12px;
     height: 12px;
     transition: .2s;
 }
 
 .sort-icon.sorted {
-    filter: var(--icon-ink-filter);
+    color: var(--text);
 }
 
 .sort-icon.desc {

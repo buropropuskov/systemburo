@@ -23,11 +23,11 @@
                 :disabled="filteredHistory.length === 0 || isExporting"
                 @click="exportToExcel"
               >
-                <img
+                <AppIcon
                   v-if="!isExporting"
-                  src="@/assets/icons/export.png"
+                  name="export"
                   class="export-icon"
-                >
+                />
                 <span v-if="!isExporting">Экспорт</span>
                 <div
                   v-else
@@ -67,11 +67,11 @@
                 >
                   <div class="select-trigger">
                     <span class="selected-value">{{ selectedUserName }}</span>
-                    <img
-                      src="@/assets/icons/arrow.png"
+                    <AppIcon
+                      name="arrow"
                       class="select-arrow"
                       :class="{ 'arrow-open': userDropdownOpen }"
-                    >
+                    />
                   </div>
                   <transition name="fade">
                     <div
@@ -120,11 +120,11 @@
                   class="sort-btn"
                   @click="toggleSortOrder"
                 >
-                  <img
-                    src="@/assets/icons/sort.png"
+                  <AppIcon
+                    name="sort"
                     class="sort-icon"
                     :class="{ 'sort-asc': sortOrder === 'asc' }"
-                  >
+                  />
                   <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
                 </button>
               </div>
@@ -218,6 +218,7 @@ import { getCitizenshipHistory } from '@/api/citizenships';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 import ExcelJS from 'exceljs';
 
 const ACTION_TEXTS = {
@@ -252,7 +253,7 @@ function emptyOr(value) {
 
 export default {
   name: 'CitizenshipHistoryModal',
-  components: { LoaderSpinner },
+  components: { LoaderSpinner, AppIcon },
   props: {
     citizenship: { type: Object, required: true },
     currentUserName: { type: String, default: '' },
@@ -917,6 +918,7 @@ export default {
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 14px;
   height: 14px;
   transition: transform 0.2s ease;

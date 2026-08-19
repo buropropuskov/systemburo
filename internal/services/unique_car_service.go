@@ -132,7 +132,9 @@ type BatchCreateCarsResponse struct {
 
 // UniqueCarHistoryItem -- запись истории мастер-машины с username вызывающего.
 type UniqueCarHistoryItem struct {
-	ID            int       `json:"id"`
+	ID int `json:"id"`
+	// Subject -- к какой машине относится событие (номер с маркой на момент действия).
+	Subject       *string   `json:"subject"`
 	UniqueCarID   int       `json:"unique_car_id"`
 	UserID        *int      `json:"user_id"`
 	Username      *string   `json:"username"`
@@ -595,6 +597,15 @@ func (s *uniqueCarService) Create(ctx context.Context, username string, req NewU
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка при создании автомобиля")
 	}
 
+	// Запись о заведении - для журнала реестра, см. uniqueEmployeeService.Create.
+	createComment := fmt.Sprintf("Автомобиль %s заведён в реестр",
+		strings.TrimSpace(strings.Join(nonEmptyStrings(car.Number, car.Mark), " ")))
+	createSubject := strings.TrimSpace(strings.Join(nonEmptyStrings(car.Number, car.Mark), " "))
+	if err := s.recorder.Record(ctx, nil, models.AuditEntityUniqueCar, &car.ID, "create",
+		&ownerInfo.UserID, carAuditDetails{Comment: &createComment, Subject: &createSubject}); err != nil {
+		slog.Error("не удалось записать создание автомобиля в журнал", "id", car.ID, "error", err)
+	}
+
 	slog.Info("уникальный автомобиль создан", "id", car.ID)
 	return carToResponse(&car), nil
 }
@@ -874,7 +885,7 @@ func (s *uniqueCarService) Delete(ctx context.Context, username string, id int) 
 			return gorm.ErrRecordNotFound
 		}
 		return s.recorder.Record(ctx, tx, models.AuditEntityUniqueCar, &id, "delete",
-			&ownerInfo.UserID, carAuditDetails{Comment: &comment})
+			&ownerInfo.UserID, carAuditDetails{Comment: &comment, Subject: &plate})
 	})
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -903,9 +914,14 @@ func (s *uniqueCarService) recordCarChanges(ctx context.Context, before, after *
 	}
 
 	uid := userID
+	// Снимок номера с маркой в каждой записи, см. recordEmployeeChanges.
+	subject := strings.TrimSpace(strings.Join(nonEmptyStrings(after.Number, after.Mark), " "))
 	for _, c := range changes {
 		field := c.Field
 		details := carAuditDetails{FieldName: &field, OldValue: c.Old, NewValue: c.New}
+		if subject != "" {
+			details.Subject = &subject
+		}
 		if err := s.recorder.Record(ctx, nil, models.AuditEntityUniqueCar, &after.ID, "data_changed", &uid, details); err != nil {
 			return fmt.Errorf("record unique_car change: %w", err)
 		}
@@ -979,16 +995,21 @@ func (s *uniqueCarService) GetRegistryLog(ctx context.Context, username string, 
 	const sql = `
 		SELECT m.id, m.unique_car_id, m.user_id, u.username,
 			u.last_name AS user_last_name, u.first_name AS user_first_name,
-			m.action_type, m.field_name, m.old_value, m.new_value, m.comment, m.created_at
+			m.action_type, m.field_name, m.old_value, m.new_value, m.comment, m.created_at,
+			COALESCE(
+				NULLIF(TRIM(m.subject), ''),
+				NULLIF(TRIM(CONCAT_WS(' ', uc.number, uc.mark)), '')
+			) AS subject
 		FROM (
 			SELECT a.id, a.entity_id AS unique_car_id, a.actor_user_id AS user_id,
 				a.action AS action_type, a.details->>'field_name' AS field_name,
 				a.details->>'old_value' AS old_value, a.details->>'new_value' AS new_value,
-				a.details->>'comment' AS comment, a.created_at
+				a.details->>'comment' AS comment, a.details->>'subject' AS subject, a.created_at
 			FROM audit_log a
 			WHERE a.entity_type = ?
 		) m
 		LEFT JOIN users u ON u.id = m.user_id
+		LEFT JOIN unique_cars uc ON uc.id = m.unique_car_id
 		ORDER BY m.created_at DESC, m.id DESC
 		LIMIT ?`
 

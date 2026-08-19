@@ -95,11 +95,11 @@
               <p :class="{ 'active-sort': sortField === 'id' }">
                 ID
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{ sorted: sortField === 'id', desc: sortField === 'id' && sortDirection === 'desc' }"
-              >
+              />
             </div>
             <div
               class="header-col name-col"
@@ -108,11 +108,11 @@
               <p :class="{ 'active-sort': sortField === 'name' }">
                 Наименование
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{ sorted: sortField === 'name', desc: sortField === 'name' && sortDirection === 'desc' }"
-              >
+              />
             </div>
           </div>
 
@@ -761,6 +761,7 @@ import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { apiRequest } from '@/api/client';
 import { bulkArchiveLicenseFormats, bulkRestoreLicenseFormats } from '@/api/licenseFormats';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 function defaultCell() {
   return {
@@ -782,7 +783,7 @@ const CELL_TYPE_LABELS = {
 
 export default {
   name: 'NumberFormat',
-  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, LicensePlateFormatHistoryModal },
+  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, LicensePlateFormatHistoryModal, AppIcon },
   setup() {
     // Колбэки закрытия присваиваются в created - нужен доступ к this (проверка dirty).
     const addOverlay = { close: () => {} };
@@ -1532,17 +1533,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: 0.2s;
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {

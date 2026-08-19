@@ -125,14 +125,14 @@
                 <p :class="{ 'active-sort': sortField === 'application_number' }">
                   Номер заявки
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'application_number',
                     'desc': sortField === 'application_number' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col date-col"
@@ -141,14 +141,14 @@
                 <p :class="{ 'active-sort': sortField === 'sending_datetime' }">
                   Дата и время
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'sending_datetime',
                     'desc': sortField === 'sending_datetime' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col sender-col"
@@ -157,14 +157,14 @@
                 <p :class="{ 'active-sort': sortField === 'sender_name' }">
                   Отправитель
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'sender_name',
                     'desc': sortField === 'sender_name' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col confirmation-col"
@@ -173,14 +173,14 @@
                 <p :class="{ 'active-sort': sortField === 'confirmation' }">
                   Подтверждение
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'confirmation',
                     'desc': sortField === 'confirmation' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col status-col"
@@ -189,14 +189,14 @@
                 <p :class="{ 'active-sort': sortField === 'status' }">
                   Статус
                 </p>
-                <img
-                  src="@/assets/icons/sort.png"
+                <AppIcon
+                  name="sort"
                   class="sort-icon"
                   :class="{
                     'sorted': sortField === 'status',
                     'desc': sortField === 'status' && sortDirection === 'desc'
                   }"
-                >
+                />
               </div>
               <div class="header-col tags-col">
                 <p>Теги</p>
@@ -579,6 +579,7 @@ import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/
 import { pendingApprovalDays, pendingApprovalLabel, pendingApprovalShort } from '@/utils/pendingApproval';
 import { stripHtml } from '@/utils/sanitize';
 import { groupApplicationsByPeriod } from '@/utils/applicationPeriod';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 // Размер порции бесшовной подгрузки ЛК (#1158 срез 4) - как в Центре заявок.
 const USER_APPLICATIONS_PER_PAGE = 30;
@@ -592,7 +593,8 @@ export default {
     DownloadBlanksModal,
     LoaderSpinner,
     Badge,
-    BaseDropdown
+    BaseDropdown,
+    AppIcon,
   },
   props: {
     userOrganizationId: {
@@ -1459,10 +1461,11 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
@@ -1470,7 +1473,7 @@ export default {
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {

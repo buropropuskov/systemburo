@@ -38,6 +38,11 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+// shutdownGrace - сколько main ждёт горутину остановки после того, как HTTP-сервер
+// закрылся. С запасом над её собственными окнами: 10 секунд на закрытие соединений,
+// затем по 5 на дожатие push-рассылки и запись журнала обращений.
+const shutdownGrace = 25 * time.Second
+
 // @title           Systemburo API
 // @version         1.0
 // @description     API системы управления пропусками (Бюро пропусков)
@@ -211,7 +216,11 @@ func main() {
 	e.Use(mw.CORS(cfg.CORSAllowedOrigins))
 	e.Use(mw.RateLimit(cfg.RateLimitPerMinute, cfg.RateLimitWindowSec))
 	e.Use(mw.PDAudit(db))
-	e.Use(mw.RequestLogger(db))
+	// Журнал обращений пишется пачками из фоновой горутины (#2125): обработчик
+	// только кладёт запись в очередь. Останавливается в graceful shutdown ниже,
+	// иначе остаток очереди уйдёт вместе с процессом.
+	requestLogWriter := mw.NewRequestLogWriter(db)
+	e.Use(requestLogWriter.Middleware())
 
 	// Services
 	userTypeService := services.NewUserTypeService(db)
@@ -679,8 +688,12 @@ func main() {
 	// и завершается без цикла.
 	go startFileArchiveWorker(ctxSig, blankExportService, cfg.ArchiveWorkerTick, cfg.ArchiveSweepInterval, resetLoc)
 
-	// Graceful shutdown
+	// Graceful shutdown. О завершении сообщаем каналом: e.Start возвращает
+	// ErrServerClosed сразу после e.Shutdown, и без ожидания main выходил, пока
+	// эта горутина только принималась дожимать фоновые отправки.
+	shutdownDone := make(chan struct{})
 	go func() {
+		defer close(shutdownDone)
 		<-ctxSig.Done()
 		slog.Info("shutting down server...")
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -695,6 +708,13 @@ func main() {
 		pushCtx, pushCancel := context.WithTimeout(context.Background(), services.PushShutdownGrace)
 		defer pushCancel()
 		pushService.Shutdown(pushCtx)
+
+		// Журнал обращений: в очереди писателя лежат записи уже обслуженных
+		// запросов. Без слива они пропадут - в журнале не окажется как раз тех
+		// обращений, что шли перед остановкой, а разбирают обычно их.
+		logCtx, logCancel := context.WithTimeout(context.Background(), mw.RequestLogShutdownGrace)
+		defer logCancel()
+		requestLogWriter.Shutdown(logCtx)
 	}()
 
 	// Start server
@@ -703,6 +723,14 @@ func main() {
 	if err := e.Start(addr); err != nil && err != http.ErrServerClosed {
 		slog.Error("server error", "error", err)
 		os.Exit(1)
+	}
+	// Даём горутине остановки доделать своё: дожать push-отправки и записать
+	// накопленный журнал обращений. Срок с запасом над их собственными окнами -
+	// если он всё же вышел, процесс уходит, но с записью в логе, а не молча.
+	select {
+	case <-shutdownDone:
+	case <-time.After(shutdownGrace):
+		slog.Warn("остановка не уложилась в отведённый срок - часть фоновых задач прервана")
 	}
 	slog.Info("server stopped")
 }

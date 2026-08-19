@@ -16,8 +16,13 @@
               <span class="stat-value">{{ stats.today || 0 }}</span>
             </span>
             <span class="stat-item">
-              <span class="stat-label">Среднее время:</span>
-              <span class="stat-value">{{ Math.round(stats.avg_duration || 0) }}мс</span>
+              <span
+                class="stat-label"
+                title="Медиана и 95-й перцентиль времени ответа за последний час. Долгоживущие подписки на события не учитываются: у них в журнале записано время жизни соединения, а не время ответа."
+              >Отклик:</span>
+              <span class="stat-value">
+                {{ formatMs(stats.median_duration, false) }} / {{ formatMs(stats.p95_duration) }}
+              </span>
             </span>
             <span class="stat-item">
               <span class="stat-label">Ошибки:</span>
@@ -213,14 +218,14 @@
                   <p :class="{ 'active-sort': sortField === 'created_at' }">
                     Время
                   </p>
-                  <img
-                    src="@/assets/icons/sort.png"
+                  <AppIcon
+                    name="sort"
                     class="sort-icon"
                     :class="{
                       'sorted': sortField === 'created_at',
                       'desc': sortField === 'created_at' && sortDirection === 'desc'
                     }"
-                  >
+                  />
                 </div>
                 <div
                   class="header-col method-col"
@@ -229,14 +234,14 @@
                   <p :class="{ 'active-sort': sortField === 'method' }">
                     Метод
                   </p>
-                  <img
-                    src="@/assets/icons/sort.png"
+                  <AppIcon
+                    name="sort"
                     class="sort-icon"
                     :class="{
                       'sorted': sortField === 'method',
                       'desc': sortField === 'method' && sortDirection === 'desc'
                     }"
-                  >
+                  />
                 </div>
                 <div
                   class="header-col path-col"
@@ -245,14 +250,14 @@
                   <p :class="{ 'active-sort': sortField === 'url' }">
                     URL
                   </p>
-                  <img
-                    src="@/assets/icons/sort.png"
+                  <AppIcon
+                    name="sort"
                     class="sort-icon"
                     :class="{
                       'sorted': sortField === 'url',
                       'desc': sortField === 'url' && sortDirection === 'desc'
                     }"
-                  >
+                  />
                 </div>
                 <div
                   class="header-col status-col"
@@ -261,14 +266,14 @@
                   <p :class="{ 'active-sort': sortField === 'response_status' }">
                     Статус
                   </p>
-                  <img
-                    src="@/assets/icons/sort.png"
+                  <AppIcon
+                    name="sort"
                     class="sort-icon"
                     :class="{
                       'sorted': sortField === 'response_status',
                       'desc': sortField === 'response_status' && sortDirection === 'desc'
                     }"
-                  >
+                  />
                 </div>
                 <div
                   class="header-col user-col"
@@ -277,30 +282,30 @@
                   <p :class="{ 'active-sort': sortField === 'username' }">
                     Пользователь
                   </p>
-                  <img
-                    src="@/assets/icons/sort.png"
+                  <AppIcon
+                    name="sort"
                     class="sort-icon"
                     :class="{
                       'sorted': sortField === 'username',
                       'desc': sortField === 'username' && sortDirection === 'desc'
                     }"
-                  >
+                  />
                 </div>
                 <div
                   class="header-col duration-col"
                   @click="sortBy('duration_ms')"
                 >
                   <p :class="{ 'active-sort': sortField === 'duration_ms' }">
-                    Время
+                    Отклик
                   </p>
-                  <img
-                    src="@/assets/icons/sort.png"
+                  <AppIcon
+                    name="sort"
                     class="sort-icon"
                     :class="{
                       'sorted': sortField === 'duration_ms',
                       'desc': sortField === 'duration_ms' && sortDirection === 'desc'
                     }"
-                  >
+                  />
                 </div>
               </div>
 
@@ -362,7 +367,7 @@
                   </div>
                   <div class="table-col duration-col">
                     <span class="cell-content">
-                      {{ log.duration_ms || 0 }}мс
+                      {{ formatDuration(log) }}
                     </span>
                   </div>
                 </div>
@@ -471,7 +476,7 @@
 
                   <div class="detail-group">
                     <label class="detail-label">Время выполнения:</label>
-                    <span class="detail-value">{{ selectedLog.duration_ms || 0 }}мс</span>
+                    <span class="detail-value">{{ formatDuration(selectedLog) }}</span>
                   </div>
 
                   <div class="detail-group">
@@ -707,6 +712,7 @@ import RealTimeChart from '@/components/RealTimeChart.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import RefreshButton from '@/components/RefreshButton.vue'
 import AdminPageShell from '@/views/admin/AdminPageShell.vue'
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'RequestsView',
@@ -715,7 +721,8 @@ export default {
     RealTimeChart,
     LoaderSpinner,
     RefreshButton,
-    AdminPageShell
+    AdminPageShell,
+    AppIcon,
   },
   data() {
     return {
@@ -752,6 +759,8 @@ export default {
         total: 0,
         today: 0,
         avg_duration: 0,
+        median_duration: 0,
+        p95_duration: 0,
         error_rate: 0,
         requests_per_minute: 0
       },
@@ -1097,6 +1106,32 @@ export default {
       return 'status-server-error';
     },
 
+    /**
+     * Длительность в миллисекундах для показа: до сотни миллисекунд с одним
+     * знаком после запятой, дальше целыми. Ответы быстрее миллисекунды раньше
+     * показывались нулём, потому что бэк округлял их вниз.
+     * @param {number} ms
+     * @param {boolean} [withUnit] дописать единицы измерения
+     * @returns {string}
+     */
+    formatMs(ms, withUnit = true) {
+      const value = Number(ms) || 0;
+      const rounded = value >= 100 ? Math.round(value) : Math.round(value * 10) / 10;
+      return withUnit ? rounded + 'мс' : String(rounded);
+    },
+
+    /**
+     * Длительность записи журнала: микросекунды точнее, миллисекунды остаются
+     * для записей, сделанных до перехода на них.
+     * @param {{duration_us?: number, duration_ms?: number}} log
+     * @returns {string}
+     */
+    formatDuration(log) {
+      if (!log) return '';
+      if (log.duration_us != null) return this.formatMs(log.duration_us / 1000);
+      return this.formatMs(log.duration_ms || 0);
+    },
+
     formatJson(text) {
       if (!text) return '';
       try {
@@ -1371,17 +1406,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {

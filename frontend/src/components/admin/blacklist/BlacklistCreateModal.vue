@@ -19,11 +19,11 @@
             >
               <div class="button__content">
                 <span class="button__text">{{ selectedFormatText }}</span>
-                <img
-                  src="@/assets/icons/arrow.png"
+                <AppIcon
+                  name="arrow"
                   class="button__arrow"
                   :class="{ 'button__arrow--open': isFormatDropdownOpen }"
-                >
+                />
               </div>
             </button>
             <transition name="dropdown">
@@ -91,11 +91,11 @@
                 >
                   <div class="mark__button-content">
                     <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
-                    <img
-                      src="@/assets/icons/arrow.png"
+                    <AppIcon
+                      name="arrow"
                       class="mark__button-arrow"
                       :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }"
-                    >
+                    />
                   </div>
                 </button>
                 <transition name="dropdown">
@@ -220,6 +220,7 @@ import { personBlacklistImpact, vehicleBlacklistImpact } from '@/api/blacklist';
 import BlacklistImpactModal from './BlacklistImpactModal.vue';
 import { listMarks } from '@/api/marks';
 import { validatePartValue, formatPartValue, initializeNumberParts } from '@/composables/useNumberFormat';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 /**
  * Модалка добавления записи в чёрный список (#443). Тип определяет форму: 'vehicle' -
@@ -229,7 +230,7 @@ import { validatePartValue, formatPartValue, initializeNumberParts } from '@/com
  */
 export default {
   name: 'BlacklistCreateModal',
-  components: { BaseModal, FormField, BlacklistImpactModal },
+  components: { AppIcon, BaseModal, FormField, BlacklistImpactModal },
   props: {
     show: { type: Boolean, default: false },
     type: { type: String, required: true, validator: (v) => ['vehicle', 'person'].includes(v) },

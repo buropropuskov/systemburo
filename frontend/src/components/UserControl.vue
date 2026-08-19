@@ -136,14 +136,14 @@
               <p :class="{ 'active-sort': sortField === 'username' }">
                 Логин
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'username',
                   'desc': sortField === 'username' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
             <div
               class="header-col name-col"
@@ -152,14 +152,14 @@
               <p :class="{ 'active-sort': sortField === 'full_name' }">
                 Фамилия И.О.
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'full_name',
                   'desc': sortField === 'full_name' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
             <div
               class="header-col org-col"
@@ -168,14 +168,14 @@
               <p :class="{ 'active-sort': sortField === 'organization' }">
                 Организация / Отдел
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'organization',
                   'desc': sortField === 'organization' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
             <div
               class="header-col company-col"
@@ -184,14 +184,14 @@
               <p :class="{ 'active-sort': sortField === 'company' }">
                 Компания
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'company',
                   'desc': sortField === 'company' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
             <div
               class="header-col position-col"
@@ -200,14 +200,14 @@
               <p :class="{ 'active-sort': sortField === 'position' }">
                 Должность
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{
                   'sorted': sortField === 'position',
                   'desc': sortField === 'position' && sortDirection === 'desc'
                 }"
-              >
+              />
             </div>
             <div
               class="header-col type-col"
@@ -216,14 +216,14 @@
               <p :class="{ 'active-sort': sortField === 'user_type' }">
                 Тип
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{
                   'sorted': sortField === 'user_type',
                   'desc': sortField === 'user_type' && sortDirection === 'desc'
                 }"
-              >
+              />
             </div>
             <div
               class="header-col seen-col"
@@ -232,14 +232,14 @@
               <p :class="{ 'active-sort': sortField === 'last_seen' }">
                 В сети
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{
                   'sorted': sortField === 'last_seen',
                   'desc': sortField === 'last_seen' && sortDirection === 'desc'
                 }"
-              >
+              />
             </div>
           </div>
         </div>
@@ -1138,6 +1138,7 @@ import { startImpersonation } from '@/api/impersonation';
 import { useUiStore } from '@/stores/ui';
 import { resetOnboardingForUser } from '@/api/onboarding';
 import { TOURS } from '@/components/onboarding/tours';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 // Тик подписей присутствия: раз в секунду, потому что младшая единица подписи -
 // секунды, и на более редком тике «12 с» висело бы неверным до полминуты. Пересчёт
@@ -1161,7 +1162,8 @@ export default {
     UserLoginHistory,
     UserAccessModal,
     UserAccessPlacesModal,
-    UserBulkOperationsModal
+    UserBulkOperationsModal,
+    AppIcon,
   },
   props: {
     allUsers: {
@@ -2705,17 +2707,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {

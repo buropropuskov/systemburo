@@ -75,11 +75,10 @@
             :disabled="!items.length || isExporting"
             @click="onExport"
           >
-            <img
-              src="@/assets/icons/export.png"
+            <AppIcon
+              name="export"
               class="trash-tool-btn__icon"
-              alt=""
-            >
+            />
             Экспорт
           </button>
           <button
@@ -180,16 +179,15 @@
                 @click="col.sortable && sortBy(col.key)"
               >
                 <span>{{ col.label }}</span>
-                <img
+                <AppIcon
                   v-if="col.sortable"
-                  src="@/assets/icons/sort.png"
+                  name="sort"
                   class="trash-table__sort"
                   :class="{
                     'trash-table__sort--sorted': sortField === col.key,
                     'trash-table__sort--desc': sortField === col.key && sortDir === 'desc',
                   }"
-                  alt=""
-                >
+                />
               </th>
               <th class="trash-table__th-actions" />
             </tr>
@@ -376,6 +374,7 @@ import EmployeeDetailsModal from '@/components/CreateApplication/EmployeeDetails
 import TrashHistoryModal from '@/components/TrashHistoryModal.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import ApplicationDetail from '@/components/ApplicationDetail/ApplicationDetail.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'TrashView',
@@ -383,6 +382,7 @@ export default {
     SearchComponent, BaseDropdown, DateFilter, RefreshButton,
     VehicleDetailsModal, EmployeeDetailsModal, TrashHistoryModal, ConfirmationModal,
     ApplicationDetail,
+    AppIcon,
   },
   data() {
     return {
@@ -1168,7 +1168,7 @@ export default {
 }
 
 .trash-table__th--sortable:hover .trash-table__sort {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .trash-table__th--active {
@@ -1176,6 +1176,7 @@ export default {
 }
 
 .trash-table__sort {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   margin-left: 6px;
@@ -1185,7 +1186,7 @@ export default {
 }
 
 .trash-table__sort--sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
   opacity: 1;
 }
 

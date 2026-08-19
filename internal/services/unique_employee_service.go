@@ -170,7 +170,10 @@ type UniqueEmployeeResponse struct {
 
 // UniqueEmployeeHistoryItem -- запись истории мастер-сотрудника с username вызывающего.
 type UniqueEmployeeHistoryItem struct {
-	ID               int       `json:"id"`
+	ID int `json:"id"`
+	// Subject -- к кому относится событие (ФИО на момент действия). Пусто у событий,
+	// записанных до введения снимка, если сама запись уже удалена.
+	Subject          *string   `json:"subject"`
 	UniqueEmployeeID int       `json:"unique_employee_id"`
 	UserID           *int      `json:"user_id"`
 	Username         *string   `json:"username"`
@@ -651,6 +654,19 @@ func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка при создании сотрудника")
 	}
 
+	// Запись о заведении - для журнала реестра: правки и удаления в нём есть, и без
+	// создания история записи начиналась бы с середины. Ошибка аудита саму запись не
+	// откатывает, она уже создана - логируем и идём дальше.
+	created := strings.TrimSpace(strings.Join(nonEmptyStrings(employee.LastName, employee.FirstName, employee.MiddleName), " "))
+	if created == "" {
+		created = fmt.Sprintf("без имени (номер записи %d)", employee.ID)
+	}
+	createComment := fmt.Sprintf("Сотрудник %s заведён в реестр", created)
+	if err := s.recorder.Record(ctx, nil, models.AuditEntityUniqueEmployee, &employee.ID, "create",
+		&ownerInfo.UserID, carAuditDetails{Comment: &createComment, Subject: &created}); err != nil {
+		slog.Error("не удалось записать создание сотрудника в журнал", "id", employee.ID, "error", err)
+	}
+
 	slog.Info("уникальный сотрудник создан", "id", employee.ID)
 	return employeeToResponse(&employee), nil
 }
@@ -800,9 +816,15 @@ func (s *uniqueEmployeeService) recordEmployeeChanges(ctx context.Context, befor
 	}
 
 	uid := userID
+	// Снимок ФИО в каждой записи: журнал реестра показывает, К КОМУ относится событие, а
+	// после удаления записи по её номеру этого уже не узнать.
+	subject := strings.TrimSpace(strings.Join(nonEmptyStrings(after.LastName, after.FirstName, after.MiddleName), " "))
 	for _, c := range changes {
 		field := c.Field
 		details := carAuditDetails{FieldName: &field, OldValue: c.Old, NewValue: c.New}
+		if subject != "" {
+			details.Subject = &subject
+		}
 		if err := s.recorder.Record(ctx, nil, models.AuditEntityUniqueEmployee, &after.ID, "data_changed", &uid, details); err != nil {
 			return fmt.Errorf("record unique_employee change: %w", err)
 		}
@@ -888,7 +910,7 @@ func (s *uniqueEmployeeService) Delete(ctx context.Context, username string, id 
 			return gorm.ErrRecordNotFound
 		}
 		return s.recorder.Record(ctx, tx, models.AuditEntityUniqueEmployee, &id, "delete",
-			&ownerInfo.UserID, carAuditDetails{Comment: &comment})
+			&ownerInfo.UserID, carAuditDetails{Comment: &comment, Subject: &fio})
 	})
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -980,19 +1002,26 @@ func (s *uniqueEmployeeService) GetRegistryLog(ctx context.Context, username str
 		limit = registryLogMaxRows
 	}
 
+	// subject: снимок из записи журнала, а при его отсутствии (события до введения
+	// снимка) - ФИО живой записи реестра. У удалённой записи остаётся только снимок.
 	const sql = `
 		SELECT m.id, m.unique_employee_id, m.user_id, u.username,
 			u.last_name AS user_last_name, u.first_name AS user_first_name,
-			m.action_type, m.field_name, m.old_value, m.new_value, m.comment, m.created_at
+			m.action_type, m.field_name, m.old_value, m.new_value, m.comment, m.created_at,
+			COALESCE(
+				NULLIF(TRIM(m.subject), ''),
+				NULLIF(TRIM(CONCAT_WS(' ', ue.last_name, ue.first_name, ue.middle_name)), '')
+			) AS subject
 		FROM (
 			SELECT a.id, a.entity_id AS unique_employee_id, a.actor_user_id AS user_id,
 				a.action AS action_type, a.details->>'field_name' AS field_name,
 				a.details->>'old_value' AS old_value, a.details->>'new_value' AS new_value,
-				a.details->>'comment' AS comment, a.created_at
+				a.details->>'comment' AS comment, a.details->>'subject' AS subject, a.created_at
 			FROM audit_log a
 			WHERE a.entity_type = ?
 		) m
 		LEFT JOIN users u ON u.id = m.user_id
+		LEFT JOIN unique_employees ue ON ue.id = m.unique_employee_id
 		ORDER BY m.created_at DESC, m.id DESC
 		LIMIT ?`
 

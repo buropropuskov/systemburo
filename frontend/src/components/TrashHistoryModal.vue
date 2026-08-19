@@ -20,11 +20,11 @@
                 :disabled="filteredHistory.length === 0 || isExporting"
                 @click="exportToExcel"
               >
-                <img
+                <AppIcon
                   v-if="!isExporting"
-                  src="@/assets/icons/export.png"
+                  name="export"
                   class="export-icon"
-                >
+                />
                 <span v-if="!isExporting">Экспорт</span>
                 <div
                   v-else
@@ -70,11 +70,11 @@
               class="hf-sort"
               @click="sortOrder = sortOrder === 'desc' ? 'asc' : 'desc'"
             >
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="hf-sort-icon"
                 :class="{ 'hf-sort-icon--asc': sortOrder === 'asc' }"
-              >
+              />
               <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
             </button>
           </div>
@@ -164,9 +164,11 @@
 <script>
 import ExcelJS from 'exceljs';
 import { getTrashHistory } from '@/api/trash';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'TrashHistoryModal',
+  components: { AppIcon },
   props: {
     tableId: { type: Number, required: true },
     tableDisplayName: { type: String, default: '' },
@@ -554,6 +556,7 @@ export default {
 }
 
 .hf-sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: transform 0.2s ease;
