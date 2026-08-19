@@ -2437,8 +2437,8 @@ export default {
             }
         },
 
-        handleDuplicate(application) {
-            console.log('Дублирование заявки из ApplicationsCenter:', application?.application_number);
+        handleDuplicate() {
+            // Дублирование заявки не реализовано: событие принимается и игнорируется.
         },
 
         async getCurrentUser() {

@@ -488,7 +488,6 @@ export default {
 
                 if (response.ok) {
                     this.history = await response.json();
-                    console.log("History loaded:", this.history);
                 }
             } catch (error) {
                 console.error("Error loading history:", error);
