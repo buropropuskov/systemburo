@@ -192,10 +192,14 @@ func TestRequestLogs_ExportKeepsChosenOrder(t *testing.T) {
 	rec := testutil.GET(t, e, "/request-logs/export?sort=duration&order=desc", testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	text := rec.Body.String()
-	slow := strings.Index(text, "/api/export-slow")
-	fast := strings.Index(text, "/api/export-fast")
-	require.Positive(t, slow, "медленный запрос попал в выгрузку")
-	require.Positive(t, fast, "быстрый запрос попал в выгрузку")
-	assert.Less(t, slow, fast, "самый медленный запрос стоит в выгрузке первым")
+	// Выгрузка -- книга .xlsx (#2125), поэтому порядок читается по строкам листа,
+	// а не поиском подстроки в теле ответа.
+	order := make([]string, 0, 2)
+	for _, row := range exportedSheet(t, rec.Body.Bytes()) {
+		if len(row) > 2 && strings.HasPrefix(row[2], "/api/export-") {
+			order = append(order, row[2])
+		}
+	}
+	assert.Equal(t, []string{"/api/export-slow", "/api/export-fast"}, order,
+		"самый медленный запрос стоит в выгрузке первым")
 }

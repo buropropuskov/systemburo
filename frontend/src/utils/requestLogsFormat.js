@@ -178,3 +178,57 @@ export function p95Note(coverage) {
 export function barHeight(value, max) {
   return Math.max(4, Math.round((value / Math.max(max, 1)) * 100));
 }
+
+/**
+ * Человеческий текст отказа вместо пустого экрана. До #2125 сбой чтения журнала
+ * гасился молча (`if (!response.ok) return`), и раздел без прав выглядел как
+ * раздел без записей - неотличимо от пустого отбора.
+ *
+ * @param {{status?: number}} source ответ fetch или ошибка с кодом
+ * @param {string} action что именно не получилось: «загрузить журнал»
+ * @returns {string} строка для экрана
+ */
+export function describeLoadError(source, action) {
+  const status = source && typeof source.status === 'number' ? source.status : 0;
+  if (status === 401) return `Не удалось ${action}: сессия истекла, войдите заново.`;
+  if (status === 403) return `Не удалось ${action}: нет прав на раздел.`;
+  if (status >= 500) return `Не удалось ${action}: сервер ответил ошибкой ${status}.`;
+  if (status) return `Не удалось ${action}: сервер ответил ${status}.`;
+  return `Не удалось ${action}: нет связи с сервером.`;
+}
+
+/**
+ * Показатели шапки вкладки «Аналитика» одним перечнем: четыре почти одинаковых
+ * блока в разметке отличались только подписью и способом форматирования.
+ *
+ * @param {{requests?: number, error_rate?: number, avg_duration_ms?: number, errors?: number}} totals
+ * @returns {Array<{label: string, value: string, bad?: boolean, hint?: string}>}
+ */
+export function analyticsKpis(totals) {
+  const t = totals || {};
+  return [
+    { label: 'Запросов за период', value: formatNum(t.requests) },
+    { label: 'Доля ошибок', value: `${Number(t.error_rate || 0).toFixed(2)}%`, bad: Number(t.error_rate) > 1 },
+    {
+      label: 'Средн. длительность', value: formatMs(t.avg_duration_ms),
+      hint: 'Средняя взвешена по числу запросов. Долгоживущие подписки на события в неё не входят: у них в журнале записано время жизни соединения.'
+    },
+    { label: 'Ошибок всего', value: formatNum(t.errors) }
+  ];
+}
+
+/**
+ * Сообщение об итоге выгрузки. Обрезанный файл проговаривается словами: сервер
+ * отдаёт не больше десяти тысяч строк, и по неполному файлу человек считал бы
+ * итоги за период, не зная об остатке.
+ *
+ * @param {{rows: number, total: number, truncated: boolean}} res охват выгрузки
+ * @returns {{prefix: string, bold: string, suffix?: string, type: string}}
+ */
+export function exportNotice({ rows, total, truncated }) {
+  if (!truncated) return { prefix: 'Журнал выгружен, ', bold: `записей: ${rows}`, type: 'success' };
+  return {
+    prefix: 'Выгружены первые ', bold: `${rows} записей из ${total}`,
+    suffix: '. Сузьте период или отбор, чтобы файл покрыл всё.', type: 'warning'
+  };
+}

@@ -66,7 +66,15 @@ const (
 	// блокировки. EntityID пустой - событие относится к очереди в целом, а не к
 	// одной заявке.
 	AuditEntityArchiveQuota = "archive_quota"
+	// AuditEntityRequestLogExport - снятие журнала обращений файлом (#2125).
+	// EntityID пустой: выгружается выборка, а не строка справочника. Одна выгрузка
+	// уносит адреса обращений сотен пользователей разом, поэтому оставляет след
+	// наравне с выгрузкой реестра заявок.
+	AuditEntityRequestLogExport = "request_log_export"
 )
+
+// RequestLogExportActionExported - журнал обращений выгружен файлом.
+const RequestLogExportActionExported = "exported"
 
 // ArchiveSettingsActionUpdated - изменение настроек файлового архива.
 const ArchiveSettingsActionUpdated = "updated"
@@ -91,7 +99,7 @@ var AllAuditEntities = []string{
 	AuditEntityPersonBlacklist, AuditEntityVehicleBlacklist, AuditEntitySystemTable,
 	AuditEntitySystemTableTrash, AuditEntityMark, AuditEntityCar, AuditEntityUniqueCar,
 	AuditEntityEmployee, AuditEntityUniqueEmployee, AuditEntityApplication,
-	AuditEntityArchiveSettings, AuditEntityArchiveQuota,
+	AuditEntityArchiveSettings, AuditEntityArchiveQuota, AuditEntityRequestLogExport,
 }
 
 // AuditAction* - значения AuditLog.Action, вынесенные в константы там, где значение
