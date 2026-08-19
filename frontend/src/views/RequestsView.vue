@@ -553,6 +553,13 @@
           </button>
         </div>
 
+        <p
+          v-if="coverageNote"
+          class="coverage-note"
+        >
+          {{ coverageNote }}
+        </p>
+
         <div class="kpi-row">
           <div class="kpi">
             <div class="kpi-val">
@@ -575,9 +582,12 @@
           </div>
           <div class="kpi">
             <div class="kpi-val">
-              {{ history.totals.avg_duration_ms }} мс
+              {{ formatMs(history.totals.avg_duration_ms) }}
             </div>
-            <div class="kpi-lab">
+            <div
+              class="kpi-lab"
+              title="Средняя взвешена по числу запросов. Долгоживущие подписки на события в неё не входят: у них в журнале записано время жизни соединения."
+            >
               Средн. длительность
             </div>
           </div>
@@ -628,7 +638,11 @@
               <table class="hist-table">
                 <thead>
                   <tr>
-                    <th>Endpoint</th><th>Запросов</th><th>Avg</th><th>p95</th><th>Ошибки</th>
+                    <th>Endpoint</th><th>Запросов</th><th>Avg</th>
+                    <th :title="p95Note">
+                      p95<span v-if="p95Note">*</span>
+                    </th>
+                    <th>Ошибки</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -640,8 +654,8 @@
                       {{ e.endpoint }}
                     </td>
                     <td>{{ formatNum(e.requests) }}</td>
-                    <td>{{ e.avg_duration_ms }}мс</td>
-                    <td>{{ e.p95_duration_ms }}мс</td>
+                    <td>{{ formatMs(e.avg_duration_ms) }}</td>
+                    <td>{{ formatMs(e.p95_duration_ms) }}</td>
                     <td>{{ e.error_rate }}%</td>
                   </tr>
                   <tr v-if="!history.top_endpoints.length">
@@ -655,6 +669,12 @@
                 </tbody>
               </table>
             </div>
+            <p
+              v-if="p95Note"
+              class="coverage-note"
+            >
+              * {{ p95Note }}
+            </p>
           </div>
           <div class="analytics-panel">
             <h4 class="panel-title">
@@ -729,6 +749,7 @@ export default {
       activeTab: 'journal',
       history: {
         totals: { requests: 0, errors: 0, error_rate: 0, avg_duration_ms: 0 },
+        coverage: null,
         daily: [],
         top_endpoints: [],
         top_users: []
@@ -791,6 +812,44 @@ export default {
     },
     selectedPeriod() {
       return this.chartPeriods.find(p => p.key === this.chartPeriod) || this.chartPeriods[4];
+    },
+    /**
+     * Что именно показано на вкладке: запрошенный период, сутки с записями и
+     * источник чисел. Раньше пустой месяц выглядел как «запросов не было», хотя
+     * данные просто ещё не свёрнуты.
+     * @returns {string}
+     */
+    coverageNote() {
+      const c = this.history.coverage;
+      if (!c || !c.requested_from) return '';
+
+      const period = `${this.formatDay(c.requested_from)} - ${this.formatDay(c.requested_to)}`;
+      if (!c.days) {
+        return c.aggregated_through
+          ? `За период ${period} записей нет.`
+          : `За период ${period} записей нет: журнал ещё не сворачивался в суточные итоги.`;
+      }
+
+      const sources = {
+        aggregates: 'по свёрнутым итогам суток',
+        detailed: 'по подробным записям журнала',
+        mixed: 'по свёрнутым итогам и подробным записям'
+      };
+      const covered = c.from === c.to
+        ? this.formatDay(c.from)
+        : `${this.formatDay(c.from)} - ${this.formatDay(c.to)}`;
+      const source = sources[c.source] ? `, ${sources[c.source]}` : '';
+      return `Запрошен период ${period}. Записи есть за ${covered}, суток с данными: ${c.days}${source}.`;
+    },
+    /**
+     * Оговорка про перцентиль. Пустая, когда весь период посчитан по самим
+     * записям и p95 честный.
+     * @returns {string}
+     */
+    p95Note() {
+      const c = this.history.coverage;
+      if (!c || !c.days || c.exact_p95) return '';
+      return 'За свёрнутые сутки показано наибольшее суточное значение: отдельных длительностей у них уже нет.';
     }
   },
   async mounted() {
@@ -828,6 +887,7 @@ export default {
           if (data) {
             this.history = {
               totals: data.totals || { requests: 0, errors: 0, error_rate: 0, avg_duration_ms: 0 },
+              coverage: data.coverage || null,
               daily: data.daily || [],
               top_endpoints: data.top_endpoints || [],
               top_users: data.top_users || []
@@ -844,6 +904,15 @@ export default {
     },
     formatNum(n) {
       return (n || 0).toLocaleString('ru-RU')
+    },
+    /**
+     * Сутки из ответа (2026-08-19) в привычный вид (19.08.2026).
+     * @param {string} day
+     * @returns {string}
+     */
+    formatDay(day) {
+      const parts = String(day || '').split('-')
+      return parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : String(day || '')
     },
     barHeight(value) {
       const max = Math.max(...this.history.daily.map(d => d.requests), 1)
@@ -1919,6 +1988,12 @@ export default {
   padding: 16px;
 }
 
+.coverage-note {
+  margin: -8px 0 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
 .analytics-tables {
   display: grid;
   grid-template-columns: 1.5fr 1fr;

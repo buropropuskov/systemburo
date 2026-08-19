@@ -187,3 +187,93 @@ func TestStatsCache(t *testing.T) {
 		}
 	})
 }
+
+// Ответ вкладки «Аналитика» склеивается из двух выборок, и аргументы к ним
+// идут в порядке плейсхолдеров: сутки для агрегатов, окно для детальных записей.
+// Перепутанный порядок gorm не заметит - уедет период, а не запрос (#2125).
+func TestHistoryUnion(t *testing.T) {
+	from, _ := time.Parse(dayLayout, "2026-08-01")
+	to, _ := time.Parse(dayLayout, "2026-08-10")
+
+	sql, args := historyUnion(from, to, "AGG", "DET")
+
+	if !strings.Contains(sql, "AGG\nUNION ALL\nDET") {
+		t.Fatalf("части должны склеиваться через UNION ALL: %s", sql)
+	}
+	want := []any{"2026-08-01", "2026-08-10", from, to.AddDate(0, 0, 1), "2026-08-01"}
+	if len(args) != len(want) {
+		t.Fatalf("ожидали %d аргументов, получили %d", len(want), len(args))
+	}
+	for i := range want {
+		if args[i] != want[i] {
+			t.Fatalf("аргумент %d: ожидали %v, получили %v", i, want[i], args[i])
+		}
+	}
+}
+
+// Сутки, уже попавшие в свёртку, из детальной выборки отбрасываются по факту
+// наличия дня в агрегатах. Партиции сворачиваются в порядке, который база не
+// обещает, поэтому отбор по верхней границе свёртки терял бы день, чья партиция
+// сорвалась, а более новая свернулась.
+func TestNotRolledUpSQL(t *testing.T) {
+	if !strings.Contains(notRolledUpSQL, "NOT EXISTS") {
+		t.Fatalf("детальная выборка обязана отбрасывать свёрнутые сутки: %s", notRolledUpSQL)
+	}
+	if !strings.Contains(notRolledUpSQL, "d.day = request_logs.created_at::date") {
+		t.Fatalf("сравнение идёт по суткам записи: %s", notRolledUpSQL)
+	}
+	// Нижняя граница держит сравнение в пределах периода: агрегаты хранятся два
+	// года, и без неё проверка строится по всей таблице.
+	if !strings.Contains(notRolledUpSQL, "d.day >= ?") {
+		t.Fatalf("проверка должна ограничиваться периодом: %s", notRolledUpSQL)
+	}
+}
+
+// Долгоживущие соединения отсекаются двумя условиями: по сырому адресу в журнале
+// и по нормализованному маршруту в агрегатах. Числовой сегмент в таком пути
+// развёл бы их - в агрегатах он превращается в /:id.
+func TestStreamingPathsSurviveNormalization(t *testing.T) {
+	for _, path := range streamingLogPaths {
+		if strings.ContainsAny(path, "0123456789") {
+			t.Fatalf("путь %s в агрегатах нормализуется в /:id, и фильтры разойдутся", path)
+		}
+	}
+}
+
+// Период приходит из адресной строки: пустой означает последние девяносто суток,
+// перевёрнутый разворачивается. Пустой ответ на осмысленный запрос читается как
+// поломка раздела, а не как «данных нет».
+func TestHistoryRange(t *testing.T) {
+	from, to := historyRange("2026-08-10", "2026-08-01")
+	if from.Format(dayLayout) != "2026-08-01" || to.Format(dayLayout) != "2026-08-10" {
+		t.Fatalf("перевёрнутый период не развёрнут: %s..%s", from, to)
+	}
+
+	from, to = historyRange("", "")
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	if !to.Equal(today) {
+		t.Fatalf("по умолчанию период кончается сегодняшним днём: %s", to)
+	}
+	if got := int(to.Sub(from).Hours() / 24); got != 90 {
+		t.Fatalf("по умолчанию период длится 90 суток, получили %d", got)
+	}
+
+	from, _ = historyRange("не-дата", "2026-08-10")
+	if from.Format(dayLayout) != "2026-05-12" {
+		t.Fatalf("неразобранное начало периода откатывается на 90 суток назад: %s", from)
+	}
+}
+
+// Долгоживущие подписки отсекаются и в агрегатах, где адрес уже нормализован и
+// хранится без query-строки.
+func TestNotStreamingEndpointSQL(t *testing.T) {
+	got := notStreamingEndpointSQL()
+	for _, path := range streamingLogPaths {
+		if !strings.Contains(got, "'"+path+"'") {
+			t.Fatalf("условие не отсекает %s: %s", path, got)
+		}
+	}
+	if !strings.Contains(got, "endpoint NOT IN") {
+		t.Fatalf("сравнение должно идти по свёрнутому маршруту: %s", got)
+	}
+}
