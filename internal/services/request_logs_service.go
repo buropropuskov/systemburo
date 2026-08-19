@@ -460,66 +460,32 @@ func notStreamingEndpointSQL() string {
 	return "endpoint NOT IN (" + strings.Join(quoted, ", ") + ")"
 }
 
-// historyParts -- из чего собирается ответ «Аналитики» за период: свёрнутые
-// сутки из request_logs_daily и сутки новее последней свёртки, которые ещё
-// лежат в детальных партициях.
+// notRolledUpSQL -- «эти сутки ещё не свёрнуты». Детальная выборка отбрасывает
+// дни, по которым уже есть агрегат, поэтому свёрнутая, но не удалённая партиция
+// не удваивает итог. Отбор идёт по факту наличия дня в свёртке, а не по её
+// верхней границе: партиции сворачиваются в порядке, который база не обещает, и
+// сорвавшаяся старая партиция при успешной новой оставляла бы день, которого нет
+// ни в агрегатах, ни в детальной части.
 //
-// Границы не пересекаются: детальная часть начинается со следующего дня после
-// последнего свёрнутого. Даже если партицию свернули, а удалить не смогли,
-// её записи в ответ второй раз не попадут.
-type historyParts struct {
-	agg            bool
-	aggFrom, aggTo time.Time
-	det            bool
-	detFrom, detTo time.Time // detTo -- исключающая граница
-}
+// Проверка идёт по первичному ключу агрегатов, где day стоит первым столбцом.
+const notRolledUpSQL = `NOT EXISTS (
+			SELECT 1 FROM request_logs_daily d
+			WHERE d.day = request_logs.created_at::date AND d.day >= ?)`
 
-// splitHistory делит запрошенный период между агрегатами и детальными записями.
-func splitHistory(from, to time.Time, aggThrough *time.Time) historyParts {
-	p := historyParts{}
-	detFrom := from
-
-	if aggThrough != nil {
-		aggTo := *aggThrough
-		if aggTo.After(to) {
-			aggTo = to
-		}
-		if !aggTo.Before(from) {
-			p.agg, p.aggFrom, p.aggTo = true, from, aggTo
-		}
-		if next := aggThrough.AddDate(0, 0, 1); next.After(detFrom) {
-			detFrom = next
-		}
-	}
-
-	if !detFrom.After(to) {
-		p.det, p.detFrom, p.detTo = true, detFrom, to.AddDate(0, 0, 1)
-	}
-	return p
-}
-
-// union склеивает выборки частей в UNION ALL и собирает их аргументы по порядку
-// плейсхолдеров. Пустой SQL означает, что читать нечего.
-func (p historyParts) union(aggSQL, detSQL string) (string, []any) {
-	parts := make([]string, 0, 2)
-	args := make([]any, 0, 4)
-	if p.agg {
-		parts = append(parts, aggSQL)
-		args = append(args, p.aggFrom.Format(dayLayout), p.aggTo.Format(dayLayout))
-	}
-	if p.det {
-		parts = append(parts, detSQL)
-		args = append(args, p.detFrom, p.detTo)
-	}
-	return strings.Join(parts, "\nUNION ALL\n"), args
+// historyUnion склеивает выборку по свёрнутым суткам с выборкой по детальным
+// партициям и собирает аргументы в порядке плейсхолдеров: границы агрегатов
+// (сутками), окно детальной части (правая граница исключающая) и нижняя граница
+// проверки на свёртку -- она держит сравнение в пределах периода.
+func historyUnion(from, to time.Time, aggSQL, detSQL string) (string, []any) {
+	return aggSQL + "\nUNION ALL\n" + detSQL,
+		[]any{from.Format(dayLayout), to.Format(dayLayout), from, to.AddDate(0, 0, 1), from.Format(dayLayout)}
 }
 
 // GetHistory собирает показатели журнала за период для вкладки «Аналитика».
 //
-// Свёрнутые сутки читаются из request_logs_daily, всё, что новее последней
-// свёртки, -- из детальных партиций. До этого вкладка знала только агрегаты, и
-// последний месяц пропадал с неё молча: свёртка отстаёт на срок хранения
-// подробностей (#2125).
+// Свёрнутые сутки читаются из request_logs_daily, сутки без свёртки -- из
+// детальных партиций. До этого вкладка знала только агрегаты, и последний месяц
+// пропадал с неё молча: свёртка отстаёт на срок хранения подробностей (#2125).
 //
 // Средние взвешены по числу запросов. Среднее суточных средних приписывало
 // выходным тот же вес, что рабочему дню, и итог периода не сходился ни с одним
@@ -546,18 +512,13 @@ func (s *requestLogsService) GetHistory(ctx context.Context, q models.RequestLog
 		res.Coverage.AggregatedThrough = aggThrough.Format(dayLayout)
 	}
 
-	parts := splitHistory(from, to, aggThrough)
-	if !parts.agg && !parts.det {
-		return res, nil
-	}
-
-	if err := s.historyDaily(ctx, parts, res); err != nil {
+	if err := s.historyDaily(ctx, from, to, res); err != nil {
 		return nil, err
 	}
-	if err := s.historyEndpoints(ctx, parts, res); err != nil {
+	if err := s.historyEndpoints(ctx, from, to, res); err != nil {
 		return nil, err
 	}
-	if err := s.historyUsers(ctx, parts, res); err != nil {
+	if err := s.historyUsers(ctx, from, to, res); err != nil {
 		return nil, err
 	}
 	return res, nil
@@ -582,7 +543,7 @@ func (s *requestLogsService) aggregatedThrough(ctx context.Context) (*time.Time,
 }
 
 // historyDaily читает ряд по суткам и сводит из него итоги периода и охват.
-func (s *requestLogsService) historyDaily(ctx context.Context, parts historyParts, res *models.RequestLogsHistory) error {
+func (s *requestLogsService) historyDaily(ctx context.Context, from, to time.Time, res *models.RequestLogsHistory) error {
 	aggSQL := `
 		SELECT day::text AS day, 'aggregates' AS source,
 			SUM(request_count) AS requests,
@@ -596,9 +557,9 @@ func (s *requestLogsService) historyDaily(ctx context.Context, parts historyPart
 			COUNT(*) FILTER (WHERE response_status >= 400) AS errors,
 			COUNT(*) FILTER (WHERE ` + notStreamingSQL() + `) AS dur_weight,
 			COALESCE(SUM(` + durationUsExpr + `) FILTER (WHERE ` + notStreamingSQL() + `), 0) AS dur_sum_us
-		FROM request_logs WHERE created_at >= ? AND created_at < ? GROUP BY 1`
+		FROM request_logs WHERE created_at >= ? AND created_at < ? AND ` + notRolledUpSQL + ` GROUP BY 1`
 
-	union, args := parts.union(aggSQL, detSQL)
+	union, args := historyUnion(from, to, aggSQL, detSQL)
 
 	var rows []struct {
 		Day       string
@@ -676,7 +637,7 @@ func historySource(aggRequests, detRequests int64) string {
 // Перцентиль по свёрнутым суткам честно не считается: отдельных длительностей
 // там уже нет, остаётся наибольшее суточное значение. Что именно показано,
 // экран берёт из coverage.exact_p95.
-func (s *requestLogsService) historyEndpoints(ctx context.Context, parts historyParts, res *models.RequestLogsHistory) error {
+func (s *requestLogsService) historyEndpoints(ctx context.Context, from, to time.Time, res *models.RequestLogsHistory) error {
 	aggSQL := `
 		SELECT endpoint, request_count AS requests, error_count AS errors,
 			avg_duration_us, p95_duration_us
@@ -687,9 +648,9 @@ func (s *requestLogsService) historyEndpoints(ctx context.Context, parts history
 			COUNT(*) FILTER (WHERE response_status >= 400) AS errors,
 			COALESCE(AVG(` + durationUsExpr + `), 0)::bigint AS avg_duration_us,
 			COALESCE(percentile_cont(0.95) WITHIN GROUP (ORDER BY ` + durationUsExpr + `), 0)::bigint AS p95_duration_us
-		FROM request_logs WHERE created_at >= ? AND created_at < ? GROUP BY 1`
+		FROM request_logs WHERE created_at >= ? AND created_at < ? AND ` + notRolledUpSQL + ` GROUP BY 1`
 
-	union, args := parts.union(aggSQL, detSQL)
+	union, args := historyUnion(from, to, aggSQL, detSQL)
 
 	var rows []struct {
 		Endpoint string
@@ -728,15 +689,15 @@ func (s *requestLogsService) historyEndpoints(ctx context.Context, parts history
 }
 
 // historyUsers собирает топ учётных записей за период.
-func (s *requestLogsService) historyUsers(ctx context.Context, parts historyParts, res *models.RequestLogsHistory) error {
+func (s *requestLogsService) historyUsers(ctx context.Context, from, to time.Time, res *models.RequestLogsHistory) error {
 	aggSQL := `
 		SELECT user_id, request_count AS requests
 		FROM request_logs_daily WHERE day BETWEEN ? AND ?`
 	detSQL := `
 		SELECT COALESCE(user_id, 0) AS user_id, COUNT(*) AS requests
-		FROM request_logs WHERE created_at >= ? AND created_at < ? GROUP BY 1`
+		FROM request_logs WHERE created_at >= ? AND created_at < ? AND ` + notRolledUpSQL + ` GROUP BY 1`
 
-	union, args := parts.union(aggSQL, detSQL)
+	union, args := historyUnion(from, to, aggSQL, detSQL)
 
 	query := `
 		SELECT t.user_id AS user_id, COALESCE(u.username, '-') AS username, SUM(t.requests) AS requests

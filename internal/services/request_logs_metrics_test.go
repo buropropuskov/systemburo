@@ -188,53 +188,55 @@ func TestStatsCache(t *testing.T) {
 	})
 }
 
-// Период вкладки «Аналитика» делится между свёрнутыми сутками и детальными
-// партициями по последнему свёрнутому дню. Границы не должны пересекаться:
-// день, попавший в агрегат, второй раз считать нельзя (#2125).
-func TestSplitHistory(t *testing.T) {
-	day := func(s string) time.Time {
-		d, err := time.Parse(dayLayout, s)
-		if err != nil {
-			t.Fatalf("разбор даты %s: %v", s, err)
+// Ответ вкладки «Аналитика» склеивается из двух выборок, и аргументы к ним
+// идут в порядке плейсхолдеров: сутки для агрегатов, окно для детальных записей.
+// Перепутанный порядок gorm не заметит - уедет период, а не запрос (#2125).
+func TestHistoryUnion(t *testing.T) {
+	from, _ := time.Parse(dayLayout, "2026-08-01")
+	to, _ := time.Parse(dayLayout, "2026-08-10")
+
+	sql, args := historyUnion(from, to, "AGG", "DET")
+
+	if !strings.Contains(sql, "AGG\nUNION ALL\nDET") {
+		t.Fatalf("части должны склеиваться через UNION ALL: %s", sql)
+	}
+	want := []any{"2026-08-01", "2026-08-10", from, to.AddDate(0, 0, 1), "2026-08-01"}
+	if len(args) != len(want) {
+		t.Fatalf("ожидали %d аргументов, получили %d", len(want), len(args))
+	}
+	for i := range want {
+		if args[i] != want[i] {
+			t.Fatalf("аргумент %d: ожидали %v, получили %v", i, want[i], args[i])
 		}
-		return d
 	}
-	ptr := func(s string) *time.Time { d := day(s); return &d }
+}
 
-	from, to := day("2026-08-01"), day("2026-08-10")
-
-	cases := []struct {
-		name       string
-		aggThrough *time.Time
-		wantAgg    string // "" -- агрегатной части нет
-		wantDet    string // "" -- детальной части нет
-	}{
-		{"свёртки ещё не было", nil, "", "2026-08-01..2026-08-11"},
-		{"свёртка внутри периода", ptr("2026-08-05"), "2026-08-01..2026-08-05", "2026-08-06..2026-08-11"},
-		{"свёртка старше периода", ptr("2026-07-20"), "", "2026-08-01..2026-08-11"},
-		{"свёрнут весь период", ptr("2026-08-10"), "2026-08-01..2026-08-10", ""},
-		{"свёртка ушла за период", ptr("2026-09-01"), "2026-08-01..2026-08-10", ""},
+// Сутки, уже попавшие в свёртку, из детальной выборки отбрасываются по факту
+// наличия дня в агрегатах. Партиции сворачиваются в порядке, который база не
+// обещает, поэтому отбор по верхней границе свёртки терял бы день, чья партиция
+// сорвалась, а более новая свернулась.
+func TestNotRolledUpSQL(t *testing.T) {
+	if !strings.Contains(notRolledUpSQL, "NOT EXISTS") {
+		t.Fatalf("детальная выборка обязана отбрасывать свёрнутые сутки: %s", notRolledUpSQL)
 	}
+	if !strings.Contains(notRolledUpSQL, "d.day = request_logs.created_at::date") {
+		t.Fatalf("сравнение идёт по суткам записи: %s", notRolledUpSQL)
+	}
+	// Нижняя граница держит сравнение в пределах периода: агрегаты хранятся два
+	// года, и без неё проверка строится по всей таблице.
+	if !strings.Contains(notRolledUpSQL, "d.day >= ?") {
+		t.Fatalf("проверка должна ограничиваться периодом: %s", notRolledUpSQL)
+	}
+}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			p := splitHistory(from, to, tc.aggThrough)
-
-			gotAgg := ""
-			if p.agg {
-				gotAgg = p.aggFrom.Format(dayLayout) + ".." + p.aggTo.Format(dayLayout)
-			}
-			gotDet := ""
-			if p.det {
-				gotDet = p.detFrom.Format(dayLayout) + ".." + p.detTo.Format(dayLayout)
-			}
-			if gotAgg != tc.wantAgg {
-				t.Fatalf("агрегаты: ожидали %q, получили %q", tc.wantAgg, gotAgg)
-			}
-			if gotDet != tc.wantDet {
-				t.Fatalf("детальные: ожидали %q, получили %q", tc.wantDet, gotDet)
-			}
-		})
+// Долгоживущие соединения отсекаются двумя условиями: по сырому адресу в журнале
+// и по нормализованному маршруту в агрегатах. Числовой сегмент в таком пути
+// развёл бы их - в агрегатах он превращается в /:id.
+func TestStreamingPathsSurviveNormalization(t *testing.T) {
+	for _, path := range streamingLogPaths {
+		if strings.ContainsAny(path, "0123456789") {
+			t.Fatalf("путь %s в агрегатах нормализуется в /:id, и фильтры разойдутся", path)
+		}
 	}
 }
 
