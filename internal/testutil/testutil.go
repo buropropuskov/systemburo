@@ -578,6 +578,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 		TablePassGate:       mw.RequireTablePassVerb(db, permissionResolver, accessDenialService),
 		Impersonation:       handlers.NewImpersonationHandler(services.NewImpersonationService(db, TestJWTSecret, permissionResolver, auditRecorder)),
 		JWTSecret:           []byte(TestJWTSecret),
+		JWTRefreshSecret:    []byte(TestJWTRefreshSecret),
 		UploadPath:          uploadDir,
 	})
 

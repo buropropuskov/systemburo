@@ -188,20 +188,7 @@ func (s *authService) createRefreshJWT(username string) (string, error) {
 }
 
 func (s *authService) decodeRefreshToken(tokenString string) (*Claims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(t *jwt.Token) (interface{}, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method")
-		}
-		return s.jwtRefreshSecret, nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	claims, ok := token.Claims.(*Claims)
-	if !ok || !token.Valid {
-		return nil, fmt.Errorf("invalid token")
-	}
-	return claims, nil
+	return DecodeRefreshToken(tokenString, s.jwtRefreshSecret)
 }
 
 // hashRefreshToken produces "sha256:<hex>" matching Rust backend format.
@@ -953,6 +940,30 @@ func metaUAPtr(meta *RequestMeta) *string {
 
 // DecodeAccessToken validates and parses an access JWT. Used by middleware.
 func DecodeAccessToken(tokenString string, secret []byte) (*Claims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method")
+		}
+		return secret, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	claims, ok := token.Claims.(*Claims)
+	if !ok || !token.Valid {
+		return nil, errors.New("invalid token")
+	}
+	return claims, nil
+}
+
+// RefreshCookieName - имя cookie с маркером продления сеанса. Объявлено здесь,
+// а не в handlers: то же имя читает middleware доступа к загруженным файлам.
+const RefreshCookieName = "refresh_token"
+
+// DecodeRefreshToken проверяет подпись и срок маркера продления. Отзыв маркера
+// эта проверка не видит - она не обращается к базе; для решений, где важен
+// отзыв, берётся AuthService.RefreshToken.
+func DecodeRefreshToken(tokenString string, secret []byte) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method")
