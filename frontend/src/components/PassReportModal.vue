@@ -41,11 +41,10 @@
             class="pr-card"
           >
             <div class="pr-card__title">
-              <img
-                :src="s.icon"
+              <AppIcon
+                :name="s.icon"
                 class="pr-card__icon"
-                alt=""
-              >
+              />
               {{ s.title }}
             </div>
             <div class="pr-card__stat pr-card__stat--in">
@@ -218,8 +217,6 @@ import ExcelJS from 'exceljs';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import DateFilter from '@/components/DateFilter.vue';
-import carIcon from '@/assets/icons/car.png';
-import peopleIcon from '@/assets/icons/employees.png';
 import { getPassReportLive, listPassReports } from '@/api/pass-reports';
 import { useDeletionsStore } from '@/stores/deletions';
 import AppIcon from '@/components/icons/AppIcon.vue';
@@ -262,10 +259,10 @@ export default {
     sectionDefs() {
       const defs = [];
       if (this.tableType === 'cars' || this.anyCount('car_entries') || this.anyCount('car_exits')) {
-        defs.push({ key: 'cars', icon: carIcon, title: 'Машины', inLabel: 'Заехало', outLabel: 'Выехало', inField: 'car_entries', outField: 'car_exits' });
+        defs.push({ key: 'cars', icon: 'car', title: 'Машины', inLabel: 'Заехало', outLabel: 'Выехало', inField: 'car_entries', outField: 'car_exits' });
       }
       if (this.tableType === 'people' || this.anyCount('people_entries') || this.anyCount('people_exits')) {
-        defs.push({ key: 'people', icon: peopleIcon, title: 'Люди', inLabel: 'Зашло', outLabel: 'Вышло', inField: 'people_entries', outField: 'people_exits' });
+        defs.push({ key: 'people', icon: 'employees', title: 'Люди', inLabel: 'Зашло', outLabel: 'Вышло', inField: 'people_entries', outField: 'people_exits' });
       }
       return defs;
     },
@@ -489,7 +486,7 @@ export default {
 .pr-card__icon {
   width: 26px;
   height: 26px;
-  object-fit: contain;
+  color: var(--text);
 }
 
 .pr-card__stat {

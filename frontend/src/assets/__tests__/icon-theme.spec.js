@@ -1,10 +1,13 @@
 /**
- * Замки темизации растровых иконок (#1415).
+ * Замки темизации иконок (#1415).
  *
- * Правила icon-theme.css матчат иконку по имени файла в src. Держится это на
- * трёх вещах, которые легко разъехаться: имена в CSS = имена файлов, инлайн
- * иконок отключён в vite.config (из data:-URI имя пропадает), и префиксные
- * селекторы не задевают цветных соседей. Каждую проверяем отдельно.
+ * Растровых иконок в проекте не осталось: последняя партия переехала в SVG-реестр
+ * (срез V5 эпика icons-license-cleanup), и поимённые правила icon-theme.css вместе
+ * с ними. Файл дорабатывает свой век ради переменных-фильтров, которые ещё читает
+ * FactTable; сам он уходит следующим срезом.
+ *
+ * Поэтому проверки сменили предмет: не «список правил совпадает с каталогом PNG»,
+ * а «растр не вернулся» плюс те замки на компоненты, что от растра не зависели.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,89 +19,28 @@ const ROOT = path.resolve(__dirname, '../../..');
 const ICONS_DIR = path.join(ROOT, 'src/assets/icons');
 const CSS = fs.readFileSync(path.join(ROOT, 'src/assets/icon-theme.css'), 'utf8');
 
-/** Имена из блока, применяющего указанный фильтр: mono-инверсия или акцентное осветление. */
-function namesFor(filterVar, pattern) {
-  const blocks = [...CSS.matchAll(/([^{}]+)\{\s*filter:\s*var\((--icon-[a-z-]+)\)[^}]*\}/g)];
-  const block = blocks.find((b) => b[2] === filterVar);
-  if (!block) return [];
-  return [...block[1].matchAll(pattern)].map((m) => m[1]);
-}
-const monoNames = namesFor('--icon-mono-filter', /img\[src\*="\/([^"/]+)\.png"\]/g);
-/** Парные селекторы под хэшированное имя: img[src*="/edit-"]. */
-const hashedNames = namesFor('--icon-mono-filter', /img\[src\*="\/([^"/]+)-"\]/g);
-const accentNames = namesFor('--icon-accent-filter', /img\[src\*="\/([^"/]+)\.png"\]/g);
-const accentHashed = namesFor('--icon-accent-filter', /img\[src\*="\/([^"/]+)-"\]/g);
-
 describe('icon-theme.css', () => {
-  it('перечисляет ровно живые однотонные иконки', () => {
-    // Число тает с каждым глифом, переехавшим в SVG-реестр, и обнулится вместе с
-    // самим файлом. Точное значение, а не «больше N»: правка списка должна быть
-    // осознанной, иначе из него легко выпадает используемая иконка.
-    expect(monoNames.length).toBe(10);
+  it('не держит ни одного поимённого правила: растровых иконок больше нет', () => {
+    // Возврат такого правила означал бы, что в проект снова положили PNG и
+    // темизируют его фильтром вместо currentColor.
+    const rules = [...CSS.matchAll(/img\[src\*=/g)];
+    expect(rules, 'иконка снова темизируется по имени файла, а не цветом текста').toHaveLength(0);
   });
 
-  it('числа в шапке файла не расходятся с делом', () => {
-    // Список тает с каждым переведённым глифом, а комментарий сверху остаётся -
-    // так «26 иконок, 14 однотонных» пережили два среза и стали враньём. Числа
-    // в тексте держатся тем же замком, что и сам список.
-    const files = fs.readdirSync(ICONS_DIR).filter((f) => f.endsWith('.png'));
-    // Основа слова без окончания: счёт меняет падеж («иконки» -> «иконок»), и
-    // якорь, написанный под одну форму, теряется молча - проверка становится
-    // вечнозелёной вместо того, чтобы поймать разъехавшееся число.
-    const total = CSS.match(/(\d+) икон\S* лежа\S* в PNG/);
-    const mono = CSS.match(/(\d+) из них ОДНОТОННЫЕ/);
-    expect(total, 'фразу про число растровых файлов переписали - якорь потерян').not.toBeNull();
-    expect(mono, 'фразу про число однотонных переписали - якорь потерян').not.toBeNull();
-    expect(Number(total[1]), 'в шапке названо не то число растровых файлов').toBe(files.length);
-    expect(Number(mono[1]), 'в шапке названо не то число однотонных').toBe(monoNames.length);
-  });
-
-  it('каждой иконке даёт оба селектора: исходное имя и хэшированное', () => {
-    expect([...monoNames].sort()).toEqual([...hashedNames].sort());
-  });
-
-  it('называет только существующие файлы', () => {
-    const missing = monoNames.filter((n) => !fs.existsSync(path.join(ICONS_DIR, `${n}.png`)));
-    expect(missing, 'переименовали иконку - правило темы стало мёртвым').toEqual([]);
-  });
-
-  it('акцентные иконки перечислены отдельно и не смешаны с однотонными', () => {
-    // Инверсия синий глиф испортит (станет оранжевым), поэтому фирменные иконки
-    // идут своим фильтром - осветлением.
-    expect([...accentNames].sort()).toEqual(['instruction', 'random', 'refresh']);
-    expect([...accentNames].sort()).toEqual([...accentHashed].sort());
-    expect(accentNames.filter((n) => monoNames.includes(n)),
-      'иконка не может быть одновременно однотонной и акцентной').toEqual([]);
-    const missing = accentNames.filter((n) => !fs.existsSync(path.join(ICONS_DIR, `${n}.png`)));
-    expect(missing).toEqual([]);
-  });
-
-  it('сине-голубые значки экрана входа темизацией не трогаются', () => {
-    // Они лежат на светлом островке формы входа: осветлять там нечего, а инверсия
-    // и вовсе поменяла бы им цвет.
-    ['email-blue', 'key-blue', 'phone-blue'].forEach((n) => {
-      expect(monoNames, `${n} не должна инвертироваться`).not.toContain(n);
-      expect(accentNames, `${n} не должна осветляться`).not.toContain(n);
-    });
+  it('каталог растровых иконок пуст', () => {
+    const files = fs.existsSync(ICONS_DIR)
+      ? fs.readdirSync(ICONS_DIR).filter((f) => /\.(png|jpe?g|gif|webp)$/i.test(f))
+      : [];
+    expect(files, 'растровая иконка вернулась в assets/icons - нарисуйте глиф в appIcons.js').toEqual([]);
   });
 
   it('каждая роль фильтра объявлена и в светлой, и в тёмных темах', () => {
+    // Переменные ещё живы ради FactTable: пока правило на них ссылается, объявление
+    // обязано быть в обеих темах, иначе фильтр в одной из них станет пустым.
     ['--icon-mono-filter', '--icon-ink-filter', '--icon-accent-filter'].forEach((v) => {
-      // Дважды: нейтральное значение на :root/[data-theme] и рабочее в тёмных.
       expect(CSS.match(new RegExp(`${v}:`, 'g')) ?? [], `${v} объявлена не во всех темах`)
         .toHaveLength(2);
     });
-  });
-
-  it('префиксным селектором не задевает цветных соседей', () => {
-    // img[src*="/car-"] матчит и car-hash.png, и любой car-<что-то>.png:
-    // цветной сосед с таким именем инвертировался бы вместе с однотонным.
-    const files = fs.readdirSync(ICONS_DIR).filter((f) => f.endsWith('.png'));
-    const mono = new Set(monoNames);
-    const overmatched = files
-      .map((f) => f.replace(/\.png$/, ''))
-      .filter((name) => !mono.has(name) && monoNames.some((m) => name.startsWith(`${m}-`)));
-    expect(overmatched).toEqual([]);
   });
 });
 
@@ -155,7 +97,8 @@ describe('vite.config: инлайн иконок', () => {
     expect(typeof limit, 'assetsInlineLimit должен быть функцией-исключением для иконок').toBe(
       'function',
     );
-    // false = не инлайнить. Инлайн стирает имя файла и ломает icon-theme.css.
+    // Правило проверяется по пути, а не по файлу: сами PNG уже удалены, а
+    // исключение переживает их до сноса icon-theme.css следующим срезом.
     expect(limit(path.join(ROOT, 'src/assets/icons/notifications.png'))).toBe(false);
   });
 

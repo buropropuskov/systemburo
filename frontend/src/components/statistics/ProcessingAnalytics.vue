@@ -509,11 +509,10 @@
             aria-label="Поиск по журналу"
             @click="toggleJournalSearch"
           >
-            <img
-              src="@/assets/icons/search.png"
+            <AppIcon
+              name="search"
               class="proc__journal-search-icon__img"
-              alt=""
-            >
+            />
           </button>
           <Transition name="proc-journal-search">
             <div
@@ -649,6 +648,7 @@ import SearchComponent from '@/components/SearchComponent.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import AnalyticsAreaChart from './AnalyticsAreaChart.vue';
 import DirIcon from './DirIcon.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 // Табы роли журнала не помещаются на телефоне (шесть кнопок) - на узком экране
 // заменяются одной выпадающей кнопкой (BaseDropdown), а поиск сворачивается в
@@ -1945,6 +1945,8 @@ defineExpose({ refresh: reload });
   .proc__journal-search-icon__img {
     width: 16px;
     height: 16px;
+    color: var(--text);
+    stroke-width: 2.1;
   }
 
   /* Оверлей раскрытия: поверх ряда даты, оставляя иконку (40px) открытой справа. */
