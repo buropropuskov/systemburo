@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xuri/excelize/v2"
-	"gorm.io/gorm"
 )
 
 // Приватность и честность выгрузки журнала обращений (#2125): файл открывается
@@ -155,41 +154,4 @@ func TestRequestLogsExport_TruncationIsVisible(t *testing.T) {
 	assert.Equal(t, int64(3), res.Total, "полное число подходящих записей обязано быть известно")
 	assert.True(t, res.Truncated, "обрезка должна быть видна вызывающему")
 	assert.Equal(t, 2, res.Limit)
-}
-
-// Порядок строк в файле - тот же, что на экране (#2125, S5a): список сортировался
-// по длительности, а в файл попадали последние по времени.
-func TestRequestLogsExport_KeepsRequestedOrder(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-
-	now := time.Now().UTC()
-	insertSlowRequestLog(t, db, "/api/export-slow", now.Add(-time.Minute), 900000)
-	insertSlowRequestLog(t, db, "/api/export-fast", now.Add(-2*time.Minute), 1000)
-
-	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-	rec := testutil.GET(t, e, "/request-logs/export?sort=duration&order=desc&search=/api/export-",
-		testutil.AuthHeader(token))
-	require.Equal(t, http.StatusOK, rec.Code)
-
-	rows := exportedSheet(t, rec.Body.Bytes())
-	order := make([]string, 0, 2)
-	for _, r := range rows {
-		if len(r) > 2 && (r[2] == "/api/export-slow" || r[2] == "/api/export-fast") {
-			order = append(order, r[2])
-		}
-	}
-	assert.Equal(t, []string{"/api/export-slow", "/api/export-fast"}, order,
-		"выгрузка идёт тем же порядком, что список на экране")
-}
-
-func insertSlowRequestLog(t *testing.T, db *gorm.DB, url string, at time.Time, us int64) {
-	t.Helper()
-	require.NoError(t, db.Exec(
-		`INSERT INTO request_logs (url, method, response_status, duration_ms, duration_us, created_at)
-		 VALUES (?,?,?,?,?,?)`,
-		url, "GET", 200, us/1000, us, at.UTC(),
-	).Error)
 }

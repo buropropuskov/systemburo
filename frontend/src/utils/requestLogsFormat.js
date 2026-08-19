@@ -216,3 +216,19 @@ export function analyticsKpis(totals) {
     { label: 'Ошибок всего', value: formatNum(t.errors) }
   ];
 }
+
+/**
+ * Сообщение об итоге выгрузки. Обрезанный файл проговаривается словами: сервер
+ * отдаёт не больше десяти тысяч строк, и по неполному файлу человек считал бы
+ * итоги за период, не зная об остатке.
+ *
+ * @param {{rows: number, total: number, truncated: boolean}} res охват выгрузки
+ * @returns {{prefix: string, bold: string, suffix?: string, type: string}}
+ */
+export function exportNotice({ rows, total, truncated }) {
+  if (!truncated) return { prefix: 'Журнал выгружен, ', bold: `записей: ${rows}`, type: 'success' };
+  return {
+    prefix: 'Выгружены первые ', bold: `${rows} записей из ${total}`,
+    suffix: '. Сузьте период или отбор, чтобы файл покрыл всё.', type: 'warning'
+  };
+}

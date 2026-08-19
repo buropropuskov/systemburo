@@ -1,28 +1,24 @@
-import { useAuthStore } from '@/stores/auth';
+import { apiRequestRaw } from './client';
+import { saveBlobAs } from './attachment-templates';
+import { parseContentDispositionFilename } from '@/utils/download';
 
 /**
- * Скачивание журнала обращений файлом .xlsx (#2125).
+ * Скачивание журнала обращений файлом .xlsx (#2125). Ответ - поток байтов книги,
+ * поэтому идёт через apiRequestRaw, как выгрузка версий системных таблиц.
  *
- * Идёт мимо apiRequest: тот разворачивает JSON-конверт, а здесь ответ - поток
- * байтов книги. Имя файла берётся из Content-Disposition, который ставит сервер.
+ * Числа охвата приходят заголовками X-Export-*: сервер отдаёт не больше десяти
+ * тысяч строк, и молчать об отсечённом остатке нельзя - по такому файлу человек
+ * считает итоги за период.
  *
- * Числа охвата приходят заголовками X-Export-*: сервер отдаёт не больше
- * десяти тысяч строк, и молчать об отсечённом остатке нельзя - по такому файлу
- * человек считает итоги за период.
+ * silent403: отказ показывает экран своим текстом рядом со списком, общий тост
+ * «Недостаточно прав» здесь только дублировал бы его.
  *
  * @param {Record<string, string|number>} params query-параметры отбора и порядка
  * @returns {Promise<{rows: number, total: number, truncated: boolean}>} охват выгрузки
  */
 export async function downloadRequestLogs(params = {}) {
-  const authStore = useAuthStore();
   const query = new URLSearchParams(params).toString();
-  const res = await fetch(
-    `${(import.meta.env.VITE_API_BASE_URL || '') + '/api'}/request-logs/export${query ? '?' + query : ''}`,
-    {
-      credentials: 'include',
-      headers: { ...(authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}) },
-    },
-  );
+  const res = await apiRequestRaw(`/request-logs/export${query ? '?' + query : ''}`, { silent403: true });
   if (!res.ok) {
     // Код ответа нужен экрану: 403 и 500 читаются человеком по-разному, и
     // «пустая таблица без объяснений» - это то, что чинит срез.
@@ -31,17 +27,9 @@ export async function downloadRequestLogs(params = {}) {
     throw err;
   }
 
-  const disposition = res.headers.get('Content-Disposition') || '';
-  const fromHeader = /filename="?([^";]+)"?/.exec(disposition);
   const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fromHeader ? fromHeader[1] : 'request-logs.xlsx';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  const cd = res.headers.get('Content-Disposition') || '';
+  saveBlobAs(blob, parseContentDispositionFilename(cd, 'request-logs.xlsx'));
 
   return {
     rows: Number(res.headers.get('X-Export-Rows') || 0),

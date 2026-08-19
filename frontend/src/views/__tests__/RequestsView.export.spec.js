@@ -133,6 +133,22 @@ describe('RequestsView, отказ чтения журнала', () => {
     expect(wrapper.text()).not.toContain('Записей по такому отбору нет');
   });
 
+  it('сбой раздела шапки замечен один раз, а не на каждом опросе', async () => {
+    apiRequest.mockResolvedValue({ ok: false, status: 403, json: () => Promise.resolve({}) });
+    const wrapper = mountView();
+    await flushPromises();
+
+    const before = notify.mock.calls.filter(([arg]) => arg.type === 'error').length;
+    expect(before, 'об отказе раздела сказали').toBeGreaterThan(0);
+
+    await wrapper.vm.fetchStats();
+    await wrapper.vm.fetchTimeline();
+    await flushPromises();
+
+    const after = notify.mock.calls.filter(([arg]) => arg.type === 'error').length;
+    expect(after, 'повторный опрос не плодит одинаковые тосты').toBe(before);
+  });
+
   it('пустой отбор остаётся пустым отбором, а не ошибкой', async () => {
     const wrapper = mountView();
     await flushPromises();

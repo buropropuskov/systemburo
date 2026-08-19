@@ -233,3 +233,25 @@ export function toggleJournalPreset(state, key, now = new Date()) {
   }
   return next;
 }
+
+/**
+ * Отбор журнала в виде параметров запроса. Списком и выгрузкой пользуется один
+ * и тот же набор: файл обязан покрывать ровно то, что видно на экране.
+ *
+ * @param {{search?: string, method?: string, status?: string, user?: string|number,
+ *   from?: string, to?: string, since?: string, minDuration?: string|number}} state
+ * @returns {Record<string, string|number>}
+ */
+export function filterParamsFromState(state) {
+  const params = { ...statusFilterParams(state.status) };
+  if (state.search) params.search = state.search;
+  if (state.method) params.method = state.method;
+  if (state.user) params.user_id = state.user;
+  if (state.minDuration) params.min_duration_ms = state.minDuration;
+  // Момент быстрого отбора перебивает день из поля «с»: одну границу периода
+  // сервер принимает один раз.
+  if (state.since) params.from_date = state.since;
+  else if (state.from) params.from_date = state.from;
+  if (state.to) params.to_date = state.to;
+  return params;
+}

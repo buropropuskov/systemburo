@@ -641,14 +641,15 @@ import AppIcon from '@/components/icons/AppIcon.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import {
   SORTABLE_COLUMNS, METHOD_OPTIONS, STATUS_OPTIONS, JOURNAL_PRESETS, PAGE_SIZES,
-  journalStateFromQuery, mergeJournalQuery, statusFilterParams,
+  journalStateFromQuery, mergeJournalQuery, filterParamsFromState,
   isJournalPresetOn, toggleJournalPreset
 } from '@/utils/requestLogsQuery';
 import { JOURNAL_REFRESH_MS, CHART_PERIODS, DEFAULT_CHART_PERIOD, journalRefreshBlock } from '@/utils/requestLogsLive';
 import {
   formatMs, formatDuration, formatDay, formatNum, formatTime, formatFullDate,
   truncatePath, formatJson, getMethodClass, getStatusClass, barHeight, describeLoadError,
-  coverageNote as buildCoverageNote, p95Note as buildP95Note, analyticsKpis as buildAnalyticsKpis
+  coverageNote as buildCoverageNote, p95Note as buildP95Note,
+  analyticsKpis as buildAnalyticsKpis, exportNotice
 } from '@/utils/requestLogsFormat';
 
 export default {
@@ -711,6 +712,7 @@ export default {
       isLoading: false,
       isExporting: false,
       journalError: '',
+      sectionErrors: new Set(),
       stats: {
         total: 0,
         today: 0,
@@ -830,17 +832,7 @@ export default {
       return barHeight(value, Math.max(...this.history.daily.map(d => d.requests), 1))
     },
     buildFilterParams() {
-      const params = { ...statusFilterParams(this.filterStatus) };
-      if (this.searchQuery) params.search = this.searchQuery;
-      if (this.filterMethod) params.method = this.filterMethod;
-      if (this.filterUser) params.user_id = this.filterUser;
-      if (this.filterMinDuration) params.min_duration_ms = this.filterMinDuration;
-      // Момент быстрого отбора перебивает день из поля «с»: одну границу
-      // периода сервер принимает один раз.
-      if (this.filterSince) params.from_date = this.filterSince;
-      else if (this.filterStartDate) params.from_date = this.filterStartDate;
-      if (this.filterEndDate) params.to_date = this.filterEndDate;
-      return params;
+      return filterParamsFromState(this.journalState());
     },
 
     async fetchLogs() {
@@ -945,15 +937,26 @@ export default {
     async loadSection(path, apply, label) {
       try {
         const response = await apiRequest(path);
-        if (!response.ok) {
-          this.journalError = describeLoadError(response, `загрузить ${label}`);
-          return;
-        }
+        if (!response.ok) return this.reportSectionError(response, label);
         const data = await response.json();
         if (data) apply(data);
       } catch (error) {
-        this.journalError = describeLoadError(error, `загрузить ${label}`);
+        this.reportSectionError(error, label);
       }
+    },
+
+    /**
+     * Сбой раздела шапки: показатели, график и счётчики ленты опрашиваются по
+     * таймеру, поэтому о каждой причине сообщаем один раз за сеанс - иначе отказ
+     * доступа выстраивает очередь одинаковых тостов каждые несколько секунд.
+     * @param {{status?: number}} source
+     * @param {string} label
+     */
+    reportSectionError(source, label) {
+      const key = `${label}:${(source && source.status) || 'net'}`;
+      if (this.sectionErrors.has(key)) return;
+      this.sectionErrors.add(key);
+      useDeletionsStore().notify({ bold: describeLoadError(source, `загрузить ${label}`), type: 'error' });
     },
 
     fetchStats() {
@@ -987,19 +990,12 @@ export default {
       try {
         // Порядок тот же, что на экране: выгрузка «самых медленных» должна
         // начинаться с самых медленных, а не с последних по времени.
-        const { rows, total, truncated } = await downloadRequestLogs({
+        const res = await downloadRequestLogs({
           sort: this.sortField,
           order: this.sortDirection,
           ...this.buildFilterParams()
         });
-        if (truncated) {
-          useDeletionsStore().notify({
-            prefix: 'Выгружены первые ', bold: `${rows} записей из ${total}`,
-            suffix: '. Сузьте период или отбор, чтобы файл покрыл всё.', type: 'warning'
-          });
-        } else {
-          useDeletionsStore().notify({ prefix: 'Журнал выгружен, ', bold: `записей: ${rows}`, type: 'success' });
-        }
+        useDeletionsStore().notify(exportNotice(res));
       } catch (error) {
         this.journalError = describeLoadError(error, 'выгрузить журнал');
         useDeletionsStore().notify({ prefix: 'Не удалось выполнить ', bold: 'экспорт', type: 'error' });
