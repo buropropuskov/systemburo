@@ -212,98 +212,21 @@
             <div class="table-container">
               <div class="table-header">
                 <div
-                  class="header-col time-col"
-                  @click="sortBy('created_at')"
+                  v-for="col in sortableColumns"
+                  :key="col.field"
+                  class="header-col"
+                  :class="col.cls"
+                  @click="sortBy(col.field)"
                 >
-                  <p :class="{ 'active-sort': sortField === 'created_at' }">
-                    Время
+                  <p :class="{ 'active-sort': sortField === col.field }">
+                    {{ col.label }}
                   </p>
                   <AppIcon
                     name="sort"
                     class="sort-icon"
                     :class="{
-                      'sorted': sortField === 'created_at',
-                      'desc': sortField === 'created_at' && sortDirection === 'desc'
-                    }"
-                  />
-                </div>
-                <div
-                  class="header-col method-col"
-                  @click="sortBy('method')"
-                >
-                  <p :class="{ 'active-sort': sortField === 'method' }">
-                    Метод
-                  </p>
-                  <AppIcon
-                    name="sort"
-                    class="sort-icon"
-                    :class="{
-                      'sorted': sortField === 'method',
-                      'desc': sortField === 'method' && sortDirection === 'desc'
-                    }"
-                  />
-                </div>
-                <div
-                  class="header-col path-col"
-                  @click="sortBy('url')"
-                >
-                  <p :class="{ 'active-sort': sortField === 'url' }">
-                    URL
-                  </p>
-                  <AppIcon
-                    name="sort"
-                    class="sort-icon"
-                    :class="{
-                      'sorted': sortField === 'url',
-                      'desc': sortField === 'url' && sortDirection === 'desc'
-                    }"
-                  />
-                </div>
-                <div
-                  class="header-col status-col"
-                  @click="sortBy('response_status')"
-                >
-                  <p :class="{ 'active-sort': sortField === 'response_status' }">
-                    Статус
-                  </p>
-                  <AppIcon
-                    name="sort"
-                    class="sort-icon"
-                    :class="{
-                      'sorted': sortField === 'response_status',
-                      'desc': sortField === 'response_status' && sortDirection === 'desc'
-                    }"
-                  />
-                </div>
-                <div
-                  class="header-col user-col"
-                  @click="sortBy('username')"
-                >
-                  <p :class="{ 'active-sort': sortField === 'username' }">
-                    Пользователь
-                  </p>
-                  <AppIcon
-                    name="sort"
-                    class="sort-icon"
-                    :class="{
-                      'sorted': sortField === 'username',
-                      'desc': sortField === 'username' && sortDirection === 'desc'
-                    }"
-                  />
-                </div>
-                <div
-                  class="header-col duration-col"
-                  @click="sortBy('duration_ms')"
-                >
-                  <p :class="{ 'active-sort': sortField === 'duration_ms' }">
-                    Отклик
-                  </p>
-                  <AppIcon
-                    name="sort"
-                    class="sort-icon"
-                    :class="{
-                      'sorted': sortField === 'duration_ms',
-                      'desc': sortField === 'duration_ms' && sortDirection === 'desc'
+                      'sorted': sortField === col.field,
+                      'desc': sortField === col.field && sortDirection === 'desc'
                     }"
                   />
                 </div>
@@ -734,6 +657,28 @@ import RefreshButton from '@/components/RefreshButton.vue'
 import AdminPageShell from '@/views/admin/AdminPageShell.vue'
 import AppIcon from '@/components/icons/AppIcon.vue';
 
+/**
+ * Колонки, по которым журнал упорядочивается. Имена полей совпадают с тем, что
+ * принимает сервер: порядок строк задаёт он, а не клиент - в списке лежит одна
+ * страница из сотен тысяч записей, и сортировать её на месте бессмысленно.
+ */
+const SORTABLE_COLUMNS = [
+  { field: 'created_at', label: 'Время', cls: 'time-col' },
+  { field: 'method', label: 'Метод', cls: 'method-col' },
+  { field: 'url', label: 'URL', cls: 'path-col' },
+  { field: 'status', label: 'Статус', cls: 'status-col' },
+  { field: 'username', label: 'Пользователь', cls: 'user-col' },
+  { field: 'duration', label: 'Отклик', cls: 'duration-col' }
+];
+
+const SORTABLE_FIELDS = SORTABLE_COLUMNS.map(c => c.field);
+
+/** Размеры страницы из выпадающего списка. */
+const PAGE_SIZES = ['20', '50', '100'];
+
+/** Параметры журнала, которые живут в адресной строке. */
+const JOURNAL_QUERY_KEYS = ['search', 'method', 'status', 'user', 'from', 'to', 'sort', 'order', 'page', 'per_page'];
+
 export default {
   name: 'RequestsView',
   components: {
@@ -768,6 +713,11 @@ export default {
       filterEndDate: '',
       sortField: 'created_at',
       sortDirection: 'desc',
+      sortableColumns: SORTABLE_COLUMNS,
+      // Номер последнего запроса списка. Список дёргают фильтр, сортировка,
+      // страница и обновление подряд, а отвечают они не в том порядке, в каком
+      // ушли: без номера медленный ответ прошлого фильтра затирает свежий.
+      logsSeq: 0,
       pagination: {
         page: 1,
         per_page: 20,
@@ -852,6 +802,9 @@ export default {
       return 'За свёрнутые сутки показано наибольшее суточное значение: отдельных длительностей у них уже нет.';
     }
   },
+  created() {
+    this.applyQueryToState();
+  },
   async mounted() {
     await Promise.all([
       this.fetchLogs(),
@@ -930,18 +883,24 @@ export default {
     },
 
     async fetchLogs() {
+      const seq = ++this.logsSeq;
+      this.syncQueryFromState();
       this.isLoading = true;
       try {
         const params = new URLSearchParams({
           page: this.pagination.page,
           per_page: this.pagination.per_page,
+          sort: this.sortField,
+          order: this.sortDirection,
           ...this.buildFilterParams()
         });
 
         const response = await apiRequestRaw(`/request-logs?${params}`);
+        if (seq !== this.logsSeq) return;
 
         if (response.ok) {
           const body = await response.json();
+          if (seq !== this.logsSeq) return;
           if (body && body.success) {
             this.logs = body.data || [];
             if (body.meta) {
@@ -952,11 +911,87 @@ export default {
           }
         }
       } catch (error) {
+        if (seq !== this.logsSeq) return;
         console.error('Error fetching logs:', error);
         useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'логи', type: 'error' });
       } finally {
-        this.isLoading = false;
+        if (seq === this.logsSeq) {
+          this.isLoading = false;
+        }
       }
+    },
+
+    /**
+     * Читает состояние журнала из адресной строки. Присланная ссылка открывает
+     * тот же отбор, а обновление страницы его не теряет.
+     */
+    applyQueryToState() {
+      const query = this.$route?.query || {};
+      const str = key => String((Array.isArray(query[key]) ? query[key][0] : query[key]) ?? '');
+
+      this.searchQuery = str('search');
+      this.filterMethod = str('method').toUpperCase();
+      this.filterStatus = str('status');
+      this.filterUser = str('user');
+      this.filterStartDate = str('from');
+      this.filterEndDate = str('to');
+
+      // Поле сортировки сверяется со списком колонок: чужое имя оставило бы
+      // стрелку без заголовка, а сервер всё равно вернул бы порядок по времени.
+      const sort = str('sort');
+      if (SORTABLE_FIELDS.includes(sort)) {
+        this.sortField = sort;
+        this.sortDirection = str('order') === 'asc' ? 'asc' : 'desc';
+      }
+
+      const page = parseInt(str('page'), 10);
+      if (page > 0) this.pagination.page = page;
+
+      const perPage = str('per_page');
+      if (PAGE_SIZES.includes(perPage)) {
+        this.perPage = perPage;
+        this.pagination.per_page = parseInt(perPage, 10);
+      }
+    },
+
+    /**
+     * Складывает текущий отбор в адресную строку. Значения по умолчанию в неё не
+     * пишутся, чтобы ссылка на журнал без фильтров оставалась короткой.
+     * @returns {Record<string, string>}
+     */
+    journalQuery() {
+      const query = {};
+      if (this.searchQuery) query.search = this.searchQuery;
+      if (this.filterMethod) query.method = this.filterMethod;
+      if (this.filterStatus) query.status = String(this.filterStatus);
+      if (this.filterUser) query.user = String(this.filterUser);
+      if (this.filterStartDate) query.from = this.filterStartDate;
+      if (this.filterEndDate) query.to = this.filterEndDate;
+      if (this.sortField !== 'created_at' || this.sortDirection !== 'desc') {
+        query.sort = this.sortField;
+        query.order = this.sortDirection;
+      }
+      if (this.pagination.page > 1) query.page = String(this.pagination.page);
+      if (this.pagination.per_page !== 20) query.per_page = String(this.pagination.per_page);
+      return query;
+    },
+
+    syncQueryFromState() {
+      if (!this.$router) return;
+
+      const current = this.$route?.query || {};
+      const state = this.journalQuery();
+      const next = { ...current };
+      JOURNAL_QUERY_KEYS.forEach(key => {
+        if (state[key] === undefined) delete next[key];
+        else next[key] = state[key];
+      });
+
+      const same = Object.keys(next).length === Object.keys(current).length
+        && Object.keys(next).every(key => next[key] === current[key]);
+      if (same) return;
+
+      this.$router.replace({ query: next }).catch(() => {});
     },
 
     async fetchStats() {
@@ -1080,6 +1115,12 @@ export default {
       }
     },
 
+    /**
+     * Порядок строк задаёт сервер: в списке одна страница, и перестановка её на
+     * месте показывала бы «самые медленные» только среди двадцати видимых.
+     * Раньше клик переставлял стрелку и не трогал строки вообще.
+     * @param {string} field
+     */
     sortBy(field) {
       if (this.sortField === field) {
         this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -1087,6 +1128,8 @@ export default {
         this.sortField = field;
         this.sortDirection = 'desc';
       }
+      this.pagination.page = 1;
+      this.fetchLogs();
     },
 
     selectLog(log) {

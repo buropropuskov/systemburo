@@ -134,6 +134,47 @@ func notStreamingSQL() string {
 	return "split_part(COALESCE(url, ''), chr(63), 1) NOT IN (" + strings.Join(quoted, ", ") + ")"
 }
 
+// logDayLayout -- день без времени, как его шлёт поле даты на экране.
+const logDayLayout = "2006-01-02"
+
+// parseLogFrom разбирает нижнюю границу периода. С экрана приходит день
+// (2026-08-19), из пресетов и присланных ссылок -- момент по RFC 3339.
+//
+// День считается московскими сутками: created_at хранится с зоной, и «за
+// 19 августа» для оператора это местные сутки, а не UTC-шные. Раньше день
+// вообще не разбирался -- фильтры «с» и «по» молча не применялись, список
+// оставался за всё время.
+func parseLogFrom(value string) (time.Time, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, false
+	}
+	if t, err := time.Parse(time.RFC3339, value); err == nil {
+		return t, true
+	}
+	if d, err := time.ParseInLocation(logDayLayout, value, AnalyticsLocation()); err == nil {
+		return d, true
+	}
+	return time.Time{}, false
+}
+
+// parseLogTo разбирает верхнюю границу и говорит, строгое ли сравнение.
+// Выбранный на экране день включается целиком, поэтому сравнение идёт с началом
+// следующих суток: «по 19 августа» с обычным <= отсекало всё после полуночи.
+func parseLogTo(value string) (moment time.Time, exclusive bool, ok bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, false, false
+	}
+	if t, err := time.Parse(time.RFC3339, value); err == nil {
+		return t, false, true
+	}
+	if d, err := time.ParseInLocation(logDayLayout, value, AnalyticsLocation()); err == nil {
+		return d.AddDate(0, 0, 1), true, true
+	}
+	return time.Time{}, false, false
+}
+
 func (s *requestLogsService) applyFilters(tx *gorm.DB, q models.RequestLogsQuery) *gorm.DB {
 	if q.UserID != nil {
 		tx = tx.Where("user_id = ?", *q.UserID)
@@ -144,14 +185,14 @@ func (s *requestLogsService) applyFilters(tx *gorm.DB, q models.RequestLogsQuery
 	if q.Status != nil {
 		tx = tx.Where("response_status = ?", *q.Status)
 	}
-	if q.From != "" {
-		if t, err := time.Parse(time.RFC3339, q.From); err == nil {
-			tx = tx.Where("created_at >= ?", t)
-		}
+	if from, ok := parseLogFrom(q.From); ok {
+		tx = tx.Where("created_at >= ?", from)
 	}
-	if q.To != "" {
-		if t, err := time.Parse(time.RFC3339, q.To); err == nil {
-			tx = tx.Where("created_at <= ?", t)
+	if to, exclusive, ok := parseLogTo(q.To); ok {
+		if exclusive {
+			tx = tx.Where("created_at < ?", to)
+		} else {
+			tx = tx.Where("created_at <= ?", to)
 		}
 	}
 	if q.Search != "" {
@@ -159,6 +200,41 @@ func (s *requestLogsService) applyFilters(tx *gorm.DB, q models.RequestLogsQuery
 		tx = tx.Where("(url ILIKE ? OR username ILIKE ?)", pattern, pattern)
 	}
 	return tx
+}
+
+// logSortColumns -- поля, по которым журнал разрешено упорядочивать, и то, что
+// уходит в ORDER BY. Ключ приходит из адресной строки, поэтому в запрос
+// попадает только выражение из этой карты, а не пришедшая строка.
+var logSortColumns = map[string]string{
+	"created_at": "created_at",
+	"method":     "method",
+	"url":        "url",
+	"status":     "response_status",
+	"username":   "username",
+	"duration":   durationUsExpr,
+}
+
+// applySort добавляет порядок строк. Неизвестное поле и пустой запрос дают
+// привычный «сначала свежие».
+func applySort(tx *gorm.DB, q models.RequestLogsQuery) *gorm.DB {
+	column, ok := logSortColumns[strings.ToLower(strings.TrimSpace(q.Sort))]
+	if !ok {
+		column = "created_at"
+	}
+
+	direction := "DESC"
+	if strings.EqualFold(strings.TrimSpace(q.Order), "asc") {
+		direction = "ASC"
+	}
+
+	// Пустые значения (имя у неавторизованного обращения, статус у оборванного
+	// соединения) уходят в конец в обе стороны, иначе первая страница сортировки
+	// по имени состоит из прочерков.
+	//
+	// Идентификатор вторым ключом: у метода и статуса значения повторяются
+	// тысячами, и без устойчивого порядка соседние страницы показывают одни и те
+	// же строки, теряя другие.
+	return tx.Order(column + " " + direction + " NULLS LAST").Order("id DESC")
 }
 
 // GetLogs возвращает логи с пагинацией и фильтрацией.
@@ -183,7 +259,7 @@ func (s *requestLogsService) GetLogs(ctx context.Context, q models.RequestLogsQu
 
 	logs := make([]models.RequestLogs, 0)
 	offset := (q.Page - 1) * q.PerPage
-	if err := tx.Order("created_at DESC").Offset(offset).Limit(q.PerPage).Find(&logs).Error; err != nil {
+	if err := applySort(tx, q).Offset(offset).Limit(q.PerPage).Find(&logs).Error; err != nil {
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "failed to fetch request logs")
 	}
 

@@ -30,6 +30,8 @@ func NewRequestLogsHandler(service services.RequestLogsService) *RequestLogsHand
 // @Param        from_date query string false "Дата начала (ISO 8601)"
 // @Param        to_date   query string false "Дата окончания (ISO 8601)"
 // @Param        search    query string false "Поиск по URL и username"
+// @Param        sort      query string false "Поле сортировки" Enums(created_at, method, url, status, username, duration) default(created_at)
+// @Param        order     query string false "Направление сортировки" Enums(asc, desc) default(desc)
 // @Param        page      query int    false "Страница" default(1)
 // @Param        per_page  query int    false "Записей на странице" default(20)
 // @Success      200 {object} Response
