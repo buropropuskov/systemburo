@@ -187,3 +187,91 @@ func TestStatsCache(t *testing.T) {
 		}
 	})
 }
+
+// Период вкладки «Аналитика» делится между свёрнутыми сутками и детальными
+// партициями по последнему свёрнутому дню. Границы не должны пересекаться:
+// день, попавший в агрегат, второй раз считать нельзя (#2125).
+func TestSplitHistory(t *testing.T) {
+	day := func(s string) time.Time {
+		d, err := time.Parse(dayLayout, s)
+		if err != nil {
+			t.Fatalf("разбор даты %s: %v", s, err)
+		}
+		return d
+	}
+	ptr := func(s string) *time.Time { d := day(s); return &d }
+
+	from, to := day("2026-08-01"), day("2026-08-10")
+
+	cases := []struct {
+		name       string
+		aggThrough *time.Time
+		wantAgg    string // "" -- агрегатной части нет
+		wantDet    string // "" -- детальной части нет
+	}{
+		{"свёртки ещё не было", nil, "", "2026-08-01..2026-08-11"},
+		{"свёртка внутри периода", ptr("2026-08-05"), "2026-08-01..2026-08-05", "2026-08-06..2026-08-11"},
+		{"свёртка старше периода", ptr("2026-07-20"), "", "2026-08-01..2026-08-11"},
+		{"свёрнут весь период", ptr("2026-08-10"), "2026-08-01..2026-08-10", ""},
+		{"свёртка ушла за период", ptr("2026-09-01"), "2026-08-01..2026-08-10", ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := splitHistory(from, to, tc.aggThrough)
+
+			gotAgg := ""
+			if p.agg {
+				gotAgg = p.aggFrom.Format(dayLayout) + ".." + p.aggTo.Format(dayLayout)
+			}
+			gotDet := ""
+			if p.det {
+				gotDet = p.detFrom.Format(dayLayout) + ".." + p.detTo.Format(dayLayout)
+			}
+			if gotAgg != tc.wantAgg {
+				t.Fatalf("агрегаты: ожидали %q, получили %q", tc.wantAgg, gotAgg)
+			}
+			if gotDet != tc.wantDet {
+				t.Fatalf("детальные: ожидали %q, получили %q", tc.wantDet, gotDet)
+			}
+		})
+	}
+}
+
+// Период приходит из адресной строки: пустой означает последние девяносто суток,
+// перевёрнутый разворачивается. Пустой ответ на осмысленный запрос читается как
+// поломка раздела, а не как «данных нет».
+func TestHistoryRange(t *testing.T) {
+	from, to := historyRange("2026-08-10", "2026-08-01")
+	if from.Format(dayLayout) != "2026-08-01" || to.Format(dayLayout) != "2026-08-10" {
+		t.Fatalf("перевёрнутый период не развёрнут: %s..%s", from, to)
+	}
+
+	from, to = historyRange("", "")
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	if !to.Equal(today) {
+		t.Fatalf("по умолчанию период кончается сегодняшним днём: %s", to)
+	}
+	if got := int(to.Sub(from).Hours() / 24); got != 90 {
+		t.Fatalf("по умолчанию период длится 90 суток, получили %d", got)
+	}
+
+	from, _ = historyRange("не-дата", "2026-08-10")
+	if from.Format(dayLayout) != "2026-05-12" {
+		t.Fatalf("неразобранное начало периода откатывается на 90 суток назад: %s", from)
+	}
+}
+
+// Долгоживущие подписки отсекаются и в агрегатах, где адрес уже нормализован и
+// хранится без query-строки.
+func TestNotStreamingEndpointSQL(t *testing.T) {
+	got := notStreamingEndpointSQL()
+	for _, path := range streamingLogPaths {
+		if !strings.Contains(got, "'"+path+"'") {
+			t.Fatalf("условие не отсекает %s: %s", path, got)
+		}
+	}
+	if !strings.Contains(got, "endpoint NOT IN") {
+		t.Fatalf("сравнение должно идти по свёрнутому маршруту: %s", got)
+	}
+}

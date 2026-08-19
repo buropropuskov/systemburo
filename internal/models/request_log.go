@@ -107,21 +107,47 @@ type RequestLogsHistoryQuery struct {
 	To   string `query:"to_date"`
 }
 
-// RequestLogsHistory — агрегаты логов за период из request_logs_daily: итоги,
-// ряд по дням и топы. Это вкладка «Аналитика» поверх свёрнутых дневных данных.
+// RequestLogsHistory — показатели журнала за период для вкладки «Аналитика».
+// Свёрнутые сутки берутся из request_logs_daily, дни новее последней свёртки —
+// из детальных партиций request_logs, поэтому последний месяц больше не
+// пропадает с экрана молча (#2125).
 type RequestLogsHistory struct {
 	Totals       HistoryTotals       `json:"totals"`
+	Coverage     HistoryCoverage     `json:"coverage"`
 	Daily        []HistoryDailyPoint `json:"daily"`
 	TopEndpoints []HistoryEndpoint   `json:"top_endpoints"`
 	TopUsers     []HistoryUser       `json:"top_users"`
 }
 
-// HistoryTotals — сводные показатели за период.
+// HistoryCoverage — фактический охват ответа: какие сутки реально попали в
+// расчёт и откуда взяты числа. Запрошенный период и охват расходятся почти
+// всегда: журнал моложе периода, свёртка отстаёт, часть суток пустая.
+type HistoryCoverage struct {
+	RequestedFrom string `json:"requested_from"`
+	RequestedTo   string `json:"requested_to"`
+	// From и To — первый и последний день с данными; пустые, когда данных нет.
+	From string `json:"from"`
+	To   string `json:"to"`
+	Days int    `json:"days"`
+	// Source — откуда пришли числа: empty, aggregates, detailed или mixed.
+	Source string `json:"source"`
+	// AggregatedThrough — последний свёрнутый день. Всё, что новее, читается из
+	// детальных партиций.
+	AggregatedThrough string `json:"aggregated_through"`
+	// ExactP95 — перцентиль посчитан по самим записям. У свёрнутых суток
+	// отдельных длительностей уже нет, и перцентиль периода по ним честно не
+	// считается: показывается наибольшее суточное значение.
+	ExactP95 bool `json:"exact_p95"`
+}
+
+// HistoryTotals — сводные показатели за период. Средняя длительность взвешена
+// по числу запросов: среднее суточных средних приписывало тихой ночи тот же вес,
+// что рабочему дню. Долгоживущие соединения в неё не входят, как и в шапке.
 type HistoryTotals struct {
 	Requests    int64   `json:"requests"`
 	Errors      int64   `json:"errors"`
 	ErrorRate   float64 `json:"error_rate"`
-	AvgDuration int     `json:"avg_duration_ms"`
+	AvgDuration float64 `json:"avg_duration_ms"`
 }
 
 // HistoryDailyPoint — точка ряда «запросы/ошибки по дню».
@@ -131,12 +157,13 @@ type HistoryDailyPoint struct {
 	Errors   int64  `json:"errors"`
 }
 
-// HistoryEndpoint — строка топа эндпоинтов.
+// HistoryEndpoint — строка топа эндпоинтов. Длительности в миллисекундах с
+// дробной частью: ответы быстрее миллисекунды не должны выглядеть нулевыми.
 type HistoryEndpoint struct {
 	Endpoint    string  `json:"endpoint"`
 	Requests    int64   `json:"requests"`
-	AvgDuration int     `json:"avg_duration_ms"`
-	P95Duration int     `json:"p95_duration_ms"`
+	AvgDuration float64 `json:"avg_duration_ms"`
+	P95Duration float64 `json:"p95_duration_ms"`
 	ErrorRate   float64 `json:"error_rate"`
 }
 
