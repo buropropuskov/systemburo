@@ -137,31 +137,15 @@ func notStreamingSQL() string {
 // logDayLayout -- день без времени, как его шлёт поле даты на экране.
 const logDayLayout = "2006-01-02"
 
-// parseLogFrom разбирает нижнюю границу периода. С экрана приходит день
-// (2026-08-19), из пресетов и присланных ссылок -- момент по RFC 3339.
+// parseLogBound разбирает границу периода и говорит, пришёл ли день целиком.
+// С экрана приходит день (2026-08-19), из присланных ссылок -- момент по
+// RFC 3339.
 //
 // День считается московскими сутками: created_at хранится с зоной, и «за
 // 19 августа» для оператора это местные сутки, а не UTC-шные. Раньше день
 // вообще не разбирался -- фильтры «с» и «по» молча не применялись, список
 // оставался за всё время.
-func parseLogFrom(value string) (time.Time, bool) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return time.Time{}, false
-	}
-	if t, err := time.Parse(time.RFC3339, value); err == nil {
-		return t, true
-	}
-	if d, err := time.ParseInLocation(logDayLayout, value, AnalyticsLocation()); err == nil {
-		return d, true
-	}
-	return time.Time{}, false
-}
-
-// parseLogTo разбирает верхнюю границу и говорит, строгое ли сравнение.
-// Выбранный на экране день включается целиком, поэтому сравнение идёт с началом
-// следующих суток: «по 19 августа» с обычным <= отсекало всё после полуночи.
-func parseLogTo(value string) (moment time.Time, exclusive bool, ok bool) {
+func parseLogBound(value string) (moment time.Time, wholeDay bool, ok bool) {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return time.Time{}, false, false
@@ -170,7 +154,7 @@ func parseLogTo(value string) (moment time.Time, exclusive bool, ok bool) {
 		return t, false, true
 	}
 	if d, err := time.ParseInLocation(logDayLayout, value, AnalyticsLocation()); err == nil {
-		return d.AddDate(0, 0, 1), true, true
+		return d, true, true
 	}
 	return time.Time{}, false, false
 }
@@ -185,12 +169,15 @@ func (s *requestLogsService) applyFilters(tx *gorm.DB, q models.RequestLogsQuery
 	if q.Status != nil {
 		tx = tx.Where("response_status = ?", *q.Status)
 	}
-	if from, ok := parseLogFrom(q.From); ok {
+	if from, _, ok := parseLogBound(q.From); ok {
 		tx = tx.Where("created_at >= ?", from)
 	}
-	if to, exclusive, ok := parseLogTo(q.To); ok {
-		if exclusive {
-			tx = tx.Where("created_at < ?", to)
+	if to, wholeDay, ok := parseLogBound(q.To); ok {
+		// Выбранный день включается целиком, поэтому сравнение идёт с началом
+		// следующих суток: «по 19 августа» с обычным <= отсекало всё после
+		// полуночи выбранного дня.
+		if wholeDay {
+			tx = tx.Where("created_at < ?", to.AddDate(0, 0, 1))
 		} else {
 			tx = tx.Where("created_at <= ?", to)
 		}
@@ -486,7 +473,7 @@ func (s *requestLogsService) Export(ctx context.Context, q models.RequestLogsQue
 	tx = s.applyFilters(tx, q)
 
 	logs := make([]models.RequestLogs, 0)
-	if err := tx.Order("created_at DESC").Limit(q.PerPage).Find(&logs).Error; err != nil {
+	if err := applySort(tx, q).Limit(q.PerPage).Find(&logs).Error; err != nil {
 		return "", echo.NewHTTPError(http.StatusInternalServerError, "failed to export request logs")
 	}
 

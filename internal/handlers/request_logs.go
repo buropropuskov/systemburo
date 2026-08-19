@@ -141,6 +141,8 @@ func (h *RequestLogsHandler) GetTimeline(c echo.Context) error {
 // @Param        from_date query string false "Дата начала (ISO 8601)"
 // @Param        to_date   query string false "Дата окончания (ISO 8601)"
 // @Param        search    query string false "Поиск по URL и username"
+// @Param        sort      query string false "Поле сортировки" Enums(created_at, method, url, status, username, duration) default(created_at)
+// @Param        order     query string false "Направление сортировки" Enums(asc, desc) default(desc)
 // @Success      200 {string} string
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError

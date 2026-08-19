@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -172,4 +173,29 @@ func TestRequestLogs_FilterByCalendarDay(t *testing.T) {
 		[]string{"/api/yesterday-morning", "/api/yesterday-late"},
 		logURLs(t, rec.Body.Bytes()),
 		"выбранные сутки берутся целиком и не захватывают ночь следующего дня")
+}
+
+// Выгрузка идёт в том же порядке, что и экран: список отсортирован по
+// длительности, а в файле лежали последние по времени.
+func TestRequestLogs_ExportKeepsChosenOrder(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	now := time.Now().UTC()
+	insertSortedLog(t, db, "/api/export-slow", "GET", us(900_000), now.Add(-2*time.Minute))
+	insertSortedLog(t, db, "/api/export-fast", "GET", us(120), now)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	rec := testutil.GET(t, e, "/request-logs/export?sort=duration&order=desc", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	text := rec.Body.String()
+	slow := strings.Index(text, "/api/export-slow")
+	fast := strings.Index(text, "/api/export-fast")
+	require.Positive(t, slow, "медленный запрос попал в выгрузку")
+	require.Positive(t, fast, "быстрый запрос попал в выгрузку")
+	assert.Less(t, slow, fast, "самый медленный запрос стоит в выгрузке первым")
 }

@@ -1062,7 +1062,13 @@ export default {
     async exportLogs() {
       this.isExporting = true;
       try {
-        const params = new URLSearchParams(this.buildFilterParams());
+        // Порядок тот же, что на экране: выгрузка «самых медленных» должна
+        // начинаться с самых медленных, а не с последних по времени.
+        const params = new URLSearchParams({
+          sort: this.sortField,
+          order: this.sortDirection,
+          ...this.buildFilterParams()
+        });
         const response = await apiRequest(`/request-logs/export?${params}`);
         if (response.ok) {
           const text = await response.text();

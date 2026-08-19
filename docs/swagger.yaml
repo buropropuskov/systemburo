@@ -961,6 +961,36 @@ definitions:
         example: Error description
         type: string
     type: object
+  models.HistoryCoverage:
+    properties:
+      aggregated_through:
+        description: |-
+          AggregatedThrough — последний свёрнутый день. Всё, что новее, читается из
+          детальных партиций.
+        type: string
+      days:
+        type: integer
+      exact_p95:
+        description: |-
+          ExactP95 — перцентиль посчитан по самим записям. У свёрнутых суток
+          отдельных длительностей уже нет, и перцентиль периода по ним честно не
+          считается: показывается наибольшее суточное значение.
+        type: boolean
+      from:
+        description: From и To — первый и последний день с данными; пустые, когда
+          данных нет.
+        type: string
+      requested_from:
+        type: string
+      requested_to:
+        type: string
+      source:
+        description: 'Source — откуда пришли числа: empty, aggregates, detailed или
+          mixed.'
+        type: string
+      to:
+        type: string
+    type: object
   models.HistoryDailyPoint:
     properties:
       day:
@@ -973,20 +1003,20 @@ definitions:
   models.HistoryEndpoint:
     properties:
       avg_duration_ms:
-        type: integer
+        type: number
       endpoint:
         type: string
       error_rate:
         type: number
       p95_duration_ms:
-        type: integer
+        type: number
       requests:
         type: integer
     type: object
   models.HistoryTotals:
     properties:
       avg_duration_ms:
-        type: integer
+        type: number
       error_rate:
         type: number
       errors:
@@ -1747,6 +1777,8 @@ definitions:
     type: object
   models.RequestLogsHistory:
     properties:
+      coverage:
+        $ref: '#/definitions/models.HistoryCoverage'
       daily:
         items:
           $ref: '#/definitions/models.HistoryDailyPoint'
@@ -15502,6 +15534,26 @@ paths:
         in: query
         name: search
         type: string
+      - default: created_at
+        description: Поле сортировки
+        enum:
+        - created_at
+        - method
+        - url
+        - status
+        - username
+        - duration
+        in: query
+        name: sort
+        type: string
+      - default: desc
+        description: Направление сортировки
+        enum:
+        - asc
+        - desc
+        in: query
+        name: order
+        type: string
       - default: 1
         description: Страница
         in: query
@@ -15558,6 +15610,26 @@ paths:
       - description: Поиск по URL и username
         in: query
         name: search
+        type: string
+      - default: created_at
+        description: Поле сортировки
+        enum:
+        - created_at
+        - method
+        - url
+        - status
+        - username
+        - duration
+        in: query
+        name: sort
+        type: string
+      - default: desc
+        description: Направление сортировки
+        enum:
+        - asc
+        - desc
+        in: query
+        name: order
         type: string
       produces:
       - text/plain
