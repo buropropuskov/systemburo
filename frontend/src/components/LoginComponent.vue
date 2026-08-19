@@ -1197,9 +1197,9 @@ export default {
         width: 20px;
         height: 20px;
         flex-shrink: 0;
-        /* Глиф рисуется обводкой currentColor, поэтому цвет задаётся здесь, а не
-           фильтром поверх растра. */
+        /* Цвет и вес глифа задаёт место применения, см. комментарий в appIcons.js. */
         color: var(--text-muted);
+        stroke-width: 2.4;
         transition: transform .5s;
     }
 

@@ -26,42 +26,11 @@
           aria-label="Настроить уведомления"
           @click="openSettings"
         >
-          <svg
-            width="19"
-            height="19"
-            viewBox="0 0 24 24"
-            fill="none"
-            aria-hidden="true"
-          >
-            <g
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linecap="round"
-            >
-              <line
-                x1="4"
-                y1="8"
-                x2="20"
-                y2="8"
-              />
-              <line
-                x1="4"
-                y1="16"
-                x2="20"
-                y2="16"
-              />
-              <circle
-                cx="9"
-                cy="8"
-                r="2.2"
-              />
-              <circle
-                cx="15"
-                cy="16"
-                r="2.2"
-              />
-            </g>
-          </svg>
+          <AppIcon
+            name="settings"
+            :size="19"
+            class="notifications__settings-icon"
+          />
         </button>
         <button
           v-if="notifications.length > 0"
@@ -208,6 +177,7 @@ import { formatTimeAgo } from '@/utils/datetime'
 import { parseNotificationData } from '@/utils/notificationDetails'
 import NotificationDetailModal from '@/components/notifications/NotificationDetailModal.vue'
 import NotificationFilterTabs from '@/components/notifications/NotificationFilterTabs.vue'
+import AppIcon from '@/components/icons/AppIcon.vue'
 
 // Блок в личном кабинете компактнее колокольчика (min/max-height 200px) - та же логика
 // размера страницы, что и в UserNotifications.vue (см. её комментарий).
@@ -216,7 +186,7 @@ const NOTIFICATIONS_PER_PAGE = 20
 export default {
   name: 'UserNotificationsInline',
 
-  components: { LoaderSpinner, NotificationDetailModal, NotificationFilterTabs },
+  components: { LoaderSpinner, NotificationDetailModal, NotificationFilterTabs, AppIcon },
 
   setup() {
     const { resolveApplicationRoute } = useNotificationNavigation();
@@ -493,6 +463,11 @@ export default {
   text-align: center;
 }
 
+.notifications__settings-icon {
+  /* 19px при общей обводке 1.7 даёт волосок в 1.3px - на мелком значке вес задаёт CSS. */
+  stroke-width: 2;
+}
+
 .notifications__settings {
   display: inline-flex;
   align-items: center;
@@ -507,7 +482,8 @@ export default {
 
 .notifications__settings:hover {
   color: var(--color-text);
-  transform: rotate(45deg);
+  /* Меньше углового шага зубцов (45): на самом шаге поворот не виден. */
+  transform: rotate(22.5deg);
 }
 
 .notifications__clear {
