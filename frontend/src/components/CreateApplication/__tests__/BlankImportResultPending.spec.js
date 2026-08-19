@@ -75,6 +75,14 @@ beforeEach(() => {
   listCitizenshipsMock.mockResolvedValue([{ id: 1, name: 'Россия' }]);
 });
 
+// Согласие субъекта - обязательная отметка на всю пачку (поле pd_consent реестра полей
+// вложения). Тесты ниже проверяют места и события, поэтому ставят её как данность;
+// поведение самой отметки проверяет BlankImportConsent.spec.js.
+async function markConsent(wrapper) {
+  const box = wrapper.find('[data-testid="bim-pd-consent-checkbox"]');
+  if (box.exists()) await box.setValue(true);
+}
+
 describe('BlankImportResult - предварительные строки (U5)', () => {
   it('разобранные строки уходят наверх сразу, не дожидаясь «Добавить»', async () => {
     const w = mountResult();
@@ -103,6 +111,7 @@ describe('BlankImportResult - предварительные строки (U5)',
 
     expect(w.get('[data-testid="bim-submit"]').attributes('disabled')).toBeDefined();
 
+    await markConsent(w);
     await w.setData({ selectedUnloadPlaces: [30] });
     expect(w.get('[data-testid="bim-submit"]').attributes('disabled')).toBeUndefined();
 
@@ -114,6 +123,8 @@ describe('BlankImportResult - предварительные строки (U5)',
       unloadPlaces: [30],
       unloadingPlace: 'Склад 1',
       passage_tables: [],
+      // Отметка согласия едет тем же патчем: у строк из файла своей галочки нет.
+      pdConsent: true,
     });
     // Принятые строки уже в списке предварительными - второй раз их не шлём.
     expect(committed[0][0].rows).toEqual([]);

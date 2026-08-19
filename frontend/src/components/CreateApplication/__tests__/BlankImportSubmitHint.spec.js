@@ -64,6 +64,14 @@ async function pickPlace(wrapper, testid) {
   await flushPromises();
 }
 
+// Согласие субъекта - обязательная отметка на всю пачку (поле pd_consent реестра полей
+// вложения). Тесты ниже проверяют места и события, поэтому ставят её как данность;
+// поведение самой отметки проверяет BlankImportConsent.spec.js.
+async function markConsent(wrapper) {
+  const box = wrapper.find('[data-testid="bim-pd-consent-checkbox"]');
+  if (box.exists()) await box.setValue(true);
+}
+
 describe('BlankImportResult - почему «Добавить в заявку» заблокирована', () => {
   it('подсказка висит на обёртке, а не на самой кнопке - disabled событий мыши не получает', async () => {
     const wrapper = mountPanel();
@@ -98,6 +106,7 @@ describe('BlankImportResult - почему «Добавить в заявку» 
     const wrapper = mountPanel();
     await flushPromises();
 
+    await markConsent(wrapper);
     await pickPlace(wrapper, 'bim-unload-places');
     await pickPlace(wrapper, 'bim-passage-tables');
 

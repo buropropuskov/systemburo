@@ -209,6 +209,15 @@ async function chooseFormat(wrapper, rowNumber, name) {
   await flushPromises();
 }
 
+// Отметка согласия субъекта - обязательная по умолчанию (поле pd_consent реестра полей
+// вложения), без неё «Добавить в заявку» не включается. Тесты ниже проверяют места и
+// события, поэтому ставят её как данность; поведение самой отметки проверяет
+// BlankImportConsent.spec.js.
+async function markConsent(wrapper) {
+  const box = wrapper.find('[data-testid="bim-pd-consent-checkbox"]');
+  if (box.exists()) await box.setValue(true);
+}
+
 describe('BlankImportResult - номер вводится по ячейкам формата, обязан в него лечь', () => {
   beforeEach(() => {
     notifyMock.mockReset();
@@ -436,6 +445,7 @@ describe('BlankImportResult (blank-import D1D2)', () => {
     const submit = wrapper.find('[data-testid="bim-submit"]');
     expect(submit.attributes('disabled')).toBeDefined();
 
+    await markConsent(wrapper);
     await wrapper.findAll('.passage__item')[0].trigger('click');
     expect(wrapper.find('[data-testid="bim-submit"]').attributes('disabled')).toBeUndefined();
   });
@@ -457,6 +467,7 @@ describe('BlankImportResult (blank-import D1D2)', () => {
       isExisting: false,
     });
 
+    await markConsent(wrapper);
     await wrapper.findAll('.passage__item')[0].trigger('click');
     await wrapper.find('[data-testid="bim-submit"]').trigger('click');
 
@@ -555,6 +566,7 @@ describe('BlankImportResult (blank-import D1D2)', () => {
       isExisting: false,
     });
 
+    await markConsent(wrapper);
     await wrapper.find('[data-testid="bim-unload-places"] .passage__item').trigger('click');
     await wrapper.find('[data-testid="bim-passage-tables"] .passage__item').trigger('click');
     await wrapper.find('[data-testid="bim-submit"]').trigger('click');
@@ -562,6 +574,8 @@ describe('BlankImportResult (blank-import D1D2)', () => {
     const payload = wrapper.emitted('import')[0][0];
     expect(payload.attachmentType).toBe('cars');
     expect(payload.places).toEqual({
+      // Отметка согласия едет тем же патчем, что и места: у строк из файла своей нет.
+      pdConsent: true,
       unloadPlaces: [30],
       unloadingPlace: 'Склад 1',
       passage_tables: [20],
@@ -608,6 +622,7 @@ describe('BlankImportResult - обязательность мест по fieldCo
     // но submit не должен требовать выбора: EmployeeForm.vue:491-492/573-574.
     expect(wrapper.find('[data-testid="bim-target-tables"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="bim-target-tables"] .required').exists()).toBe(false);
+    await markConsent(wrapper);
     expect(wrapper.find('[data-testid="bim-submit"]').attributes('disabled')).toBeUndefined();
   });
 
@@ -625,6 +640,7 @@ describe('BlankImportResult - обязательность мест по fieldCo
 
     expect(wrapper.find('[data-testid="bim-unload-places"] .required').exists()).toBe(false);
     expect(wrapper.find('[data-testid="bim-passage-tables"] .required').exists()).toBe(false);
+    await markConsent(wrapper);
     expect(wrapper.find('[data-testid="bim-submit"]').attributes('disabled')).toBeUndefined();
   });
 });
