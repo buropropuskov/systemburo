@@ -123,13 +123,17 @@ jobs:
     needs: paths
     if: needs.paths.outputs.frontend == 'true' || needs.paths.outputs.workflows == 'true'
     steps:
+      # Полная история нужна проверке размеров: она сравнивает файлы с общим
+      # предком ветки и dev, а не с зафиксированным снимком.
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup-frontend
       - working-directory: frontend
         run: npm run lint
-      # Храповик на размер файлов: новый файл обязан уложиться в порог,
-      # существующие нарушители зафиксированы в build/file-size-baseline.json
-      # и расти не могут. Порог опускается по мере распила мега-компонентов.
+      # Храповик на размер файлов: новый файл обязан уложиться в порог, а файл,
+      # который уже сверх порога, не может вырасти дальше. Порог опускается по
+      # мере распила мега-компонентов.
       - working-directory: frontend
         run: npm run lint:size
 

@@ -2,28 +2,74 @@
 /*
  * Гейт на размер файлов - храповик, а не разовая проверка.
  *
- * Новый файл обязан уложиться в порог. Существующие нарушители перечислены в
- * file-size-baseline.json со своим текущим размером и расти дальше не могут:
- * дописал сто строк в компонент на четыре тысячи - CI краснеет. Ужать файл
- * можно всегда, база при этом просто устаревает в мягкую сторону.
+ * Новый файл обязан уложиться в порог. Файл, который уже сверх порога, не может
+ * вырасти дальше: дописал сотню строк в компонент на четыре тысячи - CI краснеет.
+ * Ужимать можно всегда.
+ *
+ * Сравниваем с общим предком текущей ветки и dev, а не с зафиксированным
+ * снимком размеров. Снимок на активной ветке гоняется за своим хвостом: пока
+ * идёт ревью, кто-то дописывает строки в другом PR, и проверка краснеет на
+ * правке, которой автор не делал. С merge-base каждый отвечает ровно за то,
+ * что изменил сам, и файла с базой держать не нужно.
  *
  * Пороги заданы на блок, а не на файл: у .vue три блока с разной природой, и
  * тысяча строк стилей рядом с двумя сотнями логики - это не то же самое, что
- * тысяча строк логики. По мере распила мега-компонентов пороги опускаются, и
- * база пересобирается через `npm run lint:size -- --update`.
+ * тысяча строк логики. По мере распила мега-компонентов пороги опускаются.
  *
- * Запуск: node build/check-file-sizes.js [--update]
+ * Запуск: node build/check-file-sizes.js [--base <ref>]
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const BASELINE_PATH = path.join(ROOT, 'build', 'file-size-baseline.json')
 const SCAN_DIR = path.join(ROOT, 'src')
+const REPO = path.resolve(ROOT, '..')
 
-const baseline = JSON.parse(fs.readFileSync(BASELINE_PATH, 'utf8'))
-const TARGETS = baseline.targets
+const TARGETS = { template: 400, script: 500, style: 500, js: 400 }
+
+/**
+ * Вызов git. При allowFail возвращает null вместо исключения и не пускает stderr
+ * наружу: отсутствие файла в базовом коммите - штатная ветка (файл новый), а
+ * "fatal: path ... exists on disk, but not in ..." в выводе читается как поломка.
+ */
+function git(args, allowFail = false) {
+  try {
+    return execFileSync('git', args, {
+      cwd: REPO,
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+      stdio: allowFail ? ['ignore', 'pipe', 'ignore'] : ['ignore', 'pipe', 'inherit'],
+    })
+  } catch (err) {
+    if (allowFail) return null
+    throw err
+  }
+}
+
+/**
+ * Коммит, с которым сравниваем: общий предок HEAD и целевой ветки.
+ *
+ * В проверке пулл-реквеста GitHub собирает merge-коммит, поэтому целевая ветка
+ * уже влита в HEAD и общий предок совпадает с её вершиной - сравнение идёт с
+ * актуальным dev. Локально это точка, от которой отведена ветка.
+ */
+function mergeBase() {
+  const flagIndex = process.argv.indexOf('--base')
+  const explicit = flagIndex !== -1 ? process.argv[flagIndex + 1] : null
+  const candidates = explicit
+    ? [explicit]
+    : [`origin/${process.env.GITHUB_BASE_REF || 'dev'}`, 'origin/dev', 'dev']
+
+  for (const ref of candidates) {
+    const resolved = git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], true)
+    if (!resolved) continue
+    const base = git(['merge-base', 'HEAD', resolved.trim()], true)
+    if (base) return { ref, sha: base.trim() }
+  }
+  return null
+}
 
 /** Файл относится к тестам - на них пороги не распространяются. */
 function isTest(filePath) {
@@ -68,77 +114,57 @@ function blockLines(source, tag) {
 }
 
 /**
- * Измеренные размеры файла по измерениям, к которым применимы пороги.
+ * Размеры по измерениям, к которым применимы пороги.
  *
- * @param {string} filePath
+ * @param {string} source содержимое файла
+ * @param {boolean} isVue
  * @returns {Record<string, number>}
  */
-function measure(filePath) {
-  const source = fs.readFileSync(filePath, 'utf8')
-  if (filePath.endsWith('.vue')) {
-    return {
-      template: blockLines(source, 'template'),
-      script: blockLines(source, 'script'),
-      style: blockLines(source, 'style'),
-    }
+function measure(source, isVue) {
+  if (!isVue) return { js: source.split('\n').length }
+  return {
+    template: blockLines(source, 'template'),
+    script: blockLines(source, 'script'),
+    style: blockLines(source, 'style'),
   }
-  return { js: source.split('\n').length }
 }
 
-const measured = new Map()
-for (const file of walk(SCAN_DIR)) {
-  const rel = path.relative(ROOT, file).split(path.sep).join('/')
-  const sizes = measure(file)
-  const over = {}
-  for (const [dim, value] of Object.entries(sizes)) {
-    if (value > TARGETS[dim]) over[dim] = value
-  }
-  if (Object.keys(over).length > 0) measured.set(rel, over)
-}
-
-if (process.argv.includes('--update')) {
-  const files = Object.fromEntries([...measured].sort(([a], [b]) => a.localeCompare(b)))
-  fs.writeFileSync(BASELINE_PATH, `${JSON.stringify({ ...baseline, files }, null, 2)}\n`)
-  console.log(`База обновлена: ${measured.size} файлов сверх порога.`)
-  process.exit(0)
+const base = mergeBase()
+if (!base) {
+  console.error('Не удалось определить базовый коммит для сравнения.')
+  console.error('Нужна история целевой ветки: в CI это fetch-depth: 0 у actions/checkout,')
+  console.error('локально - "git fetch origin dev". Явно задать: --base <ref>.')
+  process.exit(1)
 }
 
 const failures = []
-const shrunk = []
 
-for (const [file, over] of measured) {
-  const known = baseline.files[file]
-  for (const [dim, value] of Object.entries(over)) {
-    if (!known || known[dim] === undefined) {
-      failures.push(`${file} [${dim}]: ${value} строк, порог ${TARGETS[dim]}. Файла нет в базе - уложись в порог или вынеси часть в отдельный модуль.`)
-    } else if (value > known[dim]) {
-      failures.push(`${file} [${dim}]: было ${known[dim]}, стало ${value}. Файл и так сверх порога ${TARGETS[dim]}, расти ему нельзя.`)
-    } else if (value < known[dim]) {
-      shrunk.push(`${file} [${dim}]: ${known[dim]} -> ${value}`)
+for (const file of walk(SCAN_DIR)) {
+  const rel = path.relative(REPO, file).split(path.sep).join('/')
+  const isVue = file.endsWith('.vue')
+  const current = measure(fs.readFileSync(file, 'utf8'), isVue)
+
+  const over = Object.entries(current).filter(([dim, value]) => value > TARGETS[dim])
+  if (over.length === 0) continue
+
+  const previousSource = git(['show', `${base.sha}:${rel}`], true)
+  const previous = previousSource === null ? null : measure(previousSource, isVue)
+
+  for (const [dim, value] of over) {
+    if (previous === null) {
+      failures.push(`${rel} [${dim}]: ${value} строк, порог ${TARGETS[dim]}. Новый файл обязан уложиться в порог - вынеси часть в отдельный модуль.`)
+    } else if (value > previous[dim]) {
+      failures.push(`${rel} [${dim}]: было ${previous[dim]}, стало ${value}. Файл и так сверх порога ${TARGETS[dim]}, расти ему нельзя.`)
     }
   }
 }
 
-for (const [file, dims] of Object.entries(baseline.files)) {
-  const over = measured.get(file)
-  for (const dim of Object.keys(dims)) {
-    if (!over || over[dim] === undefined) shrunk.push(`${file} [${dim}]: уложился в порог`)
-  }
-}
-
-if (shrunk.length > 0) {
-  console.log(`Стало меньше (${shrunk.length}), база устарела в мягкую сторону - обнови через "npm run lint:size -- --update":`)
-  for (const line of shrunk.slice(0, 10)) console.log(`  ${line}`)
-  if (shrunk.length > 10) console.log(`  ... и ещё ${shrunk.length - 10}`)
-  console.log('')
-}
-
 if (failures.length > 0) {
-  console.error(`Размер файлов: ${failures.length} нарушений.`)
+  console.error(`Размер файлов: ${failures.length} нарушений (сравнение с ${base.ref}, ${base.sha.slice(0, 8)}).`)
   for (const line of failures) console.error(`  ${line}`)
   console.error('')
   console.error(`Пороги на блок: ${Object.entries(TARGETS).map(([k, v]) => `${k} ${v}`).join(', ')}.`)
   process.exit(1)
 }
 
-console.log(`Размер файлов: порядок. Сверх порога ${measured.size} файлов, все зафиксированы базой.`)
+console.log(`Размер файлов: порядок. Сравнение с ${base.ref} (${base.sha.slice(0, 8)}), выросших сверх порога нет.`)
