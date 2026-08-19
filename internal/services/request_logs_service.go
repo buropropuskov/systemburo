@@ -169,6 +169,19 @@ func (s *requestLogsService) applyFilters(tx *gorm.DB, q models.RequestLogsQuery
 	if q.Status != nil {
 		tx = tx.Where("response_status = ?", *q.Status)
 	}
+	if q.StatusMin != nil {
+		tx = tx.Where("response_status >= ?", *q.StatusMin)
+	}
+	if q.StatusMax != nil {
+		tx = tx.Where("response_status <= ?", *q.StatusMax)
+	}
+	if q.MinDurationMs != nil && *q.MinDurationMs > 0 {
+		// Долгоживущие соединения из отбора «медленнее секунды» исключаются: у
+		// подписки на события записано время жизни соединения, и она заняла бы
+		// собой весь список, вытеснив настоящие затыки.
+		tx = tx.Where(durationUsExpr+" >= ?", int64(*q.MinDurationMs)*1000).
+			Where(notStreamingSQL())
+	}
 	if from, _, ok := parseLogBound(q.From); ok {
 		tx = tx.Where("created_at >= ?", from)
 	}
@@ -404,7 +417,27 @@ func timelineWindow(q models.TimelineQuery, now time.Time) time.Time {
 	return time.Unix(bucket-int64(q.Limit-1)*interval, 0).UTC()
 }
 
+// timelineAggregateInterval -- шаг, начиная с которого график читается вместе со
+// свёрткой. Подробные записи живут REQUEST_LOG_DETAIL_DAYS суток (по умолчанию
+// тридцать), поэтому «месяц» упирался в срок хранения, а «год» показывал четыре
+// последние недели и пустоту до них -- молча, как будто запросов не было (#2125).
+const timelineAggregateInterval = 24 * 3600
+
+// timelineBucketSQL -- выражение начала интервала, в который попадает момент.
+// Шаг приходит числом из уже нормализованного запроса, не строкой пользователя.
+func timelineBucketSQL(column string, interval int) string {
+	return fmt.Sprintf("to_timestamp(floor(EXTRACT(EPOCH FROM %s) / %d) * %d)", column, interval, interval)
+}
+
+// timelineStamp -- метка точки в ответе. Соединение работает в UTC
+// (database.EnsureUTCTimezone), поэтому суффикс зоны проставляется литералом.
+const timelineStamp = `to_char(%s, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`
+
 // GetTimeline возвращает точки для графика, сгруппированные по интервалу.
+//
+// Шаг мельче суток читается по подробным записям, шаг от суток -- по свёртке
+// вместе с ещё не свёрнутыми сутками: иначе крупные периоды показывают не
+// историю, а срок хранения подробностей.
 func (s *requestLogsService) GetTimeline(ctx context.Context, q models.TimelineQuery) ([]models.TimelinePoint, error) {
 	if q.Interval < 1 {
 		q.Interval = 60
@@ -419,30 +452,40 @@ func (s *requestLogsService) GetTimeline(ctx context.Context, q models.TimelineQ
 		q.Limit = timelineMaxPoints
 	}
 
-	tx := s.db.WithContext(ctx).Table("request_logs")
-
 	// Нижняя граница есть всегда: заданная вызовом либо окно под запрошенные точки.
 	from := timelineWindow(q, time.Now())
 	if t, perr := time.Parse(time.RFC3339, q.From); perr == nil {
 		from = t
 	}
-	tx = tx.Where("created_at >= ?", from)
-
-	if q.To != "" {
-		if t, err := time.Parse(time.RFC3339, q.To); err == nil {
-			tx = tx.Where("created_at <= ?", t)
-		}
+	to, hasTo := time.Time{}, false
+	if t, err := time.Parse(time.RFC3339, q.To); err == nil {
+		to, hasTo = t, true
 	}
 
-	bucketExpr := fmt.Sprintf(
-		"to_timestamp(floor(EXTRACT(EPOCH FROM created_at) / %d) * %d)",
-		q.Interval, q.Interval,
-	)
+	if q.Interval >= timelineAggregateInterval {
+		if !hasTo {
+			to = time.Now()
+		}
+		return s.timelineWithAggregates(ctx, q, from, to)
+	}
+	return s.timelineDetailed(ctx, q, from, to, hasTo)
+}
+
+// timelineDetailed строит график по подробным записям журнала.
+func (s *requestLogsService) timelineDetailed(
+	ctx context.Context, q models.TimelineQuery, from, to time.Time, hasTo bool,
+) ([]models.TimelinePoint, error) {
+	tx := s.db.WithContext(ctx).Table("request_logs").Where("created_at >= ?", from)
+	if hasTo {
+		tx = tx.Where("created_at <= ?", to)
+	}
+
+	bucketExpr := timelineBucketSQL("created_at", q.Interval)
 
 	points := make([]models.TimelinePoint, 0)
 	err := tx.
 		Select(fmt.Sprintf(
-			"to_char(%s, 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS timestamp, COUNT(*) AS count, "+
+			timelineStamp+" AS timestamp, COUNT(*) AS count, "+
 				"COALESCE(AVG(%s) FILTER (WHERE %s), 0) / 1000.0 AS avg_duration",
 			bucketExpr, durationUsExpr, notStreamingSQL(),
 		)).
@@ -455,12 +498,68 @@ func (s *requestLogsService) GetTimeline(ctx context.Context, q models.TimelineQ
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "failed to fetch timeline")
 	}
 
-	// Reverse to chronological order
+	return timelineChronological(points), nil
+}
+
+// timelineWithAggregates строит график по суточной свёртке и добавляет к ней
+// сутки, которые свернуться ещё не успели.
+//
+// Сутки, уже попавшие в свёртку, из подробной части выбрасываются
+// (notRolledUpSQL): свёрнутая, но не удалённая партиция иначе удвоила бы столбик.
+//
+// Средняя длительность точки взвешена по числу запросов: среднее суточных
+// средних приписывает тихой ночи вес рабочего дня. Приведение к numeric
+// обязательно -- деление bigint на bigint в Postgres целочисленное.
+func (s *requestLogsService) timelineWithAggregates(
+	ctx context.Context, q models.TimelineQuery, from, to time.Time,
+) ([]models.TimelinePoint, error) {
+	notStreamAgg := notStreamingEndpointSQL()
+	aggSQL := `
+		SELECT ` + timelineBucketSQL("day", q.Interval) + ` AS bucket,
+			SUM(request_count) AS requests,
+			COALESCE(SUM(request_count) FILTER (WHERE ` + notStreamAgg + `), 0) AS dur_weight,
+			COALESCE(SUM(avg_duration_us * request_count) FILTER (WHERE ` + notStreamAgg + `), 0) AS dur_sum_us
+		FROM request_logs_daily WHERE day >= ? AND day <= ? GROUP BY 1`
+
+	notStream := notStreamingSQL()
+	detSQL := `
+		SELECT ` + timelineBucketSQL("created_at", q.Interval) + ` AS bucket,
+			COUNT(*) AS requests,
+			COUNT(*) FILTER (WHERE ` + notStream + `) AS dur_weight,
+			COALESCE(SUM(` + durationUsExpr + `) FILTER (WHERE ` + notStream + `), 0) AS dur_sum_us
+		FROM request_logs WHERE created_at >= ? AND created_at <= ? AND ` + notRolledUpSQL + ` GROUP BY 1`
+
+	query := fmt.Sprintf(`SELECT `+timelineStamp+` AS timestamp,
+			SUM(requests) AS count,
+			CASE WHEN SUM(dur_weight) > 0
+				THEN SUM(dur_sum_us)::numeric / SUM(dur_weight) / 1000.0
+				ELSE 0 END AS avg_duration
+		FROM (%s
+		UNION ALL%s
+		) t GROUP BY bucket ORDER BY bucket DESC LIMIT %d`, "bucket", aggSQL, detSQL, q.Limit)
+
+	args := []any{
+		from.Format(dayLayout), to.Format(dayLayout),
+		from, to,
+		from.Format(dayLayout),
+	}
+
+	points := make([]models.TimelinePoint, 0)
+	if err := s.db.WithContext(ctx).Raw(query, args...).Scan(&points).Error; err != nil {
+		slog.Error("request logs timeline aggregates", "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "failed to fetch timeline")
+	}
+
+	return timelineChronological(points), nil
+}
+
+// timelineChronological разворачивает точки в порядок «сначала старые»: запрос
+// берёт последние интервалы, а график рисует слева направо.
+func timelineChronological(points []models.TimelinePoint) []models.TimelinePoint {
 	for i, j := 0, len(points)-1; i < j; i, j = i+1, j-1 {
 		points[i], points[j] = points[j], points[i]
 	}
-
-	return points, nil
+	return points
 }
 
 // Export экспортирует логи в текстовый формат.

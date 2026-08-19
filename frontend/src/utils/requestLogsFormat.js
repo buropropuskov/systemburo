@@ -127,3 +127,54 @@ export function getStatusClass(status) {
   if (status < 500) return 'status-client-error';
   return 'status-server-error';
 }
+
+/**
+ * Что именно показано на вкладке «Аналитика»: запрошенный период, сутки с
+ * записями и источник чисел. Пустой месяц без этой подписи выглядел как
+ * «запросов не было», хотя данные просто ещё не свёрнуты.
+ * @param {object|null} coverage блок coverage из ответа истории
+ * @returns {string}
+ */
+export function coverageNote(coverage) {
+  if (!coverage || !coverage.requested_from) return '';
+
+  const period = `${formatDay(coverage.requested_from)} - ${formatDay(coverage.requested_to)}`;
+  if (!coverage.days) {
+    return coverage.aggregated_through
+      ? `За период ${period} записей нет.`
+      : `За период ${period} записей нет: журнал ещё не сворачивался в суточные итоги.`;
+  }
+
+  const sources = {
+    aggregates: 'по свёрнутым итогам суток',
+    detailed: 'по подробным записям журнала',
+    mixed: 'по свёрнутым итогам и подробным записям'
+  };
+  const covered = coverage.from === coverage.to
+    ? formatDay(coverage.from)
+    : `${formatDay(coverage.from)} - ${formatDay(coverage.to)}`;
+  const source = sources[coverage.source] ? `, ${sources[coverage.source]}` : '';
+  return `Запрошен период ${period}. Записи есть за ${covered}, суток с данными: ${coverage.days}${source}.`;
+}
+
+/**
+ * Оговорка про перцентиль. Пустая, когда весь период посчитан по самим записям
+ * и p95 честный.
+ * @param {object|null} coverage
+ * @returns {string}
+ */
+export function p95Note(coverage) {
+  if (!coverage || !coverage.days || coverage.exact_p95) return '';
+  return 'За свёрнутые сутки показано наибольшее суточное значение: отдельных длительностей у них уже нет.';
+}
+
+/**
+ * Высота столбика ряда по суткам в процентах: самый высокий занимает колонку
+ * целиком, пустой день остаётся видимой полоской.
+ * @param {number} value
+ * @param {number} max
+ * @returns {number}
+ */
+export function barHeight(value, max) {
+  return Math.max(4, Math.round((value / Math.max(max, 1)) * 100));
+}

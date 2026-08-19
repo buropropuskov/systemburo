@@ -23,8 +23,50 @@ export const SORTABLE_FIELDS = SORTABLE_COLUMNS.map(c => c.field);
 /** Размеры страницы из выпадающего списка. */
 export const PAGE_SIZES = ['20', '50', '100'];
 
+/** Методы в фильтре. Пустое значение - «все». */
+export const METHOD_OPTIONS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
+
+/**
+ * Значения фильтра по коду ответа. Кроме точных кодов есть классы: оператору
+ * важно отличить «клиент шлёт мусор» от «мы падаем», а перебирать коды по одному
+ * ради этого он не станет.
+ */
+export const STATUS_OPTIONS = [
+  { value: 'errors', label: 'Все ошибки (4xx и 5xx)' },
+  { value: '4xx', label: '4xx: ошибки клиента' },
+  { value: '5xx', label: '5xx: ошибки сервера' },
+  { value: '200', label: '200 OK' },
+  { value: '400', label: '400 Bad Request' },
+  { value: '401', label: '401 Unauthorized' },
+  { value: '403', label: '403 Forbidden' },
+  { value: '404', label: '404 Not Found' },
+  { value: '500', label: '500 Server Error' }
+];
+
+const STATUS_VALUES = STATUS_OPTIONS.map(o => o.value);
+
 /** Параметры журнала, которые живут в адресной строке. */
-export const JOURNAL_QUERY_KEYS = ['search', 'method', 'status', 'user', 'from', 'to', 'sort', 'order', 'page', 'per_page'];
+export const JOURNAL_QUERY_KEYS = [
+  'search', 'method', 'status', 'user', 'from', 'to', 'since', 'min_duration',
+  'sort', 'order', 'page', 'per_page'
+];
+
+/** Отбор «медленные ответы»: порог в миллисекундах. */
+export const SLOW_REQUEST_MS = 1000;
+
+/** Отбор «последний час»: ширина окна в миллисекундах. */
+export const LAST_HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * Быстрый отбор одной кнопкой. Каждый пресет выражается обычными фильтрами и
+ * ложится в те же ключи адреса: ссылка на «медленные за час» открывается у
+ * соседа тем же экраном.
+ */
+export const JOURNAL_PRESETS = [
+  { key: 'errors', label: 'Только ошибки', title: 'Ответы с кодом 400 и выше' },
+  { key: 'slow', label: 'Медленнее 1 с', title: 'Ответы дольше секунды; подписки на события сюда не идут' },
+  { key: 'hour', label: 'Последний час', title: 'Обращения с момента нажатия минус час' }
+];
 
 const DEFAULT_SORT = 'created_at';
 const DEFAULT_ORDER = 'desc';
@@ -38,6 +80,8 @@ const DEFAULT_PER_PAGE = 20;
  * @property {string} user
  * @property {string} from
  * @property {string} to
+ * @property {string} since
+ * @property {string} minDuration
  * @property {string} sort
  * @property {string} order
  * @property {number} page
@@ -59,14 +103,21 @@ export function journalStateFromQuery(query = {}) {
   const known = SORTABLE_FIELDS.includes(sort);
   const page = parseInt(str('page'), 10);
   const perPage = str('per_page');
+  const status = str('status');
+  const since = str('since');
+  const minDuration = str('min_duration');
 
   return {
     search: str('search'),
     method: str('method').toUpperCase(),
-    status: str('status'),
+    // Чужое значение отбрасывается: код ответа уходит в запрос числом, и мусор
+    // из ссылки вернулся бы отказом вместо списка.
+    status: STATUS_VALUES.includes(status) ? status : '',
     user: str('user'),
     from: str('from'),
     to: str('to'),
+    since: Number.isNaN(Date.parse(since)) ? '' : since,
+    minDuration: /^\d+$/.test(minDuration) ? minDuration : '',
     sort: known ? sort : DEFAULT_SORT,
     order: known && str('order') === 'asc' ? 'asc' : DEFAULT_ORDER,
     page: page > 0 ? page : 1,
@@ -88,6 +139,8 @@ export function journalQueryFromState(state) {
   if (state.user) query.user = String(state.user);
   if (state.from) query.from = state.from;
   if (state.to) query.to = state.to;
+  if (state.since) query.since = state.since;
+  if (state.minDuration) query.min_duration = String(state.minDuration);
   if (state.sort !== DEFAULT_SORT || state.order !== DEFAULT_ORDER) {
     query.sort = state.sort;
     query.order = state.order;
@@ -116,4 +169,67 @@ export function mergeJournalQuery(current, state) {
   const same = Object.keys(next).length === Object.keys(current).length
     && Object.keys(next).every(key => next[key] === current[key]);
   return same ? null : next;
+}
+
+/**
+ * Параметры кода ответа для запроса к серверу. Класс статусов разворачивается в
+ * границы диапазона: точным `status` его не выразить, а сервер ждёт числа.
+ * @param {string} status
+ * @returns {Record<string, number>}
+ */
+export function statusFilterParams(status) {
+  if (!status) return {};
+  if (status === 'errors') return { status_min: 400 };
+
+  const cls = /^([1-5])xx$/.exec(status);
+  if (cls) {
+    const base = Number(cls[1]) * 100;
+    return { status_min: base, status_max: base + 99 };
+  }
+  return { status: Number(status) };
+}
+
+/**
+ * Включён ли быстрый отбор. Состояние пресета не хранится отдельно: он и есть
+ * обычные фильтры, поэтому кнопка светится ровно тогда, когда они выставлены.
+ * @param {JournalState} state
+ * @param {string} key
+ * @returns {boolean}
+ */
+export function isJournalPresetOn(state, key) {
+  switch (key) {
+    case 'errors': return state.status === 'errors';
+    case 'slow': return String(state.minDuration) === String(SLOW_REQUEST_MS);
+    case 'hour': return Boolean(state.since);
+    default: return false;
+  }
+}
+
+/**
+ * Включает или снимает быстрый отбор, возвращая новый отбор целиком.
+ *
+ * Взаимоисключения разводятся здесь же: «только ошибки» поверх выбранного кода
+ * оставило бы на экране один этот код, а момент «час назад» и день из поля «с»
+ * борются за одну и ту же границу периода.
+ * @param {JournalState} state
+ * @param {string} key
+ * @param {Date} [now]
+ * @returns {JournalState}
+ */
+export function toggleJournalPreset(state, key, now = new Date()) {
+  const on = isJournalPresetOn(state, key);
+  const next = { ...state, page: 1 };
+
+  if (key === 'errors') {
+    next.status = on ? '' : 'errors';
+  } else if (key === 'slow') {
+    next.minDuration = on ? '' : String(SLOW_REQUEST_MS);
+  } else if (key === 'hour') {
+    next.since = on ? '' : new Date(now.getTime() - LAST_HOUR_MS).toISOString();
+    if (!on) {
+      next.from = '';
+      next.to = '';
+    }
+  }
+  return next;
 }

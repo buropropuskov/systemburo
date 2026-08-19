@@ -15522,6 +15522,18 @@ paths:
         in: query
         name: status
         type: integer
+      - description: Нижняя граница кода ответа (400 -- только ошибки)
+        in: query
+        name: status_min
+        type: integer
+      - description: Верхняя граница кода ответа
+        in: query
+        name: status_max
+        type: integer
+      - description: Только ответы дольше указанного времени, мс
+        in: query
+        name: min_duration_ms
+        type: integer
       - description: Дата начала (ISO 8601)
         in: query
         name: from_date

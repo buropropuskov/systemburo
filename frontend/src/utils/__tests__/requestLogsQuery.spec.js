@@ -2,7 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   journalStateFromQuery,
   journalQueryFromState,
-  mergeJournalQuery
+  mergeJournalQuery,
+  statusFilterParams,
+  isJournalPresetOn,
+  toggleJournalPreset
 } from '@/utils/requestLogsQuery';
 import { formatMs, formatDuration } from '@/utils/requestLogsFormat';
 
@@ -20,8 +23,8 @@ describe('journalStateFromQuery', () => {
 
     expect(state).toEqual({
       search: 'applications', method: 'POST', status: '500', user: '7',
-      from: '2026-08-01', to: '2026-08-19', sort: 'duration', order: 'asc',
-      page: 3, perPage: 50
+      from: '2026-08-01', to: '2026-08-19', since: '', minDuration: '',
+      sort: 'duration', order: 'asc', page: 3, perPage: 50
     });
   });
 
@@ -32,6 +35,24 @@ describe('journalStateFromQuery', () => {
     expect(state.order, 'направление без известного поля тоже сбрасывается').toBe('desc');
     expect(state.perPage).toBe(20);
     expect(state.page).toBe(1);
+  });
+
+  it('отбор быстрых кнопок читается из адреса', () => {
+    const state = journalStateFromQuery({
+      status: 'errors', min_duration: '1000', since: '2026-08-19T10:00:00.000Z'
+    });
+
+    expect(state.status).toBe('errors');
+    expect(state.minDuration).toBe('1000');
+    expect(state.since).toBe('2026-08-19T10:00:00.000Z');
+  });
+
+  it('мусор в отборе по коду ответа и в порогах отбрасывается', () => {
+    const state = journalStateFromQuery({ status: 'drop table', min_duration: 'сто', since: 'вчера' });
+
+    expect(state.status, 'на сервер уходит число, чужая строка вернулась бы отказом').toBe('');
+    expect(state.minDuration).toBe('');
+    expect(state.since).toBe('');
   });
 
   it('пустой адрес даёт отбор по умолчанию', () => {
@@ -48,6 +69,61 @@ describe('journalQueryFromState', () => {
   it('пишет только то, что отличается от умолчания', () => {
     const state = { ...journalStateFromQuery(), method: 'DELETE', page: 2, sort: 'status', order: 'asc' };
     expect(journalQueryFromState(state)).toEqual({ method: 'DELETE', page: '2', sort: 'status', order: 'asc' });
+  });
+});
+
+describe('statusFilterParams', () => {
+  it('класс статусов разворачивается в границы диапазона', () => {
+    expect(statusFilterParams('4xx')).toEqual({ status_min: 400, status_max: 499 });
+    expect(statusFilterParams('5xx')).toEqual({ status_min: 500, status_max: 599 });
+  });
+
+  it('«все ошибки» это нижняя граница без верхней', () => {
+    expect(statusFilterParams('errors')).toEqual({ status_min: 400 });
+  });
+
+  it('точный код уходит числом, пустой фильтр не добавляет параметров', () => {
+    expect(statusFilterParams('404')).toEqual({ status: 404 });
+    expect(statusFilterParams('')).toEqual({});
+  });
+});
+
+describe('быстрый отбор', () => {
+  const base = journalStateFromQuery();
+
+  it('«только ошибки» включается и снимается тем же нажатием', () => {
+    const on = toggleJournalPreset(base, 'errors');
+    expect(on.status).toBe('errors');
+    expect(isJournalPresetOn(on, 'errors')).toBe(true);
+
+    const off = toggleJournalPreset(on, 'errors');
+    expect(off.status).toBe('');
+    expect(isJournalPresetOn(off, 'errors')).toBe(false);
+  });
+
+  it('«медленнее 1 с» ставит порог в миллисекундах', () => {
+    const on = toggleJournalPreset(base, 'slow');
+    expect(on.minDuration).toBe('1000');
+    expect(isJournalPresetOn(on, 'slow')).toBe(true);
+  });
+
+  it('«последний час» отсчитывается от нажатия и вытесняет выбранные дни', () => {
+    const now = new Date('2026-08-19T15:30:00.000Z');
+    const on = toggleJournalPreset({ ...base, from: '2026-08-01', to: '2026-08-19' }, 'hour', now);
+
+    expect(on.since).toBe('2026-08-19T14:30:00.000Z');
+    expect(on.from, 'момент и день борются за одну границу периода').toBe('');
+    expect(on.to).toBe('');
+    expect(isJournalPresetOn(on, 'hour')).toBe(true);
+  });
+
+  it('быстрый отбор возвращает на первую страницу', () => {
+    expect(toggleJournalPreset({ ...base, page: 7 }, 'slow').page).toBe(1);
+  });
+
+  it('отбор быстрых кнопок доезжает до адреса', () => {
+    const on = toggleJournalPreset(base, 'slow');
+    expect(journalQueryFromState(on)).toEqual({ min_duration: '1000' });
   });
 });
 

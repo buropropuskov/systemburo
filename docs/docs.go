@@ -14706,6 +14706,24 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "integer",
+                        "description": "Нижняя граница кода ответа (400 -- только ошибки)",
+                        "name": "status_min",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Верхняя граница кода ответа",
+                        "name": "status_max",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Только ответы дольше указанного времени, мс",
+                        "name": "min_duration_ms",
+                        "in": "query"
+                    },
+                    {
                         "type": "string",
                         "description": "Дата начала (ISO 8601)",
                         "name": "from_date",
