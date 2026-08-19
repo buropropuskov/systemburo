@@ -113,6 +113,36 @@
       />
     </div>
 
+    <!-- Согласия субъекта в файле нет и не будет: колонки под него в бланке не заводили,
+         поэтому отметка ставится здесь один раз на весь список - тем же порядком, что и
+         места. Уходит патчем ко всем строкам пачки (placesPatch): у разобранных строк
+         своей галочки нет, они уже лежат в списке предварительными. -->
+    <div
+      v-if="showPDConsent"
+      class="bim__consent"
+      data-testid="bim-pd-consent"
+    >
+      <label class="consent-option">
+        <input
+          v-model="pdConsent"
+          type="checkbox"
+          data-testid="bim-pd-consent-checkbox"
+        >
+        <span>
+          {{ consentSubjectsLabel }} дали <a
+            href="/data-processing"
+            target="_blank"
+            rel="noopener"
+            class="blue"
+            @click.stop
+          >согласие</a> на обработку своих персональных данных<span
+            v-if="pdConsentRequired"
+            class="required"
+          >*</span>
+        </span>
+      </label>
+    </div>
+
     <!-- Строки, которые система поправила сама (раскладка в номере, омоглифы в ФИО,
          дополнение номера нулями). Принимаются без вмешательства, но человек должен
          видеть, что именно изменилось: молчаливая правка данных - худший исход. -->
@@ -444,6 +474,8 @@ export default {
       selectedTargetTables: [],
       selectedUnloadPlaces: [],
       selectedPassageTables: [],
+      // Согласие субъекта - одна отметка на всю пачку, см. блок bim__consent в разметке.
+      pdConsent: false,
       problemRows: [],
       // Ссылки на инпуты ячеек номера по строке (rowNumber -> [input,...]) - нужны для
       // автопрыжка фокуса в следующую ячейку, как в VehicleForm.
@@ -473,6 +505,14 @@ export default {
     showPassageTables() {
       return !this.isPeople && this.fieldVisible('passage_tables');
     },
+    showPDConsent() {
+      return this.fieldVisible('pd_consent');
+    },
+    // У бланка машин поле по умолчанию выключено, но администратор может его включить -
+    // тогда подпись обязана говорить про владельцев машин, а не про работников.
+    consentSubjectsLabel() {
+      return this.isPeople ? 'Все работники списка' : 'Владельцы машин из списка';
+    },
     // Обязательность выбора - ЗЕРКАЛО ручных форм (EmployeeForm.vue:491-492,
     // VehicleForm.vue:573-574): "видимо И required", а не одно только "видимо".
     // Видимое необязательное поле грид всё равно рисует (можно выбрать по желанию),
@@ -485,6 +525,12 @@ export default {
     },
     passageTablesRequired() {
       return this.showPassageTables && this.fieldRequired('passage_tables');
+    },
+    pdConsentRequired() {
+      return this.showPDConsent && this.fieldRequired('pd_consent');
+    },
+    consentReady() {
+      return !this.pdConsentRequired || this.pdConsent;
     },
     targetTablesOptions() {
       return this.reshapeTables(this.allPassageTables, 'people');
@@ -521,7 +567,7 @@ export default {
       return this.pendingCount;
     },
     canSubmit() {
-      return this.placesReady && this.addableCount > 0;
+      return this.placesReady && this.consentReady && this.addableCount > 0;
     },
     // Обязательные места, которых не хватает: подпись как на экране плюс признак,
     // есть ли вообще из чего выбирать - "выберите то, чего в справочнике нет" было бы
@@ -569,21 +615,30 @@ export default {
       if (this.missingPlaces.length) {
         return `Выберите ${this.missingPlaces.map((p) => p.label).join(' и ')}, чтобы добавить строки в заявку.`;
       }
+      if (!this.consentReady) {
+        return 'Отметьте согласие на обработку персональных данных - без него строки в заявку не уйдут.';
+      }
       return '';
     },
     // Места в файле не приходят и раскатываются на всю пачку разом - патч полей строки
     // собираем здесь, применяет его родитель ко всем предварительным строкам.
     placesPatch() {
+      // Отметка согласия едет вместе с местами: у строк из файла своей галочки нет, а
+      // подача (applicationEntityPayload) читает pdConsent с каждой строки. Без этого
+      // импортированный работник попадал в заявку без отметки - и запись реестра по нему
+      // тоже не создавалась (гейт uniqueEmployeeService.Create).
       if (this.isPeople) {
         return {
           targetTables: [...this.selectedTargetTables],
           passageTables: this.formatSelectedNames(this.selectedTargetTables, this.targetTablesOptions),
+          pdConsent: this.pdConsent,
         };
       }
       return {
         unloadPlaces: [...this.selectedUnloadPlaces],
         unloadingPlace: this.formatSelectedNames(this.selectedUnloadPlaces, this.unloadPlacesOptions),
         passage_tables: [...this.selectedPassageTables],
+        pdConsent: this.pdConsent,
       };
     },
   },
@@ -609,6 +664,8 @@ export default {
       this.selectedTargetTables = [];
       this.selectedUnloadPlaces = [];
       this.selectedPassageTables = [];
+      // Новый файл - новые люди: отметку прошлой пачки не наследуем.
+      this.pdConsent = false;
       this.plateCellRefs = {};
       // Справочник ждём ДО построения карточек ошибок: людям он нужен, чтобы
       // citizenshipName собрался при подаче, машинам - чтобы определить формат строки
@@ -1048,6 +1105,26 @@ export default {
 .bim__places-empty {
   font-size: 13px;
   color: var(--text-muted);
+}
+
+/* Отметка согласия стоит последней перед кнопкой - мелким текстом, как в форме подачи
+   (EmployeeForm .consent-option): это подтверждение, а не поле данных. */
+.bim__consent {
+  margin-top: 4px;
+}
+
+.bim__consent .consent-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.bim__consent .consent-option input[type="checkbox"] {
+  margin-top: 2px;
+  flex-shrink: 0;
 }
 
 .bim__pending-hint {
