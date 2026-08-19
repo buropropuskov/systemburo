@@ -43,7 +43,9 @@ type RequestLogs struct {
 
 func (RequestLogs) TableName() string { return "request_logs" }
 
-// RequestLogsQuery — параметры фильтрации и пагинации для списка логов.
+// RequestLogsQuery — параметры фильтрации, сортировки и пагинации для списка
+// логов. Sort и Order приходят из адресной строки: порядок строк должен
+// переживать обновление страницы и пересылку ссылки.
 type RequestLogsQuery struct {
 	UserID  *int   `query:"user_id"`
 	Method  string `query:"method"`
@@ -51,6 +53,8 @@ type RequestLogsQuery struct {
 	From    string `query:"from_date"`
 	To      string `query:"to_date"`
 	Search  string `query:"search"`
+	Sort    string `query:"sort"`
+	Order   string `query:"order"`
 	Page    int    `query:"page"`
 	PerPage int    `query:"per_page"`
 }

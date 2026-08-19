@@ -212,98 +212,21 @@
             <div class="table-container">
               <div class="table-header">
                 <div
-                  class="header-col time-col"
-                  @click="sortBy('created_at')"
+                  v-for="col in sortableColumns"
+                  :key="col.field"
+                  class="header-col"
+                  :class="col.cls"
+                  @click="sortBy(col.field)"
                 >
-                  <p :class="{ 'active-sort': sortField === 'created_at' }">
-                    Время
+                  <p :class="{ 'active-sort': sortField === col.field }">
+                    {{ col.label }}
                   </p>
                   <AppIcon
                     name="sort"
                     class="sort-icon"
                     :class="{
-                      'sorted': sortField === 'created_at',
-                      'desc': sortField === 'created_at' && sortDirection === 'desc'
-                    }"
-                  />
-                </div>
-                <div
-                  class="header-col method-col"
-                  @click="sortBy('method')"
-                >
-                  <p :class="{ 'active-sort': sortField === 'method' }">
-                    Метод
-                  </p>
-                  <AppIcon
-                    name="sort"
-                    class="sort-icon"
-                    :class="{
-                      'sorted': sortField === 'method',
-                      'desc': sortField === 'method' && sortDirection === 'desc'
-                    }"
-                  />
-                </div>
-                <div
-                  class="header-col path-col"
-                  @click="sortBy('url')"
-                >
-                  <p :class="{ 'active-sort': sortField === 'url' }">
-                    URL
-                  </p>
-                  <AppIcon
-                    name="sort"
-                    class="sort-icon"
-                    :class="{
-                      'sorted': sortField === 'url',
-                      'desc': sortField === 'url' && sortDirection === 'desc'
-                    }"
-                  />
-                </div>
-                <div
-                  class="header-col status-col"
-                  @click="sortBy('response_status')"
-                >
-                  <p :class="{ 'active-sort': sortField === 'response_status' }">
-                    Статус
-                  </p>
-                  <AppIcon
-                    name="sort"
-                    class="sort-icon"
-                    :class="{
-                      'sorted': sortField === 'response_status',
-                      'desc': sortField === 'response_status' && sortDirection === 'desc'
-                    }"
-                  />
-                </div>
-                <div
-                  class="header-col user-col"
-                  @click="sortBy('username')"
-                >
-                  <p :class="{ 'active-sort': sortField === 'username' }">
-                    Пользователь
-                  </p>
-                  <AppIcon
-                    name="sort"
-                    class="sort-icon"
-                    :class="{
-                      'sorted': sortField === 'username',
-                      'desc': sortField === 'username' && sortDirection === 'desc'
-                    }"
-                  />
-                </div>
-                <div
-                  class="header-col duration-col"
-                  @click="sortBy('duration_ms')"
-                >
-                  <p :class="{ 'active-sort': sortField === 'duration_ms' }">
-                    Отклик
-                  </p>
-                  <AppIcon
-                    name="sort"
-                    class="sort-icon"
-                    :class="{
-                      'sorted': sortField === 'duration_ms',
-                      'desc': sortField === 'duration_ms' && sortDirection === 'desc'
+                      'sorted': sortField === col.field,
+                      'desc': sortField === col.field && sortDirection === 'desc'
                     }"
                   />
                 </div>
@@ -733,6 +656,12 @@ import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import RefreshButton from '@/components/RefreshButton.vue'
 import AdminPageShell from '@/views/admin/AdminPageShell.vue'
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { SORTABLE_COLUMNS, journalStateFromQuery, mergeJournalQuery } from '@/utils/requestLogsQuery';
+import {
+  formatMs, formatDuration, formatDay, formatNum, formatTime,
+  formatFullDate, truncatePath, formatJson, getMethodClass, getStatusClass
+} from '@/utils/requestLogsFormat';
+
 
 export default {
   name: 'RequestsView',
@@ -768,6 +697,11 @@ export default {
       filterEndDate: '',
       sortField: 'created_at',
       sortDirection: 'desc',
+      sortableColumns: SORTABLE_COLUMNS,
+      // Номер последнего запроса списка. Список дёргают фильтр, сортировка,
+      // страница и обновление подряд, а отвечают они не в том порядке, в каком
+      // ушли: без номера медленный ответ прошлого фильтра затирает свежий.
+      logsSeq: 0,
       pagination: {
         page: 1,
         per_page: 20,
@@ -852,6 +786,9 @@ export default {
       return 'За свёрнутые сутки показано наибольшее суточное значение: отдельных длительностей у них уже нет.';
     }
   },
+  created() {
+    this.applyQueryToState();
+  },
   async mounted() {
     await Promise.all([
       this.fetchLogs(),
@@ -867,6 +804,16 @@ export default {
   },
   methods: {
     formatLogin,
+    formatMs,
+    formatDuration,
+    formatDay,
+    formatNum,
+    formatTime,
+    formatFullDate,
+    truncatePath,
+    formatJson,
+    getMethodClass,
+    getStatusClass,
 
     switchToAnalytics() {
       this.activeTab = 'analytics'
@@ -902,18 +849,6 @@ export default {
         this.isLoading = false
       }
     },
-    formatNum(n) {
-      return (n || 0).toLocaleString('ru-RU')
-    },
-    /**
-     * Сутки из ответа (2026-08-19) в привычный вид (19.08.2026).
-     * @param {string} day
-     * @returns {string}
-     */
-    formatDay(day) {
-      const parts = String(day || '').split('-')
-      return parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : String(day || '')
-    },
     barHeight(value) {
       const max = Math.max(...this.history.daily.map(d => d.requests), 1)
       return Math.max(4, Math.round((value / max) * 100))
@@ -930,18 +865,24 @@ export default {
     },
 
     async fetchLogs() {
+      const seq = ++this.logsSeq;
+      this.syncQueryFromState();
       this.isLoading = true;
       try {
         const params = new URLSearchParams({
           page: this.pagination.page,
           per_page: this.pagination.per_page,
+          sort: this.sortField,
+          order: this.sortDirection,
           ...this.buildFilterParams()
         });
 
         const response = await apiRequestRaw(`/request-logs?${params}`);
+        if (seq !== this.logsSeq) return;
 
         if (response.ok) {
           const body = await response.json();
+          if (seq !== this.logsSeq) return;
           if (body && body.success) {
             this.logs = body.data || [];
             if (body.meta) {
@@ -952,11 +893,61 @@ export default {
           }
         }
       } catch (error) {
+        if (seq !== this.logsSeq) return;
         console.error('Error fetching logs:', error);
         useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'логи', type: 'error' });
       } finally {
-        this.isLoading = false;
+        if (seq === this.logsSeq) {
+          this.isLoading = false;
+        }
       }
+    },
+
+
+
+
+    /**
+     * Читает отбор из адресной строки: присланная ссылка открывает тот же
+     * экран, а обновление страницы его не теряет.
+     */
+    applyQueryToState() {
+      const state = journalStateFromQuery(this.$route?.query || {});
+      this.searchQuery = state.search;
+      this.filterMethod = state.method;
+      this.filterStatus = state.status;
+      this.filterUser = state.user;
+      this.filterStartDate = state.from;
+      this.filterEndDate = state.to;
+      this.sortField = state.sort;
+      this.sortDirection = state.order;
+      this.pagination.page = state.page;
+      this.pagination.per_page = state.perPage;
+      this.perPage = String(state.perPage);
+    },
+
+    /**
+     * Текущий отбор в том виде, в каком его читают утилиты адреса.
+     * @returns {object}
+     */
+    journalState() {
+      return {
+        search: this.searchQuery,
+        method: this.filterMethod,
+        status: this.filterStatus,
+        user: this.filterUser,
+        from: this.filterStartDate,
+        to: this.filterEndDate,
+        sort: this.sortField,
+        order: this.sortDirection,
+        page: this.pagination.page,
+        perPage: this.pagination.per_page
+      };
+    },
+
+    syncQueryFromState() {
+      if (!this.$router) return;
+      const next = mergeJournalQuery(this.$route?.query || {}, this.journalState());
+      if (next) this.$router.replace({ query: next }).catch(() => {});
     },
 
     async fetchStats() {
@@ -1027,7 +1018,13 @@ export default {
     async exportLogs() {
       this.isExporting = true;
       try {
-        const params = new URLSearchParams(this.buildFilterParams());
+        // Порядок тот же, что на экране: выгрузка «самых медленных» должна
+        // начинаться с самых медленных, а не с последних по времени.
+        const params = new URLSearchParams({
+          sort: this.sortField,
+          order: this.sortDirection,
+          ...this.buildFilterParams()
+        });
         const response = await apiRequest(`/request-logs/export?${params}`);
         if (response.ok) {
           const text = await response.text();
@@ -1080,6 +1077,12 @@ export default {
       }
     },
 
+    /**
+     * Порядок строк задаёт сервер: в списке одна страница, и перестановка её на
+     * месте показывала бы «самые медленные» только среди двадцати видимых.
+     * Раньше клик переставлял стрелку и не трогал строки вообще.
+     * @param {string} field
+     */
     sortBy(field) {
       if (this.sortField === field) {
         this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -1087,6 +1090,8 @@ export default {
         this.sortField = field;
         this.sortDirection = 'desc';
       }
+      this.pagination.page = 1;
+      this.fetchLogs();
     },
 
     selectLog(log) {
@@ -1125,91 +1130,13 @@ export default {
       this.fetchStats();
     },
 
-    formatTime(timestamp) {
-      if (!timestamp) return '';
-      const date = new Date(timestamp);
-      return date.toLocaleTimeString('ru-RU', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
-    },
 
-    formatFullDate(timestamp) {
-      if (!timestamp) return '';
-      const date = new Date(timestamp);
-      return date.toLocaleString('ru-RU', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
-    },
 
-    truncatePath(path) {
-      if (!path) return '';
-      if (path.length > 40) {
-        return path.substring(0, 37) + '...';
-      }
-      return path;
-    },
 
-    getMethodClass(method) {
-      const classes = {
-        'GET': 'method-get',
-        'POST': 'method-post',
-        'PUT': 'method-put',
-        'DELETE': 'method-delete',
-        'PATCH': 'method-patch'
-      };
-      return classes[method] || 'method-other';
-    },
 
-    getStatusClass(status) {
-      if (!status) return 'status-unknown';
-      if (status < 300) return 'status-success';
-      if (status < 400) return 'status-redirect';
-      if (status < 500) return 'status-client-error';
-      return 'status-server-error';
-    },
 
-    /**
-     * Длительность в миллисекундах для показа: до сотни миллисекунд с одним
-     * знаком после запятой, дальше целыми. Ответы быстрее миллисекунды раньше
-     * показывались нулём, потому что бэк округлял их вниз.
-     * @param {number} ms
-     * @param {boolean} [withUnit] дописать единицы измерения
-     * @returns {string}
-     */
-    formatMs(ms, withUnit = true) {
-      const value = Number(ms) || 0;
-      const rounded = value >= 100 ? Math.round(value) : Math.round(value * 10) / 10;
-      return withUnit ? rounded + 'мс' : String(rounded);
-    },
 
-    /**
-     * Длительность записи журнала: микросекунды точнее, миллисекунды остаются
-     * для записей, сделанных до перехода на них.
-     * @param {{duration_us?: number, duration_ms?: number}} log
-     * @returns {string}
-     */
-    formatDuration(log) {
-      if (!log) return '';
-      if (log.duration_us != null) return this.formatMs(log.duration_us / 1000);
-      return this.formatMs(log.duration_ms || 0);
-    },
 
-    formatJson(text) {
-      if (!text) return '';
-      try {
-        const obj = JSON.parse(text);
-        return JSON.stringify(obj, null, 2);
-      } catch {
-        return text;
-      }
-    },
 
   }
 };
