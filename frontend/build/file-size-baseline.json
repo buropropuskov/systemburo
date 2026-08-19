@@ -1,0 +1,282 @@
+{
+  "targets": {
+    "template": 400,
+    "script": 500,
+    "style": 500,
+    "js": 400
+  },
+  "files": {
+    "src/api/applications.js": {
+      "js": 440
+    },
+    "src/components/admin/AttachmentTemplateEditor.vue": {
+      "template": 662,
+      "script": 817,
+      "style": 1059
+    },
+    "src/components/admin/blacklist/BlacklistHistoryModalBase.vue": {
+      "style": 506
+    },
+    "src/components/admin/blacklist/BlacklistTabBase.vue": {
+      "style": 521
+    },
+    "src/components/admin/DataProcessingSettings.vue": {
+      "style": 536
+    },
+    "src/components/ApplicationApprovers.vue": {
+      "style": 736
+    },
+    "src/components/ApplicationDetail/ApplicationActionBar.vue": {
+      "template": 544,
+      "script": 669
+    },
+    "src/components/ApplicationDetail/ApplicationAttachmentDetail.vue": {
+      "template": 433,
+      "script": 937,
+      "style": 991
+    },
+    "src/components/ApplicationDetail/ApplicationDetail.vue": {
+      "template": 720,
+      "script": 1581,
+      "style": 1129
+    },
+    "src/components/ApplicationDetail/ApplicationHistory.vue": {
+      "script": 609,
+      "style": 601
+    },
+    "src/components/AttachmentsManagement.vue": {
+      "template": 511,
+      "style": 690
+    },
+    "src/components/BlankSelector.vue": {
+      "script": 540,
+      "style": 549
+    },
+    "src/components/CarDetailsModal.vue": {
+      "script": 651,
+      "style": 740
+    },
+    "src/components/CarHistoryModal.vue": {
+      "script": 586,
+      "style": 602
+    },
+    "src/components/CarsTable.vue": {
+      "template": 618,
+      "script": 1330,
+      "style": 1142
+    },
+    "src/components/CitizenshipManagement.vue": {
+      "template": 444,
+      "style": 707
+    },
+    "src/components/CompaniesManagement.vue": {
+      "template": 725,
+      "script": 860,
+      "style": 881
+    },
+    "src/components/CreateApplication/ApplicationSuccessModal.vue": {
+      "style": 579
+    },
+    "src/components/CreateApplication/BlankImportResult.vue": {
+      "script": 589
+    },
+    "src/components/CreateApplication/CreateApplication.vue": {
+      "template": 428,
+      "script": 2948,
+      "style": 663
+    },
+    "src/components/CreateApplication/DateRangeSection.vue": {
+      "script": 767,
+      "style": 569
+    },
+    "src/components/CreateApplication/EmployeeDetailsModal.vue": {
+      "template": 508,
+      "script": 628,
+      "style": 823
+    },
+    "src/components/CreateApplication/EmployeeForm.vue": {
+      "template": 423,
+      "script": 996,
+      "style": 775
+    },
+    "src/components/CreateApplication/EmployeeHistoryModal.vue": {
+      "script": 557,
+      "style": 604
+    },
+    "src/components/CreateApplication/EmployeesList.vue": {
+      "style": 586
+    },
+    "src/components/CreateApplication/EmployeesTableHistoryModal.vue": {
+      "style": 546
+    },
+    "src/components/CreateApplication/ExistingCarsModal.vue": {
+      "style": 653
+    },
+    "src/components/CreateApplication/ExistingEmployeesModal.vue": {
+      "style": 676
+    },
+    "src/components/CreateApplication/ItemsForm.vue": {
+      "style": 583
+    },
+    "src/components/CreateApplication/VehicleDetailsModal.vue": {
+      "template": 516,
+      "script": 810,
+      "style": 848
+    },
+    "src/components/CreateApplication/VehicleForm.vue": {
+      "template": 461,
+      "script": 1182,
+      "style": 1102
+    },
+    "src/components/CreateApplication/VehiclesList.vue": {
+      "style": 747
+    },
+    "src/components/DateFilter.vue": {
+      "script": 630,
+      "style": 615
+    },
+    "src/components/DocumentsManagement.vue": {
+      "template": 528,
+      "style": 613
+    },
+    "src/components/FactTable.vue": {
+      "template": 415,
+      "script": 873,
+      "style": 804
+    },
+    "src/components/LoginComponent.vue": {
+      "style": 843
+    },
+    "src/components/MarksManagement.vue": {
+      "style": 641
+    },
+    "src/components/NavMenu.vue": {
+      "template": 625,
+      "script": 708,
+      "style": 1117
+    },
+    "src/components/NewsManagement.vue": {
+      "style": 513
+    },
+    "src/components/NumberFormat.vue": {
+      "template": 747,
+      "script": 577,
+      "style": 948
+    },
+    "src/components/onboarding/onboardingSteps.js": {
+      "js": 740
+    },
+    "src/components/onboarding/OnboardingTour.vue": {
+      "script": 616
+    },
+    "src/components/onboarding/securityOnboardingSteps.js": {
+      "js": 409
+    },
+    "src/components/OrganizationsManagement.vue": {
+      "template": 725,
+      "script": 860,
+      "style": 881
+    },
+    "src/components/PeopleTable.vue": {
+      "template": 639,
+      "script": 1254,
+      "style": 1144
+    },
+    "src/components/statistics/ProcessingAnalytics.vue": {
+      "template": 631,
+      "script": 572,
+      "style": 907
+    },
+    "src/components/statistics/StatisticsDashboard.vue": {
+      "template": 529,
+      "style": 688
+    },
+    "src/components/TableConstructor.vue": {
+      "template": 898,
+      "script": 818,
+      "style": 1462
+    },
+    "src/components/TablesComponent.vue": {
+      "template": 615,
+      "script": 676,
+      "style": 992
+    },
+    "src/components/TextConstructor.vue": {
+      "template": 437
+    },
+    "src/components/UnloadPlaces/UnloadPlacesContainer.vue": {
+      "template": 866,
+      "script": 831,
+      "style": 1345
+    },
+    "src/components/UserApplications.vue": {
+      "template": 558,
+      "script": 735,
+      "style": 1255
+    },
+    "src/components/UserControl.vue": {
+      "template": 1102,
+      "script": 1307,
+      "style": 1040
+    },
+    "src/components/UserHistoryModal.vue": {
+      "script": 503
+    },
+    "src/components/UserTypes.vue": {
+      "template": 441,
+      "style": 704
+    },
+    "src/components/WorkScheduleTab.vue": {
+      "template": 407,
+      "style": 634
+    },
+    "src/composables/useOnboarding.js": {
+      "js": 777
+    },
+    "src/router.js": {
+      "js": 459
+    },
+    "src/stores/onboarding.js": {
+      "js": 439
+    },
+    "src/utils/documentTextExtract.js": {
+      "js": 605
+    },
+    "src/views/AccessibleAttachmentsView.vue": {
+      "template": 449,
+      "style": 718
+    },
+    "src/views/admin/AdminPermissionGroups.vue": {
+      "style": 554
+    },
+    "src/views/admin/AdminRoles.vue": {
+      "style": 582
+    },
+    "src/views/AdminSettings.vue": {
+      "template": 674,
+      "script": 530
+    },
+    "src/views/ApplicationsCenter.vue": {
+      "template": 974,
+      "script": 1495,
+      "style": 1852
+    },
+    "src/views/CarsView.vue": {
+      "template": 854,
+      "script": 1040,
+      "style": 1372
+    },
+    "src/views/EmployeeView.vue": {
+      "template": 605,
+      "script": 556,
+      "style": 937
+    },
+    "src/views/NewsAndReview.vue": {
+      "style": 705
+    },
+    "src/views/RequestsView.vue": {
+      "template": 702,
+      "style": 820
+    }
+  }
+}

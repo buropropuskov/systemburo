@@ -127,6 +127,11 @@ jobs:
       - uses: ./.github/actions/setup-frontend
       - working-directory: frontend
         run: npm run lint
+      # Храповик на размер файлов: новый файл обязан уложиться в порог,
+      # существующие нарушители зафиксированы в build/file-size-baseline.json
+      # и расти не могут. Порог опускается по мере распила мега-компонентов.
+      - working-directory: frontend
+        run: npm run lint:size
 
   frontend-test:
     name: Frontend Unit Tests
