@@ -264,8 +264,7 @@ function toYMD(d) {
 
 export default {
   name: 'UserLoginHistory',
-  components: {
-    AppIcon, BaseDropdown, DateFilter, Pager },
+  components: { AppIcon, BaseDropdown, DateFilter, Pager },
   props: {
     username: {
       type: String,
