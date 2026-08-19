@@ -13,8 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Раздел «Мониторинг запросов» целиком admin-only (page.admin) -- авторизация на
-// роут-middleware (Ф5, ранее service checkAdmin).
+// Раздел «Мониторинг запросов» гейтится ключом page.admin.monitoring (#2125) --
+// тем же, по которому пункт показывает меню фронта. До этого группа висела на
+// page.admin, и носитель ключа раздела получал 403 на каждом запросе экрана.
 
 func TestRequestLogs_Forbidden_NonAdmin(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
@@ -45,6 +46,63 @@ func TestRequestLogs_Admin_Ok(t *testing.T) {
 
 	rec = testutil.GET(t, e, "/request-logs/stats", h)
 	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestRequestLogs_MonitoringKeyHolder_Ok(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "rlmonitor", "password123", 1, td.OrgID, td.CompanyID)
+	testutil.GrantPermission(t, getUserID(t, db, "rlmonitor"), services.KeyPageAdminMonitoring)
+	h := testutil.AuthHeader(token)
+
+	paths := []string{
+		"/request-logs", "/request-logs/stats", "/request-logs/users", "/request-logs/realtime",
+		"/request-logs/timeline", "/request-logs/history", "/request-logs/export",
+	}
+	for _, path := range paths {
+		rec := testutil.GET(t, e, path, h)
+		assert.Equal(t, http.StatusOK, rec.Code, "носитель page.admin.monitoring должен проходить на %s", path)
+	}
+}
+
+// page.admin сам по себе раздел больше не открывает: гейт сведён к одному ключу,
+// иначе право «администрирование» тихо давало бы доступ к журналу с ПД в адресах.
+func TestRequestLogs_PageAdminWithoutMonitoring_Forbidden(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "rlpageadmin", "password123", 1, td.OrgID, td.CompanyID)
+	testutil.GrantPermission(t, getUserID(t, db, "rlpageadmin"), services.KeyPageAdmin)
+
+	rec := testutil.GET(t, e, "/request-logs", testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+}
+
+// Администратор проходит через adminAll, а личный deny-override раздел закрывает --
+// до перевода гейта отзыв права мониторинга не влиял на API вообще.
+func TestRequestLogs_AdminDenyOverride_Forbidden(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	// RegisterManager -> is_admin=true, не супер (см. testutil/auth.go): у супера
+	// deny-override не действует.
+	token := testutil.RegisterManager(t, e, "rladmindeny", td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.GET(t, e, "/request-logs", h)
+	require.Equal(t, http.StatusOK, rec.Code, "администратор без deny должен проходить")
+
+	testutil.DenyPermission(t, getUserID(t, db, "rladmindeny"), services.KeyPageAdminMonitoring)
+
+	rec = testutil.GET(t, e, "/request-logs", h)
+	assert.Equal(t, http.StatusForbidden, rec.Code, "deny-override должен закрывать раздел администратору")
 }
 
 func TestRequestLogs_Unauthorized(t *testing.T) {
