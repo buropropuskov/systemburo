@@ -51,8 +51,11 @@ Chart.register(
  */
 export function useChartCanvas(canvas, config) {
   let chart = null;
+  let themeWatcher = null;
 
   function destroy() {
+    themeWatcher?.disconnect();
+    themeWatcher = null;
     if (!chart) return;
     chart.destroy();
     chart = null;
@@ -62,10 +65,62 @@ export function useChartCanvas(canvas, config) {
     destroy();
     if (!canvas.value) return;
     chart = new Chart(canvas.value, config.value);
+    themeWatcher = watchTheme(canvas.value, () => chart?.update('none'));
   }
 
   watch([canvas, config], draw, { immediate: true, flush: 'post' });
   onBeforeUnmount(destroy);
+}
+
+/**
+ * Перерисовка графика при смене темы страницы.
+ *
+ * Цвета оформления снимаются с переменных темы в момент отрисовки, а сам
+ * холст перерисовывается только по событию: смени тему при открытом графике -
+ * и он останется в прежней палитре до следующего обновления данных. Тему
+ * переключает атрибут `data-theme` на корне документа, за ним и следим.
+ *
+ * @param {HTMLCanvasElement} canvasEl холст графика
+ * @param {() => void} redraw перерисовка
+ * @returns {MutationObserver|null} null там, где наблюдателя нет (юниты)
+ */
+function watchTheme(canvasEl, redraw) {
+  const root = canvasEl?.ownerDocument?.documentElement;
+  const view = canvasEl?.ownerDocument?.defaultView;
+  if (!root || typeof view?.MutationObserver !== 'function') return null;
+  const observer = new view.MutationObserver(redraw);
+  observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+  return observer;
+}
+
+/**
+ * Цвет оформления, снятый с темы страницы в момент отрисовки.
+ *
+ * Chart.js рисует на холсте и переменных CSS не знает: прибитые числом цвета
+ * сетки и подписей верны только для светлой палитры, а на тёмной карточке
+ * сетка светила ярче самих данных. Значение отдаётся вычисляемой настройкой,
+ * поэтому читается на каждой отрисовке и следует за темой.
+ *
+ * @param {string} name имя переменной темы, например '--border'
+ * @param {string} fallback цвет для окружения без темы (юниты, отсутствующий холст)
+ * @returns {(ctx: object) => string}
+ */
+export function themeColor(name, fallback) {
+  return (ctx) => cssVariable(ctx?.chart?.canvas, name, fallback);
+}
+
+/**
+ * Значение переменной темы у элемента.
+ *
+ * @param {HTMLElement|null|undefined} el элемент, с которого снимается тема
+ * @param {string} name имя переменной
+ * @param {string} fallback значение, когда темы нет
+ * @returns {string}
+ */
+export function cssVariable(el, name, fallback) {
+  const view = el?.ownerDocument?.defaultView;
+  const value = view?.getComputedStyle?.(el)?.getPropertyValue?.(name);
+  return value?.trim() || fallback;
 }
 
 /**
@@ -139,13 +194,38 @@ export function verticalGradient(color, from = 0.32, to = 0.02) {
 }
 
 /** Оформление осей и подсказки, общее для всех графиков аналитики. */
-export const AXIS_LABEL = { color: '#a2a2a2', font: { size: 11 } };
-export const GRID_COLOR = '#eef0f7';
+export const AXIS_LABEL = { color: themeColor('--text-muted', '#a2a2a2'), font: { size: 11 } };
+export const GRID_COLOR = themeColor('--border', '#eef0f7');
 export const TOOLTIP_STYLE = {
   backgroundColor: 'rgba(30, 30, 40, 0.92)',
   titleColor: '#ffffff',
   bodyColor: '#ffffff',
+  // Рамка отделяет подсказку от тёмной карточки: без неё тёмная плашка на
+  // тёмной теме сливалась с фоном под графиком.
+  borderColor: themeColor('--border', 'rgba(255, 255, 255, 0.14)'),
+  borderWidth: 1,
   padding: 10,
   cornerRadius: 6,
   displayColors: true,
 };
+
+/**
+ * Точка ряда под курсором: цвет ряда в белом кольце.
+ *
+ * Без явных цветов Chart.js берёт их у самого ряда - обводку из `borderColor`
+ * линии, заливку из `backgroundColor`, то есть из полупрозрачного градиента
+ * области. Точка выходит того же цвета, что линия под ней, и на графике её не
+ * видно. Белое кольцо отбивает её от линии в любой палитре ряда; так же
+ * рисовал маркер прежний движок.
+ *
+ * @param {string} color цвет ряда
+ * @returns {object} часть описания набора данных Chart.js
+ */
+export function hoverPointStyle(color) {
+  return {
+    pointHoverRadius: 6,
+    pointHoverBorderWidth: 3,
+    pointHoverBackgroundColor: color,
+    pointHoverBorderColor: '#ffffff',
+  };
+}

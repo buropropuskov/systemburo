@@ -7,12 +7,26 @@
  * поддельном холсте, чего с кодом внутри компонента не сделать.
  */
 
+import { cssVariable } from './useChartCanvas';
+
 /**
  * Минимальный угол сегмента, при котором подпись доли ещё помещается в дугу.
  * Значение перенесено из прежнего движка (minAngleToShowLabel), иначе тонкие
  * доли подписываются друг поверх друга.
  */
 const MIN_LABEL_ANGLE = (10 * Math.PI) / 180;
+
+/**
+ * Цвет оформления из темы страницы.
+ *
+ * @param {object} chart экземпляр Chart.js
+ * @param {string} name имя переменной темы
+ * @param {string} fallback цвет для окружения без темы
+ * @returns {string}
+ */
+function themed(chart, name, fallback) {
+  return cssVariable(chart?.canvas, name, fallback);
+}
 
 const FALLBACK_FONT = "'Montserrat', sans-serif";
 
@@ -111,10 +125,12 @@ export function centerLabelPlugin({ label = '', format = String } = {}) {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.font = `400 12px ${family}`;
-      ctx.fillStyle = '#a2a2a2';
+      ctx.fillStyle = themed(chart, '--text-muted', '#a2a2a2');
       ctx.fillText(caption, anchor.x, anchor.y - 12);
       ctx.font = `700 20px ${family}`;
-      ctx.fillStyle = '#333333';
+      // Цвет темы, а не прибитый тёмно-серый: на тёмной карточке итог в центре
+      // кольца был почти неразличим.
+      ctx.fillStyle = themed(chart, '--text', '#333333');
       ctx.fillText(format(value), anchor.x, anchor.y + 10);
       ctx.restore();
     },

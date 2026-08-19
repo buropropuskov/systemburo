@@ -21,7 +21,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { centerLabelPlugin, sliceLabelsPlugin } from './donutPlugins';
-import { TOOLTIP_STYLE, lighten, useChartCanvas } from './useChartCanvas';
+import { TOOLTIP_STYLE, lighten, themeColor, useChartCanvas } from './useChartCanvas';
 
 const props = defineProps({
   /** Сегменты в форме [{ label, value }]; label — подпись доли (тип вложения, статус). */
@@ -106,9 +106,11 @@ const config = computed(() => ({
         data: series.value,
         backgroundColor: segmentColors.value,
         hoverBackgroundColor: segmentColors.value.map((c) => lighten(c, 0.06)),
-        borderColor: '#ffffff',
+        // Разделитель в цвет карточки: белая обводка на тёмной теме читалась
+        // жирным кольцом вокруг диаграммы.
+        borderColor: themeColor('--surface', '#ffffff'),
         borderWidth: 2,
-        hoverBorderColor: '#ffffff',
+        hoverBorderColor: themeColor('--surface', '#ffffff'),
       },
     ],
   },
@@ -122,7 +124,7 @@ const config = computed(() => ({
       legend: {
         position: 'bottom',
         labels: {
-          color: '#666',
+          color: themeColor('--text', '#666'),
           font: { size: 12 },
           usePointStyle: true,
           pointStyle: 'rectRounded',
