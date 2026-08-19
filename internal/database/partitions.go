@@ -288,9 +288,19 @@ func rollupLegacyRequestLogs(db *gorm.DB) {
 	slog.Info("request_logs_legacy свёрнута в агрегаты и удалена")
 }
 
+// LogEndpointExpr -- нормализованный маршрут запроса: query-строка отброшена,
+// числовые сегменты пути заменены на :id, чтобы записи схлопывались по
+// логическому маршруту.
+//
+// Выражение общее со свёрткой намеренно: «Аналитика» дочитывает дни новее
+// последней свёртки прямо из детальных партиций и складывает их с агрегатами.
+// Разъедься нормализация -- один и тот же маршрут пришёл бы в топ двумя строками.
+//
+// Разделитель адреса и query задан как chr(63): знак вопроса в кавычках gorm
+// принимает за место подстановки и разъезжается на аргументах запроса (#2125).
+const LogEndpointExpr = `regexp_replace(split_part(COALESCE(url, ''), chr(63), 1), '/[0-9]+', '/:id', 'g')`
+
 // aggregateLogTable сворачивает таблицу/партицию логов в request_logs_daily.
-// Endpoint нормализуется: query-строка отбрасывается, числовые сегменты пути
-// заменяются на :id, чтобы агрегаты схлопывались по логическому маршруту.
 func aggregateLogTable(db *gorm.DB, table string) error {
 	stmt := fmt.Sprintf(`
 		INSERT INTO request_logs_daily
@@ -300,7 +310,7 @@ func aggregateLogTable(db *gorm.DB, table string) error {
 		SELECT
 			created_at::date,
 			COALESCE(user_id, 0),
-			regexp_replace(split_part(COALESCE(url, ''), '?', 1), '/[0-9]+', '/:id', 'g'),
+			`+LogEndpointExpr+`,
 			COALESCE(method, ''),
 			COALESCE(response_status, 0) / 100,
 			count(*),

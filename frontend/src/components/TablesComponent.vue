@@ -22,10 +22,10 @@
           :aria-label="instructionCompact ? 'Инструкция' : null"
           @click="openInstruction"
         >
-          <img
-            src="@/assets/icons/instruction.png"
-            class="tables__icon"
-          >
+          <AppIcon
+            name="instruction"
+            class="tables__icon tables__icon--accent"
+          />
           <p
             v-if="!instructionCompact"
             class="instruction__text"
@@ -96,10 +96,10 @@
               class="field__input search"
               @input="applyFilters"
             >
-            <img
-              src="@/assets/icons/search.png"
+            <AppIcon
+              name="search"
               class="tables__icon"
-            >
+            />
           </div>
 
           <!-- Десктоп: вторичные фильтры инлайн в строке (как было). Видимость каждого
@@ -158,11 +158,10 @@
               data-testid="table-search-icon"
               @click="toggleMobileSearch"
             >
-              <img
-                src="@/assets/icons/search.png"
+              <AppIcon
+                name="search"
                 class="search-icon-btn__img"
-                alt=""
-              >
+              />
             </button>
 
             <!-- Действия таблицы (Версии/Отчёт/Экспорт/Корзина) свёрнуты в лист снизу:
@@ -241,11 +240,10 @@
             data-testid="table-versions-link"
             aria-label="Версии состояния таблицы"
           >
-            <img
-              src="@/assets/icons/recent-changes.png"
+            <AppIcon
+              name="recent-changes"
               class="options__icon"
-              alt=""
-            >
+            />
             <span class="options__text">Версии</span>
           </RouterLink>
           <RouterLink
@@ -281,10 +279,10 @@
             data-testid="pass-report-button"
             @click="showPassReport = true"
           >
-            <img
-              src="@/assets/icons/stats.png"
+            <AppIcon
+              name="stats"
               class="tables__icon"
-            >
+            />
             <p class="options__text">
               Отчёт
             </p>
@@ -315,11 +313,10 @@
           data-testid="table-versions-link"
           @click="showActionsSheet = false"
         >
-          <img
-            src="@/assets/icons/recent-changes.png"
+          <AppIcon
+            name="recent-changes"
             class="actions-sheet__icon"
-            alt=""
-          >
+          />
           Версии таблицы
         </RouterLink>
         <!-- «История» переехала сюда из шапки таблицы: там на телефоне один ряд в
@@ -332,11 +329,10 @@
           data-testid="table-history-action"
           @click="runSheetAction(openTableHistory)"
         >
-          <img
-            src="@/assets/icons/clipboard.png"
+          <AppIcon
+            name="clipboard"
             class="actions-sheet__icon"
-            alt=""
-          >
+          />
           История изменений
         </button>
         <button
@@ -346,11 +342,10 @@
           data-testid="pass-report-button"
           @click="runSheetAction(() => { showPassReport = true; })"
         >
-          <img
-            src="@/assets/icons/stats.png"
+          <AppIcon
+            name="stats"
             class="actions-sheet__icon"
-            alt=""
-          >
+          />
           Отчёт по проходам
         </button>
         <button
@@ -1454,6 +1449,16 @@ export default {
 .tables__icon {
     width: 15px;
     height: 15px;
+    color: var(--text);
+    /* Глиф рисуется на 15px: общая обводка 1.7 при поле 24 даёт на экране 1.06px -
+       волосок против прежнего залитого растра. */
+    stroke-width: 2.2;
+}
+
+/* Значок руководства был фирменного синего и остаётся им: он ведёт к инструкции,
+   а не к данным таблицы. */
+.tables__icon--accent {
+    color: var(--accent-text);
 }
 
 .tables__filters {
@@ -1570,6 +1575,8 @@ export default {
     height: clamp(14px, 1.6vw, 20px);
     cursor: pointer;
     flex-shrink: 0;
+    color: var(--text);
+    stroke-width: 2;
 }
 
 .options__versions-link,
@@ -2205,6 +2212,8 @@ export default {
     .search-icon-btn__img {
         width: 16px;
         height: 16px;
+        color: var(--text);
+        stroke-width: 2.1;
     }
 
     /* «⋯» - тот же круг 36px, что у поиска рядом: разъехавшиеся по высоте контролы

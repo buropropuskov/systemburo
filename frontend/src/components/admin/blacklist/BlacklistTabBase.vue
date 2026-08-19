@@ -160,11 +160,10 @@
               v-if="entityIcon"
               class="bl-details-icon"
             >
-              <img
-                :src="entityIcon"
-                alt=""
+              <AppIcon
+                :name="entityIcon"
                 class="bl-details-icon-img"
-              >
+              />
             </div>
             <h3 class="bl-details-title">
               {{ getPrimaryText(selected) }}
@@ -277,6 +276,7 @@ import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 
@@ -289,10 +289,11 @@ import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
  */
 export default {
   name: 'BlacklistTabBase',
-  components: { BaseDropdown, SearchComponent, RefreshButton, LoaderSpinner, ConfirmationModal },
+  components: { BaseDropdown, SearchComponent, RefreshButton, LoaderSpinner, ConfirmationModal, AppIcon },
   props: {
     searchPlaceholder: { type: String, default: 'Поиск...' },
     emptyNoun: { type: String, default: 'записей' },
+    // Имя глифа реестра appIcons (не путь к файлу): значок красится цветом текста.
     entityIcon: { type: String, default: '' },
     apiList: { type: Function, required: true },
     getPrimaryText: { type: Function, required: true },
@@ -856,7 +857,7 @@ export default {
 .bl-details-icon-img {
   width: 20px;
   height: 20px;
-  object-fit: contain;
+  color: var(--text);
 }
 
 .bl-details-title {

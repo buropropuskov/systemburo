@@ -194,11 +194,10 @@
           <div class="te-picker-header">
             <h4>Привязка полей системы</h4>
             <div class="te-search-wrap">
-              <img
-                src="@/assets/icons/search.png"
+              <AppIcon
+                name="search"
                 class="te-search-icon"
-                alt=""
-              >
+              />
               <input
                 v-model="searchQuery"
                 type="text"
@@ -675,6 +674,7 @@ import BaseModal from '@/components/ui/BaseModal.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import AttachmentMappingCopyModal from './AttachmentMappingCopyModal.vue';
 import XlsxViewer from './XlsxViewer.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 const PATH_COLORS = [
   '#4F5BDF', '#e85d75', '#2e9e5a', '#e8a317', '#8e44ad',
@@ -697,6 +697,7 @@ const GROUP_ORDER = [
 export default {
   name: 'AttachmentTemplateEditor',
   components: {
+    AppIcon,
     BaseModal, ToggleSwitch, XlsxViewer, AttachmentMappingCopyModal,
   },
   props: {
@@ -2032,6 +2033,9 @@ export default {
   height: 12px;
   opacity: 0.45;
   pointer-events: none;
+  /* 12px - самый мелкий значок среза: 1.7 вырождается в 0.85px. */
+  stroke-width: 2.4;
+  color: var(--text);
 }
 
 .te-search-input {

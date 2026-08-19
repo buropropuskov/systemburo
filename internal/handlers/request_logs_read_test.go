@@ -164,6 +164,10 @@ func TestRequestLogs_DbFailure_ReachesCaller(t *testing.T) {
 			return err
 		}},
 		{"список записей", func() error { _, _, err := svc.GetLogs(ctx, models.RequestLogsQuery{}); return err }},
+		{"аналитика", func() error {
+			_, err := svc.GetHistory(ctx, models.RequestLogsHistoryQuery{})
+			return err
+		}},
 	}
 
 	// Сначала на исправной базе: доказывает, что ломает флаг, а не сама обёртка.

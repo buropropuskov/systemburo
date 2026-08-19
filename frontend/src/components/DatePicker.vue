@@ -5,11 +5,11 @@
       @click="toggleDropdown"
     >
       <span class="select-text">{{ displayText }}</span>
-      <img 
-        src="@/assets/icons/calendar.png" 
-        class="select-icon" 
-        :class="{ 'select-icon--rotated': isOpen }" 
-      >
+      <AppIcon
+        name="calendar"
+        class="select-icon"
+        :class="{ 'select-icon--rotated': isOpen }"
+      />
             
       <transition name="dropdown">
         <div 
@@ -163,8 +163,11 @@
 </template>
 
 <script>
+import AppIcon from '@/components/icons/AppIcon.vue';
+
 export default {
     name: 'DatePicker',
+    components: { AppIcon },
     props: {
         value: {
             type: Object,
@@ -544,6 +547,8 @@ export default {
     height: 15px;
     transition: transform 0.3s ease;
     flex-shrink: 0;
+    color: var(--text);
+    stroke-width: 2.2;
 }
 
 .select-icon--rotated {

@@ -121,11 +121,13 @@ describe('BlacklistTabBase', () => {
   });
 
   it('иконка сущности рендерится при entity-icon', async () => {
-    const wrapper = mountBase({ entityIcon: '/icons/car.png' });
+    // Проп несёт имя глифа реестра, а не путь к файлу: значок красится цветом текста.
+    const wrapper = mountBase({ entityIcon: 'car' });
     await flushPromises();
     await wrapper.findAll('.bl-row')[0].trigger('click');
     expect(wrapper.find('.bl-details-icon').exists()).toBe(true);
-    expect(wrapper.find('.bl-details-icon-img').attributes('src')).toBe('/icons/car.png');
+    expect(wrapper.find('.bl-details-icon-img').element.tagName.toLowerCase()).toBe('svg');
+    expect(wrapper.find('.bl-details-icon-img').html()).toContain('<circle');
   });
 
   it('кнопка "Создать запись" эмитит create', async () => {

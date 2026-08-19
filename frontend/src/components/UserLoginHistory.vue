@@ -2,11 +2,10 @@
   <div class="login-history">
     <div class="lh-filters">
       <div class="lh-search">
-        <img
-          src="@/assets/icons/search.png"
+        <AppIcon
+          name="search"
           class="lh-search__icon"
-          alt=""
-        >
+        />
         <input
           v-model="search"
           class="lk-input lh-search__input"
@@ -233,6 +232,7 @@ import { formatDateTime } from '@/utils/datetime'
 import { parseUserAgent, formatDevice } from '@/utils/userAgent'
 import { detailLabel } from '@/utils/authEventDetail'
 import { useDeletionsStore } from '@/stores/deletions'
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 // Маппинг типа события в человекочитаемый бейдж. Сырые коды (login_success и т.п.)
 // в интерфейс не попадают - только понятные подписи с цветом по смыслу.
@@ -264,7 +264,7 @@ function toYMD(d) {
 
 export default {
   name: 'UserLoginHistory',
-  components: { BaseDropdown, DateFilter, Pager },
+  components: { AppIcon, BaseDropdown, DateFilter, Pager },
   props: {
     username: {
       type: String,
@@ -609,6 +609,8 @@ function thinBorder() {
   height: 14px;
   opacity: 0.45;
   pointer-events: none;
+  stroke-width: 2.2;
+  color: var(--text);
 }
 
 .lh-search__input {
