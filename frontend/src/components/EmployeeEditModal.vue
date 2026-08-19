@@ -547,6 +547,11 @@ export default {
             this.passportSeriesNumber = '';
             this.patentNumber = '';
             this.selectedPermission = 'Не выбрано';
+            // Отметка о согласии снимается вместе с данными: подтверждают конкретного
+            // человека, а не всех, кого заведут дальше. Оставшись стоять, она превращала
+            // осознанное подтверждение в состояние формы - следующего работника можно было
+            // добавить, не глядя на неё (форма подачи, EmployeeForm, снимает её так же).
+            this.pdConsent = false;
             if (!this.editingEmployee) {
                 this.bindToOrganization = false;
                 this.bindToCompany = false;
