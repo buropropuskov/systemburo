@@ -27,12 +27,13 @@ type RequestLogsService interface {
 	GetRealtime(ctx context.Context) (*models.RealtimeStats, error)
 	GetTimeline(ctx context.Context, q models.TimelineQuery) ([]models.TimelinePoint, error)
 	GetHistory(ctx context.Context, q models.RequestLogsHistoryQuery) (*models.RequestLogsHistory, error)
-	Export(ctx context.Context, q models.RequestLogsQuery) (string, error)
+	Export(ctx context.Context, q models.RequestLogsQuery) (models.RequestLogsExport, error)
 }
 
 type requestLogsService struct {
-	db    *gorm.DB
-	stats *statsCache
+	db          *gorm.DB
+	stats       *statsCache
+	exportLimit int
 }
 
 // statsCacheTTL -- срок жизни снимка показателей шапки. Равен периоду, с которым
@@ -56,9 +57,19 @@ func WithRequestLogsStatsCache(ttl time.Duration) RequestLogsOption {
 	}
 }
 
+// WithRequestLogsExportLimit задаёт свой потолок строк в выгрузке. Нужен тестам:
+// проверять обрезку на настоящих десяти тысячах записей дороже, чем на двух.
+func WithRequestLogsExportLimit(limit int) RequestLogsOption {
+	return func(s *requestLogsService) {
+		if limit > 0 {
+			s.exportLimit = limit
+		}
+	}
+}
+
 // NewRequestLogsService создаёт реализацию RequestLogsService.
 func NewRequestLogsService(db *gorm.DB, opts ...RequestLogsOption) RequestLogsService {
-	s := &requestLogsService{db: db, stats: &statsCache{ttl: statsCacheTTL}}
+	s := &requestLogsService{db: db, stats: &statsCache{ttl: statsCacheTTL}, exportLimit: exportMaxRows}
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -562,47 +573,38 @@ func timelineChronological(points []models.TimelinePoint) []models.TimelinePoint
 	return points
 }
 
-// Export экспортирует логи в текстовый формат.
-func (s *requestLogsService) Export(ctx context.Context, q models.RequestLogsQuery) (string, error) {
-	// Снимаем лимит пагинации для экспорта, но ограничиваем 10000 записей
+// exportMaxRows -- потолок строк в одной выгрузке. Файл собирается в памяти
+// целиком (excelize), а журнал на стенде -- треть миллиона записей за месяц:
+// без потолка одна кнопка кладёт процесс. Потолок остаётся, но перестаёт быть
+// тихим -- сколько записей отсечено, видно и в файле, и на экране.
+const exportMaxRows = 10000
+
+// Export отдаёт выборку журнала под выгрузку: те же фильтры и тот же порядок,
+// что на экране, плюс полное число подходящих записей. Рендер файла -- дело
+// обработчика, здесь только данные.
+func (s *requestLogsService) Export(ctx context.Context, q models.RequestLogsQuery) (models.RequestLogsExport, error) {
 	q.Page = 1
-	q.PerPage = 10000
+	q.PerPage = s.exportLimit
 
 	tx := s.db.WithContext(ctx).Table("request_logs")
 	tx = s.applyFilters(tx, q)
 
+	var total int64
+	if err := tx.Count(&total).Error; err != nil {
+		return models.RequestLogsExport{}, echo.NewHTTPError(http.StatusInternalServerError, "failed to count request logs")
+	}
+
 	logs := make([]models.RequestLogs, 0)
 	if err := applySort(tx, q).Limit(q.PerPage).Find(&logs).Error; err != nil {
-		return "", echo.NewHTTPError(http.StatusInternalServerError, "failed to export request logs")
+		return models.RequestLogsExport{}, echo.NewHTTPError(http.StatusInternalServerError, "failed to export request logs")
 	}
 
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Request Logs Export (%d records)\n", len(logs)))
-	sb.WriteString(strings.Repeat("=", 80) + "\n\n")
-
-	for _, l := range logs {
-		sb.WriteString(fmt.Sprintf("[%s] ", l.CreatedAt.Format("2006-01-02 15:04:05")))
-
-		if l.Method != nil {
-			sb.WriteString(*l.Method + " ")
-		}
-		if l.URL != nil {
-			sb.WriteString(*l.URL)
-		}
-		sb.WriteString(" -> ")
-		if l.ResponseStatus != nil {
-			sb.WriteString(fmt.Sprintf("%d", *l.ResponseStatus))
-		}
-		if l.DurationMs != nil {
-			sb.WriteString(fmt.Sprintf(" (%dms)", *l.DurationMs))
-		}
-		if l.Username != nil {
-			sb.WriteString(fmt.Sprintf(" [%s]", *l.Username))
-		}
-		sb.WriteString("\n")
-	}
-
-	return sb.String(), nil
+	return models.RequestLogsExport{
+		Rows:      logs,
+		Total:     total,
+		Limit:     s.exportLimit,
+		Truncated: total > int64(len(logs)),
+	}, nil
 }
 
 // dayLayout -- формат суток в параметрах и ответах истории.

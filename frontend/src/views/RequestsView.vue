@@ -291,6 +291,12 @@
                     </span>
                   </div>
                 </div>
+                <p
+                  v-if="!logs.length"
+                  class="empty-hint"
+                >
+                  {{ journalError || 'Записей по такому отбору нет' }}
+                </p>
               </div>
 
               <div class="table-footer">
@@ -317,14 +323,12 @@
                     class="page-size-select"
                     @change="changePageSize"
                   >
-                    <option value="20">
-                      20
-                    </option>
-                    <option value="50">
-                      50
-                    </option>
-                    <option value="100">
-                      100
+                    <option
+                      v-for="size in pageSizes"
+                      :key="size"
+                      :value="size"
+                    >
+                      {{ size }}
                     </option>
                   </select>
                 </div>
@@ -481,42 +485,22 @@
         </p>
 
         <div class="kpi-row">
-          <div class="kpi">
-            <div class="kpi-val">
-              {{ formatNum(history.totals.requests) }}
-            </div>
-            <div class="kpi-lab">
-              Запросов за период
-            </div>
-          </div>
-          <div class="kpi">
+          <div
+            v-for="kpi in analyticsKpis"
+            :key="kpi.label"
+            class="kpi"
+          >
             <div
               class="kpi-val"
-              :class="{ bad: history.totals.error_rate > 1 }"
+              :class="{ bad: kpi.bad }"
             >
-              {{ history.totals.error_rate.toFixed(2) }}%
-            </div>
-            <div class="kpi-lab">
-              Доля ошибок
-            </div>
-          </div>
-          <div class="kpi">
-            <div class="kpi-val">
-              {{ formatMs(history.totals.avg_duration_ms) }}
+              {{ kpi.value }}
             </div>
             <div
               class="kpi-lab"
-              title="Средняя взвешена по числу запросов. Долгоживущие подписки на события в неё не входят: у них в журнале записано время жизни соединения."
+              :title="kpi.hint"
             >
-              Средн. длительность
-            </div>
-          </div>
-          <div class="kpi">
-            <div class="kpi-val">
-              {{ formatNum(history.totals.errors) }}
-            </div>
-            <div class="kpi-lab">
-              Ошибок всего
+              {{ kpi.label }}
             </div>
           </div>
         </div>
@@ -645,6 +629,7 @@
 
 <script>
 import { apiRequest, apiRequestRaw } from '@/api/client'
+import { downloadRequestLogs } from '@/api/requestLogs'
 import { formatLogin } from '@/utils/formatName';
 import { useDeletionsStore } from '@/stores/deletions'
 import SearchComponent from '@/components/SearchComponent.vue'
@@ -655,15 +640,15 @@ import AdminPageShell from '@/views/admin/AdminPageShell.vue'
 import AppIcon from '@/components/icons/AppIcon.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import {
-  SORTABLE_COLUMNS, METHOD_OPTIONS, STATUS_OPTIONS, JOURNAL_PRESETS,
+  SORTABLE_COLUMNS, METHOD_OPTIONS, STATUS_OPTIONS, JOURNAL_PRESETS, PAGE_SIZES,
   journalStateFromQuery, mergeJournalQuery, statusFilterParams,
   isJournalPresetOn, toggleJournalPreset
 } from '@/utils/requestLogsQuery';
 import { JOURNAL_REFRESH_MS, CHART_PERIODS, DEFAULT_CHART_PERIOD, journalRefreshBlock } from '@/utils/requestLogsLive';
 import {
   formatMs, formatDuration, formatDay, formatNum, formatTime, formatFullDate,
-  truncatePath, formatJson, getMethodClass, getStatusClass, barHeight,
-  coverageNote as buildCoverageNote, p95Note as buildP95Note
+  truncatePath, formatJson, getMethodClass, getStatusClass, barHeight, describeLoadError,
+  coverageNote as buildCoverageNote, p95Note as buildP95Note, analyticsKpis as buildAnalyticsKpis
 } from '@/utils/requestLogsFormat';
 
 export default {
@@ -709,6 +694,7 @@ export default {
       methodOptions: METHOD_OPTIONS,
       statusOptions: STATUS_OPTIONS,
       journalPresets: JOURNAL_PRESETS,
+      pageSizes: PAGE_SIZES,
       autoRefresh: true,
       logsInterval: null,
       tabHidden: false,
@@ -724,6 +710,7 @@ export default {
       perPage: '20',
       isLoading: false,
       isExporting: false,
+      journalError: '',
       stats: {
         total: 0,
         today: 0,
@@ -745,6 +732,9 @@ export default {
     };
   },
   computed: {
+    analyticsKpis() {
+      return buildAnalyticsKpis(this.history.totals);
+    },
     totalPages() {
       const perPage = this.pagination.per_page || 20;
       return Math.max(1, Math.ceil((this.pagination.total || 0) / perPage));
@@ -869,21 +859,24 @@ export default {
         const response = await apiRequestRaw(`/request-logs?${params}`);
         if (seq !== this.logsSeq) return;
 
-        if (response.ok) {
-          const body = await response.json();
-          if (seq !== this.logsSeq) return;
-          if (body && body.success) {
-            this.logs = body.data || [];
-            if (body.meta) {
-              this.pagination.total = body.meta.total || 0;
-              this.pagination.page = body.meta.page || 1;
-              this.pagination.per_page = body.meta.per_page || 20;
-            }
+        if (!response.ok) {
+          this.journalError = describeLoadError(response, 'загрузить журнал');
+          return;
+        }
+        const body = await response.json();
+        if (seq !== this.logsSeq) return;
+        if (body && body.success) {
+          this.journalError = '';
+          this.logs = body.data || [];
+          if (body.meta) {
+            this.pagination.total = body.meta.total || 0;
+            this.pagination.page = body.meta.page || 1;
+            this.pagination.per_page = body.meta.per_page || 20;
           }
         }
       } catch (error) {
         if (seq !== this.logsSeq) return;
-        console.error('Error fetching logs:', error);
+        this.journalError = describeLoadError(error, 'загрузить журнал');
         useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'логи', type: 'error' });
       } finally {
         if (seq === this.logsSeq) {
@@ -952,11 +945,14 @@ export default {
     async loadSection(path, apply, label) {
       try {
         const response = await apiRequest(path);
-        if (!response.ok) return;
+        if (!response.ok) {
+          this.journalError = describeLoadError(response, `загрузить ${label}`);
+          return;
+        }
         const data = await response.json();
         if (data) apply(data);
       } catch (error) {
-        console.error(`Не удалось загрузить: ${label}`, error);
+        this.journalError = describeLoadError(error, `загрузить ${label}`);
       }
     },
 
@@ -991,29 +987,21 @@ export default {
       try {
         // Порядок тот же, что на экране: выгрузка «самых медленных» должна
         // начинаться с самых медленных, а не с последних по времени.
-        const params = new URLSearchParams({
+        const { rows, total, truncated } = await downloadRequestLogs({
           sort: this.sortField,
           order: this.sortDirection,
           ...this.buildFilterParams()
         });
-        const response = await apiRequest(`/request-logs/export?${params}`);
-        if (response.ok) {
-          const text = await response.text();
-          const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `request-logs-${new Date().toISOString().slice(0, 10)}.txt`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          useDeletionsStore().notify({ bold: 'Экспорт завершён', type: 'success' });
+        if (truncated) {
+          useDeletionsStore().notify({
+            prefix: 'Выгружены первые ', bold: `${rows} записей из ${total}`,
+            suffix: '. Сузьте период или отбор, чтобы файл покрыл всё.', type: 'warning'
+          });
         } else {
-          useDeletionsStore().notify({ prefix: 'Не удалось выполнить ', bold: 'экспорт', type: 'error' });
+          useDeletionsStore().notify({ prefix: 'Журнал выгружен, ', bold: `записей: ${rows}`, type: 'success' });
         }
       } catch (error) {
-        console.error('Error exporting logs:', error);
+        this.journalError = describeLoadError(error, 'выгрузить журнал');
         useDeletionsStore().notify({ prefix: 'Не удалось выполнить ', bold: 'экспорт', type: 'error' });
       } finally {
         this.isExporting = false;

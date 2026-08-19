@@ -3,11 +3,11 @@ package middleware
 import (
 	"context"
 	"log/slog"
-	"net/url"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"systemburo/internal/logmask"
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
@@ -77,36 +77,6 @@ func skipRequestLog(path string, status int) bool {
 		}
 	}
 	return false
-}
-
-// secretQueryKeys - параметры, значение которых нельзя писать в журнал. Билет
-// скачивания и подписки на события даёт доступ к данным без заголовка Authorization:
-// он одноразовый и живёт меньше минуты, но журнал обращений хранится месяцами, его
-// читают через интерфейс и выгружают - секрету там не место. Особенно у файлового
-// архива, где билет открывает выгрузку бланков с паспортами (#1615).
-var secretQueryKeys = []string{"ticket", "token", "access_token", "key"}
-
-// maskSecretQuery отдаёт адрес запроса с затёртыми значениями секретных параметров.
-// Сам факт «пришёл с билетом» в журнале остаётся - пропадает только значение.
-func maskSecretQuery(u *url.URL) string {
-	if u == nil {
-		return ""
-	}
-	q := u.Query()
-	masked := false
-	for _, key := range secretQueryKeys {
-		if q.Has(key) {
-			q.Set(key, "***")
-			masked = true
-		}
-	}
-	if !masked {
-		return u.String()
-	}
-
-	clone := *u
-	clone.RawQuery = q.Encode()
-	return clone.String()
 }
 
 // RequestLogWriter копит записи журнала и кладёт их в базу пачками. Создаётся один раз
@@ -191,7 +161,7 @@ func (w *RequestLogWriter) Middleware() echo.MiddlewareFunc {
 			elapsed := time.Since(start)
 
 			method := c.Request().Method
-			reqURL := maskSecretQuery(c.Request().URL)
+			reqURL := logmask.Query(c.Request().URL)
 			status := c.Response().Status
 			durationMs := int(elapsed.Milliseconds())
 			durationUs := elapsed.Microseconds()
