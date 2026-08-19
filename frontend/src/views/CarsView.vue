@@ -419,11 +419,10 @@
                         title="Изменить"
                         @click.stop="editCar(car)"
                       >
-                        <img
-                          src="@/assets/icons/edit.png"
-                          alt=""
+                        <AppIcon
+                          name="edit"
                           class="edit-icon"
-                        >
+                        />
                         <span class="action-btn__label">Изменить</span>
                       </button>
                       <button
@@ -432,11 +431,10 @@
                         title="Удалить"
                         @click.stop="openDeleteCarConfirmation(car)"
                       >
-                        <img
-                          src="@/assets/icons/trashcan.png"
-                          alt=""
+                        <AppIcon
+                          name="trashcan"
                           class="delete-icon"
-                        >
+                        />
                         <span class="action-btn__label">Удалить</span>
                       </button>
                       <span
@@ -2299,6 +2297,7 @@ export default {
 }
 
 .edit-icon, .delete-icon {
+    color: var(--text);
     width: 16px;
     height: 16px;
     opacity: 0.7;

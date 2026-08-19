@@ -11,15 +11,15 @@
     <button
       ref="button"
       class="delete-btn rt-pass__act rt-pass__act--danger"
+      title="Убрать"
       :disabled="disabled"
       data-testid="row-remove-trigger"
       @click="toggle"
     >
-      <img
-        src="@/assets/icons/trashcan.png"
-        alt="Убрать"
+      <AppIcon
+        name="trashcan"
         class="delete-icon rt-pass__act-icon"
-      >
+      />
       <span class="rt-pass__act-label">Убрать</span>
     </button>
 
@@ -63,9 +63,11 @@
  * (тот же класс задачи: триггер живёт внутри rt-table с overflow:hidden).
  */
 import { getViewportZoom } from '@/utils/viewportScale';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'TableRowRemoveMenu',
+  components: { AppIcon },
   props: {
     disabled: { type: Boolean, default: false },
   },
@@ -181,6 +183,7 @@ export default {
 }
 
 .delete-icon {
+  color: var(--text);
   width: 16px;
   height: 16px;
   opacity: 0.7;

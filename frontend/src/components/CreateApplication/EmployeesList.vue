@@ -195,11 +195,10 @@
               title="Редактировать"
               @click="$emit('edit-employee', row.item)"
             >
-              <img
-                src="@/assets/icons/edit.png"
-                alt="Редактировать"
+              <AppIcon
+                name="edit"
                 class="edit-icon"
-              >
+              />
               <span class="act-label">Изменить</span>
             </button>
             <button
@@ -207,11 +206,10 @@
               title="Удалить"
               @click="$emit('delete-employee', row.item.id)"
             >
-              <img
-                src="@/assets/icons/trashcan.png"
-                alt="Удалить"
+              <AppIcon
+                name="trashcan"
                 class="delete-icon"
-              >
+              />
               <span class="act-label">Удалить</span>
             </button>
           </div>
@@ -702,6 +700,7 @@ export default {
 }
 
 .details-icon, .edit-icon, .delete-icon {
+    color: var(--text);
     width: 18px;
     height: 18px;
     opacity: 0.6;
