@@ -185,7 +185,7 @@ func TestLogin_Success(t *testing.T) {
 	assert.NotEmpty(t, refreshCookie.Value)
 	assert.True(t, refreshCookie.HttpOnly, "cookie должна быть HttpOnly")
 	assert.Equal(t, http.SameSiteStrictMode, refreshCookie.SameSite)
-	assert.Equal(t, "/", refreshCookie.Path)
+	assert.Equal(t, "/api", refreshCookie.Path, "cookie ходит только к API, не за картинками и не на pgAdmin")
 
 	assert.Equal(t, td.OrgID, *resp.OrganizationID)
 	assert.Equal(t, td.CompanyID, *resp.CompanyID)

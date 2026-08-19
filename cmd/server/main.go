@@ -616,6 +616,7 @@ func main() {
 		TablePassGate:       mw.RequireTablePassVerb(db, permissionResolver, accessDenialService),
 		Impersonation:       impersonationHandler,
 		JWTSecret:           []byte(cfg.JWTSecret),
+		JWTRefreshSecret:    []byte(cfg.JWTRefreshSecret),
 		UploadPath:          cfg.UploadPath,
 	})
 
