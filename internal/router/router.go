@@ -1128,8 +1128,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// статистики): гейт page.statistics, как у всей остальной статистики дашборда.
 	notif.GET("/push/summary", push.GetSummary, mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageStatistics))
 
-	// Логи запросов (мониторинг) - целиком admin-only, page.admin (Ф5, ранее service checkAdmin).
-	rlg := protected.Group("/request-logs", requireAdmin)
+	// Логи запросов (мониторинг) - под page.admin.monitoring (#2125): тем же ключом
+	// раздел гейтится в меню и роутере фронта, а требование page.admin отбивало
+	// носителя ключа на API. Администраторы проходят через adminAll, личный
+	// deny-override на этот ключ раздел закрывает.
+	requireMonitoring := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminMonitoring)
+	rlg := protected.Group("/request-logs", requireMonitoring)
 	rlg.GET("", requestLogs.GetLogs)
 	rlg.GET("/users", requestLogs.GetUsers)
 	rlg.GET("/stats", requestLogs.GetStats)
