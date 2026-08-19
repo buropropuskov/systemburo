@@ -928,18 +928,11 @@ export default {
      */
     journalState() {
       return {
-        search: this.searchQuery,
-        method: this.filterMethod,
-        status: this.filterStatus,
-        user: this.filterUser,
-        from: this.filterStartDate,
-        to: this.filterEndDate,
-        since: this.filterSince,
-        minDuration: this.filterMinDuration,
-        sort: this.sortField,
-        order: this.sortDirection,
-        page: this.pagination.page,
-        perPage: this.pagination.per_page
+        search: this.searchQuery, method: this.filterMethod, status: this.filterStatus,
+        user: this.filterUser, from: this.filterStartDate, to: this.filterEndDate,
+        since: this.filterSince, minDuration: this.filterMinDuration,
+        sort: this.sortField, order: this.sortDirection,
+        page: this.pagination.page, perPage: this.pagination.per_page
       };
     },
 
@@ -1095,8 +1088,11 @@ export default {
       this.fetchLogs();
     },
 
+    // Порядок строк остаётся: кнопка стоит среди фильтров, а сортировку задаёт
+    // заголовок таблицы - сбрасывать её заодно человек не просил.
     clearFilters() {
-      this.applyJournalState(journalStateFromQuery({}));
+      const { sort, order } = this.journalState();
+      this.applyJournalState({ ...journalStateFromQuery({}), sort, order });
       this.refreshLogs();
     },
 

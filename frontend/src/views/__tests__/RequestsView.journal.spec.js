@@ -173,6 +173,19 @@ describe('RequestsView, отбор в адресной строке', () => {
     await flushPromises();
     expect(replace).toHaveBeenCalledWith({ query: {} });
   });
+
+  it('сброс фильтров не трогает порядок строк', async () => {
+    const { wrapper } = mountView({ sort: 'duration', order: 'asc', method: 'GET' });
+    await flushPromises();
+
+    await wrapper.vm.clearFilters();
+    await flushPromises();
+
+    expect(wrapper.vm.filterMethod, 'фильтры сброшены').toBe('');
+    expect(wrapper.vm.sortField, 'выбранный порядок остаётся: его задаёт заголовок, а не панель фильтров').toBe('duration');
+    expect(wrapper.vm.sortDirection).toBe('asc');
+    expect(journalCalls().at(-1)).toContain('sort=duration');
+  });
 });
 
 describe('RequestsView, гонка запросов', () => {

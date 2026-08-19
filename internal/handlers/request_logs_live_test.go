@@ -151,9 +151,16 @@ func TestRequestLogs_TimelineWeeklyReachesOldAggregates(t *testing.T) {
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	points := timelinePoints(t, e, token, "interval=604800&limit=52")
 
-	var total int64
+	// Считается столбик той недели, в которую попал свёрнутый день: обращения
+	// самих тестов ложатся в текущую неделю, и сумма по графику ловила бы их.
+	const week = int64(7 * 24 * 3600)
+	bucket := time.Unix(old.Unix()/week*week, 0).UTC().Format(time.RFC3339)
+
+	var found int64
 	for _, p := range points {
-		total += p.Count
+		if p.Timestamp == bucket {
+			found = p.Count
+		}
 	}
-	assert.Equal(t, int64(42), total, "сутки двухсотдневной давности попадают в годовой график")
+	assert.Equal(t, int64(42), found, "сутки двухсотдневной давности попадают в годовой график")
 }
