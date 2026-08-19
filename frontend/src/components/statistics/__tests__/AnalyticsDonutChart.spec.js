@@ -129,12 +129,18 @@ describe('AnalyticsDonutChart', () => {
     // передаёт свой контекст вместо числа - кольцо падало на отрисовке, а мок
     // конструктора этого не показывал. Настройки плагинов идут замыканием.
     const { config } = await build({ data: DATA });
-    // Два места, где функция законна и вызывается как обработчик: подсказка и
-    // подписи делений оси. Понадобится третье (legend.onClick,
-    // animation.onComplete) - дописать путь сюда, а не снимать замок: он стоит
-    // не против функций вообще, а против настроек, которые Chart.js вызовет
-    // вместо того, чтобы прочитать.
-    const allowed = [/^options\.plugins\.tooltip\.callbacks\./, /^options\.scales\.[^.]+\.ticks\.callback$/];
+    // Места, где функция законна: обработчики подсказки и подписей делений оси
+    // плюс цвета оформления - их Chart.js зовёт на каждой отрисовке и берёт
+    // возвращённый цвет, так что тема успевает смениться. Понадобится ещё одно
+    // (legend.onClick, animation.onComplete) - дописать путь сюда, а не снимать
+    // замок: он стоит не против функций вообще, а против настроек, которые
+    // Chart.js вызовет вместо того, чтобы прочитать.
+    const allowed = [
+      /^options\.plugins\.tooltip\.callbacks\./,
+      /^options\.scales\.[^.]+\.ticks\.callback$/,
+      /^options\.plugins\.legend\.labels\.color$/,
+      /^options\.plugins\.tooltip\.borderColor$/,
+    ];
     const functionsIn = (value, path = 'options') => {
       if (allowed.some((re) => re.test(path))) return [];
       if (typeof value === 'function') return [path];
