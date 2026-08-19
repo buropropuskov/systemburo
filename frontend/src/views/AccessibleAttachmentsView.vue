@@ -922,6 +922,7 @@ onBeforeUnmount(() => {
   opacity: 0.5;
   pointer-events: none;
   stroke-width: 2.1;
+  color: var(--text);
 }
 
 .filters__search-input {

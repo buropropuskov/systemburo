@@ -611,6 +611,7 @@ function thinBorder() {
   opacity: 0.45;
   pointer-events: none;
   stroke-width: 2.2;
+  color: var(--text);
 }
 
 .lh-search__input {

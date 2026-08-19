@@ -2035,6 +2035,7 @@ export default {
   pointer-events: none;
   /* 12px - самый мелкий значок среза: 1.7 вырождается в 0.85px. */
   stroke-width: 2.4;
+  color: var(--text);
 }
 
 .te-search-input {
