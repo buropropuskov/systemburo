@@ -656,28 +656,12 @@ import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import RefreshButton from '@/components/RefreshButton.vue'
 import AdminPageShell from '@/views/admin/AdminPageShell.vue'
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { SORTABLE_COLUMNS, journalStateFromQuery, mergeJournalQuery } from '@/utils/requestLogsQuery';
+import {
+  formatMs, formatDuration, formatDay, formatNum, formatTime,
+  formatFullDate, truncatePath, formatJson, getMethodClass, getStatusClass
+} from '@/utils/requestLogsFormat';
 
-/**
- * Колонки, по которым журнал упорядочивается. Имена полей совпадают с тем, что
- * принимает сервер: порядок строк задаёт он, а не клиент - в списке лежит одна
- * страница из сотен тысяч записей, и сортировать её на месте бессмысленно.
- */
-const SORTABLE_COLUMNS = [
-  { field: 'created_at', label: 'Время', cls: 'time-col' },
-  { field: 'method', label: 'Метод', cls: 'method-col' },
-  { field: 'url', label: 'URL', cls: 'path-col' },
-  { field: 'status', label: 'Статус', cls: 'status-col' },
-  { field: 'username', label: 'Пользователь', cls: 'user-col' },
-  { field: 'duration', label: 'Отклик', cls: 'duration-col' }
-];
-
-const SORTABLE_FIELDS = SORTABLE_COLUMNS.map(c => c.field);
-
-/** Размеры страницы из выпадающего списка. */
-const PAGE_SIZES = ['20', '50', '100'];
-
-/** Параметры журнала, которые живут в адресной строке. */
-const JOURNAL_QUERY_KEYS = ['search', 'method', 'status', 'user', 'from', 'to', 'sort', 'order', 'page', 'per_page'];
 
 export default {
   name: 'RequestsView',
@@ -820,6 +804,16 @@ export default {
   },
   methods: {
     formatLogin,
+    formatMs,
+    formatDuration,
+    formatDay,
+    formatNum,
+    formatTime,
+    formatFullDate,
+    truncatePath,
+    formatJson,
+    getMethodClass,
+    getStatusClass,
 
     switchToAnalytics() {
       this.activeTab = 'analytics'
@@ -854,18 +848,6 @@ export default {
       } finally {
         this.isLoading = false
       }
-    },
-    formatNum(n) {
-      return (n || 0).toLocaleString('ru-RU')
-    },
-    /**
-     * Сутки из ответа (2026-08-19) в привычный вид (19.08.2026).
-     * @param {string} day
-     * @returns {string}
-     */
-    formatDay(day) {
-      const parts = String(day || '').split('-')
-      return parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : String(day || '')
     },
     barHeight(value) {
       const max = Math.max(...this.history.daily.map(d => d.requests), 1)
@@ -921,77 +903,51 @@ export default {
       }
     },
 
+
+
+
     /**
-     * Читает состояние журнала из адресной строки. Присланная ссылка открывает
-     * тот же отбор, а обновление страницы его не теряет.
+     * Читает отбор из адресной строки: присланная ссылка открывает тот же
+     * экран, а обновление страницы его не теряет.
      */
     applyQueryToState() {
-      const query = this.$route?.query || {};
-      const str = key => String((Array.isArray(query[key]) ? query[key][0] : query[key]) ?? '');
-
-      this.searchQuery = str('search');
-      this.filterMethod = str('method').toUpperCase();
-      this.filterStatus = str('status');
-      this.filterUser = str('user');
-      this.filterStartDate = str('from');
-      this.filterEndDate = str('to');
-
-      // Поле сортировки сверяется со списком колонок: чужое имя оставило бы
-      // стрелку без заголовка, а сервер всё равно вернул бы порядок по времени.
-      const sort = str('sort');
-      if (SORTABLE_FIELDS.includes(sort)) {
-        this.sortField = sort;
-        this.sortDirection = str('order') === 'asc' ? 'asc' : 'desc';
-      }
-
-      const page = parseInt(str('page'), 10);
-      if (page > 0) this.pagination.page = page;
-
-      const perPage = str('per_page');
-      if (PAGE_SIZES.includes(perPage)) {
-        this.perPage = perPage;
-        this.pagination.per_page = parseInt(perPage, 10);
-      }
+      const state = journalStateFromQuery(this.$route?.query || {});
+      this.searchQuery = state.search;
+      this.filterMethod = state.method;
+      this.filterStatus = state.status;
+      this.filterUser = state.user;
+      this.filterStartDate = state.from;
+      this.filterEndDate = state.to;
+      this.sortField = state.sort;
+      this.sortDirection = state.order;
+      this.pagination.page = state.page;
+      this.pagination.per_page = state.perPage;
+      this.perPage = String(state.perPage);
     },
 
     /**
-     * Складывает текущий отбор в адресную строку. Значения по умолчанию в неё не
-     * пишутся, чтобы ссылка на журнал без фильтров оставалась короткой.
-     * @returns {Record<string, string>}
+     * Текущий отбор в том виде, в каком его читают утилиты адреса.
+     * @returns {object}
      */
-    journalQuery() {
-      const query = {};
-      if (this.searchQuery) query.search = this.searchQuery;
-      if (this.filterMethod) query.method = this.filterMethod;
-      if (this.filterStatus) query.status = String(this.filterStatus);
-      if (this.filterUser) query.user = String(this.filterUser);
-      if (this.filterStartDate) query.from = this.filterStartDate;
-      if (this.filterEndDate) query.to = this.filterEndDate;
-      if (this.sortField !== 'created_at' || this.sortDirection !== 'desc') {
-        query.sort = this.sortField;
-        query.order = this.sortDirection;
-      }
-      if (this.pagination.page > 1) query.page = String(this.pagination.page);
-      if (this.pagination.per_page !== 20) query.per_page = String(this.pagination.per_page);
-      return query;
+    journalState() {
+      return {
+        search: this.searchQuery,
+        method: this.filterMethod,
+        status: this.filterStatus,
+        user: this.filterUser,
+        from: this.filterStartDate,
+        to: this.filterEndDate,
+        sort: this.sortField,
+        order: this.sortDirection,
+        page: this.pagination.page,
+        perPage: this.pagination.per_page
+      };
     },
 
     syncQueryFromState() {
       if (!this.$router) return;
-
-      const current = this.$route?.query || {};
-      const state = this.journalQuery();
-      const next = { ...current };
-      JOURNAL_QUERY_KEYS.forEach(key => {
-        if (state[key] === undefined) delete next[key];
-        else next[key] = state[key];
-      });
-
-      const same = Object.keys(next).length === Object.keys(current).length
-        && Object.keys(next).every(key => next[key] === current[key]);
-      if (same) return;
-
-      this.$router.replace({ query: next }).catch(() => {});
+      const next = mergeJournalQuery(this.$route?.query || {}, this.journalState());
+      if (next) this.$router.replace({ query: next }).catch(() => {});
     },
 
     async fetchStats() {
@@ -1174,91 +1130,13 @@ export default {
       this.fetchStats();
     },
 
-    formatTime(timestamp) {
-      if (!timestamp) return '';
-      const date = new Date(timestamp);
-      return date.toLocaleTimeString('ru-RU', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
-    },
 
-    formatFullDate(timestamp) {
-      if (!timestamp) return '';
-      const date = new Date(timestamp);
-      return date.toLocaleString('ru-RU', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
-    },
 
-    truncatePath(path) {
-      if (!path) return '';
-      if (path.length > 40) {
-        return path.substring(0, 37) + '...';
-      }
-      return path;
-    },
 
-    getMethodClass(method) {
-      const classes = {
-        'GET': 'method-get',
-        'POST': 'method-post',
-        'PUT': 'method-put',
-        'DELETE': 'method-delete',
-        'PATCH': 'method-patch'
-      };
-      return classes[method] || 'method-other';
-    },
 
-    getStatusClass(status) {
-      if (!status) return 'status-unknown';
-      if (status < 300) return 'status-success';
-      if (status < 400) return 'status-redirect';
-      if (status < 500) return 'status-client-error';
-      return 'status-server-error';
-    },
 
-    /**
-     * Длительность в миллисекундах для показа: до сотни миллисекунд с одним
-     * знаком после запятой, дальше целыми. Ответы быстрее миллисекунды раньше
-     * показывались нулём, потому что бэк округлял их вниз.
-     * @param {number} ms
-     * @param {boolean} [withUnit] дописать единицы измерения
-     * @returns {string}
-     */
-    formatMs(ms, withUnit = true) {
-      const value = Number(ms) || 0;
-      const rounded = value >= 100 ? Math.round(value) : Math.round(value * 10) / 10;
-      return withUnit ? rounded + 'мс' : String(rounded);
-    },
 
-    /**
-     * Длительность записи журнала: микросекунды точнее, миллисекунды остаются
-     * для записей, сделанных до перехода на них.
-     * @param {{duration_us?: number, duration_ms?: number}} log
-     * @returns {string}
-     */
-    formatDuration(log) {
-      if (!log) return '';
-      if (log.duration_us != null) return this.formatMs(log.duration_us / 1000);
-      return this.formatMs(log.duration_ms || 0);
-    },
 
-    formatJson(text) {
-      if (!text) return '';
-      try {
-        const obj = JSON.parse(text);
-        return JSON.stringify(obj, null, 2);
-      } catch {
-        return text;
-      }
-    },
 
   }
 };
