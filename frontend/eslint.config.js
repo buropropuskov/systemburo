@@ -25,7 +25,18 @@ export default [
     rules: {
       // v-html используется только для admin-editable инструкций, sanitize
       // через DOMPurify в utils/sanitize.js. Правило не актуально для нас.
-      'vue/no-v-html': 'off'
+      'vue/no-v-html': 'off',
+      // Отладочная печать в бандл не уезжает. error и warn пока разрешены:
+      // их в коде больше трёхсот, это сообщения о реальных сбоях, и убирать их
+      // надо вместе с введением логгера, а не запретом в линтере.
+      'no-console': ['error', { allow: ['error', 'warn'] }]
+    }
+  },
+  {
+    // Тесты и служебные скрипты печатают в консоль по делу.
+    files: ['**/__tests__/**', 'e2e/**', 'build/**', '*.config.js', '*.config.cjs'],
+    rules: {
+      'no-console': 'off'
     }
   }
 ]

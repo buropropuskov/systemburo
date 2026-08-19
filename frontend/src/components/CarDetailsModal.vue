@@ -1031,7 +1031,7 @@ export default {
     },
 
     openApplication() {
-      console.log('Открыть заявку', this.car.applicationId || this.car.application_id);
+      // Переход к заявке не реализован: кнопка сейчас ничего не делает.
     },
 
     close() {

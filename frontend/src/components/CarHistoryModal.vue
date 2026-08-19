@@ -491,7 +491,6 @@ export default {
 
         if (response.ok) {
           this.history = await response.json();
-          console.log('Загружена объединённая история автомобиля:', this.history);
         } else {
           console.error('Ошибка загрузки истории:', response.status);
         }

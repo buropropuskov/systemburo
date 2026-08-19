@@ -285,8 +285,7 @@ export default {
     toggleMobileNav() {
       this.$bus.emit('mobile-nav-toggle');
     },
-    handleFeedbackSubmitted(message) {
-      console.log('Обратная связь отправлена:', message);
+    handleFeedbackSubmitted() {
       // Если мы на странице обратной связи, можно обновить список
       if (this.$route.path === '/feedback') {
         this.$emit('refresh-feedback');
@@ -299,7 +298,6 @@ export default {
       try {
         const authStore = useAuthStore();
         if (!authStore.token) {
-          console.log("Пользователь не авторизован");
           return;
         }
 
