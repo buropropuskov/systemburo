@@ -78,7 +78,9 @@
       "style": 579
     },
     "src/components/CreateApplication/BlankImportResult.vue": {
-      "script": 589
+      "template": 405,
+      "script": 616,
+      "style": 505
     },
     "src/components/CreateApplication/CreateApplication.vue": {
       "template": 428,
