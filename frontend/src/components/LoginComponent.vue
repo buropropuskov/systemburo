@@ -1194,11 +1194,11 @@ export default {
     }
 
     .input__icon {
-        width: 20px;
-        height: 20px;
+        width: 23px;
+        height: 23px;
         flex-shrink: 0;
-        /* Цвет и вес глифа задаёт место применения, см. комментарий в appIcons.js. */
-        color: var(--text-muted);
+        /* Глиф держит цвет подсказки в поле, а не текста: см. appIcons.js. */
+        color: color-mix(in srgb, var(--text-muted) 90%, var(--surface));
         stroke-width: 2.4;
         transition: transform .5s;
     }
