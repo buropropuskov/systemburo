@@ -147,11 +147,10 @@
             aria-label="Поиск заявок"
             @click="toggleMobileSearch"
           >
-            <img
-              src="@/assets/icons/search.png"
+            <AppIcon
+              name="search"
               class="search-icon-btn__img"
-              alt=""
-            >
+            />
           </button>
         </div>
 
@@ -204,11 +203,10 @@
                 data-testid="center-input-search"
                 @input="onSearchInput"
               >
-              <img
-                src="@/assets/icons/search.png"
+              <AppIcon
+                name="search"
                 class="center__icon"
-                alt=""
-              >
+              />
             </div>
 
             <div
@@ -2617,6 +2615,8 @@ export default {
 .search-icon-btn__img {
     width: 16px;
     height: 16px;
+    color: var(--text);
+    stroke-width: 2.1;
 }
 
 /* Мобилка: «Обновить» во втором ряду шапки Центра - только иконка, без подписи
@@ -2904,6 +2904,8 @@ export default {
 .center__icon {
     width: 15px;
     height: 15px;
+    color: var(--text);
+    stroke-width: 2.2;
 }
 
 .applications-table {

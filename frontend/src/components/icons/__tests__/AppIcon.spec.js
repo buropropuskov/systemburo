@@ -90,7 +90,12 @@ describe('покрытие растровых иконок', () => {
   it('переведённые значки не возвращаются растром', () => {
     // Срез считается сделанным, когда PNG удалён и ссылок на него не осталось:
     // без такой пары замена молча откатывается обратной правкой одного файла.
-    const gone = ['sort', 'arrow', 'export'];
+    const gone = [
+      'sort', 'arrow', 'export', 'trashcan', 'edit', 'delete',
+      'search', 'calendar', 'car', 'clipboard', 'download', 'employees', 'instruction',
+      'notifications', 'random', 'recent-changes', 'refresh', 'save', 'stats', 'user', 'xlsx',
+      'login', 'password', 'key-blue', 'email-blue', 'phone-blue',
+    ];
     const back = gone.filter((n) => fs.existsSync(path.join(SRC, 'assets/icons', `${n}.png`)));
     expect(back, 'растровый файл вернулся в assets').toEqual([]);
     expect(gone.filter((n) => used.has(n)), 'разметка снова тянет растровый значок').toEqual([]);

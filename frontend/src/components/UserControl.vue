@@ -713,21 +713,23 @@
                     type="button"
                     @click="generatePassword(selectedUser)"
                   >
-                    <img
-                      src="@/assets/icons/random.png"
+                    <AppIcon
+                      name="random"
                       class="generate-icon"
-                    >
+                    />
                     Генерировать
                   </button>
                   <button
                     :disabled="!changePasswordValid"
                     class="save-password-btn"
+                    title="Сохранить пароль"
+                    aria-label="Сохранить пароль"
                     @click="changeUserPassword(selectedUser)"
                   >
-                    <img
-                      src="@/assets/icons/save.png"
+                    <AppIcon
+                      name="save"
                       class="save-icon"
-                    >
+                    />
                   </button>
                 </div>
               </div>
@@ -2973,6 +2975,9 @@ export default {
 .generate-icon {
   width: 15px;
   height: 15px;
+  /* Значок случайного пароля был фирменного синего - остаётся им. */
+  color: var(--accent-text);
+  stroke-width: 2.2;
 }
 
 .save-password-btn {
@@ -3001,6 +3006,8 @@ export default {
 .save-icon {
   width: 16px;
   height: 16px;
+  /* Цвет наследуется от кнопки (--accent-contrast): дискета была белой на цветном. */
+  stroke-width: 2;
 }
 
 .input-hints {

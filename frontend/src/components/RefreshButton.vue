@@ -30,20 +30,22 @@
       v-else
       class="refresh-btn__content"
     >
-      <img
-        src="@/assets/icons/refresh.png"
+      <AppIcon
+        name="refresh"
         class="refresh-btn__icon"
-        alt=""
-      >
+      />
       <span class="refresh-btn__text">Обновить</span>
     </span>
   </button>
 </template>
 <script>
+import AppIcon from '@/components/icons/AppIcon.vue';
+
 const CHARGE_STEP_MS = 400;
 const CHARGE_MS = CHARGE_STEP_MS * 3;
 
 export default {
+  components: { AppIcon },
   props: {
     loading: { type: Boolean, default: false },
   },
@@ -124,6 +126,9 @@ export default {
     .refresh-btn__icon {
         width: 15px;
         height: 15px;
+        /* Значок обновления был фирменного синего - в тон подписи кнопки. */
+        color: var(--accent-text);
+        stroke-width: 2.2;
     }
 
     .refresh-btn__text {
@@ -153,7 +158,7 @@ export default {
     /* Мобилка: «Обновить» сворачивается в круглую иконку. Текст прячем в clip (не
        display:none) - у кнопки остаётся доступное имя для скринридера. Размер 36px -
        как у прочих мобильных icon-кнопок проекта (rt-btn-compact / rt-header-inline),
-       иконка 16px (refresh.png нативно 30px, на 2x чёткая). Порог 767.98px - как во
+       иконка 16px. Порог 767.98px - как во
        всём проекте: per-page оверрайды (pill в шапке Центра) и rt-header-inline
        завязаны на него, ровно на 768px иначе разъехались бы стили. */
     @media (max-width: 767.98px) {
@@ -179,6 +184,7 @@ export default {
         .refresh-btn__icon {
             width: 16px;
             height: 16px;
+            stroke-width: 2.1;
         }
     }
 </style>

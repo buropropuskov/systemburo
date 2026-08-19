@@ -25,11 +25,10 @@
         data-testid="aa-filters"
       >
         <div class="filters__search">
-          <img
+          <AppIcon
+            name="search"
             class="filters__search-icon"
-            src="@/assets/icons/search.png"
-            alt=""
-          >
+          />
           <input
             v-model="search"
             type="text"
@@ -472,6 +471,7 @@ import { getOrganizations, getCompanies } from '@/api/organizations';
 import { useDeletionsStore } from '@/stores/deletions';
 import { formatDateRu, formatDateTime } from '@/utils/datetime';
 import eventStream from '@/services/eventStream';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 const PER_PAGE = 30;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -921,6 +921,8 @@ onBeforeUnmount(() => {
   height: 16px;
   opacity: 0.5;
   pointer-events: none;
+  stroke-width: 2.1;
+  color: var(--text);
 }
 
 .filters__search-input {
@@ -1451,6 +1453,7 @@ onBeforeUnmount(() => {
     left: 11px;
     width: 14px;
     height: 14px;
+    stroke-width: 2.2;
   }
 
   /* Карточки лежат внутри панели, поэтому боковой отступ 8px - иначе их рамка

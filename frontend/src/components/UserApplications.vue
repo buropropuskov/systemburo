@@ -69,11 +69,10 @@
           data-testid="cabinet-search-icon"
           @click="toggleMobileSearch"
         >
-          <img
-            src="@/assets/icons/search.png"
+          <AppIcon
+            name="search"
             class="search-icon-btn__img"
-            alt=""
-          >
+          />
         </button>
 
         <!-- Мобилка: поле поиска раскрывается ВЛЕВО оверлеем поверх ряда настроек
@@ -2383,6 +2382,8 @@ export default {
   .search-icon-btn__img {
     width: 16px;
     height: 16px;
+    color: var(--text);
+    stroke-width: 2.1;
   }
 
   /* Пустая полоса шапки колонок: .rt-head-row скрыт (responsive-tables.css), но

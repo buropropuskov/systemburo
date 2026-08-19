@@ -68,11 +68,10 @@
         @keydown.enter.prevent="showNotifications = !showNotifications"
         @keydown.space.prevent="showNotifications = !showNotifications"
       >
-        <img
-          src="@/assets/icons/notifications.png"
+        <AppIcon
+          name="notifications"
           class="notifications__icon"
-          alt="Уведомления"
-        >
+        />
         <span
           v-if="unreadCount > 0"
           class="notifications__badge"
@@ -149,10 +148,12 @@ import AnnouncementModal from '@/components/AnnouncementModal.vue';
 import UserNotifications from '@/components/UserNotifications.vue';
 import { SkeletonLine } from '@/components/ui';
 import NavIcon from '@/components/icons/NavIcon.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'TheHeader',
   components: {
+    AppIcon,
     FeedbackModal,
     AnnouncementModal,
     UserNotifications,
@@ -564,6 +565,7 @@ h3 {
   height: 20px;
   cursor: pointer;
   transition: opacity 0.2s ease;
+  color: var(--text);
 }
 
 @media (hover: hover) {
