@@ -12,6 +12,7 @@
         Кто и когда заводил, правил и удалял записи. Удалённые видны только здесь.
       </p>
 
+
       <div class="reglog__filters">
         <BaseDropdown
           v-model="actionFilter"
@@ -28,6 +29,17 @@
           placeholder="Поиск по записи или работнику"
           data-testid="registry-log-search"
         >
+      </div>
+
+      <div
+        v-if="!loading && !error && filteredItems.length"
+        class="reglog__head"
+        aria-hidden="true"
+      >
+        <span>Когда</span>
+        <span>Кто действовал</span>
+        <span>{{ entity === 'cars' ? 'Машина' : 'Работник' }}</span>
+        <span>Что произошло</span>
       </div>
 
       <div
@@ -61,7 +73,14 @@
           :class="{ 'reglog__row--delete': item.action_type === 'delete' }"
         >
           <span class="reglog__when">{{ formatMoment(item.created_at) }}</span>
-          <span class="reglog__who">{{ actorName(item) }}</span>
+          <span class="reglog__who">
+            {{ actorName(item) }}
+            <span class="reglog__who-role">кто</span>
+          </span>
+          <span class="reglog__subject">
+            {{ item.subject || 'запись не определена' }}
+            <span class="reglog__subject-role">{{ entity === 'cars' ? 'машина' : 'работник' }}</span>
+          </span>
           <span class="reglog__what">{{ describe(item) }}</span>
         </li>
       </ul>
@@ -112,6 +131,11 @@ const FIELD_LABELS = {
 // показывать человеку номер строки чужой таблицы. Для них пишем сам факт правки.
 const REFERENCE_FIELDS = new Set(['citizenship_id', 'organization_id', 'company_id', 'user_id', 'format_id']);
 
+/** Первая буква заглавной: словарь полей хранит их со строчной («должность»). */
+function capitalize(text) {
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+}
+
 export default {
   name: 'RegistryLogModal',
   components: { BaseModal, BaseDropdown },
@@ -153,7 +177,7 @@ export default {
       return this.items.filter((item) => {
         if (this.actionFilter !== 'all' && item.action_type !== this.actionFilter) return false;
         if (!needle) return true;
-        return `${this.describe(item)} ${this.actorName(item)}`.toLowerCase().includes(needle);
+        return `${this.describe(item)} ${this.actorName(item)} ${item.subject || ''}`.toLowerCase().includes(needle);
       });
     },
   },
@@ -189,21 +213,28 @@ export default {
       if (parts.length) return parts.join(' ');
       return item.username || 'Система';
     },
+    /**
+     * Текст события. Объект (кто именно правился) стоит отдельной колонкой, поэтому
+     * здесь только действие - иначе строка читалась бы «Мякотных Сергей | Сотрудник
+     * Иванов удалён из реестра», и было бы непонятно, кто из двоих кого удалил.
+     * comment используем только как запас для событий, записанных до появления снимка.
+     */
     describe(item) {
-      if (item.comment) return item.comment;
+      if (item.action_type === 'create') return 'Заведена в реестр';
+      if (item.action_type === 'delete') return 'Удалена из реестра';
       if (item.action_type === 'data_changed' && item.field_name) {
         const field = FIELD_LABELS[item.field_name] || item.field_name;
-        if (REFERENCE_FIELDS.has(item.field_name)) {
-          return `Изменено: ${field}`;
-        }
         if (item.field_name === 'pd_consent_at') {
           return item.new_value ? 'Подтверждено согласие на обработку персональных данных' : `Изменено: ${field}`;
         }
+        if (REFERENCE_FIELDS.has(item.field_name)) {
+          return `Изменено: ${field}`;
+        }
         const from = item.old_value || 'пусто';
         const to = item.new_value || 'пусто';
-        return `Изменено: ${field}, было «${from}», стало «${to}»`;
+        return `${capitalize(field)}: «${from}» → «${to}»`;
       }
-      return ACTION_LABELS[item.action_type] || item.action_type;
+      return item.comment || ACTION_LABELS[item.action_type] || item.action_type;
     },
     formatMoment(value) {
       if (!value) return '';
@@ -274,9 +305,10 @@ export default {
 
 /* minmax(0, 1fr) в последней колонке: с обычным 1fr длинная строка события раздувает
    сетку, и список выезжает за правый край окна. */
+.reglog__head,
 .reglog__row {
     display: grid;
-    grid-template-columns: 118px 150px minmax(0, 1fr);
+    grid-template-columns: 112px 150px 170px minmax(0, 1fr);
     gap: 12px;
     align-items: baseline;
     padding: 8px 12px;
@@ -296,10 +328,31 @@ export default {
     color: var(--danger-text);
 }
 
+/* Шапка колонок: без неё непонятно, кто в строке действовал, а кто объект правки. */
+.reglog__head {
+    padding: 0 12px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+}
+
 .reglog__when {
     color: var(--text-muted);
     font-size: 12px;
     white-space: nowrap;
+}
+
+.reglog__subject {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* Подпись роли под значением: страховка на случай, если колонки уедут (узкий экран,
+   перенос) - тогда всё равно видно, где действующий, а где объект. */
+.reglog__who-role,
+.reglog__subject-role {
+    display: none;
 }
 
 .reglog__who {
@@ -327,9 +380,23 @@ export default {
         width: 100%;
     }
 
+    .reglog__head {
+        display: none;
+    }
+
     .reglog__row {
         grid-template-columns: 1fr;
         gap: 2px;
+    }
+
+    .reglog__who-role,
+    .reglog__subject-role {
+        display: inline;
+        margin-left: 6px;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: var(--text-muted);
     }
 
     .reglog__when {
