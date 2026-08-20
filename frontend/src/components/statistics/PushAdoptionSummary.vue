@@ -13,7 +13,7 @@
 
     <div
       v-if="loading && !ready"
-      class="push-summary__tiles"
+      class="an-panel__tiles"
       data-testid="push-adoption-skeleton"
     >
       <div
@@ -24,12 +24,12 @@
     </div>
 
     <template v-else>
-      <div class="push-summary__body">
-        <div class="push-summary__chart">
+      <div class="an-panel">
+        <div class="an-panel__chart">
           <AnalyticsDonutChart
             v-if="platformData.length > 0"
             :data="platformData"
-            :height="240"
+            :height="300"
             total-label="Подписок"
             :unit-forms="['подписка', 'подписки', 'подписок']"
           />
@@ -41,50 +41,47 @@
           </p>
         </div>
 
-        <div class="push-summary__tiles">
-          <div class="push-summary__tile">
-            <div class="push-summary__tile-label">
-              Активные пользователи
+        <div class="an-panel__col">
+          <div class="an-panel__tiles">
+            <div class="push-summary__tile">
+              <div class="push-summary__tile-label">
+                Активные пользователи
+              </div>
+              <div class="push-summary__tile-val">
+                <AnimatedNumber :value="numberOrNull(summary.active_users_total)" />
+              </div>
             </div>
-            <div class="push-summary__tile-val">
-              <AnimatedNumber :value="numberOrNull(summary.active_users_total)" />
+            <div class="push-summary__tile">
+              <div class="push-summary__tile-label">
+                С push-подпиской
+              </div>
+              <div class="push-summary__tile-val">
+                <AnimatedNumber :value="numberOrNull(summary.users_with_push)" />
+              </div>
             </div>
-          </div>
-          <div class="push-summary__tile">
-            <div class="push-summary__tile-label">
-              С push-подпиской
+            <div class="push-summary__tile">
+              <div class="push-summary__tile-label">
+                <span>Заходят с iOS (iPhone, iPad)</span>
+                <HintTooltip :text="IOS_HINT" />
+              </div>
+              <div class="push-summary__tile-val">
+                <AnimatedNumber :value="numberOrNull(summary.users_by_last_login_platform?.ios)" />
+              </div>
             </div>
-            <div class="push-summary__tile-val">
-              <AnimatedNumber :value="numberOrNull(summary.users_with_push)" />
-            </div>
-          </div>
-          <div class="push-summary__tile">
-            <div class="push-summary__tile-label">
-              Заходят с iOS (iPhone, iPad)
-            </div>
-            <div class="push-summary__tile-val">
-              <AnimatedNumber :value="numberOrNull(summary.users_by_last_login_platform?.ios)" />
-            </div>
-          </div>
-          <div
-            class="push-summary__tile"
-            data-testid="push-adoption-rate"
-          >
-            <div class="push-summary__tile-label">
-              Доля активных с подпиской
-            </div>
-            <div class="push-summary__tile-val">
-              {{ adoptionPct === null ? '—' : `${adoptionPct}%` }}
+            <div
+              class="push-summary__tile"
+              data-testid="push-adoption-rate"
+            >
+              <div class="push-summary__tile-label">
+                Доля активных с подпиской
+              </div>
+              <div class="push-summary__tile-val">
+                {{ adoptionPct === null ? '—' : `${adoptionPct}%` }}
+              </div>
             </div>
           </div>
         </div>
       </div>
-
-      <p class="push-summary__hint">
-        На iOS push работает только после установки сайта на экран «Домой» -
-        разрыв между «Заходят с iOS» и «С push-подпиской» в основном объясняется
-        этим шагом, а не нежеланием включать уведомления.
-      </p>
     </template>
   </section>
 </template>
@@ -93,6 +90,7 @@
 import { ref, computed, onMounted } from 'vue';
 import AnalyticsDonutChart from '@/components/statistics/AnalyticsDonutChart.vue';
 import AnimatedNumber from '@/components/statistics/AnimatedNumber.vue';
+import HintTooltip from '@/components/ui/HintTooltip.vue';
 import { getPushSummary } from '@/api/webPush';
 
 // Человеческие подписи платформ для донат-чарта - ключи в коде технические,
@@ -100,6 +98,13 @@ import { getPushSummary } from '@/api/webPush';
 // Формулировка "iOS (iPhone, iPad)" - по требованию: iPhone и iPad ограничены
 // Apple одинаково (push работает только у установленного на "Домой"
 // приложения), отдельной группы "только iPhone" нет ни в бэке, ни в тексте.
+// Разрыв между «Заходят с iOS» и «С push-подпиской» объясняется требованием
+// Apple, а не отказами пользователей. Текст висел отдельным абзацем во всю
+// ширину блока и читался как ничей - живёт подсказкой у той плитки, о которой он.
+const IOS_HINT = 'На iOS push работает только после установки сайта на экран «Домой» - '
+  + 'разрыв между «Заходят с iOS» и «С push-подпиской» в основном объясняется этим '
+  + 'шагом, а не нежеланием включать уведомления.';
+
 const PLATFORM_LABELS = {
   ios: 'iOS (iPhone, iPad)',
   android: 'Android',
@@ -203,37 +208,11 @@ onMounted(load);
   background: var(--color-border);
 }
 
-.push-summary__body {
-  display: grid;
-  grid-template-columns: minmax(200px, 260px) 1fr;
-  gap: 20px;
-  align-items: start;
-}
-
-.push-summary__chart {
-  background: var(--surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
-  min-height: 240px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 .push-summary__chart-empty {
   margin: 0;
   font-size: 13px;
   color: var(--color-text-muted);
   text-align: center;
-}
-
-/* Столбцом рядом с кольцом - блок стоит в половине ширины страницы, на две
-   колонки плиток места уже нет (см. .dashboard__pair). */
-.push-summary__tiles {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
 }
 
 .push-summary__tile {
@@ -256,6 +235,9 @@ onMounted(load);
 }
 
 .push-summary__tile-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 11px;
   color: var(--color-text-muted);
   font-weight: 500;
@@ -268,19 +250,6 @@ onMounted(load);
   color: var(--color-text);
   margin-top: 6px;
   line-height: 1;
-}
-
-.push-summary__hint {
-  margin: 0;
-  font-size: 12px;
-  color: var(--color-text-muted);
-  line-height: 1.4;
-}
-
-@media (max-width: 900px) {
-  .push-summary__body {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 /* ===== МОБИЛКА (<=768) ===== */
