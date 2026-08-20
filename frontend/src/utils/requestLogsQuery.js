@@ -255,3 +255,69 @@ export function filterParamsFromState(state) {
   if (state.to) params.to_date = state.to;
   return params;
 }
+
+/**
+ * Пункты выпадающих списков отбора. BaseDropdown ждёт объекты, а пустое
+ * значение первым пунктом - это «все»: сбросить фильтр иначе нечем, у списка
+ * нет собственной кнопки очистки.
+ */
+export const METHOD_FILTER_OPTIONS = [
+  { value: '', label: 'Все методы' },
+  ...METHOD_OPTIONS.map(m => ({ value: m, label: m }))
+];
+
+export const STATUS_FILTER_OPTIONS = [
+  { value: '', label: 'Все статусы' },
+  ...STATUS_OPTIONS
+];
+
+export const PAGE_SIZE_OPTIONS = PAGE_SIZES.map(size => ({ value: size, label: `${size} на странице` }));
+
+/**
+ * День из поля календаря в 'YYYY-MM-DD'. Части берутся ЛОКАЛЬНЫЕ: `toISOString`
+ * сдвигает полночь в UTC и у восточных зон отдаёт предыдущий день.
+ * @param {Date|null} date
+ * @returns {string}
+ */
+export function dateToYmd(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+/**
+ * Обратный разбор для календаря. Строка собирается по частям, а не через
+ * `new Date('2026-08-20')`: тот читает день как UTC-полночь и западнее Гринвича
+ * показывает предыдущее число.
+ * @param {string} value
+ * @returns {Date|null}
+ */
+export function ymdToDate(value) {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''));
+  if (!parts) return null;
+  const date = new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/**
+ * Списки отбора журнала одним перечнем: разметка у трёх выпадающих списков
+ * общая, различаются только источник пунктов и поле состояния.
+ * @param {JournalState} state
+ * @param {Array<{id: number|string, username: string}>} users
+ * @param {(login: string) => string} formatUser подпись пользователя
+ * @returns {Array<object>}
+ */
+export function journalFilterDropdowns(state, users, formatUser) {
+  // Идентификатор приводится к строке: в адресе он строка, а список сверяет
+  // выбранное значение строго.
+  const userOptions = [
+    { value: '', label: 'Все пользователи' },
+    ...users.map(u => ({ value: String(u.id), label: formatUser(u.username) }))
+  ];
+  return [
+    { key: 'filterMethod', value: state.method, options: METHOD_FILTER_OPTIONS, placeholder: 'Все методы', searchable: false },
+    { key: 'filterStatus', value: state.status, options: STATUS_FILTER_OPTIONS, placeholder: 'Все статусы', searchable: false },
+    { key: 'filterUser', value: String(state.user || ''), options: userOptions, placeholder: 'Все пользователи', searchable: true, wide: true }
+  ];
+}

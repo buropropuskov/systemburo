@@ -69,7 +69,7 @@ beforeEach(() => {
 });
 
 async function clickExport(wrapper) {
-  await wrapper.get('.export-btn').trigger('click');
+  await wrapper.get('[data-testid="journal-export"]').trigger('click');
   await flushPromises();
 }
 

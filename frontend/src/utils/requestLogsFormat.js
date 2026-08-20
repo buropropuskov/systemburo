@@ -232,3 +232,39 @@ export function exportNotice({ rows, total, truncated }) {
     suffix: '. Сузьте период или отбор, чтобы файл покрыл всё.', type: 'warning'
   };
 }
+
+/** Пустая аналитика: тем же видом экран начинает жизнь и встречает пустой ответ. */
+export function emptyHistory() {
+  return {
+    totals: { requests: 0, errors: 0, error_rate: 0, avg_duration_ms: 0 },
+    coverage: null,
+    daily: [],
+    top_endpoints: [],
+    top_users: []
+  };
+}
+
+/**
+ * Ответ истории в том виде, в каком его показывает вкладка аналитики.
+ * @param {object} data
+ * @returns {object}
+ */
+export function historyFromResponse(data) {
+  const empty = emptyHistory();
+  return {
+    totals: data.totals || empty.totals,
+    coverage: data.coverage || null,
+    daily: data.daily || [],
+    top_endpoints: data.top_endpoints || [],
+    top_users: data.top_users || []
+  };
+}
+
+/**
+ * Показ значений журнала одним набором - экран подмешивает его в methods
+ * целиком, а не перечисляет функции по одной.
+ */
+export const LOG_FORMATTERS = {
+  formatMs, formatDuration, formatDay, formatNum, formatTime, formatFullDate,
+  truncatePath, formatJson, getMethodClass, getStatusClass
+};

@@ -14,6 +14,12 @@ import {
   Tooltip,
 } from 'chart.js';
 import { watch, onBeforeUnmount } from 'vue';
+import { cssVariable, lighten, watchTheme, withAlpha } from '@/utils/chartColors';
+
+// Помощники по цвету общие с ручными холстами (лента запросов в мониторинге):
+// тамошнему графику Chart.js не нужен, поэтому они живут в utils. Реэкспорт
+// оставлен, чтобы компоненты аналитики брали всё оформление из одного места.
+export { cssVariable, lighten, withAlpha };
 
 // Chart.js собран по частям: незарегистрированный тип падает в разборе с
 // «"bar" is not a registered controller». Регистрируем здесь и только то, чем
@@ -73,27 +79,6 @@ export function useChartCanvas(canvas, config) {
 }
 
 /**
- * Перерисовка графика при смене темы страницы.
- *
- * Цвета оформления снимаются с переменных темы в момент отрисовки, а сам
- * холст перерисовывается только по событию: смени тему при открытом графике -
- * и он останется в прежней палитре до следующего обновления данных. Тему
- * переключает атрибут `data-theme` на корне документа, за ним и следим.
- *
- * @param {HTMLCanvasElement} canvasEl холст графика
- * @param {() => void} redraw перерисовка
- * @returns {MutationObserver|null} null там, где наблюдателя нет (юниты)
- */
-function watchTheme(canvasEl, redraw) {
-  const root = canvasEl?.ownerDocument?.documentElement;
-  const view = canvasEl?.ownerDocument?.defaultView;
-  if (!root || typeof view?.MutationObserver !== 'function') return null;
-  const observer = new view.MutationObserver(redraw);
-  observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
-  return observer;
-}
-
-/**
  * Цвет оформления, снятый с темы страницы в момент отрисовки.
  *
  * Chart.js рисует на холсте и переменных CSS не знает: прибитые числом цвета
@@ -107,67 +92,6 @@ function watchTheme(canvasEl, redraw) {
  */
 export function themeColor(name, fallback) {
   return (ctx) => cssVariable(ctx?.chart?.canvas, name, fallback);
-}
-
-/**
- * Значение переменной темы у элемента.
- *
- * @param {HTMLElement|null|undefined} el элемент, с которого снимается тема
- * @param {string} name имя переменной
- * @param {string} fallback значение, когда темы нет
- * @returns {string}
- */
-export function cssVariable(el, name, fallback) {
-  const view = el?.ownerDocument?.defaultView;
-  const value = view?.getComputedStyle?.(el)?.getPropertyValue?.(name);
-  return value?.trim() || fallback;
-}
-
-/**
- * Цвет с заданной прозрачностью для градиентной заливки.
- *
- * Принимает шестнадцатеричную запись, которой пользуются вызывающие компоненты
- * (`color: '#4F5BDF'`). Незнакомую запись возвращает как есть: подмешать к ней
- * прозрачность нельзя, но и ронять график из-за оформления незачем.
- *
- * @param {string} color цвет в записи #rgb или #rrggbb
- * @param {number} alpha прозрачность от 0 до 1
- * @returns {string}
- */
-export function withAlpha(color, alpha) {
-  const parts = parseHex(color);
-  if (!parts) return String(color ?? '').trim();
-  return `rgba(${parts.join(', ')}, ${alpha})`;
-}
-
-/**
- * Цвет, подмешанный к белому, - подсветка сегмента под курсором.
- *
- * @param {string} color цвет в записи #rgb или #rrggbb
- * @param {number} amount доля белого от 0 до 1
- * @returns {string}
- */
-export function lighten(color, amount) {
-  const parts = parseHex(color);
-  if (!parts) return String(color ?? '').trim();
-  const mixed = parts.map((c) => Math.round(c + (255 - c) * amount));
-  return `rgb(${mixed.join(', ')})`;
-}
-
-/**
- * Составляющие цвета из шестнадцатеричной записи.
- *
- * @param {string} color цвет в записи #rgb или #rrggbb
- * @returns {number[]|null} null для незнакомой записи
- */
-function parseHex(color) {
-  const hex = String(color ?? '').trim();
-  const short = /^#([\da-f])([\da-f])([\da-f])$/i.exec(hex);
-  const full = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex);
-  if (!short && !full) return null;
-  return short
-    ? short.slice(1).map((c) => parseInt(c + c, 16))
-    : full.slice(1).map((c) => parseInt(c, 16));
 }
 
 /**
