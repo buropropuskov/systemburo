@@ -67,6 +67,11 @@ let railSaved = null;
 let advanceObserver = null;
 // Наблюдатель за пересозданием подсвеченного узла (см. watchRetarget).
 let retargetObserver = null;
+// Границы поднятого сейчас сегмента (глобальные индексы, включительно). Судить о
+// принадлежности шага сегменту по одному только route нельзя: тур возвращается на
+// ту же страницу несколькими сегментами - у охранника «Доступные мне» идут и до
+// таблицы поста, и после неё, финалом.
+let segmentRange = null;
 
 /**
  * Рельс держим развёрнутым на nav-шаге И на шаге ПЕРЕД ним: разворачиваем
@@ -208,6 +213,7 @@ async function startSegment() {
     store.stop();
     return;
   }
+  segmentRange = { start: segmentStartIndex, end: segmentStartIndex + segmentSteps.length - 1 };
   const localTarget = store.currentIndex - segmentStartIndex;
 
   // Демо-вложение и рельс целевого шага ставим ДО ожидания элемента: форма
@@ -287,6 +293,14 @@ async function jumpToStep(globalIndex) {
   if (!step || globalIndex === store.currentIndex) return;
   if (step.route !== route.path) {
     retreatToSegment(globalIndex, step.route);
+    return;
+  }
+  // Шаг на этой же странице, но в другом сегменте: driver знает только шаги
+  // поднятого сегмента, и obGoTo для такого индекса молча ничего не делал - в
+  // туре заявителя прыжок на финал из списка шагов не срабатывал вовсе.
+  // Навигации тут не будет (страница та же), поэтому сегмент поднимаем сами.
+  if (!isInActiveSegment(globalIndex)) {
+    restartSegmentAt(globalIndex);
     return;
   }
   const gen = driverGen;
@@ -435,6 +449,38 @@ function handleBoundaryPrev(segmentStartGlobal) {
   }
 }
 
+/**
+ * Лежит ли шаг в поднятом сейчас сегменте driver.js.
+ *
+ * @param {number} globalIndex
+ * @returns {boolean}
+ */
+function isInActiveSegment(globalIndex) {
+  return Boolean(segmentRange) && globalIndex >= segmentRange.start && globalIndex <= segmentRange.end;
+}
+
+/**
+ * Поднять сегмент заново вокруг шага на ТЕКУЩЕЙ странице. Дорога для прыжка в
+ * соседний сегмент того же route: `retreatToSegment` там не годится - он ждёт
+ * навигации, а `router.push` на текущий путь её не делает и тур бы остановился.
+ *
+ * @param {number} globalIndex глобальный индекс целевого шага
+ */
+function restartSegmentAt(globalIndex) {
+  store.setIndex(globalIndex);
+  restoreRail();
+  restoreReveal();
+  // Поколение двигаем ДО destroy: onDestroyed прежнего инстанса иначе примет это
+  // за конец обучения и остановит тур (флага ожидания навигации здесь нет -
+  // страница та же). Тот же приём, что в teardown.
+  driverGen += 1;
+  if (driverObj) {
+    driverObj.destroy();
+    driverObj = null;
+  }
+  startSegment();
+}
+
 function retreatToSegment(targetIndex, targetRoute) {
   store.retreatSegment(targetIndex);
   restoreRail();
@@ -500,6 +546,7 @@ function handleDestroyed(gen) {
 function teardown() {
   stopAdvanceWatch();
   stopRetargetWatch();
+  segmentRange = null;
   // Тур ещё жив (logout/unmount во время прохождения) - авто-тур помечаем
   // пройденным здесь: ниже driverGen++ обезвредит отложенный onDestroyed, и тот
   // до markIfAuto уже не дойдёт. Так автозапуск действительно "один раз".

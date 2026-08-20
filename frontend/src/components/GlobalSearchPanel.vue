@@ -200,6 +200,7 @@ import { ADMIN_GROUPS, MAIN_SECTIONS } from '@/constants/navSections';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { SEARCH_TARGETS } from '@/constants/searchTargets';
 import { SEARCH_ACTIONS } from '@/constants/searchActions';
+import { useOnboardingStore } from '@/stores/onboarding';
 
 /** Сколько разделов меню показывать: список длинный, а нужен обычно первый же. */
 const SECTIONS_LIMIT = 5;
@@ -378,6 +379,11 @@ export default {
      */
     onDocumentMousedown(e) {
       if (!this.open || this.pinned || this.collapsed) return;
+      // Панель раскрыл онбординг-тур: шаг рассказывает именно про открытый поиск,
+      // а окно шага лежит вне панели. Без этой проверки клик по окну сворачивал
+      // панель в столбик, подсветка слетала, а вырез в затемнении оставался
+      // висеть на опустевшем месте - шаг превращался в мёртвый.
+      if (useOnboardingStore().revealOpen === 'search-panel') return;
       if (this.$refs.panel?.contains(e.target)) return;
       if (e.target.closest?.('.search-btn')) return;
       this.collapsed = true;
