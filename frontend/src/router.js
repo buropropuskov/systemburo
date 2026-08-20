@@ -138,9 +138,7 @@ const routes = [
   {
     path: '/admin/requests',
     name: 'RequestsView',
-    // Раздел грузится по требованию: вместе с ним в отдельный кусок уходит
-    // Chart.js, который до этого лежал в стартовой загрузке у всех, включая
-    // тех, кому мониторинг закрыт правом.
+    // По требованию: вместе с разделом из стартовой загрузки уходит Chart.js.
     component: () => import('./views/RequestsView.vue'),
     meta: { requiresAuth: true, permission: 'page.admin.monitoring' }
   },
