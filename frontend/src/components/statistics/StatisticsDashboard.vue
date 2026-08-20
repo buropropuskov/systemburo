@@ -129,7 +129,7 @@
     </div>
 
     <!-- ===== ВЛОЖЕНИЯ И PUSH: два блока в одну строку ===== -->
-    <div class="dashboard__pair">
+    <div class="an-pair">
       <div class="dashboard__group">
         <div class="dashboard__group-head">
           <h2 class="dashboard__group-title">Вложения</h2>
@@ -157,18 +157,18 @@
 
         <div
           v-else
-          class="dashboard__attach"
+          class="an-panel"
         >
-          <div class="dashboard__attach-chart">
+          <div class="an-panel__chart">
             <AnalyticsDonutChart
               :data="attachmentDonutData"
-              :height="240"
+              :height="300"
               total-label="Вложений"
               :unit-forms="['вложение', 'вложения', 'вложений']"
               empty-ring
             />
           </div>
-          <div class="dashboard__tiles dashboard__attach-tiles">
+          <div class="an-panel__tiles">
             <div
               v-for="item in attachmentBreakdown"
               :key="item.label"
@@ -1082,44 +1082,6 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
   gap: 12px;
-}
-
-/* Вложения и push - две колонки; auto-fit сводит в одну, когда мало места. */
-.dashboard__pair {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 560px), 1fr));
-  gap: 20px;
-  align-items: start;
-}
-
-/* Распределение вложений: donut слева, плитки-числа справа; на узких — стопкой. */
-.dashboard__attach {
-  display: grid;
-  grid-template-columns: minmax(220px, 300px) 1fr;
-  gap: 20px;
-  align-items: start;
-}
-
-.dashboard__attach-chart {
-  background: var(--surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
-}
-
-/* Столбцом рядом с кольцом: auto-fill на половине ширины клал их то в одну
-   колонку, то в две, и высота блока прыгала от числа типов вложений. */
-.dashboard__attach-tiles {
-  min-width: 0;
-  grid-template-columns: minmax(0, 1fr);
-}
-
-@media (max-width: 900px) {
-  .dashboard__attach {
-    /* minmax(0,1fr): иначе трек сайзится по min-content доната (~300px)
-       и на узком экране (<=320) вылезает за контейнер, вместо сжатия графика. */
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 .dashboard__tile {
