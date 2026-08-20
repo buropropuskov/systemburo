@@ -596,10 +596,13 @@ describe('финальный шаг', () => {
     expect(finish.element).toBe('[data-testid="ob-start-button"]');
   });
 
-  it('несёт празднование и CTA на оформление заявки', () => {
+  it('несёт празднование и показывает кнопку «Обучение»', () => {
     expect(finish.celebrate).toBe(true);
-    expect(typeof finish.cta).toBe('string');
-    expect(finish.cta.length).toBeGreaterThan(0);
+    expect(finish.element).toBe('[data-testid="ob-start-button"]');
+    // Кнопки-перехода в раздел на финале больше нет: тур заканчивается там же,
+    // откуда запускается (решение владельца 20.08).
+    expect(finish.cta).toBeUndefined();
+    expect(finish.ctaRoute).toBeUndefined();
   });
 
   it('возвращает тур на /news (граница сегмента после createApp)', () => {
@@ -608,11 +611,10 @@ describe('финальный шаг', () => {
     expect(finish.route).not.toBe(prev.route);
   });
 
-  it('celebrate/cta есть только у финального шага', () => {
+  it('празднование ровно одно и только на финале', () => {
     const withCelebrate = onboardingSteps.filter((s) => s.celebrate);
-    const withCta = onboardingSteps.filter((s) => s.cta);
     expect(withCelebrate).toHaveLength(1);
-    expect(withCta).toHaveLength(1);
     expect(withCelebrate[0].id).toBe('finish');
+    expect(onboardingSteps.filter((s) => s.cta)).toHaveLength(0);
   });
 });

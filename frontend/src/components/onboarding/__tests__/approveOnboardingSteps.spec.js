@@ -83,14 +83,16 @@ describe('approveOnboardingSteps - состав', () => {
     expect(APPROVE_ONBOARDING_VERSION).toBeGreaterThanOrEqual(1);
   });
 
-  it('финал - последний шаг, помечен celebrate и уводит в Центр заявок', () => {
+  it('финал - последний шаг: празднование и кнопка «Обучение» на «Обзоре»', () => {
     const last = approveOnboardingSteps[approveOnboardingSteps.length - 1];
     expect(last.celebrate).toBe(true);
-    expect(last.element).toBe(null);
+    expect(last.route).toBe('/news');
+    // Подсвечиваем саму кнопку запуска: финал говорит «пройти можно заново - вот отсюда».
+    expect(last.element).toBe('[data-testid="ob-start-button"]');
     expect(last.requires).toBeUndefined();
-    expect(last.ctaRoute).toBe('/center');
-    expect(last.cta.length).toBeGreaterThan(0);
-    // celebrate ровно один: два празднования в одном туре - это сломанный порядок.
+    // Кнопки-перехода в раздел на финале больше нет (решение владельца 20.08).
+    expect(last.cta).toBeUndefined();
+    expect(last.ctaRoute).toBeUndefined();
     expect(approveOnboardingSteps.filter((s) => s.celebrate)).toHaveLength(1);
   });
 
@@ -105,17 +107,25 @@ describe('approveOnboardingSteps - состав', () => {
 });
 
 describe('approveOnboardingSteps - сегменты и достижимость', () => {
-  it('шаги одного route идут подряд - cross-page навигация не рвётся', () => {
+  it('шаги одного route идут подряд; вернуться можно только финалом', () => {
     const seen = new Set();
+    const segments = [];
     let i = 0;
     while (i < approveOnboardingSteps.length) {
       const { route } = approveOnboardingSteps[i];
-      expect(seen.has(route), `route ${route} встречается вторым куском`).toBe(false);
-      seen.add(route);
-      i += collectSegment(approveOnboardingSteps, i, route).length;
+      const length = collectSegment(approveOnboardingSteps, i, route).length;
+      segments.push({ route, start: i, length });
+      i += length;
     }
-    expect(seen.size).toBe(2);
-    expect([...seen]).toEqual(['/news', '/center']);
+    segments.forEach((seg, idx) => {
+      // Единственный разрешённый повтор - финальное возвращение на «Обзор»:
+      // там живёт кнопка «Обучение», которой тур запускают заново.
+      const isFinalSegment = idx === segments.length - 1;
+      expect(seen.has(seg.route) && !isFinalSegment, `route ${seg.route} встречается вторым куском`).toBe(false);
+      seen.add(seg.route);
+    });
+    // Сегментов заметно меньше, чем шагов: тур не бегает по странице на шаг.
+    expect(segments.length).toBeLessThan(approveOnboardingSteps.length);
   });
 
   it('сегмент Центра помечен optionalSegment - без права page.center тур не виснет', () => {

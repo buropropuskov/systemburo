@@ -397,25 +397,25 @@ describe('buildSecurityFactSteps', () => {
 });
 
 describe('buildSecurityFinalStep', () => {
-  it('финальный центр-модал с празднованием на достижимом /accessible-attachments', () => {
+  it('финал с празднованием на «Обзоре», а не на route фактовой таблицы', () => {
     const step = buildSecurityFinalStep();
     expect(step.id).toBe('sec-finish');
-    expect(step.element).toBe(null);
+    // Подсвечиваем кнопку запуска обучения - финал зовёт пройти заново.
+    expect(step.element).toBe('[data-testid="ob-start-button"]');
     expect(step.celebrate).toBe(true);
-    // финал всегда на достижимой странице, НЕ на route фактовой таблицы
-    expect(step.route).toBe('/accessible-attachments');
+    // «Обзор» достижим любому вошедшему, сегмент фактовой таблицы - нет.
+    expect(step.route).toBe('/news');
     expect(typeof step.title).toBe('string');
     expect(step.title.length).toBeGreaterThan(0);
     expect(typeof step.description).toBe('string');
     expect(step.description.length).toBeGreaterThan(0);
   });
 
-  it('CTA ведёт в «Доступные мне», а НЕ на подачу заявки', () => {
+  it('на финале нет кнопки-перехода в раздел и упоминания подачи заявки', () => {
     const step = buildSecurityFinalStep();
-    expect(typeof step.cta).toBe('string');
-    expect(step.cta.length).toBeGreaterThan(0);
-    expect(step.cta).not.toMatch(/Подать заявку/);
-    expect(step.ctaRoute).toBe('/accessible-attachments');
+    expect(step.cta).toBeUndefined();
+    expect(step.ctaRoute).toBeUndefined();
+    // Охранник заявок не подаёт - финал не должен звать его туда даже словом.
     expect(step.description).not.toMatch(/Подать заявку/);
   });
 
@@ -428,8 +428,8 @@ describe('buildSecurityFinalStep', () => {
     expect(steps.some((s) => s.id.startsWith('sec-fact-'))).toBe(false);
     const last = steps[steps.length - 1];
     expect(last.id).toBe('sec-finish');
-    // Финал живёт на «Доступных мне» - странице, достижимой охранником всегда.
-    expect(last.route).toBe('/accessible-attachments');
+    // Финал живёт на «Обзоре» - странице, достижимой любому вошедшему.
+    expect(last.route).toBe('/news');
   });
 });
 

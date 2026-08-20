@@ -20,7 +20,7 @@
  *
  * Поля шага - в JSDoc `onboardingSteps.js`.
  *
- * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, requires?: string, expandRail?: boolean, celebrate?: boolean, cta?: string, ctaRoute?: string, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: string } }>}
+ * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, requires?: string, expandRail?: boolean, celebrate?: boolean, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: string } }>}
  */
 export const adminOnboardingSteps = [
   // ── Сегмент /news: колонка Админки, её устройство и поиск ──
@@ -223,14 +223,13 @@ export const adminOnboardingSteps = [
   },
   {
     id: 'admin-finish',
-    route: '/admin/data-processing',
-    element: null,
+    // Финал у всех туров один - см. комментарий в approveOnboardingSteps.
+    route: '/news',
+    element: '[data-testid="ob-start-button"]',
     celebrate: true,
-    cta: 'Перейти к руководству',
-    ctaRoute: '/admin/guide',
     title: 'Готово!',
     description:
-      'Карта Админки у вас есть: колонка с четырьмя группами и поиском, пользователи и права, справочники, новости, обратная связь, чёрный список и настройки. Тур можно перезапустить в любой момент из меню «Обучение». Разбор отдельных разделов лежит в «Руководстве» - там же вы правите его для остальных.',
+      'Карта Админки у вас есть: колонка с четырьмя группами и поиском, пользователи и права, справочники, новости, обратная связь, чёрный список и настройки. Разбор отдельных разделов лежит в «Руководстве» - там же вы правите его для остальных. Пройти обучение заново можно кнопкой «Обучение» вот здесь.',
   },
 ];
 

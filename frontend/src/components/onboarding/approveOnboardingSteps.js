@@ -32,7 +32,7 @@ export const APPROVE_ONBOARDING_VERSION = 1;
  *
  * Поля шага и точки расширения - в JSDoc `onboardingSteps.js`.
  *
- * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, demo?: string, requires?: string, optional?: boolean, optionalSegment?: boolean, expandRail?: boolean, celebrate?: boolean, cta?: string, ctaRoute?: string, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: string } }>}
+ * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, demo?: string, requires?: string, optional?: boolean, optionalSegment?: boolean, expandRail?: boolean, celebrate?: boolean, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: string } }>}
  */
 export const approveOnboardingSteps = [
   // ── Сегмент /news: знакомство и дорога в Центр заявок ──
@@ -153,13 +153,13 @@ export const approveOnboardingSteps = [
   },
   {
     id: 'apr-finish',
-    route: '/center',
-    element: null,
+    // Финал у всех туров один: возвращаемся на «Обзор и новости» и показываем
+    // кнопку, которой обучение запускают заново (решение владельца 20.08).
+    route: '/news',
+    element: '[data-testid="ob-start-button"]',
     celebrate: true,
-    cta: 'Открыть Центр заявок',
-    ctaRoute: '/center',
     title: 'Готово!',
     description:
-      'Теперь порядок понятен: в Центре заявок отбираете те, что ждут согласования, открываете карточку, смотрите состав и решения других, при нехватке данных задаёте вопрос заявителю - и голосуете. Пока заявку не приняли в работу, своё решение можно отозвать.',
+      'Порядок понятен: в Центре заявок отбираете те, что ждут согласования, открываете карточку, смотрите состав и решения других, при нехватке данных задаёте вопрос заявителю - и голосуете. Пока заявку не приняли в работу, своё решение можно отозвать. Пройти обучение заново можно кнопкой «Обучение» вот здесь.',
   },
 ];

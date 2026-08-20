@@ -273,7 +273,6 @@ async function startSegment() {
     onBoundaryNext: handleBoundaryNext,
     onBoundaryPrev: handleBoundaryPrev,
     onJumpTo: jumpToStep,
-    onCtaClick: finishWithCta,
     // Esc/оверлей/крестик/Пропустить -> просто останавливаем тур. teardown
     // (через watch isActive) снимет overlay и пометит авто-тур пройденным -
     // надёжно, даже если шаг закрыли во время entry-анимации (когда driver
@@ -312,24 +311,6 @@ async function jumpToStep(globalIndex) {
   const ready = await prepareStep(globalIndex);
   if (!driverObj || gen !== driverGen) return;
   driverObj.obGoTo(globalIndex, ready === false || ready === STEP_DEMO_FALLBACK);
-}
-
-/**
- * CTA финала: завершаем тур и ведём на целевой раздел шага. Applicant-финал не
- * задаёт ctaRoute -> дефолт «оформить заявку»; security-финал ведёт в «Доступные
- * мне» (ctaRoute), а не на подачу заявки.
- *
- * Навигацию пропускаем, если уже на целевом роуте: security-финал показывается
- * прямо на /accessible-attachments, и повторный push того же пути зря
- * перезапускал бы navigation guard (а под кратковременно «протухшим» токеном
- * guard может отбросить на /personal-cabinet). CTA тогда просто завершает тур.
- *
- * @param {string} [ctaRoute] route из ctaRoute финального шага
- */
-function finishWithCta(ctaRoute) {
-  finishTour();
-  const target = ctaRoute || '/new-application';
-  if (route.path !== target) router.push(target).catch(() => {});
 }
 
 /**

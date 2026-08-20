@@ -514,12 +514,12 @@ describe('onboarding store', () => {
         'sec-fact-report-window',
         'sec-finish',
       ]);
-      // шаги фактовой таблицы - на её route, а финал всегда на достижимом
-      // /accessible-attachments (чтобы охранник без доступа к таблице дошёл до него)
+      // шаги фактовой таблицы - на её route, а финал всегда на «Обзоре»: он
+      // достижим любому вошедшему, и там же кнопка «Обучение» для повторного прохода
       expect(tail.slice(0, -1).every((s) => s.route === '/table/kpp_1')).toBe(true);
       const finalStep = tail[tail.length - 1];
       expect(finalStep.id).toBe('sec-finish');
-      expect(finalStep.route).toBe('/accessible-attachments');
+      expect(finalStep.route).toBe('/news');
     });
 
     it('без доступной фактовой таблицы (null) сегмент не добавляется', async () => {
@@ -534,7 +534,7 @@ describe('onboarding store', () => {
       expect(store.totalSteps).toBe(securityOnboardingSteps.length + 1);
       const last = store.steps[store.steps.length - 1];
       expect(last.id).toBe('sec-finish');
-      expect(last.route).toBe('/accessible-attachments');
+      expect(last.route).toBe('/news');
     });
 
     it('идемпотентен - резолвит один раз за сессию', async () => {
