@@ -30,6 +30,7 @@ const FILES = [
   resolve(__dirname, '../../components/monitoring/AnalyticsTab.vue'),
   resolve(__dirname, '../../components/monitoring/LogDetails.vue'),
   resolve(__dirname, '../../components/monitoring/RequestLogBadge.vue'),
+  resolve(__dirname, '../../components/monitoring/KpiRow.vue'),
 ].map(path => readFileSync(path, 'utf8'));
 
 /** Разметка всех файлов раздела одной строкой. */

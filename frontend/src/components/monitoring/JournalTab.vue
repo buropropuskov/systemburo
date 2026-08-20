@@ -71,10 +71,6 @@
       >
         Лента{{ autoRefresh && refreshBlock ? ` (${refreshBlock})` : '' }}
       </ToggleSwitch>
-      <RefreshButton
-        :loading="isLoading"
-        @refresh="refreshLogs"
-      />
       <button
         class="lk-button lk-button--secondary"
         data-testid="journal-clear"
@@ -232,7 +228,6 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router';
 import SearchComponent from '@/components/SearchComponent.vue';
 import RealTimeChart from '@/components/RealTimeChart.vue';
-import RefreshButton from '@/components/RefreshButton.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
@@ -426,10 +421,21 @@ function applyFilter(key, value) {
 }
 
 function refreshLogs() {
-  pagination.page = 1;
-  fetchLogs();
+  reload();
   emit('refresh-stats');
 }
+
+/**
+ * Перечитать список с первой страницы. Показатели шапки отсюда не дёргаются:
+ * когда обновление пришло от кнопки в шапке, она читает их сама, и запрос
+ * ушёл бы дважды.
+ */
+function reload() {
+  pagination.page = 1;
+  return fetchLogs();
+}
+
+defineExpose({ refresh: reload });
 
 /**
  * Порядок строк задаёт сервер: в списке одна страница, и перестановка её на
