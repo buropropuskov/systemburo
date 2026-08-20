@@ -103,11 +103,13 @@ defineEmits(['close']);
 </script>
 
 <style scoped>
+/* base-modal__body идёт без padding - отступы несёт содержимое (как у соседних окон). */
 .details-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
   margin: 0;
+  padding: 16px 20px 20px;
 }
 
 .detail-group {

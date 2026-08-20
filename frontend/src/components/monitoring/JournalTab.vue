@@ -632,7 +632,8 @@ watch(() => props.hidden, (hidden) => {
 }
 
 /* Деталь запроса открывается окном, поэтому таблица держит всю ширину раздела,
-   а не 65% под соседнюю колонку. */
+   а не 65% под соседнюю колонку. Высоту на узких экранах снимает не этот блок, а
+   AdminPageShell: у него :deep(.content-container) с height:auto. */
 .content-container {
   display: flex;
   height: 500px;
