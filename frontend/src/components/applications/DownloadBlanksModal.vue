@@ -30,6 +30,24 @@
             :tabs="sourceTabs"
           />
 
+          <!-- Выбор наполнения бланка виден только тем, кому документы участников
+               положены; остальным вместо переключателя идёт строка о том, почему в
+               скачанном файле прочерки. -->
+          <FilterTabs
+            v-if="showDocumentsChoice"
+            v-model="documentsMode"
+            class="dbm-source dbm-documents"
+            data-testid="blank-documents-tabs"
+            :tabs="documentsTabs"
+          />
+          <p
+            v-if="!isLoading && !error && eligibleAttachments.length && !canExportDocuments"
+            class="dbm-docs-note"
+            data-testid="blank-documents-note"
+          >
+            Паспортные данные, патент и иное разрешение в бланке заменены прочерком: нет права на их выгрузку.
+          </p>
+
           <div
             v-if="isLoading"
             class="dbm-state"
@@ -123,6 +141,7 @@ import JSZip from 'jszip';
 import { apiRequest } from '@/api/client';
 import { useDeletionsStore } from '@/stores/deletions';
 import { downloadBlank, downloadApplicationArchive, saveBlobAs } from '@/api/attachment-templates';
+import { usePermissionsStore } from '@/stores/permissions';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 
@@ -165,6 +184,10 @@ export default {
       // Источник скачивания: archive - сохранённый на диске файл файлового
       // архива, live - генерация бланка заново из текущих данных заявки.
       source: 'live',
+      // Наполнение бланка: without - паспорт, патент и иное разрешение заменены
+      // прочерком. Умолчание намеренно закрытое: вынос персональных данных из
+      // системы должен быть отдельным решением, а не тем, что случилось само.
+      documentsMode: 'without',
     };
   },
   computed: {
@@ -173,8 +196,29 @@ export default {
     },
     sourceTabs() {
       return [
-        { key: 'archive', label: 'Сохранённый файл' },
+        // Сохранённый файл собран с документами, и вырезать их из готового .xlsx
+        // нечем - поэтому вкладка живёт только в режиме «с паспортными данными»
+        // (сервер на этот случай отвечает 403, см. attachment_blank.go).
+        { key: 'archive', label: 'Сохранённый файл', visible: this.withDocuments },
         { key: 'live', label: 'Сформировать заново' },
+      ];
+    },
+    // Пара прав, а не одно: detail.documents открывает документы на экране карточки,
+    // detail.documents.export - их вынос файлом. Отзыв первого гасит и второе.
+    canExportDocuments() {
+      const perms = usePermissionsStore();
+      return perms.hasPermission('detail.documents') && perms.hasPermission('detail.documents.export');
+    },
+    showDocumentsChoice() {
+      return !this.isLoading && !this.error && this.eligibleAttachments.length > 0 && this.canExportDocuments;
+    },
+    withDocuments() {
+      return this.canExportDocuments && this.documentsMode === 'with';
+    },
+    documentsTabs() {
+      return [
+        { key: 'without', label: 'Без паспортных данных' },
+        { key: 'with', label: 'С паспортными данными' },
       ];
     },
     // Сохранённый файл есть не у каждого вложения: у вложения в очереди, с ошибкой
@@ -195,8 +239,19 @@ export default {
     show(visible) {
       if (visible && this.applicationId) {
         this.selectedIds = [];
+        this.documentsMode = 'without';
         this.load();
       }
+    },
+    // Режим документов управляет и источником: в закрытом вкладка «Сохранённый файл»
+    // исчезает, и оставшийся в source archive молча получал бы 403. В открытом она
+    // возвращается вместе с прежним умолчанием - сохранённый файл, если он есть.
+    withDocuments(enabled) {
+      if (!enabled) {
+        this.source = 'live';
+        return;
+      }
+      if (this.eligibleAttachments.some(a => a.archive_status === 'ok')) this.source = 'archive';
     },
   },
   methods: {
@@ -209,7 +264,8 @@ export default {
         // Дефолт "сохранённый файл", если хоть одно вложение уже реально
         // записано в архив - иначе живая генерация (архив либо выключен,
         // либо ещё не успел выгрузить ни одного бланка этой заявки).
-        this.source = this.eligibleAttachments.some(a => a.archive_status === 'ok') ? 'archive' : 'live';
+        const hasSaved = this.eligibleAttachments.some(a => a.archive_status === 'ok');
+        this.source = hasSaved && this.withDocuments ? 'archive' : 'live';
       } catch {
         this.error = 'Не удалось загрузить вложения';
       } finally {
@@ -225,7 +281,8 @@ export default {
     async downloadOne(att) {
       this.downloadingId = att.id;
       try {
-        const { blob, filename } = await downloadBlank(this.applicationId, att.id, { source: this.source });
+        const { blob, filename } = await downloadBlank(this.applicationId, att.id,
+          { source: this.source, withDocuments: this.withDocuments });
         saveBlobAs(blob, filename);
       } catch (err) {
         useDeletionsStore().notify({ prefix: 'Не удалось скачать: ', bold: err.message || 'ошибка сервера', type: 'error' });
@@ -250,7 +307,8 @@ export default {
       const zip = new JSZip();
       for (const id of ids) {
         try {
-          const { blob, filename } = await downloadBlank(this.applicationId, id, { source: this.source });
+          const { blob, filename } = await downloadBlank(this.applicationId, id,
+            { source: this.source, withDocuments: this.withDocuments });
           zip.file(filename, blob);
         } catch (err) {
           useDeletionsStore().notify({ prefix: 'Не удалось скачать файл: ', bold: err.message || 'ошибка сервера', type: 'error' });
@@ -361,6 +419,20 @@ export default {
   display: flex;
   gap: 6px;
   padding: 14px 24px 0;
+}
+
+/* Вторая группа вкладок идёт вплотную к первой: это две грани одного выбора
+   «что скачиваем», а не отдельный блок настроек. */
+.dbm-documents {
+  padding-top: 8px;
+}
+
+.dbm-docs-note {
+  margin: 0;
+  padding: 12px 24px 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--color-text-muted);
 }
 
 .dbm-archive-badge {

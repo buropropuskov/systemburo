@@ -47,6 +47,7 @@ func NewAttachmentBlankHandler(s services.AttachmentBlankService, access blankAc
 // @Param        id path int true "ID заявки"
 // @Param        attachment_id query int true "ID Attachment"
 // @Param        source query string false "live (по умолчанию) или archive - сохранённый файл"
+// @Param        documents query bool false "Подставить документы участников (паспорт, патент, иное разрешение). Требует прав detail.documents и detail.documents.export; без них бланк уходит с прочерками независимо от параметра"
 // @Success      200
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
@@ -70,11 +71,20 @@ func (h *AttachmentBlankHandler) Download(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
-	if c.QueryParam("source") == "archive" {
-		return h.downloadArchived(c, appID, attID)
+	mayExportDocuments, err := h.canExportDocuments(c)
+	if err != nil {
+		return err
 	}
 
-	reader, filename, err := h.service.GenerateBlank(c.Request().Context(), appID, attID)
+	if c.QueryParam("source") == "archive" {
+		// У сохранённой копии выбора наполнения нет: она собрана с документами и
+		// лежит на диске как есть. Поэтому здесь важно только право, а параметр
+		// режима, которым управляют вкладки модалки, к делу не относится.
+		return h.downloadArchived(c, appID, attID, mayExportDocuments)
+	}
+
+	reader, filename, err := h.service.GenerateBlank(c.Request().Context(), appID, attID,
+		services.BlankOptions{IncludeDocuments: mayExportDocuments && documentsRequested(c)})
 	if err != nil {
 		return err
 	}
@@ -117,10 +127,10 @@ func (h *AttachmentBlankHandler) DownloadTemplate(c echo.Context) error {
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", reader)
 }
 
-// downloadArchived отдаёт файл с диска по записи реестра файлового архива - доступ
-// уже проверен в Download до вызова, отдельного права под источник "сохранённый
-// файл" нет (#1615, C6).
-func (h *AttachmentBlankHandler) downloadArchived(c echo.Context, appID, attID int) error {
+// downloadArchived отдаёт файл с диска по записи реестра файлового архива - доступ к
+// самому вложению уже проверен в Download до вызова. Документы участников внутри файла
+// закрыты отдельно: сохранённая копия собрана с ними (#1615, C6).
+func (h *AttachmentBlankHandler) downloadArchived(c echo.Context, appID, attID int, withDocuments bool) error {
 	if h.archive == nil {
 		return archiveUnavailable()
 	}
@@ -131,6 +141,15 @@ func (h *AttachmentBlankHandler) downloadArchived(c echo.Context, appID, attID i
 	file, err := h.archive.FileForDownload(row)
 	if err != nil {
 		return err
+	}
+	// Гейт документов стоит после поиска файла, а не до него: иначе отсутствие
+	// сохранённой копии и нехватка права отвечали бы одинаково, и «файл ещё не
+	// выгрузился» читалось бы как отказ в доступе. Сама копия собрана с документами,
+	// вырезать их из готового .xlsx нечем - ячейки известны шаблону, а не файлу,
+	// поэтому источник закрывается целиком.
+	if !withDocuments {
+		return echo.NewHTTPError(http.StatusForbidden,
+			"Сохранённый файл содержит документы участников. Выберите «Сформировать заново»")
 	}
 	c.Response().Header().Set("Content-Type",
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -150,6 +169,47 @@ func (h *AttachmentBlankHandler) downloadArchived(c echo.Context, appID, attID i
 	defer reader.Close()
 	return c.Stream(http.StatusOK,
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", reader)
+}
+
+// documentsRequested читает выбор режима в модалке скачивания. Умолчание -- без
+// документов: осознанным действием должен быть вынос персональных данных, а не отказ
+// от него. Старый клиент, не знающий параметра, по этой же причине получает бланк с
+// прочерками, а не молча уносит паспорта.
+func documentsRequested(c echo.Context) bool {
+	switch c.QueryParam("documents") {
+	case "1", "true", "yes":
+		return true
+	}
+	return false
+}
+
+// canExportDocuments -- право вынести документы участников из системы файлом.
+// Конъюнкция намеренная: detail.documents.export работает только вместе с правом на
+// сам раздел «Документы», поэтому отзыв просмотра на экране закрывает и выгрузку, без
+// второго действия администратора.
+//
+// Гейт доступа к бланку проверяется отдельно (canDownload) и раньше: сюда попадают уже
+// те, кому файл положен, вопрос лишь в его наполнении.
+func (h *AttachmentBlankHandler) canExportDocuments(c echo.Context) (bool, error) {
+	return canExportBlankDocuments(c, h.resolver)
+}
+
+// canExportBlankDocuments -- общая проверка для скачивания одного бланка и ZIP заявки
+// из файлового архива: оба уносят один и тот же набор документов, и разъехавшийся гейт
+// означал бы, что закрытое поштучно забирается архивом целиком.
+func canExportBlankDocuments(c echo.Context, resolver *services.PermissionResolver) (bool, error) {
+	if resolver == nil {
+		return false, nil
+	}
+	userID, ok := c.Get("user_id").(int)
+	if !ok || userID == 0 {
+		return false, nil
+	}
+	set, err := resolver.Resolve(c.Request().Context(), userID)
+	if err != nil {
+		return false, fmt.Errorf("resolve permissions for blank documents: %w", err)
+	}
+	return set.Has(services.KeyDetailDocuments) && set.Has(services.KeyDetailDocumentsExport), nil
 }
 
 // canDownload повторяет обе точки, откуда бланк запрашивают: деталь заявки (DownloadBlanksModal)
