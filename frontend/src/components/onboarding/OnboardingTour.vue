@@ -253,8 +253,7 @@ async function startSegment() {
     onIndexChange: (globalIndex) => {
       store.setIndex(globalIndex);
       applyRail(globalIndex);
-      watchers.watchAdvance(globalIndex);
-      watchers.watchRetarget(globalIndex);
+      watchers.watchStep(globalIndex);
       // Backstop: синхронизируем демо-вложение с подсвеченным шагом (важно для
       // навигации «Назад» - prepareStep отрабатывает только на «Далее»).
       const attachmentChanged = applyDemoAttachment(globalIndex);
