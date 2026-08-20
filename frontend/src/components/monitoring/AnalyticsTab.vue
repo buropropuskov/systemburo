@@ -165,6 +165,10 @@ const emit = defineEmits(['update:loading']);
 
 const history = ref(emptyHistory());
 const isLoading = ref(false);
+// Номер последнего запроса истории. Отбор периода доступен и во время загрузки
+// (плёнка кликов не ловит), а год отвечает заметно дольше недели: без номера
+// запоздавший ответ прошлого периода затирает числа свежего.
+let historySeq = 0;
 const from = ref('');
 const to = ref('');
 const loaded = ref(false);
@@ -176,6 +180,7 @@ const p95Note = computed(() => buildP95Note(history.value.coverage));
 const chartPoints = computed(() => dailyChartPoints(history.value.daily));
 
 async function fetchHistory() {
+  const seq = ++historySeq;
   isLoading.value = true;
   emit('update:loading', true);
   try {
@@ -184,18 +189,24 @@ async function fetchHistory() {
     if (to.value) params.set('to_date', to.value);
     const qs = params.toString();
     const response = await apiRequest(`/request-logs/history${qs ? '?' + qs : ''}`);
+    if (seq !== historySeq) return;
     if (response.ok) {
       const data = await response.json();
+      if (seq !== historySeq) return;
       if (data) {
         history.value = historyFromResponse(data);
         loaded.value = true;
       }
     }
   } catch {
-    useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'аналитику', type: 'error' });
+    if (seq === historySeq) {
+      useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'аналитику', type: 'error' });
+    }
   } finally {
-    isLoading.value = false;
-    emit('update:loading', false);
+    if (seq === historySeq) {
+      isLoading.value = false;
+      emit('update:loading', false);
+    }
   }
 }
 

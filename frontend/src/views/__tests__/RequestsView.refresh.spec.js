@@ -13,8 +13,9 @@ vi.mock('@/api/client', () => ({
   apiRequestRaw: vi.fn(),
 }));
 
+const notify = vi.fn();
 vi.mock('@/stores/deletions', () => ({
-  useDeletionsStore: () => ({ notify: vi.fn() }),
+  useDeletionsStore: () => ({ notify }),
 }));
 
 import { apiRequest, apiRequestRaw } from '@/api/client';
@@ -22,6 +23,11 @@ import { JOURNAL_REFRESH_MS } from '@/utils/requestLogsLive';
 import { logsPage, mountView, resetApiMocks, unmountAll } from './helpers/requestsView';
 
 const LOG = { id: 7, url: '/api/applications', method: 'GET', response_status: 200, duration_us: 900 };
+
+/** Ответ истории с узнаваемым числом запросов в сводке. */
+function historyResponse(total) {
+  return { ok: true, json: () => Promise.resolve({ totals: { requests: total }, daily: [], coverage: null }) };
+}
 
 /** Подвешивает следующий ответ списка: возвращает отпускающую его функцию. */
 function holdNextJournalCall(page = logsPage([LOG])) {
@@ -161,6 +167,38 @@ describe('RequestsView, показ загрузки аналитики', () => {
     expect(wrapper.find('.analytics-tab .refresh-overlay').exists(), 'данные пришли - плёнка ушла').toBe(false);
   });
 
+  it('запоздавший ответ прошлого периода не затирает свежие числа', async () => {
+    const { wrapper } = await mountView();
+    await flushPromises();
+
+    // Первый показ вкладки читает историю за всё время - ответ подвешен.
+    let releaseSlow;
+    apiRequest.mockImplementation(url => {
+      if (String(url).startsWith('/request-logs/history')) {
+        return new Promise(resolve => {
+          releaseSlow = () => resolve(historyResponse(111));
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+    await wrapper.findAll('.rv-tab')[1].trigger('click');
+    await flushPromises();
+
+    // Человек, не дождавшись, просит другой период - тулбар над плёнкой доступен.
+    apiRequest.mockImplementation(url => (String(url).startsWith('/request-logs/history')
+      ? Promise.resolve(historyResponse(222))
+      : Promise.resolve({ ok: true, json: () => Promise.resolve([]) })));
+    await wrapper.get('.analytics-toolbar .lk-button').trigger('click');
+    await flushPromises();
+
+    releaseSlow();
+    await flushPromises();
+
+    expect(wrapper.find('.analytics-kpis').text(), 'на экране числа последнего отбора').toContain('222');
+    expect(wrapper.find('.analytics-kpis').text(), 'запоздавший ответ на экран не попал').not.toContain('111');
+    expect(wrapper.find('.analytics-tab .refresh-overlay').exists(), 'и не зажигает загрузку заново').toBe(false);
+  });
+
   it('повторное чтение показывает полупрозрачную плёнку поверх прежних чисел', async () => {
     const { wrapper } = await mountView();
     await flushPromises();
@@ -177,6 +215,42 @@ describe('RequestsView, показ загрузки аналитики', () => {
 
     release();
     await flushPromises();
+  });
+});
+
+describe('RequestsView, отказ сети в тихом тике', () => {
+  it('сообщается один раз за серию, а не каждые десять секунд', async () => {
+    vi.useFakeTimers();
+    try {
+      const { wrapper } = await mountView();
+      await flushPromises();
+      notify.mockClear();
+
+      apiRequestRaw.mockRejectedValue(new Error('offline'));
+      for (let i = 0; i < 3; i++) {
+        vi.advanceTimersByTime(JOURNAL_REFRESH_MS);
+        await flushPromises();
+      }
+
+      expect(notify, 'три тика без сети - одно сообщение').toHaveBeenCalledTimes(1);
+      expect(wrapper.find('.refresh-overlay').exists(), 'и по-прежнему без плёнки').toBe(false);
+
+      // Ручное обновление - ответ на действие человека, о нём сообщают всегда.
+      await wrapper.get('.refresh-stub').trigger('click');
+      await flushPromises();
+      expect(notify, 'на свой клик человек получает ответ').toHaveBeenCalledTimes(2);
+
+      // Сеть вернулась - отметка снимается, следующий обрыв снова слышно.
+      apiRequestRaw.mockResolvedValue(logsPage([LOG]));
+      vi.advanceTimersByTime(JOURNAL_REFRESH_MS);
+      await flushPromises();
+      apiRequestRaw.mockRejectedValue(new Error('offline'));
+      vi.advanceTimersByTime(JOURNAL_REFRESH_MS);
+      await flushPromises();
+      expect(notify, 'новая серия отказов сообщается заново').toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

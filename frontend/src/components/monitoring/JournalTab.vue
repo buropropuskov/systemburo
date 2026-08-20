@@ -355,6 +355,10 @@ const sectionErrors = new Set();
 // и обновление подряд, а отвечают они не в том порядке, в каком ушли: без
 // номера медленный ответ прошлого фильтра затирает свежий.
 let logsSeq = 0;
+// Отказ сети в тихом тике сообщается один раз за серию: лента дёргается каждые
+// десять секунд, и минута без сети выстроила бы очередь одинаковых тостов,
+// которых человек не просил. Успешный ответ снимает отметку.
+let silentErrorReported = false;
 let logsTimer = null;
 let timelineTimer = null;
 
@@ -431,6 +435,7 @@ async function fetchLogs({ silent = false } = {}) {
     if (seq !== logsSeq) return;
     if (body && body.success) {
       journalError.value = '';
+      silentErrorReported = false;
       logs.value = body.data || [];
       if (body.meta) {
         pagination.total = body.meta.total || 0;
@@ -441,7 +446,11 @@ async function fetchLogs({ silent = false } = {}) {
   } catch (error) {
     if (seq !== logsSeq) return;
     journalError.value = describeLoadError(error, 'загрузить журнал');
-    deletions.notify({ prefix: 'Не удалось загрузить ', bold: 'логи', type: 'error' });
+    const alreadyReported = silent && silentErrorReported;
+    if (silent) silentErrorReported = true;
+    if (!alreadyReported) {
+      deletions.notify({ prefix: 'Не удалось загрузить ', bold: 'логи', type: 'error' });
+    }
   } finally {
     if (seq === logsSeq) {
       isLoading.value = false;
