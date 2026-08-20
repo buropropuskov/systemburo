@@ -275,12 +275,16 @@
                   >
                     &rarr;
                   </button>
+                  <!-- Меню в body: подвал таблицы лежит в контейнере с
+                       overflow: hidden, и список размеров обрезался по нижней
+                       кромке - последний пункт выбрать было нельзя. -->
                   <BaseDropdown
                     :model-value="perPage"
                     class="page-size-dd"
                     :options="pageSizeOptions"
                     value-key="value"
                     label-key="label"
+                    teleport
                     @update:model-value="changePageSize"
                   />
                 </div>
@@ -1427,7 +1431,7 @@ export default {
 }
 
 .page-size-dd {
-  width: 160px;
+  width: 175px;
 }
 
 .items-count {

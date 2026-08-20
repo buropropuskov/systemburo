@@ -63,12 +63,22 @@ function mountView(query = {}) {
   return { wrapper, route };
 }
 
-/** Выбирает пункт выпадающего списка по подписи. */
+/**
+ * Выбирает пункт выпадающего списка по подписи. Телепортнутое меню живёт в
+ * body, поэтому ищем и там: у списка размеров страницы меню вынесено из
+ * компонента, иначе его режет подвал таблицы.
+ */
 async function pickOption(dropdown, label) {
   await dropdown.get('.base-dropdown__button').trigger('click');
-  const item = dropdown.findAll('.base-dropdown__item').find(o => o.text() === label);
-  expect(item, `в списке есть пункт «${label}»`).toBeTruthy();
-  await item.trigger('click');
+  const inside = dropdown.findAll('.base-dropdown__item').find(o => o.text() === label);
+  if (inside) {
+    await inside.trigger('click');
+  } else {
+    const teleported = [...document.body.querySelectorAll('.base-dropdown__item')]
+      .find(el => el.textContent.trim() === label);
+    expect(teleported, `в списке есть пункт «${label}»`).toBeTruthy();
+    teleported.dispatchEvent(new Event('click', { bubbles: true }));
+  }
   await flushPromises();
 }
 
@@ -150,6 +160,13 @@ describe('Мониторинг запросов, контролы отбора',
 
     expect(calendar.props('dateRangeStart')).toBeNull();
     expect(calendar.props('dateRangeEnd')).toBeNull();
+  });
+
+  it('список размеров страницы рисуется в body, иначе его режет подвал таблицы', () => {
+    // Подвал лежит в контейнере с overflow: hidden: без телепорта нижние пункты
+    // выпадали за кромку и выбрать «100 на странице» было нельзя.
+    const dropdown = TEMPLATE.slice(TEMPLATE.indexOf('class="page-size-dd"'));
+    expect(dropdown.slice(0, dropdown.indexOf('/>'))).toContain('teleport');
   });
 
   it('размер страницы меняется через общий список', async () => {
