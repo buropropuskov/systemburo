@@ -1198,7 +1198,7 @@ export default {
         height: 23px;
         flex-shrink: 0;
         /* Глиф держит цвет подсказки в поле, а не текста: см. appIcons.js. */
-        color: color-mix(in srgb, var(--text-muted) 90%, var(--surface));
+        color: var(--text-placeholder);
         stroke-width: 2.4;
         transition: transform .5s;
     }
