@@ -6,6 +6,7 @@ import { useUiStore } from '@/stores/ui';
 import { useOnboarding, STEP_DEMO_FALLBACK } from '@/composables/useOnboarding';
 import { collectSegment, indexAfterRoute } from '@/components/onboarding/stepsFlow';
 import { applyReveal, restoreReveal } from '@/components/onboarding/reveal';
+import { createStepWatchers } from '@/components/onboarding/stepWatchers';
 
 const store = useOnboardingStore();
 const ui = useUiStore();
@@ -63,10 +64,19 @@ let driverGen = 0;
 let reachedFinal = false;
 // Прежнее состояние рельса до того как тур его развернул - чтобы вернуть как было.
 let railSaved = null;
-// Наблюдатель шага-приглашения к действию (см. watchAdvance).
-let advanceObserver = null;
-// Наблюдатель за пересозданием подсвеченного узла (см. watchRetarget).
-let retargetObserver = null;
+// Наблюдение за DOM на время шага: ведёт шаг вперёд по действию человека и
+// удерживает подсветку на пересозданной цели (stepWatchers.js).
+const watchers = createStepWatchers({
+  getDriver: () => driverObj,
+  getGen: () => driverGen,
+  getStep: (index) => store.steps[index],
+  getIndex: () => store.currentIndex,
+});
+// Границы поднятого сейчас сегмента (глобальные индексы, включительно). Судить о
+// принадлежности шага сегменту по одному только route нельзя: тур возвращается на
+// ту же страницу несколькими сегментами - у охранника «Доступные мне» идут и до
+// таблицы поста, и после неё, финалом.
+let segmentRange = null;
 
 /**
  * Рельс держим развёрнутым на nav-шаге И на шаге ПЕРЕД ним: разворачиваем
@@ -166,8 +176,7 @@ async function prepareStep(globalIndex) {
   // Тур уже двинулся - наблюдение прошлого шага снимаем сразу. Иначе оно
   // срабатывало на узле, который открывает СЛЕДУЮЩИЙ шаг (карточку заявки), и
   // тур перескакивал через него.
-  stopAdvanceWatch();
-  stopRetargetWatch();
+  watchers.stopAll();
   const step = store.steps[globalIndex];
   const attachmentChanged = applyDemoAttachment(globalIndex);
   const revealed = await applyReveal(store.steps, globalIndex);
@@ -208,6 +217,7 @@ async function startSegment() {
     store.stop();
     return;
   }
+  segmentRange = { start: segmentStartIndex, end: segmentStartIndex + segmentSteps.length - 1 };
   const localTarget = store.currentIndex - segmentStartIndex;
 
   // Демо-вложение и рельс целевого шага ставим ДО ожидания элемента: форма
@@ -243,8 +253,8 @@ async function startSegment() {
     onIndexChange: (globalIndex) => {
       store.setIndex(globalIndex);
       applyRail(globalIndex);
-      watchAdvance(globalIndex);
-      watchRetarget(globalIndex);
+      watchers.watchAdvance(globalIndex);
+      watchers.watchRetarget(globalIndex);
       // Backstop: синхронизируем демо-вложение с подсвеченным шагом (важно для
       // навигации «Назад» - prepareStep отрабатывает только на «Далее»).
       const attachmentChanged = applyDemoAttachment(globalIndex);
@@ -288,76 +298,19 @@ async function jumpToStep(globalIndex) {
     retreatToSegment(globalIndex, step.route);
     return;
   }
+  // Шаг на этой же странице, но в другом сегменте: driver знает только шаги
+  // поднятого сегмента, и obGoTo для такого индекса молча ничего не делал - в
+  // туре заявителя прыжок на финал из списка шагов не срабатывал вовсе.
+  // Навигации тут не будет (страница та же), поэтому сегмент поднимаем сами.
+  if (!isInActiveSegment(globalIndex)) {
+    restartSegmentAt(globalIndex);
+    return;
+  }
   const gen = driverGen;
   applyRail(globalIndex);
   const ready = await prepareStep(globalIndex);
   if (!driverObj || gen !== driverGen) return;
   driverObj.obGoTo(globalIndex, ready === false || ready === STEP_DEMO_FALLBACK);
-}
-
-/**
- * Шаг-приглашение к действию: ждём, пока на экране появится узел из `advanceWhen`,
- * и уходим вперёд сами. Без этого человек, выполнивший просьбу шага («Откройте
- * заявку»), оставался с подсветкой строки под уже открытым окном.
- *
- * Наблюдение снимается при любой смене шага (см. вызовы stopAdvanceWatch).
- *
- * @param {number} globalIndex
- */
-function watchAdvance(globalIndex) {
-  stopAdvanceWatch();
-  const selector = store.steps[globalIndex]?.advanceWhen;
-  if (!selector || typeof MutationObserver === 'undefined') return;
-  // Узел мог появиться до подписки - проверяем сразу.
-  if (document.querySelector(selector)) return;
-  const gen = driverGen;
-  advanceObserver = new MutationObserver(() => {
-    if (!document.querySelector(selector)) return;
-    stopAdvanceWatch();
-    if (!driverObj || gen !== driverGen || store.currentIndex !== globalIndex) return;
-    driverObj.obNext();
-  });
-  advanceObserver.observe(document.body, { childList: true, subtree: true });
-}
-
-function stopAdvanceWatch() {
-  if (!advanceObserver) return;
-  advanceObserver.disconnect();
-  advanceObserver = null;
-}
-
-/**
- * Держать подсветку на цели, которую страница пересоздала.
- *
- * Списки дорисовываются, когда приезжают данные: узел, подсвеченный секунду
- * назад, выбрасывается из DOM, а вместе с ним пропадает и подсветка - на экране
- * остаётся затемнение без выреза. Так вело себя начало сегмента таблицы поста.
- * Дожидаемся нового узла по тому же селектору и переприцеливаем шаг.
- *
- * @param {number} globalIndex
- */
-function watchRetarget(globalIndex) {
-  stopRetargetWatch();
-  const step = store.steps[globalIndex];
-  if (!step?.element || typeof MutationObserver === 'undefined') return;
-  const gen = driverGen;
-  retargetObserver = new MutationObserver(() => {
-    const active = driverObj?.getActiveElement?.();
-    // Цель на месте либо шага без подсветки - трогать нечего.
-    if (!active || active.isConnected) return;
-    const fresh = document.querySelector(step.element);
-    if (!fresh) return;
-    stopRetargetWatch();
-    if (!driverObj || gen !== driverGen || store.currentIndex !== globalIndex) return;
-    driverObj.obRetarget(globalIndex);
-  });
-  retargetObserver.observe(document.body, { childList: true, subtree: true });
-}
-
-function stopRetargetWatch() {
-  if (!retargetObserver) return;
-  retargetObserver.disconnect();
-  retargetObserver = null;
 }
 
 /**
@@ -416,6 +369,38 @@ function handleBoundaryPrev(segmentStartGlobal) {
   }
 }
 
+/**
+ * Лежит ли шаг в поднятом сейчас сегменте driver.js.
+ *
+ * @param {number} globalIndex
+ * @returns {boolean}
+ */
+function isInActiveSegment(globalIndex) {
+  return Boolean(segmentRange) && globalIndex >= segmentRange.start && globalIndex <= segmentRange.end;
+}
+
+/**
+ * Поднять сегмент заново вокруг шага на ТЕКУЩЕЙ странице. Дорога для прыжка в
+ * соседний сегмент того же route: `retreatToSegment` там не годится - он ждёт
+ * навигации, а `router.push` на текущий путь её не делает и тур бы остановился.
+ *
+ * @param {number} globalIndex глобальный индекс целевого шага
+ */
+function restartSegmentAt(globalIndex) {
+  store.setIndex(globalIndex);
+  restoreRail();
+  restoreReveal();
+  // Поколение двигаем ДО destroy: onDestroyed прежнего инстанса иначе примет это
+  // за конец обучения и остановит тур (флага ожидания навигации здесь нет -
+  // страница та же). Тот же приём, что в teardown.
+  driverGen += 1;
+  if (driverObj) {
+    driverObj.destroy();
+    driverObj = null;
+  }
+  startSegment();
+}
+
 function retreatToSegment(targetIndex, targetRoute) {
   store.retreatSegment(targetIndex);
   restoreRail();
@@ -467,8 +452,7 @@ function markIfAuto(finished = reachedFinal) {
 function handleDestroyed(gen) {
   // Игнорируем callback от инстанса, который уже сменён следующим сегментом.
   if (gen !== driverGen) return;
-  stopAdvanceWatch();
-  stopRetargetWatch();
+  watchers.stopAll();
   driverObj = null;
   // Переход между страницами: тур продолжается, не останавливаем и рельс не трогаем.
   if (store.pendingSegment) return;
@@ -479,8 +463,8 @@ function handleDestroyed(gen) {
 }
 
 function teardown() {
-  stopAdvanceWatch();
-  stopRetargetWatch();
+  watchers.stopAll();
+  segmentRange = null;
   // Тур ещё жив (logout/unmount во время прохождения) - авто-тур помечаем
   // пройденным здесь: ниже driverGen++ обезвредит отложенный onDestroyed, и тот
   // до markIfAuto уже не дойдёт. Так автозапуск действительно "один раз".

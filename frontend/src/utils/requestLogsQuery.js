@@ -302,7 +302,8 @@ export function ymdToDate(value) {
 
 /**
  * Списки отбора журнала одним перечнем: разметка у трёх выпадающих списков
- * общая, различаются только источник пунктов и поле состояния.
+ * общая, различаются только источник пунктов и поле отбора. `key` - имя поля в
+ * состоянии журнала, экран пишет выбранное значение прямо по нему.
  * @param {JournalState} state
  * @param {Array<{id: number|string, username: string}>} users
  * @param {(login: string) => string} formatUser подпись пользователя
@@ -316,8 +317,8 @@ export function journalFilterDropdowns(state, users, formatUser) {
     ...users.map(u => ({ value: String(u.id), label: formatUser(u.username) }))
   ];
   return [
-    { key: 'filterMethod', value: state.method, options: METHOD_FILTER_OPTIONS, placeholder: 'Все методы', searchable: false },
-    { key: 'filterStatus', value: state.status, options: STATUS_FILTER_OPTIONS, placeholder: 'Все статусы', searchable: false },
-    { key: 'filterUser', value: String(state.user || ''), options: userOptions, placeholder: 'Все пользователи', searchable: true, wide: true }
+    { key: 'method', value: state.method, options: METHOD_FILTER_OPTIONS, placeholder: 'Все методы', searchable: false },
+    { key: 'status', value: state.status, options: STATUS_FILTER_OPTIONS, placeholder: 'Все статусы', searchable: false },
+    { key: 'user', value: String(state.user || ''), options: userOptions, placeholder: 'Все пользователи', searchable: true, wide: true }
   ];
 }

@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
-import { reactive } from 'vue';
+import { flushPromises } from '@vue/test-utils';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { createPinia, setActivePinia } from 'pinia';
 
 // Контролы раздела мониторинга (#2125, S8): списки отбора, период и кнопки взяты
 // общие - BaseDropdown, DateFilter, .lk-button. До этого экран держал свои
@@ -18,79 +16,35 @@ vi.mock('@/stores/deletions', () => ({
   useDeletionsStore: () => ({ notify: vi.fn() }),
 }));
 
-import RequestsView from '@/views/RequestsView.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import { apiRequest, apiRequestRaw } from '@/api/client';
+import {
+  filterDropdown, journalCalls, mountView, pickOption, resetApiMocks, unmountAll,
+} from './helpers/requestsView';
 
-const SOURCE = readFileSync(resolve(__dirname, '../RequestsView.vue'), 'utf8');
-const TEMPLATE = SOURCE.slice(0, SOURCE.indexOf('</template>'));
-const STYLE = SOURCE.slice(SOURCE.indexOf('<style'));
+// Разметка раздела разнесена по вкладкам, поэтому замки читают все файлы:
+// вернувшийся нативный контрол или литерал цвета в любом из них - тот же дефект.
+const FILES = [
+  resolve(__dirname, '../RequestsView.vue'),
+  resolve(__dirname, '../../components/monitoring/JournalTab.vue'),
+  resolve(__dirname, '../../components/monitoring/AnalyticsTab.vue'),
+  resolve(__dirname, '../../components/monitoring/LogDetails.vue'),
+  resolve(__dirname, '../../components/monitoring/RequestLogBadge.vue'),
+  resolve(__dirname, '../../components/monitoring/KpiRow.vue'),
+].map(path => readFileSync(path, 'utf8'));
 
-const stubs = {
-  AdminPageShell: { template: '<div><slot /></div>' },
-  RefreshButton: { template: '<button class="refresh-stub" />' },
-  SearchComponent: { template: '<input class="search-stub" />' },
-  RealTimeChart: { template: '<div class="chart-stub" />' },
-  LoaderSpinner: { template: '<div class="loader-stub" />' },
-  AppIcon: { template: '<i />' },
-  ToggleSwitch: { template: '<label><slot /></label>' },
-};
-
-function logsPage(data = []) {
-  return {
-    ok: true,
-    json: () => Promise.resolve({ success: true, data, meta: { total: 0, page: 1, per_page: 20 } }),
-  };
-}
-
-/** Адреса, с которыми компонент сходил за списком журнала. */
-function journalCalls() {
-  return apiRequestRaw.mock.calls.map(([url]) => url);
-}
-
-const mounted = [];
-
-function mountView(query = {}) {
-  const route = reactive({ query: { ...query } });
-  const replace = vi.fn(({ query: next }) => {
-    route.query = { ...next };
-    return Promise.resolve();
-  });
-  const wrapper = mount(RequestsView, {
-    global: { stubs, mocks: { $route: route, $router: { replace } } },
-  });
-  mounted.push(wrapper);
-  return { wrapper, route };
-}
-
-/**
- * Выбирает пункт выпадающего списка по подписи. Телепортнутое меню живёт в
- * body, поэтому ищем и там: у списка размеров страницы меню вынесено из
- * компонента, иначе его режет подвал таблицы.
- */
-async function pickOption(dropdown, label) {
-  await dropdown.get('.base-dropdown__button').trigger('click');
-  const inside = dropdown.findAll('.base-dropdown__item').find(o => o.text() === label);
-  if (inside) {
-    await inside.trigger('click');
-  } else {
-    const teleported = [...document.body.querySelectorAll('.base-dropdown__item')]
-      .find(el => el.textContent.trim() === label);
-    expect(teleported, `в списке есть пункт «${label}»`).toBeTruthy();
-    teleported.dispatchEvent(new Event('click', { bubbles: true }));
-  }
-  await flushPromises();
-}
+/** Разметка всех файлов раздела одной строкой. */
+const TEMPLATE = FILES.map(src => src.slice(0, src.indexOf('</template>'))).join('\n');
+/** Стили всех файлов раздела одной строкой. */
+const STYLE = FILES.map(src => src.slice(src.indexOf('<style'))).join('\n');
+const SOURCE = FILES.join('\n');
 
 afterEach(() => {
-  mounted.splice(0).forEach(wrapper => wrapper.unmount());
+  unmountAll();
 });
 
 beforeEach(() => {
-  setActivePinia(createPinia());
-  vi.clearAllMocks();
-  apiRequest.mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
-  apiRequestRaw.mockResolvedValue(logsPage());
+  resetApiMocks();
 });
 
 describe('Мониторинг запросов, контролы отбора', () => {
@@ -104,11 +58,11 @@ describe('Мониторинг запросов, контролы отбора',
   });
 
   it('выбор метода в списке перезапрашивает журнал с этим методом', async () => {
-    const { wrapper } = mountView({ page: '3' });
+    const { wrapper } = await mountView({ page: '3' });
     await flushPromises();
     apiRequestRaw.mockClear();
 
-    await pickOption(wrapper.findAllComponents({ name: 'BaseDropdown' })[1], 'POST');
+    await pickOption(filterDropdown(wrapper, 0), 'POST');
 
     const last = journalCalls().at(-1);
     expect(last).toContain('method=POST');
@@ -122,16 +76,16 @@ describe('Мониторинг запросов, контролы отбора',
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
     });
-    const { wrapper } = mountView();
+    const { wrapper } = await mountView();
     await flushPromises();
     apiRequestRaw.mockClear();
 
-    await pickOption(wrapper.findAllComponents({ name: 'BaseDropdown' })[3], '@ivanov');
+    await pickOption(filterDropdown(wrapper, 2), '@ivanov');
     expect(journalCalls().at(-1)).toContain('user_id=42');
   });
 
   it('период из календаря уходит в запрос днями и снимает быстрый отбор «последний час»', async () => {
-    const { wrapper, route } = mountView({ since: '2026-08-19T09:00:00.000Z' });
+    const { wrapper, router } = await mountView({ since: '2026-08-19T09:00:00.000Z' });
     await flushPromises();
     apiRequestRaw.mockClear();
 
@@ -145,11 +99,11 @@ describe('Мониторинг запросов, контролы отбора',
     // День берётся по локальным частям: toISOString увёл бы 1 августа на 31 июля.
     expect(last).toContain('from_date=2026-08-01');
     expect(last).toContain('to_date=2026-08-20');
-    expect(route.query.since).toBeUndefined();
+    expect(router.currentRoute.value.query.since).toBeUndefined();
   });
 
   it('сброс отбора очищает и поле периода', async () => {
-    const { wrapper } = mountView({ from: '2026-08-01', to: '2026-08-20' });
+    const { wrapper } = await mountView({ from: '2026-08-01', to: '2026-08-20' });
     await flushPromises();
 
     const calendar = wrapper.findAllComponents(DateFilter)[0];
@@ -170,11 +124,11 @@ describe('Мониторинг запросов, контролы отбора',
   });
 
   it('размер страницы меняется через общий список', async () => {
-    const { wrapper } = mountView();
+    const { wrapper } = await mountView();
     await flushPromises();
     apiRequestRaw.mockClear();
 
-    const pageSize = wrapper.findAllComponents({ name: 'BaseDropdown' }).at(-1);
+    const pageSize = wrapper.findAll('.page-size-dd').at(-1);
     await pickOption(pageSize, '50 на странице');
     expect(journalCalls().at(-1)).toContain('per_page=50');
   });

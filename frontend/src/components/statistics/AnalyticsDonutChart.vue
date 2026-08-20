@@ -70,6 +70,9 @@ const props = defineProps({
   },
 });
 
+/** Высота строки легенды: её место резервирует кольцо без сегментов. */
+const LEGEND_RESERVE = 30;
+
 const canvas = ref(null);
 
 // Нулевые сегменты не рисуем — пустые доли искажают кольцо и легенду.
@@ -140,6 +143,10 @@ const config = computed(() => ({
   options: {
     responsive: true,
     maintainAspectRatio: false,
+    // Место снизу вместо скрытой легенды: без него пустое кольцо раздувалось
+    // на её высоту и рядом с соседним, у которого легенда есть, выглядело
+    // кольцом другого размера.
+    layout: { padding: { bottom: isEmptyRing.value ? LEGEND_RESERVE : 0 } },
     // Толщина кольца: та же доля радиуса, что была у прежнего движка.
     cutout: '64%',
     animation: { duration: 400, easing: 'easeInOutQuad' },

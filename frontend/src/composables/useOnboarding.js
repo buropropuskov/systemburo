@@ -5,6 +5,7 @@ import { getViewportZoom } from '@/utils/viewportScale';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { getDemo } from '@/components/onboarding/onboardingDemo';
 import { groupStepsBySection } from '@/components/onboarding/stepsFlow';
+import { STAGE_PADDING, STAGE_RADIUS, applyStageShape, raiseActiveHighlight } from '@/components/onboarding/stageShape';
 
 /**
  * Мобильный брейкпоинт тура (#1097 S11) - совпадает с media-запросами
@@ -435,18 +436,6 @@ export function useOnboarding() {
     }
 
     /**
-     * Поднять доехавшую цель над затемнением.
-     *
-     * driver.js вешает свой класс в НАЧАЛЕ перехода, когда вырез ещё едет к новой
-     * рамке, и цель успевала протыкать затемнение раньше подсветки. Свой класс
-     * ставим по завершении перехода - см. .ob-highlighted в onboarding.css.
-     */
-    function raiseActiveHighlight() {
-      const active = driverObj?.getActiveElement?.();
-      if (active && active.id !== 'driver-dummy-element') active.classList.add('ob-highlighted');
-    }
-
-    /**
      * Шаг в формате driver.js. Пересобирается, когда шаг переключается между
      * подсветкой цели и видом без неё (setStepMode), поэтому сборка одна на оба
      * случая - иначе два вида разъехались бы по оформлению.
@@ -518,10 +507,9 @@ export function useOnboarding() {
       // Чётче выделение: затемнение фона плотнее, скругление 30px.
       // popoverOffset больше - карточка не наезжает на элемент.
       overlayOpacity: 0.78,
-      // Зазор вокруг подсвеченного: с 5px мелкие цели (галочка согласия) смотрелись
-      // обрезанными по краю выреза - «больше воздуха вокруг».
-      stagePadding: 10,
-      stageRadius: 30,
+      // Зазор и скругление - общие; на цели во весь экран их снимает applyStageShape.
+      stagePadding: STAGE_PADDING,
+      stageRadius: STAGE_RADIUS,
       popoverOffset: 16,
       popoverClass: 'ob-popover',
       nextBtnText: 'Далее',
@@ -697,11 +685,12 @@ export function useOnboarding() {
       // это только в конце своей анимации, и при быстрых «Далее» пометки
       // накапливались - на разделе «Автомобили» светились три элемента разом.
       onHighlightStarted(element) {
+        applyStageShape(driverObj, element);
         dropStaleHighlights(element);
       },
       onHighlighted() {
         dropStaleHighlights();
-        raiseActiveHighlight();
+        raiseActiveHighlight(driverObj);
         const localIndex = driverObj.getActiveIndex() ?? 0;
         onIndexChange?.(startIndex + localIndex);
       },

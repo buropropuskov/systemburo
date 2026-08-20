@@ -218,6 +218,52 @@ export function analyticsKpis(totals) {
 }
 
 /**
+ * Показатели шапки раздела. Отдаются тем же перечнем, что и сводка аналитики:
+ * ряд карточек в шапке и ряд карточек на вкладке рисует один компонент.
+ * Порог доли ошибок здесь 5%: шапка считает за последний час, где одиночный
+ * сбой даёт заметный процент, а сводка - за период в сутках. По той же причине
+ * час назван прямо в подписях: на вкладке аналитики рядом стоит карточка с той
+ * же долей ошибок за выбранный период, и одинаковая подпись читалась бы как
+ * расхождение чисел.
+ *
+ * @param {{total?: number, today?: number, median_duration?: number, p95_duration?: number,
+ *          error_rate?: number, requests_per_minute?: number}} stats показатели за час
+ * @param {{last_second_count?: number, last_minute_count?: number}} realtime счётчики ленты
+ * @returns {Array<{label: string, value: string, sub?: string, hint?: string, bad?: boolean, live?: boolean}>}
+ */
+export function headerKpis(stats, realtime) {
+  const s = stats || {};
+  const live = realtime || {};
+  const kpis = [
+    { label: 'Запросов всего', value: formatNum(s.total) },
+    { label: 'Запросов сегодня', value: formatNum(s.today) },
+    {
+      label: 'Отклик за час, медиана и p95',
+      value: `${formatMs(s.median_duration, false)} / ${formatMs(s.p95_duration)}`,
+      hint: 'Медиана и 95-й перцентиль времени ответа за последний час. Долгоживущие подписки на события не учитываются: у них в журнале записано время жизни соединения, а не время ответа.'
+    },
+    {
+      label: 'Доля ошибок за час', value: `${Number(s.error_rate || 0).toFixed(1)}%`,
+      bad: Number(s.error_rate) > 5, hint: 'Доля ответов с кодом 4xx и 5xx за последний час.'
+    },
+    {
+      label: 'Запросов в минуту', value: Number(s.requests_per_minute || 0).toFixed(1),
+      hint: 'Средний темп обращений за последний час.'
+    }
+  ];
+  // Счётчик ленты появляется, только когда сервер его прислал: до первого
+  // ответа пустая карточка «0/с» выглядит как затишье, а не как «ещё не знаем».
+  if (live.last_minute_count != null) {
+    kpis.push({
+      label: 'Сейчас', value: `${live.last_second_count || 0}/с`,
+      sub: `${live.last_minute_count || 0}/мин`, live: true,
+      hint: 'Обращений за последнюю секунду и за последнюю минуту.'
+    });
+  }
+  return kpis;
+}
+
+/**
  * Сообщение об итоге выгрузки. Обрезанный файл проговаривается словами: сервер
  * отдаёт не больше десяти тысяч строк, и по неполному файлу человек считал бы
  * итоги за период, не зная об остатке.
