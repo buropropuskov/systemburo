@@ -34,22 +34,10 @@
       <h4 class="panel-title">
         Запросов по дням
       </h4>
-      <div
-        v-if="history.daily.length"
-        class="bars"
-      >
-        <div
-          v-for="d in history.daily"
-          :key="d.day"
-          class="bar-col"
-          :title="`${d.day}: ${d.requests} запросов, ${d.errors} ошибок`"
-        >
-          <div
-            class="bar"
-            :style="{ height: barHeight(d.requests, maxDaily) + '%' }"
-          />
-        </div>
-      </div>
+      <DailyRequestsChart
+        v-if="chartPoints.length"
+        :points="chartPoints"
+      />
       <p
         v-else
         class="empty-hint"
@@ -142,6 +130,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue';
+import DailyRequestsChart from '@/components/monitoring/DailyRequestsChart.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import KpiRow from '@/components/monitoring/KpiRow.vue';
 import { apiRequest } from '@/api/client';
@@ -149,8 +138,8 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { formatLogin } from '@/utils/formatName';
 import { dateToYmd, ymdToDate } from '@/utils/requestLogsQuery';
 import {
-  analyticsKpis, barHeight, coverageNote as buildCoverageNote, emptyHistory, formatMs, formatNum,
-  historyFromResponse, p95Note as buildP95Note
+  analyticsKpis, coverageNote as buildCoverageNote, dailyChartPoints, emptyHistory, formatMs,
+  formatNum, historyFromResponse, p95Note as buildP95Note
 } from '@/utils/requestLogsFormat';
 
 /**
@@ -173,7 +162,7 @@ const range = computed(() => ({ start: ymdToDate(from.value), end: ymdToDate(to.
 const kpis = computed(() => analyticsKpis(history.value.totals));
 const coverageNote = computed(() => buildCoverageNote(history.value.coverage));
 const p95Note = computed(() => buildP95Note(history.value.coverage));
-const maxDaily = computed(() => Math.max(...history.value.daily.map(d => d.requests), 1));
+const chartPoints = computed(() => dailyChartPoints(history.value.daily));
 
 async function fetchHistory() {
   emit('update:loading', true);
@@ -237,27 +226,6 @@ watch(() => props.active, (active) => {
   font-size: 0.95em;
   font-weight: 600;
   color: var(--text);
-}
-
-.bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  height: 130px;
-}
-
-.bar-col {
-  flex: 1;
-  display: flex;
-  align-items: flex-end;
-  height: 100%;
-}
-
-.bar {
-  width: 100%;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 75%, var(--surface)), var(--accent));
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-  min-height: 4px;
 }
 
 .empty-hint {
