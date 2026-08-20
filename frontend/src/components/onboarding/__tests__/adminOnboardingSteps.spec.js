@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setActivePinia, createPinia } from 'pinia';
 import { adminOnboardingSteps, ADMIN_ONBOARDING_VERSION } from '../adminOnboardingSteps';
-import { collectSegment } from '../onboardingSteps';
+import { collectSegment } from '../stepsFlow';
 import { getTour, availableTours, buildTourSteps } from '../tours';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { usePermissionsStore } from '@/stores/permissions';

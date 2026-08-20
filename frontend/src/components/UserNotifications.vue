@@ -21,6 +21,7 @@
       <div
         v-if="show"
         class="notifications"
+        data-testid="ob-notifications-panel"
         :class="{ 'notifications--sheet': isSheet, 'is-dragging': sheetDragging }"
         :style="isSheet && sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
         @click.stop

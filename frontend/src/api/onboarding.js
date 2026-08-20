@@ -1,6 +1,6 @@
 import { apiRequest } from './client';
 import { usePermissionsStore } from '@/stores/permissions';
-import { resolveFactTableRoute } from '@/components/onboarding/securityOnboardingSteps';
+import { resolveFactTableRoute } from '@/components/onboarding/securityFactSteps';
 
 /**
  * API статуса онбординг-туров (per-user, per-tour). Источник правды - бэкенд:
