@@ -106,6 +106,18 @@ describe('StatisticsDashboard — плитки', () => {
     expect(text).toContain('Паспорт');
     expect(text).toContain('Виза');
   });
+
+  it('длинный список типов рендерит плитку на каждый тип', async () => {
+    // Типы вложений заводит администратор: их бывает и десяток. Раскладку в две
+    // колонки на таком списке стережёт замок в assets/__tests__.
+    state.summary = {
+      by_attachment_type: Array.from({ length: 10 }, (_, i) => ({ name: `Тип ${i + 1}`, count: i })),
+    };
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    expect(wrapper.findAll('.an-panel__tiles > .dashboard__tile')).toHaveLength(10);
+  });
 });
 
 describe('StatisticsDashboard — инсайты карточек', () => {

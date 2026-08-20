@@ -128,6 +128,31 @@ describe('RequestsView, охват периода аналитики', () => {
     expect(tab.findAll('.coverage-note')).toHaveLength(1);
   });
 
+  it('график получает сутки подряд: день без записей не схлопывается', async () => {
+    const tab = await openAnalytics(history({
+      root: {
+        daily: [
+          { day: '2026-07-10', requests: 100, errors: 2 },
+          { day: '2026-07-12', requests: 40, errors: 0 },
+        ],
+      },
+    }));
+
+    const points = tab.findComponent('.daily-chart-stub').props('points');
+    expect(points.map(p => p.day)).toEqual(['2026-07-10', '2026-07-11', '2026-07-12']);
+    expect(points[1].requests, 'сутки без записей - это не измеренный ноль').toBeNull();
+  });
+
+  it('на пустом периоде вместо графика стоит объяснение, а не пустая рамка', async () => {
+    const tab = await openAnalytics(history({
+      coverage: { from: '', to: '', days: 0, source: 'empty' },
+      root: { totals: { requests: 0, errors: 0, error_rate: 0, avg_duration_ms: 0 }, daily: [], top_endpoints: [] },
+    }));
+
+    expect(tab.find('.daily-chart-stub').exists()).toBe(false);
+    expect(tab.find('.empty-hint').text()).toBe('Нет данных за период');
+  });
+
   it('показывает взвешенную среднюю с дробной частью, а не округлённой в ноль', async () => {
     const tab = await openAnalytics(history({
       root: { totals: { requests: 100, errors: 0, error_rate: 0, avg_duration_ms: 0.4 } },

@@ -29,7 +29,7 @@
           <AnalyticsDonutChart
             v-if="platformData.length > 0"
             :data="platformData"
-            :height="300"
+            fill-height
             total-label="Подписок"
             :unit-forms="['подписка', 'подписки', 'подписок']"
           />
