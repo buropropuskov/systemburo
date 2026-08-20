@@ -45,11 +45,27 @@ describe('раскладка панелей аналитики', () => {
     expect(rule('.an-panel__chart > *')).toMatch(/flex\s*:\s*1 1 auto/);
   });
 
-  it('плитки прижаты к верху и уходят в две колонки на длинном списке', () => {
-    // Без align-content строки делят высоту карточки поровну: две плитки
-    // раздувались вдвое против своей высоты.
+  it('плитки прижаты к верху: иначе строки делят высоту карточки поровну', () => {
     expect(rule('.an-panel__tiles')).toMatch(/align-content\s*:\s*start/);
-    expect(rule('.an-panel__tiles:has(> :nth-child(7))')).toMatch(/grid-template-columns\s*:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  });
+
+  it('от шестой плитки список перестраивается: две колонки и строки вместо карточек', () => {
+    // Порог, после которого столбец начинал тянуть страницу: девять типов
+    // давали 830px против 326 у соседней панели.
+    expect(rule('.an-panel__tiles:has(> :nth-child(6))'))
+      .toMatch(/grid-template-columns\s*:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+    // Плитка становится строкой «подпись - число».
+    const tile = rule('.an-panel .an-panel__tiles:has(> :nth-child(6)) > *');
+    expect(tile).toMatch(/display\s*:\s*flex/);
+    expect(tile).toMatch(/justify-content\s*:\s*space-between/);
+    // Вес селектора: у плиток свои scoped-правила той же специфичности, и без
+    // ведущего .an-panel отступы строки перебивались обратно на карточные.
+    expect(CSS).toMatch(/\.an-panel\s+\.an-panel__tiles:has\(> :nth-child\(6\)\) > \*\s*\{/);
+  });
+
+  it('от тринадцатой - три колонки: двух снова мало', () => {
+    expect(rule('.an-panel__tiles:has(> :nth-child(13))'))
+      .toMatch(/grid-template-columns\s*:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
   });
 
   it('панель отдаёт кольцу фиксированный трек, а числам - остаток', () => {
