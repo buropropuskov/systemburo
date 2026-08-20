@@ -6,7 +6,7 @@
           Мониторинг запросов
         </h3>
         <RefreshButton
-          :loading="isLoading"
+          :loading="isBusy"
           @refresh="refreshAll"
         />
       </div>
@@ -33,7 +33,7 @@
         ref="journalTab"
         :active="activeTab === 'journal'"
         :hidden="tabHidden"
-        @update:loading="value => (isLoading = value)"
+        @update:loading="value => (journalLoading = value)"
         @refresh-stats="fetchStats"
       />
 
@@ -41,18 +41,8 @@
         v-show="activeTab === 'analytics'"
         ref="analyticsTab"
         :active="activeTab === 'analytics'"
-        @update:loading="value => (isLoading = value)"
+        @update:loading="value => (analyticsLoading = value)"
       />
-
-      <div
-        v-if="isLoading"
-        class="loading-overlay"
-      >
-        <LoaderSpinner
-          size="large"
-          :label="''"
-        />
-      </div>
     </div>
   </AdminPageShell>
 </template>
@@ -60,7 +50,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
-import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import KpiRow from '@/components/monitoring/KpiRow.vue';
 import JournalTab from '@/components/monitoring/JournalTab.vue';
@@ -82,7 +71,12 @@ const TABS = [
 const deletions = useDeletionsStore();
 
 const activeTab = ref('journal');
-const isLoading = ref(false);
+// Загрузку держат сами вкладки, оболочка лишь сводит её на кнопку обновления:
+// раньше общий признак гасил весь раздел пеленой, включая шапку, показатели и
+// график, причём и на самообновлении ленты раз в десять секунд (#1305/#1306).
+const journalLoading = ref(false);
+const analyticsLoading = ref(false);
+const sectionLoading = ref(false);
 const tabHidden = ref(false);
 const stats = ref({
   total: 0, today: 0, avg_duration: 0, median_duration: 0,
@@ -92,6 +86,7 @@ const realtime = ref({ last_second_count: 0, last_minute_count: 0 });
 const journalTab = ref(null);
 const analyticsTab = ref(null);
 const kpis = computed(() => headerKpis(stats.value, realtime.value));
+const isBusy = computed(() => sectionLoading.value || journalLoading.value || analyticsLoading.value);
 // Причины отказов, о которых уже сообщили: показатели и счётчики опрашиваются
 // по таймеру, и тост на каждый отказ выстраивал бы очередь одинаковых сообщений.
 const reported = new Set();
@@ -132,9 +127,14 @@ function fetchRealtime() {
  * Кнопка обновления в шапке: показатели раздела и содержимое открытой вкладки.
  * Скрытую вкладку не трогаем - её данные обновятся, когда её откроют.
  */
-function refreshAll() {
+async function refreshAll() {
   const tab = activeTab.value === 'journal' ? journalTab.value : analyticsTab.value;
-  return Promise.all([fetchStats(), fetchRealtime(), tab?.refresh?.()]);
+  sectionLoading.value = true;
+  try {
+    await Promise.all([fetchStats(), fetchRealtime(), tab?.refresh?.()]);
+  } finally {
+    sectionLoading.value = false;
+  }
 }
 
 function onVisibilityChange() {
@@ -221,19 +221,6 @@ onBeforeUnmount(() => {
 .rv-tab.active {
   color: var(--accent-text);
   border-bottom-color: var(--accent-text);
-}
-
-.loading-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: color-mix(in srgb, var(--surface) 80%, transparent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
 }
 
 @media (max-width: 768px) {

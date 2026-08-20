@@ -58,6 +58,10 @@ describe('раскладка панелей аналитики', () => {
     const tile = rule('.an-panel .an-panel__tiles:has(> :nth-child(6)) > *');
     expect(tile).toMatch(/display\s*:\s*flex/);
     expect(tile).toMatch(/justify-content\s*:\s*space-between/);
+    // По центру, а не по baseline: подпись из двух слов переносится, и число
+    // вставало по её первой строке - в ряду часть чисел сидела вверху плитки.
+    expect(tile).toMatch(/align-items\s*:\s*center/);
+    expect(tile).not.toMatch(/align-items\s*:\s*baseline/);
     // Вес селектора: у плиток свои scoped-правила той же специфичности, и без
     // ведущего .an-panel отступы строки перебивались обратно на карточные.
     expect(CSS).toMatch(/\.an-panel\s+\.an-panel__tiles:has\(> :nth-child\(6\)\) > \*\s*\{/);
