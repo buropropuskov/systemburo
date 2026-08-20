@@ -1,7 +1,7 @@
 <template>
   <BaseModal
     :show="show"
-    :title="`Отчёт по проходам — ${tableDisplayName}`"
+    :title="reportTitle"
     width="720px"
     radius="30px"
     content-class="pass-report-modal"
@@ -265,6 +265,18 @@ export default {
         defs.push({ key: 'people', icon: 'employees', title: 'Люди', inLabel: 'Зашло', outLabel: 'Вышло', inField: 'people_entries', outField: 'people_exits' });
       }
       return defs;
+    },
+    /**
+     * Машины ездят, люди ходят - заголовок берёт слово по типу таблицы. Прежде
+     * окно всегда звалось «Отчёт по проходам», в том числе на таблице машин, хотя
+     * внутри оно и так считает «Заехало/Выехало» для одних и «Зашло/Вышло» для
+     * других, а в заявке система говорит «Посты проезда» и «Места прохода».
+     */
+    reportTitle() {
+      const kind = this.tableType === 'cars'
+        ? 'проездам'
+        : this.tableType === 'people' ? 'проходам' : 'проездам и проходам';
+      return `Отчёт по ${kind} — ${this.tableDisplayName}`;
     },
     liveTitle() {
       if (!this.live) return 'Сегодня';

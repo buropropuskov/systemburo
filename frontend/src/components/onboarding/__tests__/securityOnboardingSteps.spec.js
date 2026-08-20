@@ -212,6 +212,9 @@ describe('securityOnboardingSteps - сегмент /accessible-attachments', () 
       'sec-aa-elements',
       'sec-aa-preview',
       'sec-aa-blank',
+      // Переход в таблицу поста анонсирован последним шагом раздела - иначе тур
+      // уходил на другую страницу молча.
+      'sec-nav-tables-open',
     ]);
   });
 

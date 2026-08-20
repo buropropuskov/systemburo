@@ -346,7 +346,7 @@
             name="stats"
             class="actions-sheet__icon"
           />
-          Отчёт по проходам
+          {{ tableType === 'cars' ? 'Отчёт по проездам' : 'Отчёт по проходам' }}
         </button>
         <button
           v-if="canExport"

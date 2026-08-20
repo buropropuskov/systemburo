@@ -42,7 +42,7 @@ export const TOURS = [
   {
     key: 'guard',
     title: 'Охранник',
-    description: 'Согласованные вложения по вашим местам и отметка въезда и выезда',
+    description: 'Согласованные бланки заявок и отметка въезда и выезда',
     version: SECURITY_ONBOARDING_VERSION,
     steps: securityOnboardingSteps,
     // Сегмент отметки въезда/выезда живёт на роуте фактовой таблицы, а он у

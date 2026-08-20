@@ -73,6 +73,23 @@ beforeEach(() => {
 });
 
 describe('PassReportModal', () => {
+  /**
+   * Машины ездят, люди ходят. Прежде окно всегда звалось «Отчёт по проходам» - в
+   * том числе на таблице машин, хотя внутри оно уже различает «Заехало/Выехало» и
+   * «Зашло/Вышло», а в заявке система говорит «Посты проезда» и «Места прохода».
+   */
+  it('заголовок называет то, что считает таблица', () => {
+    expect(mountModal({ tableType: 'cars', tableDisplayName: 'КПП №4' }).vm.reportTitle)
+      .toBe('Отчёт по проездам — КПП №4');
+    expect(mountModal({ tableType: 'people', tableDisplayName: 'ПОСТ №72' }).vm.reportTitle)
+      .toBe('Отчёт по проходам — ПОСТ №72');
+  });
+
+  it('тип таблицы неизвестен - заголовок называет оба вида', () => {
+    expect(mountModal({ tableType: '', tableDisplayName: 'Проверка' }).vm.reportTitle)
+      .toBe('Отчёт по проездам и проходам — Проверка');
+  });
+
   it('не грузит данные, пока модалка закрыта', () => {
     mountModal();
     expect(getPassReportLive).not.toHaveBeenCalled();
