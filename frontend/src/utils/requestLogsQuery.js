@@ -318,6 +318,6 @@ export function journalFilterDropdowns(state, users, formatUser) {
   return [
     { key: 'filterMethod', value: state.method, options: METHOD_FILTER_OPTIONS, placeholder: 'Все методы', searchable: false },
     { key: 'filterStatus', value: state.status, options: STATUS_FILTER_OPTIONS, placeholder: 'Все статусы', searchable: false },
-    { key: 'filterUser', value: String(state.user || ''), options: userOptions, placeholder: 'Все пользователи', searchable: true }
+    { key: 'filterUser', value: String(state.user || ''), options: userOptions, placeholder: 'Все пользователи', searchable: true, wide: true }
   ];
 }

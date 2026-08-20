@@ -104,7 +104,7 @@
               v-for="dd in filterDropdowns"
               :key="dd.key"
               :model-value="dd.value"
-              class="filter-dd"
+              :class="['filter-dd', { 'filter-dd--wide': dd.wide }]"
               :options="dd.options"
               value-key="value"
               label-key="label"
@@ -1199,6 +1199,12 @@ export default {
   width: 150px;
 }
 
+/* Список пользователей шире прочих: «Все пользователи» в 150px не помещается
+   и обрывается многоточием прямо в состоянии по умолчанию. */
+.filter-dd--wide {
+  width: 185px;
+}
+
 /* Высота списков подтягивается к соседям по ряду - поиск и календарь ростом
    35px, штатные 30px у выпадающего списка сбивали бы линию. */
 .filter-dd :deep(.base-dropdown__button),
@@ -1612,6 +1618,12 @@ export default {
     flex: 1;
     width: auto;
     min-width: 130px;
+  }
+
+  /* Календарь на узком экране тянется по ряду, а не держит свои 215px. */
+  .filters-bar :deep(.date-filter),
+  .filters-bar :deep(.date-field) {
+    width: 100%;
   }
 
   .table-header,
