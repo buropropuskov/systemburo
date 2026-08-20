@@ -25,26 +25,10 @@
       {{ coverageNote }}
     </p>
 
-    <div class="kpi-row">
-      <div
-        v-for="kpi in kpis"
-        :key="kpi.label"
-        class="kpi"
-      >
-        <div
-          class="kpi-val"
-          :class="{ bad: kpi.bad }"
-        >
-          {{ kpi.value }}
-        </div>
-        <div
-          class="kpi-lab"
-          :title="kpi.hint"
-        >
-          {{ kpi.label }}
-        </div>
-      </div>
-    </div>
+    <KpiRow
+      class="analytics-kpis"
+      :items="kpis"
+    />
 
     <div class="analytics-panel">
       <h4 class="panel-title">
@@ -159,6 +143,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import DateFilter from '@/components/DateFilter.vue';
+import KpiRow from '@/components/monitoring/KpiRow.vue';
 import { apiRequest } from '@/api/client';
 import { useDeletionsStore } from '@/stores/deletions';
 import { formatLogin } from '@/utils/formatName';
@@ -212,6 +197,8 @@ async function fetchHistory() {
   }
 }
 
+defineExpose({ refresh: fetchHistory });
+
 watch(() => props.active, (active) => {
   if (active && !loaded.value) fetchHistory();
 }, { immediate: true });
@@ -230,38 +217,8 @@ watch(() => props.active, (active) => {
   flex-wrap: wrap;
 }
 
-.kpi-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+.analytics-kpis {
   margin-bottom: 16px;
-}
-
-.kpi {
-  background: var(--accent-tint);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
-}
-
-.kpi-val {
-  font-size: 1.5em;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.5px;
-}
-
-.kpi-val.bad {
-  color: var(--danger-text);
-}
-
-.kpi-lab {
-  font-size: 0.72em;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  color: var(--text-muted);
-  margin-top: 4px;
-  font-weight: 600;
 }
 
 .analytics-panel {
@@ -364,10 +321,6 @@ watch(() => props.active, (active) => {
 }
 
 @media (max-width: 768px) {
-  .kpi-row {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .analytics-tables {
     grid-template-columns: 1fr;
   }

@@ -5,51 +5,16 @@
         <h3 class="management-title">
           Мониторинг запросов
         </h3>
-        <div class="header-controls">
-          <div class="stats-summary">
-            <span class="stat-item">
-              <span class="stat-label">Всего:</span>
-              <span class="stat-value">{{ stats.total || 0 }}</span>
-            </span>
-            <span class="stat-item">
-              <span class="stat-label">Сегодня:</span>
-              <span class="stat-value">{{ stats.today || 0 }}</span>
-            </span>
-            <span class="stat-item">
-              <span
-                class="stat-label"
-                title="Медиана и 95-й перцентиль времени ответа за последний час. Долгоживущие подписки на события не учитываются: у них в журнале записано время жизни соединения, а не время ответа."
-              >Отклик:</span>
-              <span class="stat-value">
-                {{ formatMs(stats.median_duration, false) }} / {{ formatMs(stats.p95_duration) }}
-              </span>
-            </span>
-            <span class="stat-item">
-              <span class="stat-label">Ошибки:</span>
-              <span
-                class="stat-value"
-                :class="{ 'stat-error': stats.error_rate > 5 }"
-              >
-                {{ (stats.error_rate || 0).toFixed(1) }}%
-              </span>
-            </span>
-            <span class="stat-item">
-              <span class="stat-label">RPM:</span>
-              <span class="stat-value">{{ (stats.requests_per_minute || 0).toFixed(1) }}</span>
-            </span>
-            <span
-              v-if="realtime.last_minute_count != null"
-              class="stat-item realtime-stat"
-            >
-              <span class="stat-label">Сейчас:</span>
-              <span class="stat-value live-value">
-                {{ realtime.last_second_count || 0 }}/с
-                <span class="stat-minute">{{ realtime.last_minute_count || 0 }}/мин</span>
-              </span>
-            </span>
-          </div>
-        </div>
+        <RefreshButton
+          :loading="isLoading"
+          @refresh="refreshAll"
+        />
       </div>
+
+      <KpiRow
+        class="rv-stats"
+        :items="kpis"
+      />
 
       <div class="rv-tabs">
         <button
@@ -65,6 +30,7 @@
 
       <JournalTab
         v-show="activeTab === 'journal'"
+        ref="journalTab"
         :active="activeTab === 'journal'"
         :hidden="tabHidden"
         @update:loading="value => (isLoading = value)"
@@ -73,6 +39,7 @@
 
       <AnalyticsTab
         v-show="activeTab === 'analytics'"
+        ref="analyticsTab"
         :active="activeTab === 'analytics'"
         @update:loading="value => (isLoading = value)"
       />
@@ -91,14 +58,16 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
+import RefreshButton from '@/components/RefreshButton.vue';
+import KpiRow from '@/components/monitoring/KpiRow.vue';
 import JournalTab from '@/components/monitoring/JournalTab.vue';
 import AnalyticsTab from '@/components/monitoring/AnalyticsTab.vue';
 import { apiRequest } from '@/api/client';
 import { useDeletionsStore } from '@/stores/deletions';
-import { describeLoadError, formatMs } from '@/utils/requestLogsFormat';
+import { describeLoadError, headerKpis } from '@/utils/requestLogsFormat';
 
 /**
  * Раздел мониторинга обращений: показатели в шапке и две вкладки - живой журнал
@@ -120,6 +89,9 @@ const stats = ref({
   p95_duration: 0, error_rate: 0, requests_per_minute: 0,
 });
 const realtime = ref({ last_second_count: 0, last_minute_count: 0 });
+const journalTab = ref(null);
+const analyticsTab = ref(null);
+const kpis = computed(() => headerKpis(stats.value, realtime.value));
 // Причины отказов, о которых уже сообщили: показатели и счётчики опрашиваются
 // по таймеру, и тост на каждый отказ выстраивал бы очередь одинаковых сообщений.
 const reported = new Set();
@@ -154,6 +126,15 @@ function fetchStats() {
 
 function fetchRealtime() {
   return loadSection('/request-logs/realtime', data => { realtime.value = data; }, 'счётчики ленты');
+}
+
+/**
+ * Кнопка обновления в шапке: показатели раздела и содержимое открытой вкладки.
+ * Скрытую вкладку не трогаем - её данные обновятся, когда её откроют.
+ */
+function refreshAll() {
+  const tab = activeTab.value === 'journal' ? journalTab.value : analyticsTab.value;
+  return Promise.all([fetchStats(), fetchRealtime(), tab?.refresh?.()]);
 }
 
 function onVisibilityChange() {
@@ -192,11 +173,16 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
+/* Шапка раздела по эталону TableConstructor: фиксированные 50px и разделитель.
+   Показатели переехали из неё в ряд карточек ниже - шесть подписей со
+   значениями в строку разгоняли шапку до двух рядов и своей высоты у неё не
+   было вовсе. */
 .management-header {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 20px;
+  justify-content: space-between;
+  align-items: center;
+  height: 50px;
+  padding: 0 20px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -207,54 +193,8 @@ onBeforeUnmount(() => {
   color: var(--text);
 }
 
-.header-controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.stats-summary {
-  display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-.stat-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.stat-label {
-  font-size: 0.85em;
-  color: var(--text-muted);
-}
-
-.stat-value {
-  font-size: 0.9em;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.stat-value.stat-error {
-  color: var(--danger-text);
-}
-
-.live-value {
-  color: var(--success-text);
-}
-
-.stat-minute {
-  font-size: 0.85em;
-  color: var(--text-muted);
-  font-weight: 500;
-  margin-left: 4px;
-}
-
-.realtime-stat {
-  padding-left: 12px;
-  border-left: 1px solid var(--border);
+.rv-stats {
+  padding: 16px 20px;
 }
 
 /* Вкладки журнал / аналитика */
@@ -298,17 +238,11 @@ onBeforeUnmount(() => {
 
 @media (max-width: 768px) {
   .management-header {
-    padding: 16px;
+    padding: 0 16px;
   }
 
-  .header-controls {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .stats-summary {
-    justify-content: space-between;
-    width: 100%;
+  .rv-stats {
+    padding: 12px 16px;
   }
 }
 </style>
