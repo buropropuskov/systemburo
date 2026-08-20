@@ -125,6 +125,15 @@
         </div>
       </div>
     </div>
+
+    <!-- Первую загрузку плёнка кроет наглухо: под ней панели ещё пустые и
+         сообщают «нет данных», которых на деле никто не читал. Обновление -
+         полупрозрачно, числа на экране остаются на месте. -->
+    <RefreshOverlay
+      v-if="isLoading"
+      :solid="!loaded"
+      :label="loaded ? 'Обновление…' : 'Загрузка аналитики…'"
+    />
   </div>
 </template>
 
@@ -133,6 +142,7 @@ import { computed, ref, watch } from 'vue';
 import DailyRequestsChart from '@/components/monitoring/DailyRequestsChart.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import KpiRow from '@/components/monitoring/KpiRow.vue';
+import RefreshOverlay from '@/components/ui/RefreshOverlay.vue';
 import { apiRequest } from '@/api/client';
 import { useDeletionsStore } from '@/stores/deletions';
 import { formatLogin } from '@/utils/formatName';
@@ -154,6 +164,7 @@ const props = defineProps({
 const emit = defineEmits(['update:loading']);
 
 const history = ref(emptyHistory());
+const isLoading = ref(false);
 const from = ref('');
 const to = ref('');
 const loaded = ref(false);
@@ -165,6 +176,7 @@ const p95Note = computed(() => buildP95Note(history.value.coverage));
 const chartPoints = computed(() => dailyChartPoints(history.value.daily));
 
 async function fetchHistory() {
+  isLoading.value = true;
   emit('update:loading', true);
   try {
     const params = new URLSearchParams();
@@ -182,6 +194,7 @@ async function fetchHistory() {
   } catch {
     useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'аналитику', type: 'error' });
   } finally {
+    isLoading.value = false;
     emit('update:loading', false);
   }
 }
@@ -196,9 +209,14 @@ watch(() => props.active, (active) => {
 <style scoped>
 .analytics-tab {
   padding: 16px 20px;
+  position: relative;
 }
 
+/* Отбор периода остаётся над плёнкой загрузки: гасить контролы, которыми
+   человек только что пользовался, незачем. */
 .analytics-toolbar {
+  position: relative;
+  z-index: 3;
   display: flex;
   gap: 12px;
   align-items: flex-end;
