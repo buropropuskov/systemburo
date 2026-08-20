@@ -162,10 +162,10 @@
           <div class="an-panel__chart">
             <AnalyticsDonutChart
               :data="attachmentDonutData"
-              :height="300"
               total-label="Вложений"
               :unit-forms="['вложение', 'вложения', 'вложений']"
               empty-ring
+              fill-height
             />
           </div>
           <div class="an-panel__tiles">

@@ -1,7 +1,7 @@
 <template>
   <div
     class="donut-chart"
-    :style="{ height: height + 'px' }"
+    :style="{ height: fillHeight ? '100%' : height + 'px' }"
   >
     <canvas
       v-if="hasData"
@@ -56,6 +56,15 @@ const props = defineProps({
   },
   /** Дробная метрика: тултип/итог не округляют до целых. */
   isFloat: {
+    type: Boolean,
+    default: false,
+  },
+  /**
+   * Занять высоту контейнера вместо фиксированной: кольцо рядом с колонкой
+   * чисел должно расти вместе с ней, иначе на длинном списке оно остаётся
+   * пятачком посреди пустой карточки.
+   */
+  fillHeight: {
     type: Boolean,
     default: false,
   },
