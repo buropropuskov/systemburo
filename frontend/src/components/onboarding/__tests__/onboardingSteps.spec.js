@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { onboardingSteps, ONBOARDING_VERSION, collectSegment, indexAfterRoute } from '../onboardingSteps';
+import { onboardingSteps, ONBOARDING_VERSION } from '../onboardingSteps';
+import { collectSegment, indexAfterRoute } from '../stepsFlow';
 
 const byId = (id) => onboardingSteps.find((s) => s.id === id);
 const idx = (id) => onboardingSteps.findIndex((s) => s.id === id);

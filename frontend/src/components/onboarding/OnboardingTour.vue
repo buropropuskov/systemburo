@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { useUiStore } from '@/stores/ui';
 import { useOnboarding, STEP_DEMO_FALLBACK } from '@/composables/useOnboarding';
-import { collectSegment, indexAfterRoute } from '@/components/onboarding/onboardingSteps';
+import { collectSegment, indexAfterRoute } from '@/components/onboarding/stepsFlow';
 import { applyReveal, restoreReveal } from '@/components/onboarding/reveal';
 import { createStepWatchers } from '@/components/onboarding/stepWatchers';
 

@@ -4,7 +4,7 @@ import { sanitizeHtml } from '@/utils/sanitize.js';
 import { getViewportZoom } from '@/utils/viewportScale';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { getDemo } from '@/components/onboarding/onboardingDemo';
-import { groupStepsBySection } from '@/components/onboarding/onboardingSteps';
+import { groupStepsBySection } from '@/components/onboarding/stepsFlow';
 import { STAGE_PADDING, STAGE_RADIUS, applyStageShape, raiseActiveHighlight } from '@/components/onboarding/stageShape';
 
 /**

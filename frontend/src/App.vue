@@ -214,10 +214,12 @@ export default {
      */
     onboardingReveal(target) {
       if (target === 'search-panel') {
-        if (!this.searchOpen) {
-          this.searchOpenedByTour = true
-          this.openGlobalSearch()
-        }
+        // Флаг ставим и когда панель уже открыта: на шаге про поиск ею
+        // распоряжается тур, кто бы её ни открыл. Иначе панель, открытая
+        // человеком по просьбе предыдущего шага, оставалась висеть поверх
+        // следующих шагов.
+        this.searchOpenedByTour = true
+        if (!this.searchOpen) this.openGlobalSearch()
       } else if (this.searchOpenedByTour) {
         this.searchOpenedByTour = false
         this.closeGlobalSearch()

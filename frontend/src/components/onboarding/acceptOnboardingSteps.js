@@ -73,7 +73,6 @@ export const acceptOnboardingSteps = [
     // Список длиннее экрана: по центру его верх уезжал за край. Плюс человек
     // может открыть заявку сам - тогда тур сразу переходит к карточке.
     scrollTo: 'start',
-    advanceWhen: '[data-testid="ob-detail-card"]',
     side: 'top',
     align: 'start',
     title: 'Статусы заявок',

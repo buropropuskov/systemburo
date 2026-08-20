@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { approveOnboardingSteps, APPROVE_ONBOARDING_VERSION } from '../approveOnboardingSteps';
-import { collectSegment } from '../onboardingSteps';
+import { collectSegment } from '../stepsFlow';
 import { getTour, availableTours, buildTourSteps, allTourSteps } from '../tours';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { usePermissionsStore } from '@/stores/permissions';

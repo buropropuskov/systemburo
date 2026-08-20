@@ -143,6 +143,7 @@ import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { usePermissionsStore } from '@/stores/permissions'
+import { useOnboardingStore } from '@/stores/onboarding'
 import FeedbackModal from '@/components/FeedbackModal.vue';
 import AnnouncementModal from '@/components/AnnouncementModal.vue';
 import UserNotifications from '@/components/UserNotifications.vue';
@@ -182,6 +183,9 @@ export default {
       showAnnouncement: false,
       activeAnnouncement: null,
       showNotifications: false,
+      // Список открыл тур, а не человек: закрываем по гашению сигнала только то,
+      // что открыли сами (тот же приём, что у панели поиска в App.vue).
+      notificationsOpenedByTour: false,
       unreadCount: 0,
       currentHour: new Date().getHours(),
       // Дата и время (ДД.ММ.ГГГГ ЧЧ:ММ:СС) в шапке - только на десктопе, как было
@@ -206,11 +210,33 @@ export default {
       const name = this.displayName;
       return name ? `${this.greetingPrefix}, ${name}!` : `${this.greetingPrefix}!`;
     },
+    /** Сигнал раскрытия свёрнутого узла от онбординг-тура - см. watch ниже. */
+    onboardingReveal() {
+      return useOnboardingStore().revealOpen;
+    },
   },
   watch: {
     '$route'() {
       this.fetchUserData();
-    }
+    },
+    /**
+     * Тур просит показать список уведомлений (reveal.open): открываем его сам, а
+     * по гашению сигнала закрываем - но только если открыли мы. Список, открытый
+     * человеком до шага, тур не трогает.
+     */
+    onboardingReveal(target) {
+      if (target === 'notifications') {
+        // Флаг ставим и когда список уже открыт: на шаге про список им
+        // распоряжается тур, кто бы его ни открыл. Иначе список, открытый
+        // человеком по просьбе предыдущего шага, оставался висеть поверх
+        // следующих шагов и закрывал собой то, о чём они рассказывают.
+        this.notificationsOpenedByTour = true;
+        this.showNotifications = true;
+      } else if (this.notificationsOpenedByTour) {
+        this.notificationsOpenedByTour = false;
+        this.showNotifications = false;
+      }
+    },
   },
   mounted() {
     this.fetchUserData();
@@ -220,6 +246,10 @@ export default {
       this.initIntersectionObserver();
     });
     this._onDocumentClick = () => {
+      // Пока список держит тур, клик мимо его не закрывает: шаг рассказывает
+      // именно про открытый список, а окно шага живёт вне шапки - иначе клик по
+      // окну гасил список и оставлял шаг ни с чем.
+      if (useOnboardingStore().revealOpen === 'notifications') return;
       if (this.showNotifications) {
         this.showNotifications = false;
       }

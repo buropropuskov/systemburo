@@ -1,10 +1,6 @@
 import { onboardingSteps, ONBOARDING_VERSION } from './onboardingSteps';
-import {
-  securityOnboardingSteps,
-  SECURITY_ONBOARDING_VERSION,
-  buildSecurityFactSteps,
-  buildSecurityFinalStep,
-} from './securityOnboardingSteps';
+import { securityOnboardingSteps, SECURITY_ONBOARDING_VERSION } from './securityOnboardingSteps';
+import { buildSecurityFactSteps, buildSecurityFinalStep } from './securityFactSteps';
 import { approveOnboardingSteps, APPROVE_ONBOARDING_VERSION } from './approveOnboardingSteps';
 import { acceptOnboardingSteps, ACCEPT_ONBOARDING_VERSION } from './acceptOnboardingSteps';
 import { adminOnboardingSteps, ADMIN_ONBOARDING_VERSION } from './adminOnboardingSteps';

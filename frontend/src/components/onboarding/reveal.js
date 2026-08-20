@@ -37,7 +37,7 @@ const NAV_DRAWER_TRANSITION_MS = 300;
 const OPEN_REVEAL_TRANSITION_MS = 300;
 
 /** Допустимые значения `reveal.open` - расширять вместе с резолвером во владельце узла. */
-export const OPEN_TARGETS = ['admin-column', 'search-panel', 'first-application', 'first-attachment', 'attachment-blank', 'pass-report', 'work-modes', 'application-history'];
+export const OPEN_TARGETS = ['admin-column', 'search-panel', 'notifications', 'first-application', 'first-attachment', 'attachment-blank', 'pass-report', 'work-modes', 'application-history'];
 
 /** @returns {boolean} открыт ли бургер-drawer навигации сейчас. */
 export function isNavDrawerOpen() {

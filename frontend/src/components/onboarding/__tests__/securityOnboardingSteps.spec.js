@@ -1,12 +1,11 @@
 import { describe, it, expect } from 'vitest';
+import { securityOnboardingSteps, SECURITY_ONBOARDING_VERSION } from '../securityOnboardingSteps';
 import {
-  securityOnboardingSteps,
-  SECURITY_ONBOARDING_VERSION,
   resolveFactTableRoute,
   buildSecurityFactSteps,
   buildSecurityFinalStep,
-} from '../securityOnboardingSteps';
-import { collectSegment } from '../onboardingSteps';
+} from '../securityFactSteps';
+import { collectSegment } from '../stepsFlow';
 import { resolveReveal } from '../reveal';
 import { buildTourSteps, getTour } from '../tours';
 import { routeGate, routeExtraGate } from './routerGates';
@@ -75,6 +74,7 @@ describe('securityOnboardingSteps - сегмент /news', () => {
     expect(seg.map((s) => s.id)).toEqual([
       'sec-start',
       'sec-header-notifications',
+      'sec-header-notifications-panel',
       'sec-header-search',
       'sec-header-search-panel',
       'sec-header-feedback',
@@ -152,6 +152,30 @@ describe('reveal (#1097 S11 - переехавшие на <768 цели)', () =>
     expect(byId('sec-header-feedback').reveal).toEqual({ mobile: 'nav' });
     // #1097 W3.2: колокольчик вынесен из "⋯" в саму шапку - reveal не нужен.
     expect(byId('sec-header-notifications').reveal).toBeUndefined();
+  });
+
+  /**
+   * Шаг, который зовёт нажать, обязан вести к шагу про открывшееся: список
+   * уведомлений лежит ниже затемнения тура, и без перехода человек, выполнивший
+   * просьбу, получал панель за тёмной пеленой (замечание владельца 20.08).
+   */
+  it('колокольчик ведёт к разбору списка: переход по действию и раскрытие сам', () => {
+    const byId = (id) => securityOnboardingSteps.find((s) => s.id === id);
+    const bell = byId('sec-header-notifications');
+    const panel = byId('sec-header-notifications-panel');
+    expect(bell.advanceWhen).toBe('[data-testid="ob-notifications-panel"]');
+    expect(panel.element).toBe('[data-testid="ob-notifications-panel"]');
+    expect(panel.reveal).toEqual({ open: 'notifications' });
+    // Шаги идут подряд - иначе переход по действию уводил бы не туда.
+    const ids = securityOnboardingSteps.map((s) => s.id);
+    expect(ids.indexOf(panel.id)).toBe(ids.indexOf(bell.id) + 1);
+  });
+
+  it('шаги тура не зовут нажимать там, куда тур не переходит', () => {
+    for (const step of securityOnboardingSteps) {
+      if (!/[Нн]ажм|[Нн]ажат/.test(step.description)) continue;
+      expect(step.advanceWhen, `шаг ${step.id} зовёт нажать без перехода`).toBeTruthy();
+    }
   });
 
   it('sec-nav-* просят раскрытие drawer (nav)', () => {

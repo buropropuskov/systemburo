@@ -1,4 +1,3 @@
-import { MAIN_SECTIONS, ADMIN_GROUPS } from '@/constants/navSections';
 
 /**
  * Версия тура заявителя. Сверяется с пройденной версией, полученной с бэкенда:
@@ -98,7 +97,7 @@ export const onboardingSteps = [
     element: '[data-testid="ob-announcement"]',
     title: 'Объявления',
     description:
-      'Объявления администрации. Здесь появляются обычные и важные объявления - так вы не пропустите срочную информацию. Нажмите, чтобы прочитать целиком.',
+      'Объявления администрации. Здесь появляются обычные и важные объявления - так вы не пропустите срочную информацию.',
   },
   {
     id: 'documents',
@@ -134,7 +133,7 @@ export const onboardingSteps = [
     element: '[data-testid="ob-header-broadcast"]',
     title: 'Объявление в шапке',
     description:
-      'Пока объявление действует, оно висит в шапке подписью «Объявление» или «Важное объявление» и видно из любого раздела, а не только на «Обзоре». Нажмите, чтобы прочитать целиком.',
+      'Пока объявление действует, оно висит в шапке подписью «Объявление» или «Важное объявление» и видно из любого раздела, а не только на «Обзоре».',
     // Пилюля рисуется только при активном объявлении - без него шага быть не должно.
     optional: true,
   },
@@ -155,7 +154,22 @@ export const onboardingSteps = [
     route: '/news',
     element: '[data-testid="ob-header-notifications"]',
     title: 'Уведомления',
-    description: 'Колокольчик показывает количество непрочитанных уведомлений: смена статуса заявки, ответы согласующих и другие события. Нажмите, чтобы открыть список.',
+    description: 'Колокольчик показывает количество непрочитанных уведомлений: смена статуса заявки, ответы согласующих и другие события. Сейчас откроем список.',
+    // Человек может открыть список прямо сейчас - тогда тур перейдёт к разбору
+    // сам, а не оставит открытый список лежать под затемнением.
+    advanceWhen: '[data-testid="ob-notifications-panel"]',
+  },
+  {
+    id: 'header-notifications-panel',
+    side: 'bottom',
+    align: 'end',
+    route: '/news',
+    element: '[data-testid="ob-notifications-panel"]',
+    title: 'Список уведомлений',
+    description:
+      'Свежие события идут сверху, непрочитанные выделены. Нужное открывается прямо отсюда, а шестерёнка ведёт к настройке: какие уведомления получать и куда.',
+    optional: true,
+    reveal: { open: 'notifications' },
   },
   {
     id: 'header-submit',
@@ -659,81 +673,3 @@ export const onboardingSteps = [
     cta: 'Подать первую заявку',
   },
 ];
-
-/**
- * Человеческое имя раздела по его route - подпись группы в списке шагов тура.
- * Берём из навигации системы, чтобы названия совпадали с тем, что человек видит
- * в меню; для страниц вне меню (таблицы постов) отдаём запасное имя.
- *
- * @param {string} route
- * @returns {string}
- */
-export function sectionTitleFor(route) {
-  const inMain = MAIN_SECTIONS.find((s) => s.path === route);
-  if (inMain) return inMain.label;
-  for (const group of ADMIN_GROUPS) {
-    const item = group.items.find((i) => i.path === route);
-    if (item) return `${group.title}: ${item.label}`;
-  }
-  if (route === '/admin/settings') return 'Настройки Бюро';
-  if (route?.startsWith('/table/')) return 'Таблица поста';
-  return 'Раздел системы';
-}
-
-/**
- * Шаги тура, сгруппированные по разделам, - для списка «перейти к шагу». Считаем
- * от полного набора: пользователь должен видеть и то, что уже прошёл, и то, что
- * впереди. Выброшенные в этом прохождении шаги (их целей на экране нет) из списка
- * убираем - прыгнуть на них всё равно некуда.
- *
- * @param {Array<{route: string, title: string}>} steps
- * @param {Array<number>|Set<number>} [skipped] индексы выброшенных шагов
- * @returns {Array<{ route: string, title: string, items: Array<{ index: number, title: string }> }>}
- */
-export function groupStepsBySection(steps, skipped = []) {
-  const dropped = skipped instanceof Set ? skipped : new Set(skipped);
-  const groups = [];
-  steps.forEach((step, index) => {
-    if (dropped.has(index)) return;
-    const last = groups[groups.length - 1];
-    if (last && last.route === step.route) last.items.push({ index, title: step.title });
-    else groups.push({ route: step.route, title: sectionTitleFor(step.route), items: [{ index, title: step.title }] });
-  });
-  return groups;
-}
-
-/**
- * Подряд идущие шаги начиная с `startIndex`, чей `route` совпадает с активной
- * страницей. Граница сегмента - первый шаг с другим route (cross-page переход).
- *
- * @param {Array<{ route: string }>} steps
- * @param {number} startIndex глобальный индекс первого шага сегмента
- * @param {string} routePath активный путь роутера
- * @returns {Array<object>}
- */
-export function collectSegment(steps, startIndex, routePath) {
-  const segment = [];
-  for (let i = startIndex; i < steps.length; i += 1) {
-    if (steps[i].route !== routePath) break;
-    segment.push(steps[i]);
-  }
-  return segment;
-}
-
-/**
- * Индекс первого шага ПОСЛЕ непрерывного блока шагов с данным `route`, начиная с
- * `fromIndex`. Нужен, чтобы перепрыгнуть недостижимый optional-сегмент
- * (фактовая таблица, роут-гард которой редиректит охранника) к следующему шагу
- * тура - финалу-празднованию на достижимой странице. Возвращает -1, если за
- * блоком шагов не осталось.
- *
- * @param {Array<{ route: string }>} steps
- * @param {number} fromIndex индекс первого шага недостижимого блока
- * @param {string} route route недостижимого блока
- * @returns {number} индекс следующего шага за блоком или -1
- */
-export function indexAfterRoute(steps, fromIndex, route) {
-  let i = fromIndex;
-  while (i < steps.length && steps[i].route === route) i += 1;
-  return i < steps.length ? i : -1;
-}
