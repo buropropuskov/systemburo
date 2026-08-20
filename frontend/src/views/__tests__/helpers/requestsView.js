@@ -14,6 +14,9 @@ import { apiRequest, apiRequestRaw } from '@/api/client';
 
 export const stubs = {
   AdminPageShell: { template: '<div><slot /></div>' },
+  // Окно деталей телепортируется в body: без заглушки его не видит ни wrapper,
+  // ни размонтирование спеки - окно осталось бы в документе между тестами.
+  teleport: true,
   // Кнопка обновления и тумблер ленты подменяются рабочими заглушками: тесты
   // жмут их как пользователь, поэтому пустой шаблон здесь не годится.
   RefreshButton: { template: '<button class="refresh-stub" @click="$emit(\'refresh\')" />' },

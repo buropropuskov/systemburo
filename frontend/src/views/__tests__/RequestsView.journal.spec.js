@@ -173,7 +173,7 @@ describe('RequestsView, живая лента', () => {
     }
   });
 
-  it('открытая карточка запроса держит ленту, закрытие возвращает обновление', async () => {
+  it('открытое окно запроса держит ленту, закрытие возвращает обновление', async () => {
     apiRequestRaw.mockResolvedValue(logsPage([LOG]));
     vi.useFakeTimers();
     try {
@@ -184,10 +184,10 @@ describe('RequestsView, живая лента', () => {
       apiRequestRaw.mockClear();
       vi.advanceTimersByTime(JOURNAL_REFRESH_MS * 2);
       await flushPromises();
-      expect(apiRequestRaw, 'из-под открытой карточки строка уехать не должна').not.toHaveBeenCalled();
-      expect(wrapper.find('.toggle-stub').text()).toContain('открыта карточка запроса');
+      expect(apiRequestRaw, 'из-под открытого окна строка уехать не должна').not.toHaveBeenCalled();
+      expect(wrapper.find('.toggle-stub').text()).toContain('открыто окно запроса');
 
-      await wrapper.get('.close-details-btn').trigger('click');
+      await wrapper.get('[data-testid="modal-button-close"]').trigger('click');
       vi.advanceTimersByTime(JOURNAL_REFRESH_MS);
       await flushPromises();
       expect(apiRequestRaw).toHaveBeenCalledTimes(1);

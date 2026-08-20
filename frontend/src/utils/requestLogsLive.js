@@ -11,7 +11,7 @@ export const JOURNAL_REFRESH_MS = 10000;
  * Почему живая лента сейчас стоит. Пустая строка - обновление идёт.
  *
  * Причин четыре, и все они про потерю того, что человек уже держит на экране:
- * из-под открытой карточки уезжает строка, на второй странице обновление
+ * из-под открытого окна уезжает строка, на второй странице обновление
  * подменяет содержимое под курсором, а фоновая вкладка просто жжёт запросы -
  * ровно тот шум, который убирали из журнала.
  * @param {{tab: string, hidden: boolean, hasSelection: boolean, page: number}} view
@@ -20,7 +20,7 @@ export const JOURNAL_REFRESH_MS = 10000;
 export function journalRefreshBlock({ tab, hidden, hasSelection, page }) {
   if (tab !== 'journal') return 'открыта аналитика';
   if (hidden) return 'вкладка в фоне';
-  if (hasSelection) return 'открыта карточка запроса';
+  if (hasSelection) return 'открыто окно запроса';
   if (page > 1) return 'открыта не первая страница';
   return '';
 }

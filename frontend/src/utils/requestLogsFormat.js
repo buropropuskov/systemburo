@@ -95,20 +95,6 @@ export function truncatePath(path) {
 }
 
 /**
- * Тело запроса или ответа с отступами, если это разбираемый JSON.
- * @param {string} text
- * @returns {string}
- */
-export function formatJson(text) {
-  if (!text) return '';
-  try {
-    return JSON.stringify(JSON.parse(text), null, 2);
-  } catch {
-    return text;
-  }
-}
-
-/**
  * @param {string} method
  * @returns {string}
  */
@@ -305,12 +291,3 @@ export function historyFromResponse(data) {
     top_users: data.top_users || []
   };
 }
-
-/**
- * Показ значений журнала одним набором - экран подмешивает его в methods
- * целиком, а не перечисляет функции по одной.
- */
-export const LOG_FORMATTERS = {
-  formatMs, formatDuration, formatDay, formatNum, formatTime, formatFullDate,
-  truncatePath, formatJson, getMethodClass, getStatusClass
-};
