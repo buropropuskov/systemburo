@@ -7,12 +7,26 @@
  * поддельном холсте, чего с кодом внутри компонента не сделать.
  */
 
+import { cssVariable } from './useChartCanvas';
+
 /**
  * Минимальный угол сегмента, при котором подпись доли ещё помещается в дугу.
  * Значение перенесено из прежнего движка (minAngleToShowLabel), иначе тонкие
  * доли подписываются друг поверх друга.
  */
 const MIN_LABEL_ANGLE = (10 * Math.PI) / 180;
+
+/**
+ * Цвет оформления из темы страницы.
+ *
+ * @param {object} chart экземпляр Chart.js
+ * @param {string} name имя переменной темы
+ * @param {string} fallback цвет для окружения без темы
+ * @returns {string}
+ */
+function themed(chart, name, fallback) {
+  return cssVariable(chart?.canvas, name, fallback);
+}
 
 const FALLBACK_FONT = "'Montserrat', sans-serif";
 
@@ -50,6 +64,9 @@ export const sliceLabelsPlugin = {
   id: 'sliceLabels',
 
   afterDatasetsDraw(chart) {
+    // Пустое кольцо держится на сегменте-заглушке: подписать его «100%» значило
+    // бы выдать отсутствие данных за полную долю.
+    if (chart.options?.plugins?.sliceLabels?.display === false) return;
     const arcs = chart.getDatasetMeta(0)?.data ?? [];
     const total = visibleEntries(chart).reduce((sum, entry) => sum + entry.value, 0);
     if (!total) return;
@@ -83,10 +100,12 @@ export const sliceLabelsPlugin = {
  * значения, положенный туда, получал вместо числа объект и ронял отрисовку -
  * в браузере, но не в юните: мок Chart.js настройки не разрешает.
  *
- * @param {{ label?: string, format?: (v: number) => string }} settings
+ * @param {{ label?: string, format?: (v: number) => string, total?: number|null }} settings
+ *   total - готовый итог: у пустого кольца сегмент-заглушка сложилась бы в свою
+ *   единицу вместо нуля.
  * @returns {object} плагин Chart.js
  */
-export function centerLabelPlugin({ label = '', format = String } = {}) {
+export function centerLabelPlugin({ label = '', format = String, total = null } = {}) {
   return {
     id: 'centerLabel',
 
@@ -98,12 +117,16 @@ export function centerLabelPlugin({ label = '', format = String } = {}) {
 
       const active = chart.getActiveElements?.()?.[0];
       const hovered = active && chart.getDataVisibility(active.index) ? active.index : null;
-      const caption = hovered == null
+      // У пустого кольца наводиться не на что: заглушка не должна подменять
+      // подпись своим пустым именем.
+      const caption = total != null || hovered == null
         ? String(label)
         : String(chart.data.labels?.[hovered] ?? '');
-      const value = hovered == null
-        ? visibleEntries(chart).reduce((sum, entry) => sum + entry.value, 0)
-        : Number(chart.data.datasets[0].data[hovered]) || 0;
+      const value = total != null
+        ? total
+        : (hovered == null
+          ? visibleEntries(chart).reduce((sum, entry) => sum + entry.value, 0)
+          : Number(chart.data.datasets[0].data[hovered]) || 0);
 
       const { ctx } = chart;
       const family = fontFamily(chart);
@@ -111,10 +134,12 @@ export function centerLabelPlugin({ label = '', format = String } = {}) {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.font = `400 12px ${family}`;
-      ctx.fillStyle = '#a2a2a2';
+      ctx.fillStyle = themed(chart, '--text-muted', '#a2a2a2');
       ctx.fillText(caption, anchor.x, anchor.y - 12);
       ctx.font = `700 20px ${family}`;
-      ctx.fillStyle = '#333333';
+      // Цвет темы, а не прибитый тёмно-серый: на тёмной карточке итог в центре
+      // кольца был почти неразличим.
+      ctx.fillStyle = themed(chart, '--text', '#333333');
       ctx.fillText(format(value), anchor.x, anchor.y + 10);
       ctx.restore();
     },

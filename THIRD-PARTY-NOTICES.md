@@ -340,15 +340,15 @@
 | `github.com/xuri/efp` | v0.0.1 | BSD-3-Clause | Copyright (c) 2017 - 2025 Ri Xu All rights reserved |
 | `github.com/xuri/excelize/v2` | v2.11.0 | BSD-3-Clause | Copyright (c) 2016-2026 The excelize Authors; Copyright (c) 2011-2017 Geoffrey J. Teale |
 | `github.com/xuri/nfp` | v0.0.2-0.20250530014748-2ddeb826f9a9 | BSD-3-Clause | Copyright (c) 2022-2025 Ri Xu All rights reserved |
-| `golang.org/x/crypto` | v0.54.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
+| `golang.org/x/crypto` | v0.55.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/image` | v0.45.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
-| `golang.org/x/mod` | v0.38.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
-| `golang.org/x/net` | v0.57.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
+| `golang.org/x/mod` | v0.40.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
+| `golang.org/x/net` | v0.58.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/sync` | v0.22.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/sys` | v0.47.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/text` | v0.41.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/time` | v0.14.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
-| `golang.org/x/tools` | v0.48.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
+| `golang.org/x/tools` | v0.49.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `gopkg.in/natefinch/lumberjack.v2` | v2.2.1 | MIT | Copyright (c) 2014 Nate Finch |
 | `gopkg.in/yaml.v2` | v2.4.0 | Apache-2.0 | Copyright {yyyy} {name of copyright owner}; Copyright (c) 2006 Kirill Simonov |
 | `gopkg.in/yaml.v3` | v3.0.1 | Apache-2.0 | Copyright (c) 2006-2010 Kirill Simonov; Copyright (c) 2006-2011 Kirill Simonov; Copyright (c) 2011-2019 Canonical Ltd |
@@ -632,7 +632,7 @@ THE SOFTWARE.
 
 ### 7.4. BSD-3-Clause
 
-Компоненты: `filippo.io/hpke` v0.4.0, `golang.org/x/crypto` v0.54.0, `golang.org/x/image` v0.45.0, `golang.org/x/mod` v0.38.0, `golang.org/x/net` v0.57.0, `golang.org/x/sync` v0.22.0, `golang.org/x/sys` v0.47.0, `golang.org/x/text` v0.41.0, `golang.org/x/time` v0.14.0, `golang.org/x/tools` v0.48.0
+Компоненты: `filippo.io/hpke` v0.4.0, `golang.org/x/crypto` v0.55.0, `golang.org/x/image` v0.45.0, `golang.org/x/mod` v0.40.0, `golang.org/x/net` v0.58.0, `golang.org/x/sync` v0.22.0, `golang.org/x/sys` v0.47.0, `golang.org/x/text` v0.41.0, `golang.org/x/time` v0.14.0, `golang.org/x/tools` v0.49.0
 
 ```text
 Copyright 2009 The Go Authors.

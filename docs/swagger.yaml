@@ -961,6 +961,36 @@ definitions:
         example: Error description
         type: string
     type: object
+  models.HistoryCoverage:
+    properties:
+      aggregated_through:
+        description: |-
+          AggregatedThrough — последний свёрнутый день. Всё, что новее, читается из
+          детальных партиций.
+        type: string
+      days:
+        type: integer
+      exact_p95:
+        description: |-
+          ExactP95 — перцентиль посчитан по самим записям. У свёрнутых суток
+          отдельных длительностей уже нет, и перцентиль периода по ним честно не
+          считается: показывается наибольшее суточное значение.
+        type: boolean
+      from:
+        description: From и To — первый и последний день с данными; пустые, когда
+          данных нет.
+        type: string
+      requested_from:
+        type: string
+      requested_to:
+        type: string
+      source:
+        description: 'Source — откуда пришли числа: empty, aggregates, detailed или
+          mixed.'
+        type: string
+      to:
+        type: string
+    type: object
   models.HistoryDailyPoint:
     properties:
       day:
@@ -973,20 +1003,20 @@ definitions:
   models.HistoryEndpoint:
     properties:
       avg_duration_ms:
-        type: integer
+        type: number
       endpoint:
         type: string
       error_rate:
         type: number
       p95_duration_ms:
-        type: integer
+        type: number
       requests:
         type: integer
     type: object
   models.HistoryTotals:
     properties:
       avg_duration_ms:
-        type: integer
+        type: number
       error_rate:
         type: number
       errors:
@@ -1747,6 +1777,8 @@ definitions:
     type: object
   models.RequestLogsHistory:
     properties:
+      coverage:
+        $ref: '#/definitions/models.HistoryCoverage'
       daily:
         items:
           $ref: '#/definitions/models.HistoryDailyPoint'
@@ -15490,6 +15522,18 @@ paths:
         in: query
         name: status
         type: integer
+      - description: Нижняя граница кода ответа (400 -- только ошибки)
+        in: query
+        name: status_min
+        type: integer
+      - description: Верхняя граница кода ответа
+        in: query
+        name: status_max
+        type: integer
+      - description: Только ответы дольше указанного времени, мс
+        in: query
+        name: min_duration_ms
+        type: integer
       - description: Дата начала (ISO 8601)
         in: query
         name: from_date
@@ -15501,6 +15545,26 @@ paths:
       - description: Поиск по URL и username
         in: query
         name: search
+        type: string
+      - default: created_at
+        description: Поле сортировки
+        enum:
+        - created_at
+        - method
+        - url
+        - status
+        - username
+        - duration
+        in: query
+        name: sort
+        type: string
+      - default: desc
+        description: Направление сортировки
+        enum:
+        - asc
+        - desc
+        in: query
+        name: order
         type: string
       - default: 1
         description: Страница
@@ -15534,6 +15598,10 @@ paths:
       - request-logs
   /request-logs/export:
     get:
+      description: |-
+        Отдаёт текущую выборку журнала файлом: те же фильтры и тот же порядок,
+        что на экране. Значения параметров адреса, кроме служебных, затёрты.
+        Число выгруженных и отсечённых записей -- в заголовках X-Export-*.
       parameters:
       - description: ID пользователя
         in: query
@@ -15547,11 +15615,23 @@ paths:
         in: query
         name: status
         type: integer
-      - description: Дата начала (ISO 8601)
+      - description: Нижняя граница кода ответа (400 -- только ошибки)
+        in: query
+        name: status_min
+        type: integer
+      - description: Верхняя граница кода ответа
+        in: query
+        name: status_max
+        type: integer
+      - description: Только ответы дольше указанного времени, мс
+        in: query
+        name: min_duration_ms
+        type: integer
+      - description: Дата начала (ISO 8601 или YYYY-MM-DD)
         in: query
         name: from_date
         type: string
-      - description: Дата окончания (ISO 8601)
+      - description: Дата окончания (ISO 8601 или YYYY-MM-DD)
         in: query
         name: to_date
         type: string
@@ -15559,13 +15639,33 @@ paths:
         in: query
         name: search
         type: string
+      - default: created_at
+        description: Поле сортировки
+        enum:
+        - created_at
+        - method
+        - url
+        - status
+        - username
+        - duration
+        in: query
+        name: sort
+        type: string
+      - default: desc
+        description: Направление сортировки
+        enum:
+        - asc
+        - desc
+        in: query
+        name: order
+        type: string
       produces:
-      - text/plain
+      - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
       responses:
         "200":
           description: OK
           schema:
-            type: string
+            type: file
         "401":
           description: Unauthorized
           schema:
@@ -15574,9 +15674,13 @@ paths:
           description: Forbidden
           schema:
             $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
       security:
       - BearerAuth: []
-      summary: Экспорт логов в текстовый формат
+      summary: Выгрузка журнала обращений в .xlsx
       tags:
       - request-logs
   /request-logs/history:

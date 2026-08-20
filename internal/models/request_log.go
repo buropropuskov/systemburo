@@ -43,16 +43,40 @@ type RequestLogs struct {
 
 func (RequestLogs) TableName() string { return "request_logs" }
 
-// RequestLogsQuery — параметры фильтрации и пагинации для списка логов.
+// RequestLogsQuery — параметры фильтрации, сортировки и пагинации для списка
+// логов. Sort и Order приходят из адресной строки: порядок строк должен
+// переживать обновление страницы и пересылку ссылки.
 type RequestLogsQuery struct {
-	UserID  *int   `query:"user_id"`
-	Method  string `query:"method"`
-	Status  *int   `query:"status"`
-	From    string `query:"from_date"`
-	To      string `query:"to_date"`
-	Search  string `query:"search"`
-	Page    int    `query:"page"`
-	PerPage int    `query:"per_page"`
+	UserID *int   `query:"user_id"`
+	Method string `query:"method"`
+	Status *int   `query:"status"`
+	// StatusMin и StatusMax -- границы кода ответа для быстрого отбора «только
+	// ошибки» и разбора отдельного класса статусов. Точный Status для этого не
+	// годится: ошибок в журнале десяток разных кодов, и перебирать их вручную
+	// оператор не станет.
+	StatusMin *int `query:"status_min"`
+	StatusMax *int `query:"status_max"`
+	// MinDurationMs -- нижняя граница времени ответа в миллисекундах: отбор
+	// «медленнее секунды» ищет затыки, а не листает журнал целиком.
+	MinDurationMs *int   `query:"min_duration_ms"`
+	From          string `query:"from_date"`
+	To            string `query:"to_date"`
+	Search        string `query:"search"`
+	Sort          string `query:"sort"`
+	Order         string `query:"order"`
+	Page          int    `query:"page"`
+	PerPage       int    `query:"per_page"`
+}
+
+// RequestLogsExport -- выборка журнала под выгрузку файлом вместе с числами
+// охвата. Total и Truncated нужны на экране и в самом файле: до #2125 выгрузка
+// молча отдавала первые 10 000 записей, и человек получал файл, по которому
+// считал итоги за период, не зная, что период в него не поместился.
+type RequestLogsExport struct {
+	Rows      []RequestLogs
+	Total     int64
+	Limit     int
+	Truncated bool
 }
 
 // RequestLogsStats — агрегированная статистика по логам запросов. Длительности

@@ -22,7 +22,7 @@
 import { computed, ref } from 'vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { formatDuration } from '@/utils/datetime';
-import { AXIS_LABEL, GRID_COLOR, TOOLTIP_STYLE, useChartCanvas } from './useChartCanvas';
+import { AXIS_LABEL, GRID_COLOR, TOOLTIP_STYLE, lighten, useChartCanvas } from './useChartCanvas';
 
 const props = defineProps({
   /** Столбцы в форме [{ label, value }]; label — подпись оси X (час суток и т.п.). */
@@ -157,7 +157,10 @@ const config = computed(() => ({
         label: props.seriesName,
         data: values.value,
         backgroundColor: props.color,
-        hoverBackgroundColor: props.color,
+        // Столбец под курсором светлеет - тот же отклик, что давал прежний
+        // движок. Оставив цвет прежним, подсказку не с чем связать: над каким
+        // из столбцов она всплыла, по самому графику не видно.
+        hoverBackgroundColor: lighten(props.color, 0.08),
         borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
         borderSkipped: false,
         // 62% ширины слота под столбец - остальное зазор, как было раньше.
@@ -175,6 +178,7 @@ const config = computed(() => ({
       legend: { display: false },
       tooltip: {
         ...TOOLTIP_STYLE,
+        position: 'nearest',
         callbacks: {
           label: (item) => formatTooltipValue(item?.raw),
         },

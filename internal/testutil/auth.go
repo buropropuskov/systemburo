@@ -140,3 +140,19 @@ func GrantPermission(t *testing.T, userID int, key string) {
 		cachedResolver.Invalidate(userID)
 	}
 }
+
+// DenyPermission ставит юзеру персональный override (deny) на ключ каталога прав.
+// Для администратора (is_admin) это единственный способ закрыть раздел: adminAll
+// пропускает всё, кроме super-only и личных deny.
+func DenyPermission(t *testing.T, userID int, key string) {
+	t.Helper()
+	err := cachedDB.Create(&models.UserPermissionOverride{
+		UserID:        userID,
+		PermissionKey: key,
+		Value:         "deny",
+	}).Error
+	require.NoError(t, err, "failed to deny %s for user %d", key, userID)
+	if cachedResolver != nil {
+		cachedResolver.Invalidate(userID)
+	}
+}

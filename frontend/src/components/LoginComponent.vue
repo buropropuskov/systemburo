@@ -1194,12 +1194,12 @@ export default {
     }
 
     .input__icon {
-        width: 20px;
-        height: 20px;
+        width: 23px;
+        height: 23px;
         flex-shrink: 0;
-        /* Глиф рисуется обводкой currentColor, поэтому цвет задаётся здесь, а не
-           фильтром поверх растра. */
-        color: var(--text-muted);
+        /* Глиф держит цвет подсказки в поле, а не текста: см. appIcons.js. */
+        color: var(--text-placeholder);
+        stroke-width: 2.4;
         transition: transform .5s;
     }
 

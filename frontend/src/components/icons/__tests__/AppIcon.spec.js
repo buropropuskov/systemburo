@@ -197,3 +197,40 @@ describe('значок выгрузки', () => {
     expect(tip[0], 'остриё по центру стержня').toBeCloseTo(x1, 1);
   });
 });
+
+describe('значок настроек', () => {
+  // Значок настроек в окнах уведомлений поворачивается на наведении. Шестерёнка о
+  // восьми зубцах повторяет себя каждые 45 градусов, поэтому поворот РОВНО на шаг
+  // (так было у прежнего значка-ползунков) визуально не отличим от покоя: стили и
+  // разметка при этом верны, тест на наличие transform - зелёный.
+  const SPIN_STEP = 360 / 8;
+
+  it('оба потребителя берут глиф из реестра, а не рисуют свой svg', () => {
+    ['UserNotifications.vue', 'UserNotificationsInline.vue'].forEach((name) => {
+      const txt = fs.readFileSync(path.join(SRC, 'components', name), 'utf8');
+      const template = txt.split('<script>')[0];
+      expect(template, `${name} снова рисует значок настроек вручную`).toMatch(/name="settings"/);
+      expect(template.includes('stroke-width="1.8"'), `${name} держит свой svg настроек`).toBe(false);
+    });
+  });
+
+  it('поворот на наведении меньше углового шага зубцов', () => {
+    // Смотрим именно правило наведения на кнопку настроек: в тех же файлах живёт
+    // спиннер с rotate(360deg), и он к зубцам отношения не имеет.
+    ['UserNotifications.vue', 'UserNotificationsInline.vue'].forEach((name) => {
+      const txt = fs.readFileSync(path.join(SRC, 'components', name), 'utf8');
+      const rule = txt.match(/\.notifications__settings[\w-]*:hover\s*\{([^{}]*)\}/);
+      expect(rule, `${name}: правило наведения на значок настроек пропало`).not.toBeNull();
+      const angle = rule[1].match(/rotate\((-?[\d.]+)deg\)/);
+      expect(angle, `${name}: поворот значка пропал`).not.toBeNull();
+      const value = Math.abs(parseFloat(angle[1]));
+      expect(value % SPIN_STEP, `${name}: поворот на ${value} кратен шагу зубцов и не виден`).not.toBe(0);
+    });
+  });
+
+  it('шестерёнка держит восемь зубцов', () => {
+    // Число зубцов - половина контракта с поворотом: сменив его, надо пересчитать угол.
+    const outerArcs = [...appIcons.settings.matchAll(/A9\.3 9\.3 /g)];
+    expect(outerArcs).toHaveLength(8);
+  });
+});

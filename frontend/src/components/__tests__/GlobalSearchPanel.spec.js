@@ -5,6 +5,7 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import GlobalSearchPanel from '../GlobalSearchPanel.vue';
 import { globalSearch } from '@/api/search';
+import { useOnboardingStore } from '@/stores/onboarding';
 
 // Панель показывает найденное, ввод идёт в поле меню и приходит сюда строкой. Проверяем
 // то, что ломается незаметно: разделы находятся без обращения к серверу, пустая строка
@@ -239,6 +240,45 @@ describe('GlobalSearchPanel', () => {
 
     const titles = wrapper.findAll('.gsp__row-title').map((el) => el.text());
     expect(titles).toContain('Настройки');
+  });
+
+  /**
+   * Онбординг раскрывает панель сам (reveal.open: 'search-panel') и рассказывает про
+   * неё отдельным шагом. Окно шага driver.js лежит вне панели, поэтому клик по нему
+   * приходил в общий обработчик «мимо панели»: панель сворачивалась в столбик,
+   * подсветка слетала, а вырез в затемнении оставался висеть на пустом месте.
+   */
+  it('панель, раскрытая туром, не сворачивается кликом мимо неё', async () => {
+    wrapper = mountPanel('Автомоб');
+    await flushPromises();
+    useOnboardingStore().setRevealOpen('search-panel');
+
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    await flushPromises();
+
+    expect(wrapper.find('.gsp--collapsed').exists()).toBe(false);
+  });
+
+  it('без сигнала тура клик мимо сворачивает панель как прежде', async () => {
+    wrapper = mountPanel('Автомоб');
+    await flushPromises();
+    useOnboardingStore().setRevealOpen(null);
+
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    await flushPromises();
+
+    expect(wrapper.find('.gsp--collapsed').exists()).toBe(true);
+  });
+
+  it('тур раскрыл другой узел - панель поиска ведёт себя обычно', async () => {
+    wrapper = mountPanel('Автомоб');
+    await flushPromises();
+    useOnboardingStore().setRevealOpen('admin-column');
+
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    await flushPromises();
+
+    expect(wrapper.find('.gsp--collapsed').exists()).toBe(true);
   });
 
   // #1097 W4.1: на десктопе прозрачность подпёрта размытием, а на мобилке размытия нет

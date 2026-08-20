@@ -56,6 +56,26 @@ describe('EmployeeEditModal - согласие субъекта на обраб�
     expect(JSON.parse(options.body).pd_consent).toBe(true);
   });
 
+  // Форма после добавления остаётся открытой - следующего работника вводят сразу. Отметка
+  // обязана сниматься вместе с данными: подтверждают конкретного человека, а не всех, кого
+  // заведут дальше. Оставшись стоять, она превращала осознанное подтверждение в состояние
+  // формы, и руководство пользователя обещало обратное («после нажатия "Добавить" снимается»).
+  it('после успешного добавления отметка снимается вместе с полями', async () => {
+    const wrapper = mountModal();
+    await fill(wrapper);
+    await wrapper.find('[data-testid="employee-registry-pd-consent"]').setValue(true);
+
+    await wrapper.vm.saveEmployee();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.pdConsent).toBe(false);
+    expect(wrapper.find('[data-testid="employee-registry-pd-consent"]').element.checked).toBe(false);
+    expect(wrapper.vm.lastName).toBe('');
+    expect(wrapper.vm.passportSeriesNumber).toBe('');
+    // Следующая запись без новой отметки не уходит - гейт снова закрыт.
+    expect(wrapper.vm.canSaveEmployee).toBe(false);
+  });
+
   it('у записи с полученным согласием показывает дату вместо галочки и не мешает сохранению', async () => {
     const wrapper = mountModal({
       editingEmployee: {

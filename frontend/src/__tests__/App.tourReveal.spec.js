@@ -99,7 +99,13 @@ describe('App.vue - раскрытие панели поиска для онбо
     expect(wrapper.vm.searchOpen).toBe(false);
   });
 
-  it('панель, открытую пользователем, тур не закрывает', async () => {
+  /**
+   * Прежде тур не трогал панель, открытую до него. Но человек открывает её как
+   * раз по просьбе предыдущего шага («Эта кнопка открывает поиск»), и панель
+   * оставалась висеть поверх следующих шагов, закрывая собой то, о чём они
+   * рассказывают. На шаге про поиск панелью распоряжается тур, кто бы её ни открыл.
+   */
+  it('панель закрывается по гашению сигнала, даже если открыл её человек', async () => {
     const wrapper = mountApp();
     wrapper.vm.openGlobalSearch();
     await flushPromises();
@@ -107,10 +113,12 @@ describe('App.vue - раскрытие панели поиска для онбо
 
     onboardingState.revealOpen = 'search-panel';
     await flushPromises();
+    // Панель уже открыта - повторно её не дёргаем, но берём под управление.
+    expect(wrapper.vm.searchOpen).toBe(true);
+
     onboardingState.revealOpen = null;
     await flushPromises();
-
-    expect(wrapper.vm.searchOpen).toBe(true);
+    expect(wrapper.vm.searchOpen).toBe(false);
   });
 
   it('чужая цель раскрытия панель не открывает', async () => {

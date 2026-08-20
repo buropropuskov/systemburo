@@ -14,6 +14,10 @@ vi.mock('driver.js', () => ({
   driver: (config) => {
     mocks.state.config = config;
     return {
+      getConfig: () => mocks.state.config,
+      // Настоящий driver заменяет конфиг целиком - мок ведёт себя так же, иначе
+      // потеря хуков при setConfig прошла бы мимо теста.
+      setConfig: (next) => { mocks.state.config = next; },
       getActiveIndex: () => mocks.state.activeIndex,
       moveNext: () => mocks.state.moves.push('next'),
       movePrevious: () => mocks.state.moves.push('prev'),
@@ -41,6 +45,7 @@ import {
   useOnboarding,
   STEP_DEMO_FALLBACK,
 } from '../useOnboarding';
+import { STAGE_PADDING, STAGE_RADIUS } from '@/components/onboarding/stageShape';
 
 /**
  * isMobileViewport - брейкпоинт (#1097 S11), по которому OnboardingTour решает,
@@ -248,6 +253,56 @@ describe('createDriver - шаг без цели', () => {
  * выбросить, в счёт не идёт - иначе в номерах дырка; шаг со скриншотом не
  * выбрасывается никогда и потому считается.
  */
+/**
+ * driver.js 1.4 держит зазор и скругление только в глобальном конфиге, поэтому
+ * форму выреза переключает хук начала перехода. Проверяем, что переключение
+ * доходит до конфига и не сносит остальную настройку.
+ */
+describe('createDriver - форма выреза по цели шага', () => {
+  const { createDriver } = useOnboarding();
+
+  const steps = [
+    { id: 'a', route: '/news', element: '[data-testid="rail"]', title: 'Навигация', description: 'x' },
+    { id: 'b', route: '/news', element: '[data-testid="bell"]', title: 'Уведомления', description: 'y' },
+  ];
+
+  const rect = (x, y, w, h) => ({
+    getBoundingClientRect: () => ({ x, y, width: w, height: h, left: x, top: y, right: x + w, bottom: y + h }),
+  });
+
+  beforeEach(() => {
+    storeState.steps = steps;
+    storeState.skippedIndexes = [];
+    mocks.state.activeIndex = 0;
+    window.innerWidth = 1440;
+    window.innerHeight = 900;
+  });
+
+  it('цель во всю высоту снимает зазор и скругление', () => {
+    createDriver(steps, { startIndex: 0 });
+    mocks.state.config.onHighlightStarted(rect(0, 0, 248, 900));
+    expect(mocks.state.config.stagePadding).toBe(0);
+    expect(mocks.state.config.stageRadius).toBe(0);
+  });
+
+  it('следующая обычная цель возвращает зазор и скругление', () => {
+    createDriver(steps, { startIndex: 0 });
+    mocks.state.config.onHighlightStarted(rect(0, 0, 248, 900));
+    mocks.state.config.onHighlightStarted(rect(1186, 12, 35, 35));
+    expect(mocks.state.config.stagePadding).toBe(STAGE_PADDING);
+    expect(mocks.state.config.stageRadius).toBe(STAGE_RADIUS);
+  });
+
+  it('подмена конфига сохраняет шаги и хуки - иначе тур встал бы после первого перехода', () => {
+    createDriver(steps, { startIndex: 0 });
+    mocks.state.config.onHighlightStarted(rect(0, 0, 248, 900));
+    expect(mocks.state.config.steps).toHaveLength(2);
+    expect(typeof mocks.state.config.onNextClick).toBe('function');
+    expect(typeof mocks.state.config.onHighlighted).toBe('function');
+    expect(mocks.state.config.overlayOpacity).toBe(0.78);
+  });
+});
+
 describe('createDriver - прогресс и подсказка следующего шага', () => {
   const { createDriver } = useOnboarding();
 

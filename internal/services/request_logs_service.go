@@ -27,12 +27,13 @@ type RequestLogsService interface {
 	GetRealtime(ctx context.Context) (*models.RealtimeStats, error)
 	GetTimeline(ctx context.Context, q models.TimelineQuery) ([]models.TimelinePoint, error)
 	GetHistory(ctx context.Context, q models.RequestLogsHistoryQuery) (*models.RequestLogsHistory, error)
-	Export(ctx context.Context, q models.RequestLogsQuery) (string, error)
+	Export(ctx context.Context, q models.RequestLogsQuery) (models.RequestLogsExport, error)
 }
 
 type requestLogsService struct {
-	db    *gorm.DB
-	stats *statsCache
+	db          *gorm.DB
+	stats       *statsCache
+	exportLimit int
 }
 
 // statsCacheTTL -- срок жизни снимка показателей шапки. Равен периоду, с которым
@@ -56,9 +57,19 @@ func WithRequestLogsStatsCache(ttl time.Duration) RequestLogsOption {
 	}
 }
 
+// WithRequestLogsExportLimit задаёт свой потолок строк в выгрузке. Нужен тестам:
+// проверять обрезку на настоящих десяти тысячах записей дороже, чем на двух.
+func WithRequestLogsExportLimit(limit int) RequestLogsOption {
+	return func(s *requestLogsService) {
+		if limit > 0 {
+			s.exportLimit = limit
+		}
+	}
+}
+
 // NewRequestLogsService создаёт реализацию RequestLogsService.
 func NewRequestLogsService(db *gorm.DB, opts ...RequestLogsOption) RequestLogsService {
-	s := &requestLogsService{db: db, stats: &statsCache{ttl: statsCacheTTL}}
+	s := &requestLogsService{db: db, stats: &statsCache{ttl: statsCacheTTL}, exportLimit: exportMaxRows}
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -134,6 +145,31 @@ func notStreamingSQL() string {
 	return "split_part(COALESCE(url, ''), chr(63), 1) NOT IN (" + strings.Join(quoted, ", ") + ")"
 }
 
+// logDayLayout -- день без времени, как его шлёт поле даты на экране.
+const logDayLayout = "2006-01-02"
+
+// parseLogBound разбирает границу периода и говорит, пришёл ли день целиком.
+// С экрана приходит день (2026-08-19), из присланных ссылок -- момент по
+// RFC 3339.
+//
+// День считается московскими сутками: created_at хранится с зоной, и «за
+// 19 августа» для оператора это местные сутки, а не UTC-шные. Раньше день
+// вообще не разбирался -- фильтры «с» и «по» молча не применялись, список
+// оставался за всё время.
+func parseLogBound(value string) (moment time.Time, wholeDay bool, ok bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, false, false
+	}
+	if t, err := time.Parse(time.RFC3339, value); err == nil {
+		return t, false, true
+	}
+	if d, err := time.ParseInLocation(logDayLayout, value, AnalyticsLocation()); err == nil {
+		return d, true, true
+	}
+	return time.Time{}, false, false
+}
+
 func (s *requestLogsService) applyFilters(tx *gorm.DB, q models.RequestLogsQuery) *gorm.DB {
 	if q.UserID != nil {
 		tx = tx.Where("user_id = ?", *q.UserID)
@@ -144,14 +180,30 @@ func (s *requestLogsService) applyFilters(tx *gorm.DB, q models.RequestLogsQuery
 	if q.Status != nil {
 		tx = tx.Where("response_status = ?", *q.Status)
 	}
-	if q.From != "" {
-		if t, err := time.Parse(time.RFC3339, q.From); err == nil {
-			tx = tx.Where("created_at >= ?", t)
-		}
+	if q.StatusMin != nil {
+		tx = tx.Where("response_status >= ?", *q.StatusMin)
 	}
-	if q.To != "" {
-		if t, err := time.Parse(time.RFC3339, q.To); err == nil {
-			tx = tx.Where("created_at <= ?", t)
+	if q.StatusMax != nil {
+		tx = tx.Where("response_status <= ?", *q.StatusMax)
+	}
+	if q.MinDurationMs != nil && *q.MinDurationMs > 0 {
+		// Долгоживущие соединения из отбора «медленнее секунды» исключаются: у
+		// подписки на события записано время жизни соединения, и она заняла бы
+		// собой весь список, вытеснив настоящие затыки.
+		tx = tx.Where(durationUsExpr+" >= ?", int64(*q.MinDurationMs)*1000).
+			Where(notStreamingSQL())
+	}
+	if from, _, ok := parseLogBound(q.From); ok {
+		tx = tx.Where("created_at >= ?", from)
+	}
+	if to, wholeDay, ok := parseLogBound(q.To); ok {
+		// Выбранный день включается целиком, поэтому сравнение идёт с началом
+		// следующих суток: «по 19 августа» с обычным <= отсекало всё после
+		// полуночи выбранного дня.
+		if wholeDay {
+			tx = tx.Where("created_at < ?", to.AddDate(0, 0, 1))
+		} else {
+			tx = tx.Where("created_at <= ?", to)
 		}
 	}
 	if q.Search != "" {
@@ -159,6 +211,41 @@ func (s *requestLogsService) applyFilters(tx *gorm.DB, q models.RequestLogsQuery
 		tx = tx.Where("(url ILIKE ? OR username ILIKE ?)", pattern, pattern)
 	}
 	return tx
+}
+
+// logSortColumns -- поля, по которым журнал разрешено упорядочивать, и то, что
+// уходит в ORDER BY. Ключ приходит из адресной строки, поэтому в запрос
+// попадает только выражение из этой карты, а не пришедшая строка.
+var logSortColumns = map[string]string{
+	"created_at": "created_at",
+	"method":     "method",
+	"url":        "url",
+	"status":     "response_status",
+	"username":   "username",
+	"duration":   durationUsExpr,
+}
+
+// applySort добавляет порядок строк. Неизвестное поле и пустой запрос дают
+// привычный «сначала свежие».
+func applySort(tx *gorm.DB, q models.RequestLogsQuery) *gorm.DB {
+	column, ok := logSortColumns[strings.ToLower(strings.TrimSpace(q.Sort))]
+	if !ok {
+		column = "created_at"
+	}
+
+	direction := "DESC"
+	if strings.EqualFold(strings.TrimSpace(q.Order), "asc") {
+		direction = "ASC"
+	}
+
+	// Пустые значения (имя у неавторизованного обращения, статус у оборванного
+	// соединения) уходят в конец в обе стороны, иначе первая страница сортировки
+	// по имени состоит из прочерков.
+	//
+	// Идентификатор вторым ключом: у метода и статуса значения повторяются
+	// тысячами, и без устойчивого порядка соседние страницы показывают одни и те
+	// же строки, теряя другие.
+	return tx.Order(column + " " + direction + " NULLS LAST").Order("id DESC")
 }
 
 // GetLogs возвращает логи с пагинацией и фильтрацией.
@@ -183,7 +270,7 @@ func (s *requestLogsService) GetLogs(ctx context.Context, q models.RequestLogsQu
 
 	logs := make([]models.RequestLogs, 0)
 	offset := (q.Page - 1) * q.PerPage
-	if err := tx.Order("created_at DESC").Offset(offset).Limit(q.PerPage).Find(&logs).Error; err != nil {
+	if err := applySort(tx, q).Offset(offset).Limit(q.PerPage).Find(&logs).Error; err != nil {
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "failed to fetch request logs")
 	}
 
@@ -341,7 +428,27 @@ func timelineWindow(q models.TimelineQuery, now time.Time) time.Time {
 	return time.Unix(bucket-int64(q.Limit-1)*interval, 0).UTC()
 }
 
+// timelineAggregateInterval -- шаг, начиная с которого график читается вместе со
+// свёрткой. Подробные записи живут REQUEST_LOG_DETAIL_DAYS суток (по умолчанию
+// тридцать), поэтому «месяц» упирался в срок хранения, а «год» показывал четыре
+// последние недели и пустоту до них -- молча, как будто запросов не было (#2125).
+const timelineAggregateInterval = 24 * 3600
+
+// timelineBucketSQL -- выражение начала интервала, в который попадает момент.
+// Шаг приходит числом из уже нормализованного запроса, не строкой пользователя.
+func timelineBucketSQL(column string, interval int) string {
+	return fmt.Sprintf("to_timestamp(floor(EXTRACT(EPOCH FROM %s) / %d) * %d)", column, interval, interval)
+}
+
+// timelineStamp -- метка точки в ответе. Соединение работает в UTC
+// (database.EnsureUTCTimezone), поэтому суффикс зоны проставляется литералом.
+const timelineStamp = `to_char(%s, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`
+
 // GetTimeline возвращает точки для графика, сгруппированные по интервалу.
+//
+// Шаг мельче суток читается по подробным записям, шаг от суток -- по свёртке
+// вместе с ещё не свёрнутыми сутками: иначе крупные периоды показывают не
+// историю, а срок хранения подробностей.
 func (s *requestLogsService) GetTimeline(ctx context.Context, q models.TimelineQuery) ([]models.TimelinePoint, error) {
 	if q.Interval < 1 {
 		q.Interval = 60
@@ -356,30 +463,40 @@ func (s *requestLogsService) GetTimeline(ctx context.Context, q models.TimelineQ
 		q.Limit = timelineMaxPoints
 	}
 
-	tx := s.db.WithContext(ctx).Table("request_logs")
-
 	// Нижняя граница есть всегда: заданная вызовом либо окно под запрошенные точки.
 	from := timelineWindow(q, time.Now())
 	if t, perr := time.Parse(time.RFC3339, q.From); perr == nil {
 		from = t
 	}
-	tx = tx.Where("created_at >= ?", from)
-
-	if q.To != "" {
-		if t, err := time.Parse(time.RFC3339, q.To); err == nil {
-			tx = tx.Where("created_at <= ?", t)
-		}
+	to, hasTo := time.Time{}, false
+	if t, err := time.Parse(time.RFC3339, q.To); err == nil {
+		to, hasTo = t, true
 	}
 
-	bucketExpr := fmt.Sprintf(
-		"to_timestamp(floor(EXTRACT(EPOCH FROM created_at) / %d) * %d)",
-		q.Interval, q.Interval,
-	)
+	if q.Interval >= timelineAggregateInterval {
+		if !hasTo {
+			to = time.Now()
+		}
+		return s.timelineWithAggregates(ctx, q, from, to)
+	}
+	return s.timelineDetailed(ctx, q, from, to, hasTo)
+}
+
+// timelineDetailed строит график по подробным записям журнала.
+func (s *requestLogsService) timelineDetailed(
+	ctx context.Context, q models.TimelineQuery, from, to time.Time, hasTo bool,
+) ([]models.TimelinePoint, error) {
+	tx := s.db.WithContext(ctx).Table("request_logs").Where("created_at >= ?", from)
+	if hasTo {
+		tx = tx.Where("created_at <= ?", to)
+	}
+
+	bucketExpr := timelineBucketSQL("created_at", q.Interval)
 
 	points := make([]models.TimelinePoint, 0)
 	err := tx.
 		Select(fmt.Sprintf(
-			"to_char(%s, 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS timestamp, COUNT(*) AS count, "+
+			timelineStamp+" AS timestamp, COUNT(*) AS count, "+
 				"COALESCE(AVG(%s) FILTER (WHERE %s), 0) / 1000.0 AS avg_duration",
 			bucketExpr, durationUsExpr, notStreamingSQL(),
 		)).
@@ -392,55 +509,102 @@ func (s *requestLogsService) GetTimeline(ctx context.Context, q models.TimelineQ
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "failed to fetch timeline")
 	}
 
-	// Reverse to chronological order
+	return timelineChronological(points), nil
+}
+
+// timelineWithAggregates строит график по суточной свёртке и добавляет к ней
+// сутки, которые свернуться ещё не успели.
+//
+// Сутки, уже попавшие в свёртку, из подробной части выбрасываются
+// (notRolledUpSQL): свёрнутая, но не удалённая партиция иначе удвоила бы столбик.
+//
+// Средняя длительность точки взвешена по числу запросов: среднее суточных
+// средних приписывает тихой ночи вес рабочего дня. Приведение к numeric
+// обязательно -- деление bigint на bigint в Postgres целочисленное.
+func (s *requestLogsService) timelineWithAggregates(
+	ctx context.Context, q models.TimelineQuery, from, to time.Time,
+) ([]models.TimelinePoint, error) {
+	notStreamAgg := notStreamingEndpointSQL()
+	aggSQL := `
+		SELECT ` + timelineBucketSQL("day", q.Interval) + ` AS bucket,
+			SUM(request_count) AS requests,
+			COALESCE(SUM(request_count) FILTER (WHERE ` + notStreamAgg + `), 0) AS dur_weight,
+			COALESCE(SUM(avg_duration_us * request_count) FILTER (WHERE ` + notStreamAgg + `), 0) AS dur_sum_us
+		FROM request_logs_daily WHERE day >= ? AND day <= ? GROUP BY 1`
+
+	notStream := notStreamingSQL()
+	detSQL := `
+		SELECT ` + timelineBucketSQL("created_at", q.Interval) + ` AS bucket,
+			COUNT(*) AS requests,
+			COUNT(*) FILTER (WHERE ` + notStream + `) AS dur_weight,
+			COALESCE(SUM(` + durationUsExpr + `) FILTER (WHERE ` + notStream + `), 0) AS dur_sum_us
+		FROM request_logs WHERE created_at >= ? AND created_at <= ? AND ` + notRolledUpSQL + ` GROUP BY 1`
+
+	query := fmt.Sprintf(`SELECT `+timelineStamp+` AS timestamp,
+			SUM(requests) AS count,
+			CASE WHEN SUM(dur_weight) > 0
+				THEN SUM(dur_sum_us)::numeric / SUM(dur_weight) / 1000.0
+				ELSE 0 END AS avg_duration
+		FROM (%s
+		UNION ALL%s
+		) t GROUP BY bucket ORDER BY bucket DESC LIMIT %d`, "bucket", aggSQL, detSQL, q.Limit)
+
+	args := []any{
+		from.Format(dayLayout), to.Format(dayLayout),
+		from, to,
+		from.Format(dayLayout),
+	}
+
+	points := make([]models.TimelinePoint, 0)
+	if err := s.db.WithContext(ctx).Raw(query, args...).Scan(&points).Error; err != nil {
+		slog.Error("request logs timeline aggregates", "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "failed to fetch timeline")
+	}
+
+	return timelineChronological(points), nil
+}
+
+// timelineChronological разворачивает точки в порядок «сначала старые»: запрос
+// берёт последние интервалы, а график рисует слева направо.
+func timelineChronological(points []models.TimelinePoint) []models.TimelinePoint {
 	for i, j := 0, len(points)-1; i < j; i, j = i+1, j-1 {
 		points[i], points[j] = points[j], points[i]
 	}
-
-	return points, nil
+	return points
 }
 
-// Export экспортирует логи в текстовый формат.
-func (s *requestLogsService) Export(ctx context.Context, q models.RequestLogsQuery) (string, error) {
-	// Снимаем лимит пагинации для экспорта, но ограничиваем 10000 записей
+// exportMaxRows -- потолок строк в одной выгрузке. Файл собирается в памяти
+// целиком (excelize), а журнал на стенде -- треть миллиона записей за месяц:
+// без потолка одна кнопка кладёт процесс. Потолок остаётся, но перестаёт быть
+// тихим -- сколько записей отсечено, видно и в файле, и на экране.
+const exportMaxRows = 10000
+
+// Export отдаёт выборку журнала под выгрузку: те же фильтры и тот же порядок,
+// что на экране, плюс полное число подходящих записей. Рендер файла -- дело
+// обработчика, здесь только данные.
+func (s *requestLogsService) Export(ctx context.Context, q models.RequestLogsQuery) (models.RequestLogsExport, error) {
 	q.Page = 1
-	q.PerPage = 10000
+	q.PerPage = s.exportLimit
 
 	tx := s.db.WithContext(ctx).Table("request_logs")
 	tx = s.applyFilters(tx, q)
 
+	var total int64
+	if err := tx.Count(&total).Error; err != nil {
+		return models.RequestLogsExport{}, echo.NewHTTPError(http.StatusInternalServerError, "failed to count request logs")
+	}
+
 	logs := make([]models.RequestLogs, 0)
-	if err := tx.Order("created_at DESC").Limit(q.PerPage).Find(&logs).Error; err != nil {
-		return "", echo.NewHTTPError(http.StatusInternalServerError, "failed to export request logs")
+	if err := applySort(tx, q).Limit(q.PerPage).Find(&logs).Error; err != nil {
+		return models.RequestLogsExport{}, echo.NewHTTPError(http.StatusInternalServerError, "failed to export request logs")
 	}
 
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Request Logs Export (%d records)\n", len(logs)))
-	sb.WriteString(strings.Repeat("=", 80) + "\n\n")
-
-	for _, l := range logs {
-		sb.WriteString(fmt.Sprintf("[%s] ", l.CreatedAt.Format("2006-01-02 15:04:05")))
-
-		if l.Method != nil {
-			sb.WriteString(*l.Method + " ")
-		}
-		if l.URL != nil {
-			sb.WriteString(*l.URL)
-		}
-		sb.WriteString(" -> ")
-		if l.ResponseStatus != nil {
-			sb.WriteString(fmt.Sprintf("%d", *l.ResponseStatus))
-		}
-		if l.DurationMs != nil {
-			sb.WriteString(fmt.Sprintf(" (%dms)", *l.DurationMs))
-		}
-		if l.Username != nil {
-			sb.WriteString(fmt.Sprintf(" [%s]", *l.Username))
-		}
-		sb.WriteString("\n")
-	}
-
-	return sb.String(), nil
+	return models.RequestLogsExport{
+		Rows:      logs,
+		Total:     total,
+		Limit:     s.exportLimit,
+		Truncated: total > int64(len(logs)),
+	}, nil
 }
 
 // dayLayout -- формат суток в параметрах и ответах истории.

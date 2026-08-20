@@ -14706,6 +14706,24 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "integer",
+                        "description": "Нижняя граница кода ответа (400 -- только ошибки)",
+                        "name": "status_min",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Верхняя граница кода ответа",
+                        "name": "status_max",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Только ответы дольше указанного времени, мс",
+                        "name": "min_duration_ms",
+                        "in": "query"
+                    },
+                    {
                         "type": "string",
                         "description": "Дата начала (ISO 8601)",
                         "name": "from_date",
@@ -14721,6 +14739,32 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Поиск по URL и username",
                         "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "created_at",
+                            "method",
+                            "url",
+                            "status",
+                            "username",
+                            "duration"
+                        ],
+                        "type": "string",
+                        "default": "created_at",
+                        "description": "Поле сортировки",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "default": "desc",
+                        "description": "Направление сортировки",
+                        "name": "order",
                         "in": "query"
                     },
                     {
@@ -14767,13 +14811,14 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "Отдаёт текущую выборку журнала файлом: те же фильтры и тот же порядок,\nчто на экране. Значения параметров адреса, кроме служебных, затёрты.\nЧисло выгруженных и отсечённых записей -- в заголовках X-Export-*.",
                 "produces": [
-                    "text/plain"
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 ],
                 "tags": [
                     "request-logs"
                 ],
-                "summary": "Экспорт логов в текстовый формат",
+                "summary": "Выгрузка журнала обращений в .xlsx",
                 "parameters": [
                     {
                         "type": "integer",
@@ -14794,14 +14839,32 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "integer",
+                        "description": "Нижняя граница кода ответа (400 -- только ошибки)",
+                        "name": "status_min",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Верхняя граница кода ответа",
+                        "name": "status_max",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Только ответы дольше указанного времени, мс",
+                        "name": "min_duration_ms",
+                        "in": "query"
+                    },
+                    {
                         "type": "string",
-                        "description": "Дата начала (ISO 8601)",
+                        "description": "Дата начала (ISO 8601 или YYYY-MM-DD)",
                         "name": "from_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Дата окончания (ISO 8601)",
+                        "description": "Дата окончания (ISO 8601 или YYYY-MM-DD)",
                         "name": "to_date",
                         "in": "query"
                     },
@@ -14810,13 +14873,39 @@ const docTemplate = `{
                         "description": "Поиск по URL и username",
                         "name": "search",
                         "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "created_at",
+                            "method",
+                            "url",
+                            "status",
+                            "username",
+                            "duration"
+                        ],
+                        "type": "string",
+                        "default": "created_at",
+                        "description": "Поле сортировки",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "default": "desc",
+                        "description": "Направление сортировки",
+                        "name": "order",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "string"
+                            "type": "file"
                         }
                     },
                     "401": {
@@ -14827,6 +14916,12 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -24656,6 +24751,39 @@ const docTemplate = `{
                 }
             }
         },
+        "models.HistoryCoverage": {
+            "type": "object",
+            "properties": {
+                "aggregated_through": {
+                    "description": "AggregatedThrough — последний свёрнутый день. Всё, что новее, читается из\nдетальных партиций.",
+                    "type": "string"
+                },
+                "days": {
+                    "type": "integer"
+                },
+                "exact_p95": {
+                    "description": "ExactP95 — перцентиль посчитан по самим записям. У свёрнутых суток\nотдельных длительностей уже нет, и перцентиль периода по ним честно не\nсчитается: показывается наибольшее суточное значение.",
+                    "type": "boolean"
+                },
+                "from": {
+                    "description": "From и To — первый и последний день с данными; пустые, когда данных нет.",
+                    "type": "string"
+                },
+                "requested_from": {
+                    "type": "string"
+                },
+                "requested_to": {
+                    "type": "string"
+                },
+                "source": {
+                    "description": "Source — откуда пришли числа: empty, aggregates, detailed или mixed.",
+                    "type": "string"
+                },
+                "to": {
+                    "type": "string"
+                }
+            }
+        },
         "models.HistoryDailyPoint": {
             "type": "object",
             "properties": {
@@ -24674,7 +24802,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "avg_duration_ms": {
-                    "type": "integer"
+                    "type": "number"
                 },
                 "endpoint": {
                     "type": "string"
@@ -24683,7 +24811,7 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "p95_duration_ms": {
-                    "type": "integer"
+                    "type": "number"
                 },
                 "requests": {
                     "type": "integer"
@@ -24694,7 +24822,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "avg_duration_ms": {
-                    "type": "integer"
+                    "type": "number"
                 },
                 "error_rate": {
                     "type": "number"
@@ -25813,6 +25941,9 @@ const docTemplate = `{
         "models.RequestLogsHistory": {
             "type": "object",
             "properties": {
+                "coverage": {
+                    "$ref": "#/definitions/models.HistoryCoverage"
+                },
                 "daily": {
                     "type": "array",
                     "items": {

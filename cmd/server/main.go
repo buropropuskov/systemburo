@@ -369,7 +369,7 @@ func main() {
 	newsHandler := handlers.NewNewsHandler(newsService)
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	pushHandler := handlers.NewPushHandler(pushService)
-	requestLogsHandler := handlers.NewRequestLogsHandler(requestLogsService)
+	requestLogsHandler := handlers.NewRequestLogsHandler(requestLogsService, auditRecorder)
 	employeesHistoryHandler := handlers.NewEmployeesHistoryHandler(employeesHistoryService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService, permissionResolver)
 	// Типы файлов заявки: картинки и документы одним списком. Разделять их незачем -
