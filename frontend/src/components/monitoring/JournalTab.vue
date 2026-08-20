@@ -89,8 +89,8 @@
     </div>
 
     <div class="content-container">
-      <div class="table-container">
-        <div class="table-header">
+      <div class="table-container rt-table">
+        <div class="table-header rt-head-row">
           <div
             v-for="col in sortableColumns"
             :key="col.field"
@@ -112,19 +112,49 @@
           </div>
         </div>
 
+        <!-- Порядок строк на узком экране: шапка колонок там скрыта
+             карточным режимом, и кликать по заголовкам негде. Меню в body -
+             контейнер таблицы держит overflow: hidden и обрезал бы список. -->
+        <div class="sort-bar">
+          <BaseDropdown
+            :model-value="state.sort"
+            class="sort-dd"
+            :options="sortOptions"
+            value-key="value"
+            label-key="label"
+            teleport
+            @update:model-value="setSort"
+          />
+          <button
+            class="lk-button lk-button--secondary sort-order-btn"
+            :title="orderTitle"
+            :aria-label="orderTitle"
+            data-testid="journal-sort-order"
+            @click="toggleOrder"
+          >
+            <AppIcon
+              name="sort"
+              class="sort-icon sorted"
+              :class="{ 'desc': state.order === 'desc' }"
+            />
+          </button>
+        </div>
+
         <div class="table-body">
           <div
             v-for="log in logs"
             :key="log.id"
-            class="table-row"
+            class="table-row rt-row"
             :class="{
               'selected': selectedLog && selectedLog.id === log.id,
-              'error-row': log.response_status && log.response_status >= 400,
-              'success-row': log.response_status && log.response_status < 400
+              'error-row': log.response_status && log.response_status >= 400
             }"
             @click="selectLog(log)"
           >
-            <div class="table-col time-col">
+            <div
+              class="table-col time-col"
+              data-label="Время"
+            >
               <span
                 class="cell-content"
                 :title="formatFullDate(log.created_at)"
@@ -132,13 +162,19 @@
                 {{ formatTime(log.created_at) }}
               </span>
             </div>
-            <div class="table-col method-col">
+            <div
+              class="table-col method-col"
+              data-label="Метод"
+            >
               <RequestLogBadge
                 kind="method"
                 :value="log.method"
               />
             </div>
-            <div class="table-col path-col">
+            <div
+              class="table-col path-col"
+              data-label="URL"
+            >
               <span
                 class="truncate-text"
                 :title="log.url"
@@ -146,13 +182,19 @@
                 {{ truncatePath(log.url) }}
               </span>
             </div>
-            <div class="table-col status-col">
+            <div
+              class="table-col status-col"
+              data-label="Статус"
+            >
               <RequestLogBadge
                 kind="status"
                 :value="log.response_status"
               />
             </div>
-            <div class="table-col user-col">
+            <div
+              class="table-col user-col"
+              data-label="Пользователь"
+            >
               <span class="cell-content">
                 {{ log.username || 'Аноним' }}
                 <span
@@ -161,7 +203,10 @@
                 >(ID: {{ log.user_id }})</span>
               </span>
             </div>
-            <div class="table-col duration-col">
+            <div
+              class="table-col duration-col"
+              data-label="Отклик"
+            >
               <span class="cell-content">
                 {{ formatDuration(log) }}
               </span>
@@ -269,6 +314,7 @@ const journalPresets = JOURNAL_PRESETS;
 const pageSizeOptions = PAGE_SIZE_OPTIONS;
 const chartPeriods = CHART_PERIODS;
 const chartPeriodOptions = CHART_PERIODS.map(p => ({ value: p.key, label: p.label }));
+const sortOptions = SORTABLE_COLUMNS.map(c => ({ value: c.field, label: c.label }));
 
 const state = reactive(journalStateFromQuery(route?.query || {}));
 const logs = ref([]);
@@ -297,6 +343,7 @@ const filterDropdowns = computed(() => journalFilterDropdowns(journalState(), us
 const journalRange = computed(() => ({ start: ymdToDate(state.from), end: ymdToDate(state.to) }));
 const totalPages = computed(() => Math.max(1, Math.ceil((pagination.total || 0) / (pagination.per_page || 20))));
 const selectedPeriod = computed(() => chartPeriods.find(p => p.key === chartPeriod.value) || chartPeriods[4]);
+const orderTitle = computed(() => (state.order === 'desc' ? 'По убыванию' : 'По возрастанию'));
 
 /** Причина, по которой живая лента сейчас стоит. Пустая - лента обновляется. */
 const refreshBlock = computed(() => journalRefreshBlock({
@@ -448,6 +495,17 @@ function sortBy(field) {
   }
   pagination.page = 1;
   fetchLogs();
+}
+
+/** Выбор поля в списке на мобилке. Повтор того же поля порядок не трогает. */
+function setSort(field) {
+  if (state.sort === field) return;
+  sortBy(field);
+}
+
+/** Направление отдельной кнопкой: sortBy на том же поле его и переворачивает. */
+function toggleOrder() {
+  sortBy(state.sort);
 }
 
 function selectLog(log) {
@@ -617,6 +675,7 @@ watch(() => props.hidden, (hidden) => {
 /* Высота списков подтягивается к соседям по ряду - поиск и календарь ростом
    35px, штатные 30px у выпадающего списка сбивали бы линию. */
 .filter-dd :deep(.base-dropdown__button),
+.sort-dd :deep(.base-dropdown__button),
 .chart-period-dd :deep(.base-dropdown__button),
 .page-size-dd :deep(.base-dropdown__button) {
   min-height: 35px;
@@ -708,6 +767,38 @@ watch(() => props.hidden, (hidden) => {
 .user-col { width: 20%; min-width: 120px; }
 .duration-col { width: 10%; min-width: 80px; }
 
+/* Порядок строк на мобилке. На десктопе блока нет: там сортируют кликом по
+   заголовку колонки, а два способа задать одно и то же расходятся на вид. */
+.sort-bar {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px 0;
+}
+
+.sort-dd {
+  flex: 1;
+  min-width: 0;
+}
+
+.sort-order-btn {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 35px;
+  height: 35px;
+  padding: 0;
+}
+
+/* Зона нажатия 44px без раздувания самой кнопки. */
+.sort-order-btn::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+}
+
 .table-body {
   flex: 1;
   overflow-y: auto;
@@ -733,12 +824,12 @@ watch(() => props.hidden, (hidden) => {
   background-color: var(--accent-tint);
 }
 
+/* Ошибка помечается полосой у левого края, а не заливкой строки: успешных
+   записей в журнале больше девяноста процентов, и сплошная зелёная подложка
+   под ними не выделяла ничего - выделять надо редкое. Полоса переживает и
+   карточный режим, где фон строки перебит правилом responsive-tables. */
 .table-row.error-row {
-  background-color: var(--danger-bg);
-}
-
-.table-row.success-row {
-  background-color: var(--success-bg);
+  box-shadow: inset 3px 0 0 var(--danger);
 }
 
 .table-col {
@@ -862,6 +953,29 @@ watch(() => props.hidden, (hidden) => {
 
   .chart-section {
     padding: 12px 16px;
+  }
+}
+
+/* Карточки (responsive-tables.css). Порог тот же 767.98, что у самой
+   инфраструктуры: на ровно 768 правила выше уже применились бы, а карточки
+   ещё нет - строка осталась бы таблицей без шапки. */
+@media (max-width: 767.98px) {
+  .sort-bar {
+    display: flex;
+  }
+
+  /* Своих полей у тела таблицы нет - на десктопе их держала строка. Без них
+     карточки прилипают к кромкам раздела. */
+  .table-body {
+    padding: 12px 16px;
+  }
+
+  /* В карточке под адрес есть вся ширина строки, и обрезать его многоточием
+     незачем: от длинного пути осталось бы начало без хвоста запроса. */
+  .path-col .truncate-text {
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
   }
 }
 </style>
