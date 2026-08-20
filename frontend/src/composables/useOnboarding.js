@@ -334,24 +334,15 @@ export function useOnboarding() {
     return wrap;
   }
 
-  function buildCtaButton(text, onClick) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'ob-popover__cta';
-    btn.textContent = text;
-    btn.addEventListener('click', onClick);
-    return btn;
-  }
-
   /**
    * Сконфигурировать driver-инстанс для одного сегмента (подряд идущих шагов
    * с общим route).
    *
    * @param {Array<object>} stepsForSegment
-   * @param {{ startIndex?: number, fallbackIndex?: number, onIndexChange?: (globalIndex: number) => void, onDestroyed?: () => void, onBoundaryNext?: () => void, onBoundaryPrev?: (segmentStartGlobal: number) => void, onCtaClick?: (ctaRoute?: string) => void, onCloseRequest?: () => void, onJumpTo?: (globalIndex: number) => void }} [options]
+   * @param {{ startIndex?: number, fallbackIndex?: number, onIndexChange?: (globalIndex: number) => void, onDestroyed?: () => void, onBoundaryNext?: () => void, onBoundaryPrev?: (segmentStartGlobal: number) => void, onCloseRequest?: () => void, onJumpTo?: (globalIndex: number) => void }} [options]
    * @returns {import('driver.js').Driver}
    */
-  function createDriver(stepsForSegment, { startIndex = 0, fallbackIndex = -1, onIndexChange, onDestroyed, onBoundaryNext, onBoundaryPrev, onCtaClick, onCloseRequest, onBeforeStep, onJumpTo } = {}) {
+  function createDriver(stepsForSegment, { startIndex = 0, fallbackIndex = -1, onIndexChange, onDestroyed, onBoundaryNext, onBoundaryPrev, onCloseRequest, onBeforeStep, onJumpTo } = {}) {
     const store = useOnboardingStore();
     const lastLocal = stepsForSegment.length - 1;
 
@@ -676,11 +667,6 @@ export function useOnboarding() {
         if (step?.celebrate) {
           popover.wrapper.insertBefore(buildCelebrate(), popover.title);
         }
-        if (step?.cta) {
-          const cta = buildCtaButton(step.cta, () => onCtaClick?.(step.ctaRoute));
-          popover.description.insertAdjacentElement('afterend', cta);
-        }
-
         // Прогресс сверху футера.
         popover.footer.insertBefore(
           buildProgressBlock(globalIndex, total, nextTitle, currentGlobal, onJumpTo),

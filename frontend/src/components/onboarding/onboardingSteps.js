@@ -40,8 +40,6 @@ export const ONBOARDING_VERSION = 3;
  * - `expandRail` если true - хост держит рельс навигации развёрнутым на время
  *                шага (и шага перед ним), возвращает прежнее состояние при выходе;
  * - `celebrate`  если true - в поповере рисуется галочка-празднование (финал);
- * - `cta`        текст финальной кнопки-CTA;
- * - `ctaRoute`   куда ведёт CTA (по умолчанию - оформление заявки);
  * - `demoAttachment` тип демо-вложения ('cars'/'people'), которое BlankSelector
  *                добавит на время шага, чтобы показать реальную форму;
  * - `dynamic`    карта «имя -> селектор»: `{имя}` в заголовке и описании заменяется
@@ -63,7 +61,7 @@ export const ONBOARDING_VERSION = 3;
  *                узел свёрнут на любой ширине и появляется только по действию
  *                пользователя. Механика - в reveal.js.
  *
- * @type {Array<{ id: string, route: string, element: string|null, waitFor?: string, dynamic?: Record<string, string>, advanceWhen?: string, scrollTo?: 'center'|'end'|'start', title: string, description: string, demo?: string, requires?: string, optional?: boolean, optionalSegment?: boolean, expandRail?: boolean, celebrate?: boolean, cta?: string, ctaRoute?: string, demoAttachment?: string, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: 'admin-column'|'search-panel'|'first-application' } }>}
+ * @type {Array<{ id: string, route: string, element: string|null, waitFor?: string, dynamic?: Record<string, string>, advanceWhen?: string, scrollTo?: 'center'|'end'|'start', title: string, description: string, demo?: string, requires?: string, optional?: boolean, optionalSegment?: boolean, expandRail?: boolean, celebrate?: boolean, demoAttachment?: string, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: 'admin-column'|'search-panel'|'first-application' } }>}
  */
 export const onboardingSteps = [
   {
@@ -351,7 +349,7 @@ export const onboardingSteps = [
     element: '[data-testid="ob-detail-header"]',
     title: 'Что можно сделать с заявкой',
     description:
-      'В шапке карточки собраны действия: дополнить, продублировать, скачать бланки, отозвать. Набор зависит от стадии заявки и ваших прав - часть кнопок появляется не всегда. Разберём их по очереди.',
+      'В шапке карточки собраны действия: дополнить, продублировать, скачать бланки, отозвать. Какие из них доступны, зависит от того, на какой стадии заявка. Разберём их по очереди.',
     optional: true,
     side: 'bottom',
     align: 'start',
@@ -668,8 +666,7 @@ export const onboardingSteps = [
     route: '/news',
     element: '[data-testid="ob-start-button"]',
     title: 'Готово, вы освоились!',
-    description: 'Возвращаемся на «Обзор». Это всё основное. Запустить обучение заново можно в любой момент - кнопкой «Обучение» вот здесь. Удачной работы!',
+    description: 'Вернулись на «Обзор и новости» - это всё основное. Обучение можно пройти заново в любой момент: кнопка «Обучение» вот здесь, и в ней же лежат туры для других ролей. Удачной работы!',
     celebrate: true,
-    cta: 'Подать первую заявку',
   },
 ];

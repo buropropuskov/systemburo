@@ -57,6 +57,41 @@ const EXPECTED = {
  * шаг, который эту открывшуюся часть и подсвечивает - тогда она поднимается над
  * затемнением сама.
  */
+/**
+ * Финал у всех пяти туров один (решение владельца 20.08): возвращаемся на «Обзор
+ * и новости» и подсвечиваем кнопку «Обучение» - ту самую, которой тур запускают
+ * заново, и в которой лежат туры остальных ролей. Прежде каждый тур заканчивался
+ * на своей странице и предлагал кнопку-переход в раздел, так что человек оставался
+ * там, где закончил, и повторный запуск ему было негде взять.
+ */
+describe('финал у всех туров одинаковый', () => {
+  const finals = TOURS.map((t) => {
+    const steps = buildTourSteps(t, { factTableRoute: '/table/kpp' });
+    return { key: t.key, step: steps[steps.length - 1] };
+  });
+
+  it('последний шаг - празднование на «Обзоре» с подсветкой кнопки «Обучение»', () => {
+    finals.forEach(({ key, step }) => {
+      expect(step.celebrate, key).toBe(true);
+      expect(step.route, key).toBe('/news');
+      expect(step.element, key).toBe('[data-testid="ob-start-button"]');
+    });
+  });
+
+  it('кнопки-перехода в раздел на финале нет ни у одного тура', () => {
+    finals.forEach(({ key, step }) => {
+      expect(step.cta, key).toBeUndefined();
+      expect(step.ctaRoute, key).toBeUndefined();
+    });
+  });
+
+  it('финал зовёт пройти обучение заново', () => {
+    finals.forEach(({ key, step }) => {
+      expect(step.description, key).toMatch(/Обучение/);
+    });
+  });
+});
+
 describe('призыв нажать доводит до шага', () => {
   it('во всех пяти турах у такого шага есть переход по действию', () => {
     const guilty = allTourSteps()
