@@ -5,7 +5,10 @@ import {
   mergeJournalQuery,
   statusFilterParams,
   isJournalPresetOn,
-  toggleJournalPreset
+  toggleJournalPreset,
+  dateToYmd,
+  ymdToDate,
+  journalFilterDropdowns
 } from '@/utils/requestLogsQuery';
 import { formatMs, formatDuration } from '@/utils/requestLogsFormat';
 
@@ -151,5 +154,33 @@ describe('длительность записи', () => {
 
   it('записи до перехода на микросекунды читаются из миллисекунд', () => {
     expect(formatDuration({ duration_us: null, duration_ms: 240 })).toBe('240мс');
+  });
+});
+
+describe('дни календаря и отбор', () => {
+  it('день собирается по локальным частям, а не по UTC', () => {
+    // Полночь 1 августа в МСК - это 31 июля по UTC: toISOString отдал бы чужой день.
+    expect(dateToYmd(new Date(2026, 7, 1))).toBe('2026-08-01');
+    expect(dateToYmd(new Date(2026, 7, 20, 23, 59, 59))).toBe('2026-08-20');
+    expect(dateToYmd(null)).toBe('');
+    expect(dateToYmd(new Date('нет такой даты'))).toBe('');
+  });
+
+  it('день из адреса разбирается в ту же дату, а мусор - в пустоту', () => {
+    const date = ymdToDate('2026-08-01');
+    expect([date.getFullYear(), date.getMonth(), date.getDate()]).toEqual([2026, 7, 1]);
+    expect(ymdToDate('')).toBeNull();
+    expect(ymdToDate('01.08.2026')).toBeNull();
+  });
+
+  it('списки отбора несут выбранное значение, а пользователь - строковый идентификатор', () => {
+    const state = { ...journalStateFromQuery({ method: 'post', user: '42' }) };
+    const [method, status, user] = journalFilterDropdowns(state, [{ id: 42, username: 'ivanov' }], (u) => `@${u}`);
+
+    expect(method.value).toBe('POST');
+    expect(status.options[0]).toEqual({ value: '', label: 'Все статусы' });
+    expect(user.value).toBe('42');
+    // Список сверяет выбранное строго: числовой id никогда не совпал бы со строкой из адреса.
+    expect(user.options[1]).toEqual({ value: '42', label: '@ivanov' });
   });
 });

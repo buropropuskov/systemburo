@@ -76,27 +76,19 @@
             </h4>
             <div class="chart-header-actions">
               <span class="chart-interval">интервал: {{ selectedPeriod.intervalHuman }}</span>
-              <div class="chart-period-dropdown">
-                <select
-                  v-model="chartPeriod"
-                  class="chart-period-select"
-                  @change="onChartPeriodChange"
-                >
-                  <option
-                    v-for="p in chartPeriods"
-                    :key="p.key"
-                    :value="p.key"
-                  >
-                    {{ p.label }}
-                  </option>
-                </select>
-              </div>
+              <BaseDropdown
+                :model-value="chartPeriod"
+                class="chart-period-dd"
+                :options="chartPeriodOptions"
+                value-key="value"
+                label-key="label"
+                @update:model-value="onChartPeriodChange"
+              />
             </div>
           </div>
           <RealTimeChart
             :data="timelineData"
             :height="180"
-            color="#4F5BDF"
             :interval-label="selectedPeriod.xAxisLabel"
           />
         </div>
@@ -108,77 +100,40 @@
             @keyup.enter="refreshLogs"
           />
           <div class="filter-controls">
-            <select
-              v-model="filterMethod"
-              class="filter-select"
-              @change="refreshLogs"
-            >
-              <option value="">
-                Все методы
-              </option>
-              <option
-                v-for="m in methodOptions"
-                :key="m"
-                :value="m"
-              >
-                {{ m }}
-              </option>
-            </select>
-            <select
-              v-model="filterStatus"
-              class="filter-select"
-              @change="refreshLogs"
-            >
-              <option value="">
-                Все статусы
-              </option>
-              <option
-                v-for="o in statusOptions"
-                :key="o.value"
-                :value="o.value"
-              >
-                {{ o.label }}
-              </option>
-            </select>
-            <select
-              v-model="filterUser"
-              class="filter-select"
-              @change="refreshLogs"
-            >
-              <option value="">
-                Все пользователи
-              </option>
-              <option
-                v-for="u in users"
-                :key="u.id"
-                :value="u.id"
-              >
-                {{ formatLogin(u.username) }}
-              </option>
-            </select>
-            <input
-              v-model="filterStartDate"
-              type="date"
-              class="date-input"
-              @change="onDateFilterChange"
-            >
-            <input
-              v-model="filterEndDate"
-              type="date"
-              class="date-input"
-              @change="onDateFilterChange"
-            >
+            <BaseDropdown
+              v-for="dd in filterDropdowns"
+              :key="dd.key"
+              :model-value="dd.value"
+              class="filter-dd"
+              :options="dd.options"
+              value-key="value"
+              label-key="label"
+              :placeholder="dd.placeholder"
+              :searchable="dd.searchable"
+              @update:model-value="value => applyFilter(dd.key, value)"
+            />
+            <DateFilter
+              mode="range"
+              :date-range-start="journalRange.start"
+              :date-range-end="journalRange.end"
+              @update:date-range-start="value => filterStartDate = dateToYmd(value)"
+              @update:date-range-end="value => filterEndDate = dateToYmd(value)"
+              @apply="onDateFilterChange"
+              @clear="onDateFilterChange"
+            />
           </div>
-          <button
-            v-for="preset in journalPresets"
-            :key="preset.key"
-            class="lk-button lk-button--sm"
-            :class="presetOn(preset.key) ? 'lk-button--secondary' : 'lk-button--ghost'"
-            :title="preset.title"
-            @click="togglePreset(preset.key)"
-          >
-            {{ preset.label }}
-          </button>
+          <div class="filter-presets">
+            <button
+              v-for="preset in journalPresets"
+              :key="preset.key"
+              class="lk-button lk-button--sm"
+              :class="presetOn(preset.key) ? 'lk-button--secondary' : 'lk-button--ghost'"
+              :title="preset.title"
+              @click="togglePreset(preset.key)"
+            >
+              {{ preset.label }}
+            </button>
+          </div>
           <ToggleSwitch
             v-model="autoRefresh"
             :title="refreshBlock || 'Список обновляется сам каждые 10 секунд'"
@@ -190,13 +145,15 @@
             @refresh="refreshLogs"
           />
           <button
-            class="clear-filters-btn"
+            class="lk-button lk-button--secondary"
+            data-testid="journal-clear"
             @click="clearFilters"
           >
             Сбросить
           </button>
           <button
-            class="export-btn"
+            class="lk-button lk-button--primary"
+            data-testid="journal-export"
             :disabled="isExporting"
             @click="exportLogs"
           >
@@ -318,19 +275,14 @@
                   >
                     &rarr;
                   </button>
-                  <select
-                    v-model="perPage"
-                    class="page-size-select"
-                    @change="changePageSize"
-                  >
-                    <option
-                      v-for="size in pageSizes"
-                      :key="size"
-                      :value="size"
-                    >
-                      {{ size }}
-                    </option>
-                  </select>
+                  <BaseDropdown
+                    :model-value="perPage"
+                    class="page-size-dd"
+                    :options="pageSizeOptions"
+                    value-key="value"
+                    label-key="label"
+                    @update:model-value="changePageSize"
+                  />
                 </div>
                 <span class="items-count">
                   Показано {{ logs.length }} из {{ pagination.total || 0 }} записей
@@ -455,22 +407,17 @@
         class="analytics-tab"
       >
         <div class="analytics-toolbar">
-          <label class="period-field">С даты
-            <input
-              v-model="historyFrom"
-              type="date"
-              class="date-input"
-            >
-          </label>
-          <label class="period-field">По дату
-            <input
-              v-model="historyTo"
-              type="date"
-              class="date-input"
-            >
-          </label>
+          <DateFilter
+            mode="range"
+            :date-range-start="historyRange.start"
+            :date-range-end="historyRange.end"
+            @update:date-range-start="value => historyFrom = dateToYmd(value)"
+            @update:date-range-end="value => historyTo = dateToYmd(value)"
+            @apply="fetchHistory"
+            @clear="fetchHistory"
+          />
           <button
-            class="apply-btn"
+            class="lk-button lk-button--primary"
             @click="fetchHistory"
           >
             Показать
@@ -639,17 +586,18 @@ import RefreshButton from '@/components/RefreshButton.vue'
 import AdminPageShell from '@/views/admin/AdminPageShell.vue'
 import AppIcon from '@/components/icons/AppIcon.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
+import BaseDropdown from '@/components/ui/BaseDropdown.vue';
+import DateFilter from '@/components/DateFilter.vue';
 import {
-  SORTABLE_COLUMNS, METHOD_OPTIONS, STATUS_OPTIONS, JOURNAL_PRESETS, PAGE_SIZES,
+  SORTABLE_COLUMNS, JOURNAL_PRESETS, PAGE_SIZE_OPTIONS,
   journalStateFromQuery, mergeJournalQuery, filterParamsFromState,
-  isJournalPresetOn, toggleJournalPreset
+  isJournalPresetOn, toggleJournalPreset, dateToYmd, ymdToDate, journalFilterDropdowns
 } from '@/utils/requestLogsQuery';
 import { JOURNAL_REFRESH_MS, CHART_PERIODS, DEFAULT_CHART_PERIOD, journalRefreshBlock } from '@/utils/requestLogsLive';
 import {
-  formatMs, formatDuration, formatDay, formatNum, formatTime, formatFullDate,
-  truncatePath, formatJson, getMethodClass, getStatusClass, barHeight, describeLoadError,
+  LOG_FORMATTERS, barHeight, describeLoadError, exportNotice,
   coverageNote as buildCoverageNote, p95Note as buildP95Note,
-  analyticsKpis as buildAnalyticsKpis, exportNotice
+  analyticsKpis as buildAnalyticsKpis, emptyHistory, historyFromResponse
 } from '@/utils/requestLogsFormat';
 
 export default {
@@ -662,17 +610,13 @@ export default {
     AdminPageShell,
     AppIcon,
     ToggleSwitch,
+    BaseDropdown,
+    DateFilter,
   },
   data() {
     return {
       activeTab: 'journal',
-      history: {
-        totals: { requests: 0, errors: 0, error_rate: 0, avg_duration_ms: 0 },
-        coverage: null,
-        daily: [],
-        top_endpoints: [],
-        top_users: []
-      },
+      history: emptyHistory(),
       historyFrom: '',
       historyTo: '',
       historyLoaded: false,
@@ -692,10 +636,8 @@ export default {
       sortField: 'created_at',
       sortDirection: 'desc',
       sortableColumns: SORTABLE_COLUMNS,
-      methodOptions: METHOD_OPTIONS,
-      statusOptions: STATUS_OPTIONS,
       journalPresets: JOURNAL_PRESETS,
-      pageSizes: PAGE_SIZES,
+      pageSizeOptions: PAGE_SIZE_OPTIONS,
       autoRefresh: true,
       logsInterval: null,
       tabHidden: false,
@@ -730,10 +672,21 @@ export default {
       realtimeInterval: null,
       timelineInterval: null,
       chartPeriod: DEFAULT_CHART_PERIOD,
-      chartPeriods: CHART_PERIODS
+      chartPeriods: CHART_PERIODS,
+      chartPeriodOptions: CHART_PERIODS.map(p => ({ value: p.key, label: p.label }))
     };
   },
   computed: {
+    filterDropdowns() {
+      return journalFilterDropdowns(this.journalState(), this.users, formatLogin);
+    },
+    // Календарь работает с датами, а отбор хранит дни строками - как в адресе.
+    journalRange() {
+      return { start: ymdToDate(this.filterStartDate), end: ymdToDate(this.filterEndDate) };
+    },
+    historyRange() {
+      return { start: ymdToDate(this.historyFrom), end: ymdToDate(this.historyTo) };
+    },
     analyticsKpis() {
       return buildAnalyticsKpis(this.history.totals);
     },
@@ -782,17 +735,15 @@ export default {
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
   },
   methods: {
+    ...LOG_FORMATTERS,
     formatLogin,
-    formatMs,
-    formatDuration,
-    formatDay,
-    formatNum,
-    formatTime,
-    formatFullDate,
-    truncatePath,
-    formatJson,
-    getMethodClass,
-    getStatusClass,
+    dateToYmd,
+
+    /** Смена значения в списке отбора: поле состояния приходит ключом. */
+    applyFilter(key, value) {
+      this[key] = value;
+      this.refreshLogs();
+    },
 
     switchToAnalytics() {
       this.activeTab = 'analytics'
@@ -811,13 +762,7 @@ export default {
         if (response.ok) {
           const data = await response.json()
           if (data) {
-            this.history = {
-              totals: data.totals || { requests: 0, errors: 0, error_rate: 0, avg_duration_ms: 0 },
-              coverage: data.coverage || null,
-              daily: data.daily || [],
-              top_endpoints: data.top_endpoints || [],
-              top_users: data.top_users || []
-            }
+            this.history = historyFromResponse(data)
             this.historyLoaded = true
           }
         }
@@ -975,7 +920,8 @@ export default {
       }, 'график');
     },
 
-    onChartPeriodChange() {
+    onChartPeriodChange(period) {
+      this.chartPeriod = period;
       this.fetchTimeline();
     },
 
@@ -1066,7 +1012,8 @@ export default {
       this.fetchLogs();
     },
 
-    changePageSize() {
+    changePageSize(size) {
+      this.perPage = size;
       this.pagination.per_page = parseInt(this.perPage);
       this.pagination.page = 1;
       this.fetchLogs();
@@ -1128,7 +1075,7 @@ export default {
 <style scoped>
 .requests-view {
   background: var(--surface);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   overflow: hidden;
 }
@@ -1228,30 +1175,8 @@ export default {
   gap: 12px;
 }
 
-.chart-period-select {
-  padding: 4px 28px 4px 12px;
-  border: 1px solid var(--border);
-  border-radius: 50px;
-  font-size: 12px;
-  background: var(--surface);
-  cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234F5BDF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  background-size: 12px;
-  color: var(--text);
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.chart-period-select:hover {
-  border-color: var(--accent);
-}
-
-.chart-period-select:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.15);
+.chart-period-dd {
+  width: 150px;
 }
 
 .filters-bar {
@@ -1270,70 +1195,25 @@ export default {
   flex-wrap: wrap;
 }
 
-.filter-select,
-.date-input {
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  font-size: 13px;
-  font-family: inherit;
-  background: var(--surface);
-  color: var(--text);
-  min-width: 130px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.date-input {
+.filter-dd {
   width: 150px;
-  min-width: auto;
 }
 
-.filter-select:hover,
-.date-input:hover {
-  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
+/* Высота списков подтягивается к соседям по ряду - поиск и календарь ростом
+   35px, штатные 30px у выпадающего списка сбивали бы линию. */
+.filter-dd :deep(.base-dropdown__button),
+.chart-period-dd :deep(.base-dropdown__button),
+.page-size-dd :deep(.base-dropdown__button) {
+  min-height: 35px;
 }
 
-.filter-select:focus,
-.date-input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.12);
-}
-
-.clear-filters-btn,
-.export-btn {
-  padding: 8px 14px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-
-.clear-filters-btn {
-  background: var(--surface);
-  color: var(--accent-text);
-  border-color: var(--accent);
-}
-
-.clear-filters-btn:hover {
-  background: var(--accent-tint);
-}
-
-.export-btn {
-  background: var(--accent);
-  color: var(--accent-contrast);
-}
-
-.export-btn:hover {
-  background: var(--accent-hover);
-}
-
-.export-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+/* Быстрый отбор держится одной группой: при переносе строки чипы уезжали
+   поодиночке и «Только ошибки» оставалась в ряду со списками. */
+.filter-presets {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .content-container {
@@ -1460,35 +1340,37 @@ export default {
 .method-badge {
   display: inline-block;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 11px;
   font-weight: 600;
   text-align: center;
   min-width: 50px;
 }
 
-.method-get { background: #10b981; color: white; }
-.method-post { background: #3b82f6; color: white; }
-.method-put { background: #f59e0b; color: white; }
-.method-delete { background: #ef4444; color: white; }
-.method-patch { background: #8b5cf6; color: white; }
-.method-other { background: #6b7280; color: white; }
+.method-get { background: var(--success); color: var(--fill-text); }
+.method-post { background: var(--info); color: var(--fill-text); }
+.method-put { background: var(--warning); color: var(--fill-text); }
+.method-delete { background: var(--danger); color: var(--fill-text); }
+/* Сиреневый и серый в тёмной теме светлее подписи на них, поэтому текст здесь
+   берёт цвет подложки, а не общий --fill-text. */
+.method-patch { background: var(--updated-accent); color: var(--surface); }
+.method-other { background: var(--text-muted); color: var(--surface); }
 
 .status-badge {
   display: inline-block;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 11px;
   font-weight: 600;
   text-align: center;
   min-width: 40px;
 }
 
-.status-success { background: #10b981; color: white; }
-.status-redirect { background: #3b82f6; color: white; }
-.status-client-error { background: #f59e0b; color: white; }
-.status-server-error { background: #ef4444; color: white; }
-.status-unknown { background: #6b7280; color: white; }
+.status-success { background: var(--success); color: var(--fill-text); }
+.status-redirect { background: var(--info); color: var(--fill-text); }
+.status-client-error { background: var(--warning); color: var(--fill-text); }
+.status-server-error { background: var(--danger); color: var(--fill-text); }
+.status-unknown { background: var(--text-muted); color: var(--surface); }
 
 .user-id {
   font-size: 10px;
@@ -1523,7 +1405,7 @@ export default {
   padding: 4px 8px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 14px;
 }
@@ -1538,11 +1420,8 @@ export default {
   color: var(--text-muted);
 }
 
-.page-size-select {
-  padding: 4px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  font-size: 12px;
+.page-size-dd {
+  width: 160px;
 }
 
 .items-count {
@@ -1588,7 +1467,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .close-details-btn:hover {
@@ -1628,7 +1507,7 @@ export default {
 .method-value, .status-value {
   display: inline-block;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-weight: 600;
 }
 
@@ -1636,14 +1515,14 @@ export default {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   background: var(--surface-2);
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.85em;
 }
 
 .code-block {
   background: var(--surface-2);
   padding: 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 0.85em;
   overflow-x: auto;
@@ -1729,10 +1608,10 @@ export default {
     flex-wrap: wrap;
   }
 
-  .filter-select,
-  .date-input {
+  .filter-dd {
     flex: 1;
-    min-width: auto;
+    width: auto;
+    min-width: 130px;
   }
 
   .table-header,
@@ -1805,26 +1684,6 @@ export default {
   margin-bottom: 16px;
   flex-wrap: wrap;
 }
-.period-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-.apply-btn {
-  border: 1px solid var(--accent);
-  background: var(--accent);
-  color: var(--accent-contrast);
-  border-radius: 999px;
-  padding: 8px 18px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.apply-btn:hover {
-  background: var(--accent-hover);
-}
 
 .kpi-row {
   display: grid;
@@ -1835,7 +1694,7 @@ export default {
 .kpi {
   background: var(--accent-tint);
   border: 1px solid var(--border);
-  border-radius: 15px;
+  border-radius: var(--radius-md);
   padding: 12px 14px;
 }
 .kpi-val {
@@ -1858,10 +1717,10 @@ export default {
 
 .analytics-panel {
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   padding: 14px;
   margin-bottom: 16px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--shadow-sm);
   /* grid-элемент: без этого min-width:auto распирает панель под min-content
      таблицы и обрезает правые колонки за кромкой экрана на мобилке */
   min-width: 0;
@@ -1888,7 +1747,7 @@ export default {
 .bar {
   width: 100%;
   background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 75%, var(--surface)), var(--accent));
-  border-radius: 4px 4px 0 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   min-height: 4px;
 }
 .empty-hint {
