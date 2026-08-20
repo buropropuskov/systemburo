@@ -527,10 +527,11 @@ onMounted(async () => {
   await Promise.all([fetchLogs(), fetchTimeline(), fetchUsers()]);
   // Опросы в фоновой вкладке не идут вовсе: раздел сам же и вычищали от шума
   // самозапросов, а показатели за время отсутствия догоняются при возврате.
+  // Показатели шапки опрашивает оболочка своим таймером - здесь только график,
+  // иначе один и тот же адрес читался бы дважды за окно.
   timelineTimer = setInterval(() => {
     if (props.hidden) return;
     fetchTimeline();
-    emit('refresh-stats');
   }, 30000);
   logsTimer = setInterval(tickLogs, JOURNAL_REFRESH_MS);
 });
@@ -546,8 +547,6 @@ onBeforeUnmount(() => {
 watch(() => props.hidden, (hidden) => {
   if (!hidden) tickLogs();
 });
-
-defineExpose({ refreshLogs });
 </script>
 
 <style scoped>

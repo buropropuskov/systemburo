@@ -215,8 +215,6 @@ async function fetchHistory() {
 watch(() => props.active, (active) => {
   if (active && !loaded.value) fetchHistory();
 }, { immediate: true });
-
-defineExpose({ fetchHistory });
 </script>
 
 <style scoped>
