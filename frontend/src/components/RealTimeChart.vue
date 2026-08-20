@@ -37,7 +37,7 @@
 </template>
 
 <script>
-import { readChartPalette, withAlpha } from '@/utils/chartPalette';
+import { cssVariable, watchTheme, withAlpha } from '@/utils/chartColors';
 
 export default {
   name: 'RealTimeChart',
@@ -70,15 +70,12 @@ export default {
   },
   data() {
     return {
+      // Цвет точки в подсказке: шаблону нужен готовый цвет, а холст читает
+      // палитру сам на каждой отрисовке.
+      dotColor: '',
       hoverIndex: null,
       hoverPoint: null,
       geometry: null,
-      palette: readChartPalette(),
-    }
-  },
-  computed: {
-    lineColor() {
-      return this.color || this.palette.accent;
     }
   },
   watch: {
@@ -95,13 +92,8 @@ export default {
     this.draw();
     this.resizeObserver = new ResizeObserver(() => this.draw());
     this.resizeObserver.observe(this.$refs.canvas.parentElement);
-    // Смена темы меняет атрибут на <html>: холст сам не перерисуется, и график
-    // остался бы нарисованным цветами прошлой палитры до следующего ответа.
-    this.themeObserver = new MutationObserver(() => {
-      this.palette = readChartPalette();
-      this.draw();
-    });
-    this.themeObserver.observe(document.documentElement, { attributeFilter: ['data-theme'] });
+    // Без наблюдателя график остаётся в палитре прошлой темы до следующего ответа.
+    this.themeObserver = watchTheme(this.$refs.canvas, this.draw);
   },
   beforeUnmount() {
     if (this.resizeObserver) {
@@ -112,6 +104,21 @@ export default {
     }
   },
   methods: {
+    /**
+     * Цвета оформления читаются на каждой отрисовке: холст переменных CSS не
+     * понимает, а тема меняется под ним.
+     * @returns {{line: string, grid: string, label: string, surface: string}}
+     */
+    palette() {
+      const el = this.$refs.canvas;
+      return {
+        line: this.color || cssVariable(el, '--accent', '#4F5BDF'),
+        grid: cssVariable(el, '--border', '#e6e6e6'),
+        label: cssVariable(el, '--text-muted', '#a2a2a2'),
+        surface: cssVariable(el, '--surface', '#ffffff'),
+      };
+    },
+
     pluralize(n) {
       const [one, few, many] = this.unitForms;
       const mod10 = n % 10;
@@ -138,6 +145,8 @@ export default {
       canvas.style.width = w + 'px';
       canvas.style.height = h + 'px';
 
+      const palette = this.palette();
+      this.dotColor = palette.line;
       const ctx = canvas.getContext('2d');
       ctx.scale(dpr, dpr);
       ctx.clearRect(0, 0, w, h);
@@ -149,10 +158,10 @@ export default {
       const counts = this.data.map(d => d.count || 0);
       const maxVal = Math.max(...counts, 1);
 
-      ctx.strokeStyle = this.palette.grid;
+      ctx.strokeStyle = palette.grid;
       ctx.lineWidth = 1;
       ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
-      ctx.fillStyle = this.palette.label;
+      ctx.fillStyle = palette.label;
       ctx.textAlign = 'right';
 
       const gridLines = 4;
@@ -183,8 +192,8 @@ export default {
       this.geometry = { padding, chartW, chartH, w, h, step, points };
 
       const gradient = ctx.createLinearGradient(0, padding.top, 0, h - padding.bottom);
-      gradient.addColorStop(0, withAlpha(this.lineColor, 0.19));
-      gradient.addColorStop(1, withAlpha(this.lineColor, 0.02));
+      gradient.addColorStop(0, withAlpha(palette.line, 0.19));
+      gradient.addColorStop(1, withAlpha(palette.line, 0.02));
 
       ctx.beginPath();
       ctx.moveTo(padding.left, h - padding.bottom);
@@ -214,11 +223,11 @@ export default {
           ctx.bezierCurveTo(cpx, prev.y, cpx, p.y, p.x, p.y);
         }
       }
-      ctx.strokeStyle = this.lineColor;
+      ctx.strokeStyle = palette.line;
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      ctx.fillStyle = this.palette.label;
+      ctx.fillStyle = palette.label;
       ctx.textAlign = 'center';
       ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
 
@@ -231,7 +240,7 @@ export default {
       if (this.hoverIndex !== null && points[this.hoverIndex]) {
         const p = points[this.hoverIndex];
         ctx.beginPath();
-        ctx.strokeStyle = withAlpha(this.lineColor, 0.35);
+        ctx.strokeStyle = withAlpha(palette.line, 0.35);
         ctx.lineWidth = 1;
         ctx.setLineDash([4, 4]);
         ctx.moveTo(p.x, padding.top);
@@ -241,9 +250,9 @@ export default {
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-        ctx.fillStyle = this.palette.surface;
+        ctx.fillStyle = palette.surface;
         ctx.fill();
-        ctx.strokeStyle = this.lineColor;
+        ctx.strokeStyle = palette.line;
         ctx.lineWidth = 2;
         ctx.stroke();
       }
