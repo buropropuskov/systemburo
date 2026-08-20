@@ -178,6 +178,7 @@ const config = computed(() => ({
       legend: { display: false },
       tooltip: {
         ...TOOLTIP_STYLE,
+        position: 'nearest',
         callbacks: {
           label: (item) => formatTooltipValue(item?.raw),
         },

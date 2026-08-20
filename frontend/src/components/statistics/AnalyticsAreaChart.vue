@@ -21,6 +21,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { formatDuration } from '@/utils/datetime';
+import { crosshairPlugin } from './linePlugins';
 import {
   AXIS_LABEL,
   GRID_COLOR,
@@ -170,15 +171,22 @@ const config = computed(() => ({
       },
     ],
   },
+  plugins: [crosshairPlugin],
   options: {
     responsive: true,
     maintainAspectRatio: false,
+    // Точка ряда на самом верху шкалы выходит за область графика и срезается
+    // краем холста - место под её радиус с обводкой.
+    layout: { padding: { top: 10 } },
     animation: { duration: 400, easing: 'easeInOutQuad' },
     interaction: { mode: 'index', intersect: false },
     plugins: {
       legend: { display: false },
       tooltip: {
         ...TOOLTIP_STYLE,
+        // Рядом с точкой, а не по середине ряда: у края области подсказка
+        // разворачивается на другую сторону и точку не закрывает.
+        position: 'nearest',
         callbacks: {
           title: (items) => fullLabels.value[items?.[0]?.dataIndex] ?? '',
           label: (item) => formatTooltipValue(item?.raw),

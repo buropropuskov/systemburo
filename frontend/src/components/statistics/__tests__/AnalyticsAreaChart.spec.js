@@ -103,6 +103,22 @@ describe('AnalyticsAreaChart', () => {
     expect(ds.pointHoverBackgroundColor).toBe('#4F5BDF');
   });
 
+  it('подсказка встаёт рядом с точкой и не накрывает её', async () => {
+    const { config } = await build({ data: DATA });
+    const { tooltip } = config.options.plugins;
+    // 'nearest' + отступ каретки: по центру ряда и вплотную подсказка ложилась
+    // на саму точку, ради которой наводятся.
+    expect(tooltip.position).toBe('nearest');
+    expect(tooltip.caretPadding).toBeGreaterThanOrEqual(10);
+    // Точка на верхней отметке шкалы иначе срезается краем холста.
+    expect(config.options.layout.padding.top).toBeGreaterThan(0);
+  });
+
+  it('под курсором ведёт вертикаль к оси X', async () => {
+    const { config } = await build({ data: DATA });
+    expect(config.plugins.map((p) => p.id)).toContain('crosshair');
+  });
+
   it('метки оси X — дд.мм без сдвига таймзоны', async () => {
     const { config } = await build({ data: DATA });
     // '2026-06-15' -> '15.06' (день не съезжает на 14.06 из-за UTC-полуночи)

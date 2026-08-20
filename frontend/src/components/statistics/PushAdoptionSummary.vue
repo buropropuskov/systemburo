@@ -29,7 +29,7 @@
           <AnalyticsDonutChart
             v-if="platformData.length > 0"
             :data="platformData"
-            :height="220"
+            :height="240"
             total-label="Подписок"
             :unit-forms="['подписка', 'подписки', 'подписок']"
           />
@@ -205,7 +205,7 @@ onMounted(load);
 
 .push-summary__body {
   display: grid;
-  grid-template-columns: minmax(220px, 300px) 1fr;
+  grid-template-columns: minmax(200px, 260px) 1fr;
   gap: 20px;
   align-items: start;
 }
@@ -215,7 +215,7 @@ onMounted(load);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 12px 14px;
-  min-height: 220px;
+  min-height: 240px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -228,9 +228,11 @@ onMounted(load);
   text-align: center;
 }
 
+/* Столбцом рядом с кольцом - блок стоит в половине ширины страницы, на две
+   колонки плиток места уже нет (см. .dashboard__pair). */
 .push-summary__tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 
