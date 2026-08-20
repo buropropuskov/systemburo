@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
-import { reactive } from 'vue';
-import { createPinia, setActivePinia } from 'pinia';
+import { flushPromises } from '@vue/test-utils';
 
 // Живой журнал раздела мониторинга (#2125): порядок строк задаёт сервер, отбор
 // живёт в адресной строке, а медленный ответ прошлого фильтра не затирает
-// свежий. До этого клик по заголовку двигал только стрелку.
+// свежий. Проверки идут через действия пользователя и наблюдаемые следствия
+// (адрес запроса, адресная строка, разметка), а не через внутренние поля:
+// журнал живёт в своём компоненте и внутренностей наружу не отдаёт.
 
 vi.mock('@/api/client', () => ({
   apiRequest: vi.fn(),
@@ -16,82 +16,26 @@ vi.mock('@/stores/deletions', () => ({
   useDeletionsStore: () => ({ notify: vi.fn() }),
 }));
 
-import RequestsView from '@/views/RequestsView.vue';
 import { apiRequest, apiRequestRaw } from '@/api/client';
 import { JOURNAL_REFRESH_MS } from '@/utils/requestLogsLive';
+import {
+  chip, currentQuery, filterDropdown, journalCalls, lastJournalCall, logsPage,
+  mountView, pickOption, resetApiMocks, setTabHidden, unmountAll,
+} from './helpers/requestsView';
 
-const stubs = {
-  AdminPageShell: { template: '<div><slot /></div>' },
-  RefreshButton: { template: '<button class="refresh-stub" />' },
-  SearchComponent: { template: '<input class="search-stub" />' },
-  RealTimeChart: { template: '<div class="chart-stub" />' },
-  LoaderSpinner: { template: '<div class="loader-stub" />' },
-  AppIcon: { template: '<i />' },
-  ToggleSwitch: { template: '<label><slot /></label>' },
-};
-
-/** Подменяет видимость вкладки и сообщает об этом странице. */
-function setTabHidden(hidden) {
-  Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
-  document.dispatchEvent(new Event('visibilitychange'));
-}
-
-function logsPage(data = []) {
-  return {
-    ok: true,
-    json: () => Promise.resolve({
-      success: true,
-      data,
-      meta: { total: data.length, page: 1, per_page: 20 },
-    }),
-  };
-}
-
-/** Адреса, с которыми компонент сходил за списком журнала. */
-function journalCalls() {
-  return apiRequestRaw.mock.calls.map(([url]) => url);
-}
-
-// Роутер подменяется живым: replace обязан менять то, что компонент потом
-// читает как текущий адрес, иначе повторная запись выглядит лишней и тест
-// зеленеет там, где ссылка на самом деле не обновилась.
-const mounted = [];
-
-function mountView(query = {}) {
-  const route = reactive({ query: { ...query } });
-  const replace = vi.fn(({ query: next }) => {
-    route.query = { ...next };
-    return Promise.resolve();
-  });
-  const wrapper = mount(RequestsView, {
-    global: {
-      stubs,
-      mocks: {
-        $route: route,
-        $router: { replace },
-      },
-    },
-  });
-  mounted.push(wrapper);
-  return { wrapper, route, replace };
-}
+const LOG = { id: 7, url: '/api/applications', method: 'GET', response_status: 200, duration_us: 900 };
 
 afterEach(() => {
-  // Экран слушает видимость вкладки на общем document: оставленный экземпляр
-  // отвечал бы на события следующего теста и считался бы его запросами.
-  mounted.splice(0).forEach(wrapper => wrapper.unmount());
+  unmountAll();
 });
 
 beforeEach(() => {
-  setActivePinia(createPinia());
-  vi.clearAllMocks();
-  apiRequest.mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
-  apiRequestRaw.mockResolvedValue(logsPage());
+  resetApiMocks();
 });
 
 describe('RequestsView, порядок строк', () => {
   it('клик по заголовку перезапрашивает список, повторный клик разворачивает порядок', async () => {
-    const { wrapper } = mountView();
+    const { wrapper } = await mountView();
     await flushPromises();
     apiRequestRaw.mockClear();
 
@@ -100,16 +44,16 @@ describe('RequestsView, порядок строк', () => {
 
     await duration.trigger('click');
     await flushPromises();
-    expect(journalCalls().at(-1)).toContain('sort=duration');
-    expect(journalCalls().at(-1)).toContain('order=desc');
+    expect(lastJournalCall()).toContain('sort=duration');
+    expect(lastJournalCall()).toContain('order=desc');
 
     await duration.trigger('click');
     await flushPromises();
-    expect(journalCalls().at(-1)).toContain('order=asc');
+    expect(lastJournalCall()).toContain('order=asc');
   });
 
   it('клик по другой колонке сбрасывает страницу на первую', async () => {
-    const { wrapper } = mountView({ page: '3' });
+    const { wrapper } = await mountView({ page: '3' });
     await flushPromises();
     expect(journalCalls()[0]).toContain('page=3');
 
@@ -117,7 +61,7 @@ describe('RequestsView, порядок строк', () => {
     await method.trigger('click');
     await flushPromises();
 
-    const last = journalCalls().at(-1);
+    const last = lastJournalCall();
     expect(last, 'сортировка показывает первую страницу нового порядка').toContain('page=1');
     expect(last).toContain('sort=method');
   });
@@ -125,7 +69,7 @@ describe('RequestsView, порядок строк', () => {
 
 describe('RequestsView, отбор в адресной строке', () => {
   it('открывает журнал в том виде, в каком записан адрес', async () => {
-    const { wrapper } = mountView({
+    const { wrapper } = await mountView({
       method: 'post',
       status: '500',
       from: '2026-08-01',
@@ -144,53 +88,49 @@ describe('RequestsView, отбор в адресной строке', () => {
     expect(url).toContain('sort=status');
     expect(url).toContain('order=asc');
     expect(url).toContain('per_page=50');
-    expect(wrapper.vm.sortField).toBe('status');
-    expect(wrapper.vm.sortDirection).toBe('asc');
+
+    const status = wrapper.findAll('.header-col').find(col => col.text().includes('Статус'));
+    expect(status.find('.active-sort').exists(), 'выбранный порядок подсвечен в шапке').toBe(true);
   });
 
   it('чужое поле сортировки из адреса не применяется', async () => {
-    const { wrapper } = mountView({ sort: 'response_body', order: 'asc' });
+    await mountView({ sort: 'response_body', order: 'asc' });
     await flushPromises();
 
-    expect(wrapper.vm.sortField).toBe('created_at');
     expect(journalCalls()[0]).toContain('sort=created_at');
+    expect(journalCalls()[0]).toContain('order=desc');
   });
 
   it('смена отбора складывается обратно в адрес, значения по умолчанию не пишутся', async () => {
-    const { wrapper, replace } = mountView();
-    await flushPromises();
-    replace.mockClear();
-
-    wrapper.vm.filterMethod = 'DELETE';
-    wrapper.vm.filterStartDate = '2026-08-10';
-    await wrapper.vm.refreshLogs();
+    const { wrapper, router } = await mountView();
     await flushPromises();
 
-    expect(replace).toHaveBeenCalledWith({ query: { method: 'DELETE', from: '2026-08-10' } });
+    await pickOption(filterDropdown(wrapper, 0), 'DELETE');
+    expect(currentQuery(router)).toEqual({ method: 'DELETE' });
 
-    replace.mockClear();
-    await wrapper.vm.clearFilters();
+    await wrapper.get('[data-testid="journal-clear"]').trigger('click');
     await flushPromises();
-    expect(replace).toHaveBeenCalledWith({ query: {} });
+    expect(currentQuery(router), 'сброшенный отбор не оставляет мусора в ссылке').toEqual({});
   });
 
   it('сброс фильтров не трогает порядок строк', async () => {
-    const { wrapper } = mountView({ sort: 'duration', order: 'asc', method: 'GET' });
+    const { wrapper, router } = await mountView({ sort: 'duration', order: 'asc', method: 'GET' });
     await flushPromises();
 
-    await wrapper.vm.clearFilters();
+    await wrapper.get('[data-testid="journal-clear"]').trigger('click');
     await flushPromises();
 
-    expect(wrapper.vm.filterMethod, 'фильтры сброшены').toBe('');
-    expect(wrapper.vm.sortField, 'выбранный порядок остаётся: его задаёт заголовок, а не панель фильтров').toBe('duration');
-    expect(wrapper.vm.sortDirection).toBe('asc');
-    expect(journalCalls().at(-1)).toContain('sort=duration');
+    const query = currentQuery(router);
+    expect(query.method, 'фильтры сброшены').toBeUndefined();
+    expect(query.sort, 'выбранный порядок остаётся: его задаёт заголовок, а не панель фильтров').toBe('duration');
+    expect(query.order).toBe('asc');
+    expect(lastJournalCall()).toContain('sort=duration');
   });
 });
 
 describe('RequestsView, гонка запросов', () => {
   it('ответ прошлого отбора не затирает свежий', async () => {
-    const { wrapper } = mountView();
+    const { wrapper } = await mountView();
     await flushPromises();
 
     let releaseStale;
@@ -200,18 +140,19 @@ describe('RequestsView, гонка запросов', () => {
       logsPage([{ id: 2, url: '/api/fresh', method: 'GET', response_status: 200, duration_us: 900 }])
     ));
 
-    wrapper.vm.filterMethod = 'GET';
-    const first = wrapper.vm.fetchLogs();
-    wrapper.vm.filterMethod = 'POST';
-    const second = wrapper.vm.fetchLogs();
+    // Два отбора подряд: первый ответ задержан, второй приходит сразу.
+    await pickOption(filterDropdown(wrapper, 0), 'GET');
+    await pickOption(filterDropdown(wrapper, 0), 'POST');
 
-    await second;
     releaseStale(logsPage([{ id: 1, url: '/api/stale', method: 'GET', response_status: 200, duration_us: 100 }]));
-    await first;
     await flushPromises();
 
-    expect(wrapper.vm.logs.map(l => l.url)).toEqual(['/api/fresh']);
-    expect(wrapper.vm.isLoading, 'запоздавший ответ не гасит и не зажигает загрузку заново').toBe(false);
+    const rows = wrapper.findAll('.table-row');
+    expect(rows.map(r => r.text()), 'на экране остались строки последнего отбора').toEqual(
+      expect.arrayContaining([expect.stringContaining('/api/fresh')])
+    );
+    expect(rows.some(r => r.text().includes('/api/stale')), 'запоздавший ответ на экран не попал').toBe(false);
+    expect(wrapper.find('.loading-overlay').exists(), 'запоздавший ответ не зажигает загрузку заново').toBe(false);
   });
 });
 
@@ -219,7 +160,7 @@ describe('RequestsView, живая лента', () => {
   it('список перечитывает себя сам, пока журнал открыт на первой странице', async () => {
     vi.useFakeTimers();
     try {
-      mountView();
+      await mountView();
       await flushPromises();
       apiRequestRaw.mockClear();
 
@@ -233,19 +174,20 @@ describe('RequestsView, живая лента', () => {
   });
 
   it('открытая карточка запроса держит ленту, закрытие возвращает обновление', async () => {
+    apiRequestRaw.mockResolvedValue(logsPage([LOG]));
     vi.useFakeTimers();
     try {
-      const { wrapper } = mountView();
+      const { wrapper } = await mountView();
       await flushPromises();
 
-      wrapper.vm.selectLog({ id: 7, url: '/api/applications', method: 'GET', response_status: 200 });
+      await wrapper.get('.table-row').trigger('click');
       apiRequestRaw.mockClear();
       vi.advanceTimersByTime(JOURNAL_REFRESH_MS * 2);
       await flushPromises();
       expect(apiRequestRaw, 'из-под открытой карточки строка уехать не должна').not.toHaveBeenCalled();
-      expect(wrapper.vm.refreshBlock).toBe('открыта карточка запроса');
+      expect(wrapper.find('.toggle-stub').text()).toContain('открыта карточка запроса');
 
-      wrapper.vm.selectedLog = null;
+      await wrapper.get('.close-details-btn').trigger('click');
       vi.advanceTimersByTime(JOURNAL_REFRESH_MS);
       await flushPromises();
       expect(apiRequestRaw).toHaveBeenCalledTimes(1);
@@ -257,10 +199,12 @@ describe('RequestsView, живая лента', () => {
   it('в фоновой вкладке опросы стоят, при возврате лента догоняет пропущенное', async () => {
     vi.useFakeTimers();
     try {
-      mountView();
+      await mountView();
       await flushPromises();
 
       setTabHidden(true);
+      // Видимость доезжает до вкладки пропом, то есть на следующем тике.
+      await flushPromises();
       apiRequestRaw.mockClear();
       apiRequest.mockClear();
       vi.advanceTimersByTime(JOURNAL_REFRESH_MS * 3);
@@ -280,10 +224,10 @@ describe('RequestsView, живая лента', () => {
   it('выключенная лента не обновляется даже на открытом журнале', async () => {
     vi.useFakeTimers();
     try {
-      const { wrapper } = mountView();
+      const { wrapper } = await mountView();
       await flushPromises();
 
-      wrapper.vm.autoRefresh = false;
+      await wrapper.get('.toggle-stub').trigger('click');
       apiRequestRaw.mockClear();
       vi.advanceTimersByTime(JOURNAL_REFRESH_MS * 2);
       await flushPromises();
@@ -297,50 +241,47 @@ describe('RequestsView, живая лента', () => {
 
 describe('RequestsView, быстрый отбор', () => {
   it('«только ошибки» уходит на сервер границей кода и остаётся в адресе', async () => {
-    const { wrapper, replace } = mountView();
+    const { wrapper, router } = await mountView();
     await flushPromises();
     apiRequestRaw.mockClear();
-    replace.mockClear();
 
-    const chip = wrapper.findAll('button').find(b => b.text() === 'Только ошибки');
-    expect(chip, 'кнопка быстрого отбора есть на панели').toBeTruthy();
-    await chip.trigger('click');
+    await chip(wrapper, 'Только ошибки').trigger('click');
     await flushPromises();
 
-    expect(journalCalls().at(-1)).toContain('status_min=400');
-    expect(replace).toHaveBeenCalledWith({ query: { status: 'errors' } });
+    expect(lastJournalCall()).toContain('status_min=400');
+    expect(currentQuery(router)).toEqual({ status: 'errors' });
   });
 
   it('«медленнее 1 с» ставит порог, повторное нажатие его снимает', async () => {
-    const { wrapper } = mountView();
+    const { wrapper } = await mountView();
     await flushPromises();
 
-    const chip = wrapper.findAll('button').find(b => b.text() === 'Медленнее 1 с');
-    await chip.trigger('click');
+    await chip(wrapper, 'Медленнее 1 с').trigger('click');
     await flushPromises();
-    expect(journalCalls().at(-1)).toContain('min_duration_ms=1000');
+    expect(lastJournalCall()).toContain('min_duration_ms=1000');
 
-    await chip.trigger('click');
+    await chip(wrapper, 'Медленнее 1 с').trigger('click');
     await flushPromises();
-    expect(journalCalls().at(-1)).not.toContain('min_duration_ms');
+    expect(lastJournalCall()).not.toContain('min_duration_ms');
   });
 
   it('«последний час» шлёт момент, а выбранный день его снимает', async () => {
-    const { wrapper } = mountView();
+    const { wrapper, router } = await mountView();
     await flushPromises();
 
-    const chip = wrapper.findAll('button').find(b => b.text() === 'Последний час');
-    await chip.trigger('click');
+    await chip(wrapper, 'Последний час').trigger('click');
     await flushPromises();
 
-    const since = wrapper.vm.filterSince;
+    const since = currentQuery(router).since;
     expect(since, 'граница периода это момент, а не сутки').toContain('T');
-    expect(journalCalls().at(-1)).toContain(`from_date=${encodeURIComponent(since)}`);
+    expect(lastJournalCall()).toContain(`from_date=${encodeURIComponent(since)}`);
 
-    wrapper.vm.filterStartDate = '2026-08-01';
-    await wrapper.vm.onDateFilterChange();
+    const calendar = wrapper.findAllComponents({ name: 'DateFilter' })[0];
+    calendar.vm.$emit('update:dateRangeStart', new Date(2026, 7, 1));
+    calendar.vm.$emit('apply');
     await flushPromises();
-    expect(wrapper.vm.filterSince, 'введённый день отменяет отбор за час').toBe('');
-    expect(journalCalls().at(-1)).toContain('from_date=2026-08-01');
+
+    expect(currentQuery(router).since, 'введённый день отменяет отбор за час').toBeUndefined();
+    expect(lastJournalCall()).toContain('from_date=2026-08-01');
   });
 });

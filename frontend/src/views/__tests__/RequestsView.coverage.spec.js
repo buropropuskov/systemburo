@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
-import { createPinia, setActivePinia } from 'pinia';
+import { flushPromises } from '@vue/test-utils';
 
 // Вкладка «Аналитика» раздела мониторинга (#2125): под фильтром периода стоит
 // подпись, что именно показано - запрошенный период, сутки с записями и откуда
@@ -16,17 +15,8 @@ vi.mock('@/stores/deletions', () => ({
   useDeletionsStore: () => ({ notify: vi.fn() }),
 }));
 
-import RequestsView from '@/views/RequestsView.vue';
 import { apiRequest } from '@/api/client';
-
-const stubs = {
-  AdminPageShell: { template: '<div><slot /></div>' },
-  RefreshButton: { template: '<button class="refresh-stub" />' },
-  SearchComponent: { template: '<input class="search-stub" />' },
-  RealTimeChart: { template: '<div class="chart-stub" />' },
-  LoaderSpinner: { template: '<div class="loader-stub" />' },
-  AppIcon: { template: '<i />' },
-};
+import { mountView, resetApiMocks, unmountAll } from './helpers/requestsView';
 
 function history(over = {}) {
   return {
@@ -60,25 +50,46 @@ function mockApi(historyBody) {
   });
 }
 
-let wrapper;
-
 beforeEach(() => {
-  setActivePinia(createPinia());
-  vi.clearAllMocks();
+  resetApiMocks();
 });
 
 afterEach(() => {
-  wrapper?.unmount();
+  unmountAll();
 });
 
+/** Открывает вкладку аналитики кликом и отдаёт её разметку. */
 async function openAnalytics(historyBody) {
   mockApi(historyBody);
-  wrapper = mount(RequestsView, { global: { stubs } });
+  const { wrapper } = await mountView();
   await flushPromises();
-  await wrapper.vm.switchToAnalytics();
+  const tab = wrapper.findAll('.rv-tab').find(b => b.text().includes('Аналитика'));
+  await tab.trigger('click');
   await flushPromises();
   return wrapper.find('.analytics-tab');
 }
+
+describe('RequestsView, загрузка аналитики', () => {
+  it('история читается при первом показе вкладки и не перечитывается при возврате', async () => {
+    mockApi(history());
+    const { wrapper } = await mountView();
+    await flushPromises();
+
+    const historyCalls = () => apiRequest.mock.calls
+      .filter(([url]) => url.startsWith('/request-logs/history')).length;
+    expect(historyCalls(), 'пока вкладку не открыли, тяжёлый запрос не идёт').toBe(0);
+
+    const tabs = wrapper.findAll('.rv-tab');
+    await tabs.find(b => b.text().includes('Аналитика')).trigger('click');
+    await flushPromises();
+    expect(historyCalls()).toBe(1);
+
+    await tabs.find(b => b.text().includes('Журнал')).trigger('click');
+    await tabs.find(b => b.text().includes('Аналитика')).trigger('click');
+    await flushPromises();
+    expect(historyCalls(), 'повторное переключение вкладок не дёргает историю заново').toBe(1);
+  });
+});
 
 describe('RequestsView, охват периода аналитики', () => {
   it('называет запрошенный период, сутки с записями и источник чисел', async () => {
