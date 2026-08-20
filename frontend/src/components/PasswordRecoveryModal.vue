@@ -3,59 +3,51 @@
     :show="show"
     :closable="false"
     width="440px"
+    radius="35px"
+    theme="light"
     @close="$emit('close')"
   >
-    <div class="recovery-notification-wrapper">
-      <transition name="recovery-notification">
-        <div
-          v-if="showNotification"
-          :key="notificationText"
-          class="recovery-notification"
-          data-testid="recovery-notification"
-        >
-          {{ notificationText }}
-        </div>
-      </transition>
-    </div>
-
-    <template #header>
+    <!-- Отступы и типографика живут на своей разметке внутри слота, а не в
+         оверрайдах секций BaseModal: его контент телепортируется в body,
+         scope-хэш родителя туда не достаёт, и прежние оверрайды были мёртвыми -
+         окно шло с дефолтными 15px радиуса, бордерами между секциями и нулевым
+         padding тела, из-за которого текст прилипал к заголовку. -->
+    <div class="recovery">
       <h2 class="recovery-title">
         Восстановление доступа
       </h2>
-    </template>
 
-    <p class="recovery-text">
-      Если вы забыли логин или пароль учётной записи, напишите нам или позвоните:
-    </p>
+      <p class="recovery-text">
+        Если вы забыли логин или пароль учётной записи, напишите нам или позвоните:
+      </p>
 
-    <div class="recovery-contacts">
-      <button
-        type="button"
-        class="recovery-contact"
-        data-testid="recovery-copy-email"
-        @click.stop="copyEmail"
-      >
-        <AppIcon
-          name="email"
-          class="recovery-contact__icon"
-        />
-        <span class="recovery-contact__text">{{ bureauEmail }}</span>
-      </button>
-      <button
-        type="button"
-        class="recovery-contact"
-        data-testid="recovery-copy-phone"
-        @click.stop="copyPhone"
-      >
-        <AppIcon
-          name="phone"
-          class="recovery-contact__icon"
-        />
-        <span class="recovery-contact__text">{{ bureauPhone }}</span>
-      </button>
-    </div>
+      <div class="recovery-contacts">
+        <button
+          type="button"
+          class="recovery-contact"
+          data-testid="recovery-copy-email"
+          @click.stop="copyEmail"
+        >
+          <AppIcon
+            name="email"
+            class="recovery-contact__icon"
+          />
+          <span class="recovery-contact__text">{{ bureauEmail }}</span>
+        </button>
+        <button
+          type="button"
+          class="recovery-contact"
+          data-testid="recovery-copy-phone"
+          @click.stop="copyPhone"
+        >
+          <AppIcon
+            name="phone"
+            class="recovery-contact__icon"
+          />
+          <span class="recovery-contact__text">{{ bureauPhone }}</span>
+        </button>
+      </div>
 
-    <template #actions>
       <button
         type="button"
         class="recovery-button"
@@ -64,7 +56,25 @@
       >
         Понятно
       </button>
-    </template>
+    </div>
+
+    <!-- Пилюля копирования висит над окном, поэтому телепортируется в body:
+         внутри окна её обрезал бы скроллящийся контейнер, а на мобилке
+         will-change: transform листа сделал бы position: fixed относительным
+         листу. data-theme - тот же светлый остров, что и у окна. -->
+    <Teleport to="body">
+      <transition name="recovery-notification">
+        <div
+          v-if="showNotification"
+          :key="notificationText"
+          class="recovery-notification"
+          data-theme="light"
+          data-testid="recovery-notification"
+        >
+          {{ notificationText }}
+        </div>
+      </transition>
+    </Teleport>
   </BaseModal>
 </template>
 
@@ -90,6 +100,14 @@ export default {
 
   emits: ['close'],
 
+  data() {
+    return {
+      showNotification: false,
+      notificationText: '',
+      notificationTimeout: null,
+    }
+  },
+
   computed: {
     bureauEmail() {
       return useContactsStore().email || FALLBACK_BUREAU_EMAIL
@@ -101,14 +119,6 @@ export default {
 
   mounted() {
     useContactsStore().fetch()
-  },
-
-  data() {
-    return {
-      showNotification: false,
-      notificationText: '',
-      notificationTimeout: null,
-    }
   },
 
   beforeUnmount() {
@@ -160,46 +170,30 @@ export default {
 </script>
 
 <style scoped>
-/* BaseModal header/actions overrides — убираем border между секциями
-   и выравниваем по old_branch-стилю (цельный плоский контент). */
-:deep(.base-modal__header) {
-  border-bottom: none;
-  padding: 24px 32px 16px;
-}
-
-:deep(.base-modal__body) {
-  padding: 8px 32px 16px;
-}
-
-:deep(.base-modal__actions) {
-  justify-content: center;
-  border-top: none;
-  padding: 0 32px 28px;
+.recovery {
+  padding: 36px 36px 32px;
+  text-align: center;
 }
 
 .recovery-title {
-  margin: 0;
-  font-size: 28px;
+  margin: 0 0 14px;
+  font-size: 26px;
   font-weight: 800;
   color: var(--text);
-  text-align: center;
-  width: 100%;
 }
 
 .recovery-text {
-  margin: 0 0 20px;
+  margin: 0 0 18px;
   font-size: 14px;
   line-height: 1.5;
   color: var(--text);
-  text-align: center;
 }
 
 .recovery-contacts {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
+  gap: 2px;
 }
 
 .recovery-contact {
@@ -207,7 +201,7 @@ export default {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 6px 10px;
+  padding: 4px 10px;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -236,47 +230,8 @@ export default {
   text-underline-position: under;
 }
 
-.recovery-notification-wrapper {
-  position: relative;
-  height: 0;
-}
-
-.recovery-notification {
-  position: fixed;
-  top: 18vh;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 12px 26px;
-  border-radius: 40px;
-  background: var(--color-primary, var(--accent));
-  font-size: 14px;
-  color: var(--accent-contrast);
-  font-weight: 600;
-  box-shadow: 0 12px 32px rgba(79, 91, 223, 0.4);
-  min-width: 220px;
-  text-align: center;
-  white-space: nowrap;
-  z-index: 1100;
-}
-
-.recovery-notification-enter-active,
-.recovery-notification-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
-}
-
-.recovery-notification-enter-from,
-.recovery-notification-leave-to {
-  opacity: 0;
-  transform: translate(-50%, -12px);
-}
-
-.recovery-notification-enter-to,
-.recovery-notification-leave-from {
-  opacity: 1;
-  transform: translate(-50%, 0);
-}
-
 .recovery-button {
+  margin-top: 26px;
   background: var(--color-primary);
   color: var(--accent-contrast);
   border: none;
@@ -286,11 +241,60 @@ export default {
   font-weight: 600;
   cursor: pointer;
   min-width: 200px;
-  margin: 0 auto;
   transition: background-color 0.2s;
 }
 
 .recovery-button:hover {
   background-color: var(--accent);
+}
+
+/* Вид пилюли повторяет уведомление о копировании на самом экране входа
+   (.notification в LoginComponent): белая плашка с мягкой тенью. */
+.recovery-notification {
+  position: fixed;
+  top: 18vh;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 25px;
+  padding: 0 15px;
+  border-radius: 50px;
+  background: var(--surface);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+  min-width: 150px;
+  white-space: nowrap;
+  z-index: 1100;
+}
+
+.recovery-notification-enter-active,
+.recovery-notification-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.recovery-notification-enter-from,
+.recovery-notification-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -10px);
+}
+
+.recovery-notification-enter-to,
+.recovery-notification-leave-from {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@media (max-width: 768px) {
+  .recovery {
+    padding: 8px 24px 28px;
+  }
+
+  .recovery-title {
+    font-size: 22px;
+  }
 }
 </style>
