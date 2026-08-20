@@ -4,6 +4,7 @@
       <div
         v-if="show"
         class="base-modal-overlay"
+        :data-theme="theme || null"
         :style="{ zIndex }"
         @mousedown="handleOverlayMousedown"
         @mouseup="handleOverlayMouseup"
@@ -114,6 +115,15 @@ export default {
     // content-class телепортируется в body и scoped :deep из родителя до него не
     // достаёт - пробрасываем значение CSS-переменной инлайном.
     radius: {
+      type: String,
+      default: '',
+    },
+    // Тема окна: пусто -> следует за выбранной темой системы. Значение из
+    // utils/theme.js ставит «островок» на слой окна (tokens.css оформляет любой
+    // элемент с data-theme, не только <html>). Нужно окнам с экранов, которые
+    // сами живут вне тем: вход - светлый остров, но окно телепортируется в body
+    // и без этого пропа оставалось тёмным поверх светлого экрана.
+    theme: {
       type: String,
       default: '',
     },
