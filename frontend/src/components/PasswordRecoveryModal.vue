@@ -3,7 +3,7 @@
     :show="show"
     :closable="false"
     width="440px"
-    radius="35px"
+    radius="45px"
     theme="light"
     @close="$emit('close')"
   >
@@ -12,7 +12,10 @@
          scope-хэш родителя туда не достаёт, и прежние оверрайды были мёртвыми -
          окно шло с дефолтными 15px радиуса, бордерами между секциями и нулевым
          padding тела, из-за которого текст прилипал к заголовку. -->
-    <div class="recovery">
+    <div
+      ref="content"
+      class="recovery"
+    >
       <h2 class="recovery-title">
         Восстановление доступа
       </h2>
@@ -61,13 +64,16 @@
     <!-- Пилюля копирования висит над окном, поэтому телепортируется в body:
          внутри окна её обрезал бы скроллящийся контейнер, а на мобилке
          will-change: transform листа сделал бы position: fixed относительным
-         листу. data-theme - тот же светлый остров, что и у окна. -->
+         листу. Расплата за вынос - вертикаль считается по кромке окна
+         (pillStyle), иначе пилюля висит сама по себе высоко над экраном.
+         data-theme - тот же светлый остров, что и у окна. -->
     <Teleport to="body">
       <transition name="recovery-notification">
         <div
           v-if="showNotification"
           :key="notificationText"
           class="recovery-notification"
+          :style="pillStyle"
           data-theme="light"
           data-testid="recovery-notification"
         >
@@ -82,10 +88,15 @@
 import BaseModal from '@/components/ui/BaseModal.vue'
 import AppIcon from '@/components/icons/AppIcon.vue'
 import { useContactsStore } from '@/stores/contacts'
+import { getViewportZoom } from '@/utils/viewportScale'
 
 // Фолбэк-контакты Бюро, если в настройках системы они ещё не заданы.
 const FALLBACK_BUREAU_EMAIL = 'buropropuskov@dreamisland.ru'
 const FALLBACK_BUREAU_PHONE = '+7 (910) 083 00-55'
+
+/** Просвет между кромкой окна и пилюлей и её высота из вёрстки - нужны для отступа снизу. */
+const PILL_GAP = 14
+const PILL_HEIGHT = 25
 
 export default {
   name: 'PasswordRecoveryModal',
@@ -105,10 +116,15 @@ export default {
       showNotification: false,
       notificationText: '',
       notificationTimeout: null,
+      pillBottom: null,
     }
   },
 
   computed: {
+    /** Пусто -> пилюля садится на фолбэк из стилей (верх экрана). */
+    pillStyle() {
+      return this.pillBottom === null ? null : { top: 'auto', bottom: `${this.pillBottom}px` }
+    },
     bureauEmail() {
       return useContactsStore().email || FALLBACK_BUREAU_EMAIL
     },
@@ -143,12 +159,29 @@ export default {
       }
     },
 
+    /**
+     * Отступ пилюли от низа экрана, чтобы она встала прямо над окном.
+     * rect приходит в device-px под корневым масштабом, innerHeight - нет,
+     * поэтому к layout-px приводятся обе величины (см. utils/viewportScale).
+     * Меряется окно целиком, а не контент: на мобилке над контентом ещё ползунок.
+     */
+    measurePillBottom() {
+      const modal = this.$refs.content && this.$refs.content.closest('.base-modal')
+      if (!modal || typeof window === 'undefined') return null
+      const zoom = getViewportZoom() || 1
+      const viewportHeight = window.innerHeight / zoom
+      const top = modal.getBoundingClientRect().top / zoom
+      const maxBottom = viewportHeight - PILL_HEIGHT - PILL_GAP
+      return Math.min(Math.max(PILL_GAP, viewportHeight - top + PILL_GAP), maxBottom)
+    },
+
     showNotificationMessage(text) {
       if (this.notificationTimeout) {
         clearTimeout(this.notificationTimeout)
         this.notificationTimeout = null
       }
       this.notificationText = text
+      this.pillBottom = this.measurePillBottom()
       this.showNotification = true
       this.notificationTimeout = setTimeout(() => {
         this.showNotification = false
@@ -250,6 +283,8 @@ export default {
 
 /* Вид пилюли повторяет уведомление о копировании на самом экране входа
    (.notification в LoginComponent): белая плашка с мягкой тенью. */
+/* top - фолбэк на случай, если окно не удалось замерить; штатно вертикаль
+   приходит инлайном от pillStyle. */
 .recovery-notification {
   position: fixed;
   top: 18vh;

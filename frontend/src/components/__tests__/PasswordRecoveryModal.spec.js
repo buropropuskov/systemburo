@@ -41,7 +41,7 @@ describe('PasswordRecoveryModal — светлый остров', () => {
     // поэтому единственное живое место радиуса - инлайн-переменная BaseModal.
     mountModal()
 
-    expect(document.querySelector('.base-modal').style.getPropertyValue('--base-modal-radius')).toBe('35px')
+    expect(document.querySelector('.base-modal').style.getPropertyValue('--base-modal-radius')).toBe('45px')
   })
 
   it('окно не полагается на мёртвые оверрайды секций BaseModal', () => {
@@ -66,6 +66,19 @@ describe('PasswordRecoveryModal — уведомление о копирован
     expect(writeText).toHaveBeenCalledWith('buro@example.ru')
     expect(pill.textContent.trim()).toBe('E-mail скопирован')
     expect(pill.getAttribute('data-theme')).toBe('light')
+  })
+
+  it('пилюля встаёт над окном, а не на фолбэчной высоте', async () => {
+    mountModal()
+    const modal = document.querySelector('.base-modal')
+    // jsdom не считает раскладку, поэтому кромку окна задаём сами.
+    modal.getBoundingClientRect = () => ({ top: 300, bottom: 600, left: 0, right: 440, width: 440, height: 300 })
+
+    await document.querySelector('[data-testid="recovery-copy-email"]').click()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    // 768 (jsdom innerHeight) - 300 (верх окна) + 14 (просвет)
+    expect(document.querySelector('[data-testid="recovery-notification"]').style.bottom).toBe('482px')
   })
 
   it('телефон копируется своим текстом', async () => {
