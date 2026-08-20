@@ -319,11 +319,16 @@ def inventories():
         {
             "имя": "6 подсистемы и разделы администрирования",
             "документ": OVERVIEW,
-            # AdminSettings.vue лежит не в views/admin, а рядом, и раздел
-            # «Настройки» из-за этого не сторожила ни одна проверка: описание
-            # его доступа успело разойтись с кодом за два часа (#7).
+            # Каталог views/admin перечень разделов не задаёт: четыре из них
+            # лежат мимо него, и до #2125 их не сторожила ни одна проверка.
+            # Описание доступа к «Настройкам» успело разойтись с кодом за два
+            # часа (#7), а раздел мониторинга сменил право на своё и не сдвинул
+            # ни одного числа. Список ведётся руками по роутам /admin в
+            # frontend/src/router.js.
             "код": code_list(
                 "ls frontend/src/views/admin/*.vue frontend/src/views/AdminSettings.vue "
+                "frontend/src/views/RequestsView.vue frontend/src/views/FeedbackPage.vue "
+                "frontend/src/components/TableConstructor.vue "
                 "| xargs -n1 basename"),
             "реестр": {
                 "AdminSettings.vue": "Настройки",
@@ -345,6 +350,9 @@ def inventories():
                 "NumberFormatsView.vue": "форматы регистрационных знаков",
                 "OrganizationsView.vue": "Организации и компании",
                 "PdAuditLog.vue": "обращений к персональным данным",
+                "RequestsView.vue": "мониторинг запросов",
+                "FeedbackPage.vue": "Обратная связь",
+                "TableConstructor.vue": "конструктор таблиц постов",
                 "SystemControl.vue": "режим работ",
                 "UnloadPlacesView.vue": "Места разгрузки",
                 "UserControlView.vue": "Учётные записи",
