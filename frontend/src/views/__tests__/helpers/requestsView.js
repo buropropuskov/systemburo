@@ -22,6 +22,10 @@ export const stubs = {
   RefreshButton: { template: '<button class="refresh-stub" @click="$emit(\'refresh\')" />' },
   SearchComponent: { template: '<input class="search-stub" />' },
   RealTimeChart: { template: '<div class="chart-stub" />' },
+  // График по суткам рисует Chart.js на холсте, которого в jsdom нет. Заглушка
+  // держит props: спеки проверяют, какой ряд уходит в график, а как он рисуется -
+  // дело его собственной спеки.
+  DailyRequestsChart: { props: ['points'], template: '<div class="daily-chart-stub" />' },
   LoaderSpinner: { template: '<div class="loader-stub" />' },
   AppIcon: { template: '<i />' },
   ToggleSwitch: {

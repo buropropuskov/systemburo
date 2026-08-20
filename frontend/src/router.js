@@ -16,7 +16,6 @@ import TableConstructor from './components/TableConstructor.vue';
 import EmployeeView from './views/EmployeeView.vue';
 import NewsAndReview from './views/NewsAndReview.vue';
 import FeedbackPage from './views/FeedbackPage.vue';
-import RequestsView from './views/RequestsView.vue';
 
 // Гейтинг прав (#187, Фаза 2): admin/table-маршруты несут meta.permission и
 // проверяются в beforeEach через usePermissionsStore.hasPermission. super/admin
@@ -139,7 +138,10 @@ const routes = [
   {
     path: '/admin/requests',
     name: 'RequestsView',
-    component: RequestsView,
+    // Раздел грузится по требованию: вместе с ним в отдельный кусок уходит
+    // Chart.js, который до этого лежал в стартовой загрузке у всех, включая
+    // тех, кому мониторинг закрыт правом.
+    component: () => import('./views/RequestsView.vue'),
     meta: { requiresAuth: true, permission: 'page.admin.monitoring' }
   },
   {

@@ -154,15 +154,62 @@ export function p95Note(coverage) {
   return 'За свёрнутые сутки показано наибольшее суточное значение: отдельных длительностей у них уже нет.';
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 /**
- * Высота столбика ряда по суткам в процентах: самый высокий занимает колонку
- * целиком, пустой день остаётся видимой полоской.
- * @param {number} value
- * @param {number} max
- * @returns {number}
+ * Сутки ответа (2026-08-19) числом времени. Разбор идёт по UTC: ряд перечисляет
+ * календарные даты, и переход на летнее время в местной зоне не должен смещать
+ * шаг на час.
+ * @param {string} day
+ * @returns {number} NaN для неразобранного дня
  */
-export function barHeight(value, max) {
-  return Math.max(4, Math.round((value / Math.max(max, 1)) * 100));
+function dayToUtc(day) {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(day || ''));
+  if (!parts) return NaN;
+  return Date.UTC(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]));
+}
+
+/**
+ * @param {number} utc
+ * @returns {string} сутки в записи ответа
+ */
+function utcToDay(utc) {
+  return new Date(utc).toISOString().slice(0, 10);
+}
+
+/**
+ * Ряд столбиков по суткам: от первого дня с записями до последнего, без
+ * пропусков в календаре.
+ *
+ * Сервер отдаёт только сутки, в которых записи есть. Если рисовать ряд как
+ * пришёл, дни без обращений схлопываются и соседние столбики встают вплотную:
+ * 10 июля и 19 августа оказываются рядом, а расстояние по оси перестаёт значить
+ * время. Пропущенные сутки добавляются с `null`, а не с нулём: после отсева
+ * проверок доступности (S2) сутки без единой записи означают, что системой не
+ * пользовались, и столбик нулевой высоты читался бы как измеренный ноль.
+ *
+ * @param {Array<{day: string, requests: number, errors: number}>} daily ряд из ответа истории
+ * @returns {Array<{day: string, requests: number|null, errors: number|null}>}
+ */
+export function dailyChartPoints(daily) {
+  const known = new Map();
+  (daily || []).forEach((point) => {
+    const utc = dayToUtc(point && point.day);
+    if (!Number.isNaN(utc)) known.set(utc, point);
+  });
+  if (!known.size) return [];
+
+  const days = [...known.keys()].sort((a, b) => a - b);
+  const points = [];
+  for (let utc = days[0]; utc <= days[days.length - 1]; utc += DAY_MS) {
+    const point = known.get(utc);
+    points.push({
+      day: utcToDay(utc),
+      requests: point ? Number(point.requests) || 0 : null,
+      errors: point ? Number(point.errors) || 0 : null
+    });
+  }
+  return points;
 }
 
 /**

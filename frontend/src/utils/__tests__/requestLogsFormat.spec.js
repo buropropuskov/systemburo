@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { describeLoadError, analyticsKpis, headerKpis } from '@/utils/requestLogsFormat';
+import { describeLoadError, analyticsKpis, dailyChartPoints, headerKpis } from '@/utils/requestLogsFormat';
 
 // Тексты раздела мониторинга (#2125): отказ чтения объясняется словами, а
 // показатели шапки собираются одним перечнем вместо четырёх копий разметки.
@@ -83,5 +83,52 @@ describe('headerKpis', () => {
     expect(kpis).toHaveLength(5);
     expect(kpis[0].value).toBe('0');
     expect(kpis[3].value).toBe('0.0%');
+  });
+});
+
+describe('dailyChartPoints', () => {
+  it('добавляет пропущенные сутки, чтобы шаг оси равнялся суткам', () => {
+    const points = dailyChartPoints([
+      { day: '2026-08-10', requests: 100, errors: 2 },
+      { day: '2026-08-13', requests: 50, errors: 0 }
+    ]);
+
+    expect(points.map(p => p.day))
+      .toEqual(['2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13']);
+  });
+
+  it('день без записей помечает отсутствием данных, а не нулём', () => {
+    const points = dailyChartPoints([
+      { day: '2026-08-10', requests: 100, errors: 2 },
+      { day: '2026-08-12', requests: 50, errors: 0 }
+    ]);
+
+    expect(points[1]).toEqual({ day: '2026-08-11', requests: null, errors: null });
+    expect(points[2]).toEqual({ day: '2026-08-12', requests: 50, errors: 0 });
+  });
+
+  it('держит шаг в сутки на переходе через смену месяца и года', () => {
+    const points = dailyChartPoints([
+      { day: '2025-12-30', requests: 1, errors: 0 },
+      { day: '2026-01-02', requests: 4, errors: 1 }
+    ]);
+
+    expect(points.map(p => p.day))
+      .toEqual(['2025-12-30', '2025-12-31', '2026-01-01', '2026-01-02']);
+  });
+
+  it('восстанавливает порядок, если сутки пришли вперемешку', () => {
+    const points = dailyChartPoints([
+      { day: '2026-08-12', requests: 50, errors: 0 },
+      { day: '2026-08-11', requests: 70, errors: 3 }
+    ]);
+
+    expect(points.map(p => p.day)).toEqual(['2026-08-11', '2026-08-12']);
+  });
+
+  it('пустой и негодный ряд отдаёт пустым, а не ломает разметку', () => {
+    expect(dailyChartPoints([])).toEqual([]);
+    expect(dailyChartPoints(null)).toEqual([]);
+    expect(dailyChartPoints([{ day: '', requests: 5, errors: 0 }])).toEqual([]);
   });
 });
