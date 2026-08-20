@@ -7,33 +7,13 @@ import { useOnboarding, STEP_DEMO_FALLBACK } from '@/composables/useOnboarding';
 import { collectSegment, indexAfterRoute } from '@/components/onboarding/stepsFlow';
 import { applyReveal, restoreReveal } from '@/components/onboarding/reveal';
 import { createStepWatchers } from '@/components/onboarding/stepWatchers';
+import { fadeAndDestroy } from '@/components/onboarding/tourFade';
 
 const store = useOnboardingStore();
 const ui = useUiStore();
 const route = useRoute();
 const router = useRouter();
 const { waitForElement, ensureInView, createDriver, prefersReducedMotion } = useOnboarding();
-
-/**
- * Плавное закрытие тура: driver.js делает только fade-IN, а на destroy убирает
- * overlay и поповер мгновенно (рывок). Навешиваем класс затухания на оба
- * элемента и удаляем DOM уже после анимации. Только для ЗАВЕРШЕНИЯ тура
- * (финал/Esc/крестик/пропуск) - не для переходов между страницами.
- *
- * @param {import('driver.js').Driver} driverInstance
- */
-function fadeAndDestroy(driverInstance) {
-  const els = [
-    document.querySelector('.driver-overlay'),
-    document.querySelector('.driver-popover'),
-  ].filter(Boolean);
-  if (!els.length || prefersReducedMotion()) {
-    driverInstance.destroy();
-    return;
-  }
-  els.forEach((el) => el.classList.add('ob-fade-out'));
-  setTimeout(() => driverInstance.destroy(), 240);
-}
 
 // Первую цель сегмента ждём дольше при cross-page: после router.push страница
 // монтируется и грузит данные (скелетоны), цель появляется не сразу.
@@ -429,7 +409,7 @@ function finishTour() {
   if (driverObj) {
     const d = driverObj;
     driverObj = null;
-    fadeAndDestroy(d);
+    fadeAndDestroy(d, prefersReducedMotion());
   } else {
     restoreRail();
     restoreReveal();
@@ -479,7 +459,7 @@ function teardown() {
     // onDestroyed обезврежен (gen-гард в handleDestroyed).
     const d = driverObj;
     driverObj = null;
-    fadeAndDestroy(d);
+    fadeAndDestroy(d, prefersReducedMotion());
   }
   store.clearPending();
   restoreRail();
@@ -506,7 +486,14 @@ watch(
 // Подхват следующего сегмента после cross-page навигации: ждём, пока роутер
 // приведёт нас на страницу первого шага следующего сегмента.
 const removeAfterEach = router.afterEach((to) => {
-  if (!store.isActive || !store.pendingSegment) return;
+  if (!store.isActive) return;
+  if (!store.pendingSegment) {
+    // Человек ушёл со страницы сам - пунктом меню, ссылкой, кнопкой «Назад»
+    // браузера. Шаги остаются от прежней страницы, и тур висит поверх чужого
+    // экрана, подсвечивая то, чего здесь нет. Продолжать негде - завершаем.
+    if (store.currentStep?.route !== to.path) store.stop();
+    return;
+  }
   // clearPending до startSegment страхует от повторного resume (redirect-цепочка);
   // logout посреди перехода успел бы сбросить pending через teardown - тогда сюда не войдём.
   if (store.currentStep?.route === to.path) {
