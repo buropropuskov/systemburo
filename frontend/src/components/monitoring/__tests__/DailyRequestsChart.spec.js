@@ -65,11 +65,18 @@ async function build(points = POINTS) {
   return { wrapper, config: rendered.last };
 }
 
-/** Подсказка над столбиком: Chart.js зовёт обработчики с элементами ряда. */
+/**
+ * Пункты подсказки над столбиком - так, как их собирает сам Chart.js в режиме
+ * `index`: столбик высотой null он пропущенным НЕ считает (это делает только
+ * точка линии), поэтому в список входят оба ряда, а отсев остаётся за `filter`
+ * из настроек. Ручная фильтрация здесь дала бы ложно-зелёный тест: подсказка
+ * на сутках без записей показывала бы нули, а спека этого не заметила.
+ */
 function tooltipItems(config, index) {
+  const { filter } = config.options.plugins.tooltip;
   return config.data.datasets
     .map((ds, datasetIndex) => ({ dataset: ds, datasetIndex, dataIndex: index, raw: ds.data[index] }))
-    .filter(item => item.raw != null);
+    .filter(item => filter(item));
 }
 
 describe('DailyRequestsChart', () => {
@@ -129,6 +136,17 @@ describe('DailyRequestsChart', () => {
 
     expect(items.map(config.options.plugins.tooltip.callbacks.label)).toEqual(['Успешных: 500']);
     expect(config.options.plugins.tooltip.callbacks.footer(items)).toBe('Всего 500, доля ошибок 0.00%');
+  });
+
+  it('на сутках без записей объясняет словами, а не показывает нули', async () => {
+    const { config } = await build();
+    const { label, footer } = config.options.plugins.tooltip.callbacks;
+    const items = tooltipItems(config, 1);
+
+    // День, за который записей нет вовсе, - это не «ноль запросов»: столбика
+    // нет, и подсказка обязана сказать то же самое.
+    expect(items.map(label)).toEqual(['Записей за эти сутки нет']);
+    expect(footer(items)).toBe('');
   });
 
   it('верх столбика скругляет тот ряд, который в этот день сверху', async () => {

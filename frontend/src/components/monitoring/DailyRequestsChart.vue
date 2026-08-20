@@ -156,13 +156,28 @@ const config = computed(() => ({
       tooltip: {
         ...TOOLTIP_STYLE,
         position: 'nearest',
+        // Ряд ошибок в подсказке появляется, только когда ошибки были: «С
+        // ошибкой: 0» повторяет долю из подвала. Ряд успешных остаётся всегда -
+        // на сутках без записей он несёт объяснение вместо чисел. Отбор идёт по
+        // самим суткам, а не по `raw`: столбик высотой null у Chart.js не
+        // помечен пропущенным (в отличие от точки линии), и в подсказку он
+        // приходит наравне с остальными.
+        filter: (item) => item.datasetIndex === 0 || errorsAt(item.dataIndex) > 0,
         callbacks: {
           title: (items) => formatDay(pointAt(items[0]?.dataIndex).day),
-          label: (item) => `${item.dataset.label}: ${formatNum(item.raw)}`,
+          label: (item) => {
+            const point = pointAt(item.dataIndex);
+            if (point.requests == null) return 'Записей за эти сутки нет';
+            const value = item.datasetIndex === 0
+              ? Math.max((Number(point.requests) || 0) - errorsAt(item.dataIndex), 0)
+              : errorsAt(item.dataIndex);
+            return `${item.dataset.label}: ${formatNum(value)}`;
+          },
           footer: (items) => {
             const index = items[0]?.dataIndex;
-            const requests = Number(pointAt(index).requests) || 0;
-            return `Всего ${formatNum(requests)}, доля ошибок ${errorRateAt(index)}%`;
+            const requests = pointAt(index).requests;
+            if (requests == null) return '';
+            return `Всего ${formatNum(Number(requests) || 0)}, доля ошибок ${errorRateAt(index)}%`;
           },
         },
       },
