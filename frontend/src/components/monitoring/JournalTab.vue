@@ -343,7 +343,7 @@ const filterDropdowns = computed(() => journalFilterDropdowns(journalState(), us
 const journalRange = computed(() => ({ start: ymdToDate(state.from), end: ymdToDate(state.to) }));
 const totalPages = computed(() => Math.max(1, Math.ceil((pagination.total || 0) / (pagination.per_page || 20))));
 const selectedPeriod = computed(() => chartPeriods.find(p => p.key === chartPeriod.value) || chartPeriods[4]);
-const orderTitle = computed(() => (state.order === 'desc' ? 'Сначала большие значения' : 'Сначала меньшие значения'));
+const orderTitle = computed(() => (state.order === 'desc' ? 'По убыванию' : 'По возрастанию'));
 
 /** Причина, по которой живая лента сейчас стоит. Пустая - лента обновляется. */
 const refreshBlock = computed(() => journalRefreshBlock({
