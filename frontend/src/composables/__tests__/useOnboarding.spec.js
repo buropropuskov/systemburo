@@ -14,6 +14,10 @@ vi.mock('driver.js', () => ({
   driver: (config) => {
     mocks.state.config = config;
     return {
+      getConfig: () => mocks.state.config,
+      // Настоящий driver заменяет конфиг целиком - мок ведёт себя так же, иначе
+      // потеря хуков при setConfig прошла бы мимо теста.
+      setConfig: (next) => { mocks.state.config = next; },
       getActiveIndex: () => mocks.state.activeIndex,
       moveNext: () => mocks.state.moves.push('next'),
       movePrevious: () => mocks.state.moves.push('prev'),
@@ -38,7 +42,10 @@ import {
   isMobileViewport,
   showsDemo,
   isSkippableStep,
+  isFlushTarget,
   useOnboarding,
+  STAGE_PADDING,
+  STAGE_RADIUS,
   STEP_DEMO_FALLBACK,
 } from '../useOnboarding';
 
@@ -248,6 +255,111 @@ describe('createDriver - шаг без цели', () => {
  * выбросить, в счёт не идёт - иначе в номерах дырка; шаг со скриншотом не
  * выбрасывается никогда и потому считается.
  */
+/**
+ * Форма выреза подсветки (замечание владельца 20.08): панель поиска и рельс
+ * навигации занимают экран во всю высоту, и общий зазор 10px уводил их вырез за
+ * границу окна, а скругление 30px рисовало круглые углы у прямой панели.
+ */
+describe('isFlushTarget', () => {
+  const size = { w: window.innerWidth, h: window.innerHeight };
+
+  const rect = (x, y, w, h) => ({
+    getBoundingClientRect: () => ({ x, y, width: w, height: h, left: x, top: y, right: x + w, bottom: y + h }),
+  });
+
+  beforeEach(() => {
+    window.innerWidth = 1440;
+    window.innerHeight = 900;
+  });
+
+  afterEach(() => {
+    window.innerWidth = size.w;
+    window.innerHeight = size.h;
+  });
+
+  it('панель во всю высоту экрана обводится встык', () => {
+    // Панель сквозного поиска на 1440x900, замер со стенда.
+    expect(isFlushTarget(rect(1020, 0, 420, 900))).toBe(true);
+  });
+
+  it('рельс навигации во всю высоту - тоже встык', () => {
+    expect(isFlushTarget(rect(0, 0, 248, 900))).toBe(true);
+  });
+
+  it('мобильный drawer во всю ширину и высоту - встык', () => {
+    window.innerWidth = 390;
+    window.innerHeight = 844;
+    expect(isFlushTarget(rect(0, 0, 390, 844))).toBe(true);
+  });
+
+  it('обычная цель внутри экрана сохраняет зазор и скругление', () => {
+    // Кнопка колокольчика и карточка вложения - замеры со стенда.
+    expect(isFlushTarget(rect(1186, 12, 35, 35))).toBe(false);
+    expect(isFlushTarget(rect(82, 215, 1326, 118))).toBe(false);
+  });
+
+  it('высокая, но не достающая до низа панель остаётся со скруглением', () => {
+    // Колонка Админки: 120..884 при высоте окна 900 - край не задет.
+    expect(isFlushTarget(rect(50, 120, 263, 764))).toBe(false);
+  });
+
+  it('пустая цель и отсутствие цели - не встык (центр-модалка без подсветки)', () => {
+    expect(isFlushTarget(rect(720, 450, 0, 0))).toBe(false);
+    expect(isFlushTarget(null)).toBe(false);
+    expect(isFlushTarget(undefined)).toBe(false);
+  });
+});
+
+/**
+ * driver.js 1.4 держит зазор и скругление только в глобальном конфиге, поэтому
+ * форму выреза переключает хук начала перехода. Проверяем, что переключение
+ * доходит до конфига и не сносит остальную настройку.
+ */
+describe('createDriver - форма выреза по цели шага', () => {
+  const { createDriver } = useOnboarding();
+
+  const steps = [
+    { id: 'a', route: '/news', element: '[data-testid="rail"]', title: 'Навигация', description: 'x' },
+    { id: 'b', route: '/news', element: '[data-testid="bell"]', title: 'Уведомления', description: 'y' },
+  ];
+
+  const rect = (x, y, w, h) => ({
+    getBoundingClientRect: () => ({ x, y, width: w, height: h, left: x, top: y, right: x + w, bottom: y + h }),
+  });
+
+  beforeEach(() => {
+    storeState.steps = steps;
+    storeState.skippedIndexes = [];
+    mocks.state.activeIndex = 0;
+    window.innerWidth = 1440;
+    window.innerHeight = 900;
+  });
+
+  it('цель во всю высоту снимает зазор и скругление', () => {
+    createDriver(steps, { startIndex: 0 });
+    mocks.state.config.onHighlightStarted(rect(0, 0, 248, 900));
+    expect(mocks.state.config.stagePadding).toBe(0);
+    expect(mocks.state.config.stageRadius).toBe(0);
+  });
+
+  it('следующая обычная цель возвращает зазор и скругление', () => {
+    createDriver(steps, { startIndex: 0 });
+    mocks.state.config.onHighlightStarted(rect(0, 0, 248, 900));
+    mocks.state.config.onHighlightStarted(rect(1186, 12, 35, 35));
+    expect(mocks.state.config.stagePadding).toBe(STAGE_PADDING);
+    expect(mocks.state.config.stageRadius).toBe(STAGE_RADIUS);
+  });
+
+  it('подмена конфига сохраняет шаги и хуки - иначе тур встал бы после первого перехода', () => {
+    createDriver(steps, { startIndex: 0 });
+    mocks.state.config.onHighlightStarted(rect(0, 0, 248, 900));
+    expect(mocks.state.config.steps).toHaveLength(2);
+    expect(typeof mocks.state.config.onNextClick).toBe('function');
+    expect(typeof mocks.state.config.onHighlighted).toBe('function');
+    expect(mocks.state.config.overlayOpacity).toBe(0.78);
+  });
+});
+
 describe('createDriver - прогресс и подсказка следующего шага', () => {
   const { createDriver } = useOnboarding();
 

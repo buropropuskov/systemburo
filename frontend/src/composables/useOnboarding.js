@@ -22,6 +22,40 @@ export function isMobileViewport() {
 }
 
 /**
+ * Зазор и скругление выреза подсветки по умолчанию. С 5px мелкие цели (галочка
+ * согласия) смотрелись обрезанными по краю выреза - «больше воздуха вокруг».
+ */
+export const STAGE_PADDING = 10;
+export const STAGE_RADIUS = 30;
+
+/**
+ * Обводить ли цель встык - без зазора и скругления.
+ *
+ * Панель сквозного поиска и рельс навигации занимают экран во всю высоту (а
+ * мобильный drawer - и во всю ширину). Общий зазор уводил их вырез за границу
+ * окна: у рельса он начинался на `y = -10` и кончался на `910` при высоте окна
+ * 900, то есть подсветка обрезалась краем экрана вместо того, чтобы обвести
+ * панель. Скругление 30px рисовало круглые углы там, где сама панель прямая и
+ * упирается в край.
+ *
+ * Судим по геометрии, а не по списку селекторов: цель, дотянувшаяся до
+ * противоположных краёв окна, ведёт себя так на любой ширине - и на 1440, и на
+ * 390, где во всю ширину растягивается уже панель поиска.
+ *
+ * @param {Element|null|undefined} element подсвечиваемая цель
+ * @returns {boolean}
+ */
+export function isFlushTarget(element) {
+  if (!element || typeof element.getBoundingClientRect !== 'function') return false;
+  if (typeof window === 'undefined') return false;
+  const r = element.getBoundingClientRect();
+  if (!r.width || !r.height) return false;
+  const spansHeight = r.top <= STAGE_PADDING && r.bottom >= window.innerHeight - STAGE_PADDING;
+  const spansWidth = r.left <= STAGE_PADDING && r.right >= window.innerWidth - STAGE_PADDING;
+  return spansHeight || spansWidth;
+}
+
+/**
  * Ответ `onBeforeStep`, когда цели шага на экране нет, но у шага есть демо-скриншот:
  * шаг не пропускаем, а показываем центр-модалом с картинкой вместо подсветки.
  */
@@ -456,6 +490,27 @@ export function useOnboarding() {
     }
 
     /**
+     * Подогнать форму выреза под цель ПЕРЕД тем, как driver начнёт её обводить.
+     *
+     * driver.js 1.4 держит `stagePadding`/`stageRadius` только в глобальном
+     * конфиге (в `DriveStep` их нет), но читает оба на каждом кадре отрисовки -
+     * поэтому подмена конфига в начале перехода застаёт и анимацию, и итоговый
+     * вырез. Конфиг заменяется целиком, отсюда разлив поверх `getConfig()`: без
+     * него потерялись бы хуки и шаги (тем же приёмом пользуется `setSteps`).
+     *
+     * @param {Element|undefined} element цель шага (undefined у центр-модалки)
+     */
+    function applyStageShape(element) {
+      if (!driverObj) return;
+      const flush = isFlushTarget(element);
+      const stagePadding = flush ? 0 : STAGE_PADDING;
+      const stageRadius = flush ? 0 : STAGE_RADIUS;
+      const config = driverObj.getConfig();
+      if (config.stagePadding === stagePadding && config.stageRadius === stageRadius) return;
+      driverObj.setConfig({ ...config, stagePadding, stageRadius });
+    }
+
+    /**
      * Шаг в формате driver.js. Пересобирается, когда шаг переключается между
      * подсветкой цели и видом без неё (setStepMode), поэтому сборка одна на оба
      * случая - иначе два вида разъехались бы по оформлению.
@@ -527,10 +582,9 @@ export function useOnboarding() {
       // Чётче выделение: затемнение фона плотнее, скругление 30px.
       // popoverOffset больше - карточка не наезжает на элемент.
       overlayOpacity: 0.78,
-      // Зазор вокруг подсвеченного: с 5px мелкие цели (галочка согласия) смотрелись
-      // обрезанными по краю выреза - «больше воздуха вокруг».
-      stagePadding: 10,
-      stageRadius: 30,
+      // Зазор и скругление - общие; на цели во весь экран их снимает applyStageShape.
+      stagePadding: STAGE_PADDING,
+      stageRadius: STAGE_RADIUS,
       popoverOffset: 16,
       popoverClass: 'ob-popover',
       nextBtnText: 'Далее',
@@ -711,6 +765,7 @@ export function useOnboarding() {
       // это только в конце своей анимации, и при быстрых «Далее» пометки
       // накапливались - на разделе «Автомобили» светились три элемента разом.
       onHighlightStarted(element) {
+        applyStageShape(element);
         dropStaleHighlights(element);
       },
       onHighlighted() {

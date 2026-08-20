@@ -69,7 +69,13 @@ describe('переключение подсветки', () => {
   // driver.js снимает класс с прежней цели только в конце своей анимации: при
   // быстрых «Далее» пометки накапливались и над затемнением торчали три элемента.
   it('прежняя подсветка снимается в начале перехода', () => {
-    expect(engine).toMatch(/onHighlightStarted\(element\)\s*\{\s*dropStaleHighlights\(element\)/);
+    expect(engine).toMatch(/onHighlightStarted\(element\)\s*\{[^}]*dropStaleHighlights\(element\)/);
+  });
+
+  // Зазор и скругление выреза driver.js держит только в глобальном конфиге, а
+  // читает на каждом кадре: подогнать их под цель можно ровно в начале перехода.
+  it('форма выреза подгоняется под цель там же, в начале перехода', () => {
+    expect(engine).toMatch(/onHighlightStarted\(element\)\s*\{[^}]*applyStageShape\(element\)/);
   });
 
   // Пока вырез едет, цель уже помечена классом driver.js. Если вешать на него
