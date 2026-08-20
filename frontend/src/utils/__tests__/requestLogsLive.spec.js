@@ -11,8 +11,8 @@ describe('journalRefreshBlock', () => {
     expect(journalRefreshBlock(watching)).toBe('');
   });
 
-  it('открытая карточка запроса держит список на месте', () => {
-    expect(journalRefreshBlock({ ...watching, hasSelection: true })).toBe('открыта карточка запроса');
+  it('открытое окно запроса держит список на месте', () => {
+    expect(journalRefreshBlock({ ...watching, hasSelection: true })).toBe('открыто окно запроса');
   });
 
   it('фоновая вкладка не опрашивает сервер', () => {

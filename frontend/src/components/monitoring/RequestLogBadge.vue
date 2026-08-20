@@ -16,7 +16,7 @@ import { getMethodClass, getStatusClass } from '@/utils/requestLogsFormat';
 const props = defineProps({
   kind: { type: String, required: true, validator: (v) => ['method', 'status'].includes(v) },
   value: { type: [String, Number], default: null },
-  // cell - строка таблицы (своя минимальная ширина), detail - карточка запроса.
+  // cell - строка таблицы (своя минимальная ширина), detail - окно запроса.
   variant: { type: String, default: 'cell' },
 });
 

@@ -89,129 +89,127 @@
     </div>
 
     <div class="content-container">
-      <div class="logs-table-section">
-        <div class="table-container">
-          <div class="table-header">
-            <div
-              v-for="col in sortableColumns"
-              :key="col.field"
-              class="header-col"
-              :class="col.cls"
-              @click="sortBy(col.field)"
-            >
-              <p :class="{ 'active-sort': state.sort === col.field }">
-                {{ col.label }}
-              </p>
-              <AppIcon
-                name="sort"
-                class="sort-icon"
-                :class="{
-                  'sorted': state.sort === col.field,
-                  'desc': state.sort === col.field && state.order === 'desc'
-                }"
-              />
-            </div>
-          </div>
-
-          <div class="table-body">
-            <div
-              v-for="log in logs"
-              :key="log.id"
-              class="table-row"
-              :class="{
-                'selected': selectedLog && selectedLog.id === log.id,
-                'error-row': log.response_status && log.response_status >= 400,
-                'success-row': log.response_status && log.response_status < 400
-              }"
-              @click="selectLog(log)"
-            >
-              <div class="table-col time-col">
-                <span
-                  class="cell-content"
-                  :title="formatFullDate(log.created_at)"
-                >
-                  {{ formatTime(log.created_at) }}
-                </span>
-              </div>
-              <div class="table-col method-col">
-                <RequestLogBadge
-                  kind="method"
-                  :value="log.method"
-                />
-              </div>
-              <div class="table-col path-col">
-                <span
-                  class="truncate-text"
-                  :title="log.url"
-                >
-                  {{ truncatePath(log.url) }}
-                </span>
-              </div>
-              <div class="table-col status-col">
-                <RequestLogBadge
-                  kind="status"
-                  :value="log.response_status"
-                />
-              </div>
-              <div class="table-col user-col">
-                <span class="cell-content">
-                  {{ log.username || 'Аноним' }}
-                  <span
-                    v-if="log.user_id"
-                    class="user-id"
-                  >(ID: {{ log.user_id }})</span>
-                </span>
-              </div>
-              <div class="table-col duration-col">
-                <span class="cell-content">
-                  {{ formatDuration(log) }}
-                </span>
-              </div>
-            </div>
-            <p
-              v-if="!logs.length"
-              class="empty-hint"
-            >
-              {{ journalError || 'Записей по такому отбору нет' }}
+      <div class="table-container">
+        <div class="table-header">
+          <div
+            v-for="col in sortableColumns"
+            :key="col.field"
+            class="header-col"
+            :class="col.cls"
+            @click="sortBy(col.field)"
+          >
+            <p :class="{ 'active-sort': state.sort === col.field }">
+              {{ col.label }}
             </p>
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
+                'sorted': state.sort === col.field,
+                'desc': state.sort === col.field && state.order === 'desc'
+              }"
+            />
           </div>
+        </div>
 
-          <div class="table-footer">
-            <div class="pagination-controls">
-              <button
-                :disabled="pagination.page <= 1"
-                class="pagination-btn"
-                @click="goToPage(-1)"
+        <div class="table-body">
+          <div
+            v-for="log in logs"
+            :key="log.id"
+            class="table-row"
+            :class="{
+              'selected': selectedLog && selectedLog.id === log.id,
+              'error-row': log.response_status && log.response_status >= 400,
+              'success-row': log.response_status && log.response_status < 400
+            }"
+            @click="selectLog(log)"
+          >
+            <div class="table-col time-col">
+              <span
+                class="cell-content"
+                :title="formatFullDate(log.created_at)"
               >
-                &larr;
-              </button>
-              <span class="page-info">
-                Страница {{ pagination.page }} из {{ totalPages }}
+                {{ formatTime(log.created_at) }}
               </span>
-              <button
-                :disabled="pagination.page >= totalPages"
-                class="pagination-btn"
-                @click="goToPage(1)"
-              >
-                &rarr;
-              </button>
-              <!-- Меню в body: подвал таблицы лежит в контейнере с
-                   overflow: hidden, и список размеров обрезался по нижней
-                   кромке - последний пункт выбрать было нельзя. -->
-              <BaseDropdown
-                :model-value="perPage"
-                class="page-size-dd"
-                :options="pageSizeOptions"
-                value-key="value"
-                label-key="label"
-                teleport
-                @update:model-value="changePageSize"
+            </div>
+            <div class="table-col method-col">
+              <RequestLogBadge
+                kind="method"
+                :value="log.method"
               />
             </div>
-            <span class="items-count">
-              Показано {{ logs.length }} из {{ pagination.total || 0 }} записей
-            </span>
+            <div class="table-col path-col">
+              <span
+                class="truncate-text"
+                :title="log.url"
+              >
+                {{ truncatePath(log.url) }}
+              </span>
+            </div>
+            <div class="table-col status-col">
+              <RequestLogBadge
+                kind="status"
+                :value="log.response_status"
+              />
+            </div>
+            <div class="table-col user-col">
+              <span class="cell-content">
+                {{ log.username || 'Аноним' }}
+                <span
+                  v-if="log.user_id"
+                  class="user-id"
+                >(ID: {{ log.user_id }})</span>
+              </span>
+            </div>
+            <div class="table-col duration-col">
+              <span class="cell-content">
+                {{ formatDuration(log) }}
+              </span>
+            </div>
           </div>
+          <p
+            v-if="!logs.length"
+            class="empty-hint"
+          >
+            {{ journalError || 'Записей по такому отбору нет' }}
+          </p>
+        </div>
+
+        <div class="table-footer">
+          <div class="pagination-controls">
+            <button
+              :disabled="pagination.page <= 1"
+              class="pagination-btn"
+              @click="goToPage(-1)"
+            >
+              &larr;
+            </button>
+            <span class="page-info">
+              Страница {{ pagination.page }} из {{ totalPages }}
+            </span>
+            <button
+              :disabled="pagination.page >= totalPages"
+              class="pagination-btn"
+              @click="goToPage(1)"
+            >
+              &rarr;
+            </button>
+            <!-- Меню в body: подвал таблицы лежит в контейнере с
+                 overflow: hidden, и список размеров обрезался по нижней
+                 кромке - последний пункт выбрать было нельзя. -->
+            <BaseDropdown
+              :model-value="perPage"
+              class="page-size-dd"
+              :options="pageSizeOptions"
+              value-key="value"
+              label-key="label"
+              teleport
+              @update:model-value="changePageSize"
+            />
+          </div>
+          <span class="items-count">
+            Показано {{ logs.length }} из {{ pagination.total || 0 }} записей
+          </span>
         </div>
       </div>
 
@@ -633,17 +631,13 @@ watch(() => props.hidden, (hidden) => {
   flex-wrap: wrap;
 }
 
+/* Деталь запроса открывается окном, поэтому таблица держит всю ширину раздела,
+   а не 65% под соседнюю колонку. Высоту на узких экранах снимает не этот блок, а
+   AdminPageShell: у него :deep(.content-container) с height:auto. */
 .content-container {
   display: flex;
   height: 500px;
   width: 100%;
-}
-
-.logs-table-section {
-  width: 65%;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid var(--border);
 }
 
 .table-container {
@@ -651,6 +645,8 @@ watch(() => props.hidden, (hidden) => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
   height: 100%;
 }
 
@@ -817,20 +813,6 @@ watch(() => props.hidden, (hidden) => {
   font-size: 13px;
   text-align: center;
   padding: 16px;
-}
-
-@media (max-width: 1200px) {
-  .content-container {
-    flex-direction: column;
-    height: auto;
-  }
-
-  .logs-table-section {
-    width: 100% !important;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-    height: 400px;
-  }
 }
 
 @media (max-width: 768px) {
