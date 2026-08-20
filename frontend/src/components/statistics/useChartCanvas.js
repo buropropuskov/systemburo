@@ -207,6 +207,9 @@ export const TOOLTIP_STYLE = {
   padding: 10,
   cornerRadius: 6,
   displayColors: true,
+  // Отступ от точки: вплотную подсказка накрывала её собой, и наведение
+  // показывало число ценой того места, куда смотришь.
+  caretPadding: 12,
 };
 
 /**

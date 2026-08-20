@@ -59,6 +59,15 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  /**
+   * Рисовать кольцо и без данных: серый ободок с нулём в центре вместо
+   * заглушки текстом. Нужно там, где график - постоянная часть раскладки и его
+   * исчезновение читается как поломка, а не как «за период ничего не было».
+   */
+  emptyRing: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const canvas = ref(null);
@@ -70,16 +79,28 @@ const segments = computed(() =>
     .filter((d) => d.value > 0),
 );
 
-const hasData = computed(() => segments.value.length > 0);
+const hasData = computed(() => segments.value.length > 0 || props.emptyRing);
 
-const labels = computed(() => segments.value.map((d) => d.label));
-const series = computed(() => segments.value.map((d) => d.value));
+// Кольцо без единого сегмента: рисуем ободок-заглушку, чтобы место графика не
+// пустело. Заглушка не сегмент данных - у неё нет подсказки, доли и легенды.
+const isEmptyRing = computed(() => segments.value.length === 0 && props.emptyRing);
+
+const labels = computed(() => (isEmptyRing.value ? [''] : segments.value.map((d) => d.label)));
+// Единица заглушки - не значение, а способ получить у Chart.js замкнутую дугу:
+// сегмент нулевой величины он не рисует вовсе.
+const series = computed(() => (isEmptyRing.value ? [1] : segments.value.map((d) => d.value)));
 
 // Палитру раскладываем по сегментам сами: сегментов может быть больше, чем
 // цветов, и тогда набор идёт по кругу.
 const segmentColors = computed(() =>
   segments.value.map((_, i) => props.colors[i % props.colors.length]),
 );
+
+// Заглушка красится подложкой темы: ободок виден, но не притворяется данными.
+// Цвет отдаётся функцией, а НЕ массивом из одной функции: значения внутри
+// массива Chart.js раскладывает по сегментам как есть и вычисляемыми не считает
+// - функция уходила в холст цветом и кольцо рисовалось чёрным.
+const ringColor = themeColor('--surface-2', '#eef0f7');
 
 function pluralize(n) {
   const [one, few, many] = props.unitForms;
@@ -104,8 +125,10 @@ const config = computed(() => ({
     datasets: [
       {
         data: series.value,
-        backgroundColor: segmentColors.value,
-        hoverBackgroundColor: segmentColors.value.map((c) => lighten(c, 0.06)),
+        backgroundColor: isEmptyRing.value ? ringColor : segmentColors.value,
+        hoverBackgroundColor: isEmptyRing.value
+          ? ringColor
+          : segmentColors.value.map((c) => lighten(c, 0.06)),
         // Разделитель в цвет карточки: белая обводка на тёмной теме читалась
         // жирным кольцом вокруг диаграммы.
         borderColor: themeColor('--surface', '#ffffff'),
@@ -121,7 +144,9 @@ const config = computed(() => ({
     cutout: '64%',
     animation: { duration: 400, easing: 'easeInOutQuad' },
     plugins: {
+      sliceLabels: { display: !isEmptyRing.value },
       legend: {
+        display: !isEmptyRing.value,
         position: 'bottom',
         labels: {
           color: themeColor('--text', '#666'),
@@ -135,6 +160,7 @@ const config = computed(() => ({
       },
       tooltip: {
         ...TOOLTIP_STYLE,
+        enabled: !isEmptyRing.value,
         callbacks: {
           // Имя сегмента уже стоит в строке значения — отдельный заголовок
           // повторял бы его.
@@ -149,7 +175,11 @@ const config = computed(() => ({
   },
   plugins: [
     sliceLabelsPlugin,
-    centerLabelPlugin({ label: props.totalLabel, format: formatValue }),
+    centerLabelPlugin({
+      label: props.totalLabel,
+      format: formatValue,
+      total: isEmptyRing.value ? 0 : null,
+    }),
   ],
 }));
 

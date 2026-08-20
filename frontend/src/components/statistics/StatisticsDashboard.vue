@@ -128,69 +128,67 @@
       </Transition>
     </div>
 
-    <!-- ===== ГРУППА: ВЛОЖЕНИЯ ===== -->
-    <div class="dashboard__group">
-      <div class="dashboard__group-head">
-        <h2 class="dashboard__group-title">Вложения</h2>
-        <span class="dashboard__group-chip">по типам за период</span>
-        <span class="dashboard__group-rule" />
-      </div>
+    <!-- ===== ВЛОЖЕНИЯ И PUSH: два блока в одну строку ===== -->
+    <div class="dashboard__pair">
+      <div class="dashboard__group">
+        <div class="dashboard__group-head">
+          <h2 class="dashboard__group-title">Вложения</h2>
+          <span class="dashboard__group-chip">по типам за период</span>
+          <span class="dashboard__group-rule" />
+        </div>
 
-      <div
-        v-if="summaryLoading && !summaryReady"
-        class="dashboard__tiles"
-      >
         <div
-          v-for="n in 6"
-          :key="n"
-          class="dashboard__tile dashboard__tile--skeleton"
-        />
-      </div>
-
-      <div
-        v-else-if="attachmentBreakdown.length === 0"
-        class="dashboard__feed-empty"
-      >
-        В системе нет настроенных типов вложений
-      </div>
-
-      <div
-        v-else
-        class="dashboard__attach"
-      >
-        <Transition name="dashboard__chart-fade">
+          v-if="summaryLoading && !summaryReady"
+          class="dashboard__tiles"
+        >
           <div
-            v-if="attachmentDonutData.length > 0"
-            class="dashboard__attach-chart"
-          >
+            v-for="n in 6"
+            :key="n"
+            class="dashboard__tile dashboard__tile--skeleton"
+          />
+        </div>
+
+        <div
+          v-else-if="attachmentBreakdown.length === 0"
+          class="dashboard__feed-empty"
+        >
+          В системе нет настроенных типов вложений
+        </div>
+
+        <div
+          v-else
+          class="dashboard__attach"
+        >
+          <div class="dashboard__attach-chart">
             <AnalyticsDonutChart
               :data="attachmentDonutData"
-              :height="280"
+              :height="240"
               total-label="Вложений"
               :unit-forms="['вложение', 'вложения', 'вложений']"
+              empty-ring
             />
           </div>
-        </Transition>
-        <div class="dashboard__tiles dashboard__attach-tiles">
-          <div
-            v-for="item in attachmentBreakdown"
-            :key="item.label"
-            class="dashboard__tile"
-          >
-            <div class="dashboard__tile-label">{{ item.label }}</div>
-            <div class="dashboard__tile-val">
-              <AnimatedNumber :value="item.count" />
+          <div class="dashboard__tiles dashboard__attach-tiles">
+            <div
+              v-for="item in attachmentBreakdown"
+              :key="item.label"
+              class="dashboard__tile"
+            >
+              <div class="dashboard__tile-label">{{ item.label }}</div>
+              <div class="dashboard__tile-val">
+                <AnimatedNumber :value="item.count" />
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- ===== PUSH-УВЕДОМЛЕНИЯ (#974) =====
-         Снимок на сейчас, не завязан на выбранный период (from/to) - в отличие
-         от групп выше, поэтому не в watch([props.from, props.to]) и не в
-         summarySeq/summaryLoading, а сам себе загружает и обновляет данные. -->
-    <PushAdoptionSummary ref="pushAdoptionRef" />
+      <!-- ===== PUSH-УВЕДОМЛЕНИЯ (#974) =====
+           Снимок на сейчас, не завязан на выбранный период (from/to) - в отличие
+           от групп выше, поэтому не в watch([props.from, props.to]) и не в
+           summarySeq/summaryLoading, а сам себе загружает и обновляет данные. -->
+      <PushAdoptionSummary ref="pushAdoptionRef" />
+    </div>
 
     <!-- ===== ГРУППА: СИСТЕМА ===== -->
     <div class="dashboard__group">
@@ -1086,10 +1084,26 @@ onUnmounted(() => {
   gap: 12px;
 }
 
+/* Вложения и push-уведомления - две колонки одной строки: оба блока об одном
+   («сколько чего сейчас»), и порознь каждый занимал экран целиком ради одного
+   кольца с горстью чисел. Ниже 1200 места на две колонки нет - идут стопкой. */
+.dashboard__pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1200px) {
+  .dashboard__pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* Распределение вложений: donut слева, плитки-числа справа; на узких — стопкой. */
 .dashboard__attach {
   display: grid;
-  grid-template-columns: minmax(280px, 360px) 1fr;
+  grid-template-columns: minmax(220px, 300px) 1fr;
   gap: 20px;
   align-items: start;
 }
@@ -1101,8 +1115,12 @@ onUnmounted(() => {
   padding: 12px 14px;
 }
 
+/* Плитки рядом с кольцом идут столбцом: в половине ширины страницы сетка
+   auto-fill складывала их в одну колонку через раз, и высота блока прыгала
+   от числа типов вложений. */
 .dashboard__attach-tiles {
   min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .dashboard__chart-fade-enter-active,
