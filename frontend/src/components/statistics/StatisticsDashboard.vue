@@ -1084,20 +1084,12 @@ onUnmounted(() => {
   gap: 12px;
 }
 
-/* Вложения и push-уведомления - две колонки одной строки: оба блока об одном
-   («сколько чего сейчас»), и порознь каждый занимал экран целиком ради одного
-   кольца с горстью чисел. Ниже 1200 места на две колонки нет - идут стопкой. */
+/* Вложения и push - две колонки; auto-fit сводит в одну, когда мало места. */
 .dashboard__pair {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 560px), 1fr));
   gap: 20px;
   align-items: start;
-}
-
-@media (max-width: 1200px) {
-  .dashboard__pair {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 /* Распределение вложений: donut слева, плитки-числа справа; на узких — стопкой. */
@@ -1115,23 +1107,11 @@ onUnmounted(() => {
   padding: 12px 14px;
 }
 
-/* Плитки рядом с кольцом идут столбцом: в половине ширины страницы сетка
-   auto-fill складывала их в одну колонку через раз, и высота блока прыгала
-   от числа типов вложений. */
+/* Столбцом рядом с кольцом: auto-fill на половине ширины клал их то в одну
+   колонку, то в две, и высота блока прыгала от числа типов вложений. */
 .dashboard__attach-tiles {
   min-width: 0;
   grid-template-columns: minmax(0, 1fr);
-}
-
-.dashboard__chart-fade-enter-active,
-.dashboard__chart-fade-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.dashboard__chart-fade-enter-from,
-.dashboard__chart-fade-leave-to {
-  opacity: 0;
-  transform: translateY(8px);
 }
 
 @media (max-width: 900px) {
