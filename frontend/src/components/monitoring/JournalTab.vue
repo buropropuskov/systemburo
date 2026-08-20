@@ -141,8 +141,15 @@
         </div>
 
         <div class="table-body">
+          <LoaderSpinner
+            v-if="isFirstLoad"
+            class="table-loading"
+            size="large"
+            label="Загрузка журнала…"
+          />
           <div
             v-for="log in logs"
+            v-else
             :key="log.id"
             class="table-row rt-row"
             :class="{
@@ -213,7 +220,7 @@
             </div>
           </div>
           <p
-            v-if="!logs.length"
+            v-if="!isFirstLoad && !logs.length"
             class="empty-hint"
           >
             {{ journalError || 'Записей по такому отбору нет' }}
@@ -256,6 +263,10 @@
             Показано {{ logs.length }} из {{ pagination.total || 0 }} записей
           </span>
         </div>
+
+        <!-- Обновление накрывает плёнкой только таблицу: раздел с показателями,
+             графиком и отбором при этом остаётся живым и читаемым. -->
+        <RefreshOverlay v-if="isRefreshing" />
       </div>
 
       <LogDetails
@@ -274,6 +285,8 @@ import RealTimeChart from '@/components/RealTimeChart.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
+import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
+import RefreshOverlay from '@/components/ui/RefreshOverlay.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import LogDetails from './LogDetails.vue';
 import RequestLogBadge from './RequestLogBadge.vue';
@@ -323,6 +336,13 @@ const selectedLog = ref(null);
 const perPage = ref(String(state.perPage));
 const pagination = reactive({ page: state.page, per_page: state.perPage, total: 0 });
 const isLoading = ref(false);
+// Список уже показывали хотя бы раз: до этого места плёнка обновления не нужна -
+// накрывать под ней нечего, там лоадер вместо строк.
+const hasLoaded = ref(false);
+// Список перечитывает сам себя по таймеру ленты. Такой заход не показывается
+// вовсе: плёнка раз в десять секунд - мельтешение, а поднятый признак загрузки
+// глотал бы клик по «Обновить» (кнопка игнорирует его, пока грузится).
+const isSilentRefresh = ref(false);
 const isExporting = ref(false);
 const journalError = ref('');
 const autoRefresh = ref(true);
@@ -335,6 +355,10 @@ const sectionErrors = new Set();
 // и обновление подряд, а отвечают они не в том порядке, в каком ушли: без
 // номера медленный ответ прошлого фильтра затирает свежий.
 let logsSeq = 0;
+// Отказ сети в тихом тике сообщается один раз за серию: лента дёргается каждые
+// десять секунд, и минута без сети выстроила бы очередь одинаковых тостов,
+// которых человек не просил. Успешный ответ снимает отметку.
+let silentErrorReported = false;
 let logsTimer = null;
 let timelineTimer = null;
 
@@ -344,6 +368,9 @@ const journalRange = computed(() => ({ start: ymdToDate(state.from), end: ymdToD
 const totalPages = computed(() => Math.max(1, Math.ceil((pagination.total || 0) / (pagination.per_page || 20))));
 const selectedPeriod = computed(() => chartPeriods.find(p => p.key === chartPeriod.value) || chartPeriods[4]);
 const orderTitle = computed(() => (state.order === 'desc' ? 'По убыванию' : 'По возрастанию'));
+const isFirstLoad = computed(() => isLoading.value && !hasLoaded.value);
+const isRefreshing = computed(() => isLoading.value && hasLoaded.value && !isSilentRefresh.value);
+const isVisibleLoading = computed(() => isLoading.value && !isSilentRefresh.value);
 
 /** Причина, по которой живая лента сейчас стоит. Пустая - лента обновляется. */
 const refreshBlock = computed(() => journalRefreshBlock({
@@ -353,7 +380,7 @@ const refreshBlock = computed(() => journalRefreshBlock({
   page: pagination.page,
 }));
 
-watch(isLoading, (value) => emit('update:loading', value));
+watch(isVisibleLoading, (value) => emit('update:loading', value));
 
 /** Текущий отбор в том виде, в каком его читают утилиты адреса. */
 function journalState() {
@@ -378,9 +405,15 @@ function syncQueryFromState() {
   if (next) router.replace({ query: next }).catch(() => {});
 }
 
-async function fetchLogs() {
+/**
+ * Читает страницу журнала. `silent` ставит только самообновление ленты: строки
+ * подменяются молча, без плёнки поверх таблицы.
+ * @param {{ silent?: boolean }} [options]
+ */
+async function fetchLogs({ silent = false } = {}) {
   const seq = ++logsSeq;
   syncQueryFromState();
+  isSilentRefresh.value = silent;
   isLoading.value = true;
   try {
     const params = new URLSearchParams({
@@ -402,6 +435,7 @@ async function fetchLogs() {
     if (seq !== logsSeq) return;
     if (body && body.success) {
       journalError.value = '';
+      silentErrorReported = false;
       logs.value = body.data || [];
       if (body.meta) {
         pagination.total = body.meta.total || 0;
@@ -412,9 +446,17 @@ async function fetchLogs() {
   } catch (error) {
     if (seq !== logsSeq) return;
     journalError.value = describeLoadError(error, 'загрузить журнал');
-    deletions.notify({ prefix: 'Не удалось загрузить ', bold: 'логи', type: 'error' });
+    const alreadyReported = silent && silentErrorReported;
+    if (silent) silentErrorReported = true;
+    if (!alreadyReported) {
+      deletions.notify({ prefix: 'Не удалось загрузить ', bold: 'логи', type: 'error' });
+    }
   } finally {
-    if (seq === logsSeq) isLoading.value = false;
+    if (seq === logsSeq) {
+      isLoading.value = false;
+      isSilentRefresh.value = false;
+      hasLoaded.value = true;
+    }
   }
 }
 
@@ -582,7 +624,7 @@ async function exportLogs() {
  */
 function tickLogs() {
   if (!autoRefresh.value || refreshBlock.value || isLoading.value) return;
-  fetchLogs();
+  fetchLogs({ silent: true });
 }
 
 onMounted(async () => {
@@ -701,6 +743,7 @@ watch(() => props.hidden, (hidden) => {
 
 .table-container {
   background: var(--surface);
+  position: relative;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -803,6 +846,10 @@ watch(() => props.hidden, (hidden) => {
   flex: 1;
   overflow-y: auto;
   max-height: 500px;
+}
+
+.table-loading {
+  padding: 32px 16px;
 }
 
 .table-row {

@@ -19,7 +19,12 @@ export const stubs = {
   teleport: true,
   // Кнопка обновления и тумблер ленты подменяются рабочими заглушками: тесты
   // жмут их как пользователь, поэтому пустой шаблон здесь не годится.
-  RefreshButton: { template: '<button class="refresh-stub" @click="$emit(\'refresh\')" />' },
+  // Проп loading заглушка держит классом: раздел показывает им обновление, и
+  // спеки проверяют именно его, а не факт вызова.
+  RefreshButton: {
+    props: ['loading'],
+    template: '<button class="refresh-stub" :class="{ \'is-loading\': loading }" @click="$emit(\'refresh\')" />',
+  },
   SearchComponent: { template: '<input class="search-stub" />' },
   RealTimeChart: { template: '<div class="chart-stub" />' },
   // График по суткам рисует Chart.js на холсте, которого в jsdom нет. Заглушка
