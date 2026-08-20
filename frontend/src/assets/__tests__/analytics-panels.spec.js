@@ -40,6 +40,18 @@ describe('раскладка панелей аналитики', () => {
     expect(body).toMatch(/min-width\s*:\s*0/);
   });
 
+  it('кольцо растёт по высоте карточки, но не сплющивается на коротком списке', () => {
+    expect(rule('.an-panel__chart')).toMatch(/min-height\s*:\s*300px/);
+    expect(rule('.an-panel__chart > *')).toMatch(/flex\s*:\s*1 1 auto/);
+  });
+
+  it('плитки прижаты к верху и уходят в две колонки на длинном списке', () => {
+    // Без align-content строки делят высоту карточки поровну: две плитки
+    // раздувались вдвое против своей высоты.
+    expect(rule('.an-panel__tiles')).toMatch(/align-content\s*:\s*start/);
+    expect(rule('.an-panel__tiles:has(> :nth-child(7))')).toMatch(/grid-template-columns\s*:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  });
+
   it('панель отдаёт кольцу фиксированный трек, а числам - остаток', () => {
     expect(rule('.an-panel')).toMatch(/grid-template-columns\s*:\s*minmax\(0,\s*280px\)\s+minmax\(0,\s*1fr\)/);
   });
