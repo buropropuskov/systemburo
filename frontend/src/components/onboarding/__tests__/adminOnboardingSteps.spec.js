@@ -98,6 +98,19 @@ describe('adminOnboardingSteps - состав', () => {
     }
   });
 
+  /**
+   * Шаг-перечисление обещан реестром покрытия как место, где назван журнал
+   * обращений: `tourCoverage.json` ссылается на него и роутом `/admin/requests`,
+   * и правом `page.admin.monitoring`. Раздел там пропустили - реестр обещал
+   * объяснение, которого в тексте не было. Проверяем поимённо, иначе такая
+   * запись снова станет формальной.
+   */
+  it('шаг-перечисление называет разделы, которые обещает реестр покрытия', () => {
+    const more = adminOnboardingSteps.find((s) => s.id === 'admin-more');
+    ['Конструктор таблиц', 'Типы вложений', 'Файловый архив', 'Мониторинг запросов', 'Журнал отказов']
+      .forEach((label) => expect(more.description, label).toContain(label));
+  });
+
   it('финал - последний шаг: празднование и кнопка «Обучение» на «Обзоре»', () => {
     const last = adminOnboardingSteps[adminOnboardingSteps.length - 1];
     expect(last.celebrate).toBe(true);
