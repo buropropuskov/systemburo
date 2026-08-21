@@ -53,6 +53,13 @@ function collectTestIds() {
       for (const m of source.matchAll(/content-testid\s*=\s*["']([^"'`${}]+)["']/g)) {
         found.add(m[1]);
       }
+      // testid из реестра-конфига, а не из разметки: ApplicationTags берёт имя у
+      // описания тега (applicationTags.js) и вешает через :data-testid. Якорь такой
+      // же живой - литерал лежит в исходнике рядом с признаком, по которому тег
+      // появляется, и исчезнет вместе с ним.
+      for (const m of source.matchAll(/testid:\s*\(\s*\w*\s*\)\s*=>\s*['"]([^'"`${}]+)['"]/g)) {
+        found.add(m[1]);
+      }
       // Условная привязка вида `:data-testid="выбран ? 'ob-blank-selected' : null"`:
       // имя тут - обычный литерал, и якорь на него настоящий. Шаблонные строки
       // по-прежнему не берём - там имя собирается в рантайме.
