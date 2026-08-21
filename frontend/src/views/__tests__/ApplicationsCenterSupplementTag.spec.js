@@ -4,6 +4,7 @@ import { setActivePinia, createPinia } from 'pinia';
 
 import ApplicationsCenter from '../ApplicationsCenter.vue';
 import { usePermissionsStore } from '@/stores/permissions';
+import { buildApplicationTags, layoutApplicationTags } from '@/utils/applicationTags';
 
 vi.mock('@/api/client', () => ({ apiRequest: vi.fn().mockResolvedValue({ ok: false, json: vi.fn().mockResolvedValue([]) }) }));
 vi.mock('@/api/applications', () => ({
@@ -100,12 +101,13 @@ describe('ApplicationsCenter — тег «Дополнение» (#1685)', () =>
     expect(tagsFilter.options).toContainEqual({ value: 'supplement', label: 'Дополнение' });
   });
 
-  // Колонка тегов фиксированной ширины: не учтённый в счётчике тег не даёт соседям
-  // свернуться и вылезает поверх колонки действий (#1315 S2).
-  it('tagsAreCompact учитывает тег дополнения', () => {
-    wrapper = mountCenter();
+  // Колонка тегов узкая: не учтённый в раскладке тег не даёт соседям свернуться и
+  // вылезает поверх колонки действий (#1315 S2).
+  it('тег дополнения участвует в раскладке колонки', () => {
+    const tags = buildApplicationTags({ has_open_supplement: true, sender_is_important: true });
+    expect(tags.map(t => t.key)).toContain('supplement');
 
-    expect(wrapper.vm.tagsAreCompact({ has_open_supplement: true, sender_is_important: true })).toBe(true);
-    expect(wrapper.vm.tagsAreCompact({ has_open_supplement: true })).toBe(false);
+    const narrow = layoutApplicationTags(tags, 90);
+    expect(narrow.visible.every(e => e.mode !== 'text')).toBe(true);
   });
 });
