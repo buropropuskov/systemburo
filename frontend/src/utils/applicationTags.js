@@ -251,3 +251,53 @@ export function layoutApplicationTags(tags, availableWidth) {
 
   return { visible, hidden };
 }
+
+/**
+ * Ширина панели скрытых тегов: они лежат в ней строкой и переносятся, поэтому
+ * ширину подбираем под содержимое, а не задаём наугад.
+ *
+ * Ищем самую узкую ширину, при которой теги укладываются в наименьшее возможное
+ * число строк. Так строки заполняются под завязку: панель не бывает шире, чем
+ * нужно этой раскладке, и в ней не остаётся одинокого хвоста из последнего тега.
+ * Если тег шире предела, панель растёт под него - обрезать подпись нельзя.
+ *
+ * @param {Array} tags скрытые теги (показываются полными подписями)
+ * @param {number} maxRowWidth предел ширины строки в px
+ * @returns {number} ширина содержимого панели в px (без отступов самой панели)
+ */
+export function hiddenTagsPanelWidth(tags, maxRowWidth = 420) {
+  if (!tags || !tags.length) return 0;
+  const widths = tags.map((tag) => Math.ceil(tagWidth(tag, 'text')));
+  const widest = Math.max(...widths);
+  const single = widths.reduce((sum, w) => sum + w, 0) + TAG_GAP * (widths.length - 1);
+
+  /** Сколько строк займут теги при переносе по ширине width - так же, как это сделает flex-wrap. */
+  const rowsAt = (width) => {
+    let rows = 1;
+    let used = 0;
+    for (const w of widths) {
+      if (used === 0) used = w;
+      else if (used + TAG_GAP + w <= width) used += TAG_GAP + w;
+      else { rows += 1; used = w; }
+    }
+    return rows;
+  };
+
+  /** Самая узкая ширина, при которой хватает rowLimit строк. */
+  const narrowestFor = (rowLimit) => {
+    let low = widest;
+    let high = single;
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      if (rowsAt(mid) <= rowLimit) high = mid;
+      else low = mid + 1;
+    }
+    return low;
+  };
+
+  for (let rowLimit = 1; rowLimit <= widths.length; rowLimit++) {
+    const width = narrowestFor(rowLimit);
+    if (width <= maxRowWidth || rowLimit === widths.length) return width;
+  }
+  return widest;
+}

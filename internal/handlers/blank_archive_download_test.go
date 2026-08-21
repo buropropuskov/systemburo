@@ -171,13 +171,11 @@ func TestFileArchiveDownload_Application(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	})
 
-	// Отправитель видит свою заявку, но сохранённые бланки внутри ZIP собраны с
-	// документами участников, и вырезать их из готового .xlsx при отдаче нечем.
-	// Поэтому архив требует того же права, что и скачивание бланка с документами
-	// поштучно: иначе закрытое по одному забиралось бы архивом целиком.
-	t.Run("отправитель без права на документы архив не скачивает", func(t *testing.T) {
+	// В ZIP лежат сохранённые бланки с документами участников, поэтому он открыт
+	// инициатору заявки и носителю права на выгрузку - как и бланк поштучно.
+	t.Run("отправитель скачивает ZIP своей заявки", func(t *testing.T) {
 		rec := testutil.GET(t, e, url, testutil.AuthHeader(senderToken))
-		require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	})
 
 	t.Run("админ скачивает ZIP заявки со слепком и бланком", func(t *testing.T) {

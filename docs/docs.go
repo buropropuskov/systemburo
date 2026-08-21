@@ -2074,7 +2074,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "boolean",
-                        "description": "Подставить документы участников (паспорт, патент, иное разрешение). Требует прав detail.documents и detail.documents.export; без них бланк уходит с прочерками независимо от параметра",
+                        "description": "Подставить документы участников (паспорт, патент, иное разрешение). Доступно инициатору заявки, а прочим - по правам detail.documents и detail.documents.export; без этого бланк уходит с прочерками независимо от параметра",
                         "name": "documents",
                         "in": "query"
                     }
@@ -26016,6 +26016,9 @@ const docTemplate = `{
             "properties": {
                 "id": {
                     "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
                 },
                 "username": {
                     "type": "string"

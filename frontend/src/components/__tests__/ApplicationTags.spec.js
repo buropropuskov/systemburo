@@ -180,8 +180,20 @@ describe('ApplicationTags — список скрытых тегов', () => {
 
     const left = parseInt(wrapper.vm.popoverStyle.left, 10);
     const width = parseInt(wrapper.vm.popoverStyle.width, 10);
+    expect(width).toBe(wrapper.vm.popoverWidth);
     expect(left + width).toBeLessThanOrEqual(1440);
     expect(left).toBeGreaterThanOrEqual(0);
+  });
+
+  it('панель складывает теги в строку: ширина по содержимому, не по числу тегов', async () => {
+    wrapper = mountTags(ALL_FLAGS, 90);
+    await wrapper.find('[data-testid="center-tags-more"]').trigger('click');
+
+    const hidden = wrapper.vm.layout.hidden;
+    const widest = Math.max(...hidden.map((t) => t.text.length));
+    // Ширина панели заведомо больше самого длинного тега - иначе теги встали бы
+    // столбцом по одному в строке.
+    expect(wrapper.vm.popoverWidth).toBeGreaterThan(widest * 7);
   });
 
   it('колонка расширилась и прятать стало нечего - список закрывается сам', async () => {
