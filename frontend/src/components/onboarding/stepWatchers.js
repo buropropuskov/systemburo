@@ -11,7 +11,8 @@
  *   getDriver: () => (object|null),
  *   getGen: () => number,
  *   getStep: (globalIndex: number) => (object|undefined),
- *   getIndex: () => number
+ *   getIndex: () => number,
+ *   getRevealOpen?: () => (string|null)
  * }} deps доступ к живому состоянию хоста: инстанс driver, поколение (чтобы
  *   отложенное срабатывание не трогало уже сменённый сегмент), шаг и текущий индекс
  * @returns {{ watchStep: Function, stopAll: Function }}
@@ -25,7 +26,7 @@ const VISIBILITY_CHECKS_MS = [350, 1200];
 /** Пауза между прокруткой к цели и пересчётом выреза - прокрутка плавная. */
 const REFRESH_AFTER_SCROLL_MS = 400;
 
-export function createStepWatchers({ getDriver, getGen, getStep, getIndex }) {
+export function createStepWatchers({ getDriver, getGen, getStep, getIndex, getRevealOpen = () => null }) {
   let advanceObserver = null;
   let retargetObserver = null;
   let visibilityTimers = [];
@@ -55,9 +56,17 @@ export function createStepWatchers({ getDriver, getGen, getStep, getIndex }) {
     if (!selector || typeof MutationObserver === 'undefined') return;
     // Узел мог появиться до подписки - проверяем сразу.
     if (document.querySelector(selector)) return;
+    // Тот же узел раскрывает следующий шаг, когда человек жмёт «Далее». Его
+    // появление тогда - работа самого тура, а не действие человека, и толкать
+    // шаг вперёд по нему нельзя: переход уже идёт, второй накладывается на него.
+    // Панель уведомлений от этого открывалась и тут же гасла, а тур застревал.
+    const openedByTour = getStep(globalIndex + 1)?.reveal?.open || null;
     const gen = getGen();
     advanceObserver = new MutationObserver(() => {
       if (!document.querySelector(selector)) return;
+      // Наблюдение не снимаем: человек может закрыть узел и открыть его сам -
+      // тогда переход по действию снова станет законным.
+      if (openedByTour && getRevealOpen() === openedByTour) return;
       stopAdvance();
       const driver = getDriver();
       if (!driver || gen !== getGen() || getIndex() !== globalIndex) return;
