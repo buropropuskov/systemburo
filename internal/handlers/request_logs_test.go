@@ -198,9 +198,9 @@ func TestRequestLogs_Stats_TodayInMoscowDay(t *testing.T) {
 	assert.Equal(t, int64(1), body.Data.Today, "во вчерашних сутках запись остаётся вчерашней")
 }
 
-// Архивная учётная запись остаётся в фильтре «пользователь» и уходит в конец списка
-// (#2191). Пока их отсеивали, выбрать уволенного кликом было нельзя, а разбор
-// происшествия с его участием - ровно тот случай, ради которого журнал держат.
+// Порядок списка «пользователь»: активные, следом архивные (#2191). Сам факт, что
+// архивная запись из фильтра не исчезает, закрыт в request_logs_read_test.go - здесь
+// проверяется только порядок, ради которого и затевалось разделение.
 func TestRequestLogs_Users_ArchivedStayAtTheEnd(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -236,7 +236,7 @@ func TestRequestLogs_Users_ArchivedStayAtTheEnd(t *testing.T) {
 		}
 		assert.False(t, archivedSeen(users, u.Username), "активные должны идти до архивных")
 	}
-	assert.True(t, archived, "архивная учётная запись должна остаться в списке фильтра")
+	require.True(t, archived, "без архивной записи в ответе порядок проверять не на чем")
 	assert.Contains(t, names, "zzzactive")
 }
 
