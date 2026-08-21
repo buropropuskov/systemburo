@@ -81,6 +81,11 @@ func seedDocumentsGateApplication(t *testing.T, db *gorm.DB, td testutil.TestDat
 	return fx
 }
 
+// documentMaskInBlank - длинное тире, которое встаёт на месте закрытых сведений.
+// Зеркало documentMask из attachment_blank_resolver.go: короткий дефис в печатной
+// форме теряется рядом с цифрами соседних столбцов.
+const documentMaskInBlank = "—"
+
 // blankCell читает ячейку скачанного бланка. Отдельная функция, потому что каждая
 // проверка ниже смотрит на одну и ту же книгу с разных сторон.
 func blankCell(t *testing.T, body []byte, ref string) string {
@@ -118,9 +123,9 @@ func TestBlankDownload_DocumentsGate(t *testing.T) {
 
 		body := rec.Body.Bytes()
 		assert.Equal(t, "Документов", blankCell(t, body, "A10"), "фамилия документом не является и остаётся на месте")
-		assert.Equal(t, "-", blankCell(t, body, "B10"), "паспорт")
-		assert.Equal(t, "-", blankCell(t, body, "C10"), "патент")
-		assert.Equal(t, "-", blankCell(t, body, "D10"), "иное разрешение")
+		assert.Equal(t, documentMaskInBlank, blankCell(t, body, "B10"), "паспорт")
+		assert.Equal(t, documentMaskInBlank, blankCell(t, body, "C10"), "патент")
+		assert.Equal(t, documentMaskInBlank, blankCell(t, body, "D10"), "иное разрешение")
 	})
 
 	t.Run("параметр documents без права ничего не открывает", func(t *testing.T) {
@@ -128,7 +133,7 @@ func TestBlankDownload_DocumentsGate(t *testing.T) {
 		// должен работать, иначе право обходится правкой адресной строки.
 		rec := testutil.GET(t, e, url+"&documents=true", testutil.AuthHeader(senderToken))
 		require.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, "-", blankCell(t, rec.Body.Bytes(), "B10"))
+		assert.Equal(t, documentMaskInBlank, blankCell(t, rec.Body.Bytes(), "B10"))
 	})
 
 	t.Run("с правом и запрошенным режимом документы на месте", func(t *testing.T) {
@@ -146,7 +151,7 @@ func TestBlankDownload_DocumentsGate(t *testing.T) {
 		// персональных данных должен быть выбран явно, а не достаться по умолчанию.
 		rec := testutil.GET(t, e, url, testutil.AuthHeader(adminToken))
 		require.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, "-", blankCell(t, rec.Body.Bytes(), "B10"))
+		assert.Equal(t, documentMaskInBlank, blankCell(t, rec.Body.Bytes(), "B10"))
 	})
 
 	// Закрытие сохранённого файла проверяется там, где этот файл реально есть:
