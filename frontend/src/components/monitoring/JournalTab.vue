@@ -166,7 +166,7 @@
                 class="cell-content"
                 :title="formatFullDate(log.created_at)"
               >
-                {{ formatTime(log.created_at) }}
+                {{ formatStamp(log.created_at) }}
               </span>
             </div>
             <div
@@ -301,7 +301,7 @@ import {
 } from '@/utils/requestLogsQuery';
 import { CHART_PERIODS, DEFAULT_CHART_PERIOD, JOURNAL_REFRESH_MS, journalRefreshBlock } from '@/utils/requestLogsLive';
 import {
-  describeLoadError, exportNotice, formatDuration, formatFullDate, formatTime, truncatePath
+  describeLoadError, exportNotice, formatDuration, formatFullDate, formatStamp, truncatePath
 } from '@/utils/requestLogsFormat';
 
 /**
@@ -842,10 +842,12 @@ watch(() => props.hidden, (hidden) => {
   inset: -5px;
 }
 
+/* Своей прокрутки у тела нет: страница отдаёт разделу один скроллпорт -
+   оболочку admin-page. Пока тело прокручивалось само, оно же и обрезалось
+   снаружи, и до строк было не добраться. Число строк ограничивает пагинация
+   (20/50/100), поэтому раздел конечен по высоте. */
 .table-body {
   flex: 1;
-  overflow-y: auto;
-  max-height: 500px;
 }
 
 .table-loading {
