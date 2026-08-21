@@ -22,19 +22,22 @@
           </div>
 
           <!-- Наполнение бланка - тумблер, а не вкладки: включено или нет, третьего
-               состояния нет, и подпись читается сразу. Видно только тем, кому документы
+               состояния нет, и подпись читается сразу. Блок отделён от списка фоном и
+               рамкой, а тумблер стоит справа - у строк списка он слева, и без этого
+               настройка читалась как ещё одно вложение. Видно только тем, кому документы
                участников положены; остальным идёт строка о том, почему в файле прочерки. -->
           <div
             v-if="showDocumentsChoice"
-            class="dbm-documents"
+            class="dbm-option"
           >
+            <span class="dbm-option-text">
+              <span class="dbm-option-title">Паспортные данные</span>
+              <span class="dbm-option-hint">{{ withDocuments ? 'Попадут в бланк' : 'В бланке будет прочерк' }}</span>
+            </span>
             <ToggleSwitch
               v-model="withDocuments"
               data-testid="blank-documents-toggle"
-            >
-              Паспортные данные
-            </ToggleSwitch>
-            <span class="dbm-documents-hint">{{ withDocuments ? 'Попадут в бланк' : 'В бланке будет прочерк' }}</span>
+            />
           </div>
           <p
             v-if="!isLoading && !error && eligibleAttachments.length && !canExportDocuments"
@@ -62,37 +65,37 @@
           >
             У заявки нет вложений с настроенным шаблоном бланка.
           </div>
-          <div
-            v-else
-            class="dbm-list"
-          >
-            <div
-              v-for="att in eligibleAttachments"
-              :key="att.id"
-              class="dbm-item"
-              :class="{ selected: selectedIds.includes(att.id) }"
-            >
-              <ToggleSwitch
-                :model-value="selectedIds.includes(att.id)"
-                :data-testid="`blank-select-${att.id}`"
-                @update:model-value="toggleSelected(att.id, $event)"
-              />
-              <div class="dbm-item-info">
-                <span class="dbm-item-name">{{ att.attachment_display_name || att.unique_attachment_display_name || att.attachment_name }}</span>
-                <span
-                  v-if="attachmentTypeLabel(att.attachment_type)"
-                  class="dbm-item-type"
-                >{{ attachmentTypeLabel(att.attachment_type) }}</span>
-              </div>
-              <button
-                class="dbm-item-download"
-                :disabled="downloadingId === att.id"
-                @click.prevent="downloadOne(att)"
+          <template v-else>
+            <span class="dbm-list-title">Вложения</span>
+            <div class="dbm-list">
+              <div
+                v-for="att in eligibleAttachments"
+                :key="att.id"
+                class="dbm-item"
+                :class="{ selected: selectedIds.includes(att.id) }"
               >
-                {{ downloadingId === att.id ? '...' : 'Скачать' }}
-              </button>
+                <ToggleSwitch
+                  :model-value="selectedIds.includes(att.id)"
+                  :data-testid="`blank-select-${att.id}`"
+                  @update:model-value="toggleSelected(att.id, $event)"
+                />
+                <div class="dbm-item-info">
+                  <span class="dbm-item-name">{{ att.attachment_display_name || att.unique_attachment_display_name || att.attachment_name }}</span>
+                  <span
+                    v-if="attachmentTypeLabel(att.attachment_type)"
+                    class="dbm-item-type"
+                  >{{ attachmentTypeLabel(att.attachment_type) }}</span>
+                </div>
+                <button
+                  class="dbm-item-download"
+                  :disabled="downloadingId === att.id"
+                  @click.prevent="downloadOne(att)"
+                >
+                  {{ downloadingId === att.id ? '...' : 'Скачать' }}
+                </button>
+              </div>
             </div>
-          </div>
+          </template>
 
           <footer
             v-if="eligibleAttachments.length"
@@ -351,18 +354,45 @@ export default {
   color: var(--color-text);
 }
 
-/* Тумблер наполнения и подпись к нему стоят в одну строку: подпись поясняет
-   текущее положение словами, чтобы состояние читалось без догадок. */
-.dbm-documents {
+/* Блок настройки бланка. Отделён от перечня вложений собственным фоном и рамкой, а
+   тумблер стоит справа - в строках списка он слева. Без этого настройка читалась как
+   ещё одно вложение: одинаковый тумблер, одинаковая строка. */
+.dbm-option {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 24px 0;
+  margin: 16px 24px 0;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
 }
 
-.dbm-documents-hint {
-  font-size: 13px;
+.dbm-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dbm-option-title {
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.dbm-option-hint {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+/* Подпись перечня: второй маркер границы между настройкой и списком. */
+.dbm-list-title {
+  display: block;
+  padding: 18px 24px 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--color-text-muted);
 }
 

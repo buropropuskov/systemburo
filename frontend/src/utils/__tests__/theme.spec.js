@@ -274,7 +274,7 @@ describe('оформление: кнопки и теги', () => {
   it('рамка тега цвета текста включается только в тёмной теме', () => {
     // В тёмной приглушённая color-mix-рамка Badge сливалась с подложкой, в светлой
     // она к месту - там вид остаётся прежним.
-    for (const file of ['../../views/ApplicationsCenter.vue', '../../components/UserApplications.vue']) {
+    for (const file of ['../../components/ApplicationTags.vue', '../../components/UserApplications.vue']) {
       const css = read(file)
       const darkRule = css.match(/\[data-theme="dark"\]\s+\.rt-tag\s*\{([^}]*)\}/)
       expect(darkRule, `${file}: нет правила рамки для тёмной темы`).not.toBeNull()
