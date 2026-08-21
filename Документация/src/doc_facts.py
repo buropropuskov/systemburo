@@ -120,17 +120,28 @@ def metrics():
     m["public_routes"] = count(
         r"sed -n '/^\tapi := e.Group/,/^\tprotected := api.Group/p' "
         r"internal/router/router.go "
-        r"| grep -cE 'api\.(GET|POST|PUT|PATCH|DELETE)\(\"'")
+        # Кавычка после скобки в шаблон не входит: роут, объявленный через
+        # константу, тоже метод без входа, и не посчитать его значило бы занизить
+        # обещание «отвечают только семь методов» (тот же промах, что был с ключами
+        # каталога прав, см. perm_keys ниже).
+        r"| grep -cE 'api\.(GET|POST|PUT|PATCH|DELETE)\('")
 
     catalog = "internal/services/permission_catalog.go"
+    # Считать по '{Key:' нельзя: запись каталога бывает и однострочной, и
+    # развёрнутой на несколько строк (у неё есть Description или Children), и тогда
+    # поле Key стоит на своей строке. Пока проверка смотрела только на однострочную
+    # форму, документ занижал число ключей: после #2035 на один, после #2187 на три,
+    # причём молча - сверка сравнивала документ с той же ошибочной формулой.
     m["perm_keys"] = count(r"sed -n '/func staticCatalog/,/^}/p' %s "
-                           r"| grep -c '{Key:'" % catalog)
+                           r"| grep -cE '^[[:space:]]*\{?Key:[[:space:]]'" % catalog)
     m["perm_cats"] = count(r"sed -n '/func staticCatalog/,/^}/p' %s "
                            r"| grep -o 'Category: Cat[A-Za-z]*' | sort -u "
                            r"| wc -l" % catalog)
     m["table_verbs"] = count(
         r"sed -n '/^var tableVerbs/,/^}/p' internal/services/"
-        r"permission_service.go | grep -c '^\s*{\"'")
+        # Форма записи может быть и однострочной, и развёрнутой: считается первая
+        # строка записи в обоих случаях.
+        r"permission_service.go | grep -cE '^[[:space:]]*\{?\"'")
 
     m["gin"] = count("grep -c 'USING gin' internal/database/migrate.go")
     m["user_types"] = count(
@@ -269,6 +280,7 @@ def inventories():
                 "startDailyPassReportSaver": "Суточный отчёт по проходам",
                 "startOnlinePeakSnapshotter": "Фиксация пика посещаемости",
                 "startLogPartitionWorker": "Обслуживание журнальных таблиц",
+                "startErrorSpikeScheduler": "Наблюдение за долей серверных ошибок",
                 "startReminderScheduler": "Напоминания согласующим",
                 "startExpiryNotifyScheduler": "Предупреждение об истечении пропуска",
                 "startRetentionWorker": "Уборка технического мусора",
