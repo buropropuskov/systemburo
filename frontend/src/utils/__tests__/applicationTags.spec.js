@@ -3,6 +3,7 @@ import {
   buildApplicationTags,
   layoutApplicationTags,
   tagWidth,
+  hiddenTagsPanelWidth,
 } from '@/utils/applicationTags';
 
 // Реальные ширины колонки тегов в Центре: закреплённое нав-меню на 1280, обычная
@@ -149,5 +150,47 @@ describe('layoutApplicationTags', () => {
         }
       }
     }
+  });
+});
+
+describe('hiddenTagsPanelWidth', () => {
+  // Ширины округляются вверх поштучно - так же, как их считает подбор: запас в
+  // большую сторону безопаснее, иначе браузер выдавит последний тег на новую строку.
+  const widthOf = (tags) => tags.reduce((sum, t) => sum + Math.ceil(tagWidth(t, 'text')), 0) + 4 * (tags.length - 1);
+
+  it('короткий набор укладывается в одну строку - панель ровно по ней', () => {
+    const tags = buildApplicationTags(application({ has_roof_access: true, has_free_parking: true }));
+    expect(hiddenTagsPanelWidth(tags, 420)).toBe(widthOf(tags));
+  });
+
+  it('длинный набор режется на две примерно равные строки, а не на длинную и хвост', () => {
+    const tags = buildApplicationTags(application({
+      blacklist_flags_count: 3,
+      has_roof_access: true,
+      has_free_parking: true,
+      sender_is_important: true,
+      has_unseen_questions: true,
+      has_open_supplement: true,
+      has_files: true,
+    }));
+    const single = widthOf(tags);
+    const limit = Math.ceil(single * 0.7); // одной строкой не влезает, двум - вдоволь
+    const panel = hiddenTagsPanelWidth(tags, limit);
+
+    expect(panel).toBeLessThan(single);
+    // Две сбалансированные строки: панель около половины единой строки, а не
+    // узкий столбец и не длинная строка с одиноким хвостом.
+    expect(panel).toBeGreaterThanOrEqual(Math.floor((single - 4) / 2));
+    expect(panel).toBeLessThanOrEqual(limit);
+  });
+
+  it('самый широкий тег помещается целиком даже при жёстком пределе', () => {
+    const tags = buildApplicationTags(application({ blacklist_flags_count: 12 }));
+    const widest = Math.max(...tags.map((t) => tagWidth(t, 'text')));
+    expect(hiddenTagsPanelWidth(tags, 40)).toBeGreaterThanOrEqual(Math.ceil(widest));
+  });
+
+  it('пустой набор ширины не требует', () => {
+    expect(hiddenTagsPanelWidth([], 420)).toBe(0);
   });
 });
