@@ -108,8 +108,16 @@ func TestAttachmentBlankArchiveSource(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, marker, 0o640))
 	require.NoError(t, os.WriteFile(foreignPath, foreignMarker, 0o640))
 
-	t.Run("отдаётся файл из реестра под своим именем", func(t *testing.T) {
+	// Сохранённая копия собрана с документами участников, поэтому источник открыт
+	// только тому, кому выгрузка документов положена (detail.documents.export).
+	// Отправителю своей же заявки - нет: файл уносится из системы как есть.
+	t.Run("отправитель без права на документы сохранённый файл не получает", func(t *testing.T) {
 		rec := testutil.GET(t, e, blankArchiveURL(appID, attID, "archive"), senderH)
+		require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	})
+
+	t.Run("отдаётся файл из реестра под своим именем", func(t *testing.T) {
+		rec := testutil.GET(t, e, blankArchiveURL(appID, attID, "archive"), adminH)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		assert.Equal(t, string(marker), rec.Body.String(),
 			"ручка обязана отдать сохранённый файл, а не собрать бланк заново")

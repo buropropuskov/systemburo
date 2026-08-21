@@ -46,6 +46,11 @@ type BlankContext struct {
 	CarUnloadPlaces      map[int][]string // car_id → имена мест
 	CarPassageTables     map[int][]string // car_id → имена постов
 	EmployeeTargetTables map[int][]string // employee_id → имена постов
+	// IncludeDocuments - подставлять ли в бланк документы участников (серия и номер
+	// паспорта, номер патента, иное разрешение). false заменяет их прочерком: право
+	// detail.documents.export есть не у каждого, кому доступна сама заявка, а бланк
+	// уносится из системы файлом.
+	IncludeDocuments bool
 	// ApplicationItems - ТМЦ всех «Заявок на ввоз» этой заявки, в порядке вложений.
 	// Списочная секция бланка одна и занята его собственным типом (у заявки на работы -
 	// сотрудниками), поэтому чужие ТМЦ перечисляются одной ячейкой через app_items.*.
@@ -71,10 +76,20 @@ type ApplicationItemRow struct {
 	SourceName string
 }
 
+// BlankOptions - настройки одной генерации бланка. Параметр обязательный, а не
+// значение по умолчанию: каждый вызывающий обязан решить судьбу документов участников
+// осознанно. Умолчание «как было» означало бы, что новый путь генерации молча уносит
+// паспорта, и заметят это уже в скачанном файле.
+type BlankOptions struct {
+	// IncludeDocuments - подставлять паспорт, патент и иное разрешение как есть.
+	// false ставит в эти ячейки прочерк.
+	IncludeDocuments bool
+}
+
 // AttachmentBlankService - генерация заполненных .xlsx-бланков на основе
 // шаблона UniqueAttachment + данных заявки (#183, часть 2).
 type AttachmentBlankService interface {
-	GenerateBlank(ctx context.Context, applicationID, attachmentID int) (io.Reader, string, error)
+	GenerateBlank(ctx context.Context, applicationID, attachmentID int, opts BlankOptions) (io.Reader, string, error)
 	GenerateEmptyBlank(ctx context.Context, uniqueAttachmentID int) (io.Reader, string, error)
 }
 
@@ -147,7 +162,7 @@ func (s *attachmentBlankService) loadTemplateFile(path string) ([]byte, error) {
 //  3. Открыть .xlsx через excelize, проставить значения в ячейки.
 //  4. Для list-fields - заполнить строки списка с авторасширением.
 //  5. Сохранить в buffer, вернуть.
-func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationID, attachmentID int) (io.Reader, string, error) {
+func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationID, attachmentID int, opts BlankOptions) (io.Reader, string, error) {
 	// 1. Attachment + UniqueAttachment + Template.
 	var att models.Attachment
 	if err := s.db.WithContext(ctx).
@@ -173,6 +188,7 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 	if err != nil {
 		return nil, "", err
 	}
+	bctx.IncludeDocuments = opts.IncludeDocuments
 
 	// 3. Открыть шаблон - байты берутся из кэша, а не с диска на каждый вызов
 	// (массовый прогон бьётся об один и тот же файл сотнями заявок подряд).
