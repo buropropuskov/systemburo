@@ -3,7 +3,6 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { setActivePinia, createPinia } from 'pinia';
 
 import DownloadBlanksModal from '../DownloadBlanksModal.vue';
-import FilterTabs from '@/components/ui/FilterTabs.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
 
@@ -61,6 +60,9 @@ async function mountModal(attachments = ATTACHMENTS) {
 }
 
 const rowButtons = (wrapper) => wrapper.findAll('.dbm-item-download');
+// Групп вкладок в модалке две (наполнение и источник), поэтому адресуемся по testid,
+// а не по порядку компонентов: порядок в разметке уже менялся.
+const sourceTabs = (wrapper) => wrapper.findComponent('[data-testid="blank-source-tabs"]');
 const badges = (wrapper) => wrapper.findAll('.dbm-archive-badge');
 
 function buttonByText(wrapper, text) {
@@ -126,7 +128,7 @@ describe('DownloadBlanksModal — источник скачивания (#1615 C
     wrapper = await mountWithDocuments();
 
     expect(wrapper.vm.source).toBe('archive');
-    expect(wrapper.findComponent(FilterTabs).props('modelValue')).toBe('archive');
+    expect(sourceTabs(wrapper).props('modelValue')).toBe('archive');
   });
 
   it('без единого сохранённого файла остаётся генерация заново', async () => {
@@ -138,13 +140,13 @@ describe('DownloadBlanksModal — источник скачивания (#1615 C
     ]);
 
     expect(wrapper.vm.source).toBe('live');
-    expect(wrapper.findComponent(FilterTabs).props('modelValue')).toBe('live');
+    expect(sourceTabs(wrapper).props('modelValue')).toBe('live');
   });
 
   it('переключатель источника - общий FilterTabs, а не свои кнопки', async () => {
     wrapper = await mountWithDocuments();
 
-    const tabs = wrapper.findComponent(FilterTabs);
+    const tabs = sourceTabs(wrapper);
     expect(tabs.exists()).toBe(true);
     expect(tabs.props('tabs').map((t) => t.key)).toEqual(['archive', 'live']);
 
@@ -270,8 +272,8 @@ describe('DownloadBlanksModal - гейт документов участнико
     wrapper = await mountModal();
 
     // Вкладка источника «Сохранённый файл» скрыта: сервер на неё ответил бы 403.
-    expect(wrapper.findComponent(FilterTabs).props('tabs').filter((t) => t.visible !== false)
-      .map((t) => t.key)).toEqual(['live']);
+    // Одинокая вкладка не выбор: группа источника в закрытом режиме не рисуется вовсе.
+    expect(sourceTabs(wrapper).exists()).toBe(false);
     expect(wrapper.vm.source).toBe('live');
 
     await rowButtons(wrapper)[0].trigger('click');
@@ -283,7 +285,7 @@ describe('DownloadBlanksModal - гейт документов участнико
     grantDocuments();
     wrapper = await mountModal();
 
-    const documentsTabs = wrapper.findAllComponents(FilterTabs)[1];
+    const documentsTabs = wrapper.findComponent('[data-testid="blank-documents-tabs"]');
     expect(documentsTabs.props('tabs').map((t) => t.key)).toEqual(['without', 'with']);
     expect(documentsTabs.props('modelValue')).toBe('without');
 
@@ -303,8 +305,7 @@ describe('DownloadBlanksModal - гейт документов участнико
 
     await switchDocuments(wrapper, 'without');
     expect(wrapper.vm.source).toBe('live');
-    expect(wrapper.findComponent(FilterTabs).props('tabs').filter((t) => t.visible !== false)
-      .map((t) => t.key)).toEqual(['live']);
+    expect(sourceTabs(wrapper).exists()).toBe(false);
   });
 
   it('повторное открытие модалки возвращает закрытый режим', async () => {

@@ -67,6 +67,18 @@ describe('раскладка панелей аналитики', () => {
     expect(CSS).toMatch(/\.an-panel\s+\.an-panel__tiles:has\(> :nth-child\(6\)\) > \*\s*\{/);
   });
 
+  it('ряды компактного списка одной высоты и делят колонку', () => {
+    // Иначе высота плитки зависит от данных: подпись в два слова выше подписи
+    // в одно, а разрядность числа двигает перенос. Плюс без растяжения внизу
+    // колонки копилось место размером с ещё одну плитку.
+    const tiles = rule('.an-panel__tiles:has(> :nth-child(6))');
+    expect(tiles).toMatch(/grid-auto-rows\s*:\s*minmax\(48px,\s*1fr\)/);
+    expect(tiles).toMatch(/align-content\s*:\s*stretch/);
+    // Подпись держится в двух строках: третья не влезает в ряд.
+    expect(rule('.an-panel .an-panel__tiles:has(> :nth-child(6)) > * > :first-child'))
+      .toMatch(/-webkit-line-clamp\s*:\s*2/);
+  });
+
   it('от тринадцатой - три колонки: двух снова мало', () => {
     expect(rule('.an-panel__tiles:has(> :nth-child(13))'))
       .toMatch(/grid-template-columns\s*:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);

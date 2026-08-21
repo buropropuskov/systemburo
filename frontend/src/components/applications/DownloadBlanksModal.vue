@@ -20,23 +20,14 @@
             </button>
           </div>
 
-          <!-- Переключатель источника - общий FilterTabs, а не свои кнопки: он уже
-               держит вид вкладок в восьми разделах, и вторая реализация разъедется
-               с ними на первой же правке оформления. -->
-          <FilterTabs
-            v-if="!isLoading && !error && eligibleAttachments.length"
-            v-model="source"
-            class="dbm-source"
-            :tabs="sourceTabs"
-          />
-
-          <!-- Выбор наполнения бланка виден только тем, кому документы участников
-               положены; остальным вместо переключателя идёт строка о том, почему в
-               скачанном файле прочерки. -->
+          <!-- Наполнение выбирается первым: от него зависит, доступен ли ниже
+               сохранённый файл. Видно только тем, кому документы участников положены;
+               остальным вместо переключателя идёт строка о том, почему в скачанном
+               файле прочерки. -->
           <FilterTabs
             v-if="showDocumentsChoice"
             v-model="documentsMode"
-            class="dbm-source dbm-documents"
+            class="dbm-tabs dbm-documents"
             data-testid="blank-documents-tabs"
             :tabs="documentsTabs"
           />
@@ -47,6 +38,19 @@
           >
             Паспортные данные, патент и иное разрешение в бланке заменены прочерком: нет права на их выгрузку.
           </p>
+
+          <!-- Переключатель источника - общий FilterTabs, а не свои кнопки: он уже
+               держит вид вкладок в восьми разделах, и вторая реализация разъедется
+               с ними на первой же правке оформления. Одинокая вкладка не выбор, а
+               подпись: в закрытом режиме сохранённый файл недоступен, и группа
+               прячется целиком. -->
+          <FilterTabs
+            v-if="showSourceChoice"
+            v-model="source"
+            class="dbm-tabs dbm-source"
+            data-testid="blank-source-tabs"
+            :tabs="sourceTabs"
+          />
 
           <div
             v-if="isLoading"
@@ -211,6 +215,10 @@ export default {
     },
     showDocumentsChoice() {
       return !this.isLoading && !this.error && this.eligibleAttachments.length > 0 && this.canExportDocuments;
+    },
+    showSourceChoice() {
+      if (this.isLoading || this.error || !this.eligibleAttachments.length) return false;
+      return this.sourceTabs.filter((tab) => tab.visible !== false).length > 1;
     },
     withDocuments() {
       return this.canExportDocuments && this.documentsMode === 'with';
@@ -415,15 +423,26 @@ export default {
   color: var(--color-text);
 }
 
-.dbm-source {
+.dbm-tabs {
   display: flex;
   gap: 6px;
   padding: 14px 24px 0;
 }
 
-/* Вторая группа вкладок идёт вплотную к первой: это две грани одного выбора
-   «что скачиваем», а не отдельный блок настроек. */
+/* Выбор наполнения идёт вплотную к выбору источника: это две грани одного решения
+   «что скачиваем». Своя метрика у вкладок не прихоть - подписи здесь длиннее, и с
+   общими 14px пара «Без паспортных данных / С паспортными данными» не встаёт в строку
+   при ширине окна 480px, разъезжаясь на два этажа. */
 .dbm-documents {
+  gap: 8px;
+}
+
+.dbm-documents :deep(.filter-tab) {
+  font-size: 13px;
+  padding: 0 12px;
+}
+
+.dbm-source {
   padding-top: 8px;
 }
 
