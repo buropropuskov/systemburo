@@ -480,7 +480,12 @@ func (s *BlankExportService) saveState(ctx context.Context, req exportRequest, s
 // generate вызывает единственный генератор бланков и складывает его вывод в память:
 // хэш считается по тем же байтам, которые лягут на диск, а не по отдельному прогону.
 func (s *BlankExportService) generate(ctx context.Context, applicationID, attachmentID int) ([]byte, error) {
-	reader, _, err := s.blanks.GenerateBlank(ctx, applicationID, attachmentID)
+	// Копия на диске - полная: архив читает внешняя сторона, ради которой он и заведён,
+	// а сам файл шифруется на её ключ. Гейт документов стоит на выдаче (см.
+	// canExportBlankDocuments), а не на записи: обезличенный архив пришлось бы держать
+	// вторым комплектом файлов, и первый же запрос «а где паспорта» вернул бы всё назад.
+	reader, _, err := s.blanks.GenerateBlank(ctx, applicationID, attachmentID,
+		BlankOptions{IncludeDocuments: true})
 	if err != nil {
 		return nil, err
 	}

@@ -43,6 +43,22 @@ func archiveUnavailable() error {
 }
 
 // archiveDownloadRangeError переводит доменную ошибку периода в понятный 400.
+// requireBlankDocumentsExport закрывает выдачу сохранённых файлов тому, кому не
+// положены документы участников. Раздел файлового архива и так админский, но право на
+// выгрузку файлов (action.download.file_archive) выдаётся и точечно, а внутри каждого
+// файла лежат паспорта - без этой проверки закрытый бланк забирался бы через раздел.
+func requireBlankDocumentsExport(c echo.Context, resolver *services.PermissionResolver) error {
+	allowed, err := canExportBlankDocuments(c, resolver)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return echo.NewHTTPError(http.StatusForbidden,
+			"Сохранённые бланки содержат документы участников - выгрузка закрыта")
+	}
+	return nil
+}
+
 func archiveDownloadRangeError(err error) error {
 	if errors.Is(err, services.ErrArchiveDownloadRangeInvalid) {
 		return apperr.Validation("Некорректный период: укажите даты в формате ГГГГ-ММ-ДД, «с» не позже «по»")
@@ -82,6 +98,7 @@ func (h *ArchiveDownloadHandler) EstimateDownload(c echo.Context) error {
 // @Security     BearerAuth
 // @Param        request body models.ArchiveDownloadRequest true "Период"
 // @Success      200 {object} Response
+// @Failure      403 {object} models.HTTPError
 // @Failure      413 {object} models.HTTPError
 // @Router       /file-archive/download-ticket [post]
 func (h *ArchiveDownloadHandler) IssueDownloadTicket(c echo.Context) error {
@@ -90,6 +107,12 @@ func (h *ArchiveDownloadHandler) IssueDownloadTicket(c echo.Context) error {
 	}
 	var req models.ArchiveDownloadRequest
 	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+
+	// Билет проверяется здесь, а не на самой выдаче ZIP: GET /file-archive/download
+	// ходит без Authorization (билет вместо заголовка), и права там уже не спросить.
+	if err := requireBlankDocumentsExport(c, h.resolver); err != nil {
 		return err
 	}
 
@@ -139,6 +162,7 @@ func (h *ArchiveDownloadHandler) Download(c echo.Context) error {
 // Archive godoc
 // @Summary      Скачать сохранённые бланки заявки единым ZIP
 // @Description  Доступ - как у скачивания одного бланка (участник заявки либо охрана/носитель page.available по своему вложению).
+// @Description  Дополнительно требуются права detail.documents и detail.documents.export: в ZIP уезжают сохранённые копии с документами участников, обезличить их при отдаче нечем.
 // @Tags         file-archive
 // @Produce      application/zip
 // @Security     BearerAuth
@@ -171,6 +195,15 @@ func (h *ArchiveDownloadHandler) Archive(c echo.Context) error {
 	if len(entries) == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "В архиве нет доступных файлов этой заявки")
 	}
+
+	// Гейт документов стоит после проверки доступа к заявке, а не до неё: посторонний
+	// должен по-прежнему получать 404 и не узнавать по коду ответа, что заявка с таким
+	// номером есть. В ZIP уезжают те же сохранённые копии, что и по одному через
+	// ?source=archive, поэтому право требуется то же - закрытое поштучно не должно
+	// забираться архивом целиком.
+	if err := requireBlankDocumentsExport(c, h.resolver); err != nil {
+		return err
+	}
 	return download.StreamZip(c, "application_"+strconv.Itoa(appID)+".zip", entries)
 }
 
@@ -181,6 +214,7 @@ func (h *ArchiveDownloadHandler) Archive(c echo.Context) error {
 // @Security     BearerAuth
 // @Param        id path int true "ID строки реестра (blank_exports.id)"
 // @Success      200
+// @Failure      403 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /file-archive/files/{id} [get]
 func (h *ArchiveDownloadHandler) DownloadFile(c echo.Context) error {
@@ -189,6 +223,9 @@ func (h *ArchiveDownloadHandler) DownloadFile(c echo.Context) error {
 	}
 	id, err := ParseID(c, "id")
 	if err != nil {
+		return err
+	}
+	if err := requireBlankDocumentsExport(c, h.resolver); err != nil {
 		return err
 	}
 

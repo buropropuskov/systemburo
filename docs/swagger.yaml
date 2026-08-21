@@ -6761,8 +6761,9 @@ paths:
       - applications
   /applications/{id}/archive:
     get:
-      description: Доступ - как у скачивания одного бланка (участник заявки либо охрана/носитель
-        page.available по своему вложению).
+      description: |-
+        Доступ - как у скачивания одного бланка (участник заявки либо охрана/носитель page.available по своему вложению).
+        Дополнительно требуются права detail.documents и detail.documents.export: в ZIP уезжают сохранённые копии с документами участников, обезличить их при отдаче нечем.
       parameters:
       - description: ID заявки
         in: path
@@ -6930,6 +6931,12 @@ paths:
         in: query
         name: source
         type: string
+      - description: Подставить документы участников (паспорт, патент, иное разрешение).
+          Требует прав detail.documents и detail.documents.export; без них бланк уходит
+          с прочерками независимо от параметра
+        in: query
+        name: documents
+        type: boolean
       produces:
       - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
       responses:
@@ -12766,6 +12773,10 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/handlers.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
         "413":
           description: Request Entity Too Large
           schema:
@@ -12809,6 +12820,10 @@ paths:
       responses:
         "200":
           description: OK
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
         "404":
           description: Not Found
           schema:

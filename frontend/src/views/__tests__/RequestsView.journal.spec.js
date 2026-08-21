@@ -152,7 +152,8 @@ describe('RequestsView, гонка запросов', () => {
       expect.arrayContaining([expect.stringContaining('/api/fresh')])
     );
     expect(rows.some(r => r.text().includes('/api/stale')), 'запоздавший ответ на экран не попал').toBe(false);
-    expect(wrapper.find('.loading-overlay').exists(), 'запоздавший ответ не зажигает загрузку заново').toBe(false);
+    expect(wrapper.find('.refresh-overlay').exists(), 'запоздавший ответ не зажигает загрузку заново').toBe(false);
+    expect(wrapper.find('.table-loading').exists(), 'и не подменяет строки лоадером').toBe(false);
   });
 });
 

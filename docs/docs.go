@@ -1816,7 +1816,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Доступ - как у скачивания одного бланка (участник заявки либо охрана/носитель page.available по своему вложению).",
+                "description": "Доступ - как у скачивания одного бланка (участник заявки либо охрана/носитель page.available по своему вложению).\nДополнительно требуются права detail.documents и detail.documents.export: в ZIP уезжают сохранённые копии с документами участников, обезличить их при отдаче нечем.",
                 "produces": [
                     "application/zip"
                 ],
@@ -2070,6 +2070,12 @@ const docTemplate = `{
                         "type": "string",
                         "description": "live (по умолчанию) или archive - сохранённый файл",
                         "name": "source",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Подставить документы участников (паспорт, патент, иное разрешение). Требует прав detail.documents и detail.documents.export; без них бланк уходит с прочерками независимо от параметра",
+                        "name": "documents",
                         "in": "query"
                     }
                 ],
@@ -10404,6 +10410,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/handlers.Response"
                         }
                     },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
                     "413": {
                         "description": "Request Entity Too Large",
                         "schema": {
@@ -10474,6 +10486,12 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
                     },
                     "404": {
                         "description": "Not Found",

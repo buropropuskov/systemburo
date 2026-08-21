@@ -84,7 +84,10 @@
    компактной строки просто потому, что идут в каскаде ниже. */
 .an-panel .an-panel__tiles:has(> :nth-child(6)) > * {
   display: flex;
-  align-items: baseline;
+  /* По центру, а не по общей базовой линии: подпись из двух слов переносится, и
+     при выравнивании по baseline число вставало по её первой строке - в ряду
+     часть чисел сидела вверху плитки, часть посередине. */
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
   padding: 8px 12px;

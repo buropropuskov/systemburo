@@ -467,6 +467,7 @@ import XlsxViewer from '@/components/admin/XlsxViewer.vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { getAccessibleAttachments, getAccessibleAttachmentDetail } from '@/api/applications';
 import { previewBlank } from '@/api/attachment-templates';
+import { usePermissionsStore } from '@/stores/permissions';
 import { getOrganizations, getCompanies } from '@/api/organizations';
 import { useDeletionsStore } from '@/stores/deletions';
 import { formatDateRu, formatDateTime } from '@/utils/datetime';
@@ -778,7 +779,13 @@ async function openPreview() {
   previewBuffer.value = null;
   previewLoading.value = true;
   try {
-    previewBuffer.value = await previewBlank(att.application_id, att.attachment_id);
+    // Документы участников в предпросмотре подчиняются тому же правилу, что и
+    // скачивание: эндпоинт один, и отдельного «только посмотреть» у него нет.
+    // Без пары прав бланк открывается с прочерками в этих ячейках.
+    const perms = usePermissionsStore();
+    const withDocuments = perms.hasPermission('detail.documents')
+      && perms.hasPermission('detail.documents.export');
+    previewBuffer.value = await previewBlank(att.application_id, att.attachment_id, { withDocuments });
   } catch {
     previewError.value = 'Не удалось загрузить бланк для предпросмотра';
   } finally {

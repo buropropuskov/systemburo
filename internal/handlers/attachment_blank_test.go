@@ -494,7 +494,7 @@ func determinismSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 
 func generateBlankBytes(t *testing.T, svc services.AttachmentBlankService, appID, attID int) []byte {
 	t.Helper()
-	reader, _, err := svc.GenerateBlank(context.Background(), appID, attID)
+	reader, _, err := svc.GenerateBlank(context.Background(), appID, attID, services.BlankOptions{IncludeDocuments: true})
 	require.NoError(t, err)
 	data, err := io.ReadAll(reader)
 	require.NoError(t, err)
@@ -595,7 +595,7 @@ func approverSignatureSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	cells := func(t *testing.T, appID, attID int, refs ...string) []string {
 		t.Helper()
 		reader, _, err := services.NewAttachmentBlankService(db).
-			GenerateBlank(context.Background(), appID, attID)
+			GenerateBlank(context.Background(), appID, attID, services.BlankOptions{IncludeDocuments: true})
 		require.NoError(t, err)
 		out, err := excelize.OpenReader(reader)
 		require.NoError(t, err)
@@ -714,7 +714,7 @@ func itemsTableSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	blank := func(t *testing.T, appID, attID int) *excelize.File {
 		t.Helper()
 		reader, _, err := services.NewAttachmentBlankService(db).
-			GenerateBlank(context.Background(), appID, attID)
+			GenerateBlank(context.Background(), appID, attID, services.BlankOptions{IncludeDocuments: true})
 		require.NoError(t, err)
 		out, err := excelize.OpenReader(reader)
 		require.NoError(t, err)
@@ -874,7 +874,7 @@ func crossAttachmentItemsSection(t *testing.T, db *gorm.DB, td testutil.TestData
 	generate := func(t *testing.T, appID, attID int) *excelize.File {
 		t.Helper()
 		reader, _, err := services.NewAttachmentBlankService(db).
-			GenerateBlank(context.Background(), appID, attID)
+			GenerateBlank(context.Background(), appID, attID, services.BlankOptions{IncludeDocuments: true})
 		require.NoError(t, err)
 		out, err := excelize.OpenReader(reader)
 		require.NoError(t, err)
@@ -1013,7 +1013,7 @@ func printTitlesSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	repeatedHeaders := func(t *testing.T, appID, attID int) (map[string]int, int) {
 		t.Helper()
 		reader, _, err := services.NewAttachmentBlankService(db).
-			GenerateBlank(context.Background(), appID, attID)
+			GenerateBlank(context.Background(), appID, attID, services.BlankOptions{IncludeDocuments: true})
 		require.NoError(t, err)
 		raw, err := io.ReadAll(reader)
 		require.NoError(t, err)
@@ -1134,7 +1134,7 @@ func listOverflowConditionalSection(t *testing.T, db *gorm.DB, td testutil.TestD
 	}
 
 	reader, _, err := services.NewAttachmentBlankService(db).
-		GenerateBlank(context.Background(), app.ID, att.ID)
+		GenerateBlank(context.Background(), app.ID, att.ID, services.BlankOptions{IncludeDocuments: true})
 	require.NoError(t, err)
 	out, err := excelize.OpenReader(reader)
 	require.NoError(t, err)
@@ -1225,7 +1225,7 @@ func listRepeatedFieldSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	}
 
 	reader, _, err := services.NewAttachmentBlankService(db).
-		GenerateBlank(context.Background(), app.ID, att.ID)
+		GenerateBlank(context.Background(), app.ID, att.ID, services.BlankOptions{IncludeDocuments: true})
 	require.NoError(t, err)
 	out, err := excelize.OpenReader(reader)
 	require.NoError(t, err)
@@ -1297,7 +1297,7 @@ func listTypeSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	require.NoError(t, db.Create(&models.Item{AttachmentID: att.ID, Name: &cargo, Count: &count}).Error)
 
 	reader, filename, err := services.NewAttachmentBlankService(db).
-		GenerateBlank(context.Background(), app.ID, att.ID)
+		GenerateBlank(context.Background(), app.ID, att.ID, services.BlankOptions{IncludeDocuments: true})
 	require.NoError(t, err)
 	require.Contains(t, filename, ".xlsx")
 
@@ -1365,7 +1365,7 @@ func concatSeparatorSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	cellValue := func(t *testing.T) string {
 		t.Helper()
 		reader, _, err := services.NewAttachmentBlankService(db).
-			GenerateBlank(context.Background(), app.ID, att.ID)
+			GenerateBlank(context.Background(), app.ID, att.ID, services.BlankOptions{IncludeDocuments: true})
 		require.NoError(t, err)
 		out, err := excelize.OpenReader(reader)
 		require.NoError(t, err)
@@ -1446,7 +1446,7 @@ func attachmentPlacesSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	require.NoError(t, db.Create(&models.AttachmentUnloadPlace{AttachmentID: att.ID, UnloadPlaceID: second.ID, OrderIndex: &two}).Error)
 
 	reader, _, err := services.NewAttachmentBlankService(db).
-		GenerateBlank(context.Background(), app.ID, att.ID)
+		GenerateBlank(context.Background(), app.ID, att.ID, services.BlankOptions{IncludeDocuments: true})
 	require.NoError(t, err)
 	out, err := excelize.OpenReader(reader)
 	require.NoError(t, err)
@@ -1523,7 +1523,7 @@ func carBindingsSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	require.NoError(t, db.Create(&models.CarTargetTable{CarID: car.ID, TableID: post.ID, OrderIndex: &one}).Error)
 
 	reader, _, err := services.NewAttachmentBlankService(db).
-		GenerateBlank(context.Background(), app.ID, att.ID)
+		GenerateBlank(context.Background(), app.ID, att.ID, services.BlankOptions{IncludeDocuments: true})
 	require.NoError(t, err)
 	out, err := excelize.OpenReader(reader)
 	require.NoError(t, err)
@@ -1716,7 +1716,7 @@ func listOverflowSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	}
 
 	reader, _, err := services.NewAttachmentBlankService(db).
-		GenerateBlank(context.Background(), app.ID, att.ID)
+		GenerateBlank(context.Background(), app.ID, att.ID, services.BlankOptions{IncludeDocuments: true})
 	require.NoError(t, err)
 	out, err := excelize.OpenReader(reader)
 	require.NoError(t, err)
