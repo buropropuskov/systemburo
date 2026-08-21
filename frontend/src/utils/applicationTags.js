@@ -251,8 +251,3 @@ export function layoutApplicationTags(tags, availableWidth) {
 
   return { visible, hidden };
 }
-
-/** Подсказка счётчика: перечень тегов, которым не хватило места. */
-export function hiddenTagsHint(hidden) {
-  return hidden.map((tag) => tag.text).join(', ');
-}
