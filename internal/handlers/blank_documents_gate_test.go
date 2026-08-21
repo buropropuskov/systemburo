@@ -115,10 +115,33 @@ func TestBlankDownload_DocumentsGate(t *testing.T) {
 
 	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
+	// Ответственный по заявке: доступ к ней есть, но подавал не он.
+	responsibleToken := testutil.RegisterAndLogin(t, e, "docsgateresp", "pass123", 1, td.OrgID, td.CompanyID)
+	var responsible models.User
+	require.NoError(t, db.Where("username = ?", "docsgateresp").First(&responsible).Error)
+	require.NoError(t, db.Create(&models.ApplicationResponsibleUser{
+		ApplicationID: fx.appID, UserID: responsible.ID,
+	}).Error)
+
 	url := fmt.Sprintf("/applications/%d/blank?attachment_id=%d", fx.appID, fx.attID)
 
-	t.Run("автор заявки без права получает прочерки", func(t *testing.T) {
+	t.Run("инициатор заявки получает документы без права", func(t *testing.T) {
+		// Паспорта и патенты участников он сам набрал в форме подачи, из своей же
+		// заявки они и уходят - права на собственные сведения он не спрашивает.
 		rec := testutil.GET(t, e, url+"&documents=1", testutil.AuthHeader(senderToken))
+		require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
+
+		body := rec.Body.Bytes()
+		assert.Equal(t, "Документов", blankCell(t, body, "A10"))
+		assert.Equal(t, fx.passport, blankCell(t, body, "B10"), "паспорт")
+		assert.Equal(t, fx.patent, blankCell(t, body, "C10"), "патент")
+		assert.Equal(t, fx.other, blankCell(t, body, "D10"), "иное разрешение")
+	})
+
+	t.Run("участник чужой заявки без права получает прочерки", func(t *testing.T) {
+		// Заявка доступна ему как ответственному, но вводил документы не он: круг
+		// открытой выгрузки - именно подавший, а не всякий, кому заявка видна.
+		rec := testutil.GET(t, e, url+"&documents=1", testutil.AuthHeader(responsibleToken))
 		require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 
 		body := rec.Body.Bytes()
@@ -131,7 +154,7 @@ func TestBlankDownload_DocumentsGate(t *testing.T) {
 	t.Run("параметр documents без права ничего не открывает", func(t *testing.T) {
 		// Гейт живёт на сервере, а не в модалке: подставленный руками параметр не
 		// должен работать, иначе право обходится правкой адресной строки.
-		rec := testutil.GET(t, e, url+"&documents=true", testutil.AuthHeader(senderToken))
+		rec := testutil.GET(t, e, url+"&documents=true", testutil.AuthHeader(responsibleToken))
 		require.Equal(t, http.StatusOK, rec.Code)
 		assert.Equal(t, documentMaskInBlank, blankCell(t, rec.Body.Bytes(), "B10"))
 	})
@@ -146,9 +169,15 @@ func TestBlankDownload_DocumentsGate(t *testing.T) {
 		assert.Equal(t, fx.other, blankCell(t, body, "D10"))
 	})
 
-	t.Run("умолчание закрытое даже при праве", func(t *testing.T) {
+	t.Run("умолчание закрытое даже у инициатора", func(t *testing.T) {
 		// Скачивание без параметра - это старый клиент или прямая ссылка. Вынос
 		// персональных данных должен быть выбран явно, а не достаться по умолчанию.
+		rec := testutil.GET(t, e, url, testutil.AuthHeader(senderToken))
+		require.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, documentMaskInBlank, blankCell(t, rec.Body.Bytes(), "B10"))
+	})
+
+	t.Run("умолчание закрытое даже при праве", func(t *testing.T) {
 		rec := testutil.GET(t, e, url, testutil.AuthHeader(adminToken))
 		require.Equal(t, http.StatusOK, rec.Code)
 		assert.Equal(t, documentMaskInBlank, blankCell(t, rec.Body.Bytes(), "B10"))

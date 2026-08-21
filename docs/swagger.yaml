@@ -1815,6 +1815,8 @@ definitions:
     properties:
       id:
         type: integer
+      is_active:
+        type: boolean
       username:
         type: string
     type: object
@@ -6932,8 +6934,8 @@ paths:
         name: source
         type: string
       - description: Подставить документы участников (паспорт, патент, иное разрешение).
-          Требует прав detail.documents и detail.documents.export; без них бланк уходит
-          с прочерками независимо от параметра
+          Доступно инициатору заявки, а прочим - по правам detail.documents и detail.documents.export;
+          без этого бланк уходит с прочерками независимо от параметра
         in: query
         name: documents
         type: boolean

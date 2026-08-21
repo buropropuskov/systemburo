@@ -278,6 +278,10 @@ type ApplicationService interface {
 	// GetApplicationIDByAttachment возвращает ID заявки по ID вложения. Для manual-вложения
 	// без заявки (#1049) возвращает 0 - вызыватели трактуют 0 как "нет заявки".
 	GetApplicationIDByAttachment(ctx context.Context, attachmentID int) (int, error)
+	// IsApplicationSender - подал ли заявку сам пользователь. Уже, чем
+	// CanAccessApplication: доступ есть и у согласующих с получателями пересылки,
+	// а сведения документов участников вводил в форму инициатор.
+	IsApplicationSender(ctx context.Context, applicationID, userID int) (bool, error)
 
 	// IsSecurityUser сообщает, является ли аккаунт типом security (резолв по user_types.code).
 	IsSecurityUser(ctx context.Context, userID int) (bool, error)
