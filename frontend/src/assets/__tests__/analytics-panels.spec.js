@@ -54,14 +54,12 @@ describe('раскладка панелей аналитики', () => {
     // давали 830px против 326 у соседней панели.
     expect(rule('.an-panel__tiles:has(> :nth-child(6))'))
       .toMatch(/grid-template-columns\s*:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
-    // Плитка становится строкой «подпись - число».
+    // Плитка теснее обычной, но подпись по-прежнему НАД числом: строкой
+    // «подпись - число» их ширины связаны, и растущее число отбирает у подписи
+    // место - та начинает переноситься прямо во время пересчёта счётчика.
     const tile = rule('.an-panel .an-panel__tiles:has(> :nth-child(6)) > *');
-    expect(tile).toMatch(/display\s*:\s*flex/);
-    expect(tile).toMatch(/justify-content\s*:\s*space-between/);
-    // По центру, а не по baseline: подпись из двух слов переносится, и число
-    // вставало по её первой строке - в ряду часть чисел сидела вверху плитки.
-    expect(tile).toMatch(/align-items\s*:\s*center/);
-    expect(tile).not.toMatch(/align-items\s*:\s*baseline/);
+    expect(tile).toMatch(/flex-direction\s*:\s*column/);
+    expect(tile).not.toMatch(/justify-content\s*:\s*space-between/);
     // Вес селектора: у плиток свои scoped-правила той же специфичности, и без
     // ведущего .an-panel отступы строки перебивались обратно на карточные.
     expect(CSS).toMatch(/\.an-panel\s+\.an-panel__tiles:has\(> :nth-child\(6\)\) > \*\s*\{/);
@@ -74,9 +72,13 @@ describe('раскладка панелей аналитики', () => {
     const tiles = rule('.an-panel__tiles:has(> :nth-child(6))');
     expect(tiles).toMatch(/grid-auto-rows\s*:\s*minmax\(48px,\s*1fr\)/);
     expect(tiles).toMatch(/align-content\s*:\s*stretch/);
-    // Подпись держится в двух строках: третья не влезает в ряд.
-    expect(rule('.an-panel .an-panel__tiles:has(> :nth-child(6)) > * > :first-child'))
-      .toMatch(/-webkit-line-clamp\s*:\s*2/);
+    // Подпись в одну строку: перенос менял бы её высоту от длины соседнего числа.
+    const label = rule('.an-panel .an-panel__tiles:has(> :nth-child(6)) > * > :first-child');
+    expect(label).toMatch(/white-space\s*:\s*nowrap/);
+    expect(label).toMatch(/text-overflow\s*:\s*ellipsis/);
+    // Моноширинные цифры: счётчик пересчитывает значение по кадрам.
+    expect(rule('.an-panel .an-panel__tiles:has(> :nth-child(6)) > * > :last-child'))
+      .toMatch(/font-variant-numeric\s*:\s*tabular-nums/);
   });
 
   it('от тринадцатой - три колонки: двух снова мало', () => {
