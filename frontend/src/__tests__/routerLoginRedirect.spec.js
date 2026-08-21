@@ -46,3 +46,31 @@ describe('router: возврат на защищённый адрес после
     expect(router.currentRoute.value.query.redirect).toBeUndefined();
   });
 });
+
+describe('router: привычный адрес /login', () => {
+  beforeEach(() => {
+    authState.isAuthenticated = false;
+  });
+
+  it('ведёт гостя на форму входа, а не на 404', async () => {
+    await router.push('/login').catch(() => {});
+
+    expect(router.currentRoute.value.path).toBe('/');
+    expect(router.currentRoute.value.name).toBe('LoginComponent');
+  });
+
+  it('переносит query - иначе терялся адрес возврата из #974', async () => {
+    await router.push('/login?redirect=/table/cars').catch(() => {});
+
+    expect(router.currentRoute.value.path).toBe('/');
+    expect(router.currentRoute.value.query.redirect).toBe('/table/cars');
+  });
+
+  it('вошедшего уводит на ленту тем же правилом, что и корень', async () => {
+    authState.isAuthenticated = true;
+
+    await router.push('/login').catch(() => {});
+
+    expect(router.currentRoute.value.path).toBe('/news');
+  });
+});

@@ -50,7 +50,7 @@ const watchers = createStepWatchers({
   getDriver: () => driverObj,
   getGen: () => driverGen,
   getStep: (index) => store.steps[index],
-  getIndex: () => store.currentIndex,
+  getIndex: () => store.currentIndex, getRevealOpen: () => store.revealOpen,
 });
 // Границы поднятого сейчас сегмента (глобальные индексы, включительно). Судить о
 // принадлежности шага сегменту по одному только route нельзя: тур возвращается на
@@ -159,7 +159,7 @@ async function prepareStep(globalIndex) {
   watchers.stopAll();
   const step = store.steps[globalIndex];
   const attachmentChanged = applyDemoAttachment(globalIndex);
-  const revealed = await applyReveal(store.steps, globalIndex);
+  const revealed = await applyReveal(store.steps, globalIndex, { closeOthers: false });
   if (!step?.element) return true;
   // Опциональный шаг ждём коротко: к этому моменту форма и field-config уже
   // отрисованы на предыдущем шаге, так что отсутствие элемента (доп.полей нет)
@@ -242,10 +242,9 @@ async function startSegment() {
       // форма правильная, а рамки нет. Дожидаемся нового узла и просим driver
       // пересчитать подсветку по тому же селектору.
       if (attachmentChanged) refreshHighlightFor(globalIndex, driverGen);
-      // Держит раскрытый узел открытым, пока «Назад» ходит внутри группы шагов с
-      // одинаковым reveal (prepareStep этот путь не покрывает - он гейтит только
-      // «Далее»). Эксклюзивность внутри applyReveal закрывает чужой узел.
-      // Не await - фоновый прогрев.
+      // Прогрев раскрытия для «Назад» внутри группы шагов; сигнал, поставленный
+      // prepareStep для СЛЕДУЮЩЕГО шага, не затираем - см. OnboardingTour.revealRace.spec.
+      if (store.revealOpen === store.steps[globalIndex + 1]?.reveal?.open) return;
       applyReveal(store.steps, globalIndex);
     },
     onBeforeStep: prepareStep,
