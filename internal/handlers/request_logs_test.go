@@ -197,3 +197,62 @@ func TestRequestLogs_Stats_TodayInMoscowDay(t *testing.T) {
 	assert.Equal(t, int64(2), body.Data.Total)
 	assert.Equal(t, int64(1), body.Data.Today, "во вчерашних сутках запись остаётся вчерашней")
 }
+
+// Порядок списка «пользователь»: активные, следом архивные (#2191). Сам факт, что
+// архивная запись из фильтра не исчезает, закрыт в request_logs_read_test.go - здесь
+// проверяется только порядок, ради которого и затевалось разделение.
+func TestRequestLogs_Users_ArchivedStayAtTheEnd(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	// Логины подобраны так, что по алфавиту уволенный шёл бы ПЕРВЫМ: иначе тест
+	// прошёл бы и с прежней сортировкой по одному имени.
+	testutil.RegisterAndLogin(t, e, "aaafired", "password123", 1, td.OrgID, td.CompanyID)
+	testutil.RegisterAndLogin(t, e, "zzzactive", "password123", 1, td.OrgID, td.CompanyID)
+	require.NoError(t, db.Table("users").Where("username = ?", "aaafired").
+		Update("is_active", false).Error)
+
+	users := testutil.ParseResponse[[]struct {
+		ID       int    `json:"id"`
+		Username string `json:"username"`
+		IsActive bool   `json:"is_active"`
+	}](t, testutil.GET(t, e, "/request-logs/users", h))
+
+	var names []string
+	archived := false
+	for _, u := range users {
+		names = append(names, u.Username)
+		if u.Username == "aaafired" {
+			archived = true
+			assert.False(t, u.IsActive, "уволенный должен приходить с признаком архива")
+		}
+		if !u.IsActive {
+			continue
+		}
+		assert.False(t, archivedSeen(users, u.Username), "активные должны идти до архивных")
+	}
+	require.True(t, archived, "без архивной записи в ответе порядок проверять не на чем")
+	assert.Contains(t, names, "zzzactive")
+}
+
+// archivedSeen отвечает, встречалась ли архивная запись раньше названной активной.
+func archivedSeen(users []struct {
+	ID       int    `json:"id"`
+	Username string `json:"username"`
+	IsActive bool   `json:"is_active"`
+}, username string) bool {
+	for _, u := range users {
+		if u.Username == username {
+			return false
+		}
+		if !u.IsActive {
+			return true
+		}
+	}
+	return false
+}

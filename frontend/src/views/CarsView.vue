@@ -1880,14 +1880,11 @@ export default {
                     }
                 } else {
                     const errorData = await response.json();
+                    // Текст сервера показываем как есть - см. EmployeeEditModal (#2021):
+                    // он различает, где именно нашлась машина, а подмена отправляла
+                    // человека искать её в свой список, где её нет.
                     const errorMessage = errorData.message || "Ошибка при сохранении автомобиля";
-                    
-                    // Специальные сообщения для дубликатов
-                    if (errorMessage.includes("уже существует") || errorMessage.includes("already exists")) {
-                        useDeletionsStore().notify({ bold: 'Автомобиль уже привязан к вашему аккаунту', type: 'error' });
-                    } else {
-                        useDeletionsStore().notify({ bold: errorMessage, type: 'error' });
-                    }
+                    useDeletionsStore().notify({ bold: errorMessage, type: 'error' });
                 }
             } catch (error) {
                 console.error("Ошибка при сохранении автомобиля:", error);

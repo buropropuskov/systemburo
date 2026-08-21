@@ -307,7 +307,9 @@ describe('AccessibleAttachmentsView (S4) предпросмотр бланка',
     await btn.trigger('click');
     await flushPromises();
 
-    expect(previewBlank).toHaveBeenCalledWith(42, 1);
+    // Третьим аргументом идёт режим документов: охране без пары прав
+    // (detail.documents и detail.documents.export) бланк открывается с прочерками.
+    expect(previewBlank).toHaveBeenCalledWith(42, 1, { withDocuments: false });
     expect(wrapper.find('[data-testid="aa-preview-viewer"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="aa-preview-loading"]').exists()).toBe(false);
   });

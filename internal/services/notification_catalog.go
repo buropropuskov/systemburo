@@ -123,6 +123,9 @@ const (
 	// нельзя: на них ссылаются handlers-тесты через services.NotificationTypeDirectoryXxx.
 	NotificationTypeDirectoryPending  = "directory_entry_pending"
 	NotificationTypeDirectoryResolved = "directory_entry_resolved"
+	// NotificationTypeErrorSpike (#2192) -- доля ответов 5xx перешла порог. Всплеск
+	// был виден только тому, кто сам открыл раздел мониторинга, то есть почти никому.
+	NotificationTypeErrorSpike = "error_spike"
 )
 
 // notificationCatalog -- полный каталог метаданных, ключ -- код типа.
@@ -304,6 +307,12 @@ var notificationCatalog = map[string]NotificationMeta{
 		Label:       "Запись справочника на проверке",
 		Description: "Подача заявки завела в справочнике организацию или компанию, которую нужно разобрать.",
 		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityNormal, Order: 20, Permission: KeyApplicationOrganizationModerate,
+	},
+	NotificationTypeErrorSpike: {
+		Code: NotificationTypeErrorSpike, Category: NotificationCategorySystem,
+		Label:       "Всплеск ошибок сервера",
+		Description: "Доля ответов с кодом 5xx за последние минуты перешла порог.",
+		Mandatory:   false, DefaultEnabled: true, Aggregatable: true, Priority: NotificationPriorityHigh, Order: 60, Permission: KeyPageAdminMonitoring,
 	},
 	NotificationTypeDirectoryResolved: {
 		Code: NotificationTypeDirectoryResolved, Category: NotificationCategorySystem,

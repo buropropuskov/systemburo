@@ -123,8 +123,12 @@ def metrics():
         r"| grep -cE 'api\.(GET|POST|PUT|PATCH|DELETE)\(\"'")
 
     catalog = "internal/services/permission_catalog.go"
+    # Ключи считаются по 'Key:', а не по '{Key:': узел, у которого появилось
+    # описание или вложенный ключ, переносится на несколько строк, и открывающая
+    # скобка уезжает на строку выше. Счёт по скобке такие узлы терял молча -
+    # число прав в тексте при добавлении права уменьшалось.
     m["perm_keys"] = count(r"sed -n '/func staticCatalog/,/^}/p' %s "
-                           r"| grep -c '{Key:'" % catalog)
+                           r"| grep -c 'Key:'" % catalog)
     m["perm_cats"] = count(r"sed -n '/func staticCatalog/,/^}/p' %s "
                            r"| grep -o 'Category: Cat[A-Za-z]*' | sort -u "
                            r"| wc -l" % catalog)
@@ -276,6 +280,7 @@ def inventories():
                 "startApplicationFileSweeper": "Уборка неотправленных файлов заявок",
                 "startMailWorker": "Разбор очереди писем",
                 "startPasswordRotationScheduler": "Проверка сроков действия паролей",
+                "startErrorSpikeScheduler": "Проверка всплеска серверных ошибок",
             },
         },
         {
