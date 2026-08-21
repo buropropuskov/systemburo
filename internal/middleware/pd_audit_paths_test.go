@@ -21,6 +21,11 @@ func TestPDPaths(t *testing.T) {
 		{"/api/employees", true, "employee"},
 		{"/api/search?q=иванов", true, "search"},
 		{"/api/file-archive/items", true, "file_archive"},
+		{"/api/request-logs/export?from_date=2026-08-01", true, "request_logs_export"},
+		// Остальные методы раздела мониторинга отдают показатели и строки журнала
+		// на экран, а не файлом: под 152-ФЗ попадает вынос пачкой, а не просмотр.
+		{"/api/request-logs", false, ""},
+		{"/api/request-logs/stats", false, ""},
 		// Соседи по карточке заявки персональных данных не отдают: состав ответственных
 		// приходит без контактов, история - записями о действиях.
 		{"/api/applications/42/responsible-users", false, ""},
@@ -53,6 +58,7 @@ func TestPDResourceNamedForEveryPDPath(t *testing.T) {
 		"/api/attachments/1/employees",
 		"/api/settings/pd-consent/collection",
 		"/api/applications/export",
+		"/api/request-logs/export",
 	}
 	for _, p := range paths {
 		if !isPDPath(p) {
