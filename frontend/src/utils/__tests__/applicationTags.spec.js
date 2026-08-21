@@ -3,7 +3,6 @@ import {
   buildApplicationTags,
   layoutApplicationTags,
   tagWidth,
-  hiddenTagsHint,
 } from '@/utils/applicationTags';
 
 // Реальные ширины колонки тегов в Центре: закреплённое нав-меню на 1280, обычная
@@ -150,12 +149,5 @@ describe('layoutApplicationTags', () => {
         }
       }
     }
-  });
-});
-
-describe('hiddenTagsHint', () => {
-  it('перечисляет скрытые теги полными подписями', () => {
-    const tags = buildApplicationTags(application({ has_roof_access: true, has_free_parking: true }));
-    expect(hiddenTagsHint(tags)).toBe('6 дн., Крыша, Парковка');
   });
 });
