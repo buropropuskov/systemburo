@@ -159,7 +159,7 @@ async function prepareStep(globalIndex) {
   watchers.stopAll();
   const step = store.steps[globalIndex];
   const attachmentChanged = applyDemoAttachment(globalIndex);
-  const revealed = await applyReveal(store.steps, globalIndex);
+  const revealed = await applyReveal(store.steps, globalIndex, { closeOthers: false });
   if (!step?.element) return true;
   // Опциональный шаг ждём коротко: к этому моменту форма и field-config уже
   // отрисованы на предыдущем шаге, так что отсутствие элемента (доп.полей нет)
