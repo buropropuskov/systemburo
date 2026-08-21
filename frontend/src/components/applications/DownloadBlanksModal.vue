@@ -40,7 +40,7 @@
             />
           </div>
           <p
-            v-if="!isLoading && !error && eligibleAttachments.length && !canExportDocuments"
+            v-if="!isLoading && !error && eligibleAttachments.length && !canChooseDocuments"
             class="dbm-docs-note"
             data-testid="blank-documents-note"
           >
@@ -135,6 +135,7 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { downloadBlank, saveBlobAs } from '@/api/attachment-templates';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { usePermissionsStore } from '@/stores/permissions';
+import { useAuthStore } from '@/stores/auth';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 
 const TYPE_LABELS = {
@@ -181,14 +182,25 @@ export default {
       const perms = usePermissionsStore();
       return perms.hasPermission('detail.documents') && perms.hasPermission('detail.documents.export');
     },
+    // Инициатор заявки сам набирал паспорта участников в форме подачи - из своей же
+    // заявки они и уходят. Тот же вывод делает сервер (canExportBlankDocuments),
+    // здесь это лишь про то, показывать ли переключатель.
+    isInitiator() {
+      const senderID = this.applicationInfo?.sender_user_id;
+      const userID = useAuthStore().userId;
+      return Boolean(senderID) && Boolean(userID) && senderID === userID;
+    },
+    canChooseDocuments() {
+      return this.canExportDocuments || this.isInitiator;
+    },
     showDocumentsChoice() {
-      return !this.isLoading && !this.error && this.eligibleAttachments.length > 0 && this.canExportDocuments;
+      return !this.isLoading && !this.error && this.eligibleAttachments.length > 0 && this.canChooseDocuments;
     },
     // Тумблер наполнения: право проверяется здесь же, поэтому включённое состояние
     // без права невозможно в принципе - даже если оно осталось от прошлого открытия.
     withDocuments: {
       get() {
-        return this.canExportDocuments && this.documentsRequested;
+        return this.canChooseDocuments && this.documentsRequested;
       },
       set(value) {
         this.documentsRequested = value;

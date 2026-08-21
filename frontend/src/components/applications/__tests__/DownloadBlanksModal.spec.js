@@ -6,6 +6,7 @@ import DownloadBlanksModal from '../DownloadBlanksModal.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
+import { useAuthStore } from '@/stores/auth';
 
 // Окно скачивания бланков. Выбор источника (сохранённый файл против генерации заново)
 // убран как непонятный заявителю: бланк всегда собирается заново. Осталось одно
@@ -70,6 +71,15 @@ function buttonByText(wrapper, text) {
 // Выгрузка сведений документов открыта парой прав: detail.documents (видеть их на
 // экране) и detail.documents.export (вынести файлом). Задаём их через сам стор, а не
 // подменяем hasPermission - иначе конъюнкция в компоненте не проверялась бы вовсе.
+// Инициатор заявки открывает выгрузку без всяких прав: паспорта участников он сам
+// набирал в форме подачи. Подменяем не геттер, а разбор маркера доступа - иначе
+// проверка «совпал ли идентификатор» в компоненте не выполнялась бы.
+function loginAsInitiator(userId = 42) {
+  const auth = useAuthStore();
+  vi.spyOn(auth, 'userPayload', 'get').mockReturnValue({ user_id: userId, username: 'initiator' });
+  return userId;
+}
+
 function grantDocuments(keys = ['detail.documents', 'detail.documents.export']) {
   const perms = usePermissionsStore();
   perms.mode = 'normal';
@@ -159,7 +169,54 @@ describe('DownloadBlanksModal - гейт сведений документов',
     wrapper = null;
   });
 
-  it('без прав тумблера нет, а вместо него строка о прочерках', async () => {
+  it('инициатор заявки видит переключатель без всяких прав', async () => {
+    const userId = loginAsInitiator();
+    apiRequest.mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue(ATTACHMENTS) });
+    wrapper = mount(DownloadBlanksModal, {
+      props: {
+        show: false,
+        applicationId: APP_ID,
+        applicationInfo: { application_number: '20260801-601', sender_user_id: userId },
+      },
+      global: { stubs: { teleport: true } },
+      attachTo: document.body,
+    });
+    await wrapper.setProps({ show: true });
+    await flushPromises();
+
+    expect(wrapper.vm.canExportDocuments).toBe(false);
+    expect(wrapper.vm.isInitiator).toBe(true);
+    expect(documentsToggle(wrapper).exists()).toBe(true);
+    expect(wrapper.find('[data-testid="blank-documents-note"]').exists()).toBe(false);
+
+    await documentsToggle(wrapper).vm.$emit('update:modelValue', true);
+    await flushPromises();
+    await rowButtons(wrapper)[0].trigger('click');
+    await flushPromises();
+    expect(downloadBlank).toHaveBeenLastCalledWith(APP_ID, 1, { withDocuments: true });
+  });
+
+  it('участнику чужой заявки переключателя нет', async () => {
+    // Заявку подал кто-то другой: доступ к ней есть, а вводил документы не он.
+    loginAsInitiator(7);
+    apiRequest.mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue(ATTACHMENTS) });
+    wrapper = mount(DownloadBlanksModal, {
+      props: {
+        show: false,
+        applicationId: APP_ID,
+        applicationInfo: { application_number: '20260801-601', sender_user_id: 99 },
+      },
+      global: { stubs: { teleport: true } },
+      attachTo: document.body,
+    });
+    await wrapper.setProps({ show: true });
+    await flushPromises();
+
+    expect(wrapper.vm.isInitiator).toBe(false);
+    expect(documentsToggle(wrapper).exists()).toBe(false);
+  });
+
+  it('без прав и не инициатору тумблера нет, а вместо него строка о прочерках', async () => {
     wrapper = await mountModal();
 
     expect(documentsToggle(wrapper).exists()).toBe(false);

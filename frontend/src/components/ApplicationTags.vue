@@ -3,76 +3,77 @@
     v-if="tags.length"
     class="application-tags"
   >
-    <Badge
+    <ApplicationTag
       v-for="entry in layout.visible"
       :key="entry.tag.key"
-      :variant="entry.tag.variant"
-      size="sm"
-      class="rt-tag hint-anchor hint-anchor--below"
-      :class="[
-        `rt-tag--${entry.tag.key}`,
-        `rt-tag--mode-${entry.mode}`,
-        { 'rt-tag--with-icon': entry.tag.iconInText }
-      ]"
-      :data-hint="entry.tag.hint"
-      :data-testid="entry.tag.testid"
-    >
-      <svg
-        class="rt-tag__icon"
-        width="13"
-        height="13"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      ><path
-        v-for="(d, i) in icons[entry.tag.key]"
-        :key="i"
-        :d="d"
-      /></svg>
-      <span class="rt-tag__text">{{ entry.mode === 'count' ? entry.tag.countText : entry.tag.text }}</span>
-      <span
-        v-if="entry.tag.key === 'questions'"
-        class="rt-tag__q-dot"
-        aria-hidden="true"
-      />
-    </Badge>
-    <!-- Хвост, которому не хватило места: перечень уходит в подсказку, чтобы ни один
-         тег не пропал молча. -->
+      :tag="entry.tag"
+      :mode="entry.mode"
+    />
+    <!-- Хвост, которому не хватило места. По клику раскрывается списком под чипом:
+         подсказки для этого мало - в ней теги были бы перечислением слов, а не тем,
+         что пользователь ищет глазами в строке. -->
     <Badge
       v-if="layout.hidden.length"
+      ref="moreChip"
       variant="neutral"
       size="sm"
-      class="rt-tag rt-tag--more hint-anchor hint-anchor--below"
-      :data-hint="hiddenHint"
+      class="rt-tag rt-tag--more"
+      :class="{ 'rt-tag--more-open': moreOpen }"
+      role="button"
+      tabindex="0"
+      :aria-expanded="String(moreOpen)"
+      :aria-label="`Показать ещё теги: ${layout.hidden.length}`"
       data-testid="center-tags-more"
+      @click.stop="toggleMore"
+      @keydown.enter.stop.prevent="toggleMore"
+      @keydown.space.stop.prevent="toggleMore"
     >
       <span class="rt-tag__text">+{{ layout.hidden.length }}</span>
     </Badge>
+    <Teleport to="body">
+      <div
+        v-if="moreOpen"
+        ref="popover"
+        class="tags-popover"
+        :style="popoverStyle"
+        data-testid="center-tags-popover"
+        @click.stop
+      >
+        <ApplicationTag
+          v-for="tag in layout.hidden"
+          :key="tag.key"
+          :tag="tag"
+          mode="text"
+        />
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script>
 import Badge from '@/components/ui/Badge.vue';
-import { buildApplicationTags, layoutApplicationTags, hiddenTagsHint } from '@/utils/applicationTags';
+import ApplicationTag from '@/components/ApplicationTag.vue';
+import { buildApplicationTags, layoutApplicationTags, hiddenTagsPanelWidth } from '@/utils/applicationTags';
+import { getViewportZoom } from '@/utils/viewportScale';
 
-const TAG_ICONS = {
-  chs: ['M12 3.3 1.9 20.6h20.2z', 'M12 9.4v4.2', 'M12 17.1h.01'],
-  awaiting: ['M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0', 'M12 7v5l3 2'],
-  questions: ['M4 5.5h16a1 1 0 0 1 1 1v8.5a1 1 0 0 1-1 1H9.5L5.5 20v-3.5H4a1 1 0 0 1-1-1V6.5a1 1 0 0 1 1-1z'],
-  supplement: ['M12 5v14', 'M5 12h14'],
-  roof: ['M3 11l9-7 9 7', 'M5 10v9h14v-9'],
-  parking: ['M8 4h8a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z', 'M9 16V8h3.2a2.4 2.4 0 0 1 0 4.8H9'],
-  important: ['M12 2 15 8.6 22 9.3 16.8 14 18.3 21 12 17.3 5.7 21 7.2 14 2 9.3 9 8.6z'],
-  files: ['M19.5 11l-7.8 7.8a4 4 0 0 1-5.7-5.7l8-8a2.5 2.5 0 0 1 3.6 3.6l-7.6 7.6a1 1 0 0 1-1.5-1.4l6.8-6.8'],
-};
+/**
+ * Что панель тратит на себя помимо тегов: отступы 8px с каждой стороны, рамка
+ * (box-sizing: border-box - она съедает ширину контента) и 2px запаса на
+ * округление замеренных ширин. Без этого запаса расчёт говорит «влезает в строку»,
+ * а браузер выдавливает последний тег на вторую - и получается ровно та рваная
+ * раскладка, ради которой панель и считается.
+ */
+const POPOVER_PADDING = 20;
+const POPOVER_GAP = 6;
+const SCREEN_MARGIN = 8;
+/** Предел ширины строки тегов: шире панель начинает читаться простынёй. */
+const MAX_ROW_WIDTH = 420;
+/** Оценка высоты панели, пока она не отрисована (первый кадр, jsdom). */
+const POPOVER_ROW = 29;
 
 export default {
   name: 'ApplicationTags',
-  components: { Badge },
+  components: { Badge, ApplicationTag },
   props: {
     application: { type: Object, required: true },
     /**
@@ -82,7 +83,7 @@ export default {
     availableWidth: { type: Number, default: 0 },
   },
   data() {
-    return { icons: TAG_ICONS };
+    return { moreOpen: false, popoverStyle: {} };
   },
   computed: {
     tags() {
@@ -91,8 +92,96 @@ export default {
     layout() {
       return layoutApplicationTags(this.tags, this.availableWidth);
     },
-    hiddenHint() {
-      return hiddenTagsHint(this.layout.hidden);
+    /**
+     * Ширина панели: теги лежат в ней строкой и переносятся, поэтому ширину
+     * подбираем под содержимое - одна строка, либо две примерно равные.
+     */
+    popoverWidth() {
+      const limit = typeof window === 'undefined'
+        ? MAX_ROW_WIDTH
+        : Math.min(MAX_ROW_WIDTH, window.innerWidth - 2 * SCREEN_MARGIN - POPOVER_PADDING);
+      return hiddenTagsPanelWidth(this.layout.hidden, limit) + POPOVER_PADDING;
+    },
+  },
+  watch: {
+    // Колонка стала шире (сняли закрепление меню, растянули окно) - скрытых тегов
+    // может не остаться вовсе, и раскрытый список повис бы пустым над строкой.
+    'layout.hidden.length'(count) {
+      if (!count) this.closeMore();
+    },
+  },
+  beforeUnmount() {
+    this.closeMore();
+  },
+  methods: {
+    toggleMore() {
+      if (this.moreOpen) {
+        this.closeMore();
+        return;
+      }
+      this.moreOpen = true;
+      this.$nextTick(this.positionPopover);
+      document.addEventListener('mousedown', this.onDocumentDown);
+      document.addEventListener('keydown', this.onKeydown);
+      // capture: список скроллит .table-body, а не окно - без него поповер
+      // остался бы висеть на месте, пока строка уезжает вверх.
+      window.addEventListener('scroll', this.positionPopover, true);
+      window.addEventListener('resize', this.positionPopover);
+    },
+    closeMore() {
+      if (!this.moreOpen) return;
+      this.moreOpen = false;
+      document.removeEventListener('mousedown', this.onDocumentDown);
+      document.removeEventListener('keydown', this.onKeydown);
+      window.removeEventListener('scroll', this.positionPopover, true);
+      window.removeEventListener('resize', this.positionPopover);
+    },
+    onDocumentDown(e) {
+      const chip = this.$refs.moreChip?.$el;
+      const popover = this.$refs.popover;
+      if (chip?.contains(e.target) || popover?.contains(e.target)) return;
+      this.closeMore();
+    },
+    onKeydown(e) {
+      if (e.key === 'Escape') this.closeMore();
+    },
+    /**
+     * Позиция списка под чипом. Координаты приводим к CSS-пикселям: под корневым
+     * zoom (мониторы шире 1440) getBoundingClientRect отдаёт device-px, а
+     * innerWidth/innerHeight остаются незумленными - без деления список уезжает
+     * тем дальше, чем крупнее масштаб.
+     */
+    positionPopover() {
+      const chip = this.$refs.moreChip?.$el;
+      if (!chip) return;
+      const zoom = getViewportZoom();
+      const r = chip.getBoundingClientRect();
+      const top = r.bottom / zoom;
+      const bottom = r.top / zoom;
+      const vw = window.innerWidth / zoom;
+      const vh = window.innerHeight / zoom;
+      // Высота нужна только для выбора стороны. Пока панель не отрисована, берём
+      // оценку по числу тегов; дальше - её настоящий размер, он зависит от переноса.
+      const rendered = this.$refs.popover?.getBoundingClientRect();
+      const height = rendered?.height
+        ? rendered.height / zoom
+        : this.layout.hidden.length * POPOVER_ROW + POPOVER_PADDING;
+      const width = this.popoverWidth;
+      const openUp = top + POPOVER_GAP + height > vh - SCREEN_MARGIN && bottom - height > SCREEN_MARGIN;
+
+      this.popoverStyle = {
+        position: 'fixed',
+        // Прижимаем к правому краю чипа: колонка тегов последняя перед действиями,
+        // и список, выровненный по левому краю, вылезал бы за окно.
+        left: `${Math.round(Math.max(SCREEN_MARGIN, Math.min(r.right / zoom - width, vw - width - SCREEN_MARGIN)))}px`,
+        width: `${width}px`,
+        ...(openUp
+          ? { bottom: `${Math.round(vh - bottom + POPOVER_GAP)}px`, top: 'auto' }
+          : { top: `${Math.round(top + POPOVER_GAP)}px`, bottom: 'auto' }),
+        // Выше строк списка и его шапок, но ниже модалки заявки (10002) - список
+        // тегов не должен всплывать над открытой карточкой.
+        zIndex: 2000,
+      };
     },
   },
 };
@@ -110,98 +199,46 @@ export default {
     min-width: 0;
 }
 
-/* Страховка на случай, если раскладка промахнётся мимо реальной ширины (шрифт не
-   успел загрузиться, нестандартный масштаб): тег ужмётся сам, а не вылезет поверх
-   колонки действий. Основной механизм - свёртка, сюда дело доходить не должно. */
-.rt-tag {
-    gap: 0;
-    min-width: 0;
-    max-width: 100%;
-    transition: padding 0.28s ease;
-}
-
-[data-theme="dark"] .rt-tag {
-    border-color: currentColor;
-}
-
-.rt-tag__text {
-    display: inline-block;
-    min-width: 0;
-    max-width: 150px;
-    opacity: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    transition: max-width 0.28s ease, opacity 0.2s ease;
-}
-
-/* Иконка по умолчанию свёрнута: в текстовом режиме подпись говорит сама за себя.
-   Раскрывается шириной и прозрачностью - display не анимируется. */
-.rt-tag__icon {
-    display: inline-block;
-    width: 0;
-    height: 13px;
-    opacity: 0;
-    overflow: hidden;
-    flex-shrink: 0;
-    transition: width 0.28s ease, opacity 0.2s ease;
-}
-
-.rt-tag--mode-count .rt-tag__icon,
-.rt-tag--mode-icon .rt-tag__icon,
-.rt-tag--with-icon .rt-tag__icon {
-    width: 13px;
-    opacity: 1;
-    margin-right: 3px;
-}
-
-/* Свёрнутый тег - кружок с одной иконкой: подпись схлопнута, отступ под неё не нужен. */
-.rt-tag--mode-icon.badge--sm {
-    width: 23px;
-    height: 23px;
-    padding: 0;
-    border-radius: 50%;
-    justify-content: center;
-}
-
-.rt-tag--mode-icon .rt-tag__icon {
-    margin-right: 0;
-}
-
-.rt-tag--mode-icon .rt-tag__text {
-    max-width: 0;
-    opacity: 0;
-}
-
-/* Файлы - серая скрепка без подписи: признак справочный, внимания не требует. */
-.rt-tag--files {
-    color: var(--text-muted);
-    border-color: var(--border);
-    background: var(--surface);
-}
-
 /* Счётчик скрытых тегов держится нейтральным - он не признак заявки, а указатель,
    что за ним есть ещё. */
 .rt-tag--more {
     color: var(--text-muted);
-    cursor: default;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.rt-tag--questions {
-    position: relative;
+.rt-tag--more:hover,
+.rt-tag--more-open {
+    color: var(--text);
+    background: var(--surface-2);
 }
 
-/* Маркер новых вопросов виден в любом режиме (#973). */
-.rt-tag__q-dot {
-    position: absolute;
-    top: -3px;
-    right: -3px;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--color-danger);
-    border: 1.5px solid var(--surface);
-    pointer-events: none;
+.rt-tag--more:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/* Список скрытых тегов под чипом: теги идут строкой и переносятся на вторую, когда
+   не помещаются - ширину под это считает popoverWidth. Позицию задаёт
+   positionPopover, teleport в body уводит панель из-под overflow списка. */
+.tags-popover {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    align-content: flex-start;
+    gap: 6px 4px;
+    padding: 8px;
+    background: var(--surface);
+    border: 1px solid var(--color-border);
+    border-radius: 15px;
+    box-shadow: 0 6px 20px var(--shadow-drop);
+    animation: tags-popover-in 0.15s ease-out;
+}
+
+@keyframes tags-popover-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 /* В карточке на мобилке колонка тегов занимает всю ширину строки - ограничения нет,
