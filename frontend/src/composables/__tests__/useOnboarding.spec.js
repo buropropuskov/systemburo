@@ -7,7 +7,7 @@ import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
  * общее состояние.
  */
 const mocks = vi.hoisted(() => ({
-  state: { config: null, activeIndex: 0, moves: [] },
+  state: { config: null, activeIndex: 0, moves: [], destroys: 0 },
 }));
 
 vi.mock('driver.js', () => ({
@@ -23,7 +23,7 @@ vi.mock('driver.js', () => ({
       movePrevious: () => mocks.state.moves.push('prev'),
       moveTo: (i) => mocks.state.moves.push(`to:${i}`),
       drive: (i) => { mocks.state.activeIndex = i; },
-      destroy: () => {},
+      destroy: () => { mocks.state.destroys += 1; },
     };
   },
 }));
@@ -372,5 +372,43 @@ describe('createDriver - прогресс и подсказка следующе
   it('шаг со скриншотом в подсказке не перескакивается - тур на него перейдёт', () => {
     const popover = render(0);
     expect(popover.wrapper.querySelector('.ob-popover__next-hint').textContent).toBe('Далее: Ваши заявки');
+  });
+});
+
+/**
+ * Промах мышью не должен стоить человеку всего обучения: driver по умолчанию
+ * читает клик по затемнению как выход, а авто-тур после выхода больше не
+ * всплывает. Выход остаётся крестиком, «Пропустить» и Esc.
+ */
+describe('createDriver - клик мимо окна шага', () => {
+  const { createDriver } = useOnboarding();
+
+  const steps = [
+    { id: 'a', route: '/news', element: '[data-testid="rail"]', title: 'Навигация', description: 'x' },
+    { id: 'b', route: '/news', element: '[data-testid="bell"]', title: 'Уведомления', description: 'y' },
+  ];
+
+  beforeEach(() => {
+    storeState.steps = steps;
+    storeState.skippedIndexes = [];
+    mocks.state.destroys = 0;
+  });
+
+  it('клик по затемнению обучение не обрывает', () => {
+    createDriver(steps, { startIndex: 0 });
+
+    // так driver зовёт хук: (активный элемент, шаг, контекст)
+    mocks.state.config.overlayClickBehavior(null, steps[0], {});
+
+    expect(mocks.state.destroys).toBe(0);
+    expect(mocks.state.moves).not.toContain('next');
+  });
+
+  it('поведение задано хуком, а не строкой - иначе driver вернётся к закрытию', () => {
+    createDriver(steps, { startIndex: 0 });
+
+    expect(typeof mocks.state.config.overlayClickBehavior).toBe('function');
+    // allowClose держит выход по Esc, обещанный в тексте первого шага
+    expect(mocks.state.config.allowClose).toBe(true);
   });
 });

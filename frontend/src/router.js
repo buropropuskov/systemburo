@@ -34,6 +34,12 @@ const routes = [
     component: LoginComponent,
     meta: { requiresAuth: false }
   },
+  // Привычный адрес формы входа. Сама форма живёт на '/', поэтому '/login' без
+  // этой записи уезжал в ловушку неизвестных адресов и встречал человека
+  // страницей 404 - по старой закладке, по ссылке из переписки или просто по
+  // памяти. Query переносим: в нём приходит и redirect защищённой страницы
+  // (#974), и open_application из push-уведомления.
+  { path: '/login', redirect: (to) => ({ path: '/', query: to.query }) },
   {
     path: '/new-application',
     name: 'NewApplication',
@@ -46,14 +52,8 @@ const routes = [
     component: () => import('./views/DataProcessingView.vue'),
     meta: { requiresAuth: true }
   },
-  {
-    path: '/submit-form',
-    redirect: '/new-application'
-  },
-  {
-    path: '/table',
-    redirect: '/personal-cabinet'
-  },
+  { path: '/submit-form', redirect: '/new-application' },
+  { path: '/table', redirect: '/personal-cabinet' },
   {
     path: '/table/:tableName',
     name: 'DynamicTable',
@@ -113,10 +113,7 @@ const routes = [
     component: TableConstructor,
     meta: { requiresAuth: true, permission: 'page.admin.tables_constructor' }
   },
-  {
-    path: '/number-format',
-    redirect: '/admin/number-formats'
-  },
+  { path: '/number-format', redirect: '/admin/number-formats' },
   {
     path: '/employeesview',
     name: 'EmployeeView',

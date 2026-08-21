@@ -297,12 +297,23 @@ const ACTION_LABELS = {
   delete: 'Удаление',
 };
 
+// Разделы журнала обращений. Перечень обязан покрывать все значения, которые
+// возвращает pathToResource в internal/middleware/pd_audit.go: неописанный раздел
+// отсутствует в фильтре и показывается в строке служебным кодом.
 const RESOURCE_LABELS = {
   employee: 'Сотрудники заявок',
   unique_employee: 'Реестр сотрудников',
   attachment: 'Вложения заявок',
   attachment_blank: 'Выгрузка бланка',
   available_attachment: 'Доступное вложение',
+  application_participants: 'Участники заявки',
+  application_file: 'Файлы заявки',
+  application_archive: 'Архив заявки',
+  pd_consent_collection: 'Сбор согласий',
+  file_archive: 'Файловый архив',
+  applications_export: 'Выгрузка реестра заявок',
+  request_logs_export: 'Выгрузка журнала обращений',
+  search: 'Сквозной поиск',
 };
 
 const EMPTY_FILTERS = {
