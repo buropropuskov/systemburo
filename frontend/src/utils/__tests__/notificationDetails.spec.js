@@ -123,6 +123,9 @@ describe('notificationCategory', () => {
     expect(notificationCategory('feedback_answered')).toBe('content');
     expect(notificationCategory('maintenance_scheduled')).toBe('system');
     expect(notificationCategory('trash_restored')).toBe('system');
+    // Без записи в перечне тип свалился бы в 'application' и получил чужие иконку
+    // и бейдж - молча, потому что запасной вариант всегда что-то возвращает.
+    expect(notificationCategory('error_spike')).toBe('system');
   });
 
   it('неизвестный код -> application', () => {
