@@ -71,7 +71,7 @@ func (h *AttachmentBlankHandler) Download(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
-	mayExportDocuments, err := h.canExportDocuments(c)
+	mayExportDocuments, err := canExportBlankDocuments(c, h.resolver)
 	if err != nil {
 		return err
 	}
@@ -183,21 +183,21 @@ func documentsRequested(c echo.Context) bool {
 	return false
 }
 
-// canExportDocuments -- право вынести документы участников из системы файлом.
-// Конъюнкция намеренная: detail.documents.export работает только вместе с правом на
-// сам раздел «Документы», поэтому отзыв просмотра на экране закрывает и выгрузку, без
+// canExportBlankDocuments -- право вынести документы участников из системы файлом,
+// общее для скачивания одного бланка и ZIP заявки из файлового архива: оба уносят один
+// и тот же набор документов, и разъехавшийся гейт означал бы, что закрытое поштучно
+// забирается архивом целиком.
+//
+// Конъюнкция намеренная: detail.documents.export работает только вместе с правом на сам
+// раздел «Документы», поэтому отзыв просмотра на экране закрывает и выгрузку, без
 // второго действия администратора.
 //
-// Гейт доступа к бланку проверяется отдельно (canDownload) и раньше: сюда попадают уже
-// те, кому файл положен, вопрос лишь в его наполнении.
-func (h *AttachmentBlankHandler) canExportDocuments(c echo.Context) (bool, error) {
-	return canExportBlankDocuments(c, h.resolver)
-}
-
-// canExportBlankDocuments -- общая проверка для скачивания одного бланка и ZIP заявки
-// из файлового архива: оба уносят один и тот же набор документов, и разъехавшийся гейт
-// означал бы, что закрытое поштучно забирается архивом целиком.
+// Гейт доступа к бланку проверяется отдельно (canDownloadBlank) и раньше: сюда попадают
+// уже те, кому файл положен, вопрос лишь в его наполнении.
 func canExportBlankDocuments(c echo.Context, resolver *services.PermissionResolver) (bool, error) {
+	// Без резолвера прав вычислить нечем - отказываем, а не пропускаем. Такая сборка
+	// бывает только в тестах, и молчаливое «разрешено» превратило бы их в проверку
+	// пустоты.
 	if resolver == nil {
 		return false, nil
 	}
