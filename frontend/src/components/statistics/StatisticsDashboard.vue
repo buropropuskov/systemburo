@@ -677,10 +677,15 @@ const detailUnitForms = {
 };
 
 // ---- вычисляемые из summary ----
+// Порядок плиток - по имени, а не тот, в котором пришёл ответ: там типы идут по
+// убыванию количества, и на другом периоде состав ненулевых меняется. Плитки
+// переезжали местами, а перемещённые вдобавок переигрывали анимацию появления.
 const attachmentBreakdown = computed(() => {
   const list = summary.value.by_attachment_type;
   if (!Array.isArray(list)) return [];
-  return list.map((item) => ({ label: item.name, count: item.count }));
+  return list
+    .map((item) => ({ label: item.name, count: item.count }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'ru'));
 });
 
 // Donut распределения по типам вложений: только ненулевые доли (пустые типы
