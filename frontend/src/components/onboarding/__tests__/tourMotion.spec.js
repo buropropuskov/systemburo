@@ -56,6 +56,25 @@ describe('позиционирование шагов', () => {
   });
 });
 
+describe('клип выпадающей цели', () => {
+  const css = readFileSync(resolve(__dirname, '../../../assets/onboarding.css'), 'utf8');
+
+  // driver.js 1.4 ставит родителю подсвеченной цели overflow:hidden!important, и
+  // список уведомлений (он лежит в круглой кнопке-колокольчике 35x35) исчезал с
+  // экрана на своём же шаге, оставаясь целым в DOM.
+  it('перебиваем overflow родителя цели, иначе выпадающая панель обрезается', () => {
+    const rule = css.match(/html :not\(body\):has\(> \.driver-active-element\)\s*\{[^}]*\}/s);
+    expect(rule?.[0]).toMatch(/overflow:\s*visible\s*!important/);
+  });
+
+  // Селектор должен быть специфичнее драйверовского: onboarding.css приезжает из
+  // main.js раньше, чем driver.css из чанка тура, и при равной специфичности
+  // побеждает правило библиотеки.
+  it('селектор специфичнее драйверовского', () => {
+    expect(css).toMatch(/html :not\(body\):has\(> \.driver-active-element\)/);
+  });
+});
+
 describe('переключение подсветки', () => {
   const engine = readFileSync(resolve(__dirname, '../../../composables/useOnboarding.js'), 'utf8');
   const css = readFileSync(resolve(__dirname, '../../../assets/onboarding.css'), 'utf8');
