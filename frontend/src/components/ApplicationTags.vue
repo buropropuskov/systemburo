@@ -53,15 +53,23 @@
 <script>
 import Badge from '@/components/ui/Badge.vue';
 import ApplicationTag from '@/components/ApplicationTag.vue';
-import { buildApplicationTags, layoutApplicationTags } from '@/utils/applicationTags';
+import { buildApplicationTags, layoutApplicationTags, hiddenTagsPanelWidth } from '@/utils/applicationTags';
 import { getViewportZoom } from '@/utils/viewportScale';
 
-/** Оценка высоты строки списка в раскрытом виде: тег 23px + вертикальный зазор. */
-const POPOVER_ROW = 29;
-const POPOVER_PADDING = 16;
-const POPOVER_WIDTH = 176;
+/**
+ * Что панель тратит на себя помимо тегов: отступы 8px с каждой стороны, рамка
+ * (box-sizing: border-box - она съедает ширину контента) и 2px запаса на
+ * округление замеренных ширин. Без этого запаса расчёт говорит «влезает в строку»,
+ * а браузер выдавливает последний тег на вторую - и получается ровно та рваная
+ * раскладка, ради которой панель и считается.
+ */
+const POPOVER_PADDING = 20;
 const POPOVER_GAP = 6;
 const SCREEN_MARGIN = 8;
+/** Предел ширины строки тегов: шире панель начинает читаться простынёй. */
+const MAX_ROW_WIDTH = 420;
+/** Оценка высоты панели, пока она не отрисована (первый кадр, jsdom). */
+const POPOVER_ROW = 29;
 
 export default {
   name: 'ApplicationTags',
@@ -83,6 +91,16 @@ export default {
     },
     layout() {
       return layoutApplicationTags(this.tags, this.availableWidth);
+    },
+    /**
+     * Ширина панели: теги лежат в ней строкой и переносятся, поэтому ширину
+     * подбираем под содержимое - одна строка, либо две примерно равные.
+     */
+    popoverWidth() {
+      const limit = typeof window === 'undefined'
+        ? MAX_ROW_WIDTH
+        : Math.min(MAX_ROW_WIDTH, window.innerWidth - 2 * SCREEN_MARGIN - POPOVER_PADDING);
+      return hiddenTagsPanelWidth(this.layout.hidden, limit) + POPOVER_PADDING;
     },
   },
   watch: {
@@ -142,15 +160,21 @@ export default {
       const bottom = r.top / zoom;
       const vw = window.innerWidth / zoom;
       const vh = window.innerHeight / zoom;
-      const height = this.layout.hidden.length * POPOVER_ROW + POPOVER_PADDING;
+      // Высота нужна только для выбора стороны. Пока панель не отрисована, берём
+      // оценку по числу тегов; дальше - её настоящий размер, он зависит от переноса.
+      const rendered = this.$refs.popover?.getBoundingClientRect();
+      const height = rendered?.height
+        ? rendered.height / zoom
+        : this.layout.hidden.length * POPOVER_ROW + POPOVER_PADDING;
+      const width = this.popoverWidth;
       const openUp = top + POPOVER_GAP + height > vh - SCREEN_MARGIN && bottom - height > SCREEN_MARGIN;
 
       this.popoverStyle = {
         position: 'fixed',
         // Прижимаем к правому краю чипа: колонка тегов последняя перед действиями,
         // и список, выровненный по левому краю, вылезал бы за окно.
-        left: `${Math.round(Math.max(SCREEN_MARGIN, Math.min(r.right / zoom - POPOVER_WIDTH, vw - POPOVER_WIDTH - SCREEN_MARGIN)))}px`,
-        width: `${POPOVER_WIDTH}px`,
+        left: `${Math.round(Math.max(SCREEN_MARGIN, Math.min(r.right / zoom - width, vw - width - SCREEN_MARGIN)))}px`,
+        width: `${width}px`,
         ...(openUp
           ? { bottom: `${Math.round(vh - bottom + POPOVER_GAP)}px`, top: 'auto' }
           : { top: `${Math.round(top + POPOVER_GAP)}px`, bottom: 'auto' }),
@@ -195,13 +219,15 @@ export default {
     outline-offset: 1px;
 }
 
-/* Список скрытых тегов под чипом. Позицию считает positionPopover, поэтому здесь
-   только вид: teleport в body уводит его из-под overflow прокручиваемого списка. */
+/* Список скрытых тегов под чипом: теги идут строкой и переносятся на вторую, когда
+   не помещаются - ширину под это считает popoverWidth. Позицию задаёт
+   positionPopover, teleport в body уводит панель из-под overflow списка. */
 .tags-popover {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    align-content: flex-start;
+    gap: 6px 4px;
     padding: 8px;
     background: var(--surface);
     border: 1px solid var(--color-border);

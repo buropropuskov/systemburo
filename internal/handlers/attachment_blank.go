@@ -20,6 +20,9 @@ type blankAccessService interface {
 	CanAccessApplication(ctx context.Context, applicationID int, username string, isSuperAdmin bool) bool
 	CanSecurityViewAttachment(ctx context.Context, userID int, unrestricted bool, attachmentID int) (bool, error)
 	IsSecurityUser(ctx context.Context, userID int) (bool, error)
+	// IsApplicationSender нужен гейту документов: инициатор заявки сам вводил
+	// паспорта и патенты участников в форму, и права на их выгрузку не требует.
+	IsApplicationSender(ctx context.Context, applicationID, userID int) (bool, error)
 }
 
 // AttachmentBlankHandler - HTTP API скачивания заполненных Excel-бланков (#183).
@@ -47,7 +50,7 @@ func NewAttachmentBlankHandler(s services.AttachmentBlankService, access blankAc
 // @Param        id path int true "ID заявки"
 // @Param        attachment_id query int true "ID Attachment"
 // @Param        source query string false "live (по умолчанию) или archive - сохранённый файл"
-// @Param        documents query bool false "Подставить документы участников (паспорт, патент, иное разрешение). Требует прав detail.documents и detail.documents.export; без них бланк уходит с прочерками независимо от параметра"
+// @Param        documents query bool false "Подставить документы участников (паспорт, патент, иное разрешение). Доступно инициатору заявки, а прочим - по правам detail.documents и detail.documents.export; без этого бланк уходит с прочерками независимо от параметра"
 // @Success      200
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
@@ -71,7 +74,7 @@ func (h *AttachmentBlankHandler) Download(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
-	mayExportDocuments, err := canExportBlankDocuments(c, h.resolver)
+	mayExportDocuments, err := canExportBlankDocuments(c, h.access, h.resolver, appID)
 	if err != nil {
 		return err
 	}
@@ -183,26 +186,45 @@ func documentsRequested(c echo.Context) bool {
 	return false
 }
 
-// canExportBlankDocuments -- право вынести документы участников из системы файлом,
-// общее для скачивания одного бланка и ZIP заявки из файлового архива: оба уносят один
-// и тот же набор документов, и разъехавшийся гейт означал бы, что закрытое поштучно
-// забирается архивом целиком.
+// canExportBlankDocuments -- можно ли вынести документы участников из системы файлом.
+// Общая проверка для скачивания одного бланка и ZIP заявки из файлового архива: оба
+// уносят один и тот же набор документов, и разъехавшийся гейт означал бы, что закрытое
+// поштучно забирается архивом целиком.
 //
-// Конъюнкция намеренная: detail.documents.export работает только вместе с правом на сам
-// раздел «Документы», поэтому отзыв просмотра на экране закрывает и выгрузку, без
-// второго действия администратора.
+// Две дороги, и обе законные.
+//
+// Первая -- инициатор заявки. Паспорта и патенты участников он сам набрал в форме
+// подачи, из своей же заявки они и уходят; требовать у него права на собственные
+// сведения бессмысленно, а прочерки в его бланке выглядят как поломка. Круг узкий:
+// именно подавший, а не всякий, кому заявка доступна, - согласующие, принимающие и
+// получатели пересылки её только читают.
+//
+// Вторая -- пара прав. Конъюнкция намеренная: detail.documents.export работает только
+// вместе с правом на сам раздел «Документы», поэтому отзыв просмотра на экране
+// закрывает и выгрузку, без второго действия администратора.
 //
 // Гейт доступа к бланку проверяется отдельно (canDownloadBlank) и раньше: сюда попадают
 // уже те, кому файл положен, вопрос лишь в его наполнении.
-func canExportBlankDocuments(c echo.Context, resolver *services.PermissionResolver) (bool, error) {
+func canExportBlankDocuments(c echo.Context, access blankAccessService, resolver *services.PermissionResolver, appID int) (bool, error) {
+	userID, ok := c.Get("user_id").(int)
+	if !ok || userID == 0 {
+		return false, nil
+	}
+
+	if access != nil && appID != 0 {
+		isSender, err := access.IsApplicationSender(c.Request().Context(), appID, userID)
+		if err != nil {
+			return false, err
+		}
+		if isSender {
+			return true, nil
+		}
+	}
+
 	// Без резолвера прав вычислить нечем - отказываем, а не пропускаем. Такая сборка
 	// бывает только в тестах, и молчаливое «разрешено» превратило бы их в проверку
 	// пустоты.
 	if resolver == nil {
-		return false, nil
-	}
-	userID, ok := c.Get("user_id").(int)
-	if !ok || userID == 0 {
 		return false, nil
 	}
 	set, err := resolver.Resolve(c.Request().Context(), userID)

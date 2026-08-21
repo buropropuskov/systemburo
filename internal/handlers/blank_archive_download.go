@@ -47,8 +47,11 @@ func archiveUnavailable() error {
 // положены документы участников. Раздел файлового архива и так админский, но право на
 // выгрузку файлов (action.download.file_archive) выдаётся и точечно, а внутри каждого
 // файла лежат паспорта - без этой проверки закрытый бланк забирался бы через раздел.
-func requireBlankDocumentsExport(c echo.Context, resolver *services.PermissionResolver) error {
-	allowed, err := canExportBlankDocuments(c, resolver)
+//
+// appID = 0 означает «заявка тут ни при чём» (выгрузка за период, отдельный файл
+// реестра): дорога инициатора в этом случае не открывается, остаётся только право.
+func requireBlankDocumentsExport(c echo.Context, access blankAccessService, resolver *services.PermissionResolver, appID int) error {
+	allowed, err := canExportBlankDocuments(c, access, resolver, appID)
 	if err != nil {
 		return err
 	}
@@ -112,7 +115,7 @@ func (h *ArchiveDownloadHandler) IssueDownloadTicket(c echo.Context) error {
 
 	// Билет проверяется здесь, а не на самой выдаче ZIP: GET /file-archive/download
 	// ходит без Authorization (билет вместо заголовка), и права там уже не спросить.
-	if err := requireBlankDocumentsExport(c, h.resolver); err != nil {
+	if err := requireBlankDocumentsExport(c, nil, h.resolver, 0); err != nil {
 		return err
 	}
 
@@ -201,7 +204,7 @@ func (h *ArchiveDownloadHandler) Archive(c echo.Context) error {
 	// номером есть. В ZIP уезжают те же сохранённые копии, что и по одному через
 	// ?source=archive, поэтому право требуется то же - закрытое поштучно не должно
 	// забираться архивом целиком.
-	if err := requireBlankDocumentsExport(c, h.resolver); err != nil {
+	if err := requireBlankDocumentsExport(c, h.access, h.resolver, appID); err != nil {
 		return err
 	}
 	return download.StreamZip(c, "application_"+strconv.Itoa(appID)+".zip", entries)
@@ -225,7 +228,7 @@ func (h *ArchiveDownloadHandler) DownloadFile(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := requireBlankDocumentsExport(c, h.resolver); err != nil {
+	if err := requireBlankDocumentsExport(c, nil, h.resolver, 0); err != nil {
 		return err
 	}
 

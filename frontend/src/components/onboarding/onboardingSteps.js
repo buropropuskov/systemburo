@@ -110,18 +110,18 @@ export const onboardingSteps = [
     element: '[data-testid="ob-work-modes"]',
     title: 'Режимы работы',
     description: 'Кнопка «Режимы работы» открывает расписание Бюро, мест разгрузки и мест прохода. Сейчас откроем.',
-    advanceWhen: '[data-testid="work-modes-modal"]',
+    advanceWhen: '[data-testid="ob-work-modes-window"]',
   },
   {
     id: 'work-modes-window',
     route: '/news',
-    element: '[data-testid="work-modes-modal"]',
+    // Окно, а не подложка: `work-modes-modal` висит на затемнении во весь экран.
+    element: '[data-testid="ob-work-modes-window"]',
     title: 'Расписание',
     description:
       'По каждой позиции видно, открыта она сейчас, закрыта или неактивна, и какой график действует сегодня. Сверьтесь с ним до подачи заявки: если время пребывания не попадает в график места, форма об этом предупредит.',
     optional: true,
-    // Тур открывает расписание сам - рассказ о кнопке без самого расписания
-    // человеку ничего не даёт.
+    // Расписание тур открывает сам: рассказ о кнопке без него ничего не даёт.
     reveal: { open: 'work-modes' },
   },
   {
