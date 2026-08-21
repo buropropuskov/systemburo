@@ -120,21 +120,30 @@ def metrics():
     m["public_routes"] = count(
         r"sed -n '/^\tapi := e.Group/,/^\tprotected := api.Group/p' "
         r"internal/router/router.go "
-        r"| grep -cE 'api\.(GET|POST|PUT|PATCH|DELETE)\(\"'")
+        # Кавычка после скобки в шаблон не входит: роут, объявленный через
+        # константу, тоже метод без входа, и не посчитать его значило бы занизить
+        # обещание «отвечают только семь методов» (тот же промах, что был с ключами
+        # каталога прав, см. perm_keys ниже).
+        r"| grep -cE 'api\.(GET|POST|PUT|PATCH|DELETE)\('")
 
     catalog = "internal/services/permission_catalog.go"
-    # Ключи считаются по 'Key:', а не по '{Key:': узел, у которого появилось
-    # описание или вложенный ключ, переносится на несколько строк, и открывающая
-    # скобка уезжает на строку выше. Счёт по скобке такие узлы терял молча -
-    # число прав в тексте при добавлении права уменьшалось.
+    # Ключи каталога считаются по вхождению поля, а не по строке с «{Key:».
+    # Узел бывает однострочным, а бывает развёрнутым - у него есть описание или
+    # вложенный ключ, и тогда открывающая скобка уезжает на строку выше. Счёт по
+    # скобке терял такие узлы молча: после #2035 документ занижал число на один,
+    # после #2187 на три, а сверка этого не видела, потому что сравнивала документ
+    # с той же ошибочной формулой. Шаблон требует, чтобы перед Key: стояла скобка
+    # или начало строки, - иначе в счёт пошли бы поля вида ParentKey.
     m["perm_keys"] = count(r"sed -n '/func staticCatalog/,/^}/p' %s "
-                           r"| grep -c 'Key:'" % catalog)
+                           r"| grep -oE '(^|\{)[[:space:]]*Key:' | wc -l" % catalog)
     m["perm_cats"] = count(r"sed -n '/func staticCatalog/,/^}/p' %s "
                            r"| grep -o 'Category: Cat[A-Za-z]*' | sort -u "
                            r"| wc -l" % catalog)
     m["table_verbs"] = count(
         r"sed -n '/^var tableVerbs/,/^}/p' internal/services/"
-        r"permission_service.go | grep -c '^\s*{\"'")
+        # Форма записи может быть и однострочной, и развёрнутой: считается первая
+        # строка записи в обоих случаях.
+        r"permission_service.go | grep -cE '^[[:space:]]*\{?\"'")
 
     m["gin"] = count("grep -c 'USING gin' internal/database/migrate.go")
     m["user_types"] = count(
