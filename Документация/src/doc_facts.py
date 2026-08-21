@@ -280,6 +280,7 @@ def inventories():
                 "startApplicationFileSweeper": "Уборка неотправленных файлов заявок",
                 "startMailWorker": "Разбор очереди писем",
                 "startPasswordRotationScheduler": "Проверка сроков действия паролей",
+                "startErrorSpikeScheduler": "Проверка всплеска серверных ошибок",
             },
         },
         {
