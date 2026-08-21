@@ -46,6 +46,12 @@ var pdPaths = []string{
 	// вход другой и объём разовый, поэтому обращение обязано попадать в журнал -
 	// как сводка согласий и выгрузка файлового архива выше.
 	"/api/applications/export",
+	// Выгрузка журнала обращений (#2125): один файл уносит адреса запросов сотен
+	// работников за период. Значения параметров в нём затёрты по белому списку, то
+	// есть ФИО и номера заявок в файл не попадают, - но сам факт «кто когда куда
+	// обращался» остаётся сведениями о людях, и снятие его пачкой владелец решил
+	// считать просмотром персональных данных наравне с выгрузкой реестра заявок.
+	"/api/request-logs/export",
 }
 
 // auditWriteTimeout - максимальное время на запись лога в БД. Если БД легла или
@@ -216,6 +222,8 @@ func pathToResource(path string) string {
 		return "file_archive"
 	case strings.HasPrefix(path, "/api/applications/export"):
 		return "applications_export"
+	case strings.HasPrefix(path, "/api/request-logs/export"):
+		return "request_logs_export"
 	case strings.HasPrefix(path, "/api/search"):
 		return "search"
 	}

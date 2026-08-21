@@ -5,7 +5,8 @@
         v-if="show"
         class="dbm-overlay"
         data-testid="download-blanks-modal"
-        @click.self="$emit('close')"
+        @mousedown="onOverlayMousedown"
+        @mouseup="onOverlayMouseup"
       >
         <div class="dbm-modal">
           <div class="dbm-header">
@@ -20,17 +21,21 @@
             </button>
           </div>
 
-          <!-- Наполнение выбирается первым: от него зависит, доступен ли ниже
-               сохранённый файл. Видно только тем, кому документы участников положены;
-               остальным вместо переключателя идёт строка о том, почему в скачанном
-               файле прочерки. -->
-          <FilterTabs
+          <!-- Наполнение бланка - тумблер, а не вкладки: включено или нет, третьего
+               состояния нет, и подпись читается сразу. Видно только тем, кому документы
+               участников положены; остальным идёт строка о том, почему в файле прочерки. -->
+          <div
             v-if="showDocumentsChoice"
-            v-model="documentsMode"
-            class="dbm-tabs dbm-documents"
-            data-testid="blank-documents-tabs"
-            :tabs="documentsTabs"
-          />
+            class="dbm-documents"
+          >
+            <ToggleSwitch
+              v-model="withDocuments"
+              data-testid="blank-documents-toggle"
+            >
+              Паспортные данные
+            </ToggleSwitch>
+            <span class="dbm-documents-hint">{{ withDocuments ? 'Попадут в бланк' : 'В бланке будет прочерк' }}</span>
+          </div>
           <p
             v-if="!isLoading && !error && eligibleAttachments.length && !canExportDocuments"
             class="dbm-docs-note"
@@ -38,19 +43,6 @@
           >
             Паспортные данные, патент и иное разрешение в бланке заменены прочерком: нет права на их выгрузку.
           </p>
-
-          <!-- Переключатель источника - общий FilterTabs, а не свои кнопки: он уже
-               держит вид вкладок в восьми разделах, и вторая реализация разъедется
-               с ними на первой же правке оформления. Одинокая вкладка не выбор, а
-               подпись: в закрытом режиме сохранённый файл недоступен, и группа
-               прячется целиком. -->
-          <FilterTabs
-            v-if="showSourceChoice"
-            v-model="source"
-            class="dbm-tabs dbm-source"
-            data-testid="blank-source-tabs"
-            :tabs="sourceTabs"
-          />
 
           <div
             v-if="isLoading"
@@ -74,18 +66,17 @@
             v-else
             class="dbm-list"
           >
-            <label
+            <div
               v-for="att in eligibleAttachments"
               :key="att.id"
               class="dbm-item"
               :class="{ selected: selectedIds.includes(att.id) }"
             >
-              <input
-                v-model="selectedIds"
-                type="checkbox"
-                :value="att.id"
-                class="dbm-checkbox"
-              >
+              <ToggleSwitch
+                :model-value="selectedIds.includes(att.id)"
+                :data-testid="`blank-select-${att.id}`"
+                @update:model-value="toggleSelected(att.id, $event)"
+              />
               <div class="dbm-item-info">
                 <span class="dbm-item-name">{{ att.attachment_display_name || att.unique_attachment_display_name || att.attachment_name }}</span>
                 <span
@@ -93,20 +84,14 @@
                   class="dbm-item-type"
                 >{{ attachmentTypeLabel(att.attachment_type) }}</span>
               </div>
-              <StatusBadge
-                v-if="archiveStatusLabel(att.archive_status)"
-                :status="archiveStatusLabel(att.archive_status)"
-                class="dbm-archive-badge"
-              />
               <button
                 class="dbm-item-download"
-                :disabled="downloadingId === att.id || unavailableInArchive[att.id]"
-                :title="unavailableInArchive[att.id] ? 'Сохранённого файла пока нет - выберите «Сформировать заново»' : ''"
+                :disabled="downloadingId === att.id"
                 @click.prevent="downloadOne(att)"
               >
                 {{ downloadingId === att.id ? '...' : 'Скачать' }}
               </button>
-            </label>
+            </div>
           </div>
 
           <footer
@@ -144,10 +129,10 @@
 import JSZip from 'jszip';
 import { apiRequest } from '@/api/client';
 import { useDeletionsStore } from '@/stores/deletions';
-import { downloadBlank, downloadApplicationArchive, saveBlobAs } from '@/api/attachment-templates';
+import { downloadBlank, saveBlobAs } from '@/api/attachment-templates';
+import { useOverlayClose } from '@/composables/useOverlayClose';
 import { usePermissionsStore } from '@/stores/permissions';
-import StatusBadge from '@/components/ui/StatusBadge.vue';
-import FilterTabs from '@/components/ui/FilterTabs.vue';
+import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 
 const TYPE_LABELS = {
   cars: 'Автомобили',
@@ -155,28 +140,20 @@ const TYPE_LABELS = {
   items: 'Имущество',
 };
 
-// Статусы строки реестра файлового архива (internal/models/blank_export.go),
-// сведённые к трём бейджам модалки (#1615, C6): skipped/no_template/orphan и
-// отсутствие строки не показываются вовсе - это не про ожидание, а про то, что
-// архивная копия для вложения не предполагается.
-const ARCHIVE_BADGE_LABELS = {
-  ok: 'В архиве',
-  pending: 'В очереди',
-  // Остановка по нехватке места - не обычное ожидание: очередь стоит, пока
-  // администратор не освободит место, и слово об этом должно отличаться.
-  blocked: 'Нет места',
-  failed: 'Ошибка',
-};
-
 export default {
   name: 'DownloadBlanksModal',
-  components: { StatusBadge, FilterTabs },
+  components: { ToggleSwitch },
   props: {
     show: { type: Boolean, default: false },
     applicationId: { type: Number, default: 0 },
     applicationInfo: { type: Object, default: null },
   },
   emits: ['close'],
+  setup(props, { emit }) {
+    // Закрытие по подложке - через общий composable: он отличает клик по фону от
+    // протяжки, начатой внутри окна (выделение текста мышью не должно закрывать).
+    return useOverlayClose(() => emit('close'));
+  },
   data() {
     return {
       attachments: [],
@@ -185,27 +162,15 @@ export default {
       downloadingId: null,
       downloadingAll: false,
       error: '',
-      // Источник скачивания: archive - сохранённый на диске файл файлового
-      // архива, live - генерация бланка заново из текущих данных заявки.
-      source: 'live',
-      // Наполнение бланка: without - паспорт, патент и иное разрешение заменены
+      // Наполнение бланка. Выключено - паспорт, патент и иное разрешение заменены
       // прочерком. Умолчание намеренно закрытое: вынос персональных данных из
       // системы должен быть отдельным решением, а не тем, что случилось само.
-      documentsMode: 'without',
+      documentsRequested: false,
     };
   },
   computed: {
     eligibleAttachments() {
       return this.attachments.filter(att => att.has_template);
-    },
-    sourceTabs() {
-      return [
-        // Сохранённый файл собран с документами, и вырезать их из готового .xlsx
-        // нечем - поэтому вкладка живёт только в режиме «с паспортными данными»
-        // (сервер на этот случай отвечает 403, см. attachment_blank.go).
-        { key: 'archive', label: 'Сохранённый файл', visible: this.withDocuments },
-        { key: 'live', label: 'Сформировать заново' },
-      ];
     },
     // Пара прав, а не одно: detail.documents открывает документы на экране карточки,
     // detail.documents.export - их вынос файлом. Отзыв первого гасит и второе.
@@ -216,64 +181,45 @@ export default {
     showDocumentsChoice() {
       return !this.isLoading && !this.error && this.eligibleAttachments.length > 0 && this.canExportDocuments;
     },
-    showSourceChoice() {
-      if (this.isLoading || this.error || !this.eligibleAttachments.length) return false;
-      return this.sourceTabs.filter((tab) => tab.visible !== false).length > 1;
-    },
-    withDocuments() {
-      return this.canExportDocuments && this.documentsMode === 'with';
-    },
-    documentsTabs() {
-      return [
-        { key: 'without', label: 'Без паспортных данных' },
-        { key: 'with', label: 'С паспортными данными' },
-      ];
-    },
-    // Сохранённый файл есть не у каждого вложения: у вложения в очереди, с ошибкой
-    // или вовсе без строки реестра скачивать с диска нечего. Кнопку в этом случае
-    // гасим - иначе выбор источника превращает редкую ошибку сервера в частый
-    // отказ с невнятным текстом.
-    unavailableInArchive() {
-      const ids = {};
-      for (const att of this.eligibleAttachments) {
-        ids[att.id] = this.source === 'archive' && att.archive_status !== 'ok';
-      }
-      return ids;
+    // Тумблер наполнения: право проверяется здесь же, поэтому включённое состояние
+    // без права невозможно в принципе - даже если оно осталось от прошлого открытия.
+    withDocuments: {
+      get() {
+        return this.canExportDocuments && this.documentsRequested;
+      },
+      set(value) {
+        this.documentsRequested = value;
+      },
     },
   },
   watch: {
     // Модалка всегда смонтирована (для leave-анимации): грузим вложения при
     // открытии, а не на mount (иначе fetch с пустым applicationId на старте).
+    // Закрытие модалки снимает обработчик Escape: он висит на документе, и без
+    // снятия каждое открытие добавляло бы ещё один.
     show(visible) {
       if (visible && this.applicationId) {
         this.selectedIds = [];
-        this.documentsMode = 'without';
+        this.documentsRequested = false;
         this.load();
       }
-    },
-    // Режим документов управляет и источником: в закрытом вкладка «Сохранённый файл»
-    // исчезает, и оставшийся в source archive молча получал бы 403. В открытом она
-    // возвращается вместе с прежним умолчанием - сохранённый файл, если он есть.
-    withDocuments(enabled) {
-      if (!enabled) {
-        this.source = 'live';
-        return;
-      }
-      if (this.eligibleAttachments.some(a => a.archive_status === 'ok')) this.source = 'archive';
+      if (visible) document.addEventListener('keydown', this.onKeydown);
+      else document.removeEventListener('keydown', this.onKeydown);
     },
   },
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.onKeydown);
+  },
   methods: {
+    onKeydown(e) {
+      if (e.key === 'Escape') this.$emit('close');
+    },
     async load() {
       this.isLoading = true;
       try {
         const res = await apiRequest(`/applications/${this.applicationId}/attachments`);
         const data = await res.json();
         this.attachments = Array.isArray(data) ? data : [];
-        // Дефолт "сохранённый файл", если хоть одно вложение уже реально
-        // записано в архив - иначе живая генерация (архив либо выключен,
-        // либо ещё не успел выгрузить ни одного бланка этой заявки).
-        const hasSaved = this.eligibleAttachments.some(a => a.archive_status === 'ok');
-        this.source = hasSaved && this.withDocuments ? 'archive' : 'live';
       } catch {
         this.error = 'Не удалось загрузить вложения';
       } finally {
@@ -283,14 +229,18 @@ export default {
     attachmentTypeLabel(t) {
       return TYPE_LABELS[t] || t || '';
     },
-    archiveStatusLabel(status) {
-      return ARCHIVE_BADGE_LABELS[status] || '';
+    // Тумблер строки списка: выбор для «Скачать (N)». Массив, а не Set - его же
+    // читает разметка, а Vue не отслеживает изменения Set.
+    toggleSelected(id, on) {
+      this.selectedIds = on
+        ? [...this.selectedIds, id]
+        : this.selectedIds.filter((selected) => selected !== id);
     },
     async downloadOne(att) {
       this.downloadingId = att.id;
       try {
         const { blob, filename } = await downloadBlank(this.applicationId, att.id,
-          { source: this.source, withDocuments: this.withDocuments });
+          { withDocuments: this.withDocuments });
         saveBlobAs(blob, filename);
       } catch (err) {
         useDeletionsStore().notify({ prefix: 'Не удалось скачать: ', bold: err.message || 'ошибка сервера', type: 'error' });
@@ -316,7 +266,7 @@ export default {
       for (const id of ids) {
         try {
           const { blob, filename } = await downloadBlank(this.applicationId, id,
-            { source: this.source, withDocuments: this.withDocuments });
+            { withDocuments: this.withDocuments });
           zip.file(filename, blob);
         } catch (err) {
           useDeletionsStore().notify({ prefix: 'Не удалось скачать файл: ', bold: err.message || 'ошибка сервера', type: 'error' });
@@ -332,30 +282,8 @@ export default {
       useDeletionsStore().notify({ prefix: 'Скачано: ', bold: `${ids.length} файлов в ZIP` });
     },
     async downloadAll() {
-      // source=archive - серверный ZIP заявки целиком (#1615, C6): бэк уже
-      // собирает его из файлов реестра, тянуть их по одному через JSZip
-      // избыточно и не даёт скачать вложения без активного бланка, у которых
-      // тем не менее есть сохранённый файл в архиве.
-      if (this.source === 'archive') {
-        this.downloadingAll = true;
-        try {
-          await this.downloadServerZip();
-        } finally {
-          this.downloadingAll = false;
-        }
-        return;
-      }
       this.selectedIds = this.eligibleAttachments.map(a => a.id);
       await this.downloadSelected();
-    },
-    async downloadServerZip() {
-      try {
-        const { blob, filename } = await downloadApplicationArchive(this.applicationId);
-        saveBlobAs(blob, filename);
-        useDeletionsStore().notify({ prefix: 'Скачано: ', bold: 'архив заявки' });
-      } catch (err) {
-        useDeletionsStore().notify({ prefix: 'Не удалось скачать архив: ', bold: err.message || 'ошибка сервера', type: 'error' });
-      }
     },
   },
 };
@@ -423,27 +351,19 @@ export default {
   color: var(--color-text);
 }
 
-.dbm-tabs {
+/* Тумблер наполнения и подпись к нему стоят в одну строку: подпись поясняет
+   текущее положение словами, чтобы состояние читалось без догадок. */
+.dbm-documents {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 14px 24px 0;
 }
 
-/* Выбор наполнения идёт вплотную к выбору источника: это две грани одного решения
-   «что скачиваем». Своя метрика у вкладок не прихоть - подписи здесь длиннее, и с
-   общими 14px пара «Без паспортных данных / С паспортными данными» не встаёт в строку
-   при ширине окна 480px, разъезжаясь на два этажа. */
-.dbm-documents {
-  gap: 8px;
-}
-
-.dbm-documents :deep(.filter-tab) {
+.dbm-documents-hint {
   font-size: 13px;
-  padding: 0 12px;
-}
-
-.dbm-source {
-  padding-top: 8px;
+  color: var(--color-text-muted);
 }
 
 .dbm-docs-note {
@@ -452,16 +372,6 @@ export default {
   font-size: 13px;
   line-height: 1.4;
   color: var(--color-text-muted);
-}
-
-.dbm-archive-badge {
-  flex-shrink: 0;
-}
-
-.dbm-archive-badge :deep(.status-badge) {
-  min-width: auto;
-  padding: 3px 8px;
-  font-size: 10px;
 }
 
 .dbm-state {
@@ -506,7 +416,6 @@ export default {
   padding: 10px 14px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
-  cursor: pointer;
   transition: all 0.15s;
   background: var(--surface);
 }
@@ -519,13 +428,6 @@ export default {
 .dbm-item.selected {
   border-color: var(--accent);
   background: var(--accent-tint);
-}
-
-.dbm-checkbox {
-  accent-color: var(--accent-text);
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
 }
 
 .dbm-item-info {
