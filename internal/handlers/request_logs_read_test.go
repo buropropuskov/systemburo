@@ -98,12 +98,21 @@ func TestRequestLogs_Users_FromDirectory(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 
 	names := make([]string, 0, len(body.Data))
+	archived := false
 	for _, u := range body.Data {
 		names = append(names, u.Username)
+		if u.Username == "rl-archived" {
+			archived = true
+			assert.False(t, u.IsActive, "уволенный должен приходить с признаком архива")
+		}
 	}
 	assert.Contains(t, names, "testadmin", "действующая учётная запись обязана быть в фильтре")
 	assert.NotContains(t, names, "ghost-from-journal", "имя из журнала не заводит запись в справочнике")
-	assert.NotContains(t, names, "rl-archived", "архивная учётная запись в фильтре не нужна")
+	// Прежде здесь стояло обратное утверждение (#2125, S3): архивных из фильтра
+	// убирали. Решение отменено в #2191 - обращения уволенного в журнале остаются, и
+	// разбор происшествия с его участием ровно тот случай, ради которого журнал держат.
+	// Порядок (активные, следом архивные) закрыт отдельным тестом.
+	assert.True(t, archived, "архивная учётная запись остаётся в фильтре: её обращения в журнале никуда не делись")
 }
 
 // errJournalDown - причина, которую подставляем вместо ответа базы.

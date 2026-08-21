@@ -183,4 +183,24 @@ describe('дни календаря и отбор', () => {
     // Список сверяет выбранное строго: числовой id никогда не совпал бы со строкой из адреса.
     expect(user.options[1]).toEqual({ value: '42', label: '@ivanov' });
   });
+
+  it('архивная учётная запись в списке помечена, порядок берётся с сервера', () => {
+    const state = { ...journalStateFromQuery({}) };
+    const users = [
+      { id: 1, username: 'active', is_active: true },
+      { id: 2, username: 'fired', is_active: false }
+    ];
+    const [, , user] = journalFilterDropdowns(state, users, (u) => `@${u}`);
+
+    expect(user.options.map(o => o.label)).toEqual([
+      'Все пользователи', '@active', '@fired (архив)'
+    ]);
+  });
+
+  it('ответ без признака активности не превращает весь список в архив', () => {
+    const state = { ...journalStateFromQuery({}) };
+    const [, , user] = journalFilterDropdowns(state, [{ id: 7, username: 'ivanov' }], (u) => `@${u}`);
+
+    expect(user.options[1].label).toBe('@ivanov');
+  });
 });
