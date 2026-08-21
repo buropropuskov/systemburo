@@ -127,13 +127,15 @@ def metrics():
         r"| grep -cE 'api\.(GET|POST|PUT|PATCH|DELETE)\('")
 
     catalog = "internal/services/permission_catalog.go"
-    # Считать по '{Key:' нельзя: запись каталога бывает и однострочной, и
-    # развёрнутой на несколько строк (у неё есть Description или Children), и тогда
-    # поле Key стоит на своей строке. Пока проверка смотрела только на однострочную
-    # форму, документ занижал число ключей: после #2035 на один, после #2187 на три,
-    # причём молча - сверка сравнивала документ с той же ошибочной формулой.
+    # Ключи каталога считаются по вхождению поля, а не по строке с «{Key:».
+    # Узел бывает однострочным, а бывает развёрнутым - у него есть описание или
+    # вложенный ключ, и тогда открывающая скобка уезжает на строку выше. Счёт по
+    # скобке терял такие узлы молча: после #2035 документ занижал число на один,
+    # после #2187 на три, а сверка этого не видела, потому что сравнивала документ
+    # с той же ошибочной формулой. Шаблон требует, чтобы перед Key: стояла скобка
+    # или начало строки, - иначе в счёт пошли бы поля вида ParentKey.
     m["perm_keys"] = count(r"sed -n '/func staticCatalog/,/^}/p' %s "
-                           r"| grep -cE '^[[:space:]]*\{?Key:[[:space:]]'" % catalog)
+                           r"| grep -oE '(^|\{)[[:space:]]*Key:' | wc -l" % catalog)
     m["perm_cats"] = count(r"sed -n '/func staticCatalog/,/^}/p' %s "
                            r"| grep -o 'Category: Cat[A-Za-z]*' | sort -u "
                            r"| wc -l" % catalog)
@@ -280,7 +282,6 @@ def inventories():
                 "startDailyPassReportSaver": "Суточный отчёт по проходам",
                 "startOnlinePeakSnapshotter": "Фиксация пика посещаемости",
                 "startLogPartitionWorker": "Обслуживание журнальных таблиц",
-                "startErrorSpikeScheduler": "Наблюдение за долей серверных ошибок",
                 "startReminderScheduler": "Напоминания согласующим",
                 "startExpiryNotifyScheduler": "Предупреждение об истечении пропуска",
                 "startRetentionWorker": "Уборка технического мусора",
@@ -288,6 +289,7 @@ def inventories():
                 "startApplicationFileSweeper": "Уборка неотправленных файлов заявок",
                 "startMailWorker": "Разбор очереди писем",
                 "startPasswordRotationScheduler": "Проверка сроков действия паролей",
+                "startErrorSpikeScheduler": "Проверка всплеска серверных ошибок",
             },
         },
         {
