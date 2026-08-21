@@ -716,13 +716,12 @@ export default {
                     this.$emit('saved', savedEmployee);
                 } else {
                     const errorData = await response.json();
+                    // Текст сервера показываем как есть: он различает три случая -
+                    // запись уже у вас, у кого-то в организации или в компании. Прежде
+                    // два последних подменялись на «уже привязан к вашему аккаунту», и
+                    // человек шёл искать сотрудника в «Мои сотрудники», где его нет (#2021).
                     const errorMessage = errorData.message || 'Ошибка при сохранении сотрудника';
-
-                    if (errorMessage.includes('уже существует') || errorMessage.includes('already exists')) {
-                        useDeletionsStore().notify({ bold: 'Сотрудник уже привязан к вашему аккаунту', type: 'error' });
-                    } else {
-                        useDeletionsStore().notify({ bold: errorMessage, type: 'error' });
-                    }
+                    useDeletionsStore().notify({ bold: errorMessage, type: 'error' });
                 }
             } catch (error) {
                 console.error('Ошибка при сохранении сотрудника:', error);
