@@ -120,9 +120,13 @@ type RealtimeStats struct {
 }
 
 // RequestLogsUser — пользователь для фильтра.
+//
+// IsActive нужен экрану, чтобы отделить уволенных: их обращения в журнале
+// остаются, и выбрать такого работника кликом должно быть можно.
 type RequestLogsUser struct {
 	ID       int    `json:"id"`
 	Username string `json:"username"`
+	IsActive bool   `json:"is_active"`
 }
 
 // RequestLogsHistoryQuery — период для агрегатов истории (вкладка «Аналитика»).

@@ -305,16 +305,24 @@ export function ymdToDate(value) {
  * общая, различаются только источник пунктов и поле отбора. `key` - имя поля в
  * состоянии журнала, экран пишет выбранное значение прямо по нему.
  * @param {JournalState} state
- * @param {Array<{id: number|string, username: string}>} users
+ * @param {Array<{id: number|string, username: string, is_active?: boolean}>} users
  * @param {(login: string) => string} formatUser подпись пользователя
  * @returns {Array<object>}
  */
 export function journalFilterDropdowns(state, users, formatUser) {
   // Идентификатор приводится к строке: в адресе он строка, а список сверяет
   // выбранное значение строго.
+  //
+  // Порядок задаёт сервер: активные, следом архивные. Здесь только пометка -
+  // без неё уволенный неотличим от работающего, и выбор выглядит ошибкой.
+  // Помечается ЯВНОЕ false: у ответа без поля признака (старый кэш ответа)
+  // пометка не нужна, иначе весь список окажется «в архиве».
   const userOptions = [
     { value: '', label: 'Все пользователи' },
-    ...users.map(u => ({ value: String(u.id), label: formatUser(u.username) }))
+    ...users.map(u => ({
+      value: String(u.id),
+      label: u.is_active === false ? `${formatUser(u.username)} (архив)` : formatUser(u.username)
+    }))
   ];
   return [
     { key: 'method', value: state.method, options: METHOD_FILTER_OPTIONS, placeholder: 'Все методы', searchable: false },
