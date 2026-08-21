@@ -283,16 +283,18 @@ func (s *requestLogsService) GetLogs(ctx context.Context, q models.RequestLogsQu
 // стоят полного скана всех партиций (сотни тысяч строк) ради сотни имён, которые
 // уже лежат в users.
 //
-// Учётные записи в архиве в список не попадают: фильтр отвечает на вопрос «за кем
-// посмотреть», а не «кто когда-либо обращался». Обращения уволенного в журнале
-// остаются и находятся поиском по имени.
+// Архивные учётные записи из списка не убираются, а уходят в его конец (#2191):
+// обращения уволенного в журнале остаются, и разбор происшествия с его участием -
+// ровно тот случай, ради которого журнал держат. Пока их прятали, выбрать такого
+// работника кликом было нельзя, оставался поиск по имени, а имя надо знать заранее.
+// Соединения с журналом здесь нет намеренно: в системе сотня учётных записей, а
+// проверка «обращался ли он хоть раз» стоила бы скана всех партиций.
 func (s *requestLogsService) GetUsers(ctx context.Context) ([]models.RequestLogsUser, error) {
 	users := make([]models.RequestLogsUser, 0)
 	err := s.db.WithContext(ctx).
 		Table("users").
-		Select("id, username").
-		Where("is_active = ?", true).
-		Order("username").
+		Select("id, username, is_active").
+		Order("is_active DESC, username").
 		Scan(&users).Error
 	if err != nil {
 		slog.Error("request logs users", "error", err)
