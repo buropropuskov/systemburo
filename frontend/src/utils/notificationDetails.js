@@ -124,6 +124,7 @@ const EXACT_CATEGORY = {
   archive_quota_warning: 'system',
   directory_entry_pending: 'system',
   directory_entry_resolved: 'system',
+  error_spike: 'system',
 };
 
 /**

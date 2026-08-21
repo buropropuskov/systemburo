@@ -310,6 +310,9 @@ func main() {
 	// Предупреждение об истекающем завтра пропуске (#1748, S4): раньше об этом
 	// узнавали постфактум, когда CheckExpiredAttachments уже деактивировал вложение.
 	expiryNotifyService := services.NewExpiryNotifyService(db, notificationService)
+	// Всплеск серверных ошибок (#2192): доля 5xx видна была только тому, кто сам
+	// открыл раздел мониторинга.
+	errorSpikeNotifyService := services.NewErrorSpikeNotifyService(db, notificationService, permissionResolver)
 	telegramService := services.NewTelegramService(cfg.TelegramBotToken, cfg.TelegramChatID)
 	bugReportService := services.NewBugReportService(db, telegramService)
 	// maintenance_scheduled (#1748 S5): уведомление активным пользователям при
@@ -639,6 +642,11 @@ func main() {
 	// инициатору. См. ExpiryNotifyService.NotifyExpiringSoon. Дедупликация от повторных
 	// рестартов - внутри сервиса (по существующему уведомлению за последние сутки).
 	go startExpiryNotifyScheduler(ctxSig, expiryNotifyService, resetLoc)
+
+	// Всплеск серверных ошибок (#2192): каждые пять минут считает долю ответов 5xx
+	// за такое же окно и зовёт носителей права на раздел мониторинга. Порог, окно и
+	// пауза между уведомлениями - константы сервиса.
+	go startErrorSpikeScheduler(ctxSig, errorSpikeNotifyService, services.ErrorSpikeCheckInterval)
 
 	// Архив access_denials: 3 мес retention, цикл раз в сутки.
 	go startAccessDenialsArchiver(ctxSig, accessDenialService, 90*24*time.Hour, 24*time.Hour)
@@ -1027,6 +1035,27 @@ func startDailyPassReportSaver(ctx context.Context, svc services.DailyPassReport
 
 // startOnlinePeakSnapshotter раз в interval фиксирует текущий онлайн как дневной
 // пик (#632). Останавливается по отмене ctx (graceful shutdown), горутина не течёт.
+// startErrorSpikeScheduler периодически проверяет долю серверных ошибок.
+//
+// Первой проверки при старте нет намеренно: сразу после подъёма журнал за окно
+// почти пуст, а первые запросы часто отвечают ошибкой, пока прогреваются
+// зависимости, - тревога на старте была бы ложной.
+func startErrorSpikeScheduler(ctx context.Context, svc services.ErrorSpikeNotifyService, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("error spike scheduler stopped")
+			return
+		case <-ticker.C:
+			if err := svc.CheckAndNotify(ctx); err != nil {
+				slog.Error("error spike check failed", "error", err)
+			}
+		}
+	}
+}
+
 func startOnlinePeakSnapshotter(ctx context.Context, svc services.StatisticsService, interval time.Duration) {
 	snapshot := func() {
 		if err := svc.SnapshotOnlinePeak(ctx); err != nil {
