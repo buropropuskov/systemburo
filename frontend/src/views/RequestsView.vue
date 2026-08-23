@@ -166,11 +166,21 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.requests-view {
+/* Карточка растёт по содержимому, а прокручивается оболочка admin-page
+   (у неё overflow: auto и высота под вьюпорт). Прежде здесь стояли height:100%
+   от оболочки и overflow:hidden: раздел упирался в высоту экрана и всё, что не
+   влезло, обрезал. На 1440x900 таблица начиналась на отметке 693 при своих 500
+   пикселях - до низа окна оставалось 207, то есть три строки, а пагинация под
+   ней не была видна вовсе. Селектор с двумя классами намеренно: правило
+   оболочки .admin-page :deep(.dashboard-card) задаёт height:100% и по весу
+   равно одноклассовому. */
+.requests-view.dashboard-card {
   background: var(--surface);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
-  overflow: hidden;
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
 }
 
 /* Шапка раздела по эталону TableConstructor: фиксированные 50px и разделитель.

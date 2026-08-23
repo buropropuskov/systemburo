@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { describeLoadError, analyticsKpis, dailyChartPoints, headerKpis } from '@/utils/requestLogsFormat';
+import { describeLoadError, analyticsKpis, dailyChartPoints, headerKpis, formatStamp
+} from '@/utils/requestLogsFormat';
 
 // Тексты раздела мониторинга (#2125): отказ чтения объясняется словами, а
 // показатели шапки собираются одним перечнем вместо четырёх копий разметки.
@@ -52,7 +53,7 @@ describe('headerKpis', () => {
     const kpis = headerKpis(stats, {});
 
     expect(kpis.map(k => k.label)).toEqual([
-      'Запросов всего', 'Запросов сегодня', 'Отклик за час, медиана и p95',
+      'Запросов в журнале', 'Запросов сегодня', 'Отклик за час, медиана и p95',
       'Доля ошибок за час', 'Запросов в минуту',
     ]);
     expect(kpis[2].value, 'медиана без единиц, перцентиль с ними').toBe('8.4 / 141мс');
@@ -130,5 +131,14 @@ describe('dailyChartPoints', () => {
     expect(dailyChartPoints([])).toEqual([]);
     expect(dailyChartPoints(null)).toEqual([]);
     expect(dailyChartPoints([{ day: '', requests: 5, errors: 0 }])).toEqual([]);
+  });
+
+  it('отметка строки журнала несёт день, а не только время', () => {
+    const stamp = formatStamp('2026-08-21T09:32:05Z');
+    // День обязателен: подробные записи живут 30 суток и отбираются по датам,
+    // а по одному времени строку к дню не привязать.
+    expect(stamp).toMatch(/^\d{2}\.\d{2} \d{2}:\d{2}:\d{2}$/);
+    expect(formatStamp('')).toBe('');
+    expect(formatStamp('не дата')).toBe('');
   });
 });

@@ -70,6 +70,22 @@ export function formatTime(timestamp) {
 }
 
 /**
+ * Отметка строки журнала: день и время. Одного времени мало - подробные записи
+ * живут 30 суток и отбираются по датам, а по «14:32:05» не понять, к какому дню
+ * относится строка. Год не показывается: он один на весь срок хранения, а место
+ * в колонке узкое; полная дата остаётся во всплывающей подсказке и в окне деталей.
+ * @param {string} timestamp
+ * @returns {string}
+ */
+export function formatStamp(timestamp) {
+  if (!timestamp) return '';
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return '';
+  const day = date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+  return `${day} ${formatTime(timestamp)}`;
+}
+
+/**
  * @param {string} timestamp
  * @returns {string}
  */
@@ -268,7 +284,10 @@ export function headerKpis(stats, realtime) {
   const s = stats || {};
   const live = realtime || {};
   const kpis = [
-    { label: 'Запросов всего', value: formatNum(s.total) },
+    {
+      label: 'Запросов в журнале', value: formatNum(s.total),
+      hint: 'Подробные записи журнала за срок их хранения. На вкладке «Аналитика · история» итог считается за выбранный период и включает свёрнутые сутки, поэтому там число больше.'
+    },
     { label: 'Запросов сегодня', value: formatNum(s.today) },
     {
       label: 'Отклик за час, медиана и p95',
