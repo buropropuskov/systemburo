@@ -12,6 +12,7 @@ import {
 import { getOnboardingStatus, markOnboardingComplete, getSecurityFactRoute } from '@/api/onboarding';
 import { getMyApprovalRole } from '@/api/approvers';
 import { getUserApplicationsPaginated } from '@/api/applications';
+import { syncDemoBackend } from '@/components/onboarding/demoBackend';
 
 vi.mock('@/api/onboarding', () => ({
   getOnboardingStatus: vi.fn(),
@@ -25,6 +26,10 @@ vi.mock('@/api/approvers', () => ({
 
 vi.mock('@/api/applications', () => ({
   getUserApplicationsPaginated: vi.fn(),
+}));
+
+vi.mock('@/components/onboarding/demoBackend', () => ({
+  syncDemoBackend: vi.fn(),
 }));
 
 /**
@@ -209,12 +214,54 @@ describe('onboarding store', () => {
   });
 
   /**
-   * Шаги про карточку заявки решаются ДО старта - иначе тур узнаёт об их
-   * ненадобности на ходу: платит ожиданием цели за каждый и уменьшает
-   * знаменатель «Шаг N из M» прямо на глазах у человека (57 -> 55 -> 48).
+   * Тур одинаков для всех: у человека без своих заявок шаги про карточку никуда
+   * не деваются, а данные для них на время тура подставляются примерные (см.
+   * demoBackend.js). Знать заранее, есть ли заявка, всё равно нужно - от этого
+   * зависит, включать ли подмену.
    */
-  describe('needs - шаг без данных выброшен до старта', () => {
-    it('без своей заявки шагов про её карточку в наборе нет', async () => {
+  /**
+   * Примерная заявка нужна ровно тем, у кого своей нет: остальным подмена стёрла
+   * бы настоящий список кабинета. И живёт она ровно столько, сколько тур.
+   */
+  describe('примерные данные включаются по надобности', () => {
+    beforeEach(() => syncDemoBackend.mockClear());
+
+    it('без своей заявки тур поднимает пример', async () => {
+      getUserApplicationsPaginated.mockResolvedValue({ items: [], meta: { total: 0 } });
+      const store = useOnboardingStore();
+      await store.ensureOwnApplication();
+      store.start({ tour: 'user' });
+
+      expect(syncDemoBackend).toHaveBeenCalledWith(true, false);
+    });
+
+    it('со своей заявкой пример не поднимается - список остаётся настоящим', async () => {
+      const store = useOnboardingStore();
+      await withOwnApplication(store);
+      store.start({ tour: 'user' });
+
+      expect(syncDemoBackend).toHaveBeenCalledWith(true, true);
+    });
+
+    it('конец тура снимает подмену', async () => {
+      getUserApplicationsPaginated.mockResolvedValue({ items: [], meta: { total: 0 } });
+      const store = useOnboardingStore();
+      await store.ensureOwnApplication();
+      store.start({ tour: 'user' });
+      store.stop();
+
+      expect(syncDemoBackend).toHaveBeenLastCalledWith(false);
+    });
+
+    it('смена пользователя тоже снимает подмену', () => {
+      const store = useOnboardingStore();
+      store.reset();
+      expect(syncDemoBackend).toHaveBeenLastCalledWith(false);
+    });
+  });
+
+  describe('состав тура не зависит от данных', () => {
+    it('без своей заявки шаги про её карточку остаются', async () => {
       grant(...USER_TOUR_RIGHTS);
       getUserApplicationsPaginated.mockResolvedValue({ items: [], meta: { total: 0 } });
       const store = useOnboardingStore();
@@ -222,14 +269,13 @@ describe('onboarding store', () => {
       store.start({ tour: 'user' });
 
       const ids = store.steps.map((s) => s.id);
-      expect(ids).not.toContain('cabinet-application-row');
-      expect(ids).not.toContain('detail-status');
-      expect(ids).not.toContain('detail-revoke');
-      // «Вот ваша заявка» остаётся: у него есть демо-скриншот вместо подсветки
-      expect(ids).toContain('detail-opened');
+      expect(ids).toContain('cabinet-application-row');
+      expect(ids).toContain('detail-status');
+      expect(ids).toContain('detail-revoke');
+      expect(store.totalSteps).toBe(onboardingSteps.length);
     });
 
-    it('с заявкой набор полный', async () => {
+    it('с заявкой набор такой же', async () => {
       grant(...USER_TOUR_RIGHTS);
       const store = useOnboardingStore();
       await withOwnApplication(store);
@@ -252,7 +298,7 @@ describe('onboarding store', () => {
       expect(store.totalSteps).toBe(before);
     });
 
-    it('ошибка запроса читается как «заявок нет» - тур не ведёт в пустоту', async () => {
+    it('ошибка запроса читается как «заявок нет» - тогда включится пример', async () => {
       grant(...USER_TOUR_RIGHTS);
       getUserApplicationsPaginated.mockRejectedValue(new Error('сеть'));
       const store = useOnboardingStore();
@@ -260,7 +306,7 @@ describe('onboarding store', () => {
       store.start({ tour: 'user' });
 
       expect(store.hasOwnApplication).toBe(false);
-      expect(store.steps.map((s) => s.id)).not.toContain('detail-revoke');
+      expect(store.steps.map((s) => s.id)).toContain('detail-revoke');
     });
 
     it('запрос уходит один раз за сессию, сбрасывается вместе с пользователем', async () => {

@@ -11,6 +11,7 @@ import {
 } from '@/components/onboarding/tours';
 import { getOnboardingStatus, markOnboardingComplete } from '@/api/onboarding';
 import { createGatingData } from '@/components/onboarding/gatingData';
+import { syncDemoBackend } from '@/components/onboarding/demoBackend';
 
 /**
  * Стор онбординг-туров. Держит ГЛОБАЛЬНЫЙ индекс активного шага по всему набору
@@ -108,22 +109,18 @@ export const useOnboardingStore = defineStore('onboarding', () => {
    * (buildSteps), когда route резолвлен - так индексы ранних шагов не сдвигаются,
    * даже если route доезжает уже после старта тура.
    *
-   * Шаги с `requires` выбрасываются, если права нет: иначе человек без права
-   * ждал бы таймаут ожидания цели и получал поповер по центру без подсветки.
-   * Фильтр здесь, а не в хосте, чтобы отсутствующий шаг не попадал ни в
-   * навигацию, ни в счётчик «Шаг N из M».
+   * Шаги с `requires` выбрасываются, если права нет - иначе человек упирался бы в
+   * ожидание цели. Фильтр здесь, а не в хосте: так шаг не попадает ни в навигацию,
+   * ни в счётчик «Шаг N из M».
    */
   const steps = computed(() => {
     if (!activeTour.value) return [];
     const permissions = usePermissionsStore();
-    const ctx = tourContext.value;
-    return buildTourSteps(activeTour.value, ctx)
-      .filter((s) => !s.requires || permissions.hasPermission(s.requires))
-      .filter((s) => !s.needs || Boolean(ctx[s.needs]));
+    return buildTourSteps(activeTour.value, tourContext.value)
+      .filter((s) => !s.requires || permissions.hasPermission(s.requires));
   });
   const totalSteps = computed(() => steps.value.length);
   const currentStep = computed(() => steps.value[currentIndex.value] || null);
-
   /** Туры, доступные пользователю (написанные и прошедшие гейт) - пункты меню «Обучение». */
   const availableTours = computed(() => availableToursFor(tourContext.value));
 
@@ -228,6 +225,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     currentIndex.value = 0;
     skippedIndexes.value = [];
     isActive.value = true;
+    syncDemoBackend(true, hasOwnApplication.value);
     // Фоновый резолв фактовой таблицы: не блокирует показ первого шага, сегмент
     // отметки добавится в хвост, как только route приедет.
     if (entry.key === 'guard') ensureFactRoute();
@@ -265,6 +263,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
 
   function stop() {
     isActive.value = false;
+    syncDemoBackend(false);
   }
 
   function setIndex(i) {
@@ -355,6 +354,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     statusLoaded.value = false;
     // Роль в согласовании, route фактовой таблицы и наличие своей заявки - per-user.
     resetGatingData();
+    syncDemoBackend(false);
   }
 
   return {
