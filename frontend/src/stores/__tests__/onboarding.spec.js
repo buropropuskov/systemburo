@@ -11,6 +11,7 @@ import {
 } from '@/components/onboarding/securityOnboardingSteps';
 import { getOnboardingStatus, markOnboardingComplete, getSecurityFactRoute } from '@/api/onboarding';
 import { getMyApprovalRole } from '@/api/approvers';
+import { getUserApplicationsPaginated } from '@/api/applications';
 
 vi.mock('@/api/onboarding', () => ({
   getOnboardingStatus: vi.fn(),
@@ -21,6 +22,20 @@ vi.mock('@/api/onboarding', () => ({
 vi.mock('@/api/approvers', () => ({
   getMyApprovalRole: vi.fn(),
 }));
+
+vi.mock('@/api/applications', () => ({
+  getUserApplicationsPaginated: vi.fn(),
+}));
+
+/**
+ * Девять шагов про карточку заявки живут под `needs: 'hasOwnApplication'`, и по
+ * умолчанию (заявок нет) их в наборе не будет. Тестам, которые ждут ПОЛНЫЙ тур,
+ * нужно сперва «завести» человеку заявку - как это делает gatingData на старте.
+ */
+async function withOwnApplication(store) {
+  getUserApplicationsPaginated.mockResolvedValue({ items: [{ id: 1 }], meta: { total: 1 } });
+  await store.ensureOwnApplication();
+}
 
 function createMockJWT(payload, expiresInSeconds = 3600) {
   const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
@@ -164,9 +179,10 @@ describe('onboarding store', () => {
       expect(store.currentStep).toBe(null);
     });
 
-    it('тур заявителя отдаёт свои шаги (при наличии прав на permission-шаги)', () => {
+    it('тур заявителя отдаёт свои шаги (при наличии прав на permission-шаги)', async () => {
       grant(...USER_TOUR_RIGHTS);
       const store = useOnboardingStore();
+      await withOwnApplication(store);
       store.start({ tour: 'user' });
       expect(store.steps).toEqual(onboardingSteps);
       expect(store.totalSteps).toBe(onboardingSteps.length);
@@ -181,20 +197,91 @@ describe('onboarding store', () => {
       expect(store.currentStep).toBe(securityOnboardingSteps[0]);
     });
 
-    it('набор шагов не зависит от типа пользователя - только от выбранного тура', () => {
+    it('набор шагов не зависит от типа пользователя - только от выбранного тура', async () => {
       grant(...USER_TOUR_RIGHTS);
       const auth = useAuthStore();
       auth.userTypeCode = 'security';
       const store = useOnboardingStore();
+      await withOwnApplication(store);
       store.start({ tour: 'user' });
       expect(store.steps).toEqual(onboardingSteps);
     });
   });
 
+  /**
+   * Шаги про карточку заявки решаются ДО старта - иначе тур узнаёт об их
+   * ненадобности на ходу: платит ожиданием цели за каждый и уменьшает
+   * знаменатель «Шаг N из M» прямо на глазах у человека (57 -> 55 -> 48).
+   */
+  describe('needs - шаг без данных выброшен до старта', () => {
+    it('без своей заявки шагов про её карточку в наборе нет', async () => {
+      grant(...USER_TOUR_RIGHTS);
+      getUserApplicationsPaginated.mockResolvedValue({ items: [], meta: { total: 0 } });
+      const store = useOnboardingStore();
+      await store.ensureOwnApplication();
+      store.start({ tour: 'user' });
+
+      const ids = store.steps.map((s) => s.id);
+      expect(ids).not.toContain('cabinet-application-row');
+      expect(ids).not.toContain('detail-status');
+      expect(ids).not.toContain('detail-revoke');
+      // «Вот ваша заявка» остаётся: у него есть демо-скриншот вместо подсветки
+      expect(ids).toContain('detail-opened');
+    });
+
+    it('с заявкой набор полный', async () => {
+      grant(...USER_TOUR_RIGHTS);
+      const store = useOnboardingStore();
+      await withOwnApplication(store);
+      store.start({ tour: 'user' });
+
+      expect(store.totalSteps).toBe(onboardingSteps.length);
+      expect(store.steps.map((s) => s.id)).toContain('detail-revoke');
+    });
+
+    it('число шагов не меняется по ходу тура - состав известен на старте', async () => {
+      grant(...USER_TOUR_RIGHTS);
+      getUserApplicationsPaginated.mockResolvedValue({ items: [], meta: { total: 0 } });
+      const store = useOnboardingStore();
+      await store.ensureOwnApplication();
+      store.start({ tour: 'user' });
+
+      const before = store.totalSteps;
+      store.setIndex(5);
+      store.setIndex(20);
+      expect(store.totalSteps).toBe(before);
+    });
+
+    it('ошибка запроса читается как «заявок нет» - тур не ведёт в пустоту', async () => {
+      grant(...USER_TOUR_RIGHTS);
+      getUserApplicationsPaginated.mockRejectedValue(new Error('сеть'));
+      const store = useOnboardingStore();
+      await store.ensureOwnApplication();
+      store.start({ tour: 'user' });
+
+      expect(store.hasOwnApplication).toBe(false);
+      expect(store.steps.map((s) => s.id)).not.toContain('detail-revoke');
+    });
+
+    it('запрос уходит один раз за сессию, сбрасывается вместе с пользователем', async () => {
+      getUserApplicationsPaginated.mockClear();
+      const store = useOnboardingStore();
+      await withOwnApplication(store);
+      await store.ensureOwnApplication();
+      expect(getUserApplicationsPaginated).toHaveBeenCalledTimes(1);
+
+      store.reset();
+      expect(store.hasOwnApplication).toBe(false);
+      await store.ensureOwnApplication();
+      expect(getUserApplicationsPaginated).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('requires - шаг без права выброшен из набора', () => {
-    it('без header.report_problem шага «Сообщить о проблеме» в туре нет', () => {
+    it('без header.report_problem шага «Сообщить о проблеме» в туре нет', async () => {
       grant(...USER_TOUR_RIGHTS.filter((k) => k !== 'header.report_problem'));
       const store = useOnboardingStore();
+      await withOwnApplication(store);
       store.start({ tour: 'user' });
 
       const dropped = USER_REQUIRES_STEPS.filter((s) => s.requires === 'header.report_problem').length;
@@ -203,8 +290,9 @@ describe('onboarding store', () => {
       expect(store.totalSteps).toBe(onboardingSteps.length - dropped);
     });
 
-    it('без прав выброшены все permission-шаги', () => {
+    it('без прав выброшены все permission-шаги', async () => {
       const store = useOnboardingStore();
+      await withOwnApplication(store);
       store.start({ tour: 'user' });
 
       expect(USER_REQUIRES_STEPS.length).toBeGreaterThan(0);
@@ -212,8 +300,9 @@ describe('onboarding store', () => {
       expect(store.totalSteps).toBe(onboardingSteps.length - USER_REQUIRES_STEPS.length);
     });
 
-    it('выброшенный шаг не сдвигает индексацию оставшихся (нет дырки в счётчике)', () => {
+    it('выброшенный шаг не сдвигает индексацию оставшихся (нет дырки в счётчике)', async () => {
       const store = useOnboardingStore();
+      await withOwnApplication(store);
       store.start({ tour: 'user' });
       // Шаги идут подряд без пропусков: набор без прав - это ровно конфигурация с
       // вырезанными requires-шагами, в том же порядке.
@@ -244,9 +333,10 @@ describe('onboarding store', () => {
       expect(withoutRights).toBe(withRights - countedDrop);
     });
 
-    it('без action.supplement.application шага «Дополнить» в туре нет (#1740)', () => {
+    it('без action.supplement.application шага «Дополнить» в туре нет (#1740)', async () => {
       grant(...USER_TOUR_RIGHTS.filter((k) => k !== 'action.supplement.application'));
       const store = useOnboardingStore();
+      await withOwnApplication(store);
       store.start({ tour: 'user' });
 
       expect(store.steps.some((s) => s.id === 'detail-supplement')).toBe(false);
@@ -255,9 +345,10 @@ describe('onboarding store', () => {
       expect(store.steps.some((s) => s.id === 'detail-revoke')).toBe(true);
     });
 
-    it('с правом шаг «Дополнить» возвращается на своё место в карточке (#1740)', () => {
+    it('с правом шаг «Дополнить» возвращается на своё место в карточке (#1740)', async () => {
       grant(...USER_TOUR_RIGHTS);
       const store = useOnboardingStore();
+      await withOwnApplication(store);
       store.start({ tour: 'user' });
 
       const ids = store.steps.map((s) => s.id);
@@ -265,10 +356,11 @@ describe('onboarding store', () => {
       expect(ids.indexOf('detail-supplement')).toBeLessThan(ids.indexOf('detail-revoke'));
     });
 
-    it('режим super пропускает все requires-шаги', () => {
+    it('режим super пропускает все requires-шаги', async () => {
       const permissions = usePermissionsStore();
       permissions.mode = 'super';
       const store = useOnboardingStore();
+      await withOwnApplication(store);
       store.start({ tour: 'user' });
       expect(store.totalSteps).toBe(onboardingSteps.length);
     });

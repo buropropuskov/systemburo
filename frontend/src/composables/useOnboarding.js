@@ -1,4 +1,5 @@
 import { driver } from 'driver.js';
+import { waitForElement, ensureInView } from '@/components/onboarding/targetWaits';
 import 'driver.js/dist/driver.css';
 import { sanitizeHtml } from '@/utils/sanitize.js';
 import { useOnboardingStore } from '@/stores/onboarding';
@@ -57,9 +58,16 @@ export function isSkippableStep(step) {
 }
 
 /**
- * Нумерация «Шаг N из M» по фактически пройденному маршруту: из счёта выпадают
- * только шаги, которые тур в ЭТОМ прохождении реально выбросил (их индексы
- * копит стор). Поэтому номер растёт на каждом показанном шаге и дырок в нём нет.
+ * Нумерация «Шаг N из M». Номер растёт на каждом ПОКАЗАННОМ шаге - выброшенные
+ * дырок в нём не оставляют. А знаменатель берём как есть, на весь набор, и по
+ * ходу тура не трогаем.
+ *
+ * Раньше из знаменателя вычитались выброшенные шаги, и человек видел, как число
+ * тает на глазах: «из 57» превращалось в «из 55», потом в «из 48». Состав набора
+ * решается до старта (права, данные - см. gatingData.js), а редкие шаги вроде
+ * «организация на проверке» зависят от конкретной заявки, и предсказать их
+ * нельзя. Пусть лучше тур закончится на «Шаг 11 из 13» - это читается как «два
+ * шага не понадобились», - чем знаменатель будет меняться под рукой.
  *
  * @param {Array<object>} steps все шаги тура
  * @param {number} currentIndex глобальный индекс текущего шага
@@ -68,12 +76,11 @@ export function isSkippableStep(step) {
  */
 export function countShownSteps(steps, currentIndex, skipped) {
   const dropped = skipped instanceof Set ? skipped : new Set(skipped || []);
-  const total = steps.length - [...dropped].filter((i) => i < steps.length).length;
   let index = 0;
   for (let i = 0; i <= currentIndex && i < steps.length; i += 1) {
     if (!dropped.has(i)) index += 1;
   }
-  return { index, total };
+  return { index, total: steps.length };
 }
 
 /**
@@ -92,95 +99,6 @@ export function useOnboarding() {
     }
   }
 
-  /**
-   * Дождаться появления и видимости элемента в DOM. Резолвит элементом или
-   * `null` по таймауту - тур никогда не падает из-за отсутствующей цели.
-   * `signal` позволяет хосту отменить ожидание (teardown/logout) и не оставить
-   * висящий интервал.
-   *
-   * @param {string} selector
-   * @param {number} [timeout]
-   * @param {AbortSignal} [signal]
-   * @returns {Promise<Element|null>}
-   */
-  function waitForElement(selector, timeout = 2500, signal) {
-    return new Promise((resolve) => {
-      const isVisible = (el) =>
-        el && (el.offsetParent !== null || el.getBoundingClientRect().width > 0);
-      // Готовность по СТАБИЛЬНОЙ высоте: элемент часто появляется пустым (скелетон/
-      // ещё не пришли данные) и дорастает. Если резолвить по факту появления,
-      // driver подсветит пустую рамку, а данные приедут уже под оверлеем. Поэтому
-      // ждём, пока высота перестанет меняться между опросами.
-      const measure = (el) => {
-        if (!isVisible(el)) return null;
-        const h = el.getBoundingClientRect().height;
-        return h > 0 ? h : null;
-      };
-
-      if (signal?.aborted) {
-        resolve(null);
-        return;
-      }
-
-      const start = Date.now();
-      let prevEl = null;
-      let prevHeight = null;
-      const cleanup = () => {
-        clearInterval(intervalId);
-        signal?.removeEventListener('abort', onAbort);
-      };
-      const onAbort = () => {
-        cleanup();
-        resolve(null);
-      };
-      const tick = () => {
-        const el = document.querySelector(selector);
-        const h = measure(el);
-        if (h !== null && el === prevEl && h === prevHeight) {
-          cleanup();
-          resolve(el);
-          return;
-        }
-        prevEl = el;
-        prevHeight = h;
-        if (Date.now() - start >= timeout) {
-          cleanup();
-          // По таймауту отдаём элемент, если он хотя бы виден (пусть driver
-          // подсветит как есть), иначе null - цель так и не появилась.
-          resolve(isVisible(el) ? el : null);
-        }
-      };
-      const intervalId = setInterval(tick, 120);
-      signal?.addEventListener('abort', onAbort);
-      tick();
-    });
-  }
-
-  /**
-   * Подвести цель в зону видимости до подсветки.
-   *
-   * driver.js скроллит сам, но на длинной форме заявки промахивается: после шага
-   * с формой сотрудников страница остаётся прокрученной вниз, и отметка согласия
-   * оказывается выше экрана - вырез рисуется за краем окна, а человек видит
-   * поповер без подсветки. Скроллим до показа, поэтому рамку driver меряет уже
-   * по конечному положению.
-   *
-   * @param {Element|null} el
-   * @param {'center'|'end'|'start'} [block] куда подвести цель. 'end' прижимает её
-   *   к низу экрана - так делают высокие формы, над которыми встаёт поповер.
-   * @returns {Promise<void>}
-   */
-  function ensureInView(el, block = 'center') {
-    // scrollIntoView есть не везде (jsdom в юнит-тестах) - тогда просто не скроллим.
-    if (!el?.getBoundingClientRect || typeof el.scrollIntoView !== 'function') return Promise.resolve();
-    const rect = el.getBoundingClientRect();
-    const margin = 24;
-    const fits = rect.top >= margin && rect.bottom <= window.innerHeight - margin;
-    if (fits && block !== 'end') return Promise.resolve();
-    el.scrollIntoView({ block, inline: 'nearest' });
-    // Кадр на применение скролла: без него driver померит прежнюю позицию.
-    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
-  }
 
   /**
    * Тело поповера: текст шага + демо-скриншот, если шаг показывается без живой
@@ -442,6 +360,11 @@ export function useOnboarding() {
       // форме заявки это читалось как «сначала светятся инпуты»).
       animate: !prefersReducedMotion(),
       allowClose: true,
+      // Клавиши обрабатывает хост (OnboardingTour), а не driver. Свой обработчик
+      // библиотеки снимается на время переезда подсветки и подъёма следующего
+      // сегмента: нажатие в эти 300-400 мс уходило в никуда, и человек видел
+      // «тур завис» - жал ещё раз и только тогда двигался дальше.
+      allowKeyboardControl: false,
       // Клик мимо окна шага обучение не обрывает. driver по умолчанию читает его
       // как выход, и промах мышью стоил человеку всего тура разом: авто-тур
       // после закрытия больше не всплывает. Хук-заглушка уводит driver с ветки
@@ -665,6 +588,9 @@ export function useOnboarding() {
      * должен продвинуться сам (человек выполнил действие, о котором шаг просил).
      */
     driverObj.obNext = () => driverObj.getConfig().onNextClick?.();
+
+    /** Шаг назад тем же путём, что кнопка «Назад» - для своей обработки стрелок. */
+    driverObj.obPrev = () => driverObj.getConfig().onPrevClick?.();
 
     /**
      * Перейти на шаг сегмента по глобальному индексу, собрав его заново. Ходом
