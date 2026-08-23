@@ -297,6 +297,9 @@ async function baseRequest(path, options = {}) {
       route: `${options.method || 'GET'} ${path}`,
       httpStatus: response.status,
       message: response.statusText || `HTTP ${response.status}`,
+      // Страница инцидента предлагает вернуться туда, где всё упало - сама она
+      // адрес узнать уже не может, к её монтированию currentRoute это /500.
+      uiRoute: router.currentRoute.value.fullPath,
     }))
     router.push('/500')
     return response
