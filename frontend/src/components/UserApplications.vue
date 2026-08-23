@@ -578,6 +578,7 @@ import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/
 import { pendingApprovalDays, pendingApprovalLabel, pendingApprovalShort } from '@/utils/pendingApproval';
 import { stripHtml } from '@/utils/sanitize';
 import { groupApplicationsByPeriod } from '@/utils/applicationPeriod';
+import { sortApplications } from '@/utils/applicationSort';
 import AppIcon from '@/components/icons/AppIcon.vue';
 
 // Размер порции бесшовной подгрузки ЛК (#1158 срез 4) - как в Центре заявок.
@@ -766,57 +767,7 @@ export default {
       return groupApplicationsByPeriod(this.sortedApplications, sortedByDate);
     },
     sortedApplications() {
-      const applications = [...this.filteredApplications];
-
-      if (!this.sortField) {
-        return applications.sort((a, b) => {
-          const dateA = new Date(a.sending_datetime);
-          const dateB = new Date(b.sending_datetime);
-          return dateB - dateA;
-        });
-      }
-
-      return applications.sort((a, b) => {
-        let valueA, valueB;
-        
-        switch (this.sortField) {
-          case 'application_number':
-            valueA = a.application_number;
-            valueB = b.application_number;
-            break;
-            
-          case 'sending_datetime':
-            valueA = new Date(a.sending_datetime);
-            valueB = new Date(b.sending_datetime);
-            break;
-            
-          case 'sender_name':
-            valueA = a.sender_name || a.sender_full_name || '';
-            valueB = b.sender_name || b.sender_full_name || '';
-            break;
-            
-          case 'confirmation':
-            valueA = a.confirmation;
-            valueB = b.confirmation;
-            break;
-            
-          case 'status':
-            valueA = a.status;
-            valueB = b.status;
-            break;
-            
-          default:
-            return 0;
-        }
-        
-        if (valueA < valueB) {
-          return this.sortDirection === 'asc' ? -1 : 1;
-        }
-        if (valueA > valueB) {
-          return this.sortDirection === 'asc' ? 1 : -1;
-        }
-        return 0;
-      });
+      return sortApplications(this.filteredApplications, this.sortField, this.sortDirection);
     }
   },
   watch: {
