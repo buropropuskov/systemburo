@@ -670,6 +670,31 @@ export default {
     };
   },
   computed: {
+    /**
+     * Владелец списка ЛК. Пропс userId приходит из /users/me и на первых кадрах пуст,
+     * а маркер доступа несёт тот же идентификатор (claim user_id) синхронно - поэтому
+     * первый же запрос уходит со scope владельца. Без этого запрос уходил без
+     * sender_user_id, бэк отдавал весь скоуп ЛК (свои + заявки организации), и чужие
+     * строки успевали отрисоваться до перезапроса (#2218).
+     *
+     * Маркер важнее пропса: режим "войти как пользователь" подменяет маркер сразу, а
+     * пропс до перечитывания /users/me держит прежнего человека - запрос всё равно
+     * исполняется от личности маркера.
+     */
+    ownerUserId() {
+      return useAuthStore().userId || this.userId || null;
+    },
+
+    /**
+     * Известен ли scope выдачи для текущей вкладки. Пока неизвестен, запрос не уходит:
+     * без sender_user_id/organization_id бэк отдаёт весь скоуп ЛК целиком (#2218).
+     */
+    hasApplicationsScope() {
+      return this.currentFilter === 'organization'
+        ? !!this.userOrganizationId
+        : !!this.ownerUserId;
+    },
+
     // Опции фильтра Мои/Организации для BaseDropdown (заменил 2 таба одним списком).
     filterOptions() {
       const opts = [{ key: 'my', label: 'Мои заявки' }];
@@ -803,11 +828,12 @@ export default {
         this.fetchUserApplications();
       }, 300);
     },
-    userId() {
-      // После разрешения userId список перезагружается - тогда же пробуем открыть
-      // заявку из deep-link (на холодной навигации mounted-попытка была с пустым списком).
-      // userId участвует в buildUserApplicationsPage (вкладка "Мои заявки") - без
-      // перезапроса вкладка "Мои" осталась бы без sender_user_id до случайного refresh.
+    ownerUserId() {
+      // Владелец разрешился (или сменился - режим "войти как пользователь" подменяет
+      // маркер): список перезагружается, тогда же пробуем открыть заявку из deep-link
+      // (на холодной навигации mounted-попытка была с пустым списком). Обычно маркер и
+      // /users/me дают один и тот же идентификатор - значение не меняется, лишнего
+      // запроса нет.
       this.fetchUserApplications().then(() => this.openFromDeepLink());
     },
     // Переход из уведомления в кабинет: /personal-cabinet?open=<id> (#973).
@@ -896,8 +922,8 @@ export default {
         params.search_query = this.searchQuery;
       }
 
-      if (this.currentFilter === 'my' && this.userId) {
-        params.sender_user_id = this.userId;
+      if (this.currentFilter === 'my' && this.ownerUserId) {
+        params.sender_user_id = this.ownerUserId;
       } else if (this.currentFilter === 'organization' && this.userOrganizationId) {
         params.organization_id = this.userOrganizationId;
       }
@@ -937,6 +963,15 @@ export default {
       const authStore = useAuthStore();
       if (!authStore.token) {
         console.error("Пользователь не авторизован.");
+        return;
+      }
+
+      // Без scope запрос ушёл бы голым, а бэк на такой запрос отдаёт весь скоуп ЛК
+      // (свои ИЛИ заявки организации, applyUserApplicationsAccessFilter). Раньше эта
+      // выдача отрисовывалась и уезжала, когда резолвился /users/me (#2218): ждём scope
+      // под спиннером, перезапрос сделает watcher ownerUserId.
+      if (!this.hasApplicationsScope) {
+        this.isLoading = true;
         return;
       }
 
