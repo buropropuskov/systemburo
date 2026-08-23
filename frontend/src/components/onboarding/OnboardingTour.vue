@@ -142,11 +142,6 @@ async function prepareStepInner(globalIndex) {
   // тур перескакивал через него.
   watchers.stopAll();
   const step = store.steps[globalIndex];
-  // Шаг знает, при каком условии его настоящая цель вообще может появиться. Нет
-  // условия - показываем скриншот сразу, не тратя ожидание на то, чего не будет.
-  if (step?.demo && step.demoUnless && !store.tourContext[step.demoUnless]) {
-    return STEP_DEMO_FALLBACK;
-  }
   const attachmentChanged = applyDemoAttachment(globalIndex);
   const revealed = await applyReveal(store.steps, globalIndex, { closeOthers: false });
   if (!step?.element) return true;

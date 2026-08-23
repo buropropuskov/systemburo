@@ -1,20 +1,17 @@
 /**
  * Шаги личного кабинета про СВОЮ заявку: строка списка, карточка и действия над
- * ней. Вынесены из `onboardingSteps.js` отдельным сегментом, потому что живут по
- * общему условию - `needs: 'hasOwnApplication'`.
+ * ней. Вынесены из `onboardingSteps.js` отдельным сегментом - они про один и тот
+ * же экран и появились вместе.
  *
- * Условие решается ДО старта тура (см. gatingData.js): у человека без заявок этих
- * целей на экране не появится, и раньше тур выяснял это на ходу - платил
- * ожиданием за каждый шаг и на глазах уменьшал знаменатель «Шаг N из M».
- * Исключение - «Вот ваша заявка»: у него есть демо-скриншот, поэтому шаг остаётся
- * и новичку, просто показывается картинкой.
+ * Проходят их все одинаково. У человека без своих заявок список и карточка на
+ * время тура наполняются примерной заявкой (см. demoBackend.js): интерфейс
+ * настоящий, данные выдуманные, после тура всё возвращается к живым.
  *
  * @type {Array<object>} формат шага - см. JSDoc в onboardingSteps.js
  */
 export const cabinetApplicationSteps = [
   {
     id: 'cabinet-download',
-    needs: 'hasOwnApplication',
     route: '/personal-cabinet',
     element: '[data-testid="ob-application-download"]',
     title: 'Скачать бланки',
@@ -29,7 +26,6 @@ export const cabinetApplicationSteps = [
     // Показываем строку до открытия карточки: иначе окно появляется само собой
     // и человек не понимает, откуда оно взялось.
     id: 'cabinet-application-row',
-    needs: 'hasOwnApplication',
     route: '/personal-cabinet',
     element: '[data-testid="ob-application-row"]',
     title: 'Откройте заявку',
@@ -53,17 +49,12 @@ export const cabinetApplicationSteps = [
     // со скриншотом-примером вместо подсветки, а не выпадает молча вместе со всем
     // сегментом карточки.
     demo: 'applicationDetail',
-    // Без своей заявки открывать нечего: раскрытие не сработает, и шаг девять
-    // секунд ждал бы цель, которой не будет. С этим полем он сразу показывается
-    // скриншотом-примером - человек всё равно узнаёт, как выглядит карточка.
-    demoUnless: 'hasOwnApplication',
     optional: true,
     side: 'bottom',
     reveal: { open: 'first-application' },
   },
   {
     id: 'detail-status',
-    needs: 'hasOwnApplication',
     route: '/personal-cabinet',
     element: '[data-testid="ob-detail-status"]',
     title: 'Статус и согласующие',
@@ -75,7 +66,6 @@ export const cabinetApplicationSteps = [
   },
   {
     id: 'detail-status-section',
-    needs: 'hasOwnApplication',
     route: '/personal-cabinet',
     element: '[data-testid="ob-detail-status-section"]',
     title: 'Статус заявки',
@@ -87,7 +77,6 @@ export const cabinetApplicationSteps = [
   },
   {
     id: 'detail-questions',
-    needs: 'hasOwnApplication',
     route: '/personal-cabinet',
     element: '[data-testid="application-questions"]',
     title: 'Вопросы к заявке',
@@ -99,7 +88,6 @@ export const cabinetApplicationSteps = [
   },
   {
     id: 'detail-actions-intro',
-    needs: 'hasOwnApplication',
     route: '/personal-cabinet',
     element: '[data-testid="ob-detail-header"]',
     title: 'Что можно сделать с заявкой',
@@ -112,7 +100,6 @@ export const cabinetApplicationSteps = [
   },
   {
     id: 'detail-supplement',
-    needs: 'hasOwnApplication',
     route: '/personal-cabinet',
     element: '[data-testid="app-detail-button-supplement"]',
     title: 'Дополнить поданную заявку',
@@ -125,7 +112,6 @@ export const cabinetApplicationSteps = [
   },
   {
     id: 'detail-duplicate',
-    needs: 'hasOwnApplication',
     route: '/personal-cabinet',
     element: '[data-testid="ob-detail-duplicate"]',
     title: 'Продублировать заявку',
@@ -137,7 +123,6 @@ export const cabinetApplicationSteps = [
   },
   {
     id: 'detail-revoke',
-    needs: 'hasOwnApplication',
     route: '/personal-cabinet',
     element: '[data-testid="ob-detail-revoke"]',
     title: 'Отозвать свою заявку',

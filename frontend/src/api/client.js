@@ -6,6 +6,7 @@ import { usePDConsentStore } from '@/stores/pdConsent'
 import { usePasswordChangeStore } from '@/stores/passwordChange'
 import router from '@/router'
 import { buildBugContext, saveBugContext } from '@/composables/useBugReport'
+import { interceptRead } from './readInterceptor'
 
 // API_BASE_URL оставляем настраиваемым для локальной разработки с отдельным backend-портом,
 // но на staging/prod он пуст и префикс /api обеспечивает маршрутизацию через nginx:
@@ -268,6 +269,9 @@ function shouldHandleAsServerError(path, status) {
 }
 
 async function baseRequest(path, options = {}) {
+  // Демонстрационные данные онбординга (см. readInterceptor.js) - только чтение.
+  const demo = interceptRead(path, options)
+  if (demo) return demo
   const authStore = useAuthStore()
   let response = await doFetch(path, options, authStore.token)
 
