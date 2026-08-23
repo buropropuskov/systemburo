@@ -1,3 +1,4 @@
+import { DEFAULT_PER_PAGE } from '@/utils/requestLogsQuery';
 import { vi, expect } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createRouter, createMemoryHistory } from 'vue-router';
@@ -46,7 +47,7 @@ export function logsPage(data = [], meta = {}) {
     json: () => Promise.resolve({
       success: true,
       data,
-      meta: { total: data.length, page: 1, per_page: 20, ...meta },
+      meta: { total: data.length, page: 1, per_page: DEFAULT_PER_PAGE, ...meta },
     }),
   };
 }

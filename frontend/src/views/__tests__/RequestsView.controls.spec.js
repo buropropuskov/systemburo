@@ -35,8 +35,14 @@ const FILES = [
 
 /** Разметка всех файлов раздела одной строкой. */
 const TEMPLATE = FILES.map(src => src.slice(0, src.indexOf('</template>'))).join('\n');
-/** Стили всех файлов раздела одной строкой. */
-const STYLE = FILES.map(src => src.slice(src.indexOf('<style'))).join('\n');
+/**
+ * Стили всех файлов раздела одной строкой, БЕЗ комментариев: запрет касается
+ * объявлений, а не пояснений к ним. Номер задачи вида #2216 в комментарии
+ * попадает под шаблон шестнадцатеричного цвета и ронял проверку на ровном месте.
+ */
+const STYLE = FILES.map(src => src.slice(src.indexOf('<style')))
+  .join('\n')
+  .replace(/\/\*[\s\S]*?\*\//g, '');
 const SOURCE = FILES.join('\n');
 
 afterEach(() => {

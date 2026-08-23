@@ -180,7 +180,10 @@ onBeforeUnmount(() => {
   border: 1px solid var(--border);
   height: auto;
   min-height: 100%;
-  overflow: visible;
+  /* Обрезка вернулась: прямые углы футера торчали поверх скругления карточки
+     (#2218). Виновата в #2216 была не она, а height: 100% от оболочки - с
+     высотой по содержимому hidden ничего не режет. */
+  overflow: hidden;
 }
 
 /* Шапка раздела по эталону TableConstructor: фиксированные 50px и разделитель.
