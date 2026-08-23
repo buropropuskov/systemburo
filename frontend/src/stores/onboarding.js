@@ -9,8 +9,8 @@ import {
   availableTours as availableToursFor,
   pickAutostartTour as pickAutostartTourFrom,
 } from '@/components/onboarding/tours';
-import { getOnboardingStatus, markOnboardingComplete, getSecurityFactRoute } from '@/api/onboarding';
-import { getMyApprovalRole } from '@/api/approvers';
+import { getOnboardingStatus, markOnboardingComplete } from '@/api/onboarding';
+import { createGatingData } from '@/components/onboarding/gatingData';
 
 /**
  * Стор онбординг-туров. Держит ГЛОБАЛЬНЫЙ индекс активного шага по всему набору
@@ -75,16 +75,14 @@ export const useOnboardingStore = defineStore('onboarding', () => {
 
   // Роль в согласовании заявок (принимающий/согласующий) - гейт туров accept и
   // approve. Правами не определяется: роль задаётся записью в справочнике.
-  const approvalRole = ref({ isApprover: false, isReviewer: false });
-  const approvalRoleLoaded = ref(false);
-  let approvalRolePromise = null;
 
   // Route фактовой таблицы для шага отметки въезда/выезда в туре охраны.
-  // Резолвится один раз за сессию (ensureFactRoute) из /system-tables: у разных
-  // охранников разные доступные таблицы. null = подходящей таблицы нет ->
-  // сегмент отметки в тур не добавляется.
-  const factTableRoute = ref(null);
-  let factRouteResolved = false;
+  // Роль в согласовании, маршрут фактовой таблицы и наличие своей заявки живут в
+  // gatingData.js: от них зависит СОСТАВ тура, поэтому они резолвятся до старта.
+  const {
+    approvalRole, approvalRoleLoaded, factTableRoute, hasOwnApplication,
+    ensureApprovalRole, ensureFactRoute, ensureOwnApplication, reset: resetGatingData,
+  } = createGatingData();
 
   /**
    * Плоский снимок прав и ролей для гейтинга туров - реестр работает с ним, а не
@@ -99,6 +97,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
       can: (key) => permissions.hasPermission(key),
       approvalRole: approvalRole.value,
       factTableRoute: factTableRoute.value,
+      hasOwnApplication: hasOwnApplication.value,
     };
   });
 
@@ -117,8 +116,10 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   const steps = computed(() => {
     if (!activeTour.value) return [];
     const permissions = usePermissionsStore();
-    return buildTourSteps(activeTour.value, tourContext.value)
-      .filter((s) => !s.requires || permissions.hasPermission(s.requires));
+    const ctx = tourContext.value;
+    return buildTourSteps(activeTour.value, ctx)
+      .filter((s) => !s.requires || permissions.hasPermission(s.requires))
+      .filter((s) => !s.needs || Boolean(ctx[s.needs]));
   });
   const totalSteps = computed(() => steps.value.length);
   const currentStep = computed(() => steps.value[currentIndex.value] || null);
@@ -157,30 +158,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     return loadStatusPromise;
   }
 
-  /**
-   * Подтянуть роль в согласовании (один раз за сессию, с in-flight промисом -
-   * гейтинг зовут и меню, и автозапуск одновременно). На ошибке роль остаётся
-   * пустой: туры accept/approve просто не появятся, остальное работает.
-   */
-  async function ensureApprovalRole() {
-    if (approvalRoleLoaded.value) return;
-    if (approvalRolePromise) return approvalRolePromise;
-    approvalRolePromise = (async () => {
-      try {
-        const data = await getMyApprovalRole();
-        approvalRole.value = {
-          isApprover: Boolean(data?.is_approver),
-          isReviewer: Boolean(data?.is_reviewer),
-        };
-        approvalRoleLoaded.value = true;
-      } catch {
-        approvalRole.value = { isApprover: false, isReviewer: false };
-      } finally {
-        approvalRolePromise = null;
-      }
-    })();
-    return approvalRolePromise;
-  }
+
 
   /**
    * Дождаться всего, из чего складывается гейтинг: прав, типа пользователя и роли
@@ -199,6 +177,9 @@ export const useOnboardingStore = defineStore('onboarding', () => {
       // резолвится. Если ждать этого уже во время тура, счётчик прыгает: «Шаг 1
       // из 14» превращается в «из 20». Резолвим заранее, вместе с правами.
       ensureFactRoute(),
+      // По той же причине, что и route фактовой таблицы: шаги про карточку
+      // заявки должны быть решены ДО старта, иначе счётчик тает на ходу.
+      ensureOwnApplication(),
     ]);
   }
 
@@ -230,18 +211,6 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     return done !== null && done !== undefined && done < tour.version;
   }
 
-  /**
-   * Предвычислить route фактовой таблицы для тура охраны (один раз за сессию).
-   * На ошибке/отсутствии таблицы route остаётся null и сегмент отметки не
-   * добавляется. Запускается фоном из start() - сегмент в хвосте steps, поэтому
-   * индексы ранних шагов не сдвигаются, даже если route доедет уже после показа
-   * первого шага.
-   */
-  async function ensureFactRoute() {
-    if (factRouteResolved) return;
-    factRouteResolved = true;
-    factTableRoute.value = await getSecurityFactRoute();
-  }
 
   /**
    * Запустить тур с первого шага. Идемпотентно: повторный вызов при активном
@@ -384,11 +353,8 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     completedByTour.value = {};
     finishedTours.value = [];
     statusLoaded.value = false;
-    // Роль в согласовании и route фактовой таблицы тоже per-user.
-    approvalRole.value = { isApprover: false, isReviewer: false };
-    approvalRoleLoaded.value = false;
-    factTableRoute.value = null;
-    factRouteResolved = false;
+    // Роль в согласовании, route фактовой таблицы и наличие своей заявки - per-user.
+    resetGatingData();
   }
 
   return {
@@ -417,6 +383,8 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     factTableRoute,
     ensureApprovalRole,
     ensureGatingContext,
+    ensureOwnApplication,
+    hasOwnApplication,
     ensureFactRoute,
     loadStatus,
     hasCompleted,
