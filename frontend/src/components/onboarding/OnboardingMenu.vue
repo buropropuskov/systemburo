@@ -57,6 +57,9 @@ function badgeFor(key) {
   // что человек всё посмотрел.
   if (store.hasFinished(key)) return 'Пройден';
   if (store.isOutdated(key)) return 'Обновлён';
+  // Прервался на середине - меню обещает продолжить с той же главы, а не начать
+  // семь минут заново.
+  if (store.hasProgress(key)) return 'Продолжить';
   return '';
 }
 
@@ -130,7 +133,10 @@ onMounted(() => {
           <span
             v-if="badgeFor(option.key)"
             class="ob-menu__badge"
-            :class="{ 'ob-menu__badge--updated': badgeFor(option.key) === 'Обновлён' }"
+            :class="{
+              'ob-menu__badge--updated': badgeFor(option.key) === 'Обновлён',
+              'ob-menu__badge--resume': badgeFor(option.key) === 'Продолжить',
+            }"
           >{{ badgeFor(option.key) }}</span>
         </span>
         <span class="ob-menu__description">{{ option.description }}</span>
@@ -193,6 +199,12 @@ onMounted(() => {
 .ob-menu__badge--updated {
   background: var(--warning-bg);
   color: var(--warning-text);
+}
+
+/* «Продолжить» - приглашение вернуться, а не предупреждение: тон акцента. */
+.ob-menu__badge--resume {
+  background: var(--accent-tint);
+  color: var(--accent);
 }
 
 /* Пункт с описанием - блочный: штатный item рассчитан на одну строку и разводит

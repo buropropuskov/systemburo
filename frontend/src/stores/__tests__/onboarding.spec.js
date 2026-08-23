@@ -260,6 +260,64 @@ describe('onboarding store', () => {
     });
   });
 
+  /**
+   * Тур длинный, и перерыв в нём - нормальная часть жизни: человека отвлекли,
+   * он обновил страницу, ушёл домой. Позиция должна пережить всё это.
+   */
+  describe('продолжение с сохранённого места', () => {
+    beforeEach(() => localStorage.clear());
+
+    it('следующий запуск поднимает тур с той же главы', () => {
+      const store = useOnboardingStore();
+      store.start({ tour: 'user' });
+      store.setIndex(18);
+      store.stop();
+
+      const again = useOnboardingStore();
+      again.start({ tour: 'user' });
+      expect(again.currentIndex).toBe(18);
+      expect(again.resumedFrom).toBe(18);
+    });
+
+    it('«пройти сначала» начинает с первого шага', () => {
+      const store = useOnboardingStore();
+      store.start({ tour: 'user' });
+      store.setIndex(18);
+      store.stop();
+
+      store.start({ tour: 'user', restart: true });
+      expect(store.currentIndex).toBe(0);
+      expect(store.resumedFrom).toBe(0);
+    });
+
+    it('меню знает, что есть с чего продолжить', () => {
+      const store = useOnboardingStore();
+      expect(store.hasProgress('user')).toBe(false);
+      store.start({ tour: 'user' });
+      store.setIndex(5);
+      expect(store.hasProgress('user')).toBe(true);
+    });
+
+    it('досмотренный до конца тур продолжать нечего', () => {
+      const store = useOnboardingStore();
+      store.start({ tour: 'user' });
+      store.setIndex(30);
+      store.markCompleted(true);
+      expect(store.hasProgress('user')).toBe(false);
+    });
+
+    it('позиция дальше последнего шага не уводит тур в пустоту', () => {
+      const store = useOnboardingStore();
+      store.start({ tour: 'user' });
+      const beyond = store.totalSteps + 50;
+      store.setIndex(beyond);
+      store.stop();
+
+      store.start({ tour: 'user' });
+      expect(store.currentIndex).toBeLessThan(store.totalSteps);
+    });
+  });
+
   describe('состав тура не зависит от данных', () => {
     it('без своей заявки шаги про её карточку остаются', async () => {
       grant(...USER_TOUR_RIGHTS);

@@ -244,6 +244,21 @@
 /* Счётчик - кнопка: по нему раскрывается список шагов тура. Селекторы усилены
    до трёх классов: driver.css красит кнопки футера по `.driver-popover-footer
    button`, и одиночный класс он перебивает. */
+/*
+ * Название главы над счётчиком шагов. Держим тише самого счётчика: это ориентир
+ * «где я в туре», а не главная строка карточки.
+ */
+.driver-popover.ob-popover .ob-popover__chapter {
+  align-self: flex-start;
+  margin-bottom: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  opacity: 0.75;
+}
+
 .driver-popover.ob-popover .ob-popover__step-label {
   align-self: flex-start;
   width: auto;
