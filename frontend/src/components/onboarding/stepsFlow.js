@@ -82,3 +82,50 @@ export function indexAfterRoute(steps, fromIndex, route) {
   while (i < steps.length && steps[i].route === route) i += 1;
   return i < steps.length ? i : -1;
 }
+
+/**
+ * Главы тура - те же группы по разделам, что и в списке шагов, но с границами по
+ * НАБОРУ (без учёта выброшенного), чтобы номер главы не менялся по ходу.
+ *
+ * Обучение заявителя идёт под шестьдесят шагов, минут семь подряд. Человеку нужно
+ * знать, где он в этом пути и где ближайшее место, чтобы прерваться, - поэтому
+ * поповер называет главу, а на её последнем шаге предлагает продолжить позже.
+ *
+ * @param {Array<{route: string}>} steps
+ * @returns {Array<{ title: string, start: number, end: number }>} включительные границы
+ */
+export function tourChapters(steps) {
+  const chapters = [];
+  (steps || []).forEach((step, index) => {
+    const last = chapters[chapters.length - 1];
+    if (last && last.route === step.route) last.end = index;
+    else chapters.push({ route: step.route, title: sectionTitleFor(step.route), start: index, end: index });
+  });
+  return chapters;
+}
+
+/**
+ * В какой главе находится шаг.
+ *
+ * @param {Array<{route: string}>} steps
+ * @param {number} index
+ * @returns {{ title: string, number: number, total: number, start: number, end: number }|null}
+ */
+export function chapterOf(steps, index) {
+  const chapters = tourChapters(steps);
+  const at = chapters.findIndex((c) => index >= c.start && index <= c.end);
+  if (at < 0) return null;
+  return { ...chapters[at], number: at + 1, total: chapters.length };
+}
+
+/**
+ * Последний ли это шаг главы - там уместно предложить прерваться.
+ *
+ * @param {Array<{route: string}>} steps
+ * @param {number} index
+ * @returns {boolean}
+ */
+export function isChapterEnd(steps, index) {
+  const chapter = chapterOf(steps, index);
+  return Boolean(chapter) && chapter.end === index && chapter.number < chapter.total;
+}

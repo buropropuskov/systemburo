@@ -11,6 +11,7 @@ import { createRailControl } from '@/components/onboarding/railControl';
 import { createKeyboardNav } from '@/components/onboarding/keyboardNav';
 import { createStepWatchers } from '@/components/onboarding/stepWatchers';
 import { fadeAndDestroy } from '@/components/onboarding/tourFade';
+import { createAutostart } from '@/components/onboarding/tourAutostart';
 
 const store = useOnboardingStore();
 const ui = useUiStore();
@@ -532,23 +533,7 @@ const removeAfterEach = router.afterEach((to) => {
  * ставится при любом завершении авто-тура (см. markIfAuto), а на бэкенде статус
  * per-user, сброс только админом.
  */
-async function maybeAutostart() {
-  if (store.isActive) return;
-  if (route.path !== '/news') return;
-  if (!store.canShowTour) return;
-  // Права, тип пользователя и роль в согласовании гейтят туры и приезжают своими
-  // запросами - без ожидания автозапуск выбрал бы тур из неполного списка доступных.
-  const pending = [store.ensureGatingContext()];
-  if (!store.statusLoaded) pending.push(store.loadStatus());
-  await Promise.all(pending);
-  // Перепроверяем после await: статус мог не загрузиться, юзер мог уйти/стартовать,
-  // а гейт согласия - доехать ответом и закрыть показ тура (#1567).
-  if (!store.statusLoaded || store.isActive || route.path !== '/news') return;
-  if (!store.canShowTour) return;
-  const tour = store.pickAutostartTour();
-  if (!tour) return;
-  store.start({ tour: tour.key, manual: false });
-}
+const maybeAutostart = createAutostart(store, () => route.path);
 
 watch(() => route.path, maybeAutostart);
 

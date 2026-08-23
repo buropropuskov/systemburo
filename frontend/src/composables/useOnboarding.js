@@ -4,7 +4,8 @@ import 'driver.js/dist/driver.css';
 import { sanitizeHtml } from '@/utils/sanitize.js';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { getDemo } from '@/components/onboarding/onboardingDemo';
-import { groupStepsBySection } from '@/components/onboarding/stepsFlow';
+import { buildProgressBlock } from '@/components/onboarding/popoverProgress';
+import { isChapterEnd } from '@/components/onboarding/stepsFlow';
 import { createPopoverZoomFix } from '@/components/onboarding/popoverZoom';
 import { STAGE_PADDING, STAGE_RADIUS, applyStageShape, raiseActiveHighlight } from '@/components/onboarding/stageShape';
 
@@ -140,103 +141,18 @@ export function useOnboarding() {
     return sanitizeHtml(html);
   }
 
+
   /**
-   * Список шагов тура с переходом по клику. Тур длинный (у заявителя за сорок
-   * шагов), и без него вернуться к нужному месту можно было только прокликав
-   * всё заново.
-   *
-   * @param {number} currentGlobal глобальный индекс текущего шага
-   * @param {(index: number) => void} onJump
-   * @returns {HTMLElement}
+   * Кнопка выхода. На последнем шаге главы зовём её иначе: там обучение прерывать
+   * не жалко - глава дочитана, и вернуться можно ровно сюда же. В середине главы
+   * это по-прежнему «пропустить», чтобы человек не бросал раздел на середине.
    */
-  function buildStepList(currentGlobal, onJump) {
-    const store = useOnboardingStore();
-    const list = document.createElement('div');
-    list.className = 'ob-popover__steps';
-    list.setAttribute('data-testid', 'ob-step-list');
-
-    groupStepsBySection(store.steps, store.skippedIndexes).forEach((group) => {
-      const head = document.createElement('div');
-      head.className = 'ob-popover__steps-group';
-      head.textContent = group.title;
-      list.appendChild(head);
-
-      group.items.forEach((item) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'ob-popover__steps-item';
-        if (item.index === currentGlobal) btn.classList.add('is-current');
-        if (item.index < currentGlobal) btn.classList.add('is-passed');
-        btn.textContent = item.title;
-        btn.addEventListener('click', () => onJump(item.index));
-        list.appendChild(btn);
-      });
-    });
-    return list;
-  }
-
-  function buildProgressBlock(globalIndex, total, nextTitle, currentGlobal, onJump) {
-    const block = document.createElement('div');
-    block.className = 'ob-popover__progress';
-
-    const label = document.createElement('button');
-    label.type = 'button';
-    label.className = 'ob-popover__step-label';
-    label.setAttribute('data-testid', 'ob-step-counter');
-    label.textContent = `Шаг ${globalIndex} из ${total}`;
-    if (onJump) {
-      const list = buildStepList(currentGlobal, onJump);
-      label.addEventListener('click', () => {
-        const opening = !block.classList.contains('is-open');
-        if (opening) {
-          // Список - слой поверх карточки, а не её часть: иначе раскрытие
-          // растит поповер, и driver не переставляет его - нижние пункты
-          // оказываются за краем экрана. Сторону выбираем по свободному месту.
-          const rect = block.getBoundingClientRect();
-          const below = window.innerHeight - rect.bottom;
-          const up = below < Math.min(rect.top, 260);
-          block.classList.toggle('ob-popover__progress--up', up);
-          list.style.maxHeight = `${Math.max(140, Math.min(260, (up ? rect.top : below) - 16))}px`;
-          // Текущий шаг сразу в поле зрения - иначе в длинном туре список
-          // открывается на первом разделе, где искать нечего.
-          requestAnimationFrame(() => {
-            list.querySelector('.is-current')?.scrollIntoView({ block: 'center' });
-          });
-        }
-        block.classList.toggle('is-open', opening);
-      });
-      block.appendChild(list);
-      label.title = 'Показать список шагов';
-    } else {
-      label.disabled = true;
-    }
-
-    const bar = document.createElement('div');
-    bar.className = 'ob-popover__bar';
-    const fill = document.createElement('div');
-    fill.className = 'ob-popover__bar-fill';
-    // Заполнение через scaleX (анимируем transform, не width - правило проекта).
-    fill.style.transform = `scaleX(${total ? globalIndex / total : 0})`;
-    bar.appendChild(fill);
-
-    block.appendChild(label);
-    block.appendChild(bar);
-
-    if (nextTitle) {
-      const hint = document.createElement('div');
-      hint.className = 'ob-popover__next-hint';
-      hint.textContent = `Далее: ${nextTitle}`;
-      block.appendChild(hint);
-    }
-
-    return block;
-  }
-
-  function buildSkipButton(onSkip) {
+  function buildSkipButton(onSkip, atChapterEnd) {
     const skip = document.createElement('button');
     skip.type = 'button';
     skip.className = 'ob-popover__skip';
-    skip.textContent = 'Пропустить обучение';
+    skip.textContent = atChapterEnd ? 'Продолжить позже' : 'Пропустить обучение';
+    skip.setAttribute('data-testid', atChapterEnd ? 'ob-pause' : 'ob-skip');
     skip.addEventListener('click', onSkip);
     return skip;
   }
@@ -524,14 +440,25 @@ export function useOnboarding() {
         }
         // Прогресс сверху футера.
         popover.footer.insertBefore(
-          buildProgressBlock(globalIndex, total, nextTitle, currentGlobal, onJumpTo),
+          buildProgressBlock({
+            steps: store.steps,
+            skipped: store.skippedIndexes,
+            globalIndex,
+            total,
+            nextTitle,
+            currentGlobal,
+            onJump: onJumpTo,
+          }),
           popover.footer.firstChild,
         );
         // "Пропустить" - первым в ряду кнопок (CSS прижимает Назад/Далее вправо).
         // На финале не показываем: там уже есть "Готово" и CTA.
         if (!step?.celebrate) {
           popover.footerButtons.insertBefore(
-            buildSkipButton(() => (onCloseRequest ? onCloseRequest() : driverObj.destroy())),
+            buildSkipButton(
+              () => (onCloseRequest ? onCloseRequest() : driverObj.destroy()),
+              isChapterEnd(store.steps, currentGlobal),
+            ),
             popover.footerButtons.firstChild,
           );
         }

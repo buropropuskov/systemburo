@@ -9,9 +9,11 @@ import {
   availableTours as availableToursFor,
   pickAutostartTour as pickAutostartTourFrom,
 } from '@/components/onboarding/tours';
-import { getOnboardingStatus, markOnboardingComplete } from '@/api/onboarding';
+import { markOnboardingComplete } from '@/api/onboarding';
 import { createGatingData } from '@/components/onboarding/gatingData';
 import { syncDemoBackend } from '@/components/onboarding/demoBackend';
+import { createProgressTracker } from '@/components/onboarding/tourProgress';
+import { createTourStatus } from '@/components/onboarding/tourStatus';
 
 /**
  * Стор онбординг-туров. Держит ГЛОБАЛЬНЫЙ индекс активного шага по всему набору
@@ -64,20 +66,23 @@ export const useOnboardingStore = defineStore('onboarding', () => {
 
   // Пройденные версии по турам: { [tourKey]: number|null }. Загружается одним
   // GET /onboarding; null/отсутствие ключа = тур не проходили.
-  const completedByTour = ref({});
-  // Ключи туров, доведённых до финального шага. Отдельно от completedByTour:
-  // тот гасит автозапуск фактом показа, а «Пройден» в меню заслуживает только
-  // досмотренный до конца - иначе пропуск врал бы, что человек всё видел.
-  const finishedTours = ref([]);
-  const statusLoaded = ref(false);
+  const {
+    completedByTour, finishedTours, loaded: statusLoaded, load: loadStatus, reset: resetStatus,
+  } = createTourStatus();
   // In-flight промис загрузки статуса - чтобы конкурентные maybeAutostart
   // (onMounted + watch route) не слали два GET (урок про гонки авто-fetch).
-  let loadStatusPromise = null;
 
   // Роль в согласовании заявок (принимающий/согласующий) - гейт туров accept и
   // approve. Правами не определяется: роль задаётся записью в справочнике.
 
   // Route фактовой таблицы для шага отметки въезда/выезда в туре охраны.
+  // С какого шага подняли тур в этот раз: 0 - с начала, больше - продолжили с
+  // сохранённой позиции. Хост показывает это в первом поповере.
+  const resumedFrom = ref(0);
+
+  /** Прогресс хранится по пользователю: за одним компьютером работают посменно. */
+  const progress = createProgressTracker(() => useAuthStore().userId);
+
   // Роль в согласовании, маршрут фактовой таблицы и наличие своей заявки живут в
   // gatingData.js: от них зависит СОСТАВ тура, поэтому они резолвятся до старта.
   const {
@@ -133,27 +138,6 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     return auth.isAuthenticated && !usePDConsentStore().required;
   });
 
-  /**
-   * Подтянуть per-user статус с бэкенда (один раз за сессию). На ошибке сети
-   * statusLoaded остаётся false - хост тогда не автозапускает тур (fail-safe),
-   * меню «Обучение» по-прежнему работает.
-   */
-  async function loadStatus() {
-    if (loadStatusPromise) return loadStatusPromise;
-    loadStatusPromise = (async () => {
-      try {
-        const data = await getOnboardingStatus();
-        completedByTour.value = { ...(data?.completed || {}) };
-        finishedTours.value = Array.isArray(data?.finished) ? [...data.finished] : [];
-        statusLoaded.value = true;
-      } catch {
-        statusLoaded.value = false;
-      } finally {
-        loadStatusPromise = null;
-      }
-    })();
-    return loadStatusPromise;
-  }
 
 
 
@@ -216,13 +200,21 @@ export const useOnboardingStore = defineStore('onboarding', () => {
    * @param {{ tour: string, manual?: boolean }} options
    * @returns {boolean} стартовал ли тур
    */
-  function start({ tour, manual = false } = {}) {
+
+  function start({ tour, manual = false, restart = false } = {}) {
     if (isActive.value) return false;
     const entry = getTour(tour);
     if (!entry || !entry.steps.length) return false;
     activeTourKey.value = entry.key;
     isManual.value = manual;
-    currentIndex.value = 0;
+    // Продолжаем с того места, где человек остановился в прошлый раз: обучение
+    // длинное, и начинать его заново после перерыва - значит бросить на середине.
+    // `restart` - явная просьба «пройти сначала» из меню.
+    // Клампим по ФАКТИЧЕСКОМУ набору: часть шагов гейтится правами, и позиция,
+    // записанная когда-то с более широким доступом, увела бы тур за последний шаг.
+    const saved = restart ? 0 : progress.resumeIndex(entry.key);
+    resumedFrom.value = Math.min(saved, Math.max(0, steps.value.length - 1));
+    currentIndex.value = resumedFrom.value;
     skippedIndexes.value = [];
     isActive.value = true;
     syncDemoBackend(true, hasOwnApplication.value);
@@ -262,12 +254,15 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   }
 
   function stop() {
+    // Закрыли осознанно - позицию храним, но сами тур больше не поднимаем.
+    if (activeTourKey.value) progress.save(activeTourKey.value, currentIndex.value, false);
     isActive.value = false;
     syncDemoBackend(false);
   }
 
   function setIndex(i) {
     currentIndex.value = i;
+    if (activeTourKey.value) progress.save(activeTourKey.value, i, true);
   }
 
   /**
@@ -321,6 +316,8 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     // пройти обязан, иначе отметка о полном прохождении не запишется никогда.
     if (hasCompleted(tour.key) && (!finished || hasFinished(tour.key))) return;
     completedByTour.value = { ...completedByTour.value, [tour.key]: tour.version };
+    // Досмотрел до конца - продолжать больше нечего, следующий запуск с начала.
+    if (finished) progress.clear(tour.key);
     if (finished && !finishedTours.value.includes(tour.key)) {
       finishedTours.value = [...finishedTours.value, tour.key];
     }
@@ -349,9 +346,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     demoAttachmentType.value = null;
     revealOpen.value = null;
     // Сброс статуса при logout - следующий юзер на этом устройстве подтянет свой.
-    completedByTour.value = {};
-    finishedTours.value = [];
-    statusLoaded.value = false;
+    resetStatus();
     // Роль в согласовании, route фактовой таблицы и наличие своей заявки - per-user.
     resetGatingData();
     syncDemoBackend(false);
@@ -385,6 +380,9 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     ensureGatingContext,
     ensureOwnApplication,
     hasOwnApplication,
+    resumedFrom,
+    hasProgress: progress.has,
+    interruptedTour: progress.interrupted,
     ensureFactRoute,
     loadStatus,
     hasCompleted,
