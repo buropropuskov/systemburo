@@ -36,7 +36,7 @@ describe('journalStateFromQuery', () => {
 
     expect(state.sort).toBe('created_at');
     expect(state.order, 'направление без известного поля тоже сбрасывается').toBe('desc');
-    expect(state.perPage).toBe(20);
+    expect(state.perPage).toBe(15);
     expect(state.page).toBe(1);
   });
 
@@ -59,7 +59,7 @@ describe('journalStateFromQuery', () => {
   });
 
   it('пустой адрес даёт отбор по умолчанию', () => {
-    expect(journalStateFromQuery()).toMatchObject({ search: '', sort: 'created_at', order: 'desc', page: 1, perPage: 20 });
+    expect(journalStateFromQuery()).toMatchObject({ search: '', sort: 'created_at', order: 'desc', page: 1, perPage: 15 });
   });
 });
 
