@@ -884,9 +884,10 @@ import UnloadPlaceHistoryModal from './UnloadPlaceHistoryModal.vue';
 import { bulkArchiveUnloadPlaces, bulkRestoreUnloadPlaces, getUnloadPlaceUsage, detachAllUnloadPlace, detachOrganizationFromUnloadPlace, detachCompanyFromUnloadPlace } from '@/api/unload-places';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import { fetchCurrentUserName } from '@/utils/currentUserName';
-import { openItemFromRoute } from '@/utils/openQueryParam';
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
+  mixins: [openFromSearchLink((vm) => vm.unloadPlaces, 'selectPlace')],
   components: {
     SearchComponent,
     RefreshButton,
@@ -1123,8 +1124,7 @@ export default {
             originalStatusComment: place.status_comment
           }));
           this.pruneSelection();
-          // Переход из сквозного поиска: `?open` раскрывает найденное место.
-          openItemFromRoute({ router: this.$router, route: this.$route, items: this.unloadPlaces, open: this.selectPlace });
+          this.openFromSearchLink();
         }
       } catch (error) {
         console.error("Error fetching unload places:", error);

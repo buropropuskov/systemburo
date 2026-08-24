@@ -920,10 +920,11 @@ import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
-import { openItemFromRoute } from '@/utils/openQueryParam';
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
   name: 'TableConstructor',
+  mixins: [openFromSearchLink((vm) => vm.tables, 'selectTable', (row) => row?.table?.id)],
   components: {
     SearchComponent,
     RefreshButton,
@@ -1128,6 +1129,7 @@ export default {
     });
   },
   methods: {
+
     /**
      * Переключение вкладки с защитой: если на текущей вкладке есть pending
      * правки - сначала спросить подтверждение. confirmIfAnyDirty опрашивает
@@ -1158,9 +1160,7 @@ export default {
         if (response.ok) {
           const data = await response.json();
           this.tables = data;
-          // Переход из сквозного поиска: строка списка - обёртка {table}, id внутри неё.
-          openItemFromRoute({ router: this.$router, route: this.$route, items: this.tables,
-            open: this.selectTable, idOf: (row) => row?.table?.id });
+          this.openFromSearchLink();
         }
       } catch (error) {
         console.error("Error fetching system tables:", error);

@@ -134,3 +134,18 @@ describe('openItemFromRoute: запись-обёртка', () => {
     expect(openItemFromRoute({ router: router(), route: routeWith({ [OPEN_PARAM]: '8' }), items: wrapped, open })).toBe(false);
   });
 });
+
+describe('openItemFromRoute: списки-обёртки в справочниках', () => {
+  // Форматы номеров лежат как {format: {...}}, таблицы системы - как {table: {...}}.
+  it('формат номера находится по вложенному id', () => {
+    const open = vi.fn();
+    const rows = [{ format: { id: 4 } }, { format: { id: 11 } }];
+
+    openItemFromRoute({
+      router: router(), route: routeWith({ [OPEN_PARAM]: '11' }), items: rows, open,
+      idOf: (row) => row?.format?.id,
+    });
+
+    expect(open).toHaveBeenCalledWith({ format: { id: 11 } });
+  });
+});

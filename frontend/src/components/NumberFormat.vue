@@ -763,7 +763,7 @@ import { apiRequest } from '@/api/client';
 import { bulkArchiveLicenseFormats, bulkRestoreLicenseFormats } from '@/api/licenseFormats';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import { fetchCurrentUserName } from '@/utils/currentUserName';
-import { openItemFromRoute } from '@/utils/openQueryParam';
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 function defaultCell() {
   return {
@@ -785,6 +785,7 @@ const CELL_TYPE_LABELS = {
 
 export default {
   name: 'NumberFormat',
+  mixins: [openFromSearchLink((vm) => vm.formats, 'selectFormat', (row) => row?.format?.id)],
   components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, LicensePlateFormatHistoryModal, AppIcon },
   setup() {
     // Колбэки закрытия присваиваются в created - нужен доступ к this (проверка dirty).
@@ -1005,8 +1006,7 @@ export default {
         if (!res.ok) throw new Error('fetch failed');
         const data = await res.json();
         this.formats = Array.isArray(data) ? data : [];
-        // Переход из сквозного поиска: `?open` раскрывает найденный формат.
-        openItemFromRoute({ router: this.$router, route: this.$route, items: this.formats, open: this.selectFormat });
+        this.openFromSearchLink();
         if (this.selectedFormat) {
           const fresh = this.formats.find(f => f.format.id === this.selectedFormat.format.id);
           const visible = fresh && (this.showArchive ? !fresh.format.is_active : fresh.format.is_active);
