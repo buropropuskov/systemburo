@@ -11,6 +11,7 @@
       :bulk-archive-fn="bulkArchiveVehicleBlacklist"
       :bulk-restore-fn="bulkRestoreVehicleBlacklist"
       testid-prefix="vehicle-bl"
+      tab-key="vehicles"
       cascade-noun-plural="машины"
       @count="$emit('count', $event)"
       @create="showCreate = true"

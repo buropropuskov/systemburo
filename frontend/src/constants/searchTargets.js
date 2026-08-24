@@ -24,6 +24,15 @@ function withQuery(path, query, accepts, openID) {
   return Object.keys(params).length ? { path, query: params } : { path };
 }
 
+/**
+ * Чёрные списки - две вкладки на одной странице, и id записей у них независимые.
+ * Без указания вкладки страница открылась бы на машинах, даже когда нашёлся человек.
+ */
+function blacklistRoute(tab, id, query) {
+  const target = withQuery('/admin/blacklist', query, true, id);
+  return { path: target.path, query: { ...(target.query || {}), tab } };
+}
+
 export const SEARCH_TARGETS = {
   unique_employee: {
     icon: 'employees',
@@ -42,20 +51,22 @@ export const SEARCH_TARGETS = {
     acceptsQuery: true,
     route: (id) => ({ path: '/center', query: { open: String(id) } }),
   },
+  // Список пользователей приходит целиком, поэтому строка поиска в адресе не нужна -
+  // карточка находится по id и раскрывается сразу.
   user: {
     icon: 'users',
     acceptsQuery: false,
-    route: (id, q) => withQuery('/admin/users', q, false),
+    route: (id) => withQuery('/admin/users', '', false, id),
   },
   person_blacklist: {
     icon: 'blacklist',
-    acceptsQuery: false,
-    route: (id, q) => withQuery('/admin/blacklist', q, false),
+    acceptsQuery: true,
+    route: (id, q) => blacklistRoute('persons', id, q),
   },
   vehicle_blacklist: {
     icon: 'blacklist',
-    acceptsQuery: false,
-    route: (id, q) => withQuery('/admin/blacklist', q, false),
+    acceptsQuery: true,
+    route: (id, q) => blacklistRoute('vehicles', id, q),
   },
   organization: { icon: 'organizations', acceptsQuery: false, route: (id, q) => withQuery('/admin/organizations', q, false) },
   company: { icon: 'companies', acceptsQuery: false, route: (id, q) => withQuery('/admin/companies', q, false) },

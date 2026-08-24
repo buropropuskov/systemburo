@@ -1117,6 +1117,7 @@ import { formatUserLabel, formatLogin } from '@/utils/formatName'
 import { revokeUserConsent } from '@/api/pdConsent'
 import { isOnline, formatSeenShort, seenTitle, lastSeenSortKey } from '@/utils/presence'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
+import { openItemFromRoute } from '@/utils/openQueryParam'
 import SearchComponent from './SearchComponent.vue';
 import RefreshButton from './RefreshButton.vue';
 import PasswordInput from './ui/PasswordInput.vue';
@@ -1498,6 +1499,8 @@ export default {
     // selectedUser держит копию старого user и роль/права в карточке остаются
     // устаревшими до перезагрузки страницы.
     allUsers(list) {
+      // Переход из сквозного поиска: `?open` раскрывает карточку найденного.
+      openItemFromRoute({ router: this.$router, route: this.$route, items: list, open: this.selectUser });
       if (!this.selectedUser) return;
       const fresh = list.find((u) => u.username === this.selectedUser.username);
       if (fresh) this.selectedUser = { ...fresh, newPassword: this.selectedUser.newPassword || '' };
@@ -2396,11 +2399,6 @@ export default {
       this.selectedUser = { ...user };
       this.activeTab = 'profile';
       this.showEditModal = true;
-    },
-
-    closeDetails() {
-      this.closeEditModal();
-      this.selectedUser = null;
     },
 
     sortBy(field) {

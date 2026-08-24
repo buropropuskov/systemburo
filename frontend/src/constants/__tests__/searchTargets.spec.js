@@ -37,7 +37,26 @@ describe('SEARCH_TARGETS - куда ведёт результат', () => {
     });
   });
 
+  it('чёрный список: вместе с записью указывает вкладку - id у вкладок независимые', () => {
+    expect(SEARCH_TARGETS.person_blacklist.route(5, 'иванов')).toEqual({
+      path: '/admin/blacklist',
+      query: { q: 'иванов', [OPEN_PARAM]: '5', tab: 'persons' },
+    });
+    expect(SEARCH_TARGETS.vehicle_blacklist.route(5, 'а777')).toEqual({
+      path: '/admin/blacklist',
+      query: { q: 'а777', [OPEN_PARAM]: '5', tab: 'vehicles' },
+    });
+  });
+
+  it('пользователь: открывается по id, строка поиска не нужна - список приходит целиком', () => {
+    expect(SEARCH_TARGETS.user.route(3, 'петров')).toEqual({
+      path: '/admin/users',
+      query: { [OPEN_PARAM]: '3' },
+    });
+  });
+
   it('раздел без приёмника ведёт просто в раздел, без пустых параметров', () => {
-    expect(SEARCH_TARGETS.user.route(3, 'петров')).toEqual({ path: '/admin/users' });
+    expect(SEARCH_TARGETS.organization.route(3, 'ромашка')).toEqual({ path: '/admin/organizations' });
+    expect(SEARCH_TARGETS.news.route(3, 'объявление')).toEqual({ path: '/news' });
   });
 });
