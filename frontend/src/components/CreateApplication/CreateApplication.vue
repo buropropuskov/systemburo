@@ -362,7 +362,6 @@
               @item-added="handleItemAdded"
               @items-added="handleItemsAdded"
               @item-updated="handleItemUpdated"
-              @edit-cancelled="handleItemEditCancelled"
               @update:unload-places="onApplicationUnloadPlacesChange"
             />
             <ItemsList
@@ -2053,7 +2052,6 @@ export default {
         },
 
         handleVehicleEditCancelled() {
-            this.vehicleFormKey += 1;
             this.resumeImportAfterEdit();
         },
 
@@ -2141,7 +2139,6 @@ export default {
         },
 
         handleEmployeeEditCancelled() {
-            this.employeeFormKey += 1;
             this.resumeImportAfterEdit();
         },
 
@@ -2250,10 +2247,6 @@ export default {
                 items.splice(index, 1, updatedItem);
                 this.saveToLocalStorage();
             }
-        },
-
-        handleItemEditCancelled() {
-            this.itemsFormKey += 1;
         },
 
         deleteItem(itemId) {
