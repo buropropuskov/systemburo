@@ -1,0 +1,102 @@
+/* Типографика резюме. Одна колонка: так его одинаково читают человек, принтер и
+   парсер вакансий на стороне работодателя. Двухколоночная вёрстка выглядит
+   нарядно и регулярно ломается при разборе PDF роботом. */
+
+@page { size: A4; }
+
+:root {
+  --ink: #1a1a1a;
+  --ink-soft: #454545;
+  --ink-faint: #737373;
+  --rule: #d8d8d8;
+  --accent: #1f5fa9;
+  --gap-bg: #fff6e5;
+  --gap-ink: #7a5200;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: Inter, 'Noto Sans', sans-serif;
+  font-size: 9.8pt;
+  line-height: 1.45;
+  color: var(--ink);
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1 {
+  font-size: 21pt;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 1.5mm;
+}
+
+.role {
+  font-size: 12pt;
+  font-weight: 600;
+  color: var(--accent);
+  margin: 0 0 2.5mm;
+}
+
+.meta {
+  font-size: 9pt;
+  color: var(--ink-soft);
+  margin: 0 0 1mm;
+}
+
+.contacts {
+  font-size: 9pt;
+  color: var(--ink-soft);
+  margin: 0 0 6mm;
+  padding-bottom: 4mm;
+  border-bottom: 2px solid var(--ink);
+}
+.contacts a { color: var(--accent); text-decoration: none; }
+
+h2 {
+  font-size: 10.5pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 6mm 0 2.5mm;
+  padding-bottom: 1mm;
+  border-bottom: 1px solid var(--rule);
+  page-break-after: avoid;
+}
+
+h3 {
+  font-size: 10pt;
+  font-weight: 650;
+  margin: 4mm 0 1.5mm;
+  page-break-after: avoid;
+}
+h3 .sep { color: var(--ink-faint); font-weight: 400; }
+
+p { margin: 0 0 2.5mm; orphans: 2; widows: 2; }
+strong { font-weight: 650; }
+a { color: var(--accent); text-decoration: none; }
+
+ul { margin: 0 0 3mm; padding-left: 5mm; }
+li { margin-bottom: 1.2mm; }
+
+/* Незаполненное место видно и на печати: отправить резюме с пропуском нельзя,
+   а в чёрно-белом PDF подсветка фоном не читается, поэтому ещё и рамка. */
+.gap {
+  background: var(--gap-bg);
+  color: var(--gap-ink);
+  border: 1px solid #e0c98a;
+  border-radius: 2px;
+  padding: 0.2mm 1mm;
+  font-size: 9pt;
+}
+
+.draft {
+  margin: 0 0 5mm;
+  padding: 2.5mm 3.5mm;
+  background: var(--gap-bg);
+  border-left: 3px solid #e0a800;
+  color: var(--gap-ink);
+  font-size: 8.8pt;
+}

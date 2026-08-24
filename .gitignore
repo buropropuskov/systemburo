@@ -1,2 +1,6 @@
 # промежуточный HTML печати
 pdf/.*.html
+
+# личные контакты и собранное с ними резюме
+resume/contacts.local.json
+pdf/resume-personal.pdf
