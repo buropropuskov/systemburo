@@ -253,6 +253,9 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, getCurrentInstance } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { readSearchFromRoute } from '@/utils/searchQueryParam';
+import { openItemFromRoute } from '@/utils/openQueryParam';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
@@ -272,7 +275,10 @@ const loading = ref(false);
 const updatingId = ref(null);
 const flaggingId = ref(null);
 const activeFilter = ref('all');
-const searchQuery = ref('');
+const route = useRoute();
+const router = useRouter();
+// Из адреса: переход из сквозного поиска приносит запрос с собой.
+const searchQuery = ref(readSearchFromRoute(route));
 const searchVariants = computed(() => buildSearchVariants(searchQuery.value));
 const sortKey = ref('id');
 const sortDir = ref('desc');
@@ -359,6 +365,8 @@ async function refresh() {
   try {
     const data = await getAllFeedback();
     feedbacks.value = Array.isArray(data) ? data : [];
+    // Переход из сквозного поиска: `?open` раскрывает найденное обращение.
+    openItemFromRoute({ router, route, items: feedbacks.value, open: (item) => selectRow(item.id) });
   } catch (e) {
     console.error('Ошибка при загрузке обращений:', e);
     deletions.notify({ prefix: 'Не удалось загрузить ', bold: 'обращения', type: 'error' });

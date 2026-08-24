@@ -467,6 +467,8 @@ import {
   bulkRestoreCitizenships,
 } from '@/api/citizenships';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { readSearchFromRoute } from '@/utils/searchQueryParam';
+import { openItemFromRoute } from '@/utils/openQueryParam';
 
 export default {
   name: 'CitizenshipManagement',
@@ -480,7 +482,8 @@ export default {
   data() {
     return {
       items: [],
-      searchQuery: '',
+      // Из адреса: переход из сквозного поиска приносит запрос с собой.
+      searchQuery: readSearchFromRoute(this.$route),
       showArchive: false,
       sortField: null,
       sortDirection: 'asc',
@@ -614,6 +617,11 @@ export default {
     document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
+    /** Переход из сквозного поиска: `?q` сузил список, `?open` раскрывает запись. */
+    openFromSearchLink() {
+      openItemFromRoute({ router: this.$router, route: this.$route, items: this.items, open: this.selectCitizenship });
+    },
+
     onKeydown(e) {
       if (e.key === 'Escape' && this.showAddModal) this.requestCloseAdd();
     },
@@ -655,6 +663,7 @@ export default {
       try {
         const data = await listCitizenships({ includeArchived: true });
         this.items = Array.isArray(data) ? data : [];
+        this.openFromSearchLink();
         // Подтянуть актуальные поля выбранного гражданства или снять выбор,
         // если оно больше не видно в текущем фильтре.
         if (this.selectedCitizenship) {

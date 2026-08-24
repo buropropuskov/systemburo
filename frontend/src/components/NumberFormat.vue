@@ -762,6 +762,8 @@ import { useOverlayClose } from '@/composables/useOverlayClose';
 import { apiRequest } from '@/api/client';
 import { bulkArchiveLicenseFormats, bulkRestoreLicenseFormats } from '@/api/licenseFormats';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { fetchCurrentUserName } from '@/utils/currentUserName';
+import { openItemFromRoute } from '@/utils/openQueryParam';
 
 function defaultCell() {
   return {
@@ -1003,6 +1005,8 @@ export default {
         if (!res.ok) throw new Error('fetch failed');
         const data = await res.json();
         this.formats = Array.isArray(data) ? data : [];
+        // Переход из сквозного поиска: `?open` раскрывает найденный формат.
+        openItemFromRoute({ router: this.$router, route: this.$route, items: this.formats, open: this.selectFormat });
         if (this.selectedFormat) {
           const fresh = this.formats.find(f => f.format.id === this.selectedFormat.format.id);
           const visible = fresh && (this.showArchive ? !fresh.format.is_active : fresh.format.is_active);
@@ -1196,16 +1200,7 @@ export default {
       this.historyForFormat = item.format;
     },
     async fetchCurrentUser() {
-      // Имя нужно для футера Excel-экспорта истории ("Отчёт сформировал").
-      try {
-        const res = await apiRequest('/users/me');
-        if (!res.ok) return;
-        const u = await res.json();
-        const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
-        this.currentUserName = parts.join(' ') || u.username || '';
-      } catch {
-        // Имя - необязательная деталь экспорта, молчим (footer покажет дефолт).
-      }
+      this.currentUserName = await fetchCurrentUserName();
     },
     getCellTypeLabel(type) {
       return CELL_TYPE_LABELS[type] || type;

@@ -920,6 +920,7 @@ import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { openItemFromRoute } from '@/utils/openQueryParam';
 
 export default {
   name: 'TableConstructor',
@@ -1157,6 +1158,9 @@ export default {
         if (response.ok) {
           const data = await response.json();
           this.tables = data;
+          // Переход из сквозного поиска: строка списка - обёртка {table}, id внутри неё.
+          openItemFromRoute({ router: this.$router, route: this.$route, items: this.tables,
+            open: this.selectTable, idOf: (row) => row?.table?.id });
         }
       } catch (error) {
         console.error("Error fetching system tables:", error);
@@ -1546,28 +1550,6 @@ export default {
       return table.current_status === 'open' ? 'Открыто сейчас' : 'Закрыто сейчас';
     },
     
-    getTableFields(tableType) {
-      if (tableType === 'cars') {
-        return [
-          { name: 'car_number', displayName: 'Номер машины', type: 'Текст' },
-          { name: 'car_brand', displayName: 'Марка', type: 'Текст' },
-          { name: 'organization', displayName: 'Организация', type: 'Текст' },
-          { name: 'unload_place', displayName: 'Место разгрузки', type: 'Текст' },
-          { name: 'valid_until', displayName: 'Действует до', type: 'Дата' },
-          { name: 'time_range', displayName: 'Время', type: 'Текст' },
-          { name: 'status', displayName: 'Статус', type: 'Текст' }
-        ];
-      } else {
-        return [
-          { name: 'organization', displayName: 'Организация', type: 'Текст' },
-          { name: 'last_name', displayName: 'Фамилия', type: 'Текст' },
-          { name: 'first_name', displayName: 'Имя', type: 'Текст' },
-          { name: 'middle_name', displayName: 'Отчество', type: 'Текст' },
-          { name: 'valid_until', displayName: 'Действует до', type: 'Дата' },
-          { name: 'pass_time', displayName: 'Время прохода', type: 'Текст' }
-        ];
-      }
-    },
     
     getDefaultHint(tableType) {
       if (tableType === 'cars') {
