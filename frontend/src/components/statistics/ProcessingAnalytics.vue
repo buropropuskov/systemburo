@@ -639,6 +639,7 @@ import { MAX_REPORT_LIMIT } from '@/composables/useReportRequest';
 import { useNarrowScreen } from '@/composables/useNarrowScreen.js';
 import eventStream from '@/services/eventStream';
 import { useDeletionsStore } from '@/stores/deletions';
+import { copyText } from '@/utils/clipboard';
 import HintTooltip from '@/components/ui/HintTooltip.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
@@ -895,29 +896,13 @@ function goToJournalPage(next) {
   loadJournal();
 }
 
-// Копирование номера заявки из ленты - тот же приём, что в списке заявок
-// (UserApplications): clipboard с фолбэком на textarea для окружений без него.
 async function copyApplicationNumber(number) {
   if (!number) return;
   const value = String(number);
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(value);
-    } else {
-      const textarea = document.createElement('textarea');
-      textarea.value = value;
-      textarea.setAttribute('readonly', '');
-      textarea.style.position = 'absolute';
-      textarea.style.left = '-9999px';
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-    }
-    useDeletionsStore().notify({ prefix: 'Скопирован номер ', bold: value, type: 'success' });
-  } catch {
-    useDeletionsStore().notify({ prefix: 'Не удалось ', bold: 'скопировать номер', type: 'error' });
-  }
+  const copied = await copyText(value);
+  useDeletionsStore().notify(copied
+    ? { prefix: 'Скопирован номер ', bold: value, type: 'success' }
+    : { prefix: 'Не удалось ', bold: 'скопировать номер', type: 'error' });
 }
 
 const JOURNAL_ROLES = {

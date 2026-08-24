@@ -249,8 +249,13 @@
                     class="row-actions"
                   >
                     <!-- Сдвоенная кнопка: слева действие, справа стрелка меню.
-                         Разделены линией, чтобы было видно, что нажатия разные. -->
-                    <div class="split-btn">
+                         Разделены линией, чтобы было видно, что нажатия разные.
+                         Без права убирать элементы меню состоит из одного дубля
+                         "Принять" - тогда стрелки нет и кнопка остаётся цельной. -->
+                    <div
+                      class="split-btn"
+                      :class="{ 'split-btn--single': !hasRowMenu }"
+                    >
                       <button
                         type="button"
                         class="lk-button lk-button--danger split-btn__main"
@@ -260,6 +265,7 @@
                         Принять
                       </button>
                       <button
+                        v-if="hasRowMenu"
                         type="button"
                         class="lk-button lk-button--danger split-btn__toggle"
                         :class="{ 'split-btn__toggle--open': openRowMenu === row.id }"
@@ -292,6 +298,7 @@
                         <div
                           v-if="openRowMenu === row.id"
                           class="row-actions__menu"
+                          :class="{ 'row-actions__menu--up': rowMenuOpenUp }"
                           :style="rowMenuStyle"
                           data-testid="row-actions-menu"
                           @click.stop
@@ -479,6 +486,13 @@ const ASSIGN_BUTTON_SPACE = 34;
 /** Запас, чтобы значение не упиралось вплотную в край колонки. */
 const TEXT_SIDE_SPACE = 6;
 
+/* Меню действий строки: отступ от кнопки, поле до края окна и габариты, по которым
+   решается, помещается ли меню снизу. Ширина совпадает с min-width в стилях. */
+const ROW_MENU_GAP = 4;
+const ROW_MENU_MARGIN = 8;
+const ROW_MENU_WIDTH = 170;
+const ROW_MENU_HEIGHT = 96;
+
 // Строка состава несёт статус принёсшего её раунда в supplement_status;
 // supplement_id === null - строка пришла с исходной подачей (#1685).
 
@@ -599,6 +613,11 @@ export default {
             // чтобы два меню не висели одновременно.
             openRowMenu: null,
             rowMenuStyle: null,
+            // Меню раскрылось вверх - от этого зависит точка роста анимации.
+            rowMenuOpenUp: false,
+            // Кнопка, от которой считается место: меню лежит в body и при прокрутке
+            // списка должно ехать за своей строкой, а не оставаться висеть на месте.
+            rowMenuAnchor: null,
             containerWidth: 0,
             isNarrowViewport: false,
             resizeObserver: null,
@@ -626,6 +645,15 @@ export default {
     computed: {
         type() {
             return this.attachment.attachment_type;
+        },
+
+        /**
+         * Есть ли в меню строки хоть один пункт, которого нет в основной кнопке.
+         * Сейчас такой один - "Убрать из заявки", и без права на него меню сводилось
+         * бы к дублю "Принять": стрелка вела бы в никуда.
+         */
+        hasRowMenu() {
+            return this.canRemove;
         },
 
         rows() {
@@ -923,6 +951,7 @@ export default {
     },
     beforeUnmount() {
         document.removeEventListener('click', this.closeRowMenuOnOutside);
+        this.closeRowMenu();
         if (this.resizeObserver) {
             this.resizeObserver.disconnect();
             this.resizeObserver = null;
@@ -1262,37 +1291,78 @@ export default {
         closeRowMenuOnOutside(event) {
             if (this.openRowMenu === null) return;
             if (event.target && event.target.closest && event.target.closest('.row-actions')) return;
+            this.closeRowMenu();
+        },
+
+        toggleRowMenu(rowID, event) {
+            if (this.openRowMenu === rowID) {
+                this.closeRowMenu();
+                return;
+            }
+            this.rowMenuAnchor = event.currentTarget;
+            this.openRowMenu = rowID;
+            this.updateRowMenuPosition();
+            window.addEventListener('scroll', this.updateRowMenuPosition, true);
+            window.addEventListener('resize', this.updateRowMenuPosition);
+        },
+
+        closeRowMenu() {
             this.openRowMenu = null;
+            this.rowMenuAnchor = null;
+            window.removeEventListener('scroll', this.updateRowMenuPosition, true);
+            window.removeEventListener('resize', this.updateRowMenuPosition);
         },
 
         /**
-         * Меню лежит в body, поэтому его место считаем от кнопки. Координаты делим на
-         * масштаб страницы: при зуме больше 100% rect и координаты окна расходятся, и
-         * меню уезжает от кнопки (тот же расчёт, что у выпадающих списков).
+         * Место меню считается от кнопки: оно лежит в body, а не в строке.
+         *
+         * Все величины приводятся к layout-px делением на масштаб страницы - rect
+         * отдаёт device-px, а innerWidth/innerHeight незумленные, и без общего
+         * знаменателя меню уезжает от кнопки тем дальше, чем правее строка (тот же
+         * расчёт, что у BaseDropdown). Раньше делился только rect, окно - нет.
+         *
+         * Снизу меню помещается не всегда: помеченная строка часто последняя в
+         * списке, и вниз оно уходило под край карточки. Не хватает места - открываем
+         * вверх. По горизонтали держим меню целиком в окне: считаем от правого края
+         * кнопки, но не даём левому краю уйти за поле.
          */
-        toggleRowMenu(rowID, event) {
-            if (this.openRowMenu === rowID) {
-                this.openRowMenu = null;
+        updateRowMenuPosition() {
+            const anchor = this.rowMenuAnchor;
+            if (!anchor) {
+                this.closeRowMenu();
                 return;
             }
             const zoom = getViewportZoom();
-            const rect = event.currentTarget.getBoundingClientRect();
-            const right = (window.innerWidth - rect.right / zoom);
+            const rect = anchor.getBoundingClientRect();
+            const top = rect.top / zoom;
+            const bottom = rect.bottom / zoom;
+            const right = rect.right / zoom;
+            const vw = window.innerWidth / zoom;
+            const vh = window.innerHeight / zoom;
+            const spaceBelow = vh - bottom - ROW_MENU_GAP - ROW_MENU_MARGIN;
+            const spaceAbove = top - ROW_MENU_GAP - ROW_MENU_MARGIN;
+            const openUp = spaceBelow < ROW_MENU_HEIGHT && spaceAbove > spaceBelow;
+            const offsetRight = Math.min(
+                Math.max(ROW_MENU_MARGIN, vw - right),
+                Math.max(ROW_MENU_MARGIN, vw - ROW_MENU_WIDTH - ROW_MENU_MARGIN)
+            );
+            this.rowMenuOpenUp = openUp;
             this.rowMenuStyle = {
                 position: 'fixed',
-                top: `${rect.bottom / zoom + 4}px`,
-                right: `${right}px`,
+                right: `${Math.round(offsetRight)}px`,
+                ...(openUp
+                    ? { bottom: `${Math.round(vh - top + ROW_MENU_GAP)}px`, top: 'auto' }
+                    : { top: `${Math.round(bottom + ROW_MENU_GAP)}px`, bottom: 'auto' })
             };
-            this.openRowMenu = rowID;
         },
 
         chooseOverride(row) {
-            this.openRowMenu = null;
+            this.closeRowMenu();
             this.$emit('override-element', { label: this.rowLabel(row), flag: row.blacklist_similar });
         },
 
         chooseRemove(row) {
-            this.openRowMenu = null;
+            this.closeRowMenu();
             this.$emit('remove-element', { label: this.rowLabel(row), id: row.id });
         },
 
@@ -1926,7 +1996,7 @@ export default {
   white-space: nowrap;
 }
 
-.split-btn__main {
+.split-btn:not(.split-btn--single) .split-btn__main {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
   padding-right: 7px;
@@ -1950,8 +2020,9 @@ export default {
   transform: rotate(180deg);
 }
 
-/* Меню открывается вверх и вправо от кнопки: строка узкая, вниз оно упирается в
-   следующую строку таблицы. */
+/* Сторону раскрытия выбирает updateRowMenuPosition: обычно вниз, а когда снизу мало
+   места (помеченная строка часто последняя в списке) - вверх. Меню растёт от того
+   края, которым прижато к кнопке, иначе появление читается как рывок. */
 /* Раскрытие меню: только transform и opacity - остальное дёргает раскладку. */
 .row-menu-enter-active,
 .row-menu-leave-active {
@@ -1962,6 +2033,15 @@ export default {
 .row-menu-leave-to {
   opacity: 0;
   transform: translateY(-4px) scale(0.98);
+}
+
+.row-actions__menu--up {
+  transform-origin: bottom right;
+}
+
+.row-actions__menu--up.row-menu-enter-from,
+.row-actions__menu--up.row-menu-leave-to {
+  transform: translateY(4px) scale(0.98);
 }
 
 .row-actions__menu {
@@ -2001,14 +2081,6 @@ export default {
   font-size: 11px;
   line-height: 18px;
   color: var(--danger-text);
-}
-
-.blacklist-override-btn {
-    flex-shrink: 0;
-    /* Ячейка состояния - 112px: со стрелкой кнопка влезает только в компактном виде. */
-    padding: 5px 8px;
-    font-size: 11px;
-    white-space: nowrap;
 }
 
 .el-foot__right {
@@ -2360,10 +2432,6 @@ export default {
     .el-row .el-cell--key .supplement-badge {
         max-width: 100%;
         margin-top: 0;
-    }
-
-    .blacklist-override-btn {
-        width: 100%;
     }
 }
 </style>

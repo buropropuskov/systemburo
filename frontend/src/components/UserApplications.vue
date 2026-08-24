@@ -564,6 +564,7 @@ import { apiRequest } from '@/api/client'
 import { getUserApplicationsPaginated, getApplicationById, getUserStatusUpdatesCount } from '@/api/applications'
 import { useAuthStore } from '@/stores/auth'
 import { useDeletionsStore } from '@/stores/deletions'
+import { copyText } from '@/utils/clipboard'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useRevealFirstApplication } from '@/composables/useRevealFirstApplication'
 import RefreshButton from './RefreshButton.vue';
@@ -1259,24 +1260,10 @@ export default {
 
     async copyApplicationNumber(number) {
       if (!number) return;
-      try {
-        if (navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(String(number));
-        } else {
-          const textarea = document.createElement('textarea');
-          textarea.value = String(number);
-          textarea.setAttribute('readonly', '');
-          textarea.style.position = 'absolute';
-          textarea.style.left = '-9999px';
-          document.body.appendChild(textarea);
-          textarea.select();
-          document.execCommand('copy');
-          document.body.removeChild(textarea);
-        }
-        useDeletionsStore().notify({ prefix: 'Скопирован номер ', bold: String(number), type: 'success' });
-      } catch {
-        useDeletionsStore().notify({ prefix: 'Не удалось ', bold: 'скопировать номер', type: 'error' });
-      }
+      const copied = await copyText(number);
+      useDeletionsStore().notify(copied
+        ? { prefix: 'Скопирован номер ', bold: String(number), type: 'success' }
+        : { prefix: 'Не удалось ', bold: 'скопировать номер', type: 'error' });
     }
   }
 };
