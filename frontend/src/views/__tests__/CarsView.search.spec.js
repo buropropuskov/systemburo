@@ -167,3 +167,51 @@ describe('CarsView - серверный поиск и пагинация (#1158,
     expect(wrapper.vm.footerText).toBe('Показано 1 из 42');
   });
 });
+
+/**
+ * Переход из сквозного поиска ведёт к самой машине: `?q` сужает реестр, `?open`
+ * раскрывает её карточку. Раньше открывался просто раздел.
+ */
+describe('CarsView - открытие карточки по ссылке из сквозного поиска', () => {
+  const CAR = { id: 7, number: 'А777АА', mark: 'Toyota', status: true };
+
+  function mountWithRoute(query, replace = vi.fn().mockResolvedValue(undefined)) {
+    return mount(CarsView, {
+      global: { stubs, mocks: { $route: { query }, $router: { push: vi.fn(), replace } } },
+    });
+  }
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    getUniqueCarsPaginated.mockReset();
+    getUniqueCarsPaginated.mockResolvedValue({ items: [CAR], meta: { total: 1, page: 1, per_page: 30 } });
+  });
+
+  afterEach(() => {
+    wrapper?.unmount();
+    wrapper = null;
+  });
+
+  it('карточка найденной машины открывается сразу', async () => {
+    wrapper = mountWithRoute({ q: 'а777', open: '7' });
+    await flushPromises();
+
+    expect(wrapper.vm.showDetailsViewModal).toBe(true);
+    expect(wrapper.vm.detailsCar.plateNumber).toBe('А777АА');
+  });
+
+  it('open вычищается из адреса после открытия', async () => {
+    const replace = vi.fn().mockResolvedValue(undefined);
+    wrapper = mountWithRoute({ q: 'а777', open: '7' }, replace);
+    await flushPromises();
+
+    expect(replace).toHaveBeenCalledWith({ query: { q: 'а777' } });
+  });
+
+  it('машины нет среди загруженных - карточка не открывается', async () => {
+    wrapper = mountWithRoute({ q: 'а777', open: '999' });
+    await flushPromises();
+
+    expect(wrapper.vm.showDetailsViewModal).toBe(false);
+  });
+});

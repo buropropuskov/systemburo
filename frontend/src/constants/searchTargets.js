@@ -5,29 +5,35 @@
  * меняются без ведома бэкенда. Карта здесь -- единственное место, где одно связывается с
  * другим.
  *
- * `acceptsQuery` помечает страницы, которые умеют принять строку поиска в адресе. Пока
- * страница этого не умеет, переход ведёт просто в раздел -- это позволяет подключать
- * приёмники по одному, не дожидаясь, пока их переделают все.
+ * `acceptsQuery` помечает страницы, которые умеют принять строку поиска в адресе, а
+ * `id` в маршруте -- те, что умеют сразу раскрыть карточку найденного. Пока страница
+ * не умеет ни того, ни другого, переход ведёт просто в раздел: приёмники подключаются
+ * по одному, не дожидаясь, пока переделают все.
  */
+
+import { OPEN_PARAM } from '@/utils/openQueryParam';
 
 /** Строка поиска в адресе. Канонический ключ для новых страниц. */
 export const QUERY_PARAM = 'q';
 
-function withQuery(path, query, accepts) {
-  if (!accepts || !query) return { path };
-  return { path, query: { [QUERY_PARAM]: query } };
+function withQuery(path, query, accepts, openID) {
+  const params = {};
+  if (accepts && query) params[QUERY_PARAM] = query;
+  // Строка поиска сужает список до найденной записи, id раскрывает её карточку.
+  if (openID) params[OPEN_PARAM] = String(openID);
+  return Object.keys(params).length ? { path, query: params } : { path };
 }
 
 export const SEARCH_TARGETS = {
   unique_employee: {
     icon: 'employees',
     acceptsQuery: true,
-    route: (id, q) => withQuery('/employeesview', q, true),
+    route: (id, q) => withQuery('/employeesview', q, true, id),
   },
   unique_car: {
     icon: 'cars',
     acceptsQuery: true,
-    route: (id, q) => withQuery('/carsview', q, true),
+    route: (id, q) => withQuery('/carsview', q, true, id),
   },
   // У заявок открытие карточки по номеру уже работает -- этим же параметром ходят
   // переходы из уведомлений.

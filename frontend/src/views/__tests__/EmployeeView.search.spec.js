@@ -134,3 +134,66 @@ describe('EmployeeView - серверный поиск и пагинация (#1
     expect(wrapper.vm.footerText).toBe('Показано 1 из 42');
   });
 });
+
+/**
+ * Переход из сквозного поиска: раньше он приводил в раздел, и найденного сотрудника
+ * приходилось искать в списке заново. Теперь `?q` сужает список, а `?open` раскрывает
+ * карточку той самой записи.
+ */
+describe('EmployeeView - открытие карточки по ссылке из сквозного поиска', () => {
+  const EMPLOYEE = { id: 42, last_name: 'Иванов', first_name: 'Иван', middle_name: 'Иванович', position: 'Водитель' };
+
+  function mountWithRoute(query, replace = vi.fn().mockResolvedValue(undefined)) {
+    return mount(EmployeeView, {
+      global: { stubs, mocks: { $route: { query }, $router: { push: vi.fn(), replace } } },
+    });
+  }
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    getUniqueEmployeesPaginated.mockReset();
+    getUniqueEmployeesPaginated.mockResolvedValue({ items: [EMPLOYEE], meta: { total: 1, page: 1, per_page: 30 } });
+  });
+
+  afterEach(() => {
+    wrapper?.unmount();
+    wrapper = null;
+  });
+
+  it('карточка найденного сотрудника открывается сразу', async () => {
+    wrapper = mountWithRoute({ q: 'иванов', open: '42' });
+    await flushPromises();
+
+    expect(wrapper.vm.showDetailsModal).toBe(true);
+    expect(wrapper.vm.detailsEmployee.id).toBe(42);
+  });
+
+  it('строка поиска из адреса уходит на сервер - без неё запись не попала бы в список', async () => {
+    wrapper = mountWithRoute({ q: 'иванов', open: '42' });
+    await flushPromises();
+
+    expect(getUniqueEmployeesPaginated).toHaveBeenCalledWith(expect.objectContaining({ search_query: 'иванов' }));
+  });
+
+  it('open вычищается из адреса: обновление страницы не открывает карточку заново', async () => {
+    const replace = vi.fn().mockResolvedValue(undefined);
+    wrapper = mountWithRoute({ q: 'иванов', open: '42' }, replace);
+    await flushPromises();
+
+    expect(replace).toHaveBeenCalledWith({ query: { q: 'иванов' } });
+  });
+
+  it('без open список открывается обычным образом', async () => {
+    wrapper = mountWithRoute({ q: 'иванов' });
+    await flushPromises();
+
+    expect(wrapper.vm.showDetailsModal).toBe(false);
+  });
+
+  it('записи нет среди загруженных - карточка не открывается и ошибок нет', async () => {
+    wrapper = mountWithRoute({ q: 'иванов', open: '999' });
+    await flushPromises();
+
+    expect(wrapper.vm.showDetailsModal).toBe(false);
+  });
+});

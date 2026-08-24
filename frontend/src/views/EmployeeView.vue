@@ -612,6 +612,8 @@ import { apiRequest } from '@/api/client'
 import { getViewportZoom } from '@/utils/viewportScale'
 import { getUniqueEmployeesPaginated } from '@/api/employees'
 import { useInfiniteList } from '@/composables/useInfiniteList'
+import { useApplicationDetailLink } from '@/composables/useApplicationDetailLink'
+import { openItemFromRoute } from '@/utils/openQueryParam'
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import { usePermissionsStore } from '@/stores/permissions';
@@ -658,6 +660,7 @@ export default {
         const { isNarrow } = useNarrowScreen();
         return {
             isNarrow,
+            ...useApplicationDetailLink(),
             employeesData: infiniteList.items,
             employeesTotal: infiniteList.total,
             employeesPage: infiniteList.page,
@@ -701,8 +704,6 @@ export default {
             editingEmployee: null,
             showDetailsModal: false,
             detailsEmployee: null,
-            showApplicationDetail: false,
-            selectedApplication: null
         };
     },
     computed: {
@@ -821,6 +822,8 @@ export default {
         }
     },
     watch: {
+        // Пользователь уже на странице: mounted не перевызовется, а адрес сменился.
+        '$route.query.open'(val) { if (val) this.openFromSearchLink(); },
         // Поиск - на сервере (#1158, срез 3): дебаунс 300мс перед fetchEmployees
         // (reset на стр.1 + очистка аккумулятора уже даёт loadEmployeesList({reset:true})).
         searchQuery(val) {
@@ -837,6 +840,7 @@ export default {
             this.fetchCitizenships()
         ]);
         await this.fetchEmployees();
+        this.openFromSearchLink();
         this._lastHeight = -1;
         this.$nextTick(this._applyHeight);
         window.addEventListener('resize', this._applyHeight);
@@ -858,6 +862,11 @@ export default {
         }
     },
     methods: {
+        /** Переход из сквозного поиска: `?q` сузил список, `?open` раскрывает карточку. */
+        openFromSearchLink() {
+            openItemFromRoute({ router: this.$router, route: this.$route, items: this.employeesData, open: this.openEmployeeDetails });
+        },
+
         /**
          * Тянет страницу на доступную высоту вьюпорта (под шапкой), чтобы таблица
          * занимала весь экран без скролла страницы. На мобильном (<=768px) сбрасываем:
@@ -1126,16 +1135,6 @@ export default {
         closeDetailsModal() {
             this.showDetailsModal = false;
             this.detailsEmployee = null;
-        },
-        handleOpenApplication(applicationId) {
-            if (!applicationId) return;
-            // ApplicationDetail сам догружает детали/вложения/читателей по id через watch.
-            this.selectedApplication = { id: applicationId };
-            this.showApplicationDetail = true;
-        },
-        closeApplicationDetail() {
-            this.showApplicationDetail = false;
-            this.selectedApplication = null;
         },
 
         showAddEmployeeModal() {
