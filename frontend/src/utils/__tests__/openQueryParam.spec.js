@@ -1,0 +1,90 @@
+import { describe, it, expect, vi } from 'vitest';
+import { readOpenIdFromRoute, clearOpenFromRoute, openItemFromRoute, OPEN_PARAM } from '../openQueryParam';
+
+/**
+ * Переход из сквозного поиска обязан приводить к самой записи, а не к разделу, где её
+ * ещё надо искать глазами. `?q` сужает список, `?open` раскрывает карточку.
+ */
+
+function routeWith(query) {
+  return { query };
+}
+
+function router() {
+  return { replace: vi.fn().mockResolvedValue(undefined) };
+}
+
+describe('readOpenIdFromRoute', () => {
+  it('читает id из адреса', () => {
+    expect(readOpenIdFromRoute(routeWith({ [OPEN_PARAM]: '42' }))).toBe(42);
+  });
+
+  it('мусор и отсутствие параметра не считаются идентификатором', () => {
+    expect(readOpenIdFromRoute(routeWith({}))).toBeNull();
+    expect(readOpenIdFromRoute(routeWith({ [OPEN_PARAM]: 'абв' }))).toBeNull();
+    // 0 и отрицательные id записей не бывают - такой адрес битый.
+    expect(readOpenIdFromRoute(routeWith({ [OPEN_PARAM]: '0' }))).toBeNull();
+    expect(readOpenIdFromRoute(routeWith({ [OPEN_PARAM]: '-3' }))).toBeNull();
+    expect(readOpenIdFromRoute(undefined)).toBeNull();
+  });
+});
+
+describe('clearOpenFromRoute', () => {
+  it('убирает open, сохраняя остальные параметры', () => {
+    const r = router();
+    clearOpenFromRoute(r, routeWith({ [OPEN_PARAM]: '42', q: 'иванов', archive: 'true' }));
+
+    expect(r.replace).toHaveBeenCalledWith({ query: { q: 'иванов', archive: 'true' } });
+  });
+
+  it('без open в адресе навигации не делает - лишняя replace ломала бы историю', () => {
+    const r = router();
+    clearOpenFromRoute(r, routeWith({ q: 'иванов' }));
+
+    expect(r.replace).not.toHaveBeenCalled();
+  });
+});
+
+describe('openItemFromRoute', () => {
+  const items = [{ id: 1 }, { id: 42 }, { id: 7 }];
+
+  it('открывает запись из списка и вычищает open из адреса', () => {
+    const open = vi.fn();
+    const r = router();
+
+    const done = openItemFromRoute({ router: r, route: routeWith({ [OPEN_PARAM]: '42', q: 'а777' }), items, open });
+
+    expect(done).toBe(true);
+    expect(open).toHaveBeenCalledWith({ id: 42 });
+    expect(r.replace).toHaveBeenCalledWith({ query: { q: 'а777' } });
+  });
+
+  it('id в адресе строкой, в списке числом - сравниваем значения, а не типы', () => {
+    const open = vi.fn();
+    openItemFromRoute({ router: router(), route: routeWith({ [OPEN_PARAM]: '7' }), items, open });
+
+    expect(open).toHaveBeenCalledWith({ id: 7 });
+  });
+
+  it('записи ещё нет в загруженном - open остаётся в адресе для следующей попытки', () => {
+    const open = vi.fn();
+    const r = router();
+
+    const done = openItemFromRoute({ router: r, route: routeWith({ [OPEN_PARAM]: '999' }), items, open });
+
+    expect(done).toBe(false);
+    expect(open).not.toHaveBeenCalled();
+    expect(r.replace).not.toHaveBeenCalled();
+  });
+
+  it('без параметра ничего не открывает', () => {
+    const open = vi.fn();
+    expect(openItemFromRoute({ router: router(), route: routeWith({ q: 'а777' }), items, open })).toBe(false);
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('пустой список не роняет обход', () => {
+    const open = vi.fn();
+    expect(openItemFromRoute({ router: router(), route: routeWith({ [OPEN_PARAM]: '1' }), items: undefined, open })).toBe(false);
+  });
+});

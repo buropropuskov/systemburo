@@ -861,6 +861,8 @@ import { apiRequest } from '@/api/client'
 import { getViewportZoom } from '@/utils/viewportScale'
 import { getUniqueCarsPaginated } from '@/api/cars'
 import { useInfiniteList } from '@/composables/useInfiniteList'
+import { useApplicationDetailLink } from '@/composables/useApplicationDetailLink'
+import { openItemFromRoute } from '@/utils/openQueryParam'
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
 import SearchComponent from '@/components/SearchComponent.vue';
@@ -908,6 +910,7 @@ export default {
         const { isNarrow } = useNarrowScreen();
         return {
             isNarrow,
+            ...useApplicationDetailLink(),
             carsData: infiniteList.items,
             carsTotal: infiniteList.total,
             carsPage: infiniteList.page,
@@ -951,8 +954,6 @@ export default {
             availableFormats: [],
             showDetailsViewModal: false,
             detailsCar: null,
-            showApplicationDetail: false,
-            selectedApplication: null,
             // Места разгрузки: список для имён + карта active_car_id -> [place ids]
             allUnloadingPlaces: [],
             carUnloadPlacesMap: {},
@@ -1135,6 +1136,8 @@ export default {
         }
     },
     watch: {
+        // Пользователь уже на странице: mounted не перевызовется, а адрес сменился.
+        '$route.query.open'(val) { if (val) this.openFromSearchLink(); },
         // Поиск - на сервере (#1158, срез 2): дебаунс 300мс перед fetchCars (reset на
         // стр.1 + очистка аккумулятора уже даёт loadCarsList({reset:true})). withPlaces:false
         // - места разгрузки от search_query не зависят, тянуть их на каждый ввод не нужно.
@@ -1154,6 +1157,7 @@ export default {
         ]);
         // fetchCars сам подтягивает места разгрузки (allUnloadingPlaces + карта по машинам).
         await this.fetchCars();
+        this.openFromSearchLink();
         
         // Закрытие dropdown при клике вне
         document.addEventListener('click', (e) => {
@@ -1187,6 +1191,11 @@ export default {
         }
     },
     methods: {
+        /** Переход из сквозного поиска: `?q` сузил список, `?open` раскрывает карточку. */
+        openFromSearchLink() {
+            openItemFromRoute({ router: this.$router, route: this.$route, items: this.carsData, open: this.openCarDetails });
+        },
+
         /**
          * Тянет страницу на доступную высоту вьюпорта (под шапкой), чтобы таблица
          * занимала весь экран без скролла страницы. На мобильном (<=768px) сбрасываем.
@@ -1239,16 +1248,7 @@ export default {
             this.showDetailsViewModal = false;
             this.detailsCar = null;
         },
-        handleOpenApplication(applicationId) {
-            if (!applicationId) return;
-            // ApplicationDetail сам догружает детали/вложения/читателей по id через watch.
-            this.selectedApplication = { id: applicationId };
-            this.showApplicationDetail = true;
-        },
-        closeApplicationDetail() {
-            this.showApplicationDetail = false;
-            this.selectedApplication = null;
-        },
+
         /**
          * Можно ли текущему пользователю редактировать/удалять машину.
          * Логика совпадает с backend canEditCar (unique_car_service.go):
