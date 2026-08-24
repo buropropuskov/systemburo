@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { setActivePinia, createPinia } from 'pinia';
 
 import EmployeeView from '../EmployeeView.vue';
+import { usePermissionsStore } from '@/stores/permissions';
 
 // Реестр сотрудников переведён на серверный поиск/пагинацию (#1158, срез 3): проверяем,
 // что search_query/page/per_page реально уходят на бэк (getUniqueEmployeesPaginated),
@@ -195,5 +196,60 @@ describe('EmployeeView - открытие карточки по ссылке и�
     await flushPromises();
 
     expect(wrapper.vm.showDetailsModal).toBe(false);
+  });
+});
+
+/**
+ * Переход из сквозного поиска приводил в пустой реестр: поиск ищет по всей
+ * доступной области, а страница открывалась на «Мои сотрудники», куда чужая
+ * найденная запись не попадает. Поймано живой проверкой на стенде - в юнит-тестах
+ * список отдавал мок, и подмены области видно не было.
+ */
+describe('EmployeeView - область реестра при переходе из поиска', () => {
+  function seedPerms(allow) {
+    const perms = usePermissionsStore();
+    perms.mode = 'normal';
+    perms.effective = Object.fromEntries(allow.map((k) => [k, { value: 'allow', source: 'role' }]));
+  }
+
+  function mountWithRoute(query) {
+    return mount(EmployeeView, {
+      global: { stubs, mocks: { $route: { query }, $router: { push: vi.fn(), replace: vi.fn().mockResolvedValue(undefined) } } },
+    });
+  }
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    getUniqueEmployeesPaginated.mockReset();
+    getUniqueEmployeesPaginated.mockResolvedValue({ items: [], meta: { total: 0, page: 1, per_page: 30 } });
+  });
+
+  afterEach(() => {
+    wrapper?.unmount();
+    wrapper = null;
+  });
+
+  it('с open в адресе список запрашивается по всей системе', async () => {
+    seedPerms(['section.registry.all_system']);
+    wrapper = mountWithRoute({ q: 'иванов', open: '17' });
+    await flushPromises();
+
+    expect(getUniqueEmployeesPaginated).toHaveBeenCalledWith(expect.objectContaining({ filter_type: 'all_system' }));
+  });
+
+  it('без права на всю систему берётся организация', async () => {
+    seedPerms(['section.registry.organization']);
+    wrapper = mountWithRoute({ q: 'иванов', open: '17' });
+    await flushPromises();
+
+    expect(getUniqueEmployeesPaginated).toHaveBeenCalledWith(expect.objectContaining({ filter_type: 'organization' }));
+  });
+
+  it('обычный заход по-прежнему открывает «Мои сотрудники»', async () => {
+    seedPerms(['section.registry.all_system']);
+    wrapper = mountWithRoute({});
+    await flushPromises();
+
+    expect(getUniqueEmployeesPaginated).toHaveBeenCalledWith(expect.objectContaining({ filter_type: 'user' }));
   });
 });
