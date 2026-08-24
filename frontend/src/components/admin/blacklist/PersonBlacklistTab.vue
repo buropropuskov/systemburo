@@ -11,6 +11,7 @@
       :bulk-archive-fn="bulkArchivePersonBlacklist"
       :bulk-restore-fn="bulkRestorePersonBlacklist"
       testid-prefix="person-bl"
+      tab-key="persons"
       cascade-noun-plural="сотрудники"
       @count="$emit('count', $event)"
       @create="showCreate = true"

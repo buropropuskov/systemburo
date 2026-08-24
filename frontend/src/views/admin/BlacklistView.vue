@@ -59,7 +59,8 @@ export default {
   components: { FilterTabs, VehicleBlacklistTab, PersonBlacklistTab },
   data() {
     return {
-      activeTab: 'vehicles',
+      // Из адреса: переход из сквозного поиска знает, в какой вкладке лежит найденное.
+      activeTab: this.$route?.query?.tab === 'persons' ? 'persons' : 'vehicles',
       vehicleCount: 0,
       personCount: 0,
       currentUserName: '',
