@@ -528,9 +528,7 @@
               class="blacklist-gate-hint"
               data-testid="app-detail-blacklist-gate-hint"
               :title="blacklistGateHint"
-            >
-              Подтвердите метки ЧС
-            </div>
+            >Подтвердите метки ЧС</div>
           </div>
         </transition>
       </div>

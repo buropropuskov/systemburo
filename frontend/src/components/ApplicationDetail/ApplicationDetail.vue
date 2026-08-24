@@ -77,19 +77,11 @@
         <div class="detail-header-left">
           <div class="detail-title-row">
             <h3 class="detail-title">
-              Заявка <span
-                class="detail-number"
-                data-tooltip="Копировать"
-                data-testid="app-detail-number"
-                role="button"
-                tabindex="0"
-                @click.stop="copyApplicationNumber"
-                @keydown.enter.prevent="copyApplicationNumber"
-              >{{ applicationData.application_number }}</span>
+              Заявка <CopyableNumber data-testid="app-detail-number" :value="applicationData.application_number" />
             </h3>
             <div class="detail-datetime">
               {{ formatDateTime(applicationData.sending_datetime) }}
-              <span class="weekday">{{ getWeekday(applicationData.sending_datetime) }}</span>
+              <span class="weekday">{{ weekdayName(applicationData.sending_datetime) }}</span>
             </div>
             <!-- Кнопка пересылки (рядом с датой): fade при появлении/скрытии -->
             <transition name="fade">
@@ -752,8 +744,9 @@ import VehicleDetailsModal from '../CreateApplication/VehicleDetailsModal.vue'
 import EmployeeDetailsModal from '../CreateApplication/EmployeeDetailsModal.vue'
 import Badge from '@/components/ui/Badge.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
+import CopyableNumber from '@/components/ui/CopyableNumber.vue'
 import { sanitizeHtml } from '@/utils/sanitize'
-import { copyText } from '@/utils/clipboard'
+import { weekdayName } from '@/utils/datetime'
 import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack'
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock'
 
@@ -799,6 +792,7 @@ export default {
         EmployeeDetailsModal,
         Badge,
         BaseDropdown,
+        CopyableNumber,
         ApplicationMessageModal,
         ApplicationParticipantsModal,
         ApplicationParticipantCard,
@@ -1266,15 +1260,6 @@ export default {
         if (this.closeTimer) clearTimeout(this.closeTimer);
     },
     methods: {
-        async copyApplicationNumber() {
-            const number = this.applicationData?.application_number;
-            if (!number) return;
-            const copied = await copyText(number);
-            useDeletionsStore().notify(copied
-                ? { prefix: 'Номер ', bold: String(number), suffix: ' скопирован', type: 'success' }
-                : { prefix: 'Не удалось ', bold: 'скопировать номер', type: 'error' });
-        },
-
         can(key) {
             return this.permissionsStore.hasPermission(key);
         },
@@ -2014,12 +1999,7 @@ export default {
             });
         },
 
-        getWeekday(dateTimeString) {
-            if (!dateTimeString) return '';
-            const date = new Date(dateTimeString);
-            const weekdays = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
-            return weekdays[date.getDay()];
-        },
+        weekdayName,
 
         getUserDisplayName(user) {
             const names = [user.last_name, user.first_name, user.middle_name].filter(Boolean);
@@ -2581,49 +2561,6 @@ export default {
     color: var(--text);
     margin: 0;
     line-height: 1.2;
-}
-
-/* Номер - единственная кликабельная часть заголовка: подсветка и подсказка
-   показывают, что по нему копируют, не превращая весь заголовок в кнопку. */
-.detail-number {
-    position: relative;
-    cursor: pointer;
-    border-radius: 4px;
-    outline: none;
-    transition: color 0.15s;
-}
-
-.detail-number:hover,
-.detail-number:focus-visible {
-    color: var(--accent-text);
-}
-
-.detail-number:focus-visible {
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
-}
-
-.detail-number::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 4px 8px;
-    border-radius: 6px;
-    background: var(--hint-bg);
-    color: var(--hint-text);
-    font-size: 11px;
-    font-weight: 500;
-    white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.15s;
-    box-shadow: 0 2px 8px var(--shadow-drop);
-    z-index: 1;
-}
-
-.detail-number:hover::after {
-    opacity: 1;
 }
 
 .detail-datetime {

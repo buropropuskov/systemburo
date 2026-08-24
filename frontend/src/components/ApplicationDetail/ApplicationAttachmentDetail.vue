@@ -249,13 +249,8 @@
                     class="row-actions"
                   >
                     <!-- Сдвоенная кнопка: слева действие, справа стрелка меню.
-                         Разделены линией, чтобы было видно, что нажатия разные.
-                         Без права убирать элементы меню состоит из одного дубля
-                         "Принять" - тогда стрелки нет и кнопка остаётся цельной. -->
-                    <div
-                      class="split-btn"
-                      :class="{ 'split-btn--single': !hasRowMenu }"
-                    >
+                         Разделены линией, чтобы было видно, что нажатия разные. -->
+                    <div class="split-btn" :class="{ 'split-btn--single': !hasRowMenu }">
                       <button
                         type="button"
                         class="lk-button lk-button--danger split-btn__main"
@@ -267,8 +262,7 @@
                       <button
                         v-if="hasRowMenu"
                         type="button"
-                        class="lk-button lk-button--danger split-btn__toggle"
-                        :class="{ 'split-btn__toggle--open': openRowMenu === row.id }"
+                        :class="['lk-button', 'lk-button--danger', 'split-btn__toggle', { 'split-btn__toggle--open': openRowMenu === row.id }]"
                         data-testid="row-actions-toggle"
                         aria-label="Другие действия"
                         @click.stop="toggleRowMenu(row.id, $event)"
@@ -297,8 +291,7 @@
                       <transition name="row-menu">
                         <div
                           v-if="openRowMenu === row.id"
-                          class="row-actions__menu"
-                          :class="{ 'row-actions__menu--up': rowMenuOpenUp }"
+                          :class="['row-actions__menu', { 'row-actions__menu--up': rowMenuOpenUp }]"
                           :style="rowMenuStyle"
                           data-testid="row-actions-menu"
                           @click.stop
@@ -451,7 +444,7 @@ import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions'
 import { matchesSearchFuzzy } from '@/utils/searchVariants'
 import { formatNumberForDisplay } from '@/composables/useNumberFormat'
-import { getViewportZoom } from '@/utils/viewportScale'
+import { useAnchoredMenu } from '@/composables/useAnchoredMenu'
 import {
     SUPPLEMENT_ACCEPTED,
     SUPPLEMENT_APPROVED,
@@ -486,12 +479,9 @@ const ASSIGN_BUTTON_SPACE = 34;
 /** Запас, чтобы значение не упиралось вплотную в край колонки. */
 const TEXT_SIDE_SPACE = 6;
 
-/* Меню действий строки: отступ от кнопки, поле до края окна и габариты, по которым
-   решается, помещается ли меню снизу. Ширина совпадает с min-width в стилях. */
-const ROW_MENU_GAP = 4;
-const ROW_MENU_MARGIN = 8;
-const ROW_MENU_WIDTH = 170;
-const ROW_MENU_HEIGHT = 96;
+/* Габариты меню действий строки: ширина совпадает с min-width в стилях, высота - та,
+   по которой решается, помещается ли меню снизу. */
+const ROW_MENU_SIZE = { width: 170, height: 96 };
 
 // Строка состава несёт статус принёсшего её раунда в supplement_status;
 // supplement_id === null - строка пришла с исходной подачей (#1685).
@@ -607,17 +597,20 @@ export default {
         }
     },
     emits: ['open-vehicle', 'open-employee', 'override-element', 'remove-element', 'assignments-changed'],
+    setup() {
+        // Одно меню на таблицу: два открытых сразу не нужны, и место считается от той
+        // кнопки, по которой нажали.
+        const menu = useAnchoredMenu(ROW_MENU_SIZE);
+        return {
+            openRowMenu: menu.openId,
+            rowMenuStyle: menu.style,
+            rowMenuOpenUp: menu.openUp,
+            toggleRowMenu: menu.toggle,
+            closeRowMenu: menu.close
+        };
+    },
     data() {
         return {
-            // Идентификатор строки, у которой открыто меню действий: одно на таблицу,
-            // чтобы два меню не висели одновременно.
-            openRowMenu: null,
-            rowMenuStyle: null,
-            // Меню раскрылось вверх - от этого зависит точка роста анимации.
-            rowMenuOpenUp: false,
-            // Кнопка, от которой считается место: меню лежит в body и при прокрутке
-            // списка должно ехать за своей строкой, а не оставаться висеть на месте.
-            rowMenuAnchor: null,
             containerWidth: 0,
             isNarrowViewport: false,
             resizeObserver: null,
@@ -951,7 +944,6 @@ export default {
     },
     beforeUnmount() {
         document.removeEventListener('click', this.closeRowMenuOnOutside);
-        this.closeRowMenu();
         if (this.resizeObserver) {
             this.resizeObserver.disconnect();
             this.resizeObserver = null;
@@ -1292,68 +1284,6 @@ export default {
             if (this.openRowMenu === null) return;
             if (event.target && event.target.closest && event.target.closest('.row-actions')) return;
             this.closeRowMenu();
-        },
-
-        toggleRowMenu(rowID, event) {
-            if (this.openRowMenu === rowID) {
-                this.closeRowMenu();
-                return;
-            }
-            this.rowMenuAnchor = event.currentTarget;
-            this.openRowMenu = rowID;
-            this.updateRowMenuPosition();
-            window.addEventListener('scroll', this.updateRowMenuPosition, true);
-            window.addEventListener('resize', this.updateRowMenuPosition);
-        },
-
-        closeRowMenu() {
-            this.openRowMenu = null;
-            this.rowMenuAnchor = null;
-            window.removeEventListener('scroll', this.updateRowMenuPosition, true);
-            window.removeEventListener('resize', this.updateRowMenuPosition);
-        },
-
-        /**
-         * Место меню считается от кнопки: оно лежит в body, а не в строке.
-         *
-         * Все величины приводятся к layout-px делением на масштаб страницы - rect
-         * отдаёт device-px, а innerWidth/innerHeight незумленные, и без общего
-         * знаменателя меню уезжает от кнопки тем дальше, чем правее строка (тот же
-         * расчёт, что у BaseDropdown). Раньше делился только rect, окно - нет.
-         *
-         * Снизу меню помещается не всегда: помеченная строка часто последняя в
-         * списке, и вниз оно уходило под край карточки. Не хватает места - открываем
-         * вверх. По горизонтали держим меню целиком в окне: считаем от правого края
-         * кнопки, но не даём левому краю уйти за поле.
-         */
-        updateRowMenuPosition() {
-            const anchor = this.rowMenuAnchor;
-            if (!anchor) {
-                this.closeRowMenu();
-                return;
-            }
-            const zoom = getViewportZoom();
-            const rect = anchor.getBoundingClientRect();
-            const top = rect.top / zoom;
-            const bottom = rect.bottom / zoom;
-            const right = rect.right / zoom;
-            const vw = window.innerWidth / zoom;
-            const vh = window.innerHeight / zoom;
-            const spaceBelow = vh - bottom - ROW_MENU_GAP - ROW_MENU_MARGIN;
-            const spaceAbove = top - ROW_MENU_GAP - ROW_MENU_MARGIN;
-            const openUp = spaceBelow < ROW_MENU_HEIGHT && spaceAbove > spaceBelow;
-            const offsetRight = Math.min(
-                Math.max(ROW_MENU_MARGIN, vw - right),
-                Math.max(ROW_MENU_MARGIN, vw - ROW_MENU_WIDTH - ROW_MENU_MARGIN)
-            );
-            this.rowMenuOpenUp = openUp;
-            this.rowMenuStyle = {
-                position: 'fixed',
-                right: `${Math.round(offsetRight)}px`,
-                ...(openUp
-                    ? { bottom: `${Math.round(vh - top + ROW_MENU_GAP)}px`, top: 'auto' }
-                    : { top: `${Math.round(bottom + ROW_MENU_GAP)}px`, bottom: 'auto' })
-            };
         },
 
         chooseOverride(row) {

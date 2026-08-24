@@ -101,7 +101,6 @@ describe('ApplicationDetail: копирование номера заявки', 
     const title = SFC.match(/<h3 class="detail-title">([\s\S]*?)<\/h3>/);
 
     expect(title).not.toBeNull();
-    expect(title[1]).toMatch(/Заявка <span/);
-    expect(SFC).toMatch(/\.detail-number\s*\{[^}]*cursor:\s*pointer/);
+    expect(title[1]).toMatch(/Заявка <CopyableNumber/);
   });
 });
