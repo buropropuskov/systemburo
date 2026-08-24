@@ -477,6 +477,7 @@ import { buildScheduleReport } from '@/utils/scheduleCheck'
 import { findDuplicateVehicle, vehicleLabel } from '@/utils/applicationDuplicates'
 import { getCurrentInstance } from 'vue'
 import ExistingCarsModal from '@/components/CreateApplication/ExistingCarsModal.vue'
+import { resetVehicleFormState } from './entryFormReset'
 import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vue'
 import AppIcon from '@/components/icons/AppIcon.vue'
 
@@ -1583,8 +1584,7 @@ export default {
 
         cancelEdit() {
             this.$emit('edit-cancelled');
-            this.editingVehicle = null;
-            this.clearVehicleForm();
+            resetVehicleFormState(this);
         },
         
         toggleMarkDropdown() {

@@ -434,6 +434,7 @@ import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vu
 import { useFormValidation } from '@/composables/useFormValidation'
 import { useNarrowScreen } from '@/composables/useNarrowScreen'
 import { useFieldConfig } from '@/composables/useFieldConfig'
+import { resetEmployeeFormState } from './entryFormReset'
 import { collectActiveWarnings } from '@/utils/warningWindows'
 import { buildScheduleReport } from '@/utils/scheduleCheck'
 import { findDuplicateEmployee, employeeLabel } from '@/utils/applicationDuplicates'
@@ -1224,8 +1225,7 @@ export default {
 
         cancelEdit() {
             this.$emit('edit-cancelled');
-            this.editingEmployee = null;
-            this.clearEmployeeForm();
+            resetEmployeeFormState(this);
         },
         
         toggleCitizenshipDropdown() {
