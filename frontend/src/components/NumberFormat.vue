@@ -889,6 +889,8 @@ export default {
     },
   },
   watch: {
+    // Пользователь уже на этой странице: повторного монтирования нет, а адрес сменился.
+    '$route.query.open'(val) { if (val) this.openFromSearchLink(); },
     // Смена фильтра/поиска/режима меняет видимый список - убираем из выбора
     // строки, которых больше не видно (реактивно, не только после refresh).
     filteredFormats() {
@@ -921,6 +923,10 @@ export default {
     document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
+    openFromSearchLink() {
+      openItemFromRoute({ router: this.$router, route: this.$route, items: this.formats, open: this.selectFormat });
+    },
+
     onKeydown(e) {
       if (e.key !== 'Escape') return;
       if (this.showCellEditModal) this.showCellEditModal = false;
@@ -1005,8 +1011,7 @@ export default {
         if (!res.ok) throw new Error('fetch failed');
         const data = await res.json();
         this.formats = Array.isArray(data) ? data : [];
-        // Переход из сквозного поиска: `?open` раскрывает найденный формат.
-        openItemFromRoute({ router: this.$router, route: this.$route, items: this.formats, open: this.selectFormat });
+        this.openFromSearchLink();
         if (this.selectedFormat) {
           const fresh = this.formats.find(f => f.format.id === this.selectedFormat.format.id);
           const visible = fresh && (this.showArchive ? !fresh.format.is_active : fresh.format.is_active);

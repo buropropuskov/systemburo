@@ -361,6 +361,8 @@ export default {
     eventStream.disconnect()
   },
   watch: {
+    // Пользователь уже на этой странице: повторного монтирования нет, а адрес сменился.
+    '$route.query.open'(val) { if (val) this.openFromSearchLink(); },
     /**
      * Онбординг просит показать расписание: открываем окно режимов работы по
      * сигналу и закрываем, когда сигнал гаснет. Чужое окно не трогаем.
@@ -378,6 +380,11 @@ export default {
     },
   },
   methods: {
+    /** Переход из сквозного поиска: `?open` раскрывает найденную новость. */
+    openFromSearchLink() {
+      openItemFromRoute({ router: this.$router, route: this.$route, items: this.newsItems, open: this.openNewsModal })
+    },
+
     sanitizeHtml,
     handleEscKey(e) {
       if (e.key === 'Escape' && this.showNewsDetailsModal) this.closeNewsDetailsModal()
@@ -401,8 +408,7 @@ export default {
       try {
         const response = await apiRequest('/news')
         if (response.ok) this.newsItems = await response.json()
-        // Переход из сквозного поиска: `?open` раскрывает найденную новость.
-        openItemFromRoute({ router: this.$router, route: this.$route, items: this.newsItems, open: this.openNewsModal })
+        this.openFromSearchLink()
       } catch (error) { console.error('Ошибка загрузки новостей:', error) }
       finally { this.loadingNews = false }
     },

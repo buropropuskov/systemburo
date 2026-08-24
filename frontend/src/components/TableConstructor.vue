@@ -1081,6 +1081,8 @@ export default {
     },
   },
   watch: {
+    // Пользователь уже на этой странице: повторного монтирования нет, а адрес сменился.
+    '$route.query.open'(val) { if (val) this.openFromSearchLink(); },
     // Если активна вкладка фактовой таблицы, а пользователь снял галочку
     // show_fact_table - возвращаем на главную, чтобы не висел пустой контент.
     'selectedTable.table.show_fact_table'(val) {
@@ -1128,6 +1130,12 @@ export default {
     });
   },
   methods: {
+    /** Строка списка таблиц - обёртка {table}, собственного id у неё нет. */
+    openFromSearchLink() {
+      openItemFromRoute({ router: this.$router, route: this.$route, items: this.tables,
+        open: this.selectTable, idOf: (row) => row?.table?.id });
+    },
+
     /**
      * Переключение вкладки с защитой: если на текущей вкладке есть pending
      * правки - сначала спросить подтверждение. confirmIfAnyDirty опрашивает
@@ -1158,9 +1166,7 @@ export default {
         if (response.ok) {
           const data = await response.json();
           this.tables = data;
-          // Переход из сквозного поиска: строка списка - обёртка {table}, id внутри неё.
-          openItemFromRoute({ router: this.$router, route: this.$route, items: this.tables,
-            open: this.selectTable, idOf: (row) => row?.table?.id });
+          this.openFromSearchLink();
         }
       } catch (error) {
         console.error("Error fetching system tables:", error);

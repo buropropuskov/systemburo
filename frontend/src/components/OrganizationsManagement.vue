@@ -1011,6 +1011,8 @@ export default {
     },
   },
   watch: {
+    // Пользователь уже на этой странице: список не перезагружается, а адрес сменился.
+    '$route.query.open'(val) { if (val) openItemFromRoute({ router: this.$router, route: this.$route, items: this.organizationsWithUsers, open: this.selectOrganization }); },
     // Переход из сквозного поиска: `?open` раскрывает найденную запись, когда список приедет.
     organizationsWithUsers(list) { openItemFromRoute({ router: this.$router, route: this.$route, items: list, open: this.selectOrganization }); },
     showAddModal(newVal) {

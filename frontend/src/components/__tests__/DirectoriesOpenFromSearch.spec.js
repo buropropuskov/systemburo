@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { reactive, nextTick } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import MarksManagement from '@/components/MarksManagement.vue'
@@ -101,5 +102,33 @@ describe('CitizenshipManagement — переход из сквозного по�
     await flushPromises()
 
     expect(wrapper.vm.searchQuery).toBe('')
+  })
+})
+
+describe('Справочники — переход, когда экран уже открыт', () => {
+  it('смена адреса раскрывает запись без перезагрузки страницы', async () => {
+    // Из поиска можно уйти на страницу, где уже стоишь: тогда компонент не
+    // монтируется заново и загрузка списка не повторяется.
+    const route = reactive({ query: {} })
+    const wrapper = mount(MarksManagement, {
+      global: {
+        stubs: { Teleport: true, MarkHistoryModal: true },
+        mocks: {
+          $bus: { on: vi.fn(), off: vi.fn(), emit: vi.fn() },
+          $route: route,
+          $router: { replace: vi.fn().mockResolvedValue(undefined) },
+        },
+      },
+    })
+    await flushPromises()
+    expect(wrapper.vm.selectedMark).toBeNull()
+
+    route.query = { open: '7' }
+    await nextTick()
+    await flushPromises()
+
+    expect(wrapper.vm.selectedMark?.id).toBe(7)
+    // Список повторно не запрашивался - открылись по уже загруженному.
+    expect(marksApi.listMarks).toHaveBeenCalledTimes(1)
   })
 })

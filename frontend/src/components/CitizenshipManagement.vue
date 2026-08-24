@@ -574,6 +574,8 @@ export default {
     },
   },
   watch: {
+    // Пользователь уже на этой странице: повторного монтирования нет, а адрес сменился.
+    '$route.query.open'(val) { if (val) this.openFromSearchLink(); },
     // Сужение списка (поиск/смена фильтра) убирает из выбора невидимые строки.
     filteredCitizenships() {
       this.pruneSelection();

@@ -1048,6 +1048,8 @@ export default {
     }
   },
   watch: {
+    // Пользователь уже на этой странице: повторного монтирования нет, а адрес сменился.
+    '$route.query.open'(val) { if (val) this.openFromSearchLink(); },
     showAddModal(newVal) {
       this.syncBodyScroll();
       if (newVal) {
@@ -1083,6 +1085,10 @@ export default {
     releaseBodyScrollLock(this);
   },
   methods: {
+    openFromSearchLink() {
+      openItemFromRoute({ router: this.$router, route: this.$route, items: this.unloadPlaces, open: this.selectPlace });
+    },
+
     // Скролл body блокируется, пока открыта ЛЮБАЯ из модалок (не залипает при
     // закрытии одной, если вдруг открыта другая).
     syncBodyScroll() {
@@ -1123,8 +1129,7 @@ export default {
             originalStatusComment: place.status_comment
           }));
           this.pruneSelection();
-          // Переход из сквозного поиска: `?open` раскрывает найденное место.
-          openItemFromRoute({ router: this.$router, route: this.$route, items: this.unloadPlaces, open: this.selectPlace });
+          this.openFromSearchLink();
         }
       } catch (error) {
         console.error("Error fetching unload places:", error);
