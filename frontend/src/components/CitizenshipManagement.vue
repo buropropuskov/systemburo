@@ -468,10 +468,11 @@ import {
 } from '@/api/citizenships';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import { readSearchFromRoute } from '@/utils/searchQueryParam';
-import { openItemFromRoute } from '@/utils/openQueryParam';
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
   name: 'CitizenshipManagement',
+  mixins: [openFromSearchLink((vm) => vm.items, 'selectCitizenship')],
   components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, CitizenshipHistoryModal, AppIcon },
   setup() {
     // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
@@ -617,10 +618,6 @@ export default {
     document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
-    /** Переход из сквозного поиска: `?q` сузил список, `?open` раскрывает запись. */
-    openFromSearchLink() {
-      openItemFromRoute({ router: this.$router, route: this.$route, items: this.items, open: this.selectCitizenship });
-    },
 
     onKeydown(e) {
       if (e.key === 'Escape' && this.showAddModal) this.requestCloseAdd();

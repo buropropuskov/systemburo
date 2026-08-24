@@ -380,7 +380,6 @@
 import SearchComponent from './SearchComponent.vue';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { readSearchFromRoute } from '@/utils/searchQueryParam';
-import { openItemFromRoute } from '@/utils/openQueryParam';
 import RefreshButton from './RefreshButton.vue';
 import MarkHistoryModal from './MarkHistoryModal.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
@@ -400,9 +399,11 @@ import {
   bulkRestoreMarks,
 } from '@/api/marks';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
   name: 'MarksManagement',
+  mixins: [openFromSearchLink((vm) => vm.marks, 'selectMark')],
   components: { SearchComponent, RefreshButton, MarkHistoryModal, ConfirmationModal, BaseDropdown, LoaderSpinner, AppIcon },
   setup() {
     // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
@@ -525,10 +526,6 @@ export default {
     document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
-    /** Переход из сквозного поиска: `?q` сузил список, `?open` раскрывает запись. */
-    openFromSearchLink() {
-      openItemFromRoute({ router: this.$router, route: this.$route, items: this.marks, open: this.selectMark });
-    },
 
     onKeydown(e) {
       if (e.key === 'Escape' && this.showAddModal) this.requestCloseAdd();

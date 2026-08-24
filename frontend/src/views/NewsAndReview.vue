@@ -279,10 +279,11 @@ import OnboardingMenu from '../components/onboarding/OnboardingMenu.vue'
 import { ref } from 'vue'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 import { useOnboardingStore } from '@/stores/onboarding'
-import { openItemFromRoute } from '@/utils/openQueryParam'
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
   name: 'LatestNews',
+  mixins: [openFromSearchLink((vm) => vm.newsItems, 'openNewsModal')],
   components: {
     RefreshButton,
     AnnouncementModal,
@@ -378,6 +379,7 @@ export default {
     },
   },
   methods: {
+
     sanitizeHtml,
     handleEscKey(e) {
       if (e.key === 'Escape' && this.showNewsDetailsModal) this.closeNewsDetailsModal()
@@ -401,8 +403,7 @@ export default {
       try {
         const response = await apiRequest('/news')
         if (response.ok) this.newsItems = await response.json()
-        // Переход из сквозного поиска: `?open` раскрывает найденную новость.
-        openItemFromRoute({ router: this.$router, route: this.$route, items: this.newsItems, open: this.openNewsModal })
+        this.openFromSearchLink()
       } catch (error) { console.error('Ошибка загрузки новостей:', error) }
       finally { this.loadingNews = false }
     },

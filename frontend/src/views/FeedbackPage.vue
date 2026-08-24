@@ -360,13 +360,21 @@ function patchLocal(id, patch) {
   if (idx !== -1) feedbacks.value[idx] = { ...feedbacks.value[idx], ...patch };
 }
 
+/** Переход из сквозного поиска: `?open` раскрывает найденное обращение. */
+function openFromSearchLink() {
+  openItemFromRoute({ router, route, items: feedbacks.value, open: (item) => selectRow(item.id) });
+}
+
+// Пользователь уже на этой странице: список не перезагружается, а адрес сменился.
+// Страницу монтируют и в тестах без роутера - к query обращаемся мягко.
+watch(() => route?.query?.open, (val) => { if (val) openFromSearchLink(); });
+
 async function refresh() {
   loading.value = true;
   try {
     const data = await getAllFeedback();
     feedbacks.value = Array.isArray(data) ? data : [];
-    // Переход из сквозного поиска: `?open` раскрывает найденное обращение.
-    openItemFromRoute({ router, route, items: feedbacks.value, open: (item) => selectRow(item.id) });
+    openFromSearchLink();
   } catch (e) {
     console.error('Ошибка при загрузке обращений:', e);
     deletions.notify({ prefix: 'Не удалось загрузить ', bold: 'обращения', type: 'error' });

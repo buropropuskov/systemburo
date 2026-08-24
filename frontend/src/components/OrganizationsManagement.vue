@@ -766,10 +766,11 @@ import BulkOperationsModal from './directories/BulkOperationsModal.vue';
 import DirectoryModeration from './directory/DirectoryModeration.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
 import { fetchCurrentUserName } from '@/utils/currentUserName';
-import { openItemFromRoute } from '@/utils/openQueryParam';
+import { openFromSearchLink } from '@/mixins/openFromSearchLink';
 
 export default {
   name: 'OrganizationsManagement',
+  mixins: [openFromSearchLink((vm) => vm.organizationsWithUsers, 'selectOrganization')],
   components: {
     DirectoryModeration,
     SearchComponent,
@@ -1011,8 +1012,7 @@ export default {
     },
   },
   watch: {
-    // Переход из сквозного поиска: `?open` раскрывает найденную запись, когда список приедет.
-    organizationsWithUsers(list) { openItemFromRoute({ router: this.$router, route: this.$route, items: list, open: this.selectOrganization }); },
+    organizationsWithUsers() { this.openFromSearchLink(); },
     showAddModal(newVal) {
       if (newVal) {
         this.$nextTick(() => {
