@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { setActivePinia, createPinia } from 'pinia';
 
 import CarsView from '../CarsView.vue';
+import { usePermissionsStore } from '@/stores/permissions';
 import { apiRequest } from '@/api/client';
 
 // Реестр машин переведён на серверный поиск/пагинацию (#1158, срез 2): проверяем,
@@ -213,5 +214,47 @@ describe('CarsView - открытие карточки по ссылке из с
     await flushPromises();
 
     expect(wrapper.vm.showDetailsViewModal).toBe(false);
+  });
+});
+
+/** Та же поправка, что у сотрудников: переход из поиска открывал «Мои машины». */
+describe('CarsView - область реестра при переходе из поиска', () => {
+  function seedPerms(allow) {
+    const perms = usePermissionsStore();
+    perms.mode = 'normal';
+    perms.effective = Object.fromEntries(allow.map((k) => [k, { value: 'allow', source: 'role' }]));
+  }
+
+  function mountWithRoute(query) {
+    return mount(CarsView, {
+      global: { stubs, mocks: { $route: { query }, $router: { push: vi.fn(), replace: vi.fn().mockResolvedValue(undefined) } } },
+    });
+  }
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    getUniqueCarsPaginated.mockReset();
+    getUniqueCarsPaginated.mockResolvedValue({ items: [], meta: { total: 0, page: 1, per_page: 30 } });
+  });
+
+  afterEach(() => {
+    wrapper?.unmount();
+    wrapper = null;
+  });
+
+  it('с open в адресе список запрашивается по всей системе', async () => {
+    seedPerms(['section.registry.all_system']);
+    wrapper = mountWithRoute({ q: 'а777', open: '7' });
+    await flushPromises();
+
+    expect(getUniqueCarsPaginated).toHaveBeenCalledWith(expect.objectContaining({ filter_type: 'all_system' }));
+  });
+
+  it('обычный заход по-прежнему открывает «Мои машины»', async () => {
+    seedPerms(['section.registry.all_system']);
+    wrapper = mountWithRoute({});
+    await flushPromises();
+
+    expect(getUniqueCarsPaginated).toHaveBeenCalledWith(expect.objectContaining({ filter_type: 'user' }));
   });
 });

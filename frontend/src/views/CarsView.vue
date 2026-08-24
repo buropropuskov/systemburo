@@ -862,7 +862,7 @@ import { getViewportZoom } from '@/utils/viewportScale'
 import { getUniqueCarsPaginated } from '@/api/cars'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useApplicationDetailLink } from '@/composables/useApplicationDetailLink'
-import { openItemFromRoute } from '@/utils/openQueryParam'
+import { openItemFromRoute, registryScopeForRoute } from '@/utils/openQueryParam'
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
 import SearchComponent from '@/components/SearchComponent.vue';
@@ -943,7 +943,7 @@ export default {
             // seq-guard (#632/#1158): смена фильтра/поиска до резолва предыдущего
             // fetchCars не должна запускать/продолжать устаревший loadAllRemainingCars.
             fetchSeq: 0,
-            currentFilter: 'user',
+            currentFilter: registryScopeForRoute(this.$route, (p) => usePermissionsStore().hasPermission(p)),
             // Мобилка: bottom-sheet с табами области (S3 эпика mobile-filter-collapse).
             showScopeSheet: false,
             ownershipInfo: null,

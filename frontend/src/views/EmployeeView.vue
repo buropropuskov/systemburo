@@ -613,7 +613,7 @@ import { getViewportZoom } from '@/utils/viewportScale'
 import { getUniqueEmployeesPaginated } from '@/api/employees'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useApplicationDetailLink } from '@/composables/useApplicationDetailLink'
-import { openItemFromRoute } from '@/utils/openQueryParam'
+import { openItemFromRoute, registryScopeForRoute } from '@/utils/openQueryParam'
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import { usePermissionsStore } from '@/stores/permissions';
@@ -694,7 +694,7 @@ export default {
             // fetchEmployees не должна запускать/продолжать устаревший
             // loadAllRemainingEmployees.
             fetchSeq: 0,
-            currentFilter: 'user',
+            currentFilter: registryScopeForRoute(this.$route, (p) => usePermissionsStore().hasPermission(p)),
             // Мобилка: bottom-sheet с табами области (S3 эпика mobile-filter-collapse).
             showScopeSheet: false,
             ownershipInfo: null,

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { readOpenIdFromRoute, clearOpenFromRoute, openItemFromRoute, OPEN_PARAM } from '../openQueryParam';
+import { readOpenIdFromRoute, clearOpenFromRoute, openItemFromRoute, registryScopeForRoute, OPEN_PARAM } from '../openQueryParam';
 
 /**
  * Переход из сквозного поиска обязан приводить к самой записи, а не к разделу, где её
@@ -86,5 +86,30 @@ describe('openItemFromRoute', () => {
   it('пустой список не роняет обход', () => {
     const open = vi.fn();
     expect(openItemFromRoute({ router: router(), route: routeWith({ [OPEN_PARAM]: '1' }), items: undefined, open })).toBe(false);
+  });
+});
+
+describe('registryScopeForRoute', () => {
+  const all = () => true;
+  const none = () => false;
+  const only = (granted) => (p) => p === granted;
+
+  it('переход из поиска открывает самую широкую доступную область', () => {
+    // Иначе найденная чужая запись не попадает в «Мои», и открывать нечего.
+    expect(registryScopeForRoute(routeWith({ [OPEN_PARAM]: '5' }), all)).toBe('all_system');
+  });
+
+  it('без права на всю систему берётся следующая по ширине', () => {
+    expect(registryScopeForRoute(routeWith({ [OPEN_PARAM]: '5' }), only('section.registry.organization'))).toBe('organization');
+    expect(registryScopeForRoute(routeWith({ [OPEN_PARAM]: '5' }), only('section.registry.company'))).toBe('company');
+  });
+
+  it('без прав на чужие записи область остаётся своей', () => {
+    expect(registryScopeForRoute(routeWith({ [OPEN_PARAM]: '5' }), none)).toBe('user');
+  });
+
+  it('обычный заход без open область не трогает', () => {
+    expect(registryScopeForRoute(routeWith({}), all)).toBe('user');
+    expect(registryScopeForRoute(routeWith({ q: 'иванов' }), all)).toBe('user');
   });
 });
