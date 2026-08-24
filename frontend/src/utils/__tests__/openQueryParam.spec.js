@@ -113,3 +113,24 @@ describe('registryScopeForRoute', () => {
     expect(registryScopeForRoute(routeWith({ q: 'иванов' }), all)).toBe('user');
   });
 });
+
+describe('openItemFromRoute: запись-обёртка', () => {
+  // Список таблиц системы состоит из обёрток {table: {...}} - собственного id у строки нет.
+  const wrapped = [{ table: { id: 3 } }, { table: { id: 8 } }];
+
+  it('находит запись по вложенному id', () => {
+    const open = vi.fn();
+    const done = openItemFromRoute({
+      router: router(), route: routeWith({ [OPEN_PARAM]: '8' }), items: wrapped, open,
+      idOf: (row) => row?.table?.id,
+    });
+
+    expect(done).toBe(true);
+    expect(open).toHaveBeenCalledWith({ table: { id: 8 } });
+  });
+
+  it('без idOf такой список не откроется - у строки нет своего id', () => {
+    const open = vi.fn();
+    expect(openItemFromRoute({ router: router(), route: routeWith({ [OPEN_PARAM]: '8' }), items: wrapped, open })).toBe(false);
+  });
+});

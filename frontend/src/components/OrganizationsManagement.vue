@@ -728,7 +728,6 @@
 
 <script>
 import { mapState, mapActions } from 'pinia';
-import { apiRequest } from '@/api/client';
 import {
   getOrganizationMembers,
   reassignOrganizationUsers,
@@ -766,6 +765,8 @@ import OrgHistoryModal from './OrgHistoryModal.vue';
 import BulkOperationsModal from './directories/BulkOperationsModal.vue';
 import DirectoryModeration from './directory/DirectoryModeration.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { fetchCurrentUserName } from '@/utils/currentUserName';
+import { openItemFromRoute } from '@/utils/openQueryParam';
 
 export default {
   name: 'OrganizationsManagement',
@@ -1010,6 +1011,8 @@ export default {
     },
   },
   watch: {
+    // Переход из сквозного поиска: `?open` раскрывает найденную запись, когда список приедет.
+    organizationsWithUsers(list) { openItemFromRoute({ router: this.$router, route: this.$route, items: list, open: this.selectOrganization }); },
     showAddModal(newVal) {
       if (newVal) {
         this.$nextTick(() => {
@@ -1552,16 +1555,7 @@ export default {
     },
 
     async fetchCurrentUser() {
-      // Имя нужно для футера Excel-экспорта истории ("Отчёт сформировал").
-      try {
-        const res = await apiRequest('/users/me');
-        if (!res.ok) return;
-        const u = await res.json();
-        const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
-        this.currentUserName = parts.join(' ') || u.username || '';
-      } catch {
-        // Имя - необязательная деталь экспорта, молчим (footer покажет дефолт).
-      }
+      this.currentUserName = await fetchCurrentUserName();
     },
 
     sortBy(field) {

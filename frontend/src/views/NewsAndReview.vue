@@ -279,6 +279,7 @@ import OnboardingMenu from '../components/onboarding/OnboardingMenu.vue'
 import { ref } from 'vue'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 import { useOnboardingStore } from '@/stores/onboarding'
+import { openItemFromRoute } from '@/utils/openQueryParam'
 
 export default {
   name: 'LatestNews',
@@ -400,6 +401,8 @@ export default {
       try {
         const response = await apiRequest('/news')
         if (response.ok) this.newsItems = await response.json()
+        // Переход из сквозного поиска: `?open` раскрывает найденную новость.
+        openItemFromRoute({ router: this.$router, route: this.$route, items: this.newsItems, open: this.openNewsModal })
       } catch (error) { console.error('Ошибка загрузки новостей:', error) }
       finally { this.loadingNews = false }
     },

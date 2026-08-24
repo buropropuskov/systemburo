@@ -79,14 +79,18 @@ export function registryScopeForRoute(route, hasPermission, fallback = 'user') {
  * приезжает уже суженным и нужная запись в нём есть. Не нашли - `open` остаётся в
  * адресе, и следующая подгрузка (или смена фильтра) попробует снова.
  *
- * @param {{router: object, route: object, items: object[], open: (item: object) => void}} ctx
+ * `idOf` нужен спискам, где запись лежит обёрткой: у таблиц системы строка списка -
+ * это `{table: {...}}`, и собственного `id` у неё нет.
+ *
+ * @param {{router: object, route: object, items: object[], open: (item: object) => void,
+ *          idOf?: (row: object) => (number|string|undefined)}} ctx
  * @returns {boolean} открыли ли карточку
  */
-export function openItemFromRoute({ router, route, items, open }) {
+export function openItemFromRoute({ router, route, items, open, idOf = (row) => row?.id }) {
   const id = readOpenIdFromRoute(route);
   if (!id) return false;
 
-  const item = (items || []).find((row) => Number(row?.id) === id);
+  const item = (items || []).find((row) => Number(idOf(row)) === id);
   if (!item) return false;
 
   open(item);

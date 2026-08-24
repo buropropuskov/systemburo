@@ -56,7 +56,52 @@ describe('SEARCH_TARGETS - куда ведёт результат', () => {
   });
 
   it('раздел без приёмника ведёт просто в раздел, без пустых параметров', () => {
-    expect(SEARCH_TARGETS.organization.route(3, 'ромашка')).toEqual({ path: '/admin/organizations' });
-    expect(SEARCH_TARGETS.news.route(3, 'объявление')).toEqual({ path: '/news' });
+    // Объявление и документ открывать по ссылке нечем - см. отдельный кейс ниже.
+    expect(SEARCH_TARGETS.announcement.route(3, 'объявление')).toEqual({ path: '/news' });
+  });
+});
+
+/**
+ * Справочники, обращения, новости и таблицы системы подключены к открытию записи
+ * последними. У пяти справочников список приходит целиком, поэтому строку поиска в
+ * адрес кладём для наглядности - найти запись помогает id.
+ */
+describe('SEARCH_TARGETS - справочники и остальные разделы', () => {
+  const cases = [
+    ['organization', '/admin/organizations'],
+    ['company', '/admin/companies'],
+    ['unload_place', '/admin/unload-places'],
+    ['mark', '/admin/marks'],
+    ['citizenship', '/admin/citizenship'],
+    ['license_plate_format', '/admin/number-formats'],
+    ['feedback', '/admin/feedback'],
+  ];
+
+  it.each(cases)('%s ведёт к записи со строкой поиска', (entity, path) => {
+    expect(SEARCH_TARGETS[entity].route(4, 'ромашка')).toEqual({
+      path,
+      query: { q: 'ромашка', [OPEN_PARAM]: '4' },
+    });
+  });
+
+  it('таблица системы открывается по id, строка поиска ей не нужна', () => {
+    expect(SEARCH_TARGETS.system_table.route(12, 'пропуска')).toEqual({
+      path: '/table-constructor',
+      query: { [OPEN_PARAM]: '12' },
+    });
+  });
+
+  it('новость открывается по id', () => {
+    expect(SEARCH_TARGETS.news.route(5, 'ремонт')).toEqual({
+      path: '/news',
+      query: { [OPEN_PARAM]: '5' },
+    });
+  });
+
+  it('объявления и документы по-прежнему ведут в раздел', () => {
+    // Объявление на странице показывается только активное, документ по нажатию
+    // скачивается - открывать по ссылке нечего, и это сознательно оставлено как есть.
+    expect(SEARCH_TARGETS.announcement.route(5, 'ремонт')).toEqual({ path: '/news' });
+    expect(SEARCH_TARGETS.document.route(5, 'инструкция')).toEqual({ path: '/news' });
   });
 });
