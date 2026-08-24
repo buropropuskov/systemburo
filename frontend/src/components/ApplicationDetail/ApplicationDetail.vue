@@ -77,11 +77,11 @@
         <div class="detail-header-left">
           <div class="detail-title-row">
             <h3 class="detail-title">
-              Заявка {{ applicationData.application_number }}
+              Заявка <CopyableNumber data-testid="app-detail-number" :value="applicationData.application_number" />
             </h3>
             <div class="detail-datetime">
               {{ formatDateTime(applicationData.sending_datetime) }}
-              <span class="weekday">{{ getWeekday(applicationData.sending_datetime) }}</span>
+              <span class="weekday">{{ weekdayName(applicationData.sending_datetime) }}</span>
             </div>
             <!-- Кнопка пересылки (рядом с датой): fade при появлении/скрытии -->
             <transition name="fade">
@@ -744,7 +744,9 @@ import VehicleDetailsModal from '../CreateApplication/VehicleDetailsModal.vue'
 import EmployeeDetailsModal from '../CreateApplication/EmployeeDetailsModal.vue'
 import Badge from '@/components/ui/Badge.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
+import CopyableNumber from '@/components/ui/CopyableNumber.vue'
 import { sanitizeHtml } from '@/utils/sanitize'
+import { weekdayName } from '@/utils/datetime'
 import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack'
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock'
 
@@ -790,6 +792,7 @@ export default {
         EmployeeDetailsModal,
         Badge,
         BaseDropdown,
+        CopyableNumber,
         ApplicationMessageModal,
         ApplicationParticipantsModal,
         ApplicationParticipantCard,
@@ -1996,12 +1999,7 @@ export default {
             });
         },
 
-        getWeekday(dateTimeString) {
-            if (!dateTimeString) return '';
-            const date = new Date(dateTimeString);
-            const weekdays = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
-            return weekdays[date.getDay()];
-        },
+        weekdayName,
 
         getUserDisplayName(user) {
             const names = [user.last_name, user.first_name, user.middle_name].filter(Boolean);

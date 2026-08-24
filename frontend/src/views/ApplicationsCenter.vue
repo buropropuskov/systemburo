@@ -831,6 +831,7 @@ import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { blacklistFlagCount } from '@/utils/blacklistBadge';
 import { stripHtml } from '@/utils/sanitize';
 import { useDeletionsStore } from '@/stores/deletions';
+import { copyText } from '@/utils/clipboard';
 import { useRevealFirstApplication } from '@/composables/useRevealFirstApplication';
 import AppIcon from '@/components/icons/AppIcon.vue';
 
@@ -1497,24 +1498,10 @@ export default {
         },
         async copyApplicationNumber(number) {
             if (!number) return;
-            try {
-                if (navigator.clipboard?.writeText) {
-                    await navigator.clipboard.writeText(String(number));
-                } else {
-                    const textarea = document.createElement('textarea');
-                    textarea.value = String(number);
-                    textarea.setAttribute('readonly', '');
-                    textarea.style.position = 'absolute';
-                    textarea.style.left = '-9999px';
-                    document.body.appendChild(textarea);
-                    textarea.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(textarea);
-                }
-                useDeletionsStore().notify({ prefix: 'Номер ', bold: String(number), suffix: ' скопирован' });
-            } catch {
-                useDeletionsStore().notify({ prefix: 'Не удалось скопировать номер', type: 'error' });
-            }
+            const copied = await copyText(number);
+            useDeletionsStore().notify(copied
+                ? { prefix: 'Номер ', bold: String(number), suffix: ' скопирован' }
+                : { prefix: 'Не удалось скопировать номер', type: 'error' });
         },
 
         // Организация
