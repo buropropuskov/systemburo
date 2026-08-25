@@ -361,7 +361,9 @@ export default {
 
 .main-info {
   padding-bottom: 12px;
-  border-bottom: 1px solid var(--shadow-drop);
+  /* Разделитель - цветом рамки, а не тени: --shadow-drop в тёмных темах почти
+     чёрный, и линия под именем читалась чёрной полосой. */
+  border-bottom: 1px solid var(--border);
 }
 
 .name-and-type {

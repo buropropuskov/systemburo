@@ -944,6 +944,11 @@ export default {
 
 .fact-hint-card {
     flex: 0 0 35%;
+    /* Карточка не задаёт высоту секции: её текст лежит в absolute-слое, поэтому в
+       поток идёт только рамка, а высоту строки диктует таблица «по факту». Длинная
+       подсказка прокручивается внутри, а не вытягивает блок выше таблицы. */
+    position: relative;
+    overflow: hidden;
     /* Через токены: в светлых темах акцентная плашка, в тёмных - тёмная карточка
        в тон темы (сплошной синий блок на тёмном фоне читался плохо). Тени нет:
        крупные карточки страниц отделяет рамка, тень оставлена окнам и всплывающему. */
@@ -954,11 +959,13 @@ export default {
     display: flex;
     gap: 15px;
     align-items: flex-start;
-    min-height: 205px;
 }
 
 .hint-content {
-    flex: 1;
+    position: absolute;
+    inset: 20px;
+    overflow-y: auto;
+    scrollbar-width: thin;
     color: var(--hint-card-text);
 }
 
@@ -1252,6 +1259,13 @@ export default {
     .fact-hint-card {
         flex: none;
         width: 100%;
+        overflow: visible;
+    }
+
+    .hint-content {
+        position: static;
+        inset: auto;
+        overflow: visible;
     }
     
     .tables__header {
