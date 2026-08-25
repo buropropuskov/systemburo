@@ -217,8 +217,22 @@ func fuzzyWordCondition(cols []string, raw string) (string, []interface{}) {
 // searchCondition -- полное условие поиска по набору колонок: точное вхождение или
 // нечёткое совпадение. Опечатку ловит вторая ветка, точный фрагмент -- первая.
 func searchCondition(cols []string, raw string) (string, []interface{}) {
+	return searchConditionFuzzyIn(cols, cols, raw)
+}
+
+// searchConditionFuzzyIn -- то же, но нечётко сравнивается только часть колонок.
+//
+// Нужно длинным текстовым полям: тело письма к заявке, полный текст новости, текст
+// обращения. Оператор %>> просматривает значение целиком, и на письме в 70 килобайт
+// одно такое сравнение стоит дороже всего остального запроса вместе взятого -- на
+// стенде поиск по заявкам из-за него не укладывался в свой бюджет 800 мс (1123 мс) и
+// стабильно попадал в degraded с "Не удалось опросить: Заявки".
+//
+// Потери смысла нет: в длинном тексте ищут точный фрагмент, а не приблизительный. У
+// коротких полей -- номера, фамилии, названия -- нечёткое сравнение остаётся.
+func searchConditionFuzzyIn(cols, fuzzyCols []string, raw string) (string, []interface{}) {
 	cond, args := multiWordCondition(cols, raw)
-	fuzzyCond, fuzzyArgs := fuzzyWordCondition(cols, raw)
+	fuzzyCond, fuzzyArgs := fuzzyWordCondition(fuzzyCols, raw)
 	if fuzzyCond == "" {
 		return cond, args
 	}

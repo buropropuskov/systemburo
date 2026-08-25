@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -146,4 +147,40 @@ func (s stubSearchProvider) Title() string          { return "Заглушка" 
 func (s stubSearchProvider) PermissionKey() string  { return s.key }
 func (s stubSearchProvider) Search(_ context.Context, _ *gorm.DB, _ searchRequest) ([]SearchItem, error) {
 	return nil, nil
+}
+
+// Нечёткое сравнение (%>>) читает значение целиком. На письме к заявке в 70 килобайт
+// одно такое сравнение стоило дороже всего остального запроса: на стенде поиск по
+// заявкам занимал 1123 мс при бюджете 800 и стабильно попадал в degraded - человек
+// видел "Не удалось опросить: Заявки". Длинные тексты ищем только точным вхождением.
+func TestSearchConditionFuzzyIn(t *testing.T) {
+	cols := []string{"a.application_number", "a.message", "o.name"}
+	fuzzy := []string{"a.application_number", "o.name"}
+
+	t.Run("длинное поле остаётся в точной части и не попадает в нечёткую", func(t *testing.T) {
+		cond, _ := searchConditionFuzzyIn(cols, fuzzy, "Шумилин")
+
+		require.Contains(t, cond, "a.message ILIKE")
+		require.NotContains(t, cond, "a.message %>>")
+		require.Contains(t, cond, "a.application_number %>>")
+		require.Contains(t, cond, "o.name %>>")
+	})
+
+	t.Run("searchCondition сравнивает нечётко все колонки - поведение не менялось", func(t *testing.T) {
+		cond, _ := searchCondition(cols, "Шумилин")
+
+		require.Contains(t, cond, "a.message %>>")
+	})
+
+	t.Run("короткое слово не даёт нечёткой части ни там, ни там", func(t *testing.T) {
+		cond, _ := searchConditionFuzzyIn(cols, fuzzy, "ку")
+
+		require.NotContains(t, cond, "%>>")
+	})
+
+	t.Run("число аргументов совпадает с числом плейсхолдеров", func(t *testing.T) {
+		cond, args := searchConditionFuzzyIn(cols, fuzzy, "Шумилин Кирилл")
+
+		require.Equal(t, strings.Count(cond, "?"), len(args))
+	})
 }
