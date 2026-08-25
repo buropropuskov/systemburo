@@ -184,3 +184,32 @@ func TestSearchConditionFuzzyIn(t *testing.T) {
 		require.Equal(t, strings.Count(cond, "?"), len(args))
 	})
 }
+
+// Учётную запись узнают двумя способами - по фамилии и по логину. Пока ступень
+// считалась только по фамилии, набравший логин целиком получал свою запись под
+// однофамильцами: у всех был одинаковый ранг, и порядок решал возраст записи.
+func TestMatchRankExprAny(t *testing.T) {
+	t.Run("одна колонка - выражение без LEAST, как было", func(t *testing.T) {
+		expr := matchRankExprAny("u.last_name")
+
+		require.NotContains(t, expr, "LEAST")
+		require.Contains(t, expr, "u.last_name")
+		require.True(t, strings.HasSuffix(expr, "AS match_rank"))
+	})
+
+	t.Run("несколько колонок - берётся лучшая ступень", func(t *testing.T) {
+		expr := matchRankExprAny("u.last_name", "u.username")
+
+		require.Contains(t, expr, "LEAST")
+		require.Contains(t, expr, "u.last_name")
+		require.Contains(t, expr, "u.username")
+	})
+
+	t.Run("на колонку приходится два плейсхолдера", func(t *testing.T) {
+		require.Equal(t, 4, strings.Count(matchRankExprAny("a", "b"), "?"))
+	})
+
+	t.Run("matchRankExpr остался частным случаем", func(t *testing.T) {
+		require.Equal(t, matchRankExprAny("u.last_name"), matchRankExpr("u.last_name"))
+	})
+}

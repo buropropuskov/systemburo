@@ -294,3 +294,51 @@ describe('GlobalSearchPanel', () => {
     expect(Number(surface[1])).toBeGreaterThanOrEqual(95);
   });
 });
+
+/**
+ * Раздел выдаёт ограниченное число строк, и по фамилии выдачу занимали однофамильцы -
+ * нужная учётная запись не доезжала до экрана, а панель об остатке молчала. Сервер о
+ * нём сообщает (has_more), теперь об этом говорит и панель.
+ */
+describe('GlobalSearchPanel - остаток выдачи', () => {
+  const groupWith = (hasMore) => ({
+    groups: [{
+      type: 'users',
+      title: 'Пользователи',
+      count: 8,
+      has_more: hasMore,
+      items: [{ id: 3, type: 'users', title: 'Шумилин Сергей', subtitle: '@verify_preview', target: { entity: 'user', id: 3 } }],
+    }],
+    total: 8,
+  });
+
+  it('при остатке предлагает открыть раздел целиком', async () => {
+    globalSearch.mockResolvedValue(groupWith(true));
+    wrapper = mountPanel('Шумилин');
+    vi.advanceTimersByTime(400);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="global-search-show-all"]').exists()).toBe(true);
+  });
+
+  it('когда показано всё, лишней строки нет', async () => {
+    globalSearch.mockResolvedValue(groupWith(false));
+    wrapper = mountPanel('Шумилин');
+    vi.advanceTimersByTime(400);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="global-search-show-all"]').exists()).toBe(false);
+  });
+
+  it('ведёт в раздел с той же строкой поиска и без идентификатора записи', async () => {
+    globalSearch.mockResolvedValue(groupWith(true));
+    wrapper = mountPanel('Шумилин');
+    vi.advanceTimersByTime(400);
+    await flushPromises();
+
+    await wrapper.find('[data-testid="global-search-show-all"]').trigger('click');
+    await flushPromises();
+
+    expect(push).toHaveBeenCalledWith({ path: '/admin/users', query: { q: 'Шумилин' } });
+  });
+});

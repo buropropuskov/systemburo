@@ -148,6 +148,15 @@
                 >{{ item.subtitle }}</span>
               </span>
             </button>
+            <button
+              v-if="group.more"
+              type="button"
+              class="gsp__more"
+              data-testid="global-search-show-all"
+              @click="openMore(group)"
+            >
+              Показать все в разделе
+            </button>
           </div>
 
           <div
@@ -290,21 +299,22 @@ export default {
       const groups = [];
       let index = 0;
 
-      const push = (type, title, items) => {
+      const push = (type, title, items, more = null) => {
         if (!items.length) return;
-        groups.push({ type, title, items: items.map((it) => ({ ...it, index: index++ })) });
+        groups.push({ type, title, more, items: items.map((it) => ({ ...it, index: index++ })) });
       };
 
       push('actions', 'Действия', this.actionItems);
       push('sections', 'Разделы', this.sectionItems);
       for (const g of this.groups) {
-        push(g.type, g.title, (g.items || []).map((it) => ({
+        const items = (g.items || []).map((it) => ({
           key: `${it.type}-${it.id}`,
           title: it.title,
           subtitle: it.subtitle,
           icon: SEARCH_TARGETS[it.target?.entity]?.icon || 'search',
           to: this.routeFor(it),
-        })));
+        }));
+        push(g.type, g.title, items, g.has_more ? this.sectionRouteFor(items[0]) : null);
       }
       return groups;
     },
@@ -402,6 +412,21 @@ export default {
       if (item) this.openItem(item);
     },
     /** Куда ведёт результат: маршруты знает фронт, сервер отдаёт сущность и её номер. */
+    /**
+     * Куда вести из строки «Показать все»: тот же раздел, что и у найденной записи, но
+     * без идентификатора - открывать одну карточку тут незачем, нужен весь список.
+     * Путь берём у первой строки группы, чтобы не заводить вторую карту разделов.
+     */
+    sectionRouteFor(item) {
+      if (!item?.to?.path) return null;
+      const query = this.query.trim() ? { q: this.query.trim() } : {};
+      return { path: item.to.path, query };
+    },
+    openMore(group) {
+      if (!group.more) return;
+      this.$emit('close');
+      this.$nextTick(() => this.$router.push(group.more));
+    },
     routeFor(item) {
       const target = SEARCH_TARGETS[item.target?.entity];
       if (!target) return null;
@@ -610,6 +635,23 @@ export default {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Строка остатка: приглушённее записей - это не результат, а путь к остальным. */
+.gsp__more {
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  font-size: 12px;
+  text-align: left;
+  color: var(--accent-text);
+  cursor: pointer;
+}
+
+.gsp__more:hover {
+  background: var(--accent-tint);
 }
 
 .gsp__row-subtitle {

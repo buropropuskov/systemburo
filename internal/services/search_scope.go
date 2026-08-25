@@ -67,10 +67,28 @@ func searchCanSeeAllSystem(ctx context.Context, db *gorm.DB, userID int) bool {
 // вместе со всей сортировкой -- выдача приезжала в порядке физического чтения таблицы,
 // то есть от самых старых записей, и обрезка по лимиту выбрасывала как раз свежие.
 func matchRankExpr(col string) string {
-	return `CASE
-		WHEN LOWER(TRIM(COALESCE(` + col + `, ''))) = LOWER(TRIM(?)) THEN 0
-		WHEN LOWER(COALESCE(` + col + `, '')) LIKE LOWER(?) || '%' THEN 1
-		ELSE 2 END AS match_rank`
+	return matchRankExprAny(col)
+}
+
+// matchRankExprAny -- та же ступень, но по нескольким колонкам сразу: берём лучшую из
+// них. Нужно там, где запись узнают не единственным способом: учётную запись ищут и по
+// фамилии, и по логину, и набравший логин целиком ждёт эту запись первой, а не под
+// однофамильцами.
+//
+// Каждая колонка требует двух аргументов (точное равенство и префикс) в порядке
+// перечисления - вызывающий передаёт запрос столько раз, сколько колонок, дважды.
+func matchRankExprAny(cols ...string) string {
+	parts := make([]string, 0, len(cols))
+	for _, col := range cols {
+		parts = append(parts, `CASE
+		WHEN LOWER(TRIM(COALESCE(`+col+`, ''))) = LOWER(TRIM(?)) THEN 0
+		WHEN LOWER(COALESCE(`+col+`, '')) LIKE LOWER(?) || '%' THEN 1
+		ELSE 2 END`)
+	}
+	if len(parts) == 1 {
+		return parts[0] + " AS match_rank"
+	}
+	return "LEAST(" + strings.Join(parts, ", ") + ") AS match_rank"
 }
 
 // searchMaxWords -- сколько слов запроса учитывать. Каждое слово добавляет свой блок
