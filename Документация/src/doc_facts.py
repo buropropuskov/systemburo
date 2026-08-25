@@ -339,16 +339,19 @@ def inventories():
             # часа (#7), а раздел мониторинга сменил право на своё и не сдвинул
             # ни одного числа. Список ведётся руками по роутам /admin в
             # frontend/src/router.js.
+            # AdminPageShell.vue из выборки убран: это полноширинная обёртка
+            # страниц /admin, а не раздел. Разделом он числился зря, и его
+            # якорь «Администрирование» совпадал с любым абзацем руководства -
+            # строка реестра стояла, но не охраняла ничего.
             "код": code_list(
                 "ls frontend/src/views/admin/*.vue frontend/src/views/AdminSettings.vue "
                 "frontend/src/views/RequestsView.vue frontend/src/views/FeedbackPage.vue "
                 "frontend/src/components/TableConstructor.vue "
-                "| xargs -n1 basename"),
+                "| xargs -n1 basename | grep -vx 'AdminPageShell.vue'"),
             "реестр": {
                 "AdminSettings.vue": "Настройки",
                 "AccessDenialsLog.vue": "Журнал отказов",
                 "FileArchiveView.vue": "Файловый архив",
-                "AdminPageShell.vue": "Администрирование",
                 "AdminPermissionGroups.vue": "группы прав",
                 "AdminRoles.vue": "Роли",
                 "ApproversView.vue": "Принимающие заявки",

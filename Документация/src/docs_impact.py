@@ -102,6 +102,32 @@ MAP = [
      "Техописание", "7.1 сквозной поиск: состав разделов и распознаваемые совпадения"),
     (r"^internal/services/report_|^internal/services/processing_",
      "Критерии", "4 показатели: метрики и разрезы"),
+    # Уведомления - обещание из 6.2: какие события приходят, как они доставляются
+    # наружу и кому не отправляются вовсе. Гейт по состоянию учётной записи
+    # (заблокированным и архивным не шлём) живёт в сервисе, а карта его не знала.
+    (r"^internal/services/(notification|push)_|"
+     r"^internal/handlers/notification|"
+     r"^frontend/src/views/NotificationSettingsView\.vue$", "Техописание",
+     "6.2 уведомления: состав событий, доставка наружу, кому не отправляются"),
+    # Обучающие туры: их состав, деление на главы и продолжение с прерванного
+    # места описаны в 8.1 и повторены словами в руководствах ролей.
+    (r"^frontend/src/components/onboarding/|"
+     r"^frontend/src/stores/onboarding\.js$|"
+     r"^frontend/src/composables/useOnboarding\.js$", "Техописание",
+     "8.1 обучающие туры: состав, главы, продолжение с прерванного места"),
+    # Экран сбоя читает пользователь, а не разработчик: что на нём написано и куда
+    # уводят его кнопки - часть 8.3.
+    (r"^frontend/src/views/Error500\.vue$|"
+     r"^frontend/src/composables/useBugReport\.js$|"
+     r"^internal/handlers/bug_report", "Техописание",
+     "8.3 сообщение о сбое: экран ошибки и отправка сообщения"),
+    # По разделу мониторинга запросов заказчик снимает показатели пилота, поэтому
+    # состав шапки и журнала на экране входит в обещание.
+    (r"^frontend/src/components/(monitoring|statistics)/|"
+     r"^frontend/src/views/RequestsView\.vue$|"
+     r"^frontend/src/utils/requestLogs", "Критерии",
+     "4 показатели: как они снимаются в разделах «Мониторинг запросов» "
+     "и «Аналитика»"),
     # --- ролевые руководства -------------------------------------------------
     # Разделы здесь названы словами, а не номерами: руководства пишутся
     # срезами, и номера разделов до конца работы над документом плавают.
@@ -121,10 +147,16 @@ MAP = [
      "Руководство охранника",
      "доступные мне, таблицы поста, отметка прохода, отчёт по смене"),
     (r"^frontend/src/views/admin/|^frontend/src/views/AdminSettings\.vue$|"
+     r"^frontend/src/views/(FeedbackPage|TableVersionsView)\.vue$|"
      r"^frontend/src/components/(UserControl|TableConstructor|NewsManagement|"
-     r"DocumentsManagement|UserTypes|ApplicationApprovers)\.vue$",
+     r"DocumentsManagement|UserTypes|ApplicationApprovers)\.vue$|"
+     r"^frontend/src/components/(Citizenship|Companies|Marks|Organizations)"
+     r"Management\.vue$|^frontend/src/components/NumberFormat\.vue$|"
+     r"^frontend/src/components/UnloadPlaces/|"
+     r"^frontend/src/components/admin/blacklist/",
      "Руководство администратора",
-     "разделы администрирования: учётные записи, права, справочники, настройки"),
+     "разделы администрирования: учётные записи, права, справочники, чёрные "
+     "списки, обратная связь, настройки"),
     (r"^internal/realtime/|^internal/handlers/events\.go$", "Техописание",
      "12 обновление без перезагрузки"),
     (r"^internal/upload/", "Техописание", "13.4 загрузка файлов"),
@@ -184,14 +216,23 @@ MAP = [
 ]
 
 
-def sh(cmd):
-    return subprocess.run(cmd, shell=True, cwd=REPO, capture_output=True,
-                          text=True).stdout.strip()
+def sh(cmd, check=False):
+    """Вывод команды. С check=True несработавшая команда останавливает сверку.
+
+    Без этого git, отказавшийся разбирать диапазон, отдаёт пустой stdout, и
+    вызывающий читает его как «изменений нет»: проверка остаётся зелёной ровно
+    там, где сломана.
+    """
+    p = subprocess.run(cmd, shell=True, cwd=REPO, capture_output=True, text=True)
+    if check and p.returncode != 0:
+        raise SystemExit("Команда не выполнилась: %s\n%s"
+                         % (cmd, p.stderr.strip()))
+    return p.stdout.strip()
 
 
 def changed(rev_range):
     if rev_range:
-        out = sh("git diff --name-only %s" % rev_range)
+        out = sh("git diff --name-only %s" % rev_range, check=True)
     else:
         out = sh("git status --porcelain | awk '{print $NF}'")
     return [line for line in out.splitlines() if line]
@@ -354,8 +395,8 @@ def uncovered(files):
 MARK = os.path.join(SRC_DIR, ".synced-dev")
 
 
-def debt_range():
-    """Диапазон коммитов dev, не рассмотренных при правке документации.
+def mark_base():
+    """Коммит dev, на котором документацию сверяли в последний раз.
 
     Точка отсчёта хранится в файле отметки: по последнему коммиту каталога
     документации её не вычислить, потому что ветка документации содержит весь
@@ -364,7 +405,11 @@ def debt_range():
     if not os.path.exists(MARK):
         return None
     with open(MARK, encoding="utf-8") as fh:
-        base = fh.read().strip().split()[0]
+        return fh.read().strip().split()[0] or None
+
+
+def debt_range():
+    base = mark_base()
     return "%s..origin/dev" % base if base else None
 
 
@@ -389,12 +434,26 @@ def main():
         return mark_synced()
 
     if args and args[0] == "--debt":
-        rev = debt_range()
-        if not rev:
+        base = mark_base()
+        if not base:
             if not quiet:
                 print("Отметки синхронизации нет. Поставить после сверки: "
                       "python3 Документация/src/docs_impact.py --mark")
             return 0
+        # Отметка на коммите, которого в репозитории нет, - не «долга нет».
+        # Так уже было: конфликт слияния в файле отметки развели вручную, хеш
+        # склеился из двух половин, и четыре дня подряд сверка отвечала
+        # «Изменений нет» на 21 накопившийся коммит. Молчать тут нельзя.
+        if not sh("git rev-parse --verify --quiet %s^{commit}" % base):
+            print("Отметка синхронизации указывает на коммит %s, которого нет "
+                  "в репозитории." % base[:12])
+            print("Обычно это криво разрешённый конфликт в "
+                  "Документация/src/.synced-dev. Взять из истории файла "
+                  "последнее рабочее значение (git log -p) либо, сверив "
+                  "документацию заново, поставить отметку: "
+                  "python3 Документация/src/docs_impact.py --mark")
+            return 1
+        rev = "%s..origin/dev" % base
         title = "Пришло в dev после последней сверки документации"
     else:
         rev = args[0] if args else ""
