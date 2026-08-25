@@ -78,4 +78,21 @@ describe('UserControl — открытие карточки по ссылке и
 
     expect(wrapper.vm.selectedUser).toBeNull()
   })
+
+  it('строка поиска из адреса подставляется в фильтр списка', async () => {
+    // Иначе «Показать все» из панели приводит в нефильтрованный список, и найденного
+    // человека снова не видно среди однофамильцев.
+    const wrapper = mountControl({ q: 'петров', open: '2' })
+    await wrapper.setProps({ allUsers: USERS })
+    await flushPromises()
+
+    expect(wrapper.vm.userSearch).toBe('петров')
+  })
+
+  it('без строки в адресе фильтр пуст, как раньше', async () => {
+    const wrapper = mountControl({})
+    await flushPromises()
+
+    expect(wrapper.vm.userSearch).toBe('')
+  })
 })

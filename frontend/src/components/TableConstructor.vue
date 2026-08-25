@@ -924,7 +924,7 @@ import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
   name: 'TableConstructor',
-  mixins: [openFromSearchLink((vm) => vm.tables, 'selectTable', (row) => row?.table?.id)],
+  mixins: [openFromSearchLink((vm) => vm.tables, 'selectTable', (row) => row?.table?.id, 'searchQuery')],
   components: {
     SearchComponent,
     RefreshButton,
@@ -947,7 +947,6 @@ export default {
   },
   data() {
     return {
-      searchQuery: '',
       refreshing: false,
       tables: [],
       showAddModal: false,
