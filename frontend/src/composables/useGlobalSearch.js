@@ -18,6 +18,13 @@ const CACHE_MAX_ENTRIES = 20;
  * разрешается асинхронно, и без него медленный ответ на «Рог» мог бы записаться поверх
  * готового ответа на «Роголев».
  */
+/**
+ * Сколько строк показываем на раздел. Пяти не хватало: по фамилии выдачу занимали
+ * однофамильцы, и нужная учётная запись не доезжала до экрана вовсе. Остаток теперь
+ * виден по строке «Показать все» - её рисует панель, когда сервер сообщает has_more.
+ */
+const SECTION_LIMIT = 8;
+
 export function useGlobalSearch() {
   const groups = shallowRef([]);
   const degraded = ref([]);
@@ -79,7 +86,7 @@ export function useGlobalSearch() {
     failed.value = false;
 
     try {
-      const data = await globalSearch(query, { signal: controller.signal, limit: 5 });
+      const data = await globalSearch(query, { signal: controller.signal, limit: SECTION_LIMIT });
       if (mySeq !== seq) return; // приехал ответ на устаревший запрос
       groups.value = data.groups ?? [];
       degraded.value = data.degraded ?? [];

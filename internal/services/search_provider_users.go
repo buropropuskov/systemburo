@@ -47,7 +47,7 @@ func (userSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchReq
 			Select(`u.id AS id,
 				NULLIF(TRIM(CONCAT_WS(' ', u.last_name, u.first_name, u.middle_name)), '') AS title,
 				CONCAT_WS(' · ', u.username, NULLIF(u."position", ''), COALESCE(o.name, c.name)) AS subtitle,
-				`+matchRankExpr("u.last_name"), req.Raw, req.Raw).
+				`+matchRankExprAny("u.last_name", "u.username"), req.Raw, req.Raw, req.Raw, req.Raw).
 			Where(cond, args...)
 
 		return q.
