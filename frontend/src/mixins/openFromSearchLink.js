@@ -1,4 +1,5 @@
 import { openItemFromRoute } from '@/utils/openQueryParam';
+import { readSearchFromRoute } from '@/utils/searchQueryParam';
 
 /**
  * Открытие записи по ссылке из сквозного поиска для экранов на Options API.
@@ -15,10 +16,15 @@ import { openItemFromRoute } from '@/utils/openQueryParam';
  * @param {(vm: object) => object[]} itemsOf откуда брать список
  * @param {string} openMethod имя метода экрана, раскрывающего запись
  * @param {(row: object) => (number|string|undefined)} [idOf] если id лежит внутри обёртки
+ * @param {string} [searchField] поле экрана со строкой поиска - примесь заполнит его из
+ *        адреса, чтобы список сузился тем же запросом, по которому запись нашлась
  * @returns {object} примесь с методом `openFromSearchLink` и наблюдателем за адресом
  */
-export function openFromSearchLink(itemsOf, openMethod, idOf) {
+export function openFromSearchLink(itemsOf, openMethod, idOf, searchField) {
   return {
+    data() {
+      return searchField ? { [searchField]: readSearchFromRoute(this.$route) } : {};
+    },
     watch: {
       '$route.query.open'(value) { if (value) this.openFromSearchLink(); },
     },

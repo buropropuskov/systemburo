@@ -51,12 +51,10 @@ export const SEARCH_TARGETS = {
     acceptsQuery: true,
     route: (id) => ({ path: '/center', query: { open: String(id) } }),
   },
-  // Список пользователей приходит целиком, поэтому строка поиска в адресе не нужна -
-  // карточка находится по id и раскрывается сразу.
   user: {
     icon: 'users',
-    acceptsQuery: false,
-    route: (id) => withQuery('/admin/users', '', false, id),
+    acceptsQuery: true,
+    route: (id, q) => withQuery('/admin/users', q, true, id),
   },
   person_blacklist: {
     icon: 'blacklist',
@@ -71,7 +69,7 @@ export const SEARCH_TARGETS = {
   organization: { icon: 'organizations', acceptsQuery: true, route: (id, q) => withQuery('/admin/organizations', q, true, id) },
   company: { icon: 'companies', acceptsQuery: true, route: (id, q) => withQuery('/admin/companies', q, true, id) },
   unload_place: { icon: 'unload-places', acceptsQuery: true, route: (id, q) => withQuery('/admin/unload-places', q, true, id) },
-  system_table: { icon: 'tables', acceptsQuery: false, route: (id) => withQuery('/table-constructor', '', false, id) },
+  system_table: { icon: 'tables', acceptsQuery: true, route: (id, q) => withQuery('/table-constructor', q, true, id) },
   mark: { icon: 'marks', acceptsQuery: true, route: (id, q) => withQuery('/admin/marks', q, true, id) },
   citizenship: { icon: 'citizenship', acceptsQuery: true, route: (id, q) => withQuery('/admin/citizenship', q, true, id) },
   license_plate_format: { icon: 'number-formats', acceptsQuery: true, route: (id, q) => withQuery('/admin/number-formats', q, true, id) },
