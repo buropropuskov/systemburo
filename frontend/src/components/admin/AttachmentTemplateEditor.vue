@@ -691,7 +691,7 @@ function getPathColor(index) {
 }
 
 const GROUP_ORDER = [
-  'application', 'attachment', 'app_items', 'employee', 'car', 'item', 'custom',
+  'application', 'attachment', 'app_items', 'app_cars', 'employee', 'car', 'item', 'custom',
 ];
 
 export default {

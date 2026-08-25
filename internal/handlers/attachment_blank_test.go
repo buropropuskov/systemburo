@@ -1812,7 +1812,7 @@ func crossAttachmentCarsSection(t *testing.T, db *gorm.DB, td testutil.TestData)
 	cells := func(t *testing.T, appID, attID int, refs ...string) []string {
 		t.Helper()
 		reader, _, err := services.NewAttachmentBlankService(db).
-			GenerateBlank(context.Background(), appID, attID)
+			GenerateBlank(context.Background(), appID, attID, services.BlankOptions{IncludeDocuments: true})
 		require.NoError(t, err)
 		out, err := excelize.OpenReader(reader)
 		require.NoError(t, err)
@@ -1842,5 +1842,29 @@ func crossAttachmentCarsSection(t *testing.T, db *gorm.DB, td testutil.TestData)
 		got := cells(t, appID, attID, "I21", "I22")
 		require.Equal(t, "заполняется бюро", got[0])
 		require.Empty(t, got[1])
+	})
+
+	// Бланк несут на пост как документ допуска, поэтому машина непринятого дополнения
+	// в нём означала бы проход мимо согласования - тот же гейт, что у своего состава
+	// вложения и у ТМЦ соседних вложений (#1685).
+	t.Run("машина непринятого дополнения в бланк не попадает", func(t *testing.T) {
+		appID, attID := makeApp(t, car{number: "О 001 АА 777", mark: "Газель"})
+
+		var auto models.Attachment
+		require.NoError(t, db.Where("application_id = ? AND attachment_type = ?", appID, "cars").
+			First(&auto).Error)
+		sup := models.ApplicationSupplement{
+			ApplicationID: appID, Number: 1,
+			Status: models.SupplementPending, CreatedByUserID: sender.ID,
+		}
+		require.NoError(t, db.Create(&sup).Error)
+		pendingNumber := "В 002 ВВ 777"
+		require.NoError(t, db.Create(&models.Car{
+			AttachmentID: auto.ID, CarNumber: &pendingNumber, SupplementID: &sup.ID,
+		}).Error)
+
+		got := cells(t, appID, attID, "I21")
+		require.Equal(t, "Газель О 001 АА 777", got[0],
+			"печатается только машина основной заявки")
 	})
 }

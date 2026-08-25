@@ -796,6 +796,10 @@ func loadApplicationItems(ctx context.Context, db *gorm.DB, appID int) []Applica
 
 // loadApplicationCars собирает машины всех вложений заявки типа cars. Ручные вложения
 // (application_id NULL) сюда не попадают - они не принадлежат заявке.
+//
+// Строки непринятых дополнений отсекаются тем же условием, что и собственный состав
+// вложения: бланк несут на пост как документ допуска, и машина из неодобренного
+// дополнения означала бы в нём проход мимо согласования (#1685).
 func loadApplicationCars(ctx context.Context, db *gorm.DB, appID int) []ApplicationCarRow {
 	var rows []struct {
 		Number     *string `gorm:"column:number"`
@@ -811,6 +815,7 @@ func loadApplicationCars(ctx context.Context, db *gorm.DB, appID int) []Applicat
 		FROM cars c
 		JOIN attachments a ON c.attachment_id = a.id
 		WHERE a.application_id = ? AND a.attachment_type = 'cars'
+		  AND `+admittedSupplementCond("c")+`
 		ORDER BY a.id, c.id
 	`, appID).Scan(&rows).Error
 	if err != nil {
