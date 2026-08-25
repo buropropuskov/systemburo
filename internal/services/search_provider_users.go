@@ -46,12 +46,16 @@ func (userSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchReq
 			Joins("LEFT JOIN companies c ON u.company_id = c.id").
 			Select(`u.id AS id,
 				NULLIF(TRIM(CONCAT_WS(' ', u.last_name, u.first_name, u.middle_name)), '') AS title,
-				CONCAT_WS(' · ', u.username, NULLIF(u."position", ''), COALESCE(o.name, c.name)) AS subtitle,
+				CONCAT_WS(' · ', u.username, NULLIF(u."position", ''), COALESCE(o.name, c.name),
+					CASE WHEN u.is_active THEN NULL ELSE 'в архиве' END) AS subtitle,
 				`+matchRankExprAny("u.last_name", "u.username"), req.Raw, req.Raw, req.Raw, req.Raw).
 			Where(cond, args...)
 
+		// Архивные учётные записи ниже действующих: на стенде их 92 из 109, и по
+		// фамилии они вытесняли живого человека из выдачи целиком. Не прячем совсем -
+		// архивную запись ищут, чтобы восстановить; в подзаголовке она помечена.
 		return q.
-			Order("match_rank, u.id DESC").
+			Order("u.is_active DESC, match_rank, u.id DESC").
 			Limit(req.Limit + 1).
 			Scan(&rows).Error
 	})

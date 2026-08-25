@@ -296,49 +296,72 @@ describe('GlobalSearchPanel', () => {
 });
 
 /**
- * Раздел выдаёт ограниченное число строк, и по фамилии выдачу занимали однофамильцы -
- * нужная учётная запись не доезжала до экрана, а панель об остатке молчала. Сервер о
- * нём сообщает (has_more), теперь об этом говорит и панель.
+ * Выдача читается без знания устройства поиска: у раздела написано, сколько в нём
+ * нашлось, видно первые пять, а остальные раскрываются на месте - уходить со
+ * страницы за собственными результатами не нужно.
  */
-describe('GlobalSearchPanel - остаток выдачи', () => {
-  const groupWith = (hasMore) => ({
+describe('GlobalSearchPanel - сколько нашлось и где остальное', () => {
+  const users = (n) => ({
     groups: [{
       type: 'users',
       title: 'Пользователи',
-      count: 8,
-      has_more: hasMore,
-      items: [{ id: 3, type: 'users', title: 'Шумилин Сергей', subtitle: '@verify_preview', target: { entity: 'user', id: 3 } }],
+      count: n,
+      items: Array.from({ length: n }, (_, i) => ({
+        id: i + 1, type: 'users', title: `Шумилин ${i + 1}`, subtitle: '@user', target: { entity: 'user', id: i + 1 },
+      })),
     }],
-    total: 8,
+    total: n,
   });
 
-  it('при остатке предлагает открыть раздел целиком', async () => {
-    globalSearch.mockResolvedValue(groupWith(true));
+  const showResults = async (n) => {
+    globalSearch.mockResolvedValue(users(n));
     wrapper = mountPanel('Шумилин');
     vi.advanceTimersByTime(400);
     await flushPromises();
+  };
 
-    expect(wrapper.find('[data-testid="global-search-show-all"]').exists()).toBe(true);
+  it('раздел говорит, сколько в нём нашлось', async () => {
+    await showResults(12);
+
+    expect(wrapper.find('.gsp__group-count').text()).toBe('12');
   });
 
-  it('когда показано всё, лишней строки нет', async () => {
-    globalSearch.mockResolvedValue(groupWith(false));
-    wrapper = mountPanel('Шумилин');
+  it('сразу показаны первые пять, остальные - за кнопкой с числом', async () => {
+    await showResults(12);
+
+    expect(wrapper.findAll('.gsp__row')).toHaveLength(5);
+    expect(wrapper.find('[data-testid="global-search-expand"]').text()).toContain('7');
+  });
+
+  it('раскрытие показывает остальные тут же, без перехода', async () => {
+    await showResults(12);
+
+    await wrapper.find('[data-testid="global-search-expand"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.findAll('.gsp__row')).toHaveLength(12);
+    expect(wrapper.find('[data-testid="global-search-expand"]').exists()).toBe(false);
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('когда результатов мало, ни счётчика лишнего, ни кнопки', async () => {
+    await showResults(1);
+
+    expect(wrapper.find('.gsp__group-count').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="global-search-expand"]').exists()).toBe(false);
+  });
+
+  it('новый запрос сворачивает раскрытое обратно', async () => {
+    await showResults(12);
+    await wrapper.find('[data-testid="global-search-expand"]').trigger('click');
+    await flushPromises();
+    expect(wrapper.findAll('.gsp__row')).toHaveLength(12);
+
+    globalSearch.mockResolvedValue(users(9));
+    await wrapper.setProps({ query: 'Шумил' });
     vi.advanceTimersByTime(400);
     await flushPromises();
 
-    expect(wrapper.find('[data-testid="global-search-show-all"]').exists()).toBe(false);
-  });
-
-  it('ведёт в раздел с той же строкой поиска и без идентификатора записи', async () => {
-    globalSearch.mockResolvedValue(groupWith(true));
-    wrapper = mountPanel('Шумилин');
-    vi.advanceTimersByTime(400);
-    await flushPromises();
-
-    await wrapper.find('[data-testid="global-search-show-all"]').trigger('click');
-    await flushPromises();
-
-    expect(push).toHaveBeenCalledWith({ path: '/admin/users', query: { q: 'Шумилин' } });
+    expect(wrapper.findAll('.gsp__row')).toHaveLength(5);
   });
 });

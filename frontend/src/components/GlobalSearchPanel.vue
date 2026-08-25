@@ -125,6 +125,10 @@
           >
             <div class="gsp__group-title">
               {{ group.title }}
+              <span
+                v-if="group.total > 1"
+                class="gsp__group-count"
+              >{{ group.total }}</span>
             </div>
             <button
               v-for="item in group.items"
@@ -149,13 +153,13 @@
               </span>
             </button>
             <button
-              v-if="group.more"
+              v-if="group.hidden > 0"
               type="button"
               class="gsp__more"
-              data-testid="global-search-show-all"
-              @click="openMore(group)"
+              data-testid="global-search-expand"
+              @click="expanded[group.type] = true"
             >
-              Показать все в разделе
+              Показать ещё {{ group.hidden }}
             </button>
           </div>
 
@@ -208,6 +212,9 @@ import { useGlobalSearch, MIN_QUERY_LENGTH } from '@/composables/useGlobalSearch
 import { ADMIN_GROUPS, MAIN_SECTIONS } from '@/constants/navSections';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { SEARCH_TARGETS } from '@/constants/searchTargets';
+
+/** Сколько строк раздела видно до раскрытия. Пять - столько, чтобы читалось разом. */
+const GROUP_PREVIEW = 5;
 import { SEARCH_ACTIONS } from '@/constants/searchActions';
 import { useOnboardingStore } from '@/stores/onboarding';
 
@@ -232,6 +239,8 @@ export default {
   },
   data() {
     return {
+      // Какие разделы раскрыты целиком; новый запрос сворачивает всё обратно.
+      expanded: {},
       activeIndex: 0,
       // Закрепление переживает перезагрузку: это привычка работы, а не состояние
       // одного захода -- каждый раз закреплять заново раздражало бы.
@@ -299,9 +308,20 @@ export default {
       const groups = [];
       let index = 0;
 
-      const push = (type, title, items, more = null) => {
-        if (!items.length) return;
-        groups.push({ type, title, more, items: items.map((it) => ({ ...it, index: index++ })) });
+      // Раздел показывается свёрнутым до GROUP_PREVIEW строк: без этого выдача из
+      // нескольких разделов превращается в простыню, где ничего не найти. Остальное
+      // раскрывается на месте - уходить со страницы за своими же результатами незачем.
+      const push = (type, title, all) => {
+        if (!all.length) return;
+        const open = this.expanded[type];
+        const shown = open ? all : all.slice(0, GROUP_PREVIEW);
+        groups.push({
+          type,
+          title,
+          total: all.length,
+          hidden: all.length - shown.length,
+          items: shown.map((it) => ({ ...it, index: index++ })),
+        });
       };
 
       push('actions', 'Действия', this.actionItems);
@@ -314,7 +334,7 @@ export default {
           icon: SEARCH_TARGETS[it.target?.entity]?.icon || 'search',
           to: this.routeFor(it),
         }));
-        push(g.type, g.title, items, g.has_more ? this.sectionRouteFor(items[0]) : null);
+        push(g.type, g.title, items);
       }
       return groups;
     },
@@ -351,6 +371,8 @@ export default {
       immediate: true,
       handler(val) {
         this.activeIndex = 0;
+        // Новый запрос - новые разделы: раскрытые сворачиваем обратно.
+        this.expanded = {};
         // Новый запрос разворачивает столбик: искать со свёрнутой панелью бессмысленно.
         if (val.trim()) this.collapsed = false;
         this.search(val);
@@ -412,21 +434,6 @@ export default {
       if (item) this.openItem(item);
     },
     /** Куда ведёт результат: маршруты знает фронт, сервер отдаёт сущность и её номер. */
-    /**
-     * Куда вести из строки «Показать все»: тот же раздел, что и у найденной записи, но
-     * без идентификатора - открывать одну карточку тут незачем, нужен весь список.
-     * Путь берём у первой строки группы, чтобы не заводить вторую карту разделов.
-     */
-    sectionRouteFor(item) {
-      if (!item?.to?.path) return null;
-      const query = this.query.trim() ? { q: this.query.trim() } : {};
-      return { path: item.to.path, query };
-    },
-    openMore(group) {
-      if (!group.more) return;
-      this.$emit('close');
-      this.$nextTick(() => this.$router.push(group.more));
-    },
     routeFor(item) {
       const target = SEARCH_TARGETS[item.target?.entity];
       if (!target) return null;
@@ -635,6 +642,17 @@ export default {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Счётчик рядом с названием раздела: сколько всего нашлось, а не сколько видно. */
+.gsp__group-count {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--accent-tint);
+  color: var(--accent-text);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 /* Строка остатка: приглушённее записей - это не результат, а путь к остальным. */
