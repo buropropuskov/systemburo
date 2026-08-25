@@ -379,6 +379,7 @@
 <script>
 import SearchComponent from './SearchComponent.vue';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
+import { readSearchFromRoute } from '@/utils/searchQueryParam';
 import RefreshButton from './RefreshButton.vue';
 import MarkHistoryModal from './MarkHistoryModal.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
@@ -398,9 +399,11 @@ import {
   bulkRestoreMarks,
 } from '@/api/marks';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
   name: 'MarksManagement',
+  mixins: [openFromSearchLink((vm) => vm.marks, 'selectMark')],
   components: { SearchComponent, RefreshButton, MarkHistoryModal, ConfirmationModal, BaseDropdown, LoaderSpinner, AppIcon },
   setup() {
     // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
@@ -411,7 +414,8 @@ export default {
   data() {
     return {
       marks: [],
-      searchQuery: '',
+      // Из адреса: переход из сквозного поиска приносит запрос с собой.
+      searchQuery: readSearchFromRoute(this.$route),
       showArchive: false,
       sortField: null,
       sortDirection: 'asc',
@@ -522,6 +526,7 @@ export default {
     document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
+
     onKeydown(e) {
       if (e.key === 'Escape' && this.showAddModal) this.requestCloseAdd();
     },
@@ -555,6 +560,7 @@ export default {
       try {
         const data = await listMarks({ includeArchived: true });
         this.marks = Array.isArray(data) ? data : [];
+        this.openFromSearchLink();
         // Подтянуть актуальные поля выбранной марки или снять выбор, если её больше нет в текущем фильтре.
         if (this.selectedMark) {
           const fresh = this.marks.find(m => m.id === this.selectedMark.id);

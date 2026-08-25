@@ -883,8 +883,11 @@ import WarningWindowsEditor from '../WarningWindowsEditor.vue';
 import UnloadPlaceHistoryModal from './UnloadPlaceHistoryModal.vue';
 import { bulkArchiveUnloadPlaces, bulkRestoreUnloadPlaces, getUnloadPlaceUsage, detachAllUnloadPlace, detachOrganizationFromUnloadPlace, detachCompanyFromUnloadPlace } from '@/api/unload-places';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { fetchCurrentUserName } from '@/utils/currentUserName';
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
+  mixins: [openFromSearchLink((vm) => vm.unloadPlaces, 'selectPlace')],
   components: {
     SearchComponent,
     RefreshButton,
@@ -1121,6 +1124,7 @@ export default {
             originalStatusComment: place.status_comment
           }));
           this.pruneSelection();
+          this.openFromSearchLink();
         }
       } catch (error) {
         console.error("Error fetching unload places:", error);
@@ -1436,16 +1440,7 @@ export default {
     },
 
     async fetchCurrentUser() {
-      // Имя нужно для футера Excel-экспорта истории ("Отчёт сформировал").
-      try {
-        const res = await apiRequest('/users/me');
-        if (!res.ok) return;
-        const u = await res.json();
-        const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
-        this.currentUserName = parts.join(' ') || u.username || '';
-      } catch {
-        // Имя - необязательная деталь экспорта, молчим (footer покажет дефолт).
-      }
+      this.currentUserName = await fetchCurrentUserName();
     },
 
     selectPlace(place) {

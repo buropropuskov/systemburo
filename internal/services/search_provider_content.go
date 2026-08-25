@@ -27,8 +27,12 @@ func (contentSearchProvider) Search(ctx context.Context, db *gorm.DB, req search
 	// full_text новостей и объявлений -- размеченный текст целиком. Ищем по нему, но в
 	// подзаголовок кладём короткое описание: показывать кусок разметки в подсказке
 	// незачем.
-	newsCond, newsArgs := searchCondition([]string{"title", "description", "full_text"}, req.Raw)
-	annCond, annArgs := searchCondition([]string{"title", "description", "full_text"}, req.Raw)
+	// По разметке целиком ищем только точное вхождение: нечёткое сравнение читает
+	// значение целиком и на длинной новости стоит дороже всего запроса.
+	textCols := []string{"title", "description", "full_text"}
+	textFuzzy := []string{"title", "description"}
+	newsCond, newsArgs := searchConditionFuzzyIn(textCols, textFuzzy, req.Raw)
+	annCond, annArgs := searchConditionFuzzyIn(textCols, textFuzzy, req.Raw)
 	docCond, docArgs := searchCondition([]string{"title", "description", "file_name"}, req.Raw)
 
 	sql := fmt.Sprintf(`SELECT id, title, subtitle, kind FROM (
@@ -72,8 +76,11 @@ func (feedbackSearchProvider) Title() string          { return "Обратная
 func (feedbackSearchProvider) PermissionKey() string  { return KeyPageAdminFeedback }
 
 func (feedbackSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchRequest) ([]SearchItem, error) {
+	// Текст обращения -- свободный и длинный, нечётко его не сравниваем: по нему ищут
+	// точную фразу, а фамилию автора рядом ищут с опечаткой.
 	cols := []string{"f.message", "u.last_name", "u.first_name", "u.middle_name", "u.username"}
-	cond, args := searchCondition(cols, req.Raw)
+	fuzzyCols := []string{"u.last_name", "u.first_name", "u.middle_name", "u.username"}
+	cond, args := searchConditionFuzzyIn(cols, fuzzyCols, req.Raw)
 
 	rows := make([]searchRow, 0, req.Limit+1)
 	// Запрос строится на соединении транзакции: порог нечёткого сравнения выставлен

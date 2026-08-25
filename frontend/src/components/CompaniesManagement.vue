@@ -728,7 +728,6 @@
 
 <script>
 import { mapState, mapActions } from 'pinia';
-import { apiRequest } from '@/api/client';
 import {
   getCompanyMembers,
   reassignCompanyUsers,
@@ -766,9 +765,12 @@ import CompanyHistoryModal from './CompanyHistoryModal.vue';
 import BulkOperationsModal from './directories/BulkOperationsModal.vue';
 import DirectoryModeration from './directory/DirectoryModeration.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { fetchCurrentUserName } from '@/utils/currentUserName';
+import { openFromSearchLink } from '@/mixins/openFromSearchLink';
 
 export default {
   name: 'CompaniesManagement',
+  mixins: [openFromSearchLink((vm) => vm.companiesWithUsers, 'selectCompany')],
   components: {
     DirectoryModeration,
     SearchComponent,
@@ -1010,6 +1012,7 @@ export default {
     },
   },
   watch: {
+    companiesWithUsers() { this.openFromSearchLink(); },
     showAddModal(newVal) {
       if (newVal) {
         this.$nextTick(() => {
@@ -1552,16 +1555,7 @@ export default {
     },
 
     async fetchCurrentUser() {
-      // Имя нужно для футера Excel-экспорта истории ("Отчёт сформировал").
-      try {
-        const res = await apiRequest('/users/me');
-        if (!res.ok) return;
-        const u = await res.json();
-        const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
-        this.currentUserName = parts.join(' ') || u.username || '';
-      } catch {
-        // Имя - необязательная деталь экспорта, молчим (footer покажет дефолт).
-      }
+      this.currentUserName = await fetchCurrentUserName();
     },
 
     sortBy(field) {

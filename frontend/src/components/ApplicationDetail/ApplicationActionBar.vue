@@ -527,9 +527,8 @@
               v-if="approvalBlockedByBlacklist"
               class="blacklist-gate-hint"
               data-testid="app-detail-blacklist-gate-hint"
-            >
-              Подтвердите пропуск по помеченным
-            </div>
+              :title="blacklistGateHint"
+            >Подтвердите метки ЧС</div>
           </div>
         </transition>
       </div>
@@ -1481,7 +1480,7 @@ export default {
     font-size: 13px;
     font-weight: 500;
     text-align: center;
-    max-width: 240px;
+    white-space: nowrap;
     background: color-mix(in srgb, var(--warning) 10%, var(--surface));
     color: var(--warning-text);
     border: 1px solid rgba(245, 158, 11, 0.35);

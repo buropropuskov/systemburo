@@ -1117,6 +1117,7 @@ import { formatUserLabel, formatLogin } from '@/utils/formatName'
 import { revokeUserConsent } from '@/api/pdConsent'
 import { isOnline, formatSeenShort, seenTitle, lastSeenSortKey } from '@/utils/presence'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 import SearchComponent from './SearchComponent.vue';
 import RefreshButton from './RefreshButton.vue';
 import PasswordInput from './ui/PasswordInput.vue';
@@ -1167,6 +1168,7 @@ export default {
     UserBulkOperationsModal,
     AppIcon,
   },
+  mixins: [openFromSearchLink((vm) => vm.allUsers, 'selectUser', undefined, 'userSearch')],
   props: {
     allUsers: {
       type: Array,
@@ -1186,7 +1188,6 @@ export default {
   },
   data() {
     return {
-      userSearch: '',
       refreshing: false,
       consentRevoking: false,
       selectedUser: null,
@@ -1498,6 +1499,8 @@ export default {
     // selectedUser держит копию старого user и роль/права в карточке остаются
     // устаревшими до перезагрузки страницы.
     allUsers(list) {
+      // Список приехал - примесь раскроет карточку, если её просили в адресе.
+      this.openFromSearchLink();
       if (!this.selectedUser) return;
       const fresh = list.find((u) => u.username === this.selectedUser.username);
       if (fresh) this.selectedUser = { ...fresh, newPassword: this.selectedUser.newPassword || '' };
@@ -2396,11 +2399,6 @@ export default {
       this.selectedUser = { ...user };
       this.activeTab = 'profile';
       this.showEditModal = true;
-    },
-
-    closeDetails() {
-      this.closeEditModal();
-      this.selectedUser = null;
     },
 
     sortBy(field) {

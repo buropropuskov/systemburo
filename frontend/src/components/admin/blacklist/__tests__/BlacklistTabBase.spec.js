@@ -264,3 +264,71 @@ describe('BlacklistTabBase', () => {
     expect(wrapper.vm.cardLoading).toBe(false);
   });
 });
+
+/**
+ * Переход из сквозного поиска: найденная запись чёрного списка должна раскрыться
+ * сама. Вкладки «Машины» и «Люди» смонтированы одновременно, а идентификаторы у них
+ * независимые - без указания вкладки в адресе открылась бы чужая запись с тем же id.
+ */
+describe('BlacklistTabBase - открытие записи по ссылке из сквозного поиска', () => {
+  const ITEMS = [{ id: 5, is_active: true, reason: 'угон' }, { id: 9, is_active: true, reason: 'долг' }];
+
+  function mountWithRoute(query, tabKey = 'vehicles', replace = vi.fn().mockResolvedValue(undefined)) {
+    return mount(BlacklistTabBase, {
+      props: {
+        apiList: vi.fn().mockResolvedValue(ITEMS),
+        getPrimaryText: (i) => `Запись ${i.id}`,
+        getDetailRows: () => [],
+        tabKey,
+      },
+      global: {
+        stubs: { BaseDropdown: true, SearchComponent: true, RefreshButton: true, LoaderSpinner: true },
+        mocks: { $route: { query }, $router: { replace } },
+      },
+    });
+  }
+
+  it('запись своей вкладки открывается сразу', async () => {
+    const wrapper = mountWithRoute({ tab: 'vehicles', open: '5', q: 'угон' });
+    await flushPromises();
+
+    expect(wrapper.vm.selected?.id).toBe(5);
+  });
+
+  it('строка поиска из адреса подставляется в фильтр', async () => {
+    const wrapper = mountWithRoute({ tab: 'vehicles', open: '5', q: 'угон' });
+    await flushPromises();
+
+    expect(wrapper.vm.searchQuery).toBe('угон');
+  });
+
+  it('чужая вкладка ничего не открывает - id у вкладок независимые', async () => {
+    const wrapper = mountWithRoute({ tab: 'persons', open: '5' }, 'vehicles');
+    await flushPromises();
+
+    expect(wrapper.vm.selected).toBeNull();
+  });
+
+  it('после открытия open вычищается из адреса', async () => {
+    const replace = vi.fn().mockResolvedValue(undefined);
+    mountWithRoute({ tab: 'vehicles', open: '5', q: 'угон' }, 'vehicles', replace);
+    await flushPromises();
+
+    expect(replace).toHaveBeenCalledWith({ query: { tab: 'vehicles', q: 'угон' } });
+  });
+
+  it('без роутера (монтаж в тестах и в кабинете) вкладка работает как раньше', async () => {
+    const bare = mount(BlacklistTabBase, {
+      props: {
+        apiList: vi.fn().mockResolvedValue(ITEMS),
+        getPrimaryText: (i) => `Запись ${i.id}`,
+        getDetailRows: () => [],
+      },
+      global: { stubs: { BaseDropdown: true, SearchComponent: true, RefreshButton: true, LoaderSpinner: true } },
+    });
+    await flushPromises();
+
+    expect(bare.vm.selected).toBeNull();
+    expect(bare.vm.searchQuery).toBe('');
+  });
+});

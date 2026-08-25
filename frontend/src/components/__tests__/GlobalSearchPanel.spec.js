@@ -294,3 +294,74 @@ describe('GlobalSearchPanel', () => {
     expect(Number(surface[1])).toBeGreaterThanOrEqual(95);
   });
 });
+
+/**
+ * Выдача читается без знания устройства поиска: у раздела написано, сколько в нём
+ * нашлось, видно первые пять, а остальные раскрываются на месте - уходить со
+ * страницы за собственными результатами не нужно.
+ */
+describe('GlobalSearchPanel - сколько нашлось и где остальное', () => {
+  const users = (n) => ({
+    groups: [{
+      type: 'users',
+      title: 'Пользователи',
+      count: n,
+      items: Array.from({ length: n }, (_, i) => ({
+        id: i + 1, type: 'users', title: `Шумилин ${i + 1}`, subtitle: '@user', target: { entity: 'user', id: i + 1 },
+      })),
+    }],
+    total: n,
+  });
+
+  const showResults = async (n) => {
+    globalSearch.mockResolvedValue(users(n));
+    wrapper = mountPanel('Шумилин');
+    vi.advanceTimersByTime(400);
+    await flushPromises();
+  };
+
+  it('раздел говорит, сколько в нём нашлось', async () => {
+    await showResults(12);
+
+    expect(wrapper.find('.gsp__group-count').text()).toBe('12');
+  });
+
+  it('сразу показаны первые пять, остальные - за кнопкой с числом', async () => {
+    await showResults(12);
+
+    expect(wrapper.findAll('.gsp__row')).toHaveLength(5);
+    expect(wrapper.find('[data-testid="global-search-expand"]').text()).toContain('7');
+  });
+
+  it('раскрытие показывает остальные тут же, без перехода', async () => {
+    await showResults(12);
+
+    await wrapper.find('[data-testid="global-search-expand"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.findAll('.gsp__row')).toHaveLength(12);
+    expect(wrapper.find('[data-testid="global-search-expand"]').exists()).toBe(false);
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('когда результатов мало, ни счётчика лишнего, ни кнопки', async () => {
+    await showResults(1);
+
+    expect(wrapper.find('.gsp__group-count').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="global-search-expand"]').exists()).toBe(false);
+  });
+
+  it('новый запрос сворачивает раскрытое обратно', async () => {
+    await showResults(12);
+    await wrapper.find('[data-testid="global-search-expand"]').trigger('click');
+    await flushPromises();
+    expect(wrapper.findAll('.gsp__row')).toHaveLength(12);
+
+    globalSearch.mockResolvedValue(users(9));
+    await wrapper.setProps({ query: 'Шумил' });
+    vi.advanceTimersByTime(400);
+    await flushPromises();
+
+    expect(wrapper.findAll('.gsp__row')).toHaveLength(5);
+  });
+});

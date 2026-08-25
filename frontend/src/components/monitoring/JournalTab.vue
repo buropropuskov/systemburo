@@ -166,7 +166,7 @@
                 class="cell-content"
                 :title="formatFullDate(log.created_at)"
               >
-                {{ formatTime(log.created_at) }}
+                {{ formatStamp(log.created_at) }}
               </span>
             </div>
             <div
@@ -297,11 +297,11 @@ import { formatLogin } from '@/utils/formatName';
 import {
   SORTABLE_COLUMNS, JOURNAL_PRESETS, PAGE_SIZE_OPTIONS,
   journalStateFromQuery, mergeJournalQuery, filterParamsFromState,
-  isJournalPresetOn, toggleJournalPreset, dateToYmd, ymdToDate, journalFilterDropdowns
+  isJournalPresetOn, toggleJournalPreset, dateToYmd, ymdToDate, journalFilterDropdowns, DEFAULT_PER_PAGE
 } from '@/utils/requestLogsQuery';
 import { CHART_PERIODS, DEFAULT_CHART_PERIOD, JOURNAL_REFRESH_MS, journalRefreshBlock } from '@/utils/requestLogsLive';
 import {
-  describeLoadError, exportNotice, formatDuration, formatFullDate, formatTime, truncatePath
+  describeLoadError, exportNotice, formatDuration, formatFullDate, formatStamp, truncatePath
 } from '@/utils/requestLogsFormat';
 
 /**
@@ -440,7 +440,7 @@ async function fetchLogs({ silent = false } = {}) {
       if (body.meta) {
         pagination.total = body.meta.total || 0;
         pagination.page = body.meta.page || 1;
-        pagination.per_page = body.meta.per_page || 20;
+        pagination.per_page = body.meta.per_page || DEFAULT_PER_PAGE;
       }
     }
   } catch (error) {
@@ -842,10 +842,17 @@ watch(() => props.hidden, (hidden) => {
   inset: -5px;
 }
 
+/* Своей прокрутки у тела нет: страница отдаёт разделу один скроллпорт -
+   оболочку admin-page. Пока тело прокручивалось само, оно же и обрезалось
+   снаружи, и до строк было не добраться. Число строк ограничивает пагинация
+   (20/50/100), поэтому раздел конечен по высоте. */
 .table-body {
   flex: 1;
-  overflow-y: auto;
-  max-height: 500px;
+  /* Перелистывание заменяет ВСЕ строки разом, и узел, за который браузер держал
+     позицию прокрутки, исчезает: якорение уводило экран в начало раздела
+     (замер: 670 -> 0 при неизменных scrollHeight и clientHeight). Отключаем
+     якорь только здесь - на остальной админке он полезен. */
+  overflow-anchor: none;
 }
 
 .table-loading {
@@ -903,7 +910,10 @@ watch(() => props.hidden, (hidden) => {
 }
 
 .table-footer {
-  padding: 12px 20px;
+  /* Полоса пагинации была 60 пикселей - выше, чем строка журнала, и тяжелее
+     всего, что над ней (#2218). Высоту держит список размера страницы, поэтому
+     ужимаются отступы, а не содержимое. */
+  padding: 6px 20px;
   border-top: 1px solid var(--border);
   display: flex;
   justify-content: space-between;

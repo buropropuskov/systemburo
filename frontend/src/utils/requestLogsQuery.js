@@ -21,7 +21,7 @@ export const SORTABLE_COLUMNS = [
 export const SORTABLE_FIELDS = SORTABLE_COLUMNS.map(c => c.field);
 
 /** Размеры страницы из выпадающего списка. */
-export const PAGE_SIZES = ['20', '50', '100'];
+export const PAGE_SIZES = ['15', '30', '50', '100'];
 
 /** Методы в фильтре. Пустое значение - «все». */
 export const METHOD_OPTIONS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
@@ -70,7 +70,10 @@ export const JOURNAL_PRESETS = [
 
 const DEFAULT_SORT = 'created_at';
 const DEFAULT_ORDER = 'desc';
-const DEFAULT_PER_PAGE = 20;
+// Двадцать строк растягивали раздел на полтора экрана: над таблицей стоят
+// шапка, показатели, вкладки, график и панель отбора - вместе около 500
+// пикселей (#2218).
+export const DEFAULT_PER_PAGE = 15;
 
 /**
  * @typedef {object} JournalState

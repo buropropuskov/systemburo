@@ -179,7 +179,26 @@ const coverageNote = computed(() => buildCoverageNote(history.value.coverage));
 const p95Note = computed(() => buildP95Note(history.value.coverage));
 const chartPoints = computed(() => dailyChartPoints(history.value.daily));
 
+/**
+ * Период по умолчанию - последние 90 суток, столько же берёт сервер, когда даты
+ * не заданы (historyRange в request_logs_service.go). Проставляется в поля
+ * календаря, а не остаётся пустым: иначе на экране стоит «Запросов за период»
+ * без единого указания, что это за период, и число втрое расходится со
+ * счётчиком в шапке раздела - тот считает подробные записи за срок их хранения.
+ */
+const DEFAULT_PERIOD_DAYS = 90;
+
+function applyDefaultPeriod() {
+  if (from.value || to.value) return;
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - DEFAULT_PERIOD_DAYS);
+  from.value = dateToYmd(start);
+  to.value = dateToYmd(end);
+}
+
 async function fetchHistory() {
+  applyDefaultPeriod();
   const seq = ++historySeq;
   isLoading.value = true;
   emit('update:loading', true);

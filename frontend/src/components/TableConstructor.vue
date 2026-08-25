@@ -920,9 +920,11 @@ import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import AppIcon from '@/components/icons/AppIcon.vue';
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
   name: 'TableConstructor',
+  mixins: [openFromSearchLink((vm) => vm.tables, 'selectTable', (row) => row?.table?.id, 'searchQuery')],
   components: {
     SearchComponent,
     RefreshButton,
@@ -945,7 +947,6 @@ export default {
   },
   data() {
     return {
-      searchQuery: '',
       refreshing: false,
       tables: [],
       showAddModal: false,
@@ -1108,9 +1109,9 @@ export default {
     },
   },
   async mounted() {
-    // Возврат со страницы версий архивной таблицы (?open=<name>): открыть архив
-    // и выбрать ту же таблицу, чтобы юзер вернулся ровно туда, где был.
-    const openName = this.$route?.query?.open;
+    // Один `open` обслуживает два перехода: ИМЯ архивной таблицы со страницы версий
+    // (тогда открываем архив) и числовой id из поиска - тот разбирает примесь.
+    const openName = Number.isNaN(Number(this.$route?.query?.open)) ? this.$route?.query?.open : null;
     if (openName) this.showArchive = true;
     await this.refreshData();
     if (openName) {
@@ -1127,6 +1128,7 @@ export default {
     });
   },
   methods: {
+
     /**
      * Переключение вкладки с защитой: если на текущей вкладке есть pending
      * правки - сначала спросить подтверждение. confirmIfAnyDirty опрашивает
@@ -1157,6 +1159,7 @@ export default {
         if (response.ok) {
           const data = await response.json();
           this.tables = data;
+          this.openFromSearchLink();
         }
       } catch (error) {
         console.error("Error fetching system tables:", error);
@@ -1546,28 +1549,6 @@ export default {
       return table.current_status === 'open' ? 'Открыто сейчас' : 'Закрыто сейчас';
     },
     
-    getTableFields(tableType) {
-      if (tableType === 'cars') {
-        return [
-          { name: 'car_number', displayName: 'Номер машины', type: 'Текст' },
-          { name: 'car_brand', displayName: 'Марка', type: 'Текст' },
-          { name: 'organization', displayName: 'Организация', type: 'Текст' },
-          { name: 'unload_place', displayName: 'Место разгрузки', type: 'Текст' },
-          { name: 'valid_until', displayName: 'Действует до', type: 'Дата' },
-          { name: 'time_range', displayName: 'Время', type: 'Текст' },
-          { name: 'status', displayName: 'Статус', type: 'Текст' }
-        ];
-      } else {
-        return [
-          { name: 'organization', displayName: 'Организация', type: 'Текст' },
-          { name: 'last_name', displayName: 'Фамилия', type: 'Текст' },
-          { name: 'first_name', displayName: 'Имя', type: 'Текст' },
-          { name: 'middle_name', displayName: 'Отчество', type: 'Текст' },
-          { name: 'valid_until', displayName: 'Действует до', type: 'Дата' },
-          { name: 'pass_time', displayName: 'Время прохода', type: 'Текст' }
-        ];
-      }
-    },
     
     getDefaultHint(tableType) {
       if (tableType === 'cars') {

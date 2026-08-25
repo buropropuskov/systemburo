@@ -257,6 +257,7 @@
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { ref } from 'vue';
 import { useDeletionsStore } from '@/stores/deletions';
+import { copyText } from '@/utils/clipboard';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 
 export default {
@@ -317,23 +318,10 @@ export default {
         async copyNumber() {
             const number = this.applicationNumber;
             if (!number) return;
-            try {
-                if (navigator.clipboard?.writeText) {
-                    await navigator.clipboard.writeText(String(number));
-                } else {
-                    const ta = document.createElement('textarea');
-                    ta.value = String(number);
-                    ta.style.position = 'absolute';
-                    ta.style.left = '-9999px';
-                    document.body.appendChild(ta);
-                    ta.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(ta);
-                }
-                useDeletionsStore().notify({ prefix: 'Номер ', bold: String(number), suffix: ' скопирован', type: 'success' });
-            } catch {
-                useDeletionsStore().notify({ prefix: 'Не удалось ', bold: 'скопировать номер', type: 'error' });
-            }
+            const copied = await copyText(number);
+            useDeletionsStore().notify(copied
+                ? { prefix: 'Номер ', bold: String(number), suffix: ' скопирован', type: 'success' }
+                : { prefix: 'Не удалось ', bold: 'скопировать номер', type: 'error' });
         }
     }
 }

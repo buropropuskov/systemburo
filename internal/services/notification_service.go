@@ -214,6 +214,20 @@ func (s *notificationService) Create(ctx context.Context, req models.CreateNotif
 	if req.Title == nil || *req.Title == "" {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "title is required")
 	}
+	notifType := ""
+	if req.Type != nil {
+		notifType = *req.Type
+	}
+	deliverable, err := s.recipientAcceptsNotifications(ctx, req.UserID, notifType)
+	if err != nil {
+		return nil, err
+	}
+	// Отправку вручную отклоняем с ошибкой, а не тихо: администратор должен увидеть,
+	// почему уведомление не ушло, - в отличие от фоновых триггеров, где адресат
+	// отсеивается молча.
+	if !deliverable {
+		return nil, echo.NewHTTPError(http.StatusConflict, "recipient is banned or inactive")
+	}
 	n := models.Notification{
 		UserID:  req.UserID,
 		Type:    req.Type,
@@ -248,6 +262,14 @@ func (s *notificationService) CreateForUser(ctx context.Context, userID int, not
 // прежняя запись успела стать прочитанной).
 func (s *notificationService) CreateForUserGrouped(ctx context.Context, userID int, notifType, title, message string, data *string, groupKey string) error {
 	if userID <= 0 || title == "" {
+		return nil
+	}
+
+	deliverable, err := s.recipientAcceptsNotifications(ctx, userID, notifType)
+	if err != nil {
+		return err
+	}
+	if !deliverable {
 		return nil
 	}
 
@@ -349,6 +371,36 @@ func (s *notificationService) sendPush(ctx context.Context, n *models.Notificati
 		}
 	}
 	s.pushSender.Send(ctx, n.UserID, payload)
+}
+
+// recipientAcceptsNotifications отсекает получателей, отключённых от системы:
+// заблокированных (is_banned) и архивных (is_active = false). Подписка тут ни при чём -
+// человек не выключал уведомления, это система перестала его обслуживать.
+//
+// Проверка нужна отдельно от подписки, потому что web push живёт независимо от сессии:
+// заблокированный в систему не войдёт, но подписка его браузера остаётся рабочей, и
+// уведомления продолжали приходить ему на устройство после отключения учётной записи.
+//
+// Исключение одно - сообщение о самой блокировке. UserBanService заводит его уже ПОСЛЕ
+// того, как флаг проставлен, и без исключения человек не узнал бы, почему его выкинуло.
+//
+// Пользователя нет (удалён между событием и доставкой) - доставлять некому; это не
+// ошибка вызывающего, поэтому возвращаем отказ, а не 500.
+func (s *notificationService) recipientAcceptsNotifications(ctx context.Context, userID int, notifType string) (bool, error) {
+	if notifType == NotificationTypeUserBanned {
+		return true, nil
+	}
+
+	var user models.User
+	err := s.db.WithContext(ctx).Select("is_banned, is_active").First(&user, userID).Error
+	switch {
+	case err == nil:
+		return !user.IsBanned && user.IsActive, nil
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		return false, nil
+	default:
+		return false, echo.NewHTTPError(http.StatusInternalServerError, "Error checking notification recipient")
+	}
 }
 
 // notificationAllowed решает, доставлять ли уведомление CreateForUser*. Mandatory-типы
