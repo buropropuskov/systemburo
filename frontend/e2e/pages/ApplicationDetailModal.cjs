@@ -56,7 +56,7 @@ class ApplicationDetailModal {
     return this.elementRows.filter({ hasText: keyText });
   }
 
-  /** Бейдж метки дополнения на строке состава («Новое, на согласовании», «Доп. №N»). */
+  /** Бейдж метки дополнения на строке состава («На согласовании», «Доп. №N»). */
   elementRowBadge(keyText) {
     return this.elementRow(keyText).getByTestId('attachment-supplement-badge');
   }

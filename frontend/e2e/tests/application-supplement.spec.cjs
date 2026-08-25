@@ -176,7 +176,7 @@ test.describe.serial('Дополнение поданной заявки (#1685)
     await detail.openAttachment();
 
     await expect(detail.elementRows).toHaveCount(2);
-    await expect(detail.elementRowBadge(secondEmployee.lastName)).toContainText('Новое, на согласовании');
+    await expect(detail.elementRowBadge(secondEmployee.lastName)).toContainText('На согласовании');
     // У прежней строки метки нет вовсе - она допущена первым кругом.
     await expect(detail.elementRowBadge(firstEmployee.lastName)).toHaveCount(0);
   });
@@ -219,7 +219,7 @@ test.describe.serial('Дополнение поданной заявки (#1685)
 
     await expect(detail.supplementActionsLabel).toContainText('Дополнение №1');
     await detail.approveSupplement();
-    await expect(detail.supplementMyVote).toContainText('Вы согласовали дополнение');
+    await expect(detail.supplementMyVote).toContainText('вы согласовали');
   });
 
   test('принимающий принимает дополнение', async ({ page }) => {
