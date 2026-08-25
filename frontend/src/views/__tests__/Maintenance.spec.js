@@ -91,7 +91,15 @@ describe('Maintenance - страница технических работ', () 
     expect(links).toHaveLength(2);
     expect(links[0].attributes('href')).toBe('mailto:help@example.com');
     expect(links[1].attributes('href')).toBe('tel:+74951234567');
-    expect(links[1].text()).toBe('+7 495 123-45-67');
+    // Номер из настроек приводится к маске проекта при показе.
+    expect(links[1].text()).toBe('+7 (495) 123 45-67');
+  });
+
+  it('приводит к маске телефон, сохранённый цифрами подряд', () => {
+    wrapper = mountPage({ support_phone: '79100830055' });
+    const link = wrapper.get('.mt__meta a');
+    expect(link.text()).toBe('+7 (910) 083 00-55');
+    expect(link.attributes('href')).toBe('tel:+79100830055');
   });
 
   it('не выдумывает контакты, когда они не заданы', () => {

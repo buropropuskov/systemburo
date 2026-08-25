@@ -316,6 +316,8 @@ func (s *licensePlateFormatService) GetHistory(ctx context.Context, id int) ([]m
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching license plate format history")
 	}
 
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
 	items := make([]models.LicensePlateFormatHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.LicensePlateFormatHistoryItem{
@@ -323,7 +325,7 @@ func (s *licensePlateFormatService) GetHistory(ctx context.Context, id int) ([]m
 			ActionType:  r.ActionType,
 			Details:     r.Details,
 			ActorUserID: r.ActorUserID,
-			ActorName:   r.ActorName,
+			ActorName:   maskName(masks, r.ActorUserID, r.ActorName),
 			CreatedAt:   r.CreatedAt,
 		})
 	}

@@ -47,6 +47,15 @@ func copyStrPtr(p *string) *string {
 	return &v
 }
 
+// timePtrToStrPtr форматирует *time.Time для записи в old_value/new_value аудита.
+func timePtrToStrPtr(p *time.Time) *string {
+	if p == nil {
+		return nil
+	}
+	s := p.UTC().Format(time.RFC3339)
+	return &s
+}
+
 // intPtrToStrPtr форматирует *int как *string для записи в old_value/new_value.
 func intPtrToStrPtr(p *int) *string {
 	if p == nil {
@@ -65,6 +74,10 @@ type EmployeeOwnerInfo struct {
 	UserID           int     `json:"user_id"`
 	OrganizationName *string `json:"organization_name"`
 	CompanyName      *string `json:"company_name"`
+	// CanManageAll -- администратор системы: правит и удаляет любую запись реестра
+	// независимо от привязки. Тот же признак фронт берёт для показа кнопок, см.
+	// CarOwnerInfo.CanManageAll.
+	CanManageAll bool `json:"can_manage_all"`
 }
 
 // UniqueEmployeeWithRelations -- сотрудник с данными связанных сущностей.
@@ -86,6 +99,20 @@ type UniqueEmployeeWithRelations struct {
 	OrganizationName     *string    `json:"organization_name"`
 	CompanyName          *string    `json:"company_name"`
 	CitizenshipName      *string    `json:"citizenship_name"`
+	// UserName -- за кем закреплена запись: ФИО владельца, а у не давшего согласия на
+	// обработку своих данных - логин с собачкой (общая маска loadNameMasks). Логин сам
+	// по себе человеку ничего не говорит, поэтому показываем имя. Отдаётся только
+	// администратору (см. maskEmployeeOwners): для остальных привязка к чужой учётной
+	// записи - лишние сведения о людях другой организации.
+	UserName *string `json:"user_name"`
+	// Поля владельца из выборки, из них собирается UserName; в ответ не уходят.
+	OwnerUsername   *string `json:"-" gorm:"column:owner_username"`
+	OwnerLastName   *string `json:"-" gorm:"column:owner_last_name"`
+	OwnerFirstName  *string `json:"-" gorm:"column:owner_first_name"`
+	OwnerMiddleName *string `json:"-" gorm:"column:owner_middle_name"`
+	// PDConsentAt -- когда подтверждено согласие субъекта на обработку его данных.
+	// NULL у записей, заведённых до введения поля: карточка так и пишет, что отметки нет.
+	PDConsentAt          *time.Time `json:"pd_consent_at"`
 	ActiveEntryDateTo    *string    `json:"active_entry_date_to"`
 	ActivePassTime       *string    `json:"active_pass_time"`
 	ActiveAppOrgName     *string    `json:"active_app_org_name"`
@@ -115,6 +142,11 @@ type NewUniqueEmployeeRequest struct {
 	OrganizationID       *int    `json:"organization_id"`
 	CompanyID            *int    `json:"company_id"`
 	UserID               *int    `json:"user_id"`
+	// PDConsent - заявитель подтвердил, что субъект дал согласие на обработку своих
+	// персональных данных (152-ФЗ). Для новой записи обязателен: в карточке вводят
+	// паспорт и патент, то есть данные третьего лица. При правке существующей записи
+	// флаг только ДОБАВЛЯЕТ отметку, если её не было, - снять согласие правкой нельзя.
+	PDConsent bool `json:"pd_consent"`
 }
 
 // UniqueEmployeeResponse -- ответ при создании/обновлении сотрудника.
@@ -133,11 +165,15 @@ type UniqueEmployeeResponse struct {
 	UserID               *int       `json:"user_id"`
 	Status               bool       `json:"status"`
 	CreatedAt            *time.Time `json:"created_at"`
+	PDConsentAt          *time.Time `json:"pd_consent_at"`
 }
 
 // UniqueEmployeeHistoryItem -- запись истории мастер-сотрудника с username вызывающего.
 type UniqueEmployeeHistoryItem struct {
-	ID               int       `json:"id"`
+	ID int `json:"id"`
+	// Subject -- к кому относится событие (ФИО на момент действия). Пусто у событий,
+	// записанных до введения снимка, если сама запись уже удалена.
+	Subject          *string   `json:"subject"`
 	UniqueEmployeeID int       `json:"unique_employee_id"`
 	UserID           *int      `json:"user_id"`
 	Username         *string   `json:"username"`
@@ -165,6 +201,10 @@ type UniqueEmployeeService interface {
 	Update(ctx context.Context, username string, id int, req NewUniqueEmployeeRequest) (*UniqueEmployeeResponse, error)
 	Delete(ctx context.Context, username string, id int) error
 	GetHistory(ctx context.Context, username string, id int) ([]UniqueEmployeeHistoryItem, error)
+	// GetRegistryLog возвращает журнал по всему реестру, включая удалённые записи:
+	// у исчезнувшей строки истории по id не открыть, а вопрос «кем и когда удалена»
+	// задают именно про неё. Доступен администратору.
+	GetRegistryLog(ctx context.Context, username string, limit int) ([]UniqueEmployeeHistoryItem, error)
 }
 
 type uniqueEmployeeService struct {
@@ -187,6 +227,7 @@ func (s *uniqueEmployeeService) getEmployeeOwnerInfo(ctx context.Context, userna
 		HasCompany       bool    `gorm:"column:has_company"`
 		OrganizationName *string `gorm:"column:organization_name"`
 		CompanyName      *string `gorm:"column:company_name"`
+		CanManageAll     bool    `gorm:"column:can_manage_all"`
 	}
 
 	err := s.db.WithContext(ctx).
@@ -194,7 +235,8 @@ func (s *uniqueEmployeeService) getEmployeeOwnerInfo(ctx context.Context, userna
 		Select(`u.id as user_id, u.organization_id, u.company_id,
 			CASE WHEN o.id IS NOT NULL THEN true ELSE false END as has_organization,
 			CASE WHEN c.id IS NOT NULL THEN true ELSE false END as has_company,
-			o.name as organization_name, c.name as company_name`).
+			o.name as organization_name, c.name as company_name,
+			`+systemAdminExpr+` as can_manage_all`).
 		Joins("LEFT JOIN organizations o ON u.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON u.company_id = c.id").
 		Where("u.username = ?", username).
@@ -211,6 +253,7 @@ func (s *uniqueEmployeeService) getEmployeeOwnerInfo(ctx context.Context, userna
 		UserID:           result.UserID,
 		OrganizationName: result.OrganizationName,
 		CompanyName:      result.CompanyName,
+		CanManageAll:     result.CanManageAll,
 	}, nil
 }
 
@@ -232,6 +275,7 @@ func (s *uniqueEmployeeService) LookupByFIO(ctx context.Context, lastName, first
 		Joins("LEFT JOIN organizations o ON ue.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON ue.company_id = c.id").
 		Joins("LEFT JOIN citizenships cit ON ue.citizenship_id = cit.id").
+		Joins("LEFT JOIN users usr ON ue.user_id = usr.id").
 		Where("LOWER(TRIM(ue.last_name)) = LOWER(TRIM(?))", lastName).
 		Where("LOWER(TRIM(ue.first_name)) = LOWER(TRIM(?))", firstName).
 		Where("LOWER(TRIM(COALESCE(ue.middle_name, ''))) = LOWER(TRIM(?))", middleName).
@@ -259,7 +303,9 @@ const employeesListSelect = `ue.id, ue.last_name, ue.first_name, ue.middle_name,
 	ue."position", ue.passport_series_number, ue.patent_number,
 	ue.other_permission, ue.created_at,
 	o.name as organization_name, c.name as company_name,
-	cit.name as citizenship_name,
+	cit.name as citizenship_name, ue.pd_consent_at,
+	usr.username as owner_username, usr.last_name as owner_last_name,
+	usr.first_name as owner_first_name, usr.middle_name as owner_middle_name,
 	COALESCE((
 		SELECT true FROM employees e
 		JOIN attachments a ON e.attachment_id = a.id
@@ -341,7 +387,8 @@ func (s *uniqueEmployeeService) buildEmployeesQuery(ctx context.Context, ownerIn
 		Table("unique_employees ue").
 		Joins("LEFT JOIN organizations o ON ue.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON ue.company_id = c.id").
-		Joins("LEFT JOIN citizenships cit ON ue.citizenship_id = cit.id")
+		Joins("LEFT JOIN citizenships cit ON ue.citizenship_id = cit.id").
+		Joins("LEFT JOIN users usr ON ue.user_id = usr.id")
 
 	switch filterType {
 	case "organization":
@@ -392,12 +439,40 @@ func (s *uniqueEmployeeService) buildEmployeesQuery(ctx context.Context, ownerIn
 		variants := buildSearchVariants(raw)
 		cols := []string{"ue.last_name", "ue.first_name", "ue.middle_name", "ue.\"position\"", "o.name", "c.name", "cit.name"}
 		cond, args := ilikePatternsArgs(cols, variants)
+		// Форма с функцией по concat_ws индексом не покрывается (выражение не IMMUTABLE)
+		// и даёт полный просмотр таблицы. Индексируемый вариант -- оператор по отдельным
+		// колонкам: ue.last_name %>> ? и т.д. с порогом через SET LOCAL, так сделан
+		// сквозной поиск (search_scope.go). Здесь оставлено как есть: замена меняет
+		// разбор многословных запросов, а листинг открывают по кнопке, не на каждый
+		// введённый символ.
 		cond += " OR strict_word_similarity(?, concat_ws(' ', ue.last_name, ue.first_name, ue.middle_name)) > 0.3"
 		args = append(args, raw)
 		query = query.Where(cond, args...)
 	}
 
 	return query
+}
+
+// maskEmployeeOwners заполняет «за кем закреплена запись» для администратора и убирает
+// это поле у остальных: привязка записи к учётной записи - служебные данные бюро, соседям
+// по организации она ни к чему. Поле только читается (в запросах на запись его нет),
+// поэтому скрытие не может обернуться стиранием при обратной отправке формы.
+//
+// Показываем ФИО владельца, а не логин: логин человеку ничего не говорит. У работника,
+// не давшего согласия на обработку своих данных, ФИО скрыто по общему правилу (#1567) -
+// тогда в строке стоит его логин с собачкой, тот же, что интерфейс показывает всюду.
+func maskEmployeeOwners(ctx context.Context, db *gorm.DB, rows []UniqueEmployeeWithRelations, canManageAll bool) {
+	if !canManageAll {
+		for i := range rows {
+			rows[i].UserName = nil
+		}
+		return
+	}
+	masks := loadNameMasks(ctx, db)
+	for i := range rows {
+		rows[i].UserName = ownerDisplayName(masks, rows[i].UserID,
+			rows[i].OwnerUsername, rows[i].OwnerLastName, rows[i].OwnerFirstName, rows[i].OwnerMiddleName)
+	}
 }
 
 // GetAll возвращает список уникальных сотрудников с фильтрацией по типу владельца.
@@ -407,7 +482,7 @@ func (s *uniqueEmployeeService) GetAll(ctx context.Context, username string, fil
 		return nil, err
 	}
 
-	if filterType == "all_system" && !userCanSeeAllSystem(ctx, s.db, ownerInfo.UserID) {
+	if filterType == "all_system" && !ownerInfo.CanManageAll {
 		return nil, echo.NewHTTPError(http.StatusForbidden, "Недостаточно прав для просмотра всех записей системы")
 	}
 
@@ -423,6 +498,7 @@ func (s *uniqueEmployeeService) GetAll(ctx context.Context, username string, fil
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employees")
 	}
 	decryptEmployees(employees)
+	maskEmployeeOwners(ctx, s.db, employees, ownerInfo.CanManageAll)
 
 	return employees, nil
 }
@@ -434,7 +510,7 @@ func (s *uniqueEmployeeService) GetAllPaginated(ctx context.Context, username, f
 		return nil, 0, err
 	}
 
-	if filterType == "all_system" && !userCanSeeAllSystem(ctx, s.db, ownerInfo.UserID) {
+	if filterType == "all_system" && !ownerInfo.CanManageAll {
 		return nil, 0, echo.NewHTTPError(http.StatusForbidden, "Недостаточно прав для просмотра всех записей системы")
 	}
 
@@ -456,6 +532,7 @@ func (s *uniqueEmployeeService) GetAllPaginated(ctx context.Context, username, f
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employees")
 	}
 	decryptEmployees(employees)
+	maskEmployeeOwners(ctx, s.db, employees, ownerInfo.CanManageAll)
 
 	return employees, total, nil
 }
@@ -490,6 +567,7 @@ func employeeToResponse(emp *models.UniqueEmployee) *UniqueEmployeeResponse {
 		UserID:               emp.UserID,
 		Status:               status,
 		CreatedAt:            &emp.CreatedAt,
+		PDConsentAt:          emp.PDConsentAt,
 	}
 }
 
@@ -498,6 +576,14 @@ func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req
 	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
 	if err != nil {
 		return nil, err
+	}
+
+	// Согласие субъекта - условие приёма его данных, а не настройка. Гейт стоит до
+	// проверок уникальности: смысла искать дубликат паспорта, который нам нельзя
+	// обрабатывать, нет.
+	if !req.PDConsent {
+		return nil, echo.NewHTTPError(http.StatusBadRequest,
+			"Без согласия субъекта на обработку персональных данных запись создать нельзя")
 	}
 
 	// Проверка уникальности паспортных данных для пользователя
@@ -545,7 +631,10 @@ func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req
 	}
 
 	statusFalse := false
+	consentGrantedAt := time.Now().UTC()
 	employee := models.UniqueEmployee{
+		PDConsentAt:          &consentGrantedAt,
+		PDConsentByUserID:    &ownerInfo.UserID,
 		LastName:             req.LastName,
 		FirstName:            req.FirstName,
 		MiddleName:           req.MiddleName,
@@ -563,6 +652,19 @@ func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req
 	if err := s.db.WithContext(ctx).Create(&employee).Error; err != nil {
 		slog.Error("не удалось создать уникального сотрудника", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка при создании сотрудника")
+	}
+
+	// Запись о заведении - для журнала реестра: правки и удаления в нём есть, и без
+	// создания история записи начиналась бы с середины. Ошибка аудита саму запись не
+	// откатывает, она уже создана - логируем и идём дальше.
+	created := strings.TrimSpace(strings.Join(nonEmptyStrings(employee.LastName, employee.FirstName, employee.MiddleName), " "))
+	if created == "" {
+		created = fmt.Sprintf("без имени (номер записи %d)", employee.ID)
+	}
+	createComment := fmt.Sprintf("Сотрудник %s заведён в реестр", created)
+	if err := s.recorder.Record(ctx, nil, models.AuditEntityUniqueEmployee, &employee.ID, "create",
+		&ownerInfo.UserID, carAuditDetails{Comment: &createComment, Subject: &created}); err != nil {
+		slog.Error("не удалось записать создание сотрудника в журнал", "id", employee.ID, "error", err)
 	}
 
 	slog.Info("уникальный сотрудник создан", "id", employee.ID)
@@ -590,16 +692,23 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 		return nil, echo.NewHTTPError(http.StatusForbidden, "You don't have permission to edit this employee")
 	}
 
-	// Проверка уникальности паспортных данных для пользователя (исключая текущего)
+	// Уникальность считается по владельцу ЗАПИСИ, а не по тому, кто правит:
+	// администратор правит чужих сотрудников, и его собственный список тут ни при чём.
+	ownerUserID := ownerInfo.UserID
+	if existing.UserID != nil {
+		ownerUserID = *existing.UserID
+	}
+
+	// Проверка уникальности паспортных данных у владельца записи (исключая текущего)
 	if req.PassportSeriesNumber != nil {
 		var count int64
 		if err := s.db.WithContext(ctx).Model(&models.UniqueEmployee{}).
-			Where("user_id = ? AND passport_series_number_hmac = ? AND id != ?", ownerInfo.UserID, crypto.ComputeHMAC(*req.PassportSeriesNumber, crypto.GetGlobalKey()), id).
+			Where("user_id = ? AND passport_series_number_hmac = ? AND id != ?", ownerUserID, crypto.ComputeHMAC(*req.PassportSeriesNumber, crypto.GetGlobalKey()), id).
 			Count(&count).Error; err != nil {
 			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking employee uniqueness")
 		}
 		if count > 0 {
-			return nil, echo.NewHTTPError(http.StatusBadRequest, "Сотрудник с такими паспортными данными уже привязан к вашему аккаунту")
+			return nil, echo.NewHTTPError(http.StatusBadRequest, "Сотрудник с такими паспортными данными уже есть у владельца записи")
 		}
 	}
 
@@ -629,11 +738,6 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 		}
 	}
 
-	userID := ownerInfo.UserID
-	if req.UserID != nil {
-		userID = *req.UserID
-	}
-
 	updates := map[string]interface{}{
 		"last_name":        req.LastName,
 		"first_name":       req.FirstName,
@@ -643,7 +747,20 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 		"other_permission": req.OtherPermission,
 		"organization_id":  req.OrganizationID,
 		"company_id":       req.CompanyID,
-		"user_id":          userID,
+	}
+	// Владельца меняем только по явному указанию в запросе. Прежний код подставлял
+	// сюда правящего пользователя, и правка чужой записи переводила её на себя;
+	// у администратора, который правит сотрудников всей системы, это переписало бы
+	// привязки реестра.
+	if req.UserID != nil {
+		updates["user_id"] = *req.UserID
+	}
+	// Согласие правкой только ДОБАВЛЯЕТСЯ: у записи, заведённой до введения поля,
+	// отметку можно поставить, а снять её снятой галочкой нельзя - иначе полученное
+	// согласие исчезало бы из базы вместе с исправлением опечатки в фамилии.
+	if req.PDConsent && existing.PDConsentAt == nil {
+		updates["pd_consent_at"] = time.Now().UTC()
+		updates["pd_consent_by_user_id"] = ownerInfo.UserID
 	}
 	if req.PassportSeriesNumber != nil {
 		enc, err := crypto.Encrypt(*req.PassportSeriesNumber, crypto.GetGlobalKey())
@@ -699,9 +816,15 @@ func (s *uniqueEmployeeService) recordEmployeeChanges(ctx context.Context, befor
 	}
 
 	uid := userID
+	// Снимок ФИО в каждой записи: журнал реестра показывает, К КОМУ относится событие, а
+	// после удаления записи по её номеру этого уже не узнать.
+	subject := strings.TrimSpace(strings.Join(nonEmptyStrings(after.LastName, after.FirstName, after.MiddleName), " "))
 	for _, c := range changes {
 		field := c.Field
 		details := carAuditDetails{FieldName: &field, OldValue: c.Old, NewValue: c.New}
+		if subject != "" {
+			details.Subject = &subject
+		}
 		if err := s.recorder.Record(ctx, nil, models.AuditEntityUniqueEmployee, &after.ID, "data_changed", &uid, details); err != nil {
 			return fmt.Errorf("record unique_employee change: %w", err)
 		}
@@ -741,6 +864,9 @@ func diffUniqueEmployee(before, after *models.UniqueEmployee) []fieldChange {
 	addInt("organization_id", before.OrganizationID, after.OrganizationID)
 	addInt("company_id", before.CompanyID, after.CompanyID)
 	addInt("user_id", before.UserID, after.UserID)
+	// Появление отметки о согласии - событие для истории: по ней потом отвечают, на
+	// каком основании обрабатывались данные человека.
+	addStr("pd_consent_at", timePtrToStrPtr(before.PDConsentAt), timePtrToStrPtr(after.PDConsentAt))
 	return changes
 }
 
@@ -751,8 +877,11 @@ func (s *uniqueEmployeeService) Delete(ctx context.Context, username string, id 
 		return err
 	}
 
+	// ФИО читаем ДО удаления: после него по id уже ничего не прочитать, а вопрос «кем и
+	// когда запись удалена» задают именно про исчезнувшую.
 	var existing models.UniqueEmployee
-	if err := s.db.WithContext(ctx).Select("user_id, organization_id, company_id").
+	if err := s.db.WithContext(ctx).
+		Select("user_id, organization_id, company_id, last_name, first_name, middle_name").
 		First(&existing, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return echo.NewHTTPError(http.StatusNotFound, "Employee not found")
@@ -764,17 +893,46 @@ func (s *uniqueEmployeeService) Delete(ctx context.Context, username string, id 
 		return echo.NewHTTPError(http.StatusForbidden, "You don't have permission to delete this employee")
 	}
 
-	result := s.db.WithContext(ctx).Delete(&models.UniqueEmployee{}, id)
-	if result.Error != nil {
-		slog.Error("не удалось удалить уникального сотрудника", "id", id, "error", result.Error)
+	// Удаление и запись в журнал - одной транзакцией: запись, исчезнувшая без следа,
+	// оставляет вопрос «кто её убрал» без ответа навсегда, а запись в журнале о живой
+	// строке - врёт. Либо оба факта, либо ни один.
+	fio := strings.TrimSpace(strings.Join(nonEmptyStrings(existing.LastName, existing.FirstName, existing.MiddleName), " "))
+	if fio == "" {
+		fio = fmt.Sprintf("без имени (номер записи %d)", id)
+	}
+	comment := fmt.Sprintf("Сотрудник %s удалён из реестра", fio)
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Delete(&models.UniqueEmployee{}, id)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return s.recorder.Record(ctx, tx, models.AuditEntityUniqueEmployee, &id, "delete",
+			&ownerInfo.UserID, carAuditDetails{Comment: &comment, Subject: &fio})
+	})
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return echo.NewHTTPError(http.StatusNotFound, "Employee not found")
+		}
+		slog.Error("не удалось удалить уникального сотрудника", "id", id, "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting employee")
 	}
-	if result.RowsAffected == 0 {
-		return echo.NewHTTPError(http.StatusNotFound, "Employee not found")
-	}
 
-	slog.Info("уникальный сотрудник удалён", "id", id)
+	slog.Info("уникальный сотрудник удалён", "id", id, "actor_user_id", ownerInfo.UserID)
 	return nil
+}
+
+// nonEmptyStrings отбирает непустые значения указателей - для сборки ФИО из частей.
+func nonEmptyStrings(parts ...*string) []string {
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p != nil && strings.TrimSpace(*p) != "" {
+			out = append(out, strings.TrimSpace(*p))
+		}
+	}
+	return out
 }
 
 // GetHistory возвращает историю изменений мастер-записи сотрудника.
@@ -826,8 +984,67 @@ func (s *uniqueEmployeeService) GetHistory(ctx context.Context, username string,
 	return items, nil
 }
 
+// GetRegistryLog отдаёт журнал реестра сотрудников целиком: создания, правки полей и
+// удаления, с автором и временем. Единственный способ узнать, кем и когда убрана
+// запись, - у удалённой строки карточки и истории по id больше нет.
+//
+// Доступ - администратору (тот же признак, что открывает правку чужих записей): журнал
+// говорит, кто из работников что делал, и это служебные сведения бюро.
+func (s *uniqueEmployeeService) GetRegistryLog(ctx context.Context, username string, limit int) ([]UniqueEmployeeHistoryItem, error) {
+	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	if !ownerInfo.CanManageAll {
+		return nil, echo.NewHTTPError(http.StatusForbidden, "Журнал реестра доступен администратору")
+	}
+	if limit <= 0 || limit > registryLogMaxRows {
+		limit = registryLogMaxRows
+	}
+
+	// subject: снимок из записи журнала, а при его отсутствии (события до введения
+	// снимка) - ФИО живой записи реестра. У удалённой записи остаётся только снимок.
+	const sql = `
+		SELECT m.id, m.unique_employee_id, m.user_id, u.username,
+			u.last_name AS user_last_name, u.first_name AS user_first_name,
+			m.action_type, m.field_name, m.old_value, m.new_value, m.comment, m.created_at,
+			COALESCE(
+				NULLIF(TRIM(m.subject), ''),
+				NULLIF(TRIM(CONCAT_WS(' ', ue.last_name, ue.first_name, ue.middle_name)), '')
+			) AS subject
+		FROM (
+			SELECT a.id, a.entity_id AS unique_employee_id, a.actor_user_id AS user_id,
+				a.action AS action_type, a.details->>'field_name' AS field_name,
+				a.details->>'old_value' AS old_value, a.details->>'new_value' AS new_value,
+				a.details->>'comment' AS comment, a.details->>'subject' AS subject, a.created_at
+			FROM audit_log a
+			WHERE a.entity_type = ?
+		) m
+		LEFT JOIN users u ON u.id = m.user_id
+		LEFT JOIN unique_employees ue ON ue.id = m.unique_employee_id
+		ORDER BY m.created_at DESC, m.id DESC
+		LIMIT ?`
+
+	items := make([]UniqueEmployeeHistoryItem, 0)
+	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityUniqueEmployee, limit).Scan(&items).Error; err != nil {
+		slog.Error("не удалось загрузить журнал реестра сотрудников", "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching registry log")
+	}
+	return items, nil
+}
+
+// registryLogMaxRows - потолок выдачи журнала реестра. Журнал открывают, чтобы найти
+// недавнее событие, а не выгрузить всю историю установки; без потолка один запрос на
+// большой базе тянул бы сотни тысяч строк.
+const registryLogMaxRows = 500
+
 // canEditEmployee проверяет права пользователя на редактирование сотрудника.
 func (s *uniqueEmployeeService) canEditEmployee(emp *models.UniqueEmployee, ownerInfo *EmployeeOwnerInfo) bool {
+	// Администратор системы правит и удаляет любого сотрудника реестра: бюро ведёт
+	// данные за контрагентов, чьей организации у него нет.
+	if ownerInfo.CanManageAll {
+		return true
+	}
 	if emp.UserID != nil && *emp.UserID == ownerInfo.UserID {
 		return true
 	}

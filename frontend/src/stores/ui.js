@@ -20,6 +20,9 @@ export const useUiStore = defineStore('ui', () => {
   // Временный оверлейный разворот рельса (онбординг-тур). Не персистится и не
   // влияет на --nav-ml: рельс расширяется поверх контента, без reflow.
   const tourForceExpand = ref(false)
+  // Идёт онбординг-тур. Живёт в ui, а не в сторе онбординга, чтобы читатели
+  // (плашки уведомлений) не тянули за собой весь модуль тура с его роутером.
+  const tourActive = ref(false)
 
   watch([sidebarExpanded, sidebarHidden], ([pinned, hidden]) => {
     try {
@@ -72,6 +75,7 @@ export const useUiStore = defineStore('ui', () => {
   }
 
   return {
+    tourActive,
     sidebarExpanded,
     sidebarHidden,
     tourForceExpand,

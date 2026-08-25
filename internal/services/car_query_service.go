@@ -104,20 +104,12 @@ func (s *carService) factCars(ctx context.Context, tableID *int) ([]TableCarResp
 	return s.enrichTableCars(ctx, rows)
 }
 
-// GetActiveCarsForTables возвращает активные автомобили для всех таблиц (без «по факту»).
-func (s *carService) GetActiveCarsForTables(ctx context.Context) ([]TableCarResponse, error) {
-	return s.activeCars(ctx, nil)
-}
 
 // GetActiveCarsForTable возвращает активные машины конкретной таблицы «Проезд» (#1036).
 func (s *carService) GetActiveCarsForTable(ctx context.Context, tableID int) ([]TableCarResponse, error) {
 	return s.activeCars(ctx, &tableID)
 }
 
-// GetFactCarsForTables возвращает автомобили с номером «по факту».
-func (s *carService) GetFactCarsForTables(ctx context.Context) ([]TableCarResponse, error) {
-	return s.factCars(ctx, nil)
-}
 
 // GetFactCarsForTable возвращает машины «по факту» конкретной таблицы «Проезд» (#1036).
 func (s *carService) GetFactCarsForTable(ctx context.Context, tableID int) ([]TableCarResponse, error) {

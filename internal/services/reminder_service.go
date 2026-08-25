@@ -12,11 +12,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// NotificationTypeApprovalReminder -- уведомление согласующему о зависшей заявке
-// (#1315): заявка ждёт его решения дольше настроенного срока молчания.
-const NotificationTypeApprovalReminder = "application_approval_reminder"
-
 // ReminderService отбирает зависших согласующих и шлёт им напоминания (#1315).
+// Тип уведомления -- NotificationTypeApprovalReminder (каталог, notification_catalog.go):
+// заявка ждёт решения согласующего дольше настроенного срока молчания.
 type ReminderService interface {
 	// SendPendingReminders прогоняет отбор и рассылку. Вызывается кроном
 	// (cmd/server/main.go) раз в час; no-op, если approval.reminder_enabled выключен.

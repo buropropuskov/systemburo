@@ -224,10 +224,23 @@ export async function getTemplateFile(uniqueAttachmentID) {
 /**
  * Скачать заполненный бланк для одного вложения заявки.
  * Возвращает Blob, который нужно сохранить через createObjectURL + link.click().
+ * @param {number} applicationID
+ * @param {number} attachmentID
+ * @param {{withDocuments?: boolean}} [options] withDocuments - подставить документы
+ *   участников (паспорт, патент, иное разрешение). Решение всё равно перепроверяет
+ *   сервер по правам detail.documents и detail.documents.export: без них бланк
+ *   приходит с прочерками.
+ *
+ * Источник (сохранённый файл архива против генерации заново) в интерфейсе не
+ * выбирается: заявителю разница непонятна, а бланк собирается заново всегда.
+ * Сохранённые копии забирают из раздела «Файловый архив», у сервера параметр
+ * source остался.
  */
-export async function downloadBlank(applicationID, attachmentID) {
+export async function downloadBlank(applicationID, attachmentID, { withDocuments } = {}) {
   const { apiRequestRaw } = await import('./client');
-  const res = await apiRequestRaw(`/applications/${applicationID}/blank?attachment_id=${attachmentID}`);
+  let url = `/applications/${applicationID}/blank?attachment_id=${attachmentID}`;
+  if (withDocuments) url += '&documents=1';
+  const res = await apiRequestRaw(url);
   if (!res.ok) {
     throw new Error(`Failed to download blank: ${res.status}`);
   }
@@ -242,11 +255,14 @@ export async function downloadBlank(applicationID, attachmentID) {
  * Тот же эндпоинт, что downloadBlank, но без сохранения в файл - буфер парсит exceljs во вьювере.
  * @param {number} applicationID
  * @param {number} attachmentID
+ * @param {{withDocuments?: boolean}} [options] withDocuments - показать документы
+ *   участников; проверяется сервером по правам, как и при скачивании.
  * @returns {Promise<ArrayBuffer>}
  */
-export async function previewBlank(applicationID, attachmentID) {
+export async function previewBlank(applicationID, attachmentID, { withDocuments } = {}) {
   const { apiRequestRaw } = await import('./client');
-  const res = await apiRequestRaw(`/applications/${applicationID}/blank?attachment_id=${attachmentID}`);
+  const docs = withDocuments ? '&documents=1' : '';
+  const res = await apiRequestRaw(`/applications/${applicationID}/blank?attachment_id=${attachmentID}${docs}`);
   if (!res.ok) {
     throw new Error(`Failed to preview blank: ${res.status}`);
   }

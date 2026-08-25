@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -17,11 +18,29 @@ import (
 // RequirePermissionV2; история (GetHistory) доступна всем авторизованным.
 type ApproverService interface {
 	GetAll(ctx context.Context) ([]models.ApplicationApproverWithUser, error)
+
+	// GetRecipients отдаёт принимающих для строки получателей заявки - только
+	// отображаемые имена. Отдельно от GetAll по той же причине, что и IsApprover:
+	// тот закрыт правом администратора, а заявителю нужно видеть, кому уйдёт заявка.
+	GetRecipients(ctx context.Context) ([]models.ApplicationRecipient, error)
+
 	GetAvailableUsers(ctx context.Context) ([]models.AvailableApproverUser, error)
 	Create(ctx context.Context, userID int, createdByUsername string) error
 	Update(ctx context.Context, id int, displayName *string, actorUsername string) error
 	Delete(ctx context.Context, id int, actorUsername string) error
 	GetHistory(ctx context.Context) ([]models.ApplicationApproverHistoryItem, error)
+
+	// IsApprover сообщает, числится ли пользователь принимающим. Отдельно от GetAll:
+	// тот отдаёт весь состав с ФИО и организациями и потому закрыт правом администратора,
+	// а карточке заявки нужен только ответ про себя - без него кнопки принимающего не
+	// показывались бы никому, кроме администраторов (#1685).
+	IsApprover(ctx context.Context, username string) (bool, error)
+
+	// IsReviewer сообщает, назначен ли пользователь согласующим хоть где-нибудь.
+	// Согласующий живёт per-application (application_responsible_users), поэтому
+	// глобального признака у него не было; здесь он выводится из назначений в
+	// организациях и компаниях - именно оттуда согласующие попадают в заявку (#1737).
+	IsReviewer(ctx context.Context, username string) (bool, error)
 }
 
 type approverService struct {
@@ -49,6 +68,62 @@ func (s *approverService) GetAll(ctx context.Context) ([]models.ApplicationAppro
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching approvers")
 	}
+	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+		for i := range result {
+			maskUserParts(masks, result[i].UserID, &result[i].LastName, &result[i].FirstName, &result[i].MiddleName)
+		}
+	}
+	return result, nil
+}
+
+// GetRecipients возвращает принимающих для строки получателей заявки: заявителю нужно
+// видеть, кому уйдёт заявка, а полный состав с организациями и должностями закрыт правом
+// администратора. Имя берётся из маски, если она задана, иначе собирается из ФИО; когда
+// работник не дал согласия на обработку персональных данных, вместо ФИО идёт логин - тем
+// же правилом, что и в остальных местах.
+func (s *approverService) GetRecipients(ctx context.Context) ([]models.ApplicationRecipient, error) {
+	var rows []struct {
+		UserID      int
+		Username    string
+		LastName    *string
+		FirstName   *string
+		MiddleName  *string
+		DisplayName *string
+	}
+	err := s.db.WithContext(ctx).
+		Table("application_approvers aa").
+		Select(`aa.user_id, u.username, u.last_name, u.first_name, u.middle_name, aa.display_name`).
+		Joins("JOIN users u ON u.id = aa.user_id").
+		// Супер-администратор в получателях не нужен: он числится принимающим ради
+		// доступа, а не как адресат заявки, и в списке только сбивал бы заявителя.
+		Where("u.is_active AND NOT u.is_banned AND NOT u.is_super_admin").
+		Order("u.last_name, u.first_name").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching recipients")
+	}
+
+	masks := loadConsentMasks(ctx, s.db)
+	result := make([]models.ApplicationRecipient, 0, len(rows))
+	for _, r := range rows {
+		if r.DisplayName != nil && strings.TrimSpace(*r.DisplayName) != "" {
+			result = append(result, models.ApplicationRecipient{UserID: r.UserID, Name: strings.TrimSpace(*r.DisplayName), Masked: true})
+			continue
+		}
+		last, first, middle := r.LastName, r.FirstName, r.MiddleName
+		maskUserParts(masks, r.UserID, &last, &first, &middle)
+		parts := make([]string, 0, 3)
+		for _, p := range []*string{last, first, middle} {
+			if p != nil && strings.TrimSpace(*p) != "" {
+				parts = append(parts, strings.TrimSpace(*p))
+			}
+		}
+		name := strings.Join(parts, " ")
+		if name == "" {
+			name = r.Username
+		}
+		result = append(result, models.ApplicationRecipient{UserID: r.UserID, Name: name})
+	}
 	return result, nil
 }
 
@@ -66,6 +141,11 @@ func (s *approverService) GetAvailableUsers(ctx context.Context) ([]models.Avail
 		Scan(&result).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching available users")
+	}
+	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+		for i := range result {
+			maskUserParts(masks, result[i].ID, &result[i].LastName, &result[i].FirstName, &result[i].MiddleName)
+		}
 	}
 	return result, nil
 }
@@ -210,15 +290,18 @@ func (s *approverService) GetHistory(ctx context.Context) ([]models.ApplicationA
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching approver history")
 	}
 
+	// Логин вместо ФИО у обоих участников записи: и у актора, и у принимающего,
+	// которого добавили или сняли - это тоже персональные данные работника.
+	masks := loadConsentMasks(ctx, s.db)
 	items := make([]models.ApplicationApproverHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.ApplicationApproverHistoryItem{
 			ID:             r.ID,
 			ApproverUserID: r.ApproverUserID,
-			ApproverName:   r.ApproverName,
+			ApproverName:   maskName(masks, &r.ApproverUserID, r.ApproverName),
 			ActionType:     r.ActionType,
 			ActorUserID:    r.ActorUserID,
-			ActorName:      r.ActorName,
+			ActorName:      maskName(masks, r.ActorUserID, r.ActorName),
 			CreatedAt:      r.CreatedAt,
 		})
 	}
@@ -236,4 +319,39 @@ func (s *approverService) resolveUserName(ctx context.Context, userID int) strin
 		Row().
 		Scan(&name)
 	return name
+}
+
+// IsApprover проверяет, числится ли пользователь принимающим заявки.
+func (s *approverService) IsApprover(ctx context.Context, username string) (bool, error) {
+	var count int64
+	err := s.db.WithContext(ctx).
+		Table("application_approvers aa").
+		Joins("JOIN users u ON u.id = aa.user_id").
+		Where("u.username = ?", username).
+		Count(&count).Error
+	if err != nil {
+		slog.Error("Ошибка проверки принимающего", "username", username, "error", err)
+		return false, echo.NewHTTPError(http.StatusInternalServerError, "Error checking approver")
+	}
+	return count > 0, nil
+}
+
+// IsReviewer проверяет, назначен ли пользователь согласующим в организации или компании.
+func (s *approverService) IsReviewer(ctx context.Context, username string) (bool, error) {
+	const q = `
+		SELECT EXISTS (
+			SELECT 1 FROM organization_users ou
+			JOIN users u ON u.id = ou.user_id
+			WHERE u.username = ? AND ou.required_approval = true
+		) OR EXISTS (
+			SELECT 1 FROM companies_users cu
+			JOIN users u ON u.id = cu.user_id
+			WHERE u.username = ? AND cu.required_approval = true
+		)`
+	var isReviewer bool
+	if err := s.db.WithContext(ctx).Raw(q, username, username).Scan(&isReviewer).Error; err != nil {
+		slog.Error("Ошибка проверки согласующего", "username", username, "error", err)
+		return false, echo.NewHTTPError(http.StatusInternalServerError, "Error checking reviewer")
+	}
+	return isReviewer, nil
 }

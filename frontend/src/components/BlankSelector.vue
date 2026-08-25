@@ -55,7 +55,15 @@
       </div>
     </template>
 
-    <div class="categories-container">
+    <!-- Якорь онбординга - на контейнере всех категорий: списки бланков живут
+         внутри v-for, и одинаковый testid на каждом из них тур цеплял по
+         первому - на бланке «Сотрудники» это была пустая категория «Автомобили».
+         data-selected-type даёт туру дождаться, пока выделение переедет. -->
+    <div
+      class="categories-container"
+      data-testid="ob-blank-list"
+      :data-selected-type="selectedAttachment && selectedAttachment.attachment_type"
+    >
       <div
         v-for="category in uniqueCategories"
         v-show="!isNarrow || getCategoryAttachments(category).length > 0"
@@ -80,6 +88,8 @@
             :key="getAttachmentKey(attachment)"
             class="attachment"
             :class="{ selected: isSelected(attachment), editing: isEditing(attachment) }"
+            :data-testid="isSelected(attachment) ? 'ob-blank-selected' : null"
+
             @click="selectAttachment(attachment, $event)"
             @mouseenter="handleMouseEnter(attachment, $event)"
             @mouseleave="handleMouseLeave"
@@ -151,12 +161,11 @@
                 title="Переименовать"
                 @click.stop="startRename(attachment)"
               >
-                <img
+                <AppIcon
                   v-if="isNarrow"
-                  src="@/assets/icons/edit.png"
-                  alt="Переименовать"
+                  name="edit"
                   class="edit-btn__icon"
-                >
+                />
                 <template v-else>
                   ✎
                 </template>
@@ -226,11 +235,14 @@
 import { apiRequest } from '@/api/client'
 import { getViewportZoom } from '@/utils/viewportScale'
 import { useOnboardingStore } from '@/stores/onboarding';
+import { useDeletionsStore } from '@/stores/deletions';
 import ConfirmationModal from './ConfirmationModal.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
     name: 'BlankSelector',
     components: {
+      AppIcon,
         ConfirmationModal
     },
     props: {
@@ -540,7 +552,12 @@ export default {
         addAttachment(category) {
             const categoryAttachments = this.getCategoryAttachments(category);
             if (categoryAttachments.length >= 10) {
-                alert(`Максимальное количество бланков в категории "${category}" — 10.`);
+                useDeletionsStore().notify({
+                    prefix: 'В категории ',
+                    bold: category,
+                    suffix: ' уже 10 бланков - это максимум',
+                    type: 'warning',
+                });
                 return;
             }
 
@@ -758,11 +775,15 @@ export default {
 </script>
 
 <style scoped>
+/* Панель - карточка на фоне страницы, поэтому несёт --surface. Без своего фона сквозь
+   неё светил --bg, а полоса кнопок ниже (у неё фон есть, он перекрывает уезжающий под
+   неё список) читалась серой заплатой поверх тёмной панели. */
 .selector {
     width: 200px;
     flex-shrink: 0;
     height: 490px;
     border-radius: 30px;
+    background: var(--surface);
     border: 1px solid var(--border);
     padding: 15px;
     display: flex;
@@ -1279,6 +1300,7 @@ export default {
     }
 
     .edit-btn__icon {
+        color: var(--text);
         width: 16px;
         height: 16px;
         opacity: 0.65;

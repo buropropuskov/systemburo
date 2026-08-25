@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"time"
@@ -35,8 +36,9 @@ type NewsService interface {
 }
 
 type newsService struct {
-	db                *gorm.DB
-	realtimePublisher realtime.Publisher
+	db                  *gorm.DB
+	realtimePublisher   realtime.Publisher
+	notificationService NotificationService
 }
 
 // NewsServiceOption конфигурирует newsService при создании.
@@ -48,6 +50,12 @@ type NewsServiceOption func(*newsService)
 // не шлются (тесты, offline).
 func WithNewsRealtimePublisher(p realtime.Publisher) NewsServiceOption {
 	return func(s *newsService) { s.realtimePublisher = p }
+}
+
+// WithNewsNotifications включает персональные уведомления news_published (#1748)
+// при публикации новости. Опционально: без неё уведомления не шлются (тесты, offline).
+func WithNewsNotifications(ns NotificationService) NewsServiceOption {
+	return func(s *newsService) { s.notificationService = ns }
 }
 
 // NewNewsService создаёт реализацию NewsService.
@@ -76,6 +84,33 @@ func (s *newsService) notifyNewsChanged(ctx context.Context) {
 	s.realtimePublisher.PublishMany(ids, realtime.Event{Type: "news.refresh", Scope: "news"})
 }
 
+// notifyNewsPublished шлёт NotificationTypeNewsPublished активным пользователям
+// при публикации новости (#1748). Активная новость (GetActiveNews) видна любому
+// авторизованному без гейта прав - разделу «Обзор и новости» не соответствует
+// отдельное view-право, поэтому аудитория, как и у notifyNewsChanged, = все
+// активные аккаунты. Автору новости не шлём - он и так знает, что опубликовал.
+func (s *newsService) notifyNewsPublished(ctx context.Context, newsID int, authorID int, title string) {
+	if s.notificationService == nil {
+		return
+	}
+	ids, err := activeUserIDs(ctx, s.db)
+	if err != nil {
+		slog.Warn("новость опубликована: не удалось собрать аудиторию уведомления", "news_id", newsID, "err", err)
+		return
+	}
+	payload, _ := json.Marshal(map[string]any{"news_id": newsID, "title": title})
+	payloadStr := string(payload)
+	notifTitle := "Опубликована новость"
+	for _, uid := range ids {
+		if uid == authorID {
+			continue
+		}
+		if err := s.notificationService.CreateForUser(ctx, uid, NotificationTypeNewsPublished, notifTitle, title, &payloadStr); err != nil {
+			slog.Warn("не удалось уведомить о публикации новости", "news_id", newsID, "user_id", uid, "error", err)
+		}
+	}
+}
+
 // --- News ---
 
 func (s *newsService) newsSelectQuery(db *gorm.DB) *gorm.DB {
@@ -89,6 +124,33 @@ func (s *newsService) newsSelectQuery(db *gorm.DB) *gorm.DB {
 		Joins("LEFT JOIN users uu ON n.updated_by = uu.id")
 }
 
+// maskNewsAuthors подменяет ФИО авторов новостей логином, если они не давали
+// согласия на обработку персональных данных.
+func (s *newsService) maskNewsAuthors(ctx context.Context, items []models.NewsWithUser) {
+	masks := loadConsentMasks(ctx, s.db)
+	if len(masks) == 0 {
+		return
+	}
+	for i := range items {
+		items[i].CreatedByName = maskNamePtr(masks, items[i].CreatedBy, items[i].CreatedByName)
+		items[i].UpdatedByName = maskNamePtr(masks, items[i].UpdatedBy, items[i].UpdatedByName)
+	}
+}
+
+// maskAnnouncementAuthors - то же для объявлений: их видит любой авторизованный,
+// а авторов там трое (создал, изменил, включил).
+func (s *newsService) maskAnnouncementAuthors(ctx context.Context, items []models.AnnouncementWithUser) {
+	masks := loadConsentMasks(ctx, s.db)
+	if len(masks) == 0 {
+		return
+	}
+	for i := range items {
+		items[i].CreatedByName = maskNamePtr(masks, items[i].CreatedBy, items[i].CreatedByName)
+		items[i].UpdatedByName = maskNamePtr(masks, items[i].UpdatedBy, items[i].UpdatedByName)
+		items[i].ActivatedByName = maskNamePtr(masks, items[i].ActivatedBy, items[i].ActivatedByName)
+	}
+}
+
 func (s *newsService) GetActiveNews(ctx context.Context) ([]models.NewsWithUser, error) {
 	results := make([]models.NewsWithUser, 0)
 	err := s.newsSelectQuery(s.db.WithContext(ctx)).
@@ -98,6 +160,7 @@ func (s *newsService) GetActiveNews(ctx context.Context) ([]models.NewsWithUser,
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching news")
 	}
+	s.maskNewsAuthors(ctx, results)
 	return results, nil
 }
 
@@ -109,6 +172,7 @@ func (s *newsService) GetAllNews(ctx context.Context) ([]models.NewsWithUser, er
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching news")
 	}
+	s.maskNewsAuthors(ctx, results)
 	return results, nil
 }
 
@@ -141,6 +205,11 @@ func (s *newsService) CreateNews(ctx context.Context, userID int, req models.Cre
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching created news")
 	}
 	s.notifyNewsChanged(ctx)
+	// Уведомление о публикации - только для реально видимой новости (создание
+	// черновика, если фронт когда-нибудь его заведёт, тишины не нарушает).
+	if isActive {
+		s.notifyNewsPublished(ctx, news.ID, userID, news.Title)
+	}
 	return &result, nil
 }
 
@@ -223,7 +292,10 @@ func (s *newsService) GetActiveAnnouncement(ctx context.Context) (*models.Announ
 	if result.ID == 0 {
 		return nil, nil
 	}
-	return &result, nil
+	// Через срез, а не по значению: маска правит элементы среза, копия осталась бы прежней.
+	one := []models.AnnouncementWithUser{result}
+	s.maskAnnouncementAuthors(ctx, one)
+	return &one[0], nil
 }
 
 func (s *newsService) GetAllAnnouncements(ctx context.Context) ([]models.AnnouncementWithUser, error) {
@@ -234,6 +306,7 @@ func (s *newsService) GetAllAnnouncements(ctx context.Context) ([]models.Announc
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching announcements")
 	}
+	s.maskAnnouncementAuthors(ctx, results)
 	return results, nil
 }
 

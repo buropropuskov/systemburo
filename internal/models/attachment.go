@@ -42,6 +42,10 @@ type UniqueAttachment struct {
 	UpdatedAt      time.Time `json:"updated_at"`
 	Instruction    *string   `gorm:"type:text" json:"instruction"`
 	IsActive       bool      `gorm:"default:true" json:"is_active"`
+	// AutoExport - писать ли бланки этого типа в файловый архив (#1615). Включён по
+	// умолчанию: администратор настраивает архив глобальным рубильником, а тумблер
+	// здесь нужен, чтобы исключить отдельный тип, а не чтобы перечислять нужные.
+	AutoExport bool `gorm:"not null;default:true" json:"auto_export"`
 }
 
 // CreateUniqueAttachmentRequest -- тело запроса на создание шаблона вложения.
@@ -51,15 +55,23 @@ type CreateUniqueAttachmentRequest struct {
 	DisplayName    string  `json:"display_name" validate:"required,min=1,max=255"`
 	Title          string  `json:"title" validate:"required,min=1,max=255"`
 	Instruction    *string `json:"instruction"`
+	// AutoExport -- указатель, чтобы отличить явное false от отсутствия поля:
+	// клиенты, не знающие про файловый архив, должны получать значение по умолчанию.
+	AutoExport *bool `json:"auto_export"`
 }
 
 // UpdateUniqueAttachmentRequest -- тело запроса на обновление шаблона вложения.
+//
+// PUT здесь -- полная замена полей, но AutoExport остаётся указателем: запрос без
+// этого ключа не трогает тумблер архива. Иначе сохранение имени или инструкции из
+// формы, которая про архив не знает, молча выключало бы выгрузку бланков (#1615).
 type UpdateUniqueAttachmentRequest struct {
 	AttachmentType string  `json:"attachment_type" validate:"required,oneof=cars people items"`
 	Name           string  `json:"name" validate:"required,min=1,max=255"`
 	DisplayName    string  `json:"display_name" validate:"required,min=1,max=255"`
 	Title          string  `json:"title" validate:"required,min=1,max=255"`
 	Instruction    *string `json:"instruction"`
+	AutoExport     *bool   `json:"auto_export"`
 }
 
 // CreateUniqueAttachmentResponse -- ответ после создания шаблона вложения.

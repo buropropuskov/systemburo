@@ -43,6 +43,9 @@ type EmployeeService interface {
 	// BulkUnbindTable снимает у набора сотрудников привязку к одной таблице (#1194).
 	// Если это была последняя привязка - сотрудник деактивируется (как одиночный delete).
 	BulkUnbindTable(ctx context.Context, req EmployeeBulkUnbindTableRequest, actorID int) (*BulkOpResult, error)
+
+	// SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1).
+	SetBlankExportEnqueuer(e BlankExportEnqueuer)
 }
 
 // EmployeeBulkMoveTableRequest -- тело POST /employees/bulk/move-table: снимает у
@@ -198,6 +201,13 @@ type employeeService struct {
 	db             *gorm.DB
 	recorder       AuditRecorder
 	tablesProducer *TablesRefreshPublisher
+	// blankExports - постановка заявки в очередь на выгрузку в файловый архив
+	// (#1615, B1): bulk-перенос сотрудника между таблицами меняет то, что хранит
+	// слепок заявки (заявка.json).
+	blankExports BlankExportEnqueuer
+	// notificationService - уведомление инициатора о первом проходе по заявке
+	// (#1748, S4). Опционально: без неё UpdateEmployeeTerritoryStatus просто не шлёт.
+	notificationService NotificationService
 }
 
 // EmployeeServiceOption конфигурирует employeeService при создании.
@@ -207,6 +217,17 @@ type EmployeeServiceOption func(*employeeService)
 // сотрудника (#840 V2.3): обновляем его целевые таблицы проходной live.
 func WithEmployeeTablesProducer(p *TablesRefreshPublisher) EmployeeServiceOption {
 	return func(s *employeeService) { s.tablesProducer = p }
+}
+
+// WithEmployeeNotifications включает уведомление инициатора заявки о первом
+// проходе по ней (#1748, S4) при входе сотрудника.
+func WithEmployeeNotifications(n NotificationService) EmployeeServiceOption {
+	return func(s *employeeService) { s.notificationService = n }
+}
+
+// SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1).
+func (s *employeeService) SetBlankExportEnqueuer(e BlankExportEnqueuer) {
+	s.blankExports = e
 }
 
 // NewEmployeeService создаёт новый экземпляр EmployeeService.
@@ -230,8 +251,8 @@ func (s *employeeService) CreateEmployee(ctx context.Context, req CreateEmployee
 			MiddleName:           req.MiddleName,
 			CitizenshipID:        &req.CitizenshipID,
 			Position:             &req.Position,
-			PassportSeriesNumber: &req.PassportSeriesNumber,
-			PatentNumber:         req.PatentNumber,
+			PassportSeriesNumber: nilIfBlank(req.PassportSeriesNumber),
+			PatentNumber:         nilIfBlankPtr(req.PatentNumber),
 			OtherPermission:      req.OtherPermission,
 			Status:               &statusZero,
 		}
@@ -326,16 +347,6 @@ func (s *employeeService) CreateManualEmployees(ctx context.Context, req ManualE
 				citizenshipID = &emp.CitizenshipID
 			}
 			lastName, firstName, position := emp.LastName, emp.FirstName, emp.Position
-			// Пустой паспорт -> nil (а не &""): иначе HMAC("") одинаков у всех безпаспортных,
-			// и dedup PARTITION BY passport_hmac (rn=1) в GetActiveEmployeesForTable молча
-			// спрячет всех гостей без паспорта кроме одного. NULL-паспорт инвариантно не
-			// схлопывается (условие hmac IS NULL OR rn=1). Паспорт опционален - у мигрантов
-			// патент/иное разрешение вместо него.
-			var passportPtr *string
-			if strings.TrimSpace(emp.PassportSeriesNumber) != "" {
-				passport := emp.PassportSeriesNumber
-				passportPtr = &passport
-			}
 			employee := models.Employee{
 				AttachmentID:         &attID,
 				LastName:             &lastName,
@@ -343,8 +354,8 @@ func (s *employeeService) CreateManualEmployees(ctx context.Context, req ManualE
 				MiddleName:           emp.MiddleName,
 				CitizenshipID:        citizenshipID,
 				Position:             &position,
-				PassportSeriesNumber: passportPtr,
-				PatentNumber:         emp.PatentNumber,
+				PassportSeriesNumber: nilIfBlank(emp.PassportSeriesNumber),
+				PatentNumber:         nilIfBlankPtr(emp.PatentNumber),
 				OtherPermission:      emp.OtherPermission,
 				Status:               &empStatus,
 			}
@@ -590,9 +601,9 @@ func (s *employeeService) UpdateEmployeeTerritoryStatus(ctx context.Context, emp
 		actionType = "exit"
 	}
 
+	var employee models.Employee
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var employee models.Employee
-		if err := tx.Select("id", "last_name", "first_name", "middle_name", "territory_status").
+		if err := tx.Select("id", "last_name", "first_name", "middle_name", "territory_status", "attachment_id").
 			First(&employee, employeeID).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
 				return echo.NewHTTPError(http.StatusNotFound, "Employee not found")
@@ -640,6 +651,7 @@ func (s *employeeService) UpdateEmployeeTerritoryStatus(ctx context.Context, emp
 	// Въезд/выезд изменил строку сотрудника - обновляем его целевые таблицы live
 	// (#840 V2.3).
 	s.tablesProducer.NotifyEmployeeChanged(ctx, employeeID)
+
 	return nil
 }
 
@@ -896,6 +908,7 @@ func (s *employeeService) BulkMoveTable(ctx context.Context, req EmployeeBulkMov
 	// аудиторию не увидела бы (см. TablesRefreshPublisher.NotifyTables) - её зрителям
 	// нужен сигнал, чтобы строка live исчезла. Зеркало carService.BulkMoveTable.
 	s.tablesProducer.NotifyTables(ctx, append([]int{fromTableID}, toIDs...))
+	s.enqueueArchiveExportForEmployees(ctx, req.IDs)
 	return res.finalize(), nil
 }
 
@@ -939,6 +952,7 @@ func (s *employeeService) BulkAddTable(ctx context.Context, req EmployeeBulkAddT
 		res.SuccessCount++
 	}
 	s.tablesProducer.NotifyEmployeesChangedBatch(ctx, changedIDs)
+	s.enqueueArchiveExportForEmployees(ctx, req.IDs)
 	return res.finalize(), nil
 }
 
@@ -1016,5 +1030,32 @@ func (s *employeeService) BulkUnbindTable(ctx context.Context, req EmployeeBulkU
 	// аудиторию не увидела бы (см. TablesRefreshPublisher.NotifyTables) - её зрителям
 	// нужен сигнал, чтобы строка live исчезла. Зеркало carService.BulkUnbindTable.
 	s.tablesProducer.NotifyTables(ctx, []int{tableID})
+	s.enqueueArchiveExportForEmployees(ctx, req.IDs)
 	return res.finalize(), nil
+}
+
+// enqueueArchiveExportForEmployees резолвит сотрудников в заявки через их
+// вложение и ставит заявки в очередь на пересборку файлового архива (#1615, B1):
+// слепок заявки хранит посты каждого сотрудника, а bulk-операции меняют их в
+// обход application_assignment_service, у которого свой enqueue после commit.
+func (s *employeeService) enqueueArchiveExportForEmployees(ctx context.Context, employeeIDs []int) {
+	if s.blankExports == nil {
+		return
+	}
+	unique := uniqueInts(employeeIDs)
+	if len(unique) == 0 {
+		return
+	}
+	var appIDs []int
+	err := s.db.WithContext(ctx).Raw(`
+		SELECT DISTINCT a.application_id
+		FROM employees e
+		JOIN attachments a ON a.id = e.attachment_id
+		WHERE e.id IN ? AND a.application_id IS NOT NULL
+	`, unique).Scan(&appIDs).Error
+	if err != nil {
+		slog.Warn("не удалось резолвить заявки для пересборки архива после bulk-операции с сотрудниками", "error", err)
+		return
+	}
+	s.blankExports.EnqueueApplications(appIDs, BlankExportReasonUpdate)
 }

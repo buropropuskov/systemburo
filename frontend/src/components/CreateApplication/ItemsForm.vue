@@ -154,7 +154,7 @@
             'unloading__item--active': selectedUnloadPlaces.includes(place.id) && place.status === 'active',
             'unloading__item--inactive': place.status !== 'active'
           }"
-          @click="togglePlace(place)"
+          @click="togglePlace(place, $event)"
           @mouseenter="showInactiveTooltip(place, $event)"
           @mouseleave="hideInactiveTooltip"
         >
@@ -293,6 +293,7 @@ export default {
     },
     beforeUnmount() {
         if (this.hintTimer) clearTimeout(this.hintTimer);
+        if (this.inactiveTooltipTimer) clearTimeout(this.inactiveTooltipTimer);
     },
     methods: {
         /**
@@ -439,8 +440,13 @@ export default {
             this.$emit('edit-cancelled');
         },
 
-        togglePlace(place) {
+        togglePlace(place, event) {
             if (place.status !== 'active') {
+                // На телефоне hover не наступает, и причина недоступности была недостижима:
+                // показываем её по тапу и гасим сама через пару секунд.
+                this.showInactiveTooltip(place, event);
+                if (this.inactiveTooltipTimer) clearTimeout(this.inactiveTooltipTimer);
+                this.inactiveTooltipTimer = setTimeout(() => this.hideInactiveTooltip(), 2500);
                 return;
             }
             const current = this.selectedUnloadPlaces || [];
@@ -470,6 +476,10 @@ export default {
         },
 
         hideInactiveTooltip() {
+            if (this.inactiveTooltipTimer) {
+                clearTimeout(this.inactiveTooltipTimer);
+                this.inactiveTooltipTimer = null;
+            }
             this.inactiveTooltip.visible = false;
         }
     }

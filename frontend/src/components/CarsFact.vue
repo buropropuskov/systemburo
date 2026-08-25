@@ -25,14 +25,14 @@
             <p :class="{ 'active-sort': sortField === 'organization' }">
               Организация
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'organization',
                 'desc': sortField === 'organization' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col place-col"
@@ -41,14 +41,14 @@
             <p :class="{ 'active-sort': sortField === 'unload_place' }">
               Место разгрузки
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'unload_place',
                 'desc': sortField === 'unload_place' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col date-col"
@@ -57,14 +57,14 @@
             <p :class="{ 'active-sort': sortField === 'entry_date_to' }">
               Действует до
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'entry_date_to',
                 'desc': sortField === 'entry_date_to' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col time-col"
@@ -73,14 +73,14 @@
             <p :class="{ 'active-sort': sortField === 'entry_time' }">
               Время
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'entry_time',
                 'desc': sortField === 'entry_time' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col status-col"
@@ -89,14 +89,14 @@
             <p :class="{ 'active-sort': sortField === 'status' }">
               Статус
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'status',
                 'desc': sortField === 'status' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div class="header-col actions-col">
             <!-- Пустой заголовок для действий -->
@@ -163,13 +163,13 @@
                 <div class="car-col actions-col">
                   <button 
                     class="delete-btn" 
+                    title="Удалить"
                     @click="deleteCar(car)"
                   >
-                    <img 
-                      src="@/assets/icons/trashcan.png" 
-                      alt="Удалить" 
+                    <AppIcon
+                      name="trashcan"
                       class="delete-icon"
-                    >
+                    />
                   </button>
                 </div>
               </div>
@@ -191,10 +191,12 @@
 import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   components: {
-    RefreshButton
+    RefreshButton,
+    AppIcon,
   },
   props: {
     searchQuery: {
@@ -621,17 +623,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {
@@ -767,6 +770,7 @@ export default {
 }
 
 .delete-icon {
+  color: var(--text);
   width: 16px;
   height: 16px;
   opacity: 0.7;

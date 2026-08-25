@@ -1,6 +1,9 @@
 <template>
   <section ref="root" class="center">
-    <header class="center__header">
+    <header
+      class="center__header"
+      data-testid="ob-center-header"
+    >
       <div class="header-top">
         <h2 class="center__title">
           Центр заявок
@@ -11,6 +14,7 @@
         <div
           v-if="canViewArchive && !isMobileHeader"
           class="center__tabs"
+          data-testid="ob-center-archive"
         >
           <FilterTabs
             v-model="archiveMode"
@@ -143,11 +147,10 @@
             aria-label="Поиск заявок"
             @click="toggleMobileSearch"
           >
-            <img
-              src="@/assets/icons/search.png"
+            <AppIcon
+              name="search"
               class="search-icon-btn__img"
-              alt=""
-            >
+            />
           </button>
         </div>
 
@@ -200,11 +203,10 @@
                 data-testid="center-input-search"
                 @input="onSearchInput"
               >
-              <img
-                src="@/assets/icons/search.png"
+              <AppIcon
+                name="search"
                 class="center__icon"
-                alt=""
-              >
+              />
             </div>
 
             <div
@@ -297,6 +299,22 @@
             >
               Сбросить сортировку
             </button>
+
+            <!-- Выгрузка реестра (#1832). На мобилке та же кнопка живёт во втором ряду
+                 шапки рядом с «Фильтром» - как и «Обновить», которая тоже двоится между
+                 раскладками. Отдаёт ТЕКУЩУЮ выборку: что отобрано на экране, то и уедет
+                 в файл. -->
+            <button
+              v-if="can('action.export.applications')"
+              type="button"
+              class="status-btn export-btn"
+              :disabled="exporting"
+              :title="exporting ? 'Готовим файл' : 'Выгрузить реестр заявок в Excel'"
+              data-testid="center-button-export-desktop"
+              @click="exportRegistry"
+            >
+              {{ exporting ? 'Готовим...' : 'Выгрузить в Excel' }}
+            </button>
           </div>
         </div>
       </div>
@@ -309,6 +327,7 @@
         <div
           v-if="canViewArchive"
           class="center__tabs center__tabs--mobile"
+          data-testid="ob-center-archive"
         >
           <BaseDropdown
             :model-value="archiveMode"
@@ -326,6 +345,29 @@
           :loading="refreshing"
           @refresh="fetchApplications"
         />
+
+        <!-- Выгрузка реестра (#1832): отдаёт ТЕКУЩУЮ выборку, поэтому стоит рядом с
+             «Фильтром» - что отобрал, то и уедет в файл. Право то же, что у скачивания
+             бланка одной заявки. На мобилке - только иконка, как «Обновить» слева:
+             четыре подписи в один ряд шириной 390px не влезают. -->
+        <button
+          v-if="can('action.export.applications')"
+          type="button"
+          class="filter-btn export-btn"
+          :disabled="exporting"
+          :aria-label="exporting ? 'Готовим файл' : 'Выгрузить реестр заявок в Excel'"
+          :title="exporting ? 'Готовим файл' : 'Выгрузить реестр заявок в Excel'"
+          data-testid="center-button-export"
+          @click="exportRegistry"
+        >
+          <AppIcon
+            name="export"
+            class="filter-btn__icon export-btn__icon"
+            width="16"
+            height="16"
+          />
+          <span class="export-btn__text">{{ exporting ? 'Готовим...' : 'Выгрузить' }}</span>
+        </button>
 
         <button
           type="button"
@@ -390,7 +432,10 @@
     />
 
     <div class="applications-table rt-table">
-      <div class="table-header">
+      <div
+        class="table-header"
+        data-testid="ob-center-table-head"
+      >
         <div class="header-row rt-head-row">
           <div
             class="header-col confirmation-col"
@@ -399,14 +444,14 @@
             <p :class="{ 'active-sort': sortField === 'confirmation' }">
               Подтверждение
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'confirmation',
                 'desc': sortField === 'confirmation' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col number-col"
@@ -415,14 +460,14 @@
             <p :class="{ 'active-sort': sortField === 'number' }">
               Номер заявки
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'number',
                 'desc': sortField === 'number' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col date-col"
@@ -431,14 +476,14 @@
             <p :class="{ 'active-sort': sortField === 'date' }">
               Дата и время
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'date',
                 'desc': sortField === 'date' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col organization-col"
@@ -447,14 +492,14 @@
             <p :class="{ 'active-sort': sortField === 'organization' }">
               Организация
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'organization',
                 'desc': sortField === 'organization' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col sender-col"
@@ -463,14 +508,14 @@
             <p :class="{ 'active-sort': sortField === 'sender' }">
               Отправитель
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'sender',
                 'desc': sortField === 'sender' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col status-col"
@@ -479,16 +524,19 @@
             <p :class="{ 'active-sort': sortField === 'status' }">
               Статус заявки
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'status',
                 'desc': sortField === 'status' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
-          <div class="header-col tags-col">
+          <div
+            ref="tagsHeaderCol"
+            class="header-col tags-col"
+          >
             <p>Теги</p>
           </div>
           <div class="header-col actions-col">
@@ -517,6 +565,7 @@
             tag="div"
             name="app-row"
             class="applications-list"
+            data-testid="ob-center-list"
           >
             <template
               v-for="group in applicationGroups"
@@ -625,126 +674,10 @@
                   class="application-col tags-col"
                   data-label="Теги"
                 >
-                  <div
-                    v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking || application.sender_is_important || application.has_unseen_questions || pendingApprovalDays(application) !== null"
-                    class="application-tags"
-                    :class="{ 'application-tags--compact': tagsAreCompact(application) }"
-                  >
-                    <Badge
-                      v-if="pendingApprovalDays(application) !== null"
-                      variant="warning"
-                      size="sm"
-                      class="rt-tag rt-tag--awaiting tag-hint"
-                      :data-hint="pendingApprovalLabel(pendingApprovalDays(application))"
-                    >
-                      <svg
-                        class="rt-tag__icon rt-tag__icon--fixed"
-                        width="13"
-                        height="13"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      ><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
-                      <span class="rt-tag__text">{{ pendingApprovalShort(pendingApprovalDays(application)) }}</span>
-                    </Badge>
-                    <Badge
-                      v-if="blacklistFlagCount(application) > 0"
-                      variant="danger"
-                      size="sm"
-                      class="rt-tag rt-tag--chs blacklist-flag-badge tag-hint"
-                      :data-hint="blacklistFlagTitle()"
-                    >
-                      <span class="rt-tag__text">{{ blacklistFlagLabel(application) }}</span>
-                    </Badge>
-                    <Badge
-                      v-if="application.has_roof_access"
-                      variant="primary"
-                      size="sm"
-                      class="rt-tag rt-tag--roof tag-hint"
-                      data-hint="Доступ на крышу"
-                    >
-                      <svg
-                        class="rt-tag__icon"
-                        width="13"
-                        height="13"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      ><path d="M3 11l9-7 9 7" /><path d="M5 10v9h14v-9" /></svg>
-                      <span class="rt-tag__text">Крыша</span>
-                    </Badge>
-                    <Badge
-                      v-if="application.has_free_parking"
-                      variant="warning"
-                      size="sm"
-                      class="rt-tag rt-tag--parking tag-hint"
-                      data-hint="Бесплатная парковка"
-                    >
-                      <svg
-                        class="rt-tag__icon"
-                        width="13"
-                        height="13"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2.2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      ><path d="M8 4h8a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z" /><path d="M9 16V8h3.2a2.4 2.4 0 0 1 0 4.8H9" /></svg>
-                      <span class="rt-tag__text">Парковка</span>
-                    </Badge>
-                    <Badge
-                      v-if="application.sender_is_important"
-                      variant="info"
-                      size="sm"
-                      class="rt-tag rt-tag--important tag-hint"
-                      data-hint="Важный пользователь"
-                    >
-                      <svg
-                        class="rt-tag__icon"
-                        width="13"
-                        height="13"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      ><polygon points="12 2 15 8.6 22 9.3 16.8 14 18.3 21 12 17.3 5.7 21 7.2 14 2 9.3 9 8.6" /></svg>
-                      <span class="rt-tag__text">Важный</span>
-                    </Badge>
-                    <Badge
-                      v-if="application.has_unseen_questions"
-                      variant="primary"
-                      size="sm"
-                      class="rt-tag rt-tag--questions tag-hint"
-                      data-hint="Есть новые вопросы или ответы"
-                      :data-testid="`center-questions-badge-${application.id}`"
-                    >
-                      <svg
-                        class="rt-tag__icon"
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      ><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
-                      <span class="rt-tag__text">Вопросы</span>
-                      <span
-                        class="rt-tag__q-dot"
-                        aria-hidden="true"
-                      />
-                    </Badge>
-                  </div>
+                  <ApplicationTags
+                    :application="application"
+                    :available-width="tagsColumnWidth"
+                  />
                 </div>
                 <div class="application-col actions-col">
                   <button
@@ -875,7 +808,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
-import { getApplicationsPaginated, getApplicationById } from '@/api/applications'
+import { getApplicationsPaginated, getApplicationById, downloadApplicationsRegistry } from '@/api/applications'
 import eventStream from '@/services/eventStream'
 import { useAuthStore } from '@/stores/auth'
 import { useSoundStore } from '@/stores/sound'
@@ -893,12 +826,14 @@ import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
 import SkeletonTable from '@/components/ui/SkeletonTable.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import DownloadBlanksModal from '@/components/applications/DownloadBlanksModal.vue';
-import Badge from '@/components/ui/Badge.vue';
+import ApplicationTags from '@/components/ApplicationTags.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
-import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/utils/blacklistBadge';
-import { pendingApprovalDays, pendingApprovalLabel, pendingApprovalShort } from '@/utils/pendingApproval';
+import { blacklistFlagCount } from '@/utils/blacklistBadge';
 import { stripHtml } from '@/utils/sanitize';
 import { useDeletionsStore } from '@/stores/deletions';
+import { copyText } from '@/utils/clipboard';
+import { useRevealFirstApplication } from '@/composables/useRevealFirstApplication';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 // Размер порции бесшовной подгрузки Центра (#1158, срез 1) - аналог PER_PAGE
 // в AccessibleAttachmentsView/TableVersionsView.
@@ -916,8 +851,9 @@ export default {
         SkeletonTable,
         LoaderSpinner,
         DownloadBlanksModal,
-        Badge,
+        ApplicationTags,
         BaseDropdown,
+        AppIcon,
     },
     emits: ['refresh-data'],
     setup() {
@@ -975,6 +911,11 @@ export default {
             selectedConfirmations: [],
             selectedApplicationStatuses: [],
             selectedTags: [],
+            // Реальная ширина колонки тегов (её замеряет ResizeObserver по ячейке
+            // шапки). От неё ApplicationTags решает, что показать текстом, что
+            // иконкой, а что свернуть в "+N". 0 = ограничения нет (мобильная
+            // карточка или замер ещё не сделан).
+            tagsColumnWidth: 0,
             organizations: [],
             companies: [],
             unloadPlaces: [],
@@ -1019,6 +960,7 @@ export default {
                 { value: 'roof', label: 'Крыша' },
                 { value: 'parking', label: 'Парковка' },
                 { value: 'important', label: 'Важный' },
+                { value: 'supplement', label: 'Дополнение' },
             ],
 
             archiveMode: 'active',
@@ -1034,6 +976,9 @@ export default {
 
             loading: true,
             refreshing: false,
+            // Выгрузка реестра (#1832): файл собирает сервер, на большой выборке это
+            // не мгновенно - кнопка гасится, чтобы человек не запускал сборку повторно.
+            exporting: false,
 
             // Данные заявок: applications/total/hasMoreApplications/listLoading
             // выставлены из useInfiniteList в setup() (#1158).
@@ -1163,6 +1108,7 @@ export default {
                             case 'roof': return app.has_roof_access;
                             case 'parking': return app.has_free_parking;
                             case 'important': return app.sender_is_important;
+                            case 'supplement': return !!app.has_open_supplement;
                             default: return false;
                         }
                     })
@@ -1343,6 +1289,17 @@ export default {
             if (val) this.openFromDeepLink();
         },
     },
+    // Онбординг просит показать карточку заявки (reveal.open) - туры согласующего и
+    // принимающего целиком идут по Центру, а деталь здесь модалка, а не роут.
+    // Контракт общий с личным кабинетом, живёт в композабле.
+    created() {
+        this._tourReveal = useRevealFirstApplication({
+            first: () => this.sortedApplications[0],
+            isOpen: () => !!this.selectedApplication,
+            open: (application) => this.openApplication(application),
+            close: () => this.closeDetail(),
+        });
+    },
     mounted() {
         this.startShakeAnimation();
 
@@ -1426,13 +1383,31 @@ export default {
             this._headerObs = new ResizeObserver(this._applyHeight);
             this._headerObs.observe(header);
         }
+
+        // Ширина колонки тегов - вход для их свёртки (ApplicationTags). Замеряем
+        // ячейку ШАПКИ: она одна на таблицу и живёт весь срок компонента, а ширину
+        // имеет ту же, что ячейки строк - у шапки и ряда общие padding и gap. Меняется
+        // она и от вьюпорта, и от закрепления нав-меню, поэтому нужен наблюдатель, а
+        // не разовый замер. В карточном режиме шапка скрыта -> ширина 0 -> теги идут
+        // полным текстом, как и задумано для мобилки.
+        if (this.$refs.tagsHeaderCol && typeof ResizeObserver !== 'undefined') {
+            this._tagsColObs = new ResizeObserver(([entry]) => {
+                this.tagsColumnWidth = Math.round(entry.contentRect.width);
+            });
+            this._tagsColObs.observe(this.$refs.tagsHeaderCol);
+        }
     },
     beforeUnmount() {
         this.disconnectApplicationsSentinel();
+        this._tourReveal?.stop();
         window.removeEventListener('resize', this._applyHeight);
         if (this._headerObs) {
             this._headerObs.disconnect();
             this._headerObs = null;
+        }
+        if (this._tagsColObs) {
+            this._tagsColObs.disconnect();
+            this._tagsColObs = null;
         }
         if (this.shakeInterval) {
             clearInterval(this.shakeInterval);
@@ -1523,24 +1498,10 @@ export default {
         },
         async copyApplicationNumber(number) {
             if (!number) return;
-            try {
-                if (navigator.clipboard?.writeText) {
-                    await navigator.clipboard.writeText(String(number));
-                } else {
-                    const textarea = document.createElement('textarea');
-                    textarea.value = String(number);
-                    textarea.setAttribute('readonly', '');
-                    textarea.style.position = 'absolute';
-                    textarea.style.left = '-9999px';
-                    document.body.appendChild(textarea);
-                    textarea.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(textarea);
-                }
-                useDeletionsStore().notify({ prefix: 'Номер ', bold: String(number), suffix: ' скопирован' });
-            } catch {
-                useDeletionsStore().notify({ prefix: 'Не удалось скопировать номер', type: 'error' });
-            }
+            const copied = await copyText(number);
+            useDeletionsStore().notify(copied
+                ? { prefix: 'Номер ', bold: String(number), suffix: ' скопирован' }
+                : { prefix: 'Не удалось скопировать номер', type: 'error' });
         },
 
         // Организация
@@ -1768,28 +1729,6 @@ export default {
         },
 
         blacklistFlagCount,
-        blacklistFlagLabel,
-        blacklistFlagTitle() {
-            return BLACKLIST_FLAG_TITLE;
-        },
-
-        pendingApprovalDays,
-        pendingApprovalLabel,
-        pendingApprovalShort,
-
-        // Колонка тегов фиксированная (120/90px) - один текстовый тег влезает, два и больше нет.
-        // При 2+ тегах сворачиваем крыша/парковка/важный в иконки (ЧС держим текстом). Решение
-        // по данным, а не замером DOM - реактивно, без дёрганья на ре-рендерах.
-        tagsAreCompact(application) {
-            const count =
-                (this.blacklistFlagCount(application) > 0 ? 1 : 0) +
-                (this.pendingApprovalDays(application) !== null ? 1 : 0) +
-                (application.has_roof_access ? 1 : 0) +
-                (application.has_free_parking ? 1 : 0) +
-                (application.sender_is_important ? 1 : 0) +
-                (application.has_unseen_questions ? 1 : 0);
-            return count >= 2;
-        },
 
         // API методы
 
@@ -1850,6 +1789,7 @@ export default {
                         updated.confirmation !== a.confirmation ||
                         updated.is_read !== a.is_read ||
                         updated.has_unseen_questions !== a.has_unseen_questions ||
+                        updated.has_open_supplement !== a.has_open_supplement ||
                         updated.has_status_update !== a.has_status_update
                     ) {
                         return { ...a, ...updated };
@@ -1901,13 +1841,29 @@ export default {
         },
 
         /**
-         * fetchPage для useInfiniteList (#1158): строит те же query-параметры фильтра,
-         * что и раньше, плюс page/per_page - бэк переключается на GetApplicationsPaginated,
-         * как только видит per_page (см. internal/handlers/applications.go). Идёт через
-         * getApplicationsPaginated (api/applications.js), которая читает envelope.meta
-         * через apiRequestRaw - apiRequest снимает его вместе с data (см. getAccessibleAttachments).
+         * Query-параметры активных фильтров - одна точка на листинг и на выгрузку
+         * реестра (#1832). Выгрузка обязана отдавать ровно то, что человек видит на
+         * экране, а скопированная сборка разъедется с первым же новым фильтром.
          */
-        async buildApplicationsPage(page, perPage) {
+        /**
+         * Выгрузка реестра заявок (#1832). Фильтры берутся из общей сборки, поэтому в
+         * файл уезжает ровно текущая выборка; видимость и подмену ФИО без согласия
+         * применяет сервер - тем же кодом, что отдаёт список на экран.
+         */
+        async exportRegistry() {
+            if (this.exporting) return;
+            this.exporting = true;
+            try {
+                await downloadApplicationsRegistry(this.buildApplicationsFilterParams());
+            } catch (error) {
+                console.error('Ошибка выгрузки реестра заявок:', error);
+                useDeletionsStore().notify({ prefix: 'Не удалось выгрузить реестр заявок', type: 'error' });
+            } finally {
+                this.exporting = false;
+            }
+        },
+
+        buildApplicationsFilterParams() {
             const params = {};
 
             if (this.searchQuery) {
@@ -1973,6 +1929,18 @@ export default {
                 params.date_to = this.toLocalYMD(this.dateRangeEnd);
             }
 
+            return params;
+        },
+
+        /**
+         * fetchPage для useInfiniteList (#1158): фильтры из buildApplicationsFilterParams
+         * плюс page/per_page - бэк переключается на GetApplicationsPaginated, как только
+         * видит per_page (см. internal/handlers/applications.go). Идёт через
+         * getApplicationsPaginated (api/applications.js), которая читает envelope.meta
+         * через apiRequestRaw - apiRequest снимает его вместе с data (см. getAccessibleAttachments).
+         */
+        async buildApplicationsPage(page, perPage) {
+            const params = this.buildApplicationsFilterParams();
             params.page = page;
             params.per_page = perPage;
 
@@ -2233,6 +2201,8 @@ export default {
 
         closeDetail() {
             this.selectedApplication = null;
+            // Карточку закрыли (крестик, Esc, свайп) - тур больше не «владелец».
+            this._tourReveal?.release();
         },
 
         handleConfirmationUpdate(updatedData) {
@@ -2282,8 +2252,8 @@ export default {
             }
         },
 
-        handleDuplicate(application) {
-            console.log('Дублирование заявки из ApplicationsCenter:', application?.application_number);
+        handleDuplicate() {
+            // Дублирование заявки не реализовано: событие принимается и игнорируется.
         },
 
         async getCurrentUser() {
@@ -2462,6 +2432,8 @@ export default {
 .search-icon-btn__img {
     width: 16px;
     height: 16px;
+    color: var(--text);
+    stroke-width: 2.1;
 }
 
 /* Мобилка: «Обновить» во втором ряду шапки Центра - только иконка, без подписи
@@ -2484,6 +2456,32 @@ export default {
 
     .header-row2 :deep(.refresh-btn__text) {
         display: none;
+    }
+
+    /* Выгрузка реестра (#1832) сворачивается в иконку тем же приёмом и той же
+       геометрией, что «Обновить» слева: с подписями «Обновить», «Выгрузить» и
+       «Фильтр» плюс дропдаун на 132px ряд не влезает в 390px и начинает жать
+       кнопки. Подпись не удаляем, а прячем визуально - она остаётся программе
+       чтения с экрана. */
+    .header-row2 .export-btn {
+        width: 45px;
+        height: 34px;
+        padding: 0;
+        gap: 0;
+        justify-content: center;
+        box-sizing: border-box;
+    }
+
+    .header-row2 .export-btn__text {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
     }
 }
 
@@ -2603,6 +2601,21 @@ export default {
     transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
+/* Выгрузка реестра (#1832): геометрию берёт у соседа по ряду - «Фильтра» на мобилке
+   и чипов состояния на десктопе, - меняется только поведение в занятом состоянии. */
+.export-btn:disabled {
+    opacity: 0.6;
+    cursor: progress;
+}
+
+/* Растровая иконка без явного размера рендерится в натуральную величину: export.png
+   нативно 30px, и кнопка распирала ряд по высоте и ширине. 16px - как у «Обновить»
+   рядом (на 2x остаётся чёткой). */
+.export-btn__icon {
+    width: 16px;
+    height: 16px;
+}
+
 .filter-btn:hover {
     background: var(--color-bg);
     border-color: var(--accent);
@@ -2685,10 +2698,6 @@ export default {
     box-shadow: var(--shadow-focus);
 }
 
-.field--select {
-    cursor: pointer;
-}
-
 .date-field {
     cursor: pointer;
 }
@@ -2705,31 +2714,15 @@ export default {
     width: 150px;
 }
 
-.field--select .field__input,
 .date-field .field__input {
     cursor: pointer;
-}
-
-.select-text {
-    font-size: 14px;
-    color: var(--text);
-    flex: 1;
 }
 
 .center__icon {
     width: 15px;
     height: 15px;
-}
-
-.select-icon {
-    width: 10px;
-    height: 10px;
-    transition: transform 0.5s ease;
-    transform: rotate(90deg);
-}
-
-.select-icon--rotated {
-    transform: rotate(-90deg);
+    color: var(--text);
+    stroke-width: 2.2;
 }
 
 .applications-table {
@@ -2812,17 +2805,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-    filter: var(--icon-ink-filter);
+    color: var(--text);
 }
 
 .sort-icon {
+    color: var(--text-muted);
     width: 12px;
     height: 12px;
     transition: .2s;
 }
 
 .sort-icon.sorted {
-    filter: var(--icon-ink-filter);
+    color: var(--text);
 }
 
 .sort-icon.desc {
@@ -2854,68 +2848,6 @@ export default {
     gap: 4px;
 }
 
-.blacklist-flag-badge {
-    max-width: 100%;
-}
-
-/* у .application-col нет overflow:hidden - на узкой раскладке даём бейджу перенестись,
-   а не вылезать в соседнюю колонку (специфичность бьёт white-space:nowrap из Badge). */
-.number-col .blacklist-flag-badge {
-    white-space: normal;
-}
-
-/* теги вложения (ЧС/крыша/парковка) в отдельной колонке (#529). Всё в ОДНУ строку (nowrap).
-   ЧС не сворачивается. Крыша/парковка -> иконки когда нав-меню закреплено (тесно) И в строке
-   есть ЧС или оба тега; одиночные крыша/парковка - текст. ЧС+оба (3 тега) - всегда иконки. */
-.application-tags {
-    display: flex;
-    gap: 4px;
-    flex-wrap: nowrap;
-    align-items: center;
-    min-width: 0;
-}
-
-/* Анимация сворачивания крыша/парковка: текст схлопывается по ширине, иконка раскрывается
-   (display не анимируется, поэтому через ширину + прозрачность). */
-/* Рамка тега цвета текста - ТОЛЬКО в тёмной теме: там приглушённая color-mix-рамка
-   Badge сливалась с подложкой. В светлой она остаётся прежней, как была до правки
-   (#1415). */
-.rt-tag {
-    gap: 0;
-    transition: padding 0.28s ease;
-}
-
-[data-theme="dark"] .rt-tag {
-    border-color: currentColor;
-}
-
-.rt-tag__text {
-    display: inline-block;
-    max-width: 150px;
-    opacity: 1;
-    overflow: hidden;
-    white-space: nowrap;
-    transition: max-width 0.28s ease, opacity 0.2s ease;
-}
-
-.rt-tag__icon {
-    display: inline-block;
-    width: 0;
-    height: 13px;
-    opacity: 0;
-    overflow: hidden;
-    flex-shrink: 0;
-    transition: width 0.28s ease, opacity 0.2s ease;
-}
-
-/* Иконка бейджа "ждёт согласования" видима всегда: бейдж компактный (иконка + "N дн."),
-   в отличие от roof/parking он не прячет текст и не участвует в --compact-свёртке. */
-.rt-tag__icon--fixed {
-    width: 13px;
-    opacity: 1;
-    margin-right: 3px;
-}
-
 /* текст с многоточием в flex-ячейке (на самой ячейке text-overflow:ellipsis не работает) */
 .ellip {
     display: block;
@@ -2926,101 +2858,14 @@ export default {
     white-space: nowrap;
 }
 
-/* hover-подсказка #333 под тегом (как у Отправителя) */
-.tag-hint {
-    position: relative;
-}
-
-.tag-hint::after {
-    content: attr(data-hint);
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 50%;
-    transform: translateX(-50%);
-    width: max-content;
-    max-width: 200px;
-    background: var(--hint-bg);
-    color: var(--hint-text);
-    padding: 5px 9px;
-    border-radius: 6px;
-    font-size: 11px;
-    line-height: 1.3;
-    text-align: center;
-    white-space: normal;
-    z-index: 1000;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.15s;
-    box-shadow: 0 2px 8px var(--shadow-drop);
-}
-
-.tag-hint::before {
-    content: '';
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-bottom-color: var(--hint-bg);
-    z-index: 1001;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.15s;
-}
-
-.tag-hint:hover::after,
-.tag-hint:hover::before {
-    opacity: 1;
-}
-
-/* Свёртка тегов: при 2+ тегах в фикс-колонке (класс --compact вешается по данным в
-   tagsAreCompact) крыша/парковка/важный схлопывают текст в иконку, без переноса на новую
-   строку. ЧС держим полным текстом - критичный флаг, его не прячем. */
-.application-tags--compact .rt-tag--roof .rt-tag__text,
-.application-tags--compact .rt-tag--parking .rt-tag__text,
-.application-tags--compact .rt-tag--important .rt-tag__text,
-.application-tags--compact .rt-tag--questions .rt-tag__text {
-    max-width: 0;
-    opacity: 0;
-}
-
-.application-tags--compact .rt-tag--roof .rt-tag__icon,
-.application-tags--compact .rt-tag--parking .rt-tag__icon,
-.application-tags--compact .rt-tag--important .rt-tag__icon,
-.application-tags--compact .rt-tag--questions .rt-tag__icon {
-    width: 13px;
-    opacity: 1;
-}
-
-.application-tags--compact .rt-tag--roof.badge--sm,
-.application-tags--compact .rt-tag--parking.badge--sm,
-.application-tags--compact .rt-tag--important.badge--sm,
-.application-tags--compact .rt-tag--questions.badge--sm {
-    padding: 4px;
-}
-
-/* Маркер вопросов: красная точка-индикатор поверх бейджа (видна всегда, #973). */
-.rt-tag--questions {
-    position: relative;
-}
-
-.rt-tag__q-dot {
-    position: absolute;
-    top: -3px;
-    right: -3px;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--color-danger);
-    border: 1.5px solid var(--surface);
-    pointer-events: none;
-}
-
-/* Колонка тегов фиксированная: 120px когда таблица просторная, 90px когда тесно (нав-меню
-   закреплено). Базовое правило ДО @container, чтобы контейнерное переопределение (90px)
-   победило по порядку источника при равной специфичности. */
+/* Колонка тегов гибкая: базис под пару тегов, при нехватке места ужимается до
+   min-width (ширина заголовка "Теги"). Сжимается именно она - у текстовых колонок
+   flex-basis: 0, и сжимать им нечего. Раскладку внутри колонки считает
+   ApplicationTags по её РЕАЛЬНОЙ ширине: что влезло - текстом, остальное иконками,
+   хвост - счётчиком "+N". */
 .tags-col {
-    flex: 0 0 120px;
+    flex: 0 1 132px;
+    min-width: 84px;
     transition: flex-basis 0.3s ease;
 }
 
@@ -3028,11 +2873,11 @@ export default {
     overflow: visible;
 }
 
-/* тесно (нав-меню закреплено, ширина таблицы < 1300): колонка тегов -> 90px. Свёртку текста
-   в иконки делает tagsAreCompact по числу тегов (см. выше). */
-@container (max-width: 1300px) {
+/* Простор (нав-меню не закреплено, широкий монитор): колонка забирает больше, и теги
+   чаще остаются с подписями. */
+@container (min-width: 1600px) {
     .tags-col {
-        flex: 0 0 90px;
+        flex-basis: 168px;
     }
 }
 
@@ -3153,6 +2998,13 @@ export default {
 /* В колонке действий текста нет - там RefreshButton, обрезать его нечем и незачем. */
 .header-col.actions-col {
     overflow: visible;
+}
+
+/* Шапка колонки тегов сжимается по тому же минимуму, что ячейки строк: правило
+   .header-col выше обнуляет min-width всем заголовкам, и на предельно узкой таблице
+   шапка ушла бы уже данных - колонки разъехались бы. */
+.header-col.tags-col {
+    min-width: 84px;
 }
 
 .table-body {
@@ -3915,33 +3767,6 @@ export default {
         color: var(--text-muted);
     }
 
-    /* Теги в компактной карточке НЕ сворачиваем в иконки (W3.11) - показываем полным
-       текстом с переносом на новую строку. Нейтрализуем свёртку tagsAreCompact: те же
-       селекторы (0,3,0) идут ниже в источнике -> перебивают базовую свёртку. */
-    .application-tags {
-        flex-wrap: wrap;
-    }
-    .application-tags--compact .rt-tag--roof .rt-tag__text,
-    .application-tags--compact .rt-tag--parking .rt-tag__text,
-    .application-tags--compact .rt-tag--important .rt-tag__text,
-    .application-tags--compact .rt-tag--questions .rt-tag__text {
-        max-width: 150px;
-        opacity: 1;
-    }
-    .application-tags--compact .rt-tag--roof .rt-tag__icon,
-    .application-tags--compact .rt-tag--parking .rt-tag__icon,
-    .application-tags--compact .rt-tag--important .rt-tag__icon,
-    .application-tags--compact .rt-tag--questions .rt-tag__icon {
-        width: 0;
-        opacity: 0;
-    }
-    .application-tags--compact .rt-tag--roof.badge--sm,
-    .application-tags--compact .rt-tag--parking.badge--sm,
-    .application-tags--compact .rt-tag--important.badge--sm,
-    .application-tags--compact .rt-tag--questions.badge--sm {
-        padding: 3px 8px;
-    }
-
     /* Тач-таргеты >= 44px. Кнопка "Скачать" в карточке идёт собственной строкой (без
      * data-label) - можно смело увеличить саму кнопку. Копирование номера остаётся
      * компактной надписью - расширяем зону клика невидимым псевдоэлементом, не раздувая
@@ -4093,7 +3918,6 @@ export default {
     background: var(--surface);
     border-radius: 50%;
     transition: transform 0.2s ease;
-    box-shadow: 0 1px 3px var(--shadow-drop);
 }
 
 .sound-toggle__input:checked + .sound-toggle__track {

@@ -16,8 +16,10 @@ describe('замок прокрутки фона', () => {
   it('первый владелец блокирует, он же и снимает', () => {
     setBodyScrollLock(first, true);
     expect(document.body.style.overflow).toBe('hidden');
+    expect(document.documentElement.style.overflow).toBe('hidden');
     setBodyScrollLock(first, false);
     expect(document.body.style.overflow).toBe('');
+    expect(document.documentElement.style.overflow).toBe('');
   });
 
   it('пока хоть одно окно открыто, закрытие соседнего не отпускает фон', () => {
@@ -25,8 +27,10 @@ describe('замок прокрутки фона', () => {
     setBodyScrollLock(second, true);
     releaseBodyScrollLock(second);
     expect(document.body.style.overflow).toBe('hidden');
+    expect(document.documentElement.style.overflow).toBe('hidden');
     releaseBodyScrollLock(first);
     expect(document.body.style.overflow).toBe('');
+    expect(document.documentElement.style.overflow).toBe('');
   });
 
   it('повторная блокировка тем же владельцем снимается одним release', () => {
@@ -34,11 +38,13 @@ describe('замок прокрутки фона', () => {
     setBodyScrollLock(first, true);
     releaseBodyScrollLock(first);
     expect(document.body.style.overflow).toBe('');
+    expect(document.documentElement.style.overflow).toBe('');
   });
 
   it('release незнакомого владельца не трогает чужую блокировку', () => {
     setBodyScrollLock(first, true);
     releaseBodyScrollLock({});
     expect(document.body.style.overflow).toBe('hidden');
+    expect(document.documentElement.style.overflow).toBe('hidden');
   });
 });

@@ -40,13 +40,22 @@ const sanitizedMessage = computed(() => sanitizeHtml(props.message));
 </script>
 
 <style scoped>
-/* Заголовок в две строки: название сверху, номер заявки ниже серым/мельче
-   (на узком экране "Сообщение к заявке 20260712/001" не помещалось в строку, #1097 R3-10). */
+/* На широком экране заголовок идёт одной строкой, номер - следом за названием.
+   На узком возвращается перенос в две строки: "Сообщение к заявке 20260712/001"
+   в строку не помещалось (#1097 R3-10). */
 .msg-modal-title {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: 8px;
   min-width: 0;
+}
+
+@media (max-width: 767.98px) {
+  .msg-modal-title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
 }
 
 .msg-modal-title__main {
@@ -57,7 +66,8 @@ const sanitizedMessage = computed(() => sanitizeHtml(props.message));
 }
 
 .msg-modal-title__num {
-  font-size: 13px;
+  font-size: 15px;
+  white-space: nowrap;
   font-weight: 500;
   line-height: 1.2;
   color: var(--text-muted);

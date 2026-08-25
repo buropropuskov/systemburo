@@ -5,8 +5,13 @@
         v-if="show"
         class="modal-overlay"
         :style="{ zIndex: overlayZIndex }"
-        @click.self="close"
+        @mousedown="onOverlayMousedown"
+        @mouseup="onOverlayMouseup"
       >
+        <!-- Закрытие по клику мимо окна висит на самом затемнении, а не на обёртке:
+             у обёртки pointer-events: none, она целью события не становится вовсе, и
+             прежний @click.self на ней не срабатывал никогда. Через useOverlayClose,
+             чтобы выделение текста внутри окна, отпущенное на фоне, его не закрывало. -->
         <div class="modal-wrapper">
           <!-- Основное модальное окно с деталями сотрудника -->
           <div
@@ -204,6 +209,24 @@
                         <span class="detail-label">Компания:</span>
                         <span class="detail-value">{{ employee.company || '-' }}</span>
                       </div>
+                      <!-- За кем закреплена запись реестра. Сервер отдаёт логин только
+                           администратору, поэтому строку гейтим по наличию значения, а
+                           не по роли: карточка живёт в заявке, проходной и реестре, и
+                           перечислять контексты пришлось бы заново при каждом новом. -->
+                      <!-- Согласие субъекта на обработку персональных данных: показываем
+                           дату, когда отметка есть. Пустое поле у записей, заведённых до
+                           введения отметки, - строку тогда не рисуем, чтобы не читалось
+                           как «согласия нет». -->
+                      <div
+                        v-if="employee.pd_consent_at"
+                        class="detail-item"
+                      >
+                        <span class="detail-label">Согласие на обработку ПД:</span>
+                        <span
+                          class="detail-value"
+                          data-testid="employee-pd-consent-date"
+                        >получено {{ formatConsentDate(employee.pd_consent_at) }}</span>
+                      </div>
                       <div class="detail-item">
                         <span class="detail-label">Действует до:</span>
                         <span class="detail-value">{{ formatDate(employee.entry_date_to) || '-' }}</span>
@@ -213,6 +236,18 @@
                         <span class="detail-value">{{ employee.pass_time || '-' }}</span>
                       </div>
                     </div>
+                    <!-- За кем закреплена запись реестра. Сведения служебные, для бюро,
+                         поэтому идут подписью под блоком, а не строкой наравне с данными
+                         человека. Сервер отдаёт их только администратору, поэтому строку
+                         гейтим наличием значения: карточка живёт в заявке, проходной,
+                         реестре и на странице чёрного списка. -->
+                    <p
+                      v-if="employee.user_name"
+                      class="owner-note"
+                      data-testid="employee-owner-login"
+                    >
+                      Запись закреплена за: {{ employee.user_name }}
+                    </p>
                   </div>
                 </div>
 
@@ -286,11 +321,15 @@
                   </div>
                   <div class="section-body">
                     <div class="places-list">
+                      <!-- selectedTable - обёртка {table, time_slots, photos, current_status},
+                           поэтому сравнение идёт по selectedTable.table.id (#1050): по
+                           selectedTable.id оно давало undefined, и подсветка выбранной
+                           таблицы не работала вовсе. У машин это место написано верно. -->
                       <div
                         v-for="t in passageActiveTables"
                         :key="t.id"
                         class="place-item"
-                        :class="{ 'active': showPlaceModal && selectedTable && selectedTable.id === t.id }"
+                        :class="{ 'active': showPlaceModal && selectedTable && selectedTable.table && selectedTable.table.id === t.id }"
                         @click="showTableDetails(t.id)"
                       >
                         {{ t.name }}
@@ -352,11 +391,11 @@
                       :disabled="entryExitHistory.length === 0 || isExporting"
                       @click="exportHistory"
                     >
-                      <img
+                      <AppIcon
                         v-if="!isExporting"
-                        src="@/assets/icons/export.png"
+                        name="export"
                         class="export-icon"
-                      >
+                      />
                       <span v-if="!isExporting">Экспорт</span>
                       <div
                         v-else
@@ -472,9 +511,12 @@
 
 <script>
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack';
 import { ref, getCurrentInstance } from 'vue';
 import { apiRequest } from '@/api/client';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
+import { useOverlayClose } from '@/composables/useOverlayClose';
 import TableInfoModal from './TableInfoModal.vue';
 import EmployeeHistoryModal from './EmployeeHistoryModal.vue';
 import Badge from '@/components/ui/Badge.vue';
@@ -484,10 +526,12 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { getModalActionPermission } from '@/constants/detailModalActions';
 import { checkPersonBlacklist, createPersonBlacklist } from '@/api/blacklist';
 import ExcelJS from 'exceljs';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
     name: 'EmployeeDetailsModal',
     components: {
+        AppIcon,
         TableInfoModal,
         EmployeeHistoryModal,
         Badge,
@@ -544,7 +588,14 @@ export default {
             getScrollTop: () => sheetBody.value?.scrollTop ?? 0,
             handleSelector: '.sheet-handle',
         });
+        const { isNarrow } = useNarrowScreen();
+        // Закрытие по клику мимо окна. onClose зовёт close() компонента, а не голый
+        // emit: у карточки есть таймеры и подокна, их гасит именно close().
+        const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => inst?.proxy?.close?.());
         return {
+            isNarrow,
+            onOverlayMousedown,
+            onOverlayMouseup,
             sheetBody,
             sheetOffset: swipe.offset,
             sheetDragging: swipe.isDragging,
@@ -591,7 +642,10 @@ export default {
             const application = (this.source !== 'application' && !!this.employee?.applicationId) ? 1 : 0;
             return history + application;
         },
+        // На телефоне в строку шапки помещается только короткое имя: длинный вариант
+        // отжимал крестик и переносился на вторую строку рядом с кнопками действий.
         modalTitle() {
+            if (this.isNarrow) return 'Информация';
             const count = this.visibleActionsCount;
             if (count >= 2) return 'Информация';
             if (count === 1) return 'Детальная информация';
@@ -710,6 +764,8 @@ export default {
         handler(val) {
             // Контракт окна: фон под листом не прокручивается.
             setBodyScrollLock(this, val);
+            // И место в стопке окон - чтобы Escape закрывал только верхнее.
+            setModalOpen(this, val, this.overlayZIndex);
             if (val) {
                 this.loadHistory();
                 this.loadEmployeeStatus(); // для EmployeeDetailsModal
@@ -733,17 +789,26 @@ export default {
     },
     mounted() {
         document.addEventListener('keydown', this.handleEscKey);
+        if (this.show) setModalOpen(this, true, this.overlayZIndex);
     },
     beforeUnmount() {
         document.removeEventListener('keydown', this.handleEscKey);
+        releaseModal(this);
         releaseBodyScrollLock(this);
     },
     methods: {
-        // Закрытие по Escape (фон закрывается через @click.self на оверлее).
+        /**
+         * Закрытие по Escape (фон закрывается через @click.self на оверлее).
+         *
+         * Через общую стопку окон: карточка, открытая из заявки, лежит поверх её панели,
+         * и без стопки одно нажатие закрывало обе - панель считала себя верхней.
+         */
         handleEscKey(e) {
-            if (e.key === 'Escape' && this.show) {
-                this.close();
-            }
+            if (e.key !== 'Escape' || !this.show) return;
+            if (isEscapeHandled(e)) return;
+            if (!isTopModal(this)) return;
+            markEscapeHandled(e);
+            this.close();
         },
         close() {
     this.$emit('close');
@@ -853,6 +918,16 @@ export default {
         onPlaceLeave() {
             this.isMainShifted = false;
             this.selectedTable = null;
+        },
+
+        // Отметка согласия хранится полной меткой времени, а formatDate ниже рассчитан
+        // на «ГГГГ-ММ-ДД» из полей срока заявки: разбор по дефисам даёт «Invalid Date».
+        // Человеку нужен день, поэтому печатаем только дату.
+        formatConsentDate(value) {
+            if (!value) return '';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return '';
+            return date.toLocaleDateString('ru-RU');
         },
 
         formatDate(dateString) {
@@ -1425,6 +1500,13 @@ export default {
     grid-column: 1 / -1;
 }
 
+.owner-note {
+    margin: 10px 0 0;
+    font-size: 11px;
+    color: var(--text-muted);
+    opacity: 0.75;
+}
+
 .detail-label {
     font-size: 11px;
     color: var(--text-muted);
@@ -1713,9 +1795,16 @@ export default {
     min-height: 120px;
 }
 
-.modal-fade-enter-active,
+/* Появление и скрытие - как у остальных окон (BaseModal): затемнение гаснет
+   прозрачностью, само окно приезжает масштабом. Прежние правила задавали переход
+   корню перехода (.modal-overlay), а не окну внутри него, поэтому затемнение
+   плавно гасло, а окно прыгало. */
+.modal-fade-enter-active {
+    transition: opacity 0.3s ease;
+}
+
 .modal-fade-leave-active {
-    transition: all 0.4s ease;
+    transition: opacity 0.2s ease;
 }
 
 .modal-fade-enter-from,
@@ -1723,26 +1812,22 @@ export default {
     opacity: 0;
 }
 
-.modal-fade-enter-active .modal-overlay,
-.modal-fade-leave-active .modal-overlay {
-    transition: all 0.4s ease;
+.modal-fade-enter-active .modal-content {
+    animation: details-modal-in 0.3s ease;
 }
 
-.modal-fade-enter-active .modal-content,
 .modal-fade-leave-active .modal-content {
-    transition: all 0.4s ease;
+    animation: details-modal-out 0.2s ease;
 }
 
-.modal-fade-enter-from .modal-overlay,
-.modal-fade-leave-to .modal-overlay {
-    background: transparent;
- 
+@keyframes details-modal-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
 }
 
-.modal-fade-enter-from .modal-content,
-.modal-fade-leave-to .modal-content {
-    opacity: 0;
-    transform: scale(0.9) translateY(-20px);
+@keyframes details-modal-out {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.95); }
 }
 
 .place-slide-enter-active,

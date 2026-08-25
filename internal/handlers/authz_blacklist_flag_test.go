@@ -42,9 +42,9 @@ func TestUniqueEmployees_IsBlacklistedFlag(t *testing.T) {
 	}, getUserID(t, db, "testadmin"))
 	require.NoError(t, err)
 
-	blk := fmt.Sprintf(`{"last_name":"  иванов ","first_name":"ИВАН","middle_name":"Иванович","passport_series_number":"1111 111111","organization_id":%d,"company_id":%d}`, td.OrgID, td.CompanyID)
+	blk := fmt.Sprintf(`{"pd_consent":true,"last_name":"  иванов ","first_name":"ИВАН","middle_name":"Иванович","passport_series_number":"1111 111111","organization_id":%d,"company_id":%d}`, td.OrgID, td.CompanyID)
 	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", blk, h).Code)
-	clean := fmt.Sprintf(`{"last_name":"Чистов","first_name":"Пётр","passport_series_number":"2222 222222","organization_id":%d,"company_id":%d}`, td.OrgID, td.CompanyID)
+	clean := fmt.Sprintf(`{"pd_consent":true,"last_name":"Чистов","first_name":"Пётр","passport_series_number":"2222 222222","organization_id":%d,"company_id":%d}`, td.OrgID, td.CompanyID)
 	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", clean, h).Code)
 
 	// Ищем по паспорту — точный идентификатор строки (ФИО сервер мог обрезать/нормализовать

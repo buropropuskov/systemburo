@@ -136,6 +136,20 @@ describe('AttachmentFieldsModal - кастомные поля', () => {
 
     expect(createCustomField).not.toHaveBeenCalled();
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
+    // Уведомление не говорит, какое поле пустое, поэтому его помечает подсветка.
+    expect(wrapper.find('[data-testid="custom-label-0"]').classes()).toContain('ctable-input--invalid');
+  });
+
+  it('подсветка пустого заголовка снимается при вводе', async () => {
+    const wrapper = await mountWith(cfg([]));
+    await wrapper.find('[data-testid="custom-add"]').trigger('click');
+    await wrapper.find('[data-testid="fields-save"]').trigger('click');
+    await flushPromises();
+
+    const input = wrapper.find('[data-testid="custom-label-0"]');
+    await input.setValue('Номер пропуска');
+
+    expect(input.classes()).not.toContain('ctable-input--invalid');
   });
 
   it('стрелки порядка задизейблены на краях списка', async () => {

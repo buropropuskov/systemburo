@@ -400,6 +400,16 @@
       </div>
     </div>
 
+    <!-- Полоса вложений живёт между панелью и текстом, как в почтовом клиенте:
+         вложения относятся к письму целиком, а не к месту курсора. Пустой слот
+         ничего не рисует, поэтому у прочих мест применения вид не меняется. -->
+    <div
+      v-if="$slots.attachments"
+      class="tc-attachments"
+    >
+      <slot name="attachments" />
+    </div>
+
     <EditorContent
       :editor="editor"
       class="editor-content"
@@ -882,6 +892,11 @@ defineExpose({ editor });
     background: var(--accent-tint);
     color: var(--accent-text);
   }
+}
+
+.tc-attachments {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
 }
 
 .editor-content {

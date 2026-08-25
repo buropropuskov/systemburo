@@ -1,5 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { pickOverflowFields, columnMinWidth, DEFAULT_COLUMN_MIN_WIDTH } from '../tableColumnFit';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  pickOverflowFields,
+  columnMinWidth,
+  measureRowAvailableWidth,
+  DEFAULT_COLUMN_MIN_WIDTH,
+} from '../tableColumnFit';
 
 // #1307: столбцы не сжимаются до нечитаемых - лишние скрываются, начиная с
 // наименее важных, а при равной важности - с правых.
@@ -69,5 +74,63 @@ describe('pickOverflowFields (#1307)', () => {
   it('для незнакомого поля берётся ширина по умолчанию', () => {
     expect(columnMinWidth('car_number')).toBe(120);
     expect(columnMinWidth('какое_то_поле')).toBe(DEFAULT_COLUMN_MIN_WIDTH);
+  });
+});
+
+// #1097 S8 (волна 4): раскладку считаем по строке заголовков, а не по ширине всей
+// области - иначе отступы строки и зазоры между ячейками уходят в запас, и на
+// планшетной ширине в раскладке остаётся столбец, который в неё не влезает.
+describe('measureRowAvailableWidth', () => {
+  const row = ({ width, cells = 0, pad = '10px', gap = '4px' }) => {
+    const el = document.createElement('div');
+    Object.defineProperty(el, 'clientWidth', { value: width });
+    el.dataset.pad = pad;
+    el.dataset.gap = gap;
+    for (let i = 0; i < cells; i += 1) el.appendChild(document.createElement('div'));
+    return el;
+  };
+
+  beforeEach(() => {
+    // jsdom не считает раскладку: подставляем геометрию, объявленную в компоненте.
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((el) => ({
+      paddingLeft: el.dataset.pad,
+      paddingRight: el.dataset.pad,
+      columnGap: el.dataset.gap,
+    }));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('вычитает боковые отступы строки и зазоры между ячейками', () => {
+    // Таблица проходной: 13 ячеек -> 12 зазоров по 4px, плюс 10+10 отступов строки.
+    expect(measureRowAvailableWidth(row({ width: 990, cells: 13 }))).toBe(922);
+  });
+
+  it('схлопнутая по приоритету ячейка остаётся flex-элементом - её зазор тоже считается', () => {
+    // Скрытие столбца освобождает его ширину, но не зазор: ячейка остаётся в DOM
+    // с нулевой шириной, и gap с обеих сторон от неё никуда не девается.
+    const plain = row({ width: 500, cells: 5 });
+    const collapsed = row({ width: 500, cells: 5 });
+    collapsed.children[1].className = 'col col--collapsed';
+    collapsed.children[3].className = 'col col--collapsed';
+
+    expect(measureRowAvailableWidth(plain)).toBe(464);
+    expect(measureRowAvailableWidth(collapsed)).toBe(464);
+  });
+
+  it('у единственной ячейки зазоров нет', () => {
+    expect(measureRowAvailableWidth(row({ width: 300, cells: 1 }))).toBe(280);
+  });
+
+  it('скрытая строка даёт 0 - вызывающий берёт прежний источник ширины', () => {
+    expect(measureRowAvailableWidth(row({ width: 0, cells: 13 }))).toBe(0);
+    expect(measureRowAvailableWidth(null)).toBe(0);
+    expect(measureRowAvailableWidth(undefined)).toBe(0);
+  });
+
+  it('не уходит в минус на узкой строке с широкими отступами', () => {
+    expect(measureRowAvailableWidth(row({ width: 20, cells: 6, pad: '40px' }))).toBe(0);
   });
 });

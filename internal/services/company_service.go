@@ -110,6 +110,10 @@ type CompanyService interface {
 
 	// BulkRestore восстанавливает набор компаний из архива.
 	BulkRestore(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error)
+
+	// SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1) -
+	// разбор справочника ставит на пересборку заявки, ссылающиеся на запись.
+	SetBlankExportEnqueuer(e BlankExportEnqueuer)
 }
 
 // --- DTO: запросы ---
@@ -201,6 +205,9 @@ type companyService struct {
 	db       *gorm.DB
 	recorder AuditRecorder
 	notifier NotificationService
+	// blankExports - постановка затронутых заявок в очередь на выгрузку в файловый
+	// архив (#1615, B1), зеркало organizationService.blankExports.
+	blankExports BlankExportEnqueuer
 }
 
 // CompanyServiceOption конфигурирует companyService при создании.
@@ -210,6 +217,11 @@ type CompanyServiceOption func(*companyService)
 // наименования (#1437), зеркало WithOrganizationNotifications.
 func WithCompanyNotifications(n NotificationService) CompanyServiceOption {
 	return func(s *companyService) { s.notifier = n }
+}
+
+// SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1).
+func (s *companyService) SetBlankExportEnqueuer(e BlankExportEnqueuer) {
+	s.blankExports = e
 }
 
 // NewCompanyService создаёт экземпляр сервиса компаний.
@@ -238,17 +250,17 @@ func (s *companyService) Suggest(ctx context.Context, query string) (DirectorySu
 
 // ApproveModeration - разбор компании «на проверке», см. approveDirectoryEntry.
 func (s *companyService) ApproveModeration(ctx context.Context, callerUserID, id int) (DirectoryModerationResult, error) {
-	return approveDirectoryEntry(ctx, s.db, s.recorder, companyModeration, id, callerUserID)
+	return approveDirectoryEntry(ctx, s.db, s.recorder, s.blankExports, companyModeration, id, callerUserID)
 }
 
 // RenameModeration - исправление наименования при разборе, см. renameDirectoryEntry.
 func (s *companyService) RenameModeration(ctx context.Context, callerUserID, id int, name string) (DirectoryModerationResult, error) {
-	return renameDirectoryEntry(ctx, s.db, s.recorder, s.notifier, companyModeration, id, name, callerUserID)
+	return renameDirectoryEntry(ctx, s.db, s.recorder, s.notifier, s.blankExports, companyModeration, id, name, callerUserID)
 }
 
 // MergeModeration - привязка черновика к существующей компании, см. mergeDirectoryEntry.
 func (s *companyService) MergeModeration(ctx context.Context, callerUserID, id, targetID int) (DirectoryMergeResult, error) {
-	return mergeDirectoryEntry(ctx, s.db, s.recorder, s.notifier, companyModeration, id, targetID, callerUserID)
+	return mergeDirectoryEntry(ctx, s.db, s.recorder, s.notifier, s.blankExports, companyModeration, id, targetID, callerUserID)
 }
 
 // GetWithUsers возвращает компании с количеством привязанных пользователей.
@@ -536,6 +548,8 @@ func (s *companyService) GetHistory(ctx context.Context, companyID int) ([]model
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching company history")
 	}
 
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
 	items := make([]models.CompanyHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.CompanyHistoryItem{
@@ -543,7 +557,7 @@ func (s *companyService) GetHistory(ctx context.Context, companyID int) ([]model
 			ActionType:  r.ActionType,
 			Details:     r.Details,
 			ActorUserID: r.ActorUserID,
-			ActorName:   r.ActorName,
+			ActorName:   maskName(masks, r.ActorUserID, r.ActorName),
 			CreatedAt:   r.CreatedAt,
 		})
 	}
@@ -564,6 +578,11 @@ func (s *companyService) GetUsers(ctx context.Context, companyID int) ([]Company
 		slog.Error("не удалось получить пользователей компании", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching company users")
 	}
+	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+		for i := range users {
+			maskUserParts(masks, users[i].ID, &users[i].LastName, &users[i].FirstName, &users[i].MiddleName)
+		}
+	}
 	return users, nil
 }
 
@@ -580,6 +599,11 @@ func (s *companyService) GetMembers(ctx context.Context, companyID int) ([]Membe
 	if err != nil {
 		slog.Error("не удалось получить участников компании", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching company members")
+	}
+	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+		for i := range members {
+			maskUserParts(masks, members[i].ID, &members[i].LastName, &members[i].FirstName, &members[i].MiddleName)
+		}
 	}
 	return members, nil
 }

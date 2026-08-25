@@ -34,6 +34,9 @@ type PersonBlacklistService interface {
 	// BulkRestore возвращает набор записей в чёрный список через Restore.
 	BulkRestore(ctx context.Context, ids []int, userID int) (*BulkOpResult, error)
 	Check(ctx context.Context, lastName, firstName, middleName string) (models.PersonBlacklistCheckResult, error)
+	// Impact - предпросмотр последствий внесения: сколько активных работников
+	// перестанет действовать, из каких таблиц постов они уйдут и в каких заявках есть.
+	Impact(ctx context.Context, lastName, firstName, middleName string) (*BlacklistImpact, error)
 	// FindSimilar - активные записи ЧС, чьё нормализованное ФИО БЛИЗКО (но не обязательно
 	// равно) нормализованному ФИО заявки: триграммная similarity + word_similarity (учёт
 	// отсутствия отчества), порог 0.7. Слой предупреждения о возможном обходе (#481): точное
@@ -449,6 +452,8 @@ func (s *personBlacklistService) queryHistory(ctx context.Context, entityID *int
 	if err := s.db.WithContext(ctx).Raw(query, args...).Scan(&rows).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения истории чёрного списка")
 	}
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
 	items := make([]models.PersonBlacklistHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.PersonBlacklistHistoryItem{
@@ -457,7 +462,7 @@ func (s *personBlacklistService) queryHistory(ctx context.Context, entityID *int
 			ActionType: r.ActionType,
 			Details:    r.Details,
 			UserID:     r.UserID,
-			UserName:   r.UserName,
+			UserName:   maskName(masks, r.UserID, r.UserName),
 			CreatedAt:  r.CreatedAt,
 		})
 	}
@@ -541,4 +546,9 @@ func personFullName(e models.PersonBlacklist) string {
 		fio += " " + strings.TrimSpace(*e.MiddleName)
 	}
 	return fio
+}
+
+// Impact - см. PersonBlacklistService.Impact.
+func (s *personBlacklistService) Impact(ctx context.Context, lastName, firstName, middleName string) (*BlacklistImpact, error) {
+	return personBlacklistImpact(ctx, s.db, lastName, firstName, middleName)
 }

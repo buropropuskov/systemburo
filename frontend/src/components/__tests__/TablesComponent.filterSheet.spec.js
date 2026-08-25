@@ -18,6 +18,7 @@ vi.mock('@/composables/useNarrowScreen', () => ({
 import TablesComponent from '../TablesComponent.vue';
 import FilterButton from '@/components/ui/FilterButton.vue';
 import FilterSheet from '@/components/ui/FilterSheet.vue';
+import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 
 function okResponse(data) {
   return { ok: true, json: async () => data };
@@ -48,13 +49,13 @@ function mountPage() {
         TableExportModal: true,
         ManualAddModal: true,
         PassReportModal: true,
-        OrganizationFilter: true,
-        UnloadingPlaceFilter: true,
+        // BaseDropdown НЕ стабим: он нужен живым, чтобы проверялась проводка
+        // directoryFilters -> дропдаун -> setMultiFilter.
         DateFilter: true,
       },
       mocks: {
         $route: { params: { tableName: 'kpp_4' } },
-        $router: { push: vi.fn() },
+        $router: { push: vi.fn(), replace: vi.fn().mockResolvedValue(undefined) },
       },
     },
   });
@@ -77,9 +78,8 @@ describe('TablesComponent - сворачивание фильтров в кно�
     const wrapper = mountPage();
     await flushPromises();
 
-    // cars-таблица: 2 OrganizationFilter (организация + компания) + место разгрузки инлайн.
-    expect(wrapper.findAll('organization-filter-stub').length).toBe(2);
-    expect(wrapper.findAll('unloading-place-filter-stub').length).toBe(1);
+    // cars-таблица: организация + компания + место разгрузки инлайн.
+    expect(wrapper.findAllComponents(BaseDropdown).length).toBe(3);
     expect(wrapper.findComponent(FilterButton).exists()).toBe(false);
     expect(wrapper.findComponent(FilterSheet).exists()).toBe(false);
   });
@@ -90,11 +90,12 @@ describe('TablesComponent - сворачивание фильтров в кно�
     await flushPromises();
 
     // Инлайн вторичные фильтры не рендерятся (sheet закрыт - контент BaseModal под v-if show).
-    expect(wrapper.findAll('organization-filter-stub').length).toBe(0);
+    expect(wrapper.findAllComponents(BaseDropdown).length).toBe(0);
     expect(wrapper.find('[data-testid="table-filter-btn"]').exists()).toBe(true);
     expect(wrapper.findComponent(FilterSheet).exists()).toBe(true);
-    // Поиск остаётся снаружи sheet.
-    expect(wrapper.find('input.field__input.search').exists()).toBe(true);
+    // Поиск остаётся снаружи sheet - с #1097 S7 он свёрнут в иконку-тоггл рядом
+    // с «Фильтром», а поле раскрывается оверлеем (см. TablesComponent.searchOverlay.spec.js).
+    expect(wrapper.find('[data-testid="table-search-icon"]').exists()).toBe(true);
   });
 
   it('клик по кнопке «Фильтр» открывает sheet', async () => {
@@ -119,7 +120,7 @@ describe('TablesComponent - сворачивание фильтров в кно�
     expect(wrapper.findComponent(FilterButton).props('active')).toBe(false);
 
     // Вторичный фильтр зажигает.
-    await wrapper.setData({ selectedOrganizationId: 7 });
+    await wrapper.setData({ selectedOrganizationIds: [7] });
     expect(wrapper.findComponent(FilterButton).props('active')).toBe(true);
   });
 
@@ -131,9 +132,9 @@ describe('TablesComponent - сворачивание фильтров в кно�
     await wrapper.setData({
       showFilterSheet: true,
       searchQuery: 'абв',
-      selectedOrganizationId: 7,
-      selectedOrganizationName: 'ООО',
-      selectedUnloadingPlaceId: 3,
+      selectedOrganizationIds: [7],
+      selectedCompanyIds: [2],
+      selectedUnloadingPlaceIds: [3],
       selectedDate: '2026-07-26',
     });
 
@@ -141,9 +142,9 @@ describe('TablesComponent - сворачивание фильтров в кно�
     await nextTick();
 
     expect(wrapper.vm.searchQuery).toBe('');
-    expect(wrapper.vm.selectedOrganizationId).toBeNull();
-    expect(wrapper.vm.selectedOrganizationName).toBe('');
-    expect(wrapper.vm.selectedUnloadingPlaceId).toBeNull();
+    expect(wrapper.vm.selectedOrganizationIds).toEqual([]);
+    expect(wrapper.vm.selectedCompanyIds).toEqual([]);
+    expect(wrapper.vm.selectedUnloadingPlaceIds).toEqual([]);
     expect(wrapper.vm.selectedDate).toBeNull();
     expect(wrapper.vm.hasActiveFilters).toBe(false);
   });

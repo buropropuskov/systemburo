@@ -45,6 +45,9 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
+  /* Высоту здесь НЕ задавать: десятки кнопок объявляют свою, меньшую (25-34px), и
+     минимум на базовом правиле сильнее их height - раздувает всё разом. Тач-таргет
+     добирается там, где он нужен, а не общим правилом. */
   padding: 8px 18px;
   border-radius: var(--radius-pill);
   border: 1px solid transparent;
@@ -133,4 +136,16 @@
 
 .lk-card--flat {
   box-shadow: none;
+}
+
+/*
+ * Подсказка в полях экрана входа. Браузеры красят ::placeholder по-своему
+ * (Chrome #757575, Firefox - цвет текста с прозрачностью), из-за чего значок
+ * поля, подогнанный под один браузер, в другом расходился с подсказкой.
+ * Правило живёт здесь, а не в LoginComponent: его блок стилей за порогом
+ * lint:size, расти ему нельзя.
+ */
+.login__input .input::placeholder {
+  color: var(--text-placeholder);
+  opacity: 1;
 }

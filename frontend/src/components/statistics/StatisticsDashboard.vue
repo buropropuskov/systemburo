@@ -128,62 +128,66 @@
       </Transition>
     </div>
 
-    <!-- ===== ГРУППА: ВЛОЖЕНИЯ ===== -->
-    <div class="dashboard__group">
-      <div class="dashboard__group-head">
-        <h2 class="dashboard__group-title">Вложения</h2>
-        <span class="dashboard__group-chip">по типам за период</span>
-        <span class="dashboard__group-rule" />
-      </div>
+    <!-- ===== ВЛОЖЕНИЯ И PUSH: два блока в одну строку ===== -->
+    <div class="an-pair">
+      <div class="dashboard__group">
+        <div class="dashboard__group-head">
+          <h2 class="dashboard__group-title">Вложения</h2>
+          <span class="dashboard__group-chip">по типам за период</span>
+          <span class="dashboard__group-rule" />
+        </div>
 
-      <div
-        v-if="summaryLoading && !summaryReady"
-        class="dashboard__tiles"
-      >
         <div
-          v-for="n in 6"
-          :key="n"
-          class="dashboard__tile dashboard__tile--skeleton"
-        />
-      </div>
-
-      <div
-        v-else-if="attachmentBreakdown.length === 0"
-        class="dashboard__feed-empty"
-      >
-        В системе нет настроенных типов вложений
-      </div>
-
-      <div
-        v-else
-        class="dashboard__attach"
-      >
-        <Transition name="dashboard__chart-fade">
+          v-if="summaryLoading && !summaryReady"
+          class="dashboard__tiles"
+        >
           <div
-            v-if="attachmentDonutData.length > 0"
-            class="dashboard__attach-chart"
-          >
+            v-for="n in 6"
+            :key="n"
+            class="dashboard__tile dashboard__tile--skeleton"
+          />
+        </div>
+
+        <div
+          v-else-if="attachmentBreakdown.length === 0"
+          class="dashboard__feed-empty"
+        >
+          В системе нет настроенных типов вложений
+        </div>
+
+        <div
+          v-else
+          class="an-panel"
+        >
+          <div class="an-panel__chart">
             <AnalyticsDonutChart
               :data="attachmentDonutData"
-              :height="280"
               total-label="Вложений"
               :unit-forms="['вложение', 'вложения', 'вложений']"
+              empty-ring
+              fill-height
             />
           </div>
-        </Transition>
-        <div class="dashboard__tiles dashboard__attach-tiles">
-          <div
-            v-for="item in attachmentBreakdown"
-            :key="item.label"
-            class="dashboard__tile"
-          >
-            <div class="dashboard__tile-label">{{ item.label }}</div>
-            <div class="dashboard__tile-val">
-              <AnimatedNumber :value="item.count" />
+          <div class="an-panel__tiles">
+            <div
+              v-for="item in attachmentBreakdown"
+              :key="item.label"
+              class="dashboard__tile"
+            >
+              <div class="dashboard__tile-label">{{ item.label }}</div>
+              <div class="dashboard__tile-val">
+                <AnimatedNumber :value="item.count" />
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      <!-- ===== PUSH-УВЕДОМЛЕНИЯ (#974) =====
+           Снимок на сейчас, не завязан на выбранный период (from/to) - в отличие
+           от групп выше, поэтому не в watch([props.from, props.to]) и не в
+           summarySeq/summaryLoading, а сам себе загружает и обновляет данные. -->
+      <PushAdoptionSummary ref="pushAdoptionRef" />
     </div>
 
     <!-- ===== ГРУППА: СИСТЕМА ===== -->
@@ -402,7 +406,14 @@
             />
           </div>
 
-          <div class="dashboard__feed-list">
+          <!-- Своя вертикальная прокрутка (волна 9): та же область, что на
+               десктопе (max-height 360px), помечена data-scroll-own - гейт
+               мобильных инвариантов считает её законной, а не воровкой жеста
+               у страницы. -->
+          <div
+            class="dashboard__feed-list"
+            data-scroll-own
+          >
             <template v-if="feedLoading">
               <div
                 v-for="n in 5"
@@ -457,7 +468,10 @@
             />
           </div>
 
-          <div class="dashboard__feed-list">
+          <div
+            class="dashboard__feed-list"
+            data-scroll-own
+          >
             <template v-if="feedLoading">
               <div
                 v-for="n in 5"
@@ -525,6 +539,7 @@ import TopList from '@/components/statistics/TopList.vue';
 import AnimatedNumber from '@/components/statistics/AnimatedNumber.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import OnlineUsersModal from '@/components/statistics/OnlineUsersModal.vue';
+import PushAdoptionSummary from '@/components/statistics/PushAdoptionSummary.vue';
 import { getSummary, getTimeline, getRecentPassages, getInsights, getOnlinePeaks, getOnlineUsers } from '@/api/statistics.js';
 import { mergeFeed, feedRowKey } from './feedMerge.js';
 
@@ -603,6 +618,12 @@ const carsFeed = ref([]);
 const feedLoading = ref(false);
 const feedRefreshing = ref(false);
 
+// Волна 5 держала на телефоне лишь 5 записей и без кнопки «Показать ещё» -
+// у ленты не было своей прокрутки, и полные 15 записей растягивали блок на
+// 2000+px. Волна 9 отдаёт ленте свою прокрутку (see .dashboard__feed-list в
+// шаблоне, data-scroll-own), поэтому лимит теперь один на оба брейкпоинта.
+const FEED_LIMIT = 15;
+
 // ---- переключатели графика ----
 const metricOptions = [
   { label: 'Заявки', value: 'applications' },
@@ -656,10 +677,15 @@ const detailUnitForms = {
 };
 
 // ---- вычисляемые из summary ----
+// Порядок плиток - по имени, а не тот, в котором пришёл ответ: там типы идут по
+// убыванию количества, и на другом периоде состав ненулевых меняется. Плитки
+// переезжали местами, а перемещённые вдобавок переигрывали анимацию появления.
 const attachmentBreakdown = computed(() => {
   const list = summary.value.by_attachment_type;
   if (!Array.isArray(list)) return [];
-  return list.map((item) => ({ label: item.name, count: item.count }));
+  return list
+    .map((item) => ({ label: item.name, count: item.count }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'ru'));
 });
 
 // Donut распределения по типам вложений: только ненулевые доли (пустые типы
@@ -906,7 +932,8 @@ async function loadDetailTimeline(metricKey) {
 async function loadFeed({ showSkeleton = false } = {}) {
   if (showSkeleton) feedLoading.value = true;
   try {
-    const data = await getRecentPassages(15);
+    // Один запрос отдаёт обе ленты.
+    const data = await getRecentPassages(FEED_LIMIT);
     const people = Array.isArray(data?.people) ? data.people : [];
     const cars = Array.isArray(data?.cars) ? data.cars : [];
     peopleFeed.value = mergeFeed(peopleFeed.value, people);
@@ -933,9 +960,21 @@ async function refreshFeeds() {
   }
 }
 
+// Push-сводка (#974) - отдельный самодостаточный компонент со своей загрузкой
+// (см. комментарий у <PushAdoptionSummary> в template), сюда попадает только
+// ссылка для ручного обновления кнопкой «Обновить» в шапке аналитики.
+const pushAdoptionRef = ref(null);
+
 // ---- публичный метод для обновления из родителя ----
 async function refresh() {
-  await Promise.all([loadSummary(), loadTimeline(), loadInsights(), loadOnlinePeaks(), loadFeed()]);
+  await Promise.all([
+    loadSummary(),
+    loadTimeline(),
+    loadInsights(),
+    loadOnlinePeaks(),
+    loadFeed(),
+    pushAdoptionRef.value?.refresh(),
+  ]);
 }
 
 defineExpose({ refresh });
@@ -1048,44 +1087,6 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
   gap: 12px;
-}
-
-/* Распределение вложений: donut слева, плитки-числа справа; на узких — стопкой. */
-.dashboard__attach {
-  display: grid;
-  grid-template-columns: minmax(280px, 360px) 1fr;
-  gap: 20px;
-  align-items: start;
-}
-
-.dashboard__attach-chart {
-  background: var(--surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
-}
-
-.dashboard__attach-tiles {
-  min-width: 0;
-}
-
-.dashboard__chart-fade-enter-active,
-.dashboard__chart-fade-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.dashboard__chart-fade-enter-from,
-.dashboard__chart-fade-leave-to {
-  opacity: 0;
-  transform: translateY(8px);
-}
-
-@media (max-width: 900px) {
-  .dashboard__attach {
-    /* minmax(0,1fr): иначе трек сайзится по min-content доната (apexcharts ~300px)
-       и на узком экране (<=320) вылезает за контейнер, вместо сжатия графика. */
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 .dashboard__tile {
@@ -1626,10 +1627,13 @@ onUnmounted(() => {
     width: 100%;
   }
 
+  /* Высота под палец: 26px давали промах по соседнему сегменту. 36 - принятая в
+     проекте норма компактного контрола (эталон §18). */
   .dashboard__seg-btn {
     flex: 1 1 0;
     text-align: center;
     padding: 6px 4px;
+    min-height: 36px;
     font-size: 11px;
     white-space: nowrap;
   }
@@ -1656,9 +1660,6 @@ onUnmounted(() => {
     gap: 10px;
   }
 
-  .dashboard__feed-list {
-    max-height: 320px;
-  }
 }
 
 @media (max-width: 480px) {

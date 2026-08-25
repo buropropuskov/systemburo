@@ -108,9 +108,28 @@ func (s *attachmentService) Create(ctx context.Context, userID int, req models.C
 		Title:          &titleUpper,
 		Instruction:    req.Instruction,
 		IsActive:       true,
+		AutoExport:     req.AutoExport == nil || *req.AutoExport,
 	}
 
-	if err := s.db.WithContext(ctx).Create(&attachment).Error; err != nil {
+	// Запись идёт транзакцией из двух шагов: у auto_export задан default:true, а gorm
+	// выбрасывает из INSERT поля с нулевым значением, когда у колонки есть значение
+	// по умолчанию - выключенный тумблер молча превращался бы во включённый, и бланки
+	// типа уезжали бы в архив вопреки решению администратора (#1615). Судить по
+	// attachment.AutoExport после вставки нельзя: там уже default из базы.
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&attachment).Error; err != nil {
+			return err
+		}
+		if req.AutoExport != nil && !*req.AutoExport {
+			if err := tx.Model(&models.UniqueAttachment{}).
+				Where("id = ?", attachment.ID).Update("auto_export", false).Error; err != nil {
+				return err
+			}
+			attachment.AutoExport = false
+		}
+		return nil
+	})
+	if err != nil {
 		slog.Error("failed to create attachment", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка при создании вложения")
 	}
@@ -136,15 +155,22 @@ func (s *attachmentService) Update(ctx context.Context, userID, id int, req mode
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching attachment")
 		}
 
+		fields := map[string]interface{}{
+			"attachment_type": req.AttachmentType,
+			"name":            req.Name,
+			"display_name":    req.DisplayName,
+			"title":           titleUpper,
+			"instruction":     req.Instruction,
+		}
+		// Тумблер архива обновляем только когда клиент его прислал: форма шаблона
+		// вложения и форма настроек архива -- разные экраны, и одна не должна гасить
+		// настройку другой.
+		if req.AutoExport != nil {
+			fields["auto_export"] = *req.AutoExport
+		}
 		if err := tx.Model(&models.UniqueAttachment{}).
 			Where("id = ?", id).
-			Updates(map[string]interface{}{
-				"attachment_type": req.AttachmentType,
-				"name":            req.Name,
-				"display_name":    req.DisplayName,
-				"title":           titleUpper,
-				"instruction":     req.Instruction,
-			}).Error; err != nil {
+			Updates(fields).Error; err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error updating attachment")
 		}
 		details = buildAttachmentUpdateDetails(prev, req, titleUpper)
@@ -226,6 +252,8 @@ func (s *attachmentService) GetHistory(ctx context.Context, id int) ([]models.Un
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching attachment history")
 	}
 
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
 	items := make([]models.UniqueAttachmentHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.UniqueAttachmentHistoryItem{
@@ -233,7 +261,7 @@ func (s *attachmentService) GetHistory(ctx context.Context, id int) ([]models.Un
 			ActionType:  r.ActionType,
 			Details:     r.Details,
 			ActorUserID: r.ActorUserID,
-			ActorName:   r.ActorName,
+			ActorName:   maskName(masks, r.ActorUserID, r.ActorName),
 			CreatedAt:   r.CreatedAt,
 		})
 	}
@@ -260,6 +288,9 @@ func buildAttachmentUpdateDetails(prev models.UniqueAttachment, req models.Updat
 	}
 	if strPtrVal(prev.Instruction) != strPtrVal(req.Instruction) {
 		details["instruction"] = map[string]any{"old": strPtrVal(prev.Instruction), "new": strPtrVal(req.Instruction)}
+	}
+	if req.AutoExport != nil && prev.AutoExport != *req.AutoExport {
+		details["auto_export"] = map[string]any{"old": prev.AutoExport, "new": *req.AutoExport}
 	}
 	return details
 }

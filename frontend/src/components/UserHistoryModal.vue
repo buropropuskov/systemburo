@@ -16,18 +16,18 @@
           @mousedown.stop
         >
           <div class="modal-header">
-            <h3>История учётной записи «{{ user.username }}»</h3>
+            <h3>История учётной записи «{{ formatLogin(user.username) }}»</h3>
             <div class="header-actions">
               <button
                 class="export-btn"
                 :disabled="filteredHistory.length === 0 || isExporting"
                 @click="exportToExcel"
               >
-                <img
+                <AppIcon
                   v-if="!isExporting"
-                  src="@/assets/icons/export.png"
+                  name="export"
                   class="export-icon"
-                >
+                />
                 <span v-if="!isExporting">Экспорт</span>
                 <div
                   v-else
@@ -64,11 +64,11 @@
                 >
                   <div class="select-trigger">
                     <span class="selected-value">{{ selectedUserName }}</span>
-                    <img
-                      src="@/assets/icons/arrow.png"
+                    <AppIcon
+                      name="arrow"
                       class="select-arrow"
                       :class="{ 'arrow-open': userDropdownOpen }"
-                    >
+                    />
                   </div>
                   <transition name="fade">
                     <div
@@ -117,11 +117,11 @@
                   class="sort-btn"
                   @click="toggleSortOrder"
                 >
-                  <img
-                    src="@/assets/icons/sort.png"
+                  <AppIcon
+                    name="sort"
                     class="sort-icon"
                     :class="{ 'sort-asc': sortOrder === 'asc' }"
-                  >
+                  />
                   <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
                 </button>
               </div>
@@ -197,10 +197,12 @@
 
 <script>
 import { ref } from 'vue';
+import { formatLogin } from '@/utils/formatName';
 import { apiRequest } from '@/api/client';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useDeletionsStore } from '@/stores/deletions';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 import ExcelJS from 'exceljs';
 
 const ACTION_TEXTS = {
@@ -214,6 +216,10 @@ const ACTION_TEXTS = {
   restored: 'Учётная запись восстановлена из архива',
   banned: 'Заблокирован',
   unbanned: 'Разблокирован',
+  consent_granted: 'Дал согласие на обработку персональных данных',
+  consent_revoked: 'Отозвал согласие на обработку персональных данных',
+  impersonate_start: 'Вход в систему от имени работника',
+  impersonate_stop: 'Выход из режима работы от имени работника',
 };
 
 const ACTION_DOT_CLASS = {
@@ -227,6 +233,12 @@ const ACTION_DOT_CLASS = {
   restored: 'dot-activate',
   banned: 'dot-deactivate',
   unbanned: 'dot-activate',
+  consent_granted: 'dot-activate',
+  consent_revoked: 'dot-deactivate',
+  // Вход под чужой учётной записью - событие того же веса, что блокировка:
+  // нейтральная точка прятала бы его в ленте среди правок телефона.
+  impersonate_start: 'dot-deactivate',
+  impersonate_stop: 'dot-activate',
 };
 
 // Читаемые лейблы для полей в details (updated/created).
@@ -242,7 +254,7 @@ const FIELD_LABELS = {
 
 export default {
   name: 'UserHistoryModal',
-  components: { LoaderSpinner },
+  components: { LoaderSpinner, AppIcon },
   props: {
     user: { type: Object, required: true },
     organizations: { type: Array, default: () => [] },
@@ -393,6 +405,8 @@ export default {
     document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
+    formatLogin,
+
     onKeydown(e) {
       if (e.key === 'Escape') this.requestClose();
     },
@@ -457,6 +471,17 @@ export default {
       if (!d || typeof d !== 'object') return '';
 
       switch (item.action_type) {
+        case 'impersonate_start': {
+          // В details лежат логины обеих сторон и срок действия доступа. Без
+          // разбора запись показывалась голым заголовком, и главное - до какого
+          // момента действовал чужой доступ - на экран не попадало.
+          const parts = [];
+          if (d.actor_username) parts.push(`Администратор: ${formatLogin(d.actor_username)}`);
+          if (d.expires_at) parts.push(`Доступ до ${this.formatDateTime(d.expires_at)}`);
+          return parts.join(' / ');
+        }
+        case 'impersonate_stop':
+          return d.actor_username ? `Администратор: ${formatLogin(d.actor_username)}` : '';
         case 'created': {
           const parts = [];
           if (d.username) parts.push(`Логин: ${d.username}`);
@@ -496,9 +521,14 @@ export default {
           if (d.reason) return `Причина блокировки: «${d.reason}»`;
           return '';
         }
+        // Редакция - главное в записи о согласии: по ней видно, с каким текстом
+        // человек согласился, если текст с тех пор переиздавали.
+        case 'consent_granted':
+          return d.version ? `Редакция ${d.version}` : '';
         case 'password_reset':
         case 'archived':
         case 'restored':
+        case 'consent_revoked':
         default:
           return '';
       }
@@ -983,6 +1013,7 @@ export default {
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 14px;
   height: 14px;
   transition: transform 0.2s ease;

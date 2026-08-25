@@ -2,6 +2,7 @@
   <div class="application-history">
     <button
       class="history-toggle"
+      data-testid="ob-detail-history"
       @click="openModal"
     >
       История заявки
@@ -17,6 +18,7 @@
         >
           <div
             class="history-modal"
+            data-testid="ob-history-modal"
             :class="{ 'is-dragging': sheetDragging }"
             :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
             @touchstart="onSheetTouchStart"
@@ -36,11 +38,11 @@
                   :disabled="filteredHistory.length === 0 || isExporting"
                   @click="exportToExcel"
                 >
-                  <img
+                  <AppIcon
                     v-if="!isExporting"
-                    src="@/assets/icons/export.png"
+                    name="export"
                     class="export-icon"
-                  >
+                  />
                   <span
                     v-if="!isExporting"
                     class="export-btn-text"
@@ -70,11 +72,11 @@
                   >
                     <div class="select-trigger">
                       <span class="selected-value">{{ selectedUserName }}</span>
-                      <img 
-                        src="@/assets/icons/arrow.png" 
-                        class="select-arrow" 
+                      <AppIcon
+                        name="arrow"
+                        class="select-arrow"
                         :class="{ 'arrow-open': userDropdownOpen }"
-                      >
+                      />
                     </div>
                     <transition name="fade">
                       <div
@@ -108,11 +110,11 @@
                     class="sort-btn"
                     @click="toggleSortOrder"
                   >
-                    <img
-                      src="@/assets/icons/sort.png"
+                    <AppIcon
+                      name="sort"
                       class="sort-icon"
                       :class="{ 'sort-asc': sortOrder === 'asc' }"
-                    >
+                    />
                     <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
                   </button>
                 </div>
@@ -239,13 +241,15 @@
 import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 import ExcelJS from 'exceljs';
 import { ref } from 'vue';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+import { useOnboardingStore } from '@/stores/onboarding';
 
 export default {
     name: 'ApplicationHistory',
-    components: { LoaderSpinner },
+    components: { LoaderSpinner, AppIcon },
     props: {
         applicationId: {
             type: Number,
@@ -285,11 +289,14 @@ export default {
             onSheetTouchStart: swipe.onTouchStart,
             onSheetTouchMove: swipe.onTouchMove,
             onSheetTouchEnd: swipe.onTouchEnd,
+            onboardingStore: useOnboardingStore(),
         };
     },
     data() {
         return {
             showModal: false,
+            // Журнал открыл тур - только такое окно он и закрывает за собой.
+            historyOpenedByTour: false,
             loading: false,
             history: [],
             sortOrder: 'desc', // 'desc' - новые сверху, 'asc' - старые сверху
@@ -433,6 +440,23 @@ export default {
     beforeUnmount() {
         document.removeEventListener('click', this.handleClickOutside);
     },
+    watch: {
+        /**
+         * Онбординг просит показать журнал: открываем окно по сигналу и закрываем,
+         * когда сигнал гаснет. Окно, открытое человеком, не трогаем.
+         */
+        'onboardingStore.revealOpen'(target) {
+            if (target === 'application-history') {
+                if (this.showModal) return;
+                this.historyOpenedByTour = true;
+                this.openModal();
+                return;
+            }
+            if (!this.historyOpenedByTour) return;
+            this.historyOpenedByTour = false;
+            this.closeModal();
+        },
+    },
     methods: {
         openModal() {
             this.showModal = true;
@@ -464,7 +488,6 @@ export default {
 
                 if (response.ok) {
                     this.history = await response.json();
-                    console.log("History loaded:", this.history);
                 }
             } catch (error) {
                 console.error("Error loading history:", error);
@@ -685,6 +708,16 @@ export default {
                 'revoke_from_work': 'dot-warning',
                 'restore_to_work': 'dot-info',
                 'completed': 'dot-success',
+                'employees_bulk_added': 'dot-create',
+                'supplement_created': 'dot-create',
+                'supplement_cancelled': 'dot-warning',
+                'supplement_approve': 'dot-approve',
+                'supplement_reject': 'dot-reject',
+                'supplement_revoke_approval': 'dot-revoke',
+                'supplement_confirmation_change': 'dot-system',
+                'supplement_accepted': 'dot-success',
+                'supplement_refused': 'dot-reject',
+                'supplement_cancelled_by_author': 'dot-warning',
                 'withdraw': 'dot-reject',
                 'assigned_responsible': 'dot-assign',
                 'assigned_viewer': 'dot-view',
@@ -692,6 +725,7 @@ export default {
                 'confirmation_change': 'dot-system',
                 'status_change': 'dot-system',
                 'blacklist_override': 'dot-success',
+                'element_removed': 'dot-reject',
                 'blacklist_override_revoke': 'dot-warning',
                 'question_created': 'dot-info'
             };
@@ -738,20 +772,58 @@ export default {
                 'revoke_from_work': 'Отозвал(-а) из работы',
                 'restore_to_work': 'Вернул(-а) в работу',
                 'completed': 'Заявка завершена: срок действия истёк',
+                'employees_bulk_added': 'Добавил(-а) сотрудников списком',
+                'supplement_created': 'Подал(-а) дополнение',
+                'supplement_cancelled': 'Дополнение снято: заявка закрыта',
+                'supplement_approve': 'Согласовал(-а) дополнение',
+                'supplement_reject': 'Не согласовал(-а) дополнение',
+                'supplement_revoke_approval': 'Отозвал(-а) согласование дополнения',
+                'supplement_confirmation_change': 'Статус согласования дополнения изменился',
+                'supplement_accepted': 'Принял(-а) дополнение',
+                'supplement_refused': 'Отклонил(-а) дополнение',
+                'supplement_cancelled_by_author': 'Снял(-а) своё дополнение',
                 'withdraw': 'Отозвал(-а) заявку',
                 'assigned_responsible': 'Назначен(-а) ответственным получателем',
                 'assigned_viewer': 'Получил(-а) доступ к просмотру заявки',
                 'confirmation_change': 'Статус согласования изменился',
                 'status_change': 'Статус заявки изменился',
                 'blacklist_override': 'Подтвердил(-а) пропуск (возможный обход ЧС)',
-                'blacklist_override_revoke': 'Отменил(-а) подтверждение пропуска'
+                'blacklist_override_revoke': 'Отменил(-а) подтверждение пропуска',
+                'element_removed': 'Убрал(-а) из заявки'
             };
             
             let text = texts[item.action_type] || item.action_type;
-            
-            
-            
+
+            // Номер раунда рядом с подписью (#1685): по одной заявке дополнений бывает
+            // несколько, и без номера события разных раундов в ленте не различить.
+            // Скобками, а не « №N» в хвосте - часть подписей кончается не словом
+            // «дополнение» («Статус согласования дополнения изменился»).
+            const supplementNumber = this.supplementNumber(item);
+            if (supplementNumber) {
+                text = `${text} (№${supplementNumber})`;
+            }
+
             return text;
+        },
+
+        /**
+         * Номер раунда дополнения из метаданных события (#1685), либо null.
+         *
+         * Бэк кладёт в metadata аудита ключ `number` (supplementAuditMetadata); имя
+         * `supplement_number` он же использует в payload уведомлений, поэтому принимаем
+         * оба - иначе подпись молча останется без номера, если ключи когда-нибудь сведут.
+         *
+         * @param {Object} item запись истории
+         * @returns {?number}
+         */
+        supplementNumber(item) {
+            if (!item || typeof item.action_type !== 'string') return null;
+            if (!item.action_type.startsWith('supplement_')) return null;
+
+            const meta = item.metadata || {};
+            const raw = meta.supplement_number != null ? meta.supplement_number : meta.number;
+            const number = Number(raw);
+            return Number.isFinite(number) && number > 0 ? number : null;
         },
 
         formatTime(dateTimeString) {
@@ -1079,6 +1151,7 @@ export default {
 }
 
 .sort-icon {
+  color: var(--text-muted);
     width: 14px;
     height: 14px;
     transition: transform 0.2s ease;

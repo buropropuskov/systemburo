@@ -454,6 +454,25 @@ describe('ManualAddModal - режим-2 привязка к заявке (#1049 
     expect(wrapper.vm.canSubmit).toBe(true);
   });
 
+  it('подсказка на кнопке называет причину блокировки', async () => {
+    const wrapper = mountModal();
+    await flushPromises();
+    expect(wrapper.vm.submitHint).toBe(
+      'Заполните: организацию, даты и время. Добавьте хотя бы одну машину'
+    );
+
+    await fillValidCar(wrapper);
+    expect(wrapper.vm.submitHint).toBe('');
+
+    await wrapper.setData({ bindMode: 'application', selectedApplicationId: null });
+    expect(wrapper.vm.submitHint).toBe('Заполните: заявку');
+
+    // Якорь подсказки - обёртка: у disabled-кнопки :hover не срабатывает.
+    const anchor = wrapper.find('.hint-anchor');
+    expect(anchor.attributes('data-hint')).toBe('Заполните: заявку');
+    expect(anchor.find('[data-testid="manual-add-submit"]').exists()).toBe(true);
+  });
+
   it('people-режим: attachmentOptions фильтрует вложения по типу people', async () => {
     const wrapper = mount(ManualAddModal, {
       props: { show: true, mode: 'people', tableId: 55, tableName: 'КПП людей' },

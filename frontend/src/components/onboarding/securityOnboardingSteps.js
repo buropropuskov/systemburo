@@ -1,18 +1,24 @@
 /**
- * Шаги онбординг-тура для сотрудника охраны (auth.isSecurity). Отдельный сценарий:
- * охранник не подаёт заявки и не ведёт свои справочники, а смотрит согласованные
- * вложения по своим местам и отмечает въезд/выезд. Поэтому тур ведёт по разделам
- * «Доступные мне» и «Таблицы», а не по оформлению заявки.
+ * Версия тура охраны. Своя, независимая от остальных туров: подъём здесь
+ * переигрывает только этот сценарий (см. hasCompleted в stores/onboarding.js).
  *
- * Структура и поля шага - те же, что у applicant-тура (см. onboardingSteps.js),
- * включая `mobileReveal` (#1097 S11 - переехавшие на <=768 цели: drawer NavMenu).
- * движок группирует подряд идущие шаги с общим `route` в
- * сегмент driver.js, смена `route` = cross-page граница. Версия тура и флаг
- * завершения общие с основным сценарием - аргументация в stores/onboarding.js,
- * где ветвится `steps`. collectSegment живёт в onboardingSteps.js и работает с
- * любым массивом шагов.
+ * 2 - сквозной поиск, объяснение скрытого ФИО, пропуск по факту и отчёт по
+ *     проходам; сегмент отметки перестал требовать таблицу машин.
+ */
+export const SECURITY_ONBOARDING_VERSION = 3;
+
+/**
+ * Шаги онбординг-тура для сотрудника охраны (тур `guard` в реестре tours.js).
+ * Отдельный сценарий: охранник не подаёт заявки и не ведёт свои справочники, а
+ * смотрит согласованные вложения по своим местам и отмечает въезд/выезд. Поэтому
+ * тур ведёт по разделам «Доступные мне» и «Таблицы», а не по оформлению заявки.
  *
- * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, expandRail?: boolean, optional?: boolean, side?: string, align?: string, mobileReveal?: 'nav' }>}
+ * Структура и поля шага - общие для всех туров, полный список в JSDoc
+ * `onboardingSteps.js` (включая `reveal` и `requires`). Движок группирует подряд
+ * идущие шаги с общим `route` в сегмент driver.js, смена `route` = cross-page
+ * граница. collectSegment живёт в onboardingSteps.js и работает с любым массивом.
+ *
+ * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, demo?: string, requires?: string, expandRail?: boolean, optional?: boolean, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: string } }>}
  */
 export const securityOnboardingSteps = [
   // ── Сегмент /news: знакомство, шапка, навигация охранника ──
@@ -34,7 +40,48 @@ export const securityOnboardingSteps = [
     route: '/news',
     element: '[data-testid="ob-header-notifications"]',
     title: 'Уведомления',
-    description: 'Колокольчик показывает количество непрочитанных уведомлений системы. Нажмите, чтобы открыть список.',
+    description: 'Колокольчик показывает количество непрочитанных уведомлений системы. Сейчас откроем список.',
+    advanceWhen: '[data-testid="ob-notifications-panel"]',
+  },
+  {
+    id: 'sec-header-notifications-panel',
+    side: 'bottom',
+    align: 'end',
+    route: '/news',
+    element: '[data-testid="ob-notifications-panel"]',
+    title: 'Список уведомлений',
+    description:
+      'Здесь копятся события: заявку согласовали, задали вопрос, срок пропуска подходит к концу. Свежие идут сверху, непрочитанные выделены, вкладки «Все» и «Непрочитанные» отбирают нужное. Пустой список значит, что нового нет. Шестерёнка ведёт к настройке уведомлений.',
+    optional: true,
+    reveal: { open: 'notifications' },
+  },
+  {
+    // Панель поиска выезжает справа во всю высоту окна и лежит выше подсветки
+    // (z-index 15000 против 10000 у driver.js), поэтому сама кнопка на время шага
+    // оказывается под ней. Поповер кладём снизу от кнопки - он рисуется поверх
+    // панели, и человек видит именно то, что описано: открытое поле поиска.
+    id: 'sec-header-search',
+    side: 'bottom',
+    align: 'end',
+    route: '/news',
+    element: '[data-testid="header-button-search"]',
+    title: 'Поиск по системе',
+    description:
+      'Эта кнопка открывает поиск сразу по всей системе. С клавиатуры - Ctrl+K.',
+    // Раскрытие панели тут не просим намеренно: она выезжает поверх шапки и
+    // закрывает саму кнопку, о которой идёт речь, - подсветки не видно вовсе.
+    // Панель разбираем следующим шагом, как в туре заявителя.
+  },
+  {
+    id: 'sec-header-search-panel',
+    side: 'left',
+    route: '/news',
+    element: '[data-testid="global-search-panel"]',
+    title: 'Что находит поиск',
+    description:
+      'Машина находится и по государственному номеру, и по марке, человек - по фамилии. Опечатка и латинская раскладка поиску не мешают.',
+    optional: true,
+    reveal: { open: 'search-panel' },
   },
   {
     id: 'sec-header-feedback',
@@ -43,8 +90,9 @@ export const securityOnboardingSteps = [
     element: '[data-testid="header-button-feedback"]',
     title: 'Сообщить о проблеме',
     description: 'Заметили ошибку или есть предложение - напишите нам прямо отсюда, не покидая систему.',
+    requires: 'header.report_problem',
     // На мобилке кнопка переехала из "⋯" в бургер-drawer (W3.3) - раскрываем drawer.
-    mobileReveal: 'nav',
+    reveal: { mobile: 'nav' },
   },
   {
     id: 'sec-nav-rail',
@@ -54,17 +102,7 @@ export const securityOnboardingSteps = [
     description:
       'Боковое меню - главный способ перемещаться по системе. Отсюда вы попадаете в нужные разделы, а внизу - кнопка «Выйти».',
     expandRail: true,
-    mobileReveal: 'nav',
-  },
-  {
-    id: 'sec-nav-accessible',
-    route: '/news',
-    element: '[data-testid="nav-link-accessible-attachments"]',
-    title: 'Доступные мне',
-    description:
-      'Раздел «Доступные мне» - согласованные вложения заявок по местам, которые вы охраняете. Здесь вы смотрите оформленные пропуска и открываете их бланки. Сейчас перейдём туда.',
-    expandRail: true,
-    mobileReveal: 'nav',
+    reveal: { mobile: 'nav' },
   },
   {
     id: 'sec-nav-tables',
@@ -72,18 +110,37 @@ export const securityOnboardingSteps = [
     element: '[data-testid="nav-link-tables"]',
     title: 'Таблицы',
     description:
-      'Раздел «Таблицы» - журналы по вашим местам. Внутри открываются таблицы со списками машин и людей.',
+      'Раздел «Таблицы» - рабочие списки постов. У каждого поста своя таблица: в одних машины, в других люди.',
+    // Пункт меню появляется, только когда работнику доступна хотя бы одна
+    // таблица поста (NavMenu: tablesItemVisible). Тур в меню открывается и по
+    // праву «Доступные мне», поэтому у такого работника раздела нет вовсе -
+    // без пометки шаг ждал цель четыре секунды и показывал окно про раздел,
+    // которого у человека не существует.
+    optional: true,
     expandRail: true,
-    mobileReveal: 'nav',
+    reveal: { mobile: 'nav' },
+  },
+  {
+    id: 'sec-nav-accessible',
+    route: '/news',
+    element: '[data-testid="nav-link-accessible-attachments"]',
+    title: 'Доступные мне',
+    description:
+      'Раздел «Доступные мне» - согласованные бланки заявок, по которым вы пропускаете машины и людей. Здесь их видно целиком и можно открыть сам бланк. Сейчас туда и перейдём.',
+    expandRail: true,
+    reveal: { mobile: 'nav' },
   },
   // ── Сегмент /accessible-attachments: страница «Доступные мне» ──
   {
     id: 'sec-aa-intro',
     route: '/accessible-attachments',
-    element: null,
+    // Подсвечиваем сам список: центр-модалка без цели читалась как «тур завис».
+    element: '[data-testid="aa-list"]',
+    optional: true,
+    scrollTo: 'start',
     title: 'Раздел «Доступные мне»',
     description:
-      'Мы открыли раздел «Доступные мне». Здесь собраны согласованные вложения заявок по местам, которые вы охраняете.',
+      'Мы открыли раздел «Доступные мне». Здесь собраны согласованные бланки заявок, по которым вы пропускаете машины и людей.',
   },
   {
     id: 'sec-aa-filters',
@@ -104,7 +161,8 @@ export const securityOnboardingSteps = [
     element: '[data-testid="aa-card"]',
     title: 'Карточка вложения',
     description:
-      'Каждая карточка - это вложение: тип, организация, статус и срок действия. Нажмите на карточку, чтобы справа открылись детали со списком машин или людей.',
+      'Каждая карточка - это вложение заявки: тип, организация, статус и срок действия пропуска. Нажмите на карточку - справа откроются подробности. Сейчас откроем первую.',
+    advanceWhen: '[data-testid="aa-detail"]',
   },
   {
     id: 'sec-aa-detail',
@@ -112,10 +170,25 @@ export const securityOnboardingSteps = [
     align: 'start',
     optional: true,
     route: '/accessible-attachments',
+    // Детали открываются только по выбору карточки: без раскрытия целей этих
+    // шагов на экране нет, и разбор вложения выпадал целиком.
+    reveal: { open: 'first-attachment' },
     element: '[data-testid="aa-detail"]',
     title: 'Детали вложения',
     description:
       'Справа - подробности выбранного вложения: данные заявки и её содержимое. Отсюда же открывается прикреплённый бланк.',
+  },
+  {
+    id: 'sec-aa-elements',
+    side: 'left',
+    align: 'start',
+    optional: true,
+    route: '/accessible-attachments',
+    reveal: { open: 'first-attachment' },
+    element: '[data-testid="attachment-elements"]',
+    title: 'Кого пропускать',
+    description:
+      'Состав вложения: машины с номерами и марками или люди с ФИО и должностями - именно их вы и пропускаете. Рядом есть поиск, чтобы быстро найти нужного в длинной заявке.',
   },
   {
     id: 'sec-aa-preview',
@@ -123,127 +196,42 @@ export const securityOnboardingSteps = [
     align: 'start',
     optional: true,
     route: '/accessible-attachments',
+    // Детали открываются только по выбору карточки: без раскрытия целей этих
+    // шагов на экране нет, и разбор вложения выпадал целиком.
+    reveal: { open: 'first-attachment' },
     element: '[data-testid="aa-preview-blank"]',
     title: 'Посмотреть файл',
     description:
-      'Кнопка «Посмотреть файл» открывает заполненный бланк вложения прямо в системе - скачивать его для просмотра не нужно.',
+      'Кнопка «Посмотреть файл» открывает заполненный бланк прямо в системе - скачивать его не нужно. Сейчас откроем.',
+    advanceWhen: '[data-testid="ob-blank-preview"]',
+  },
+  {
+    id: 'sec-aa-blank',
+    side: 'top',
+    align: 'center',
+    optional: true,
+    route: '/accessible-attachments',
+    // Тур открывает бланк сам: рассказывать про кнопку и не показывать файл -
+    // половина объяснения.
+    reveal: { open: 'attachment-blank' },
+    element: '[data-testid="ob-blank-preview"]',
+    title: 'Бланк заявки',
+    description:
+      'Так выглядит заполненный бланк - то же, что подписано на бумаге. Паспортные данные в нём видны только тем, кому разрешена их выгрузка; на месте закрытых стоит прочерк. Закрывается крестиком или клавишей Esc.',
+  },
+  {
+    // Переход в таблицу поста анонсируем отдельным шагом: прежде тур уходил туда
+    // молча, и человек не понимал, куда попал и как вернуться (замечание
+    // владельца 20.08). Пункт меню помечен optional - он есть не у каждого
+    // охранника (нужна хотя бы одна доступная таблица поста).
+    id: 'sec-nav-tables-open',
+    route: '/accessible-attachments',
+    element: '[data-testid="nav-link-tables"]',
+    optional: true,
+    expandRail: true,
+    reveal: { mobile: 'nav' },
+    title: 'Идём в таблицу поста',
+    description:
+      'Бланки посмотрели - теперь сама работа. Она идёт в разделе «Таблицы»: открываем таблицу вашего поста, из неё же потом переключаются на другие посты.',
   },
 ];
-
-/**
- * Выбрать route фактовой таблицы для шага отметки въезда/выезда из списка
- * системных таблиц (тот же `/system-tables`, что NavMenu показывает в дропдауне
- * «Таблицы»). Берём первую активную фактовую таблицу типа `cars`: кнопки
- * «Въезд»/«Выезд» в FactTable есть только у машин (people-фактовая таблица их
- * не имеет). Форма элемента - `{ table: {...} }` (как отдаёт GetAll) либо плоская.
- *
- * @param {Array<object>} systemTables ответ GET /system-tables
- * @returns {string|null} `/table/<name>` или null, если подходящей таблицы нет
- */
-export function resolveFactTableRoute(systemTables) {
-  if (!Array.isArray(systemTables)) return null;
-  for (const item of systemTables) {
-    const t = item?.table || item;
-    if (t && t.is_active && t.show_fact_table && t.table_type === 'cars' && t.name) {
-      return `/table/${t.name}`;
-    }
-  }
-  return null;
-}
-
-/**
- * Сегмент «Таблицы и отметка въезда/выезда» с ДИНАМИЧЕСКИМ route: целевую
- * фактовую таблицу резолвим в рантайме (resolveFactTableRoute) и подставляем
- * сюда, потому что у разных охранников разные доступные таблицы. Сегмент
- * добавляется в хвост `steps` стора только когда route резолвится - индексы
- * ранних шагов он не сдвигает.
- *
- * Первый шаг помечен `optionalSegment`: если у охранника пока нет доступа к
- * `/table/:name` (роут-гард редиректит), хост штатно завершает тур на границе
- * сегмента, а не висит на недостижимой странице. Когда доступ выдан -
- * навигация проходит, и шаги подсвечивают реальную таблицу. Шаги строки/кнопок
- * `optional`: на пустой фактовой таблице (строк нет) они пропускаются.
- *
- * @param {string|null} route `/table/<name>` целевой фактовой таблицы
- * @returns {Array<object>} шаги сегмента (пустой массив при отсутствии route)
- */
-export function buildSecurityFactSteps(route) {
-  if (!route) return [];
-  return [
-    {
-      id: 'sec-fact-intro',
-      route,
-      element: null,
-      optionalSegment: true,
-      title: 'Отметка въезда и выезда',
-      description:
-        'Открыли таблицу «Автомобили по факту»: сюда попадает транспорт по согласованным заявкам. Здесь охрана отмечает въезд и выезд машин.',
-    },
-    {
-      id: 'sec-fact-row',
-      route,
-      element: '[data-testid="ob-fact-row"]',
-      optional: true,
-      side: 'bottom',
-      align: 'start',
-      title: 'Строка транспорта',
-      description:
-        'Каждая строка - автомобиль по согласованной заявке: номер, организация, время и срок действия пропуска.',
-    },
-    {
-      id: 'sec-fact-entry',
-      route,
-      element: '[data-testid="ob-fact-entry"]',
-      optional: true,
-      side: 'bottom',
-      align: 'start',
-      title: 'Отметка въезда',
-      description: 'Кнопкой «Въезд» отмечаете, что автомобиль заехал на территорию.',
-    },
-    {
-      id: 'sec-fact-exit',
-      route,
-      element: '[data-testid="ob-fact-exit"]',
-      optional: true,
-      side: 'bottom',
-      align: 'start',
-      title: 'Отметка выезда',
-      description:
-        'После отметки въезда станет активной кнопка «Выезд» - нажмите её, когда автомобиль покинет территорию.',
-    },
-  ];
-}
-
-/** Route раздела «Доступные мне» - всегда достижим охранником (canViewAccessibleAttachments). */
-export const ACCESSIBLE_ATTACHMENTS_ROUTE = '/accessible-attachments';
-
-/**
- * Финальный шаг security-тура: празднование (`celebrate`) и CTA в раздел
- * «Доступные мне» (`ctaRoute`), а НЕ на оформление заявки - охранник пропуска
- * не подаёт. Шаг строится отдельно (не лежит в базовом массиве), чтобы быть
- * ПОСЛЕДНИМ независимо от того, добавлен ли динамический сегмент фактовой
- * таблицы.
- *
- * Финал всегда на `/accessible-attachments` - единственной странице тура,
- * гарантированно достижимой охранником. Сегмент фактовой таблицы опционален и
- * может быть недостижим (роут-гард `/table/:name`): если бы финал жил на его
- * route, охранник без доступа к таблицам не дошёл бы до празднования. На
- * достижимой странице финал показывается всегда - либо в одном сегменте с
- * шагами «Доступные мне» (когда фактовой таблицы нет), либо после перехода с
- * фактовой таблицы / перепрыгивания недостижимого сегмента (см. OnboardingTour).
- *
- * @returns {object} финальный шаг
- */
-export function buildSecurityFinalStep() {
-  return {
-    id: 'sec-finish',
-    route: ACCESSIBLE_ATTACHMENTS_ROUTE,
-    element: null,
-    celebrate: true,
-    cta: 'Перейти к «Доступным мне»',
-    ctaRoute: ACCESSIBLE_ATTACHMENTS_ROUTE,
-    title: 'Готово!',
-    description:
-      'Вы освоились: смотрите согласованные вложения по своим местам в разделе «Доступные мне» и отмечаете въезд и выезд машин в таблицах. Можно открыть «Доступные мне» прямо сейчас - там уже ждут оформленные пропуска.',
-  };
-}

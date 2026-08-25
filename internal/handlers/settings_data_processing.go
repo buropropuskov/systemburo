@@ -14,7 +14,9 @@ import (
 )
 
 // dataProcessingAllowedExt -- расширения, разрешённые для документа согласия на обработку данных.
-var dataProcessingAllowedExt = map[string]bool{".pdf": true, ".doc": true, ".docx": true}
+// XLSX здесь ради переноса текста согласия в редактор: часть заказчиков ведёт перечень
+// обрабатываемых данных таблицей.
+var dataProcessingAllowedExt = map[string]bool{".pdf": true, ".doc": true, ".docx": true, ".xlsx": true}
 
 // GetDataProcessingMeta возвращает метаданные документа согласия (или null, если не загружен).
 func (h *SettingsHandler) GetDataProcessingMeta(c echo.Context) error {
@@ -52,7 +54,7 @@ func (h *SettingsHandler) UploadDataProcessingDoc(c echo.Context) error {
 	}
 	ext := strings.ToLower(filepath.Ext(file.Filename))
 	if !dataProcessingAllowedExt[ext] {
-		return echo.NewHTTPError(http.StatusBadRequest, "Недопустимый тип файла. Разрешены: pdf, doc, docx")
+		return echo.NewHTTPError(http.StatusBadRequest, "Недопустимый тип файла. Разрешены: pdf, doc, docx, xlsx")
 	}
 
 	ctx := c.Request().Context()

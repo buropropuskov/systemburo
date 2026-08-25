@@ -3,18 +3,24 @@
     ref="trigger"
     class="row-remove-menu"
   >
+    <!-- rt-pass__act: в карточке строки на телефоне кнопка становится такой же
+         пилюлей с подписью, как «Удалить» рядом (responsive-tables.css, часть 3).
+         Без подписи в подвале талона оставался бы значок в 16px - ровно то, за что
+         владелец забраковал корзину в таблице людей. На десктопе подпись скрыта
+         базовым правилом, там кнопка остаётся значком в узком столбце. -->
     <button
       ref="button"
-      class="delete-btn"
+      class="delete-btn rt-pass__act rt-pass__act--danger"
+      title="Убрать"
       :disabled="disabled"
       data-testid="row-remove-trigger"
       @click="toggle"
     >
-      <img
-        src="@/assets/icons/trashcan.png"
-        alt="Убрать"
-        class="delete-icon"
-      >
+      <AppIcon
+        name="trashcan"
+        class="delete-icon rt-pass__act-icon"
+      />
+      <span class="rt-pass__act-label">Убрать</span>
     </button>
 
     <teleport to="body">
@@ -57,9 +63,11 @@
  * (тот же класс задачи: триггер живёт внутри rt-table с overflow:hidden).
  */
 import { getViewportZoom } from '@/utils/viewportScale';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'TableRowRemoveMenu',
+  components: { AppIcon },
   props: {
     disabled: { type: Boolean, default: false },
   },
@@ -175,6 +183,7 @@ export default {
 }
 
 .delete-icon {
+  color: var(--text);
   width: 16px;
   height: 16px;
   opacity: 0.7;

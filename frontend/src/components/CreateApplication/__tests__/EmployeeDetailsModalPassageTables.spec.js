@@ -121,3 +121,53 @@ describe('EmployeeDetailsModal - секция Места прохода: ист�
     expect(wrapper.text()).toContain('Места прохода не указаны');
   });
 });
+
+describe('EmployeeDetailsModal - подсветка открытой таблицы (#1050)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  // selectedTable - обёртка {table, time_slots, photos, current_status}, поэтому
+  // сравнение по selectedTable.id давало undefined и класс active не появлялся ни на
+  // одной строке: человек открывал таблицу и не видел, какая именно открыта. У машин
+  // (VehicleDetailsModal) то же место сравнивает по selectedTable.table.id.
+  it('открытая таблица помечается классом active, остальные нет', async () => {
+    const wrapper = mountModal({
+      id: 5,
+      last_name: 'Иванов',
+      first_name: 'Иван',
+      target_tables: [
+        { id: 10, name: 'Таблица А', source: 'manual' },
+        { id: 11, name: 'Таблица Б', source: 'manual' },
+      ],
+    });
+    await flushPromises();
+
+    // Так модалка кладёт выбранную таблицу в showTableDetails: не голый объект, а обёртка.
+    wrapper.vm.selectedTable = {
+      table: { id: 11, name: 'Таблица Б' },
+      time_slots: [],
+      photos: [],
+      current_status: 'closed',
+    };
+    wrapper.vm.showPlaceModal = true;
+    await wrapper.vm.$nextTick();
+
+    const items = wrapper.findAll('.place-item');
+    expect(items).toHaveLength(2);
+    expect(items[0].classes()).not.toContain('active');
+    expect(items[1].classes(), 'подсвечена должна быть именно открытая таблица').toContain('active');
+  });
+
+  it('без открытой таблицы подсветки нет ни у одной строки', async () => {
+    const wrapper = mountModal({
+      id: 5,
+      last_name: 'Иванов',
+      first_name: 'Иван',
+      target_tables: [{ id: 10, name: 'Таблица А', source: 'manual' }],
+    });
+    await flushPromises();
+
+    expect(wrapper.findAll('.place-item').filter((i) => i.classes().includes('active'))).toHaveLength(0);
+  });
+});

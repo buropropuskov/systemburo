@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -37,6 +38,28 @@ func (s *applicationService) isApprover(ctx context.Context, userID int) (bool, 
 		return false, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 	return count > 0, nil
+}
+
+// nilIfBlank возвращает nil для пустой (после trim) строки.
+//
+// Опциональные HMAC-поля (паспорт, патент) нельзя писать указателем на "": HMAC("") одинаков
+// у всех незаполнивших, а дедуп PARTITION BY passport_series_number_hmac (rn=1) в
+// GetActiveEmployeesForTable оставит в таблице проходной одного человека из всех безпаспортных.
+// NULL из дедупа исключён условием hmac IS NULL OR rn = 1. Паспорт опционален: у мигрантов
+// вместо него патент или иное разрешение.
+func nilIfBlank(s string) *string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	return &s
+}
+
+// nilIfBlankPtr - то же для указателя: пустая строка от клиента равнозначна незаполненному полю.
+func nilIfBlankPtr(p *string) *string {
+	if p == nil {
+		return nil
+	}
+	return nilIfBlank(*p)
 }
 
 // formatFullName формирует полное ФИО.
@@ -81,54 +104,19 @@ func (s *applicationService) updateConfirmationBasedOnApprovals(tx *gorm.DB, app
 		return nil
 	}
 
-	var required, nonRequired []models.ApplicationResponsibleUser
+	votes := make([]approvalVote, 0, len(responsibles))
 	for _, r := range responsibles {
-		if r.RequiredApproval {
-			required = append(required, r)
-		} else {
-			nonRequired = append(nonRequired, r)
-		}
+		votes = append(votes, approvalVote{Required: r.RequiredApproval, Status: r.ApprovalStatus})
 	}
 
+	// Кворум считает общая с раундом дополнения функция (approval_tally.go); заявке
+	// остаётся перевести исход в свой словарь confirmation.
 	newConfirmation := models.ConfirmationPending
-
-	hasRequiredRejected := false
-	for _, r := range required {
-		if r.ApprovalStatus != nil && *r.ApprovalStatus == "rejected" {
-			hasRequiredRejected = true
-			break
-		}
-	}
-
-	if hasRequiredRejected {
+	switch tallyApprovals(votes) {
+	case voteStatusApproved:
+		newConfirmation = models.ConfirmationApproved
+	case voteStatusRejected:
 		newConfirmation = models.ConfirmationRejected
-	} else if len(required) > 0 {
-		allApproved := true
-		for _, r := range required {
-			if r.ApprovalStatus == nil || *r.ApprovalStatus != "approved" {
-				allApproved = false
-				break
-			}
-		}
-		if allApproved {
-			newConfirmation = models.ConfirmationApproved
-		}
-	} else if len(nonRequired) > 0 {
-		hasAnyApproved := false
-		hasAnyRejected := false
-		for _, r := range nonRequired {
-			if r.ApprovalStatus != nil && *r.ApprovalStatus == "approved" {
-				hasAnyApproved = true
-			}
-			if r.ApprovalStatus != nil && *r.ApprovalStatus == "rejected" {
-				hasAnyRejected = true
-			}
-		}
-		if hasAnyApproved && !hasAnyRejected {
-			newConfirmation = models.ConfirmationApproved
-		} else if hasAnyRejected {
-			newConfirmation = models.ConfirmationRejected
-		}
 	}
 
 	result := tx.Exec(`
@@ -223,16 +211,21 @@ func (s *applicationService) activateApplicationItems(ctx context.Context, tx *g
 		// перешёл в активный статус - им пишем историю попадания в таблицу. Уже активная строка
 		// историю не плодит; после деактивации и повторной активации пишется новое попадание.
 		// IS DISTINCT FROM 1 (а не <> 1) на случай NULL-статуса - иначе NULL молча не активируется.
+		//
+		// Строки непринятого дополнения оживлять нельзя (#1685): сюда приходят и принятие в
+		// работу после вывода из неё, и массовое /update-items-status, и ни один из этих путей
+		// про раунды согласования не знает - без фильтра они пустили бы на КПП людей, по
+		// которым решение ещё не принято.
 		var ids []int
 		switch att.AttachmentType {
 		case "cars":
-			if err := tx.Raw("UPDATE cars SET status = 1, updated_at = CURRENT_TIMESTAMP WHERE attachment_id = ? AND status IS DISTINCT FROM 1 RETURNING id", att.ID).Scan(&ids).Error; err != nil {
+			if err := tx.Raw("UPDATE cars SET status = 1, updated_at = CURRENT_TIMESTAMP WHERE attachment_id = ? AND status IS DISTINCT FROM 1 AND "+admittedSupplementCond("cars")+" RETURNING id", att.ID).Scan(&ids).Error; err != nil {
 				slog.Error("Ошибка активации машин", "attachment_id", att.ID, "error", err)
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error updating cars status")
 			}
 			s.recordEntitiesAddedToTable(ctx, tx, models.AuditEntityCar, ids, actorID)
 		case "people":
-			if err := tx.Raw("UPDATE employees SET status = 1, updated_at = CURRENT_TIMESTAMP WHERE attachment_id = ? AND status IS DISTINCT FROM 1 RETURNING id", att.ID).Scan(&ids).Error; err != nil {
+			if err := tx.Raw("UPDATE employees SET status = 1, updated_at = CURRENT_TIMESTAMP WHERE attachment_id = ? AND status IS DISTINCT FROM 1 AND "+admittedSupplementCond("employees")+" RETURNING id", att.ID).Scan(&ids).Error; err != nil {
 				slog.Error("Ошибка активации сотрудников", "attachment_id", att.ID, "error", err)
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error updating employees status")
 			}
@@ -350,6 +343,22 @@ func (s *applicationService) applicationParticipants(ctx context.Context, applic
 	return s.centerAudience(ctx, applicationID, senderID)
 }
 
+// applicationArchiveChange - изменила ли операция данные, которые лежат в файловом
+// архиве заявки: бланк и заявка.json (#1615, B1). Именованный тип, а не голый bool,
+// чтобы решение было видно в самом вызове, а новая точка мутации была обязана его
+// принять - молча унаследовать чужое значение у неё не получится.
+type applicationArchiveChange bool
+
+const (
+	// archiveDataChanged - изменился состав людей/машин/ТМЦ, сроки, организация,
+	// статус или согласование: копию на диске надо пересобрать.
+	archiveDataChanged applicationArchiveChange = true
+	// archiveDataUnchanged - изменилось только то, чего нет ни в бланке, ни в
+	// слепке: переписка по заявке и отметка о пропуске предупреждения ЧС. Дедуп по
+	// хэшу спас бы от лишней записи на диск, но не от самой генерации бланка.
+	archiveDataUnchanged applicationArchiveChange = false
+)
+
 // notifyApplicationUpdated шлёт участникам заявки два лёгких сигнала (#840):
 //   - application.updated (scope application:<id>) - открытая деталь перезапросит
 //     статус/вопросы/согласующих без F5 (V4);
@@ -360,7 +369,17 @@ func (s *applicationService) applicationParticipants(ctx context.Context, applic
 // Аудитория одна на оба - applicationParticipants (зеркало applyApplicationAccessFilter),
 // поэтому кто видит деталь, тот видит и строку в Центре. Best-effort: без паблишера/при
 // пустой аудитории - no-op, сбой не влияет на бизнес-операцию. Звать ПОСЛЕ commit изменения.
-func (s *applicationService) notifyApplicationUpdated(ctx context.Context, applicationID int) {
+//
+// change отвечает на отдельный вопрос: изменилось ли то, что лежит в файловом архиве
+// (#1615, B1). Сигнал интерфейсу нужен любой правке, включая переписку по заявке, а
+// пересборка бланка - только правке данных: генерация открывает xlsx-шаблон и делает
+// полтора десятка запросов, и на каждый вопрос-ответ этот прогон уходил бы впустую.
+func (s *applicationService) notifyApplicationUpdated(ctx context.Context, applicationID int, change applicationArchiveChange) {
+	// До раннего return: очередь архива живёт независимо от realtimePublisher.
+	if change == archiveDataChanged {
+		s.enqueueArchiveExport(applicationID, BlankExportReasonUpdate)
+	}
+
 	if s.realtimePublisher == nil {
 		return
 	}
@@ -401,9 +420,9 @@ const (
 	statusOutcomeCompleted   = "completed"
 )
 
-// applicationStatusChangedType - тип уведомления инициатору об исходе заявки (#1349).
-// Навигация по data.application_id уже поддержана фронтом (UserNotifications.vue).
-const applicationStatusChangedType = "application_status_changed"
+// Тип уведомления -- NotificationTypeApplicationStatusChanged (каталог,
+// notification_catalog.go): инициатору об исходе заявки (#1349). Навигация по
+// data.application_id уже поддержана фронтом (UserNotifications.vue).
 
 // confirmationOutcome возвращает исход-уведомление для нового значения confirmation, если
 // это финальный исход согласования (Согласовано/Не согласовано). "" - промежуточное значение
@@ -427,7 +446,16 @@ func confirmationOutcome(newConfirmation *string) string {
 // actorUserID != sender - актору собственный исход не шлём (крон передаёт nil и уведомляет
 // всегда). Звать ПОСЛЕ commit: ошибки логируются, бизнес-операцию не откатывают. data:
 // {application_id, application_number}.
-func (s *applicationService) notifyInitiatorStatusChanged(ctx context.Context, applicationID int, actorUserID *int, outcome string) {
+// statusChangeContext -- кто и с каким комментарием принял решение по заявке.
+// Показывается в подробностях уведомления: инициатору важно не только «отклонена»,
+// но и кем, и почему (#1748). Пустые поля просто не попадают в payload; у решений
+// крона (истечение срока) контекста нет вовсе.
+type statusChangeContext struct {
+	ActorName string
+	Comment   string
+}
+
+func (s *applicationService) notifyInitiatorStatusChanged(ctx context.Context, applicationID int, actorUserID *int, outcome string, decision *statusChangeContext) {
 	if s.notificationService == nil {
 		return
 	}
@@ -480,10 +508,96 @@ func (s *applicationService) notifyInitiatorStatusChanged(ctx context.Context, a
 		"application_id":     applicationID,
 		"application_number": number,
 	}
+	if decision != nil {
+		if decision.ActorName != "" {
+			data["actor_name"] = decision.ActorName
+		}
+		if decision.Comment != "" {
+			data["decision_comment"] = decision.Comment
+		}
+	}
 	payload, _ := json.Marshal(data)
 	payloadStr := string(payload)
-	if err := s.notificationService.CreateForUser(ctx, *app.SenderUserID, applicationStatusChangedType, title, body, &payloadStr); err != nil {
+	if err := s.notificationService.CreateForUser(ctx, *app.SenderUserID, NotificationTypeApplicationStatusChanged, title, body, &payloadStr); err != nil {
 		slog.Warn("не удалось создать уведомление инициатору об исходе заявки", "user_id", *app.SenderUserID, "error", err)
+	}
+}
+
+// pendingApproversBeforeWithdraw возвращает id пользователей, чьё решение по заявке
+// ещё не поступило - ДО того как WithdrawApplication сменит статус на терминальный
+// (Отозвана). Предикат зеркалит pendingApproverBaseQuery (reminder_service.go) на
+// смысловом уровне: живая заявка ждёт согласования (confirmation="Согласование"),
+// строка ответственного ещё не проголосовала (approval_status пуст/pending), и голос
+// либо обязательный, либо обязательных вовсе нет. Отдельная копия, а не переиспользование
+// reminderService - applicationService его не получает как зависимость, а вызывающая
+// заявка уже проверена не-терминальной в этой же транзакции (FOR UPDATE), так что
+// activeApplicationCond из pendingApproverBaseQuery здесь избыточен.
+//
+// Читаем ИЗНУТРИ транзакции отзыва, ДО UPDATE статуса: как только applications.status
+// станет Отозвана (терминальный), тот же предикат перестанет матчить заявку, и список
+// ожидающих потеряется. Best-effort: ошибка логируется, отзыв не откатывается.
+func (s *applicationService) pendingApproversBeforeWithdraw(ctx context.Context, tx *gorm.DB, applicationID int) []int {
+	var ids []int
+	err := tx.WithContext(ctx).Raw(`
+		SELECT DISTINCT aru.user_id
+		FROM application_responsible_users aru
+		JOIN applications a ON a.id = aru.application_id
+		WHERE aru.application_id = ?
+		  AND a.confirmation = ?
+		  AND (aru.approval_status IS NULL OR aru.approval_status = 'pending')
+		  AND (
+		      aru.required_approval = true
+		      OR NOT EXISTS (
+		          SELECT 1 FROM application_responsible_users r2
+		          WHERE r2.application_id = aru.application_id AND r2.required_approval = true
+		      )
+		  )
+	`, applicationID, models.ConfirmationPending).Scan(&ids).Error
+	if err != nil {
+		slog.Warn("не удалось отобрать ожидающих согласующих перед отзывом заявки", "application_id", applicationID, "error", err)
+		return nil
+	}
+	return ids
+}
+
+// notifyWithdrawn уведомляет тех, чьего решения ждали по отозванной заявке (#1748,
+// S4): отзыв убирает предмет согласования из их очереди, и без явного сигнала заявка
+// просто пропадает из списка ожидающих. userIDs собраны ДО смены статуса
+// (pendingApproversBeforeWithdraw) - тем же предикатом, что и напоминания
+// согласующим. Инициатору не шлём: это его собственное действие. Best-effort: ошибка
+// логируется, WithdrawApplication уже закоммичен.
+func (s *applicationService) notifyWithdrawn(ctx context.Context, applicationID int, withdrawnByName string, userIDs []int) {
+	if s.notificationService == nil || len(userIDs) == 0 {
+		return
+	}
+
+	var app struct{ ApplicationNumber string }
+	if err := s.db.WithContext(ctx).
+		Raw("SELECT COALESCE(application_number, '') AS application_number FROM applications WHERE id = ?", applicationID).
+		Scan(&app).Error; err != nil {
+		slog.Warn("не удалось получить номер заявки для уведомления об отзыве", "application_id", applicationID, "error", err)
+		return
+	}
+	number := app.ApplicationNumber
+	if number == "" {
+		number = fmt.Sprintf("№ %d", applicationID)
+	}
+
+	title := "Заявка отозвана"
+	body := fmt.Sprintf("Заявку %s отозвал(а) %s - рассматривать её больше не нужно.", number, withdrawnByName)
+
+	data := map[string]any{"application_id": applicationID, "application_number": number}
+	payload, err := json.Marshal(data)
+	if err != nil {
+		slog.Warn("не удалось сериализовать данные уведомления об отзыве", "application_id", applicationID, "error", err)
+		return
+	}
+	payloadStr := string(payload)
+
+	for _, userID := range userIDs {
+		if err := s.notificationService.CreateForUser(ctx, userID, NotificationTypeApplicationWithdrawn, title, body, &payloadStr); err != nil {
+			slog.Warn("не удалось создать уведомление об отзыве заявки", "user_id", userID, "application_id", applicationID, "error", err)
+		}
 	}
 }
 
@@ -574,7 +688,10 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 		// --- вложения: машины ---
 		// Госномер ищем по всем вариантам (включая normalize.Plate для омоглифов/нулей);
 		// марку - по тексту. EXISTS чтобы не размножать строки заявки.
-		carNumCond, carNumArgs := ilikePatternsArgs([]string{"c2.car_number", "c2.mark_name", "c2.unload_place"}, variants)
+		// Марка ищется по обеим колонкам: mark_name -- снимок имени марки, он появился
+		// позже и заполнен у единиц записей, а в остальных марка лежит в устаревшей
+		// car_brand. По одной mark_name заявка по марке своей машины не находилась.
+		carNumCond, carNumArgs := ilikePatternsArgs([]string{"c2.car_number", "c2.mark_name", "c2.car_brand", "c2.unload_place"}, variants)
 		// Слитно/раздельно: сравниваем номер без пробелов с нормализованным запросом,
 		// чтобы "А 777 АА" находился по "А777АА" и наоборот (только если в запросе есть цифры).
 		platePattern := ""
@@ -589,6 +706,11 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 		)`
 
 		// --- вложения: сотрудники ---
+		// Та же оговорка, что в реестре сотрудников: функция от concat_ws индексом не
+		// покрывается и даёт полный просмотр таблицы. Индексируемая форма -- оператор
+		// %>> по отдельным колонкам с порогом через SET LOCAL, так сделан сквозной поиск
+		// (search_scope.go). Здесь оставлено прежнее поведение: замена меняет разбор
+		// многословных запросов, а Центр открывают по кнопке, не на каждый символ.
 		// ФИО ищем ILIKE + trigramm similarity для опечаток. strict_word_similarity (не word_),
 		// иначе порог 0.3 ловит общие триграммы: "Карбышев"/"Зубарев"/"Арбатская" давали
 		// word_similarity('арбуз',...) >= 0.33 (ложно), а strict даёт <0.24. При strict@0.3
@@ -772,7 +894,7 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 	return query
 }
 
-func (s *applicationService) fetchResponsibleUsers(db *gorm.DB, applicationID int) ([]ResponsibleUserInfo, error) {
+func (s *applicationService) fetchResponsibleUsers(ctx context.Context, db *gorm.DB, applicationID int) ([]ResponsibleUserInfo, error) {
 	responsibles := make([]ResponsibleUserInfo, 0)
 	err := db.Raw(`
 		SELECT
@@ -802,6 +924,12 @@ func (s *applicationService) fetchResponsibleUsers(db *gorm.DB, applicationID in
 
 	if responsibles == nil {
 		responsibles = []ResponsibleUserInfo{}
+	}
+	if masks := loadConsentMasks(ctx, db); len(masks) > 0 {
+		for i := range responsibles {
+			maskUserParts(masks, responsibles[i].ID,
+				&responsibles[i].LastName, &responsibles[i].FirstName, &responsibles[i].MiddleName)
+		}
 	}
 	return responsibles, nil
 }
@@ -850,6 +978,25 @@ func (s *applicationService) CanAccessApplication(ctx context.Context, applicati
 	return count > 0
 }
 
+// IsApplicationSender отвечает, подал ли эту заявку сам пользователь. Узкая проверка
+// рядом с CanAccessApplication и намеренно уже неё: доступ к заявке есть и у
+// согласующих, принимающих и получателей пересылки, а сведения документов участников
+// вводил в форму именно инициатор - прятать их от него нечего и незачем.
+func (s *applicationService) IsApplicationSender(ctx context.Context, applicationID, userID int) (bool, error) {
+	if applicationID == 0 || userID == 0 {
+		return false, nil
+	}
+	var app models.Application
+	if err := s.db.WithContext(ctx).Select("id, sender_user_id").
+		Where("id = ?", applicationID).First(&app).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, fmt.Errorf("check application sender: %w", err)
+	}
+	return app.SenderUserID == userID, nil
+}
+
 // GetApplicationIDByAttachment возвращает ID заявки по ID вложения. Для manual-вложения
 // без заявки (#1049, application_id NULL) возвращает 0 - вызыватели-гейты доступа к
 // заявке трактуют 0 как "нет заявки" (application-detail путь к сироте недоступен).
@@ -866,9 +1013,123 @@ func (s *applicationService) GetApplicationIDByAttachment(ctx context.Context, a
 
 func ptrString(s string) *string { return &s }
 
+// optionalString разыменовывает необязательную строку запроса: пустая строка
+// означает «поля не было», и в payload уведомления она не попадает.
+func optionalString(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return *v
+}
+
 func safeDerefInt(p *int) int {
 	if p != nil {
 		return *p
 	}
 	return 0
+}
+
+// notifyApproversAboutNewApplication зовёт принимающих к свежеподанной заявке.
+// Принимающий - глобальная роль (строка в application_approvers), не привязанная ни к
+// организации, ни к конкретной заявке, поэтому зовём весь реестр. Автор пропускается:
+// подавший заявку и сам знает, что подал, а «Заявка отправлена» ему уже ушла.
+// Ошибка отдельного получателя не прерывает рассылку - остальные должны узнать.
+func (s *applicationService) notifyApproversAboutNewApplication(
+	ctx context.Context, authorID, appID int, note pendingAcceptanceNote, payload string,
+) {
+	var approverIDs []int
+	if err := s.db.WithContext(ctx).Model(&models.ApplicationApprover{}).
+		Where("user_id <> ?", authorID).
+		Pluck("user_id", &approverIDs).Error; err != nil {
+		slog.Error("не удалось получить список принимающих для уведомления о новой заявке",
+			"app_id", appID, "error", err)
+		return
+	}
+	for _, userID := range approverIDs {
+		if err := s.notificationService.CreateForUser(
+			ctx, userID,
+			NotificationTypeApplicationPendingAcceptance,
+			"Новая заявка",
+			note.message(),
+			&payload,
+		); err != nil {
+			slog.Warn("не удалось уведомить принимающего о новой заявке",
+				"user_id", userID, "app_id", appID, "error", err)
+		}
+	}
+}
+
+// pendingAcceptanceNote -- из чего складывается приглашение принять заявку.
+type pendingAcceptanceNote struct {
+	number       string
+	organization string
+	sender       string
+	messageText  string
+	fileNames    []string
+}
+
+// message собирает текст уведомления. Первая строка несёт номер И организацию вместе:
+// в свёрнутом уведомлении система показывает заголовок и ровно одну строку текста,
+// остальное прячет за многоточием, и содержимое этого многоточия задать нельзя - значит
+// всё, что должно быть видно не разворачивая, обязано уместиться в первую строку.
+// Дальше через отступ отправитель, потом превью сообщения, потом вложения отдельным
+// блоком: приписанные к превью, они там терялись. Пустые части выпадают целиком.
+func (n pendingAcceptanceNote) message() string {
+	head := n.number
+	if org := strings.TrimSpace(n.organization); org != "" {
+		head = fmt.Sprintf("%s · %s", head, org)
+	}
+	blocks := []string{head}
+
+	if sender := strings.TrimSpace(n.sender); sender != "" {
+		blocks = append(blocks, sender)
+	}
+	if preview := previewText(plainTextFromRichText(n.messageText), notificationPreviewLimit); preview != "" {
+		blocks = append(blocks, preview)
+	}
+	if files := filesLabel(n.fileNames); files != "" {
+		blocks = append(blocks, files)
+	}
+	return strings.Join(blocks, "\n\n")
+}
+
+// applicationSenderTitle - наименование организации заявки, а если её нет, то компании.
+// Читается из справочника, а не берётся из тела запроса: фронт присылает то, что человек
+// набрал в поле, и при выборе существующей записи это может расходиться с реальным
+// названием в справочнике.
+func (s *applicationService) applicationSenderTitle(ctx context.Context, organizationID, companyID *int) string {
+	if organizationID != nil {
+		var name string
+		if err := s.db.WithContext(ctx).Table("organizations").
+			Where("id = ?", *organizationID).Limit(1).Pluck("name", &name).Error; err == nil && name != "" {
+			return name
+		}
+	}
+	if companyID != nil {
+		var name string
+		if err := s.db.WithContext(ctx).Table("companies").
+			Where("id = ?", *companyID).Limit(1).Pluck("name", &name).Error; err == nil {
+			return name
+		}
+	}
+	return ""
+}
+
+// applicationFileNames -- имена вложений заявки для уведомления. Читаются из базы после
+// привязки, а не берутся из запроса: тело несёт только идентификаторы, а человеку нужны
+// названия. Ошибка чтения не повод молчать обо всей заявке - вернём пустой список, и
+// строка про вложения просто не появится.
+func (s *applicationService) applicationFileNames(ctx context.Context, fileIDs []int) []string {
+	if len(fileIDs) == 0 {
+		return nil
+	}
+	var names []string
+	if err := s.db.WithContext(ctx).Model(&models.ApplicationFile{}).
+		Where("id IN ?", fileIDs).
+		Order("id").
+		Pluck("file_name", &names).Error; err != nil {
+		slog.Warn("не удалось прочитать имена вложений для уведомления", "error", err)
+		return nil
+	}
+	return names
 }

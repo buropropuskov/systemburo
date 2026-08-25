@@ -270,30 +270,6 @@ export default {
   align-items: center;
 }
 
-/* Box для OrganizationFilter (Организация/Компания): рамка/паддинг/высота обычно
-   приходят из scoped .field родителя-Центра, но в модалке (другой компонент) их нет -
-   поле «слетало» в голый текст + стрелку. Восстанавливаем box здесь (корень фильтра
-   получает scope-id модалки). DateFilter самодостаточен (свой .date-field). */
-.filter-modal__body .field {
-  width: 100%;
-  height: 40px;
-  background-color: var(--surface);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-  padding: 0 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  position: relative;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.filter-modal__body .field:focus-within {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-focus);
-}
-
 .sort-btn__dir {
   margin-left: 4px;
   font-weight: 700;

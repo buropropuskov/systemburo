@@ -29,7 +29,7 @@ function mountNav() {
     global: {
       mocks: {
         $bus: { on: vi.fn(), off: vi.fn(), emit: vi.fn() },
-        $router: { push: vi.fn() },
+        $router: { push: vi.fn(), replace: vi.fn().mockResolvedValue(undefined) },
         $route: { path: '/news', params: {} },
       },
       stubs: { FeedbackModal: true },
@@ -111,6 +111,34 @@ describe('NavMenu: переключатель темы (#1415)', () => {
     const rule = css.match(/html\.theme-switching\s+\.nav-theme-switch[^{]*\{([^}]*)\}/);
     expect(rule, 'нет исключения для тумблера темы').not.toBeNull();
     expect(rule[1]).toMatch(/transition:[^;]*transform[^;]*!important/);
+  });
+
+  it('в drawer на телефоне ползунок видим и стоит справа', () => {
+    // Индикатор проявляется правилом .nav-menu.expanded, а drawer этот класс
+    // никогда не получает (expandMenu гейтит разворот на мобилке), поэтому
+    // мобильный медиа-блок обязан показать ползунок сам.
+    const sfc = readFileSync(resolve(__dirname, '../NavMenu.vue'), 'utf8');
+    const start = sfc.indexOf('@media (max-width: 768px)');
+    expect(start, 'нет мобильного медиа-блока').toBeGreaterThan(-1);
+
+    let depth = 0;
+    let end = sfc.length;
+    for (let i = sfc.indexOf('{', start); i < sfc.length; i += 1) {
+      if (sfc[i] === '{') depth += 1;
+      if (sfc[i] === '}') {
+        depth -= 1;
+        if (depth === 0) { end = i; break; }
+      }
+    }
+    const mobile = sfc.slice(start, end);
+
+    const shown = mobile.match(/\.nav-menu \.nav-theme-switch[^{]*\{([^}]*)\}/);
+    expect(shown, 'ползунок темы остаётся скрытым в drawer').not.toBeNull();
+    expect(shown[1]).toMatch(/opacity:\s*1\s*!important/);
+
+    const placed = mobile.match(/\.nav-menu \.nav-item--theme[^{]*\{([^}]*)\}/);
+    expect(placed, 'строка темы не разведена по краям').not.toBeNull();
+    expect(placed[1]).toMatch(/justify-content:\s*space-between/);
   });
 
   it('пункт находится поиском по рельсу и не пропадает у юзера без прав', async () => {

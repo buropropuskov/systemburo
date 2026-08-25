@@ -29,16 +29,18 @@
               <button
                 class="export-btn"
                 :disabled="filteredHistory.length === 0 || isExporting"
-                title="Экспорт в Excel"
                 aria-label="Экспорт в Excel"
                 @click="exportToExcel"
               >
-                <img
+                <AppIcon
                   v-if="!isExporting"
-                  src="@/assets/icons/export.png"
+                  name="export"
                   class="export-icon"
-                  alt=""
-                >
+                />
+                <span
+                  v-if="!isExporting"
+                  class="export-label"
+                >Экспорт</span>
                 <div
                   v-else
                   class="export-loader"
@@ -74,11 +76,11 @@
                 >
                   <div class="select-trigger">
                     <span class="selected-value">{{ selectedUserName }}</span>
-                    <img 
-                      src="@/assets/icons/arrow.png" 
-                      class="select-arrow" 
+                    <AppIcon
+                      name="arrow"
+                      class="select-arrow"
                       :class="{ 'arrow-open': userDropdownOpen }"
-                    >
+                    />
                   </div>
                   <transition name="fade">
                     <div
@@ -115,11 +117,11 @@
                 >
                   <div class="select-trigger">
                     <span class="selected-value">{{ selectedPlaceName }}</span>
-                    <img 
-                      src="@/assets/icons/arrow.png" 
-                      class="select-arrow" 
+                    <AppIcon
+                      name="arrow"
+                      class="select-arrow"
                       :class="{ 'arrow-open': placeDropdownOpen }"
-                    >
+                    />
                   </div>
                   <transition name="fade">
                     <div
@@ -168,11 +170,11 @@
                   class="sort-btn"
                   @click="toggleSortOrder"
                 >
-                  <img
-                    src="@/assets/icons/sort.png"
+                  <AppIcon
+                    name="sort"
                     class="sort-icon"
                     :class="{ 'sort-asc': sortOrder === 'asc' }"
-                  >
+                  />
                   <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
                 </button>
               </div>
@@ -290,11 +292,12 @@ import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { useDeletionsStore } from '@/stores/deletions';
 import DateFilter from '../DateFilter.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 import ExcelJS from 'exceljs';
 
 export default {
   name: 'EmployeeHistoryModal',
-  components: { DateFilter },
+  components: { DateFilter, AppIcon },
   props: {
     lastName: {
       type: String,
@@ -952,12 +955,13 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
+  gap: 8px;
   height: 32px;
-  padding: 0;
+  padding: 6px 16px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 50%;
+  border-radius: 20px;
+  font-size: 13px;
   color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -974,8 +978,8 @@ export default {
 }
 
 .export-icon {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
 }
 
 .export-loader {
@@ -1034,6 +1038,11 @@ export default {
   font-size: 12px;
   color: var(--text-muted);
   white-space: nowrap;
+}
+
+/* DateFilter несёт свои 14px и в ряду фильтров выбивается из общих 12px. */
+.date-filter :deep(.field-input) {
+  font-size: 12px;
 }
 
 .search-input {
@@ -1166,6 +1175,7 @@ export default {
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 14px;
   height: 14px;
   transition: transform 0.2s ease;
@@ -1291,6 +1301,7 @@ export default {
 
 .history-content--link:hover .action-text {
   text-decoration: underline;
+  text-underline-position: under;
 }
 
 .action-comment {
@@ -1381,6 +1392,25 @@ export default {
   .close-btn {
     min-width: 40px;
     min-height: 40px;
+  }
+
+  /* На узкой шапке подпись не помещается рядом с названием - остаётся круглая иконка
+     (#1239), на десктопе кнопка подписана как в остальных историях. */
+  .export-btn {
+    width: 32px;
+    padding: 0;
+    gap: 0;
+    border-radius: 50%;
+  }
+
+  .export-label {
+    display: none;
+  }
+
+  /* Одиночной иконке без подписи нужен вес. */
+  .export-icon {
+    width: 16px;
+    height: 16px;
   }
 
   .modal-fade-enter-active .employee-history-modal {

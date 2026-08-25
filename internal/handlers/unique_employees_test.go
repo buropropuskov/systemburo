@@ -40,7 +40,7 @@ func TestUniqueEmployees_ActiveApplicationIDForActiveApplication(t *testing.T) {
 
 	// Паспорт совпадает с сотрудником из seed-заявки ("1234 567890") - так подзапрос
 	// активной заявки сматчится по passport_series_number_hmac.
-	active := fmt.Sprintf(`{"last_name":"RegActive","first_name":"A","passport_series_number":"1234 567890","organization_id":%d,"company_id":%d}`, td.OrgID, td.CompanyID)
+	active := fmt.Sprintf(`{"pd_consent":true,"last_name":"RegActive","first_name":"A","passport_series_number":"1234 567890","organization_id":%d,"company_id":%d}`, td.OrgID, td.CompanyID)
 	testutil.POST(t, e, "/unique-employees", active, h)
 
 	rec := testutil.GET(t, e, "/unique-employees?filter_type=all_system", h)
@@ -62,7 +62,7 @@ func TestUniqueEmployees_ActiveApplicationIDForActiveApplication(t *testing.T) {
 	assert.Equal(t, float64(appID), found["active_application_id"], "active_application_id = id активной заявки")
 
 	// Сотрудник без активной заявки: active_* пустые (фронт прячет кнопку "Открыть заявку").
-	idle := fmt.Sprintf(`{"last_name":"RegIdle","first_name":"B","passport_series_number":"0000 000111","organization_id":%d,"company_id":%d}`, td.OrgID, td.CompanyID)
+	idle := fmt.Sprintf(`{"pd_consent":true,"last_name":"RegIdle","first_name":"B","passport_series_number":"0000 000111","organization_id":%d,"company_id":%d}`, td.OrgID, td.CompanyID)
 	testutil.POST(t, e, "/unique-employees", idle, h)
 	rec = testutil.GET(t, e, "/unique-employees?filter_type=all_system", h)
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -90,6 +90,7 @@ func TestUniqueEmployees_CRUD(t *testing.T) {
 
 	// Create
 	body := fmt.Sprintf(`{
+		"pd_consent":true,
 		"last_name":"Ivanov",
 		"first_name":"Ivan",
 		"middle_name":"Ivanovich",
@@ -146,7 +147,7 @@ func TestUniqueEmployees_DuplicatePassport(t *testing.T) {
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
 
-	body := `{"last_name":"Dup","first_name":"Test","passport_series_number":"DUP 123456"}`
+	body := `{"pd_consent":true,"last_name":"Dup","first_name":"Test","passport_series_number":"DUP 123456"}`
 	rec := testutil.POST(t, e, "/unique-employees", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
@@ -195,7 +196,7 @@ func TestUniqueEmployees_FilterTypes(t *testing.T) {
 	h := testutil.AuthHeader(token)
 
 	// Create an employee
-	body := fmt.Sprintf(`{"last_name":"Filter","first_name":"Test","organization_id":%d}`, td.OrgID)
+	body := fmt.Sprintf(`{"pd_consent":true,"last_name":"Filter","first_name":"Test","organization_id":%d}`, td.OrgID)
 	rec := testutil.POST(t, e, "/unique-employees", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
@@ -215,7 +216,7 @@ func TestUniqueEmployees_CreateWithoutPassport(t *testing.T) {
 	h := testutil.AuthHeader(token)
 
 	// Should work without passport (no uniqueness check triggered)
-	body := `{"last_name":"NoPassport","first_name":"Worker"}`
+	body := `{"pd_consent":true,"last_name":"NoPassport","first_name":"Worker"}`
 	rec := testutil.POST(t, e, "/unique-employees", body, h)
 	assert.Equal(t, http.StatusOK, rec.Code)
 }
@@ -228,7 +229,7 @@ func TestUniqueEmployees_Update_NotFound(t *testing.T) {
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
 
-	rec := testutil.PUT(t, e, "/unique-employees/99999", `{"last_name":"X"}`, h)
+	rec := testutil.PUT(t, e, "/unique-employees/99999", `{"pd_consent":true,"last_name":"X"}`, h)
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 
@@ -240,7 +241,7 @@ func TestUniqueEmployees_Lookup(t *testing.T) {
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
 
-	body := fmt.Sprintf(`{"last_name":"Сидоров","first_name":"Семён","middle_name":"Семёнович","passport_series_number":"9999 888777","organization_id":%d}`, td.OrgID)
+	body := fmt.Sprintf(`{"pd_consent":true,"last_name":"Сидоров","first_name":"Семён","middle_name":"Семёнович","passport_series_number":"9999 888777","organization_id":%d}`, td.OrgID)
 	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", body, h).Code)
 
 	t.Run("находит по ФИО без учёта регистра/пробелов", func(t *testing.T) {
@@ -280,7 +281,7 @@ func TestUniqueEmployees_Paginated(t *testing.T) {
 	h := testutil.AuthHeader(token)
 
 	for i, ln := range []string{"Pgn1", "Pgn2", "Pgn3"} {
-		body := fmt.Sprintf(`{"last_name":"%s","first_name":"F%d"}`, ln, i)
+		body := fmt.Sprintf(`{"pd_consent":true,"last_name":"%s","first_name":"F%d"}`, ln, i)
 		require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", body, h).Code)
 	}
 
@@ -307,8 +308,8 @@ func TestUniqueEmployees_SearchQuery_ExactMatch(t *testing.T) {
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
 
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"last_name":"Срхтестовый","first_name":"Иван"}`, h).Code)
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"last_name":"Другойчел","first_name":"Пётр"}`, h).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Срхтестовый","first_name":"Иван"}`, h).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Другойчел","first_name":"Пётр"}`, h).Code)
 
 	rec := testutil.GET(t, e, "/unique-employees?filter_type=all_system&per_page=20&search_query=Срхтестовый", h)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -330,7 +331,7 @@ func TestUniqueEmployees_SearchQuery_TypoVariant(t *testing.T) {
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
 
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"last_name":"Карбышев","first_name":"Дмитрий"}`, h).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Карбышев","first_name":"Дмитрий"}`, h).Code)
 
 	rec := testutil.GET(t, e, "/unique-employees?filter_type=all_system&per_page=20&search_query=Карбышоф", h)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -351,7 +352,7 @@ func TestUniqueEmployees_SearchQuery_NoMatch(t *testing.T) {
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
 
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"last_name":"Уникум","first_name":"Иван"}`, h).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Уникум","first_name":"Иван"}`, h).Code)
 
 	rec := testutil.GET(t, e, "/unique-employees?filter_type=all_system&per_page=20&search_query=совершенно-другой-запрос-zzz", h)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -373,7 +374,7 @@ func TestUniqueEmployees_SearchQuery_PassportNotSearchable(t *testing.T) {
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
 
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"last_name":"Паспортов","first_name":"Олег","passport_series_number":"7777 654321"}`, h).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Паспортов","first_name":"Олег","passport_series_number":"7777 654321"}`, h).Code)
 
 	rec := testutil.GET(t, e, "/unique-employees?filter_type=all_system&per_page=20&search_query=7777654321", h)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -409,8 +410,8 @@ func TestUniqueEmployees_SearchQuery_NoCrossOwnerLeak(t *testing.T) {
 	hB := testutil.AuthHeader(tokenB)
 
 	// Каждый заводит своего сотрудника с УНИКАЛЬНОЙ фамилией.
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"last_name":"Иванцевич","first_name":"А"}`, hA).Code)
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"last_name":"Богуславский","first_name":"Б"}`, hB).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Иванцевич","first_name":"А"}`, hA).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Богуславский","first_name":"Б"}`, hB).Code)
 
 	// A под filter_type=user ищет фамилию B -> НЕ находит (owner-scope не течёт через OR).
 	rec := testutil.GET(t, e, "/unique-employees?filter_type=user&per_page=50&search_query=Богуславский", hA)

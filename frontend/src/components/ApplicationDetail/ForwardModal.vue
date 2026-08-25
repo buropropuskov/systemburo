@@ -9,6 +9,15 @@
     @close="close"
   >
     <div class="forward-body">
+      <div
+        v-if="readerOnly"
+        class="forward-reader-note"
+        data-testid="forward-modal-reader-note"
+      >
+        Заявка доступна вам только для просмотра - переслать её можно тоже только для
+        просмотра. Назначать согласующих и ответственных вправе отправитель.
+      </div>
+
       <div class="user-search-section">
         <input
           ref="searchInput"
@@ -92,8 +101,13 @@
                   >{{ user.organization }}</span>
                 </div>
 
-                <!-- Настройки доступа -->
-                <div class="forward-selected-user-settings">
+                <!-- Настройки доступа. Читателю не показываем: назначить согласующего
+                     или ответственного он не вправе, сервер такой запрос отбивает. -->
+                <div
+                  v-if="!readerOnly"
+                  class="forward-selected-user-settings"
+                  data-testid="forward-modal-user-settings"
+                >
                   <!-- Тумблер "Требуется согласование" -->
                   <label class="setting-toggle">
                     <input
@@ -282,6 +296,15 @@ export default {
             type: Array,
             default: () => []
         },
+        /**
+         * Заявка доступна пересылающему только на просмотр (#1948): выбор роли
+         * получателя закрыт, пересылка идёт только на просмотр. Зеркалит
+         * forwardAuthority.readerOnly - сервер иначе отвечает 403.
+         */
+        readerOnly: {
+            type: Boolean,
+            default: false
+        },
         isSending: {
             type: Boolean,
             default: false
@@ -451,8 +474,10 @@ export default {
         send() {
             // Преобразуем данные для отправки на сервер
             const usersToSend = this.selectedUsers.map(user => {
-                // Если требуется согласование - отправляем как ответственного
-                if (user.requires_approval) {
+                // Если требуется согласование - отправляем как ответственного.
+                // У читателя тумблеров нет вовсе, но флаг мог остаться от выбора,
+                // сделанного до смены роли - тогда сервер ответил бы 403.
+                if (user.requires_approval && !this.readerOnly) {
                     return {
                         user_id: user.id,
                         required_approval: user.required_approval || false,
@@ -491,6 +516,17 @@ export default {
 <style scoped>
 .forward-body {
     padding: 20px;
+}
+
+.forward-reader-note {
+    margin-bottom: 16px;
+    padding: 10px 12px;
+    background: var(--accent-tint);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--color-text);
 }
 
 .user-search-section {

@@ -58,7 +58,49 @@ const (
 	AuditEntityEmployee           = "employee"
 	AuditEntityUniqueEmployee     = "unique_employee"
 	AuditEntityApplication        = "application"
+	// AuditEntityArchiveSettings - настройки файлового архива бланков (#1615).
+	// EntityID у записей пустой: настройки одни на систему, а не строка справочника.
+	AuditEntityArchiveSettings = "archive_settings"
+	// AuditEntityArchiveQuota - место и квота файлового архива (#1615, срез B2):
+	// переход очереди выгрузки в blocked при пересечении жёсткого порога и снятие
+	// блокировки. EntityID пустой - событие относится к очереди в целом, а не к
+	// одной заявке.
+	AuditEntityArchiveQuota = "archive_quota"
+	// AuditEntityRequestLogExport - снятие журнала обращений файлом (#2125).
+	// EntityID пустой: выгружается выборка, а не строка справочника. Одна выгрузка
+	// уносит адреса обращений сотен пользователей разом, поэтому оставляет след
+	// наравне с выгрузкой реестра заявок.
+	AuditEntityRequestLogExport = "request_log_export"
 )
+
+// RequestLogExportActionExported - журнал обращений выгружен файлом.
+const RequestLogExportActionExported = "exported"
+
+// ArchiveSettingsActionUpdated - изменение настроек файлового архива.
+const ArchiveSettingsActionUpdated = "updated"
+
+// ArchiveQuotaAction* - действия над очередью выгрузки при пересечении жёсткого
+// порога места (#1615, срез B2).
+const (
+	// ArchiveQuotaActionBlocked - недостатка места хватило, чтобы остановить
+	// часть очереди: строки реестра ушли в blocked до появления свободного места.
+	ArchiveQuotaActionBlocked = "blocked"
+	// ArchiveQuotaActionUnblocked - порог перестал нарушаться, блокировка снята.
+	ArchiveQuotaActionUnblocked = "unblocked"
+)
+
+// AllAuditEntities - перечень известных типов сущностей. Нужен там, где тип приходит
+// снаружи и опечатку в нём надо поймать, а не молча получить пустую выборку: так
+// работает фильтр очистки журнала по типу сущности (#1632).
+var AllAuditEntities = []string{
+	AuditEntityCitizenship, AuditEntityCompany, AuditEntityOrganization,
+	AuditEntityUserType, AuditEntityLicensePlateFormat, AuditEntityUnloadPlace,
+	AuditEntityUniqueAttachment, AuditEntityUser, AuditEntityApprover,
+	AuditEntityPersonBlacklist, AuditEntityVehicleBlacklist, AuditEntitySystemTable,
+	AuditEntitySystemTableTrash, AuditEntityMark, AuditEntityCar, AuditEntityUniqueCar,
+	AuditEntityEmployee, AuditEntityUniqueEmployee, AuditEntityApplication,
+	AuditEntityArchiveSettings, AuditEntityArchiveQuota, AuditEntityRequestLogExport,
+}
 
 // AuditAction* - значения AuditLog.Action, вынесенные в константы там, где значение
 // используется в нескольких местах записи/чтения (иначе дрейф литерала). Большинство
@@ -97,6 +139,51 @@ const (
 	// AuditActionWithdraw - заявка отозвана инициатором (WithdrawApplication).
 	// Действие терминальное и доступно только отправителю заявки.
 	AuditActionWithdraw = "withdraw"
+	// AuditActionSupplementCancelled - открытое дополнение заявки снято системой (#1685):
+	// заявка закрылась раньше, чем дополнение прошло свой круг. Пишется на заявку
+	// (entity_type=application), а не на дополнение - в истории заявки его и ищут;
+	// details.comment называет номер снятого раунда.
+	AuditActionSupplementCancelled = "supplement_cancelled"
+	// AuditActionSupplementApprove / AuditActionSupplementReject - голос согласующего по
+	// раунду дополнения (#1685). Отдельные значения от голосов основного круга (approve /
+	// reject) намеренно: расклад голосов у кругов разный, а лента истории у заявки одна -
+	// без разделения «Согласовал(-а) заявку» встало бы рядом с согласованием добавки и
+	// читалось бы как повторное согласование самой заявки.
+	AuditActionSupplementApprove = "supplement_approve"
+	AuditActionSupplementReject  = "supplement_reject"
+	// AuditActionSupplementRevokeApproval - согласующий отозвал свой голос по раунду.
+	AuditActionSupplementRevokeApproval = "supplement_revoke_approval"
+	// AuditActionSupplementConfirmationChange - сменился ИТОГ раунда дополнения
+	// (application_supplements.status). Пишется на заявку, как и остальные события раунда;
+	// old_value/new_value - статусы раунда, не заявки: confirmation самой заявки дополнение
+	// не двигает ни при каком раскладе голосов.
+	AuditActionSupplementConfirmationChange = "supplement_confirmation_change"
+	// AuditActionSupplementAccepted - принимающий принял согласованный раунд (#1685): его
+	// строки активированы и с этого момента видны на КПП. Отдельно от take_to_work: та
+	// запись означает принятие ЗАЯВКИ и меняет её статус, эта не трогает заявку вовсе.
+	AuditActionSupplementAccepted = "supplement_accepted"
+	// AuditActionSupplementRefused - принимающий отказал согласованному раунду. Строки
+	// остаются неактивными навсегда; сама заявка и её допущенный состав не задеты.
+	AuditActionSupplementRefused = "supplement_refused"
+	// AuditActionSupplementCancelledByAuthor - автор снял собственный незакрытый раунд.
+	// Отдельно от AuditActionSupplementCancelled: там раунд снимает система при закрытии
+	// заявки (актор пустой, «Система»), здесь - человек своей волей.
+	AuditActionSupplementCancelledByAuthor = "supplement_cancelled_by_author"
+	// AuditActionImpersonateStart / AuditActionImpersonateStop - вход администратора в
+	// режим «войти как пользователь» и возврат в свою учётную запись (#1912). Пишутся на
+	// того, от чьего имени открыт сеанс (entity_type=user, entity_id - его id), актор -
+	// инициатор. Пара записей задаёт окно, внутри которого действия учётной записи
+	// принадлежат не её владельцу; сами действия внутри окна помечены полем
+	// details.impersonated_by (его дописывает рекордер аудита).
+	AuditActionImpersonateStart = "impersonate_start"
+	AuditActionImpersonateStop  = "impersonate_stop"
+	// AuditActionEmployeesBulkAdded - сводная запись «добавлено N сотрудников» на заявку
+	// (entity_type=application), одна на вложение people при подаче (blank-import, срез
+	// A2A3). Каждый сотрудник ПРОДОЛЖАЕТ получать свою собственную запись create
+	// (entity_type=employee, entity_id=его id) - её читает история конкретного сотрудника
+	// (/employees/:id/history). Эта запись не заменяет их, а даёт заявке одну строку в
+	// её собственной ленте вместо необходимости открыть каждого сотрудника по отдельности.
+	AuditActionEmployeesBulkAdded = "employees_bulk_added"
 )
 
 // AuditLogItem - запись аудита для API с разрезолвленным именем актора

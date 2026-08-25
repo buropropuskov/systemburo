@@ -49,7 +49,7 @@ type applicationAuditDetails struct {
 
 // GetApplicationResponsibleUsers возвращает ответственных пользователей заявки.
 func (s *applicationService) GetApplicationResponsibleUsers(ctx context.Context, applicationID int) ([]ResponsibleUserInfo, error) {
-	return s.fetchResponsibleUsers(s.db.WithContext(ctx), applicationID)
+	return s.fetchResponsibleUsers(ctx, s.db.WithContext(ctx), applicationID)
 }
 
 // GetApplicationHistory возвращает историю изменений заявки (новые сверху).
@@ -110,8 +110,9 @@ func (s *applicationService) GetApplicationHistory(ctx context.Context, applicat
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching application history")
 	}
 
-	// Маскировка ФИО актора-принимающего (напр. "Принял(-а) в работу") для заявитель-видимой истории.
-	if masks := loadApproverMasks(ctx, s.db); masks != nil {
+	// Маскировка ФИО актора: заданная маска принимающего (напр. "Принял(-а) в работу")
+	// и логин вместо ФИО у тех, кто не давал согласия на обработку данных.
+	if masks := loadNameMasks(ctx, s.db); masks != nil {
 		for i := range items {
 			uid := items[i].UserID
 			items[i].UserName = maskName(masks, &uid, items[i].UserName)
@@ -177,12 +178,14 @@ func (s *applicationService) GetForwardMessages(ctx context.Context, application
 		return out
 	}
 
+	// Логин вместо ФИО у пересылавших, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
 	items := make([]ForwardMessageItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, ForwardMessageItem{
 			ID:          r.ID,
 			AuthorID:    r.AuthorID,
-			AuthorName:  r.AuthorName,
+			AuthorName:  maskName(masks, &r.AuthorID, r.AuthorName),
 			Message:     r.Message,
 			Recipients:  parseStrings(r.RecipientsJSON, "recipients", r.ID),
 			Whole:       r.Whole,

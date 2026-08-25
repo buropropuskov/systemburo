@@ -84,29 +84,6 @@ export default {
   white-space: nowrap;
 }
 
-/* Дропдауны фильтров (OrganizationFilter/BaseDropdown) внутри модалки теряют box,
-   который на десктопе им даёт scoped .field родителя - восстанавливаем здесь
-   (эталон ApplicationsFilterModal). */
-.filter-sheet__body :deep(.field) {
-  width: 100%;
-  height: 40px;
-  background-color: var(--surface);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  padding: 0 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  position: relative;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.filter-sheet__body :deep(.field:focus-within) {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-focus);
-}
-
 .filter-sheet__reset {
   padding: 7px 14px;
   border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));

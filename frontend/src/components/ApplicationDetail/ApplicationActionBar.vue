@@ -1,70 +1,316 @@
 <template>
-  <div class="action-buttons-wrapper">
-    <!-- Режим центра заявок -->
-    <div
-      v-if="mode === 'center'"
-      class="action-buttons"
-    >
-      <!-- Набор кнопок/статусов cross-fade при смене статуса заявки (out-in по barKey).
-           .action-buttons держит min-height, чтобы высота не скакала при свапе (#1097 R4-7). -->
-      <transition
-        name="fade"
-        mode="out-in"
+  <div class="action-bar-root">
+    <!-- Действия по раунду дополнения (#1685) отдельным рядом НАД кнопками заявки:
+         заявка при этом остаётся в работе, и её собственные действия (отозвать из
+         работы, вернуть) должны оставаться доступными. -->
+    <transition name="fade">
+      <div
+        v-if="supplementActionsVisible"
+        class="supplement-actions"
+        data-testid="supplement-actions"
       >
-        <div
-          :key="barKey"
-          class="action-buttons-track"
+        <!-- Номер раунда без отдельного бейджа: рядом в шапке уже стоит "+ Дополнение №N
+             на согласовании" (ApplicationDetail.vue openSupplementBadge), а этот ряд
+             вёрстка держит прямо под ней ("под шапкой") - бейдж "Доп. №N" здесь только
+             дублировал ту же надпись и на мобилке растягивался на всю ширину. Кнопка
+             решения несёт номер сама - см. "Согласовать доп. №N" ниже. -->
+        <Badge
+          v-if="supplementVoteBadge"
+          :variant="mySupplementVoteStatus === 'approved' ? 'success' : 'danger'"
+          size="sm"
+          data-testid="supplement-my-vote"
         >
-          <!-- Для пользователей, которые одновременно являются принимающими и ответственными -->
-          <template v-if="!busy && isApproverUser && isResponsibleUser && application.status !== 'Отозвана'">
-            <!-- Если пользователь еще не голосовал -->
-            <template v-if="!hasUserVoted">
-              <!-- Показываем кнопки согласования, если заявка не отклонена окончательно и не завершена -->
-              <template v-if="application.confirmation !== 'Не согласовано' && application.status !== 'Завершено'">
-                <button
-                  class="accept-btn"
-                  data-testid="app-detail-button-approve"
-                  :disabled="processing || approvalBlockedByBlacklist"
-                  :title="approvalBlockedByBlacklist ? blacklistGateHint : null"
-                  @click="handleCombinedAction('accept')"
+          {{ supplementVoteBadge.text }}
+        </Badge>
+
+        <template v-if="canVoteOnSupplement">
+          <button
+            class="lk-button lk-button--primary"
+            data-testid="supplement-button-approve"
+            :disabled="supplementBusy"
+            @click="askSupplementAction('approve')"
+          >
+            Согласовать доп. №{{ actionableRound.number }}
+          </button>
+          <button
+            class="lk-button lk-button--danger"
+            data-testid="supplement-button-reject"
+            :disabled="supplementBusy"
+            @click="askSupplementAction('reject')"
+          >
+            Отказать
+          </button>
+        </template>
+
+        <button
+          v-if="canRevokeSupplementVote"
+          class="lk-button lk-button--ghost"
+          data-testid="supplement-button-revoke"
+          :disabled="supplementBusy"
+          @click="askSupplementAction('revoke')"
+        >
+          Отозвать голос
+        </button>
+
+        <template v-if="canDecideSupplement">
+          <button
+            class="lk-button lk-button--primary"
+            data-testid="supplement-button-accept"
+            :disabled="supplementBusy"
+            @click="askSupplementAction('accept')"
+          >
+            Принять доп. №{{ actionableRound.number }}
+          </button>
+          <button
+            class="lk-button lk-button--danger"
+            data-testid="supplement-button-refuse"
+            :disabled="supplementBusy"
+            @click="askSupplementAction('refuse')"
+          >
+            Отказать
+          </button>
+        </template>
+
+        <button
+          v-if="canCancelSupplement"
+          class="lk-button lk-button--ghost"
+          data-testid="supplement-button-cancel"
+          :disabled="supplementBusy"
+          @click="askSupplementAction('cancel')"
+        >
+          Снять дополнение
+        </button>
+      </div>
+    </transition>
+
+    <!-- Подтверждение решения по раунду. z-index выше стопки карточки заявки
+         (оверлей 10002, карточки из заявки 10003-10005), иначе окно откроется под ней.
+         Видимостью управляет show, а не v-if по самому запросу: снятие окна родительским
+         v-if убивает его анимацию закрытия, поэтому запрос переживает закрытие и
+         заменяется только при следующем открытии. Общий контракт окон (#1097) - выезд
+         снизу листом с ползунком на мобилке, закрытие по оверлею/Escape/свайпу - тот же
+         BaseModal, что и у остальных окон заявки (образец - BlacklistOverrideModal).
+         Тестиды confirmation-confirm/confirmation-cancel оставлены как есть - на них
+         завязан e2e ApplicationDetailModal.cjs. -->
+    <BaseModal
+      v-if="supplementPrompt"
+      :show="supplementPromptOpen"
+      :title="supplementPrompt.title"
+      width="420px"
+      radius="30px"
+      :z-index="10006"
+      content-class="supplement-confirm-modal"
+      @close="closeSupplementPrompt"
+    >
+      <div class="supplement-confirm-body">
+        <p class="supplement-confirm-message">
+          {{ supplementPrompt.message }}
+        </p>
+        <label class="supplement-comment">
+          <span class="supplement-comment__label">Комментарий (необязательно)</span>
+          <textarea
+            v-model="supplementComment"
+            class="lk-textarea supplement-comment__input"
+            data-testid="supplement-decision-comment"
+            rows="3"
+          />
+        </label>
+      </div>
+
+      <template #actions>
+        <button
+          type="button"
+          class="lk-button lk-button--ghost"
+          data-testid="confirmation-cancel"
+          @click="closeSupplementPrompt"
+        >
+          Отмена
+        </button>
+        <button
+          type="button"
+          class="lk-button lk-button--primary"
+          data-testid="confirmation-confirm"
+          @click="confirmSupplementAction"
+        >
+          {{ supplementPrompt.confirmText }}
+        </button>
+      </template>
+    </BaseModal>
+
+    <div class="action-buttons-wrapper">
+      <!-- Режим центра заявок -->
+      <!-- Якорь туров согласующего и принимающего: набор кнопок внутри зависит от
+           роли и стадии заявки, поэтому шаги смотрят на сам ряд, а не на кнопку -
+           иначе шаг про решение по заявке молча пропадал бы, стоило заявке ждать
+           согласующих (у принимающего вместо «Принять» стоит надпись ожидания). -->
+      <div
+        v-if="mode === 'center'"
+        class="action-buttons"
+        data-testid="ob-detail-actions"
+      >
+        <!-- Набор кнопок/статусов cross-fade при смене статуса заявки (out-in по barKey).
+             .action-buttons держит min-height, чтобы высота не скакала при свапе (#1097 R4-7). -->
+        <transition
+          name="fade"
+          mode="out-in"
+        >
+          <div
+            :key="barKey"
+            class="action-buttons-track"
+          >
+            <!-- Для пользователей, которые одновременно являются принимающими и ответственными -->
+            <template v-if="!busy && isApproverUser && isResponsibleUser && application.status !== 'Отозвана'">
+              <!-- Если пользователь еще не голосовал -->
+              <template v-if="!hasUserVoted">
+                <!-- Показываем кнопки согласования, если заявка не отклонена окончательно и не завершена -->
+                <template v-if="application.confirmation !== 'Не согласовано' && application.status !== 'Завершено'">
+                  <button
+                    class="accept-btn"
+                    data-testid="app-detail-button-approve"
+                    :disabled="processing || approvalBlockedByBlacklist"
+                    :title="approvalBlockedByBlacklist ? blacklistGateHint : null"
+                    @click="handleCombinedAction('accept')"
+                  >
+                    <span
+                      v-if="processing"
+                      class="button-loading"
+                    />
+                    <span v-else>{{ approvingCompletesConfirmation ? 'Согласовать и принять' : 'Согласовать' }}</span>
+                  </button>
+                  <button
+                    class="reject-btn"
+                    data-testid="app-detail-button-reject"
+                    :disabled="processing"
+                    @click="handleCombinedAction('reject')"
+                  >
+                    <span
+                      v-if="processing"
+                      class="button-loading"
+                    />
+                    <span v-else>Отказать</span>
+                  </button>
+                </template>
+                <!-- Если заявка завершена -->
+                <div
+                  v-else-if="application.status === 'Завершено'"
+                  class="status-badge status-completed-badge"
                 >
-                  <span
-                    v-if="processing"
-                    class="button-loading"
-                  />
-                  <span v-else>{{ approvingCompletesConfirmation ? 'Согласовать и принять' : 'Согласовать' }}</span>
-                </button>
-                <button
-                  class="reject-btn"
-                  data-testid="app-detail-button-reject"
-                  :disabled="processing"
-                  @click="handleCombinedAction('reject')"
+                  Завершено
+                </div>
+                <!-- Если заявка отклонена окончательно -->
+                <div
+                  v-else
+                  class="info-badge"
                 >
-                  <span
-                    v-if="processing"
-                    class="button-loading"
-                  />
-                  <span v-else>Отказать</span>
-                </button>
+                  Заявка отклонена
+                </div>
               </template>
-              <!-- Если заявка завершена -->
-              <div
-                v-else-if="application.status === 'Завершено'"
-                class="status-badge status-completed-badge"
-              >
-                Завершено
-              </div>
-              <!-- Если заявка отклонена окончательно -->
-              <div
-                v-else
-                class="info-badge"
-              >
-                Заявка отклонена
-              </div>
+
+              <!-- Если пользователь уже проголосовал -->
+              <template v-else>
+                <!-- Если заявка в работе - показываем статус и кнопку отзыва -->
+                <template v-if="application.status === 'В работе'">
+                  <button
+                    class="subtle-btn"
+                    :disabled="processing"
+                    @click="revokeApplication"
+                  >
+                    <span
+                      v-if="processing"
+                      class="button-loading"
+                    />
+                    <span v-else>Отозвать из работы</span>
+                  </button>
+                  <div class="status-badge status-in-work-badge">
+                    В работе
+                  </div>
+                </template>
+                <!-- Если заявка отказана - показываем статус и кнопку возврата -->
+                <template v-else-if="application.status === 'Отказано'">
+                  <button
+                    class="subtle-btn"
+                    :disabled="processing"
+                    @click="restoreApplication"
+                  >
+                    <span
+                      v-if="processing"
+                      class="button-loading"
+                    />
+                    <span v-else>Вернуть в работу</span>
+                  </button>
+                  <div class="status-badge status-rejected-badge">
+                    Отказано
+                  </div>
+                </template>
+                <!-- Если заявка завершена - просто показываем статус -->
+                <template v-else-if="application.status === 'Завершено'">
+                  <div class="status-badge status-completed-badge">
+                    Завершено
+                  </div>
+                </template>
+                <!-- Заявка не в работе, не отказана и не завершена: принять её можно, когда
+                     согласование завершено ИЛИ согласовывать нечего (согласующих нет).
+                     Своё решение здесь отзывается в любом случае (#1550): пользователь из
+                     справочника принимающих - такой же согласующий, и раньше кнопка отзыва
+                     ему не доставалась, потому что эта ветка перехватывала рендер. -->
+                <template v-else>
+                  <!-- В обучении кнопки показываем всегда, но неактивными: пока
+                       заявка ждёт согласующих, их нет вовсе, и шаг тура про главное
+                       действие роли подсвечивал пустое место. -->
+                  <template v-if="canTakeToWork || tourOnlyActions">
+                    <button
+                      class="accept-btn"
+                      :class="{ 'is-tour-stub': !canTakeToWork }"
+                      data-testid="app-detail-button-take-to-work"
+                      :disabled="processing || !canTakeToWork"
+                      @click="handleApplicationAction('accept')"
+                    >
+                      <span
+                        v-if="processing"
+                        class="button-loading"
+                      />
+                      <span v-else>{{ hasNoApprovers ? 'Согласовать и принять' : 'Принять' }}</span>
+                    </button>
+                    <button
+                      class="reject-btn"
+                      :class="{ 'is-tour-stub': !canTakeToWork }"
+                      data-testid="app-detail-button-reject"
+                      :disabled="processing || !canTakeToWork"
+                      @click="handleApplicationAction('reject')"
+                    >
+                      <span
+                        v-if="processing"
+                        class="button-loading"
+                      />
+                      <span v-else>Отказать</span>
+                    </button>
+                  </template>
+                  <button
+                    class="revoke-approval-btn subtle-btn"
+                    data-testid="app-detail-button-revoke-approval"
+                    :disabled="processing"
+                    @click="revokeOwnApproval"
+                  >
+                    <span
+                      v-if="processing"
+                      class="button-loading"
+                    />
+                    <span v-else>{{ revokeApprovalLabel }}</span>
+                  </button>
+                  <!-- Заявка ждёт других согласующих - показываем свой голос -->
+                  <div
+                    v-if="!canTakeToWork"
+                    class="vote-status-badge"
+                    :class="userVoteStatus.class"
+                  >
+                    {{ userVoteStatus.text }} (ожидание других)
+                  </div>
+                </template>
+              </template>
             </template>
 
-            <!-- Если пользователь уже проголосовал -->
-            <template v-else>
+            <!-- Для принимающих заявки (не ответственных) -->
+            <template v-else-if="!busy && isApproverUser && application.status !== 'Отозвана'">
               <!-- Если заявка в работе - показываем статус и кнопку отзыва -->
               <template v-if="application.status === 'В работе'">
                 <button
@@ -99,299 +345,201 @@
                   Отказано
                 </div>
               </template>
-              <!-- Если заявка завершена - просто показываем статус -->
+              <!-- Если заявка завершена -->
               <template v-else-if="application.status === 'Завершено'">
                 <div class="status-badge status-completed-badge">
                   Завершено
                 </div>
               </template>
-              <!-- Заявка не в работе, не отказана и не завершена: принять её можно, когда
-                   согласование завершено ИЛИ согласовывать нечего (согласующих нет).
-                   Своё решение здесь отзывается в любом случае (#1550): пользователь из
-                   справочника принимающих - такой же согласующий, и раньше кнопка отзыва
-                   ему не доставалась, потому что эта ветка перехватывала рендер. -->
-              <template v-else>
-                <template v-if="canTakeToWork">
-                  <button
-                    class="accept-btn"
-                    data-testid="app-detail-button-take-to-work"
-                    :disabled="processing"
-                    @click="handleApplicationAction('accept')"
-                  >
-                    <span
-                      v-if="processing"
-                      class="button-loading"
-                    />
-                    <span v-else>Принять</span>
-                  </button>
-                  <button
-                    class="reject-btn"
-                    data-testid="app-detail-button-reject"
-                    :disabled="processing"
-                    @click="handleApplicationAction('reject')"
-                  >
-                    <span
-                      v-if="processing"
-                      class="button-loading"
-                    />
-                    <span v-else>Отказать</span>
-                  </button>
-                </template>
+              <!-- Принять можно при завершённом согласовании либо когда согласующих нет. -->
+              <template v-else-if="canTakeToWork">
                 <button
-                  class="revoke-approval-btn subtle-btn"
-                  data-testid="app-detail-button-revoke-approval"
+                  class="accept-btn"
+                  data-testid="app-detail-button-take-to-work"
                   :disabled="processing"
-                  @click="revokeOwnApproval"
+                  @click="handleApplicationAction('accept')"
                 >
                   <span
                     v-if="processing"
                     class="button-loading"
                   />
-                  <span v-else>{{ revokeApprovalLabel }}</span>
-                </button>
-                <!-- Заявка ждёт других согласующих - показываем свой голос -->
-                <div
-                  v-if="!canTakeToWork"
-                  class="vote-status-badge"
-                  :class="userVoteStatus.class"
-                >
-                  {{ userVoteStatus.text }} (ожидание других)
-                </div>
-              </template>
-            </template>
-          </template>
-
-          <!-- Для принимающих заявки (не ответственных) -->
-          <template v-else-if="!busy && isApproverUser && application.status !== 'Отозвана'">
-            <!-- Если заявка в работе - показываем статус и кнопку отзыва -->
-            <template v-if="application.status === 'В работе'">
-              <button
-                class="subtle-btn"
-                :disabled="processing"
-                @click="revokeApplication"
-              >
-                <span
-                  v-if="processing"
-                  class="button-loading"
-                />
-                <span v-else>Отозвать из работы</span>
-              </button>
-              <div class="status-badge status-in-work-badge">
-                В работе
-              </div>
-            </template>
-            <!-- Если заявка отказана - показываем статус и кнопку возврата -->
-            <template v-else-if="application.status === 'Отказано'">
-              <button
-                class="subtle-btn"
-                :disabled="processing"
-                @click="restoreApplication"
-              >
-                <span
-                  v-if="processing"
-                  class="button-loading"
-                />
-                <span v-else>Вернуть в работу</span>
-              </button>
-              <div class="status-badge status-rejected-badge">
-                Отказано
-              </div>
-            </template>
-            <!-- Если заявка завершена -->
-            <template v-else-if="application.status === 'Завершено'">
-              <div class="status-badge status-completed-badge">
-                Завершено
-              </div>
-            </template>
-            <!-- Принять можно при завершённом согласовании либо когда согласующих нет. -->
-            <template v-else-if="canTakeToWork">
-              <button
-                class="accept-btn"
-                data-testid="app-detail-button-take-to-work"
-                :disabled="processing"
-                @click="handleApplicationAction('accept')"
-              >
-                <span
-                  v-if="processing"
-                  class="button-loading"
-                />
-                <span v-else>Принять</span>
-              </button>
-              <button
-                class="reject-btn"
-                data-testid="app-detail-button-reject"
-                :disabled="processing"
-                @click="handleApplicationAction('reject')"
-              >
-                <span
-                  v-if="processing"
-                  class="button-loading"
-                />
-                <span v-else>Отказать</span>
-              </button>
-            </template>
-            <!-- Если заявка не согласована - показываем информационное сообщение -->
-            <div
-              v-else
-              class="info-badge"
-            >
-              {{ getApproverStatusMessage }}
-            </div>
-          </template>
-
-          <!-- Для ответственных за согласование (не принимающих) -->
-          <template v-else-if="!busy && isResponsibleUser && application.status !== 'Отозвана'">
-            <!-- Если пользователь еще не голосовал -->
-            <template v-if="!hasUserVoted">
-              <!-- Показываем кнопки согласования, когда заявка не отклонена и не завершена -->
-              <template v-if="application.confirmation !== 'Не согласовано' && application.status !== 'Завершено'">
-                <button
-                  class="confirm-btn"
-                  data-testid="app-detail-button-approve"
-                  :disabled="updatingConfirmation || processing || approvalBlockedByBlacklist"
-                  :title="approvalBlockedByBlacklist ? blacklistGateHint : null"
-                  @click="updateConfirmation('Согласовано')"
-                >
-                  <span
-                    v-if="updatingConfirmation"
-                    class="button-loading"
-                  />
-                  <span v-else>Согласовать</span>
+                  <span v-else>{{ hasNoApprovers ? 'Согласовать и принять' : 'Принять' }}</span>
                 </button>
                 <button
                   class="reject-btn"
                   data-testid="app-detail-button-reject"
-                  :disabled="updatingConfirmation || processing"
-                  @click="updateConfirmation('Не согласовано')"
+                  :disabled="processing"
+                  @click="handleApplicationAction('reject')"
                 >
                   <span
-                    v-if="updatingConfirmation"
+                    v-if="processing"
                     class="button-loading"
                   />
                   <span v-else>Отказать</span>
                 </button>
               </template>
-              <!-- Если заявка завершена -->
+              <!-- Если заявка не согласована - показываем информационное сообщение -->
+              <div
+                v-else
+                class="info-badge"
+              >
+                {{ getApproverStatusMessage }}
+              </div>
+            </template>
+
+            <!-- Для ответственных за согласование (не принимающих) -->
+            <template v-else-if="!busy && isResponsibleUser && application.status !== 'Отозвана'">
+              <!-- Если пользователь еще не голосовал -->
+              <template v-if="!hasUserVoted">
+                <!-- Показываем кнопки согласования, когда заявка не отклонена и не завершена -->
+                <template v-if="application.confirmation !== 'Не согласовано' && application.status !== 'Завершено'">
+                  <button
+                    class="confirm-btn"
+                    data-testid="app-detail-button-approve"
+                    :disabled="updatingConfirmation || processing || approvalBlockedByBlacklist"
+                    :title="approvalBlockedByBlacklist ? blacklistGateHint : null"
+                    @click="updateConfirmation('Согласовано')"
+                  >
+                    <span
+                      v-if="updatingConfirmation"
+                      class="button-loading"
+                    />
+                    <span v-else>Согласовать</span>
+                  </button>
+                  <button
+                    class="reject-btn"
+                    data-testid="app-detail-button-reject"
+                    :disabled="updatingConfirmation || processing"
+                    @click="updateConfirmation('Не согласовано')"
+                  >
+                    <span
+                      v-if="updatingConfirmation"
+                      class="button-loading"
+                    />
+                    <span v-else>Отказать</span>
+                  </button>
+                </template>
+                <!-- Если заявка завершена -->
+                <div
+                  v-else-if="application.status === 'Завершено'"
+                  class="status-badge status-completed-badge"
+                >
+                  Завершено
+                </div>
+                <!-- Если заявка отклонена окончательно -->
+                <div
+                  v-else
+                  class="info-badge"
+                >
+                  Заявка отклонена
+                </div>
+              </template>
+
+              <!-- Если пользователь уже проголосовал -->
+              <template v-else>
+                <!-- Если заявка в работе - показываем только статус (нельзя отозвать) -->
+                <template v-if="application.status === 'В работе'">
+                  <div
+                    class="vote-status-badge"
+                    :class="userVoteStatus.class"
+                  >
+                    {{ userVoteStatus.text }}
+                  </div>
+                </template>
+                <!-- Если заявка завершена -->
+                <template v-else-if="application.status === 'Завершено'">
+                  <div class="status-badge status-completed-badge">
+                    Завершено
+                  </div>
+                </template>
+                <!-- Если заявка не в работе и не завершена - показываем кнопку отзыва согласования -->
+                <template v-else>
+                  <button
+                    class="revoke-approval-btn subtle-btn"
+                    data-testid="app-detail-button-revoke-approval"
+                    :disabled="processing"
+                    @click="revokeOwnApproval"
+                  >
+                    <span
+                      v-if="processing"
+                      class="button-loading"
+                    />
+                    <span v-else>Отозвать своё решение</span>
+                  </button>
+                  <div
+                    class="vote-status-badge"
+                    :class="userVoteStatus.class"
+                  >
+                    {{ userVoteStatus.text }}
+                  </div>
+                </template>
+              </template>
+            </template>
+
+            <!-- Действие/рефетч (busy): единый лоадер в зарезервированной высоте вместо старых
+             кнопок - не мигаем и не скачем высотой до приезда нового статуса (#1097 R4-7). -->
+            <template v-else-if="busy">
+              <span class="button-loading actions-ready-loader" />
+            </template>
+
+            <!-- Для остальных пользователей - только информация -->
+            <template v-else>
+              <div
+                v-if="application.status === 'Отозвана'"
+                class="status-badge status-rejected-badge"
+              >
+                Отозвана инициатором
+              </div>
+              <div
+                v-else-if="application.status === 'В работе'"
+                class="status-badge status-in-work-badge"
+              >
+                В работе
+              </div>
+              <div
+                v-else-if="application.status === 'Отказано'"
+                class="status-badge status-rejected-badge"
+              >
+                Отказано
+              </div>
               <div
                 v-else-if="application.status === 'Завершено'"
                 class="status-badge status-completed-badge"
               >
                 Завершено
               </div>
-              <!-- Если заявка отклонена окончательно -->
               <div
-                v-else
-                class="info-badge"
+                v-else-if="application.confirmation === 'Согласовано'"
+                class="status-badge status-approved-badge"
               >
-                Заявка отклонена
+                Согласовано
+              </div>
+              <div
+                v-else-if="application.confirmation === 'Согласование'"
+                class="status-badge status-pending-badge"
+              >
+                На согласовании
               </div>
             </template>
 
-            <!-- Если пользователь уже проголосовал -->
-            <template v-else>
-              <!-- Если заявка в работе - показываем только статус (нельзя отозвать) -->
-              <template v-if="application.status === 'В работе'">
-                <div
-                  class="vote-status-badge"
-                  :class="userVoteStatus.class"
-                >
-                  {{ userVoteStatus.text }}
-                </div>
-              </template>
-              <!-- Если заявка завершена -->
-              <template v-else-if="application.status === 'Завершено'">
-                <div class="status-badge status-completed-badge">
-                  Завершено
-                </div>
-              </template>
-              <!-- Если заявка не в работе и не завершена - показываем кнопку отзыва согласования -->
-              <template v-else>
-                <button
-                  class="revoke-approval-btn subtle-btn"
-                  data-testid="app-detail-button-revoke-approval"
-                  :disabled="processing"
-                  @click="revokeOwnApproval"
-                >
-                  <span
-                    v-if="processing"
-                    class="button-loading"
-                  />
-                  <span v-else>Отозвать своё решение</span>
-                </button>
-                <div
-                  class="vote-status-badge"
-                  :class="userVoteStatus.class"
-                >
-                  {{ userVoteStatus.text }}
-                </div>
-              </template>
-            </template>
-          </template>
-
-          <!-- Действие/рефетч (busy): единый лоадер в зарезервированной высоте вместо старых
-           кнопок - не мигаем и не скачем высотой до приезда нового статуса (#1097 R4-7). -->
-          <template v-else-if="busy">
-            <span class="button-loading actions-ready-loader" />
-          </template>
-
-          <!-- Для остальных пользователей - только информация -->
-          <template v-else>
+            <!-- Гейт ЧС (#481): подсказка, почему согласование заблокировано -->
             <div
-              v-if="application.status === 'Отозвана'"
-              class="status-badge status-rejected-badge"
-            >
-              Отозвана инициатором
-            </div>
-            <div
-              v-else-if="application.status === 'В работе'"
-              class="status-badge status-in-work-badge"
-            >
-              В работе
-            </div>
-            <div
-              v-else-if="application.status === 'Отказано'"
-              class="status-badge status-rejected-badge"
-            >
-              Отказано
-            </div>
-            <div
-              v-else-if="application.status === 'Завершено'"
-              class="status-badge status-completed-badge"
-            >
-              Завершено
-            </div>
-            <div
-              v-else-if="application.confirmation === 'Согласовано'"
-              class="status-badge status-approved-badge"
-            >
-              Согласовано
-            </div>
-            <div
-              v-else-if="application.confirmation === 'Согласование'"
-              class="status-badge status-pending-badge"
-            >
-              На согласовании
-            </div>
-          </template>
-
-          <!-- Гейт ЧС (#481): подсказка, почему согласование заблокировано -->
-          <div
-            v-if="approvalBlockedByBlacklist"
-            class="blacklist-gate-hint"
-            data-testid="app-detail-blacklist-gate-hint"
-          >
-            Подтвердите пропуск по помеченным
+              v-if="approvalBlockedByBlacklist"
+              class="blacklist-gate-hint"
+              data-testid="app-detail-blacklist-gate-hint"
+              :title="blacklistGateHint"
+            >Подтвердите метки ЧС</div>
           </div>
-        </div>
-      </transition>
-    </div>
+        </transition>
+      </div>
 
-    <!-- Режим просмотра заявок пользователя -->
-    <div
-      v-if="mode === 'user'"
-      class="view-buttons"
-    >
-      <slot name="user-actions" />
+      <!-- Режим просмотра заявок пользователя -->
+      <div
+        v-if="mode === 'user'"
+        class="view-buttons"
+      >
+        <slot name="user-actions" />
+      </div>
     </div>
   </div>
 </template>
@@ -400,9 +548,25 @@
 import { apiRequest } from '@/api/client'
 import { useUiStore } from '@/stores/ui'
 import { useNarrowScreen } from '@/composables/useNarrowScreen'
+import BaseModal from '@/components/ui/BaseModal.vue'
+import Badge from '@/components/ui/Badge.vue'
+import {
+    approveSupplement,
+    revokeSupplementApproval,
+    decideSupplement,
+    cancelSupplement
+} from '@/api/applications'
+import {
+    SUPPLEMENT_PENDING,
+    supplementCountsLabel,
+    SUPPLEMENT_APPROVED,
+    SUPPLEMENT_OPEN_STATUSES,
+    SUPPLEMENT_REVOCABLE_STATUSES
+} from '@/utils/supplementStatuses'
 
 export default {
     name: 'ApplicationActionBar',
+    components: { BaseModal, Badge },
     props: {
         application: {
             type: Object,
@@ -419,6 +583,16 @@ export default {
         approvers: {
             type: Array,
             default: () => []
+        },
+        /**
+         * «Текущий пользователь - принимающий». Приходит из ответа про себя
+         * (/application-approvers/me), потому что полный состав принимающих
+         * отдаётся только администратору: выводить роль из него значило бы
+         * прятать кнопки приёма от рядового принимающего (#1685).
+         */
+        isApprover: {
+            type: Boolean,
+            default: false
         },
         mode: {
             type: String,
@@ -444,13 +618,38 @@ export default {
         ready: {
             type: Boolean,
             default: true
+        },
+        // Раунды дополнения заявки (#1685), новые сверху - как их отдаёт бэк.
+        supplements: {
+            type: Array,
+            default: () => []
         }
     },
     emits: ['action-completed', 'processing-change', 'updating-confirmation-change', 'comment-clear'],
     setup() {
         return useNarrowScreen();
     },
+    data() {
+        return {
+            // Запрошенное решение по раунду: { action, title, message, confirmText }.
+            // Живёт и после закрытия окна - его тексты нужны, пока проигрывается уход.
+            supplementPrompt: null,
+            supplementPromptOpen: false,
+            supplementComment: '',
+            // Отдельный от processing флаг: действия самой заявки решением по дополнению
+            // не блокируются - заявка остаётся в работе и её кнопки обязаны работать.
+            supplementBusy: false
+        };
+    },
     computed: {
+        /**
+         * Идёт обучение: кнопки решения показываем даже там, где их сейчас нет.
+         * Неактивные - чтобы их не приняли за рабочие (см. is-tour-stub).
+         */
+        tourOnlyActions() {
+            return useUiStore().tourActive;
+        },
+
         // На узком экране ряд действий не переносится (nowrap), а у совмещённой роли рядом
         // стоят ещё "Принять" и "Отказать" - полная подпись в 390px не помещается.
         revokeApprovalLabel() {
@@ -490,6 +689,9 @@ export default {
         },
 
         isApproverUser() {
+            if (this.isApprover) return true;
+            // Состав принимающих приходит только администратору - для него это тот
+            // же ответ, просто из уже загруженных данных.
             if (!this.currentUserId || !this.approvers.length) return false;
             return this.approvers.some(approver => approver.user_id === this.currentUserId);
         },
@@ -542,6 +744,13 @@ export default {
         // updateConfirmationBasedOnApprovals: все обязательные approved / при отсутствии
         // обязательных - хотя бы один approved; заявка без согласующих - принять можно.
         // По этому решаем: комбо-кнопка "Согласовать и принять" vs просто "Согласовать".
+        // У заявки нет ни одного согласующего: согласовывать некому, и решение принимающего
+        // заменяет согласование. Такому принимающему показываем ту же комбо-кнопку, что и
+        // совмещённой роли, а голос за него не отправляем - записи согласующего нет.
+        hasNoApprovers() {
+            return !Array.isArray(this.responsibleUsers) || this.responsibleUsers.length === 0;
+        },
+
         approvingCompletesConfirmation() {
             const users = this.responsibleUsers.map(u =>
                 u.id === this.currentUserId ? { ...u, approval_status: 'approved' } : u);
@@ -583,9 +792,217 @@ export default {
 
         blacklistGateHint() {
             return 'Подтвердите пропуск по всем помеченным элементам, чтобы согласовать заявку';
+        },
+
+        /**
+         * Раунд дополнения, по которому ещё возможно чьё-то действие (#1685): самый
+         * свежий со статусом pending/approved/rejected. Не «открытый» (pending/approved):
+         * по отклонённому раунду согласующий ещё может отозвать свой голос и тем открыть
+         * его заново - зеркало supplementRevocableStatuses бэка.
+         *
+         * Раунды приходят по убыванию номера, поэтому берём первый подходящий.
+         */
+        actionableRound() {
+            return this.supplements.find(round => SUPPLEMENT_REVOCABLE_STATUSES.includes(round.status)) || null;
+        },
+
+        /** Состав раунда словами - «2 машины, 1 сотрудник». Решение принимают по нему. */
+        supplementCompositionText() {
+            const counts = this.actionableRound && this.actionableRound.counts;
+            return counts ? supplementCountsLabel(counts) : '';
+        },
+
+        // Голос текущего пользователя в раунде: null - он не в составе голосующих
+        // (снимок ответственных на момент подачи дополнения), а не «ещё не голосовал».
+        mySupplementVote() {
+            if (!this.currentUserId || !this.actionableRound) return null;
+            const approvals = this.actionableRound.approvals || [];
+            return approvals.find(a => a.user_id === this.currentUserId) || null;
+        },
+
+        mySupplementVoteStatus() {
+            return this.mySupplementVote ? (this.mySupplementVote.approval_status || 'pending') : null;
+        },
+
+        isSupplementAuthor() {
+            return !!this.currentUserId && this.application.sender_user_id === this.currentUserId;
+        },
+
+        // Голосовать можно только по идущему кругу и только один раз - повторно кнопки
+        // не предлагаем, вместо них показываем бейдж голоса и отзыв.
+        canVoteOnSupplement() {
+            return !!this.actionableRound
+                && this.actionableRound.status === SUPPLEMENT_PENDING
+                && this.mySupplementVoteStatus === 'pending';
+        },
+
+        canRevokeSupplementVote() {
+            return !!this.mySupplementVoteStatus && this.mySupplementVoteStatus !== 'pending';
+        },
+
+        /**
+         * Решение принимающего по согласованному раунду. Статус заявки здесь не
+         * проверяем: принять нельзя только пока она не в работе, и это ловит серверный
+         * гард - между рендером и кликом её могли вывести из работы, а прятать «Отказать»
+         * из-за этого неверно (отказ по выведенной заявке остаётся законным).
+         */
+        canDecideSupplement() {
+            return this.isApproverUser
+                && !!this.actionableRound
+                && this.actionableRound.status === SUPPLEMENT_APPROVED;
+        },
+
+        // Снять раунд автор может, пока по нему не принято решение (pending/approved).
+        // Супер-админу сервер это тоже разрешает, но компонент про роли из стора не знает
+        // (права приходят снаружи, как и у соседних кнопок) - пробел общий для файла.
+        canCancelSupplement() {
+            return this.isSupplementAuthor
+                && !!this.actionableRound
+                && SUPPLEMENT_OPEN_STATUSES.includes(this.actionableRound.status);
+        },
+
+        supplementVoteBadge() {
+            if (this.mySupplementVoteStatus === 'approved') {
+                return { text: 'вы согласовали', class: 'vote-approved' };
+            }
+            if (this.mySupplementVoteStatus === 'rejected') {
+                return { text: 'вы отказали', class: 'vote-rejected' };
+            }
+            return null;
+        },
+
+        // Ряд рисуем, только когда пользователю в нём есть что сделать или что увидеть про
+        // себя: посторонним участникам раунд показывает панель дополнений, а не кнопки.
+        supplementActionsVisible() {
+            if (!this.actionableRound) return false;
+            return this.canVoteOnSupplement || this.canRevokeSupplementVote
+                || this.canDecideSupplement || this.canCancelSupplement;
         }
     },
     methods: {
+        // Тексты подтверждений по действиям над раундом. Отдельной таблицей, чтобы
+        // разметка не обрастала ветвлением, а формулировки лежали рядом друг с другом.
+        supplementPromptFor(action, number) {
+            const composition = this.supplementCompositionText;
+            const about = composition
+                ? `Дополнение №${number}: ${composition}.`
+                : `Дополнение №${number}.`;
+            const prompts = {
+                approve: {
+                    title: 'Согласовать дополнение?',
+                    message: `${about} Согласование записывается за вами; строки встанут на пост после решения принимающего.`,
+                    confirmText: 'Согласовать'
+                },
+                reject: {
+                    title: 'Отказать в дополнении?',
+                    message: `${about} Отказ закрывает круг: добавленные строки на пост не попадут.`,
+                    confirmText: 'Отказать'
+                },
+                revoke: {
+                    title: 'Отозвать свой голос?',
+                    message: `${about} Ваш голос вернётся в ожидание, круг по добавке откроется заново.`,
+                    confirmText: 'Отозвать'
+                },
+                accept: {
+                    title: 'Принять дополнение?',
+                    message: `${about} Строки встанут на пост сразу и станут видны охране.`,
+                    confirmText: 'Принять'
+                },
+                refuse: {
+                    title: 'Отказать в дополнении?',
+                    message: `${about} Строки останутся недопущенными, заявка и её пропуска не меняются.`,
+                    confirmText: 'Отказать'
+                },
+                cancel: {
+                    title: 'Снять дополнение?',
+                    message: `${about} Добавка снимается целиком, её строки на пост не попадут.`,
+                    confirmText: 'Снять'
+                }
+            };
+            return prompts[action] || null;
+        },
+
+        askSupplementAction(action) {
+            const round = this.actionableRound;
+            if (!round) return;
+            const prompt = this.supplementPromptFor(action, round.number);
+            if (!prompt) return;
+            // Комментарий и тексты сбрасываем на открытии, а не на закрытии: иначе они
+            // обнулятся прямо на глазах, пока окно уходит.
+            this.supplementComment = '';
+            this.supplementPrompt = { action, ...prompt };
+            this.supplementPromptOpen = true;
+        },
+
+        closeSupplementPrompt() {
+            this.supplementPromptOpen = false;
+        },
+
+        // Вызов бэка и текст успеха по действию. Номер раунда берём из ответа: он же
+        // подтверждает, по какому именно раунду решение записано.
+        async runSupplementAction(action, applicationId, supplementId, comment) {
+            if (action === 'approve' || action === 'reject') {
+                const res = await approveSupplement(applicationId, supplementId, {
+                    status: action === 'approve' ? 'approved' : 'rejected',
+                    comment
+                });
+                return {
+                    message: action === 'approve'
+                        ? `Дополнение №${res.number} согласовано`
+                        : `В дополнении №${res.number} отказано`,
+                    type: action === 'approve' ? 'success' : 'error'
+                };
+            }
+            if (action === 'revoke') {
+                const res = await revokeSupplementApproval(applicationId, supplementId, { comment });
+                return { message: `Согласование дополнения №${res.number} отозвано`, type: 'success' };
+            }
+            if (action === 'accept' || action === 'refuse') {
+                const res = await decideSupplement(applicationId, supplementId, {
+                    action: action === 'accept' ? 'accept' : 'reject',
+                    comment
+                });
+                return {
+                    message: action === 'accept'
+                        ? `Дополнение №${res.number} принято, строк добавлено на пост: ${res.activated}`
+                        : `В дополнении №${res.number} отказано, его строки на пост не встанут`,
+                    type: action === 'accept' ? 'success' : 'error'
+                };
+            }
+            // Явная ветка, а не хвост: седьмое действие с опечаткой иначе молча снимало бы раунд.
+            if (action !== 'cancel') {
+                throw new Error(`Неизвестное действие по дополнению: ${action}`);
+            }
+            const res = await cancelSupplement(applicationId, supplementId, { comment });
+            return { message: `Дополнение №${res.number} отозвано`, type: 'success' };
+        },
+
+        async confirmSupplementAction() {
+            const prompt = this.supplementPrompt;
+            const round = this.actionableRound;
+            if (!prompt || !this.supplementPromptOpen || !round || this.supplementBusy) return;
+
+            const comment = this.supplementComment.trim() || null;
+            this.supplementBusy = true;
+            try {
+                const { message, type } = await this.runSupplementAction(
+                    prompt.action, this.application.id, round.id, comment);
+                this.closeSupplementPrompt();
+                this.$emit('action-completed', { success: true, message, type });
+            } catch (error) {
+                // Сообщение бэка человеческое (409 «голосование закрыто», 403 «решение
+                // принимает только принимающий») - показываем его как есть, окно
+                // оставляем открытым: комментарий не должен пропасть перед повтором.
+                this.$emit('action-completed', {
+                    success: false,
+                    message: error.message || 'Не удалось выполнить действие по дополнению',
+                    type: 'error'
+                });
+            } finally {
+                this.supplementBusy = false;
+            }
+        },
+
         async handleCombinedAction(action) {
             this.$emit('processing-change', true);
             try {
@@ -800,6 +1217,62 @@ export default {
 </script>
 
 <style scoped>
+/* Корень бара на десктопе: ряд решения по дополнению и ряд действий заявки стоят
+   в ОДНУ строку (владелец: "всё в одну строку" - #1097 w12). Было flex-direction:
+   column - "Согласовать доп. №N"/"Отказать" и статус заявки читались двумя
+   строками даже там, где по ширине спокойно помещались в одну. flex-wrap:wrap -
+   аварийный сброс на совсем узких/нестандартных десктопных ширинах, не для
+   мобилки (там ниже свой @media возвращает колонку). justify-content:flex-end -
+   шапка детали прижимает содержимое вправо, к крестику. */
+.action-bar-root {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 14px;
+}
+
+.supplement-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+    /* Без отдельного контейнера: кнопки решения по раунду стоят прямо в шапке, не
+       отгорожены рамкой и подложкой от кнопок самой заявки (владелец: "убрать
+       блок, обводку с тёмным фоном"). Ограничение ширины остаётся - переносить
+       ряду иначе не от чего (родитель - колонка, ряд растёт за её правый край),
+       и около 780 кнопка уезжала за границу окна и обрезалась - замерено в
+       браузере, правый край 788 при окне 780. */
+    max-width: 100%;
+}
+
+.supplement-confirm-body {
+    padding: 20px;
+}
+
+.supplement-confirm-message {
+    margin: 0 0 16px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--text-muted);
+}
+
+.supplement-comment {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.supplement-comment__label {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.supplement-comment__input {
+    min-height: 64px;
+}
+
 .action-buttons-wrapper {
     display: flex;
     align-items: center;
@@ -851,6 +1324,26 @@ export default {
     .view-buttons {
         flex-wrap: nowrap;
     }
+
+    /* Ряд дополнения из nowrap-списка выше исключён намеренно: подписи «Согласовать
+       дополнение» и «Отказать в дополнении» в 390px рядом не помещаются, им нужен
+       перенос.
+       Прижим влево - потому что мобильная шапка детали стоит на justify-content:
+       flex-start: при десктопном flex-end широкий ряд дополнения растягивал корень, и
+       ряд кнопок самой заявки уезжал к правому краю (замер: x=134 при остальном на 0).
+       flex-direction: column возвращает мобилке прежнюю раскладку (ряд дополнения
+       НАД кнопками заявки) - десктопная строка в одну линию сюда не годится, "Согласовать
+       дополнение"/"Отказать" и кнопки заявки вместе не влезают в 390. */
+    .action-bar-root {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .supplement-actions {
+        align-self: stretch;
+        justify-content: flex-start;
+    }
+
     .confirm-btn,
     .reject-btn,
     .accept-btn {
@@ -866,6 +1359,16 @@ export default {
         min-width: auto;
         white-space: nowrap;
     }
+}
+
+/*
+ * Кнопка, показанная только ради обучения: этой заявке действие сейчас недоступно.
+ * Приглушаем и гасим наведение, чтобы её не приняли за рабочую.
+ */
+.is-tour-stub {
+    opacity: 0.5;
+    cursor: default;
+    pointer-events: none;
 }
 
 .confirm-btn, .reject-btn, .accept-btn {
@@ -977,7 +1480,7 @@ export default {
     font-size: 13px;
     font-weight: 500;
     text-align: center;
-    max-width: 240px;
+    white-space: nowrap;
     background: color-mix(in srgb, var(--warning) 10%, var(--surface));
     color: var(--warning-text);
     border: 1px solid rgba(245, 158, 11, 0.35);

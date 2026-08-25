@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -33,13 +35,28 @@ type TrashService interface {
 }
 
 type trashService struct {
-	db       *gorm.DB
-	recorder AuditRecorder
+	db                  *gorm.DB
+	recorder            AuditRecorder
+	notificationService NotificationService
+}
+
+// TrashServiceOption конфигурирует trashService при создании.
+type TrashServiceOption func(*trashService)
+
+// WithTrashNotifications включает уведомление trash_restored (#1748) автору записи
+// при восстановлении из корзины. Опционально: без неё уведомления не шлются
+// (тесты, offline).
+func WithTrashNotifications(ns NotificationService) TrashServiceOption {
+	return func(s *trashService) { s.notificationService = ns }
 }
 
 // NewTrashService создаёт сервис корзины.
-func NewTrashService(db *gorm.DB, recorder AuditRecorder) TrashService {
-	return &trashService{db: db, recorder: recorder}
+func NewTrashService(db *gorm.DB, recorder AuditRecorder, opts ...TrashServiceOption) TrashService {
+	s := &trashService{db: db, recorder: recorder}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // ListCarsTrash возвращает удалённые из этой таблицы машины. Скоуп определяется
@@ -59,6 +76,12 @@ func (s *trashService) ListCarsTrash(ctx context.Context, systemTableID int, fil
 				WHERE cup.car_id = c.id
 			), '[]') AS unload_places,
 			c.date_removed AS deleted_at,
+			(
+				SELECT ch.user_id
+				FROM ` + carsHistoryUnion + ` ch
+				WHERE ch.car_id = c.id AND ch.action_type = 'delete' AND ch.table_id = ?
+				ORDER BY ch.created_at DESC LIMIT 1
+			) AS deleted_by_id,
 			COALESCE((
 				SELECT format_short_name(u.last_name, u.first_name, u.middle_name)
 				FROM ` + carsHistoryUnion + ` ch JOIN users u ON u.id = ch.user_id
@@ -75,7 +98,8 @@ func (s *trashService) ListCarsTrash(ctx context.Context, systemTableID int, fil
 				SELECT 1 FROM ` + carsHistoryUnion + ` ch
 				WHERE ch.car_id = c.id AND ch.action_type = 'delete' AND ch.table_id = ?
 			)`
-	args := []any{systemTableID, systemTableID}
+	// Три подстановки systemTableID: id удалившего, его имя и EXISTS-условие удаления.
+	args := []any{systemTableID, systemTableID, systemTableID}
 
 	if filter.Search != "" {
 		sql += ` AND (c.car_number ILIKE ? OR COALESCE(c.mark_name, c.car_brand) ILIKE ?)`
@@ -85,6 +109,12 @@ func (s *trashService) ListCarsTrash(ctx context.Context, systemTableID int, fil
 	if filter.OrganizationID > 0 {
 		sql += ` AND a.organization_id = ?`
 		args = append(args, filter.OrganizationID)
+	}
+	// Мультивыбор организаций (#1398). parseIDList принимает указатель - у ApplicationFilter
+	// параметр опциональный (*string), здесь поле обычная строка, поэтому берём адрес.
+	if ids := parseIDList(&filter.OrganizationIDs); len(ids) > 0 {
+		sql += ` AND a.organization_id IN ?`
+		args = append(args, ids)
 	}
 	if filter.DateFrom != "" {
 		sql += ` AND c.date_removed >= ?`
@@ -96,11 +126,11 @@ func (s *trashService) ListCarsTrash(ctx context.Context, systemTableID int, fil
 	}
 	sql += ` ORDER BY c.date_removed DESC`
 
-	rows := make([]models.TrashItem, 0)
-	if err := s.db.WithContext(ctx).Raw(sql, args...).Scan(&rows).Error; err != nil {
+	scanned := make([]trashRowWithActor, 0)
+	if err := s.db.WithContext(ctx).Raw(sql, args...).Scan(&scanned).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения корзины")
 	}
-	return rows, nil
+	return s.maskDeletedBy(ctx, scanned), nil
 }
 
 // ListEmployeesTrash возвращает удалённых из этой таблицы сотрудников. Скоуп -
@@ -122,6 +152,12 @@ func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int
 			), '[]') AS pass_places,
 			att.entry_date_to, att.entry_time_from, att.entry_time_to,
 			e.date_deleted AS deleted_at,
+			(
+				SELECT eh.user_id
+				FROM ` + employeesHistoryUnion + ` eh
+				WHERE eh.employee_id = e.id AND eh.action_type = 'delete' AND eh.table_id = ?
+				ORDER BY eh.created_at DESC LIMIT 1
+			) AS deleted_by_id,
 			COALESCE((
 				SELECT format_short_name(u.last_name, u.first_name, u.middle_name)
 				FROM ` + employeesHistoryUnion + ` eh JOIN users u ON u.id = eh.user_id
@@ -139,7 +175,8 @@ func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int
 				SELECT 1 FROM ` + employeesHistoryUnion + ` eh
 				WHERE eh.employee_id = e.id AND eh.action_type = 'delete' AND eh.table_id = ?
 			)`
-	args := []any{systemTableID, systemTableID}
+	// Три подстановки systemTableID: id удалившего, его имя и EXISTS-условие удаления.
+	args := []any{systemTableID, systemTableID, systemTableID}
 
 	if filter.Search != "" {
 		sql += ` AND (e.last_name ILIKE ? OR e.first_name ILIKE ? OR e.middle_name ILIKE ?)`
@@ -149,6 +186,10 @@ func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int
 	if filter.OrganizationID > 0 {
 		sql += ` AND a.organization_id = ?`
 		args = append(args, filter.OrganizationID)
+	}
+	if ids := parseIDList(&filter.OrganizationIDs); len(ids) > 0 {
+		sql += ` AND a.organization_id IN ?`
+		args = append(args, ids)
 	}
 	if filter.DateFrom != "" {
 		sql += ` AND e.date_deleted >= ?`
@@ -160,10 +201,11 @@ func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int
 	}
 	sql += ` ORDER BY e.date_deleted DESC`
 
-	rows := make([]models.TrashItem, 0)
-	if err := s.db.WithContext(ctx).Raw(sql, args...).Scan(&rows).Error; err != nil {
+	scanned := make([]trashRowWithActor, 0)
+	if err := s.db.WithContext(ctx).Raw(sql, args...).Scan(&scanned).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения корзины")
 	}
+	rows := s.maskDeletedBy(ctx, scanned)
 	// Паспорт и патент хранятся в зашифрованном виде; raw-scan не вызывает
 	// AfterFind модели Employee, поэтому расшифровываем вручную.
 	for i := range rows {
@@ -229,7 +271,9 @@ func (s *trashService) RestoreCars(ctx context.Context, systemTableID int, ids [
 		}
 	}
 	if len(restoredIDs) >= 1 {
-		s.logTrashAction(ctx, systemTableID, models.TrashActionBulkRestored, len(restoredIDs), userID, s.carDetails(ctx, restoredIDs))
+		details := s.carDetails(ctx, restoredIDs)
+		s.logTrashAction(ctx, systemTableID, models.TrashActionBulkRestored, len(restoredIDs), userID, details)
+		s.notifyTrashRestored(ctx, "Машина", restoredIDs, s.carAuthors(ctx, restoredIDs), trashLabelMap(details), userID)
 	}
 	return len(restoredIDs), nil
 }
@@ -255,7 +299,9 @@ func (s *trashService) RestoreEmployees(ctx context.Context, systemTableID int, 
 		}
 	}
 	if len(restoredIDs) >= 1 {
-		s.logTrashAction(ctx, systemTableID, models.TrashActionBulkRestored, len(restoredIDs), userID, s.employeeDetails(ctx, restoredIDs))
+		details := s.employeeDetails(ctx, restoredIDs)
+		s.logTrashAction(ctx, systemTableID, models.TrashActionBulkRestored, len(restoredIDs), userID, details)
+		s.notifyTrashRestored(ctx, "Сотрудник", restoredIDs, s.employeeAuthors(ctx, restoredIDs), trashLabelMap(details), userID)
 	}
 	return len(restoredIDs), nil
 }
@@ -344,6 +390,26 @@ func (s *trashService) ClearEmployeesTrash(ctx context.Context, systemTableID, u
 	return int(res.RowsAffected), nil
 }
 
+// trashRowWithActor - строка корзины вместе с id того, кто удалил запись. В ответе
+// его нет, но маскировке ФИО он нужен.
+type trashRowWithActor struct {
+	models.TrashItem
+	DeletedByID *int `gorm:"column:deleted_by_id"`
+}
+
+// maskDeletedBy подменяет ФИО удалившего логином, если тот не давал согласия на
+// обработку персональных данных.
+func (s *trashService) maskDeletedBy(ctx context.Context, scanned []trashRowWithActor) []models.TrashItem {
+	masks := loadConsentMasks(ctx, s.db)
+	rows := make([]models.TrashItem, 0, len(scanned))
+	for _, r := range scanned {
+		item := r.TrashItem
+		item.DeletedByName = maskName(masks, r.DeletedByID, item.DeletedByName)
+		rows = append(rows, item)
+	}
+	return rows
+}
+
 // ListTrashHistory возвращает лог массовых действий с корзиной таблицы.
 // Read-switch #870 (F.3): до-cutover строки system_table_trash_histories подняты в
 // audit_log разовым backfill'ом (affected_count + items свёрнуты в details в форму
@@ -355,13 +421,26 @@ func (s *trashService) ListTrashHistory(ctx context.Context, systemTableID int) 
 			COALESCE((a.details->>'affected_count')::int, 0) AS affected_count,
 			COALESCE(a.details->'items', '[]'::jsonb) AS details,
 			` + userName + ` AS user_name,
+			a.actor_user_id AS actor_user_id,
 			a.created_at
 		FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
 		WHERE a.entity_type = ? AND a.entity_id = ?
 		ORDER BY a.created_at DESC, a.id DESC`
-	rows := make([]models.TrashHistoryItem, 0)
-	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntitySystemTableTrash, systemTableID).Scan(&rows).Error; err != nil {
+	// Актора читаем отдельным полем: в ответе его нет, а маскировке ФИО он нужен.
+	type trashRow struct {
+		models.TrashHistoryItem
+		ActorUserID *int `gorm:"column:actor_user_id"`
+	}
+	var scanned []trashRow
+	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntitySystemTableTrash, systemTableID).Scan(&scanned).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения истории корзины")
+	}
+	masks := loadConsentMasks(ctx, s.db)
+	rows := make([]models.TrashHistoryItem, 0, len(scanned))
+	for _, r := range scanned {
+		item := r.TrashHistoryItem
+		item.UserName = maskName(masks, r.ActorUserID, item.UserName)
+		rows = append(rows, item)
 	}
 	return rows, nil
 }
@@ -377,6 +456,104 @@ func (s *trashService) logTrashAction(ctx context.Context, systemTableID int, ac
 		Items:         items,
 	}
 	s.recorder.Log(ctx, nil, models.AuditEntitySystemTableTrash, &systemTableID, action, &uid, details)
+}
+
+// carAuthors возвращает car.id -> sender_user_id заявки, к которой прикреплена
+// машина. Ни Car, ни Employee не хранят собственного "автора" - в терминах
+// уведомления "восстановлено из корзины" им считается заявитель заявки, откуда
+// запись пришла (Car.AttachmentID -> Attachment.ApplicationID -> sender_user_id).
+func (s *trashService) carAuthors(ctx context.Context, ids []int) map[int]int {
+	if len(ids) == 0 {
+		return nil
+	}
+	type row struct {
+		ID           int
+		SenderUserID int
+	}
+	rows := make([]row, 0, len(ids))
+	// Ошибку запроса нельзя проглатывать: пустой результат тут означает штатное
+	// "у записи нет автора", и сбой базы стал бы неотличим от него - уведомление
+	// молча не ушло бы никому.
+	if err := s.db.WithContext(ctx).Table("cars c").
+		Select("c.id AS id, app.sender_user_id AS sender_user_id").
+		Joins("JOIN attachments att ON att.id = c.attachment_id").
+		Joins("JOIN applications app ON app.id = att.application_id").
+		Where("c.id IN ?", ids).
+		Scan(&rows).Error; err != nil {
+		slog.Warn("корзина: не удалось определить авторов машин для уведомления", "error", err)
+		return nil
+	}
+	out := make(map[int]int, len(rows))
+	for _, r := range rows {
+		out[r.ID] = r.SenderUserID
+	}
+	return out
+}
+
+// employeeAuthors - то же для сотрудников. Employee.AttachmentID nullable - у
+// записей без вложения (не должно случаться для того, что вообще попало в
+// корзину, но на всякий случай) автора просто не найдётся, и notifyTrashRestored
+// молча пропустит уведомление.
+func (s *trashService) employeeAuthors(ctx context.Context, ids []int) map[int]int {
+	if len(ids) == 0 {
+		return nil
+	}
+	type row struct {
+		ID           int
+		SenderUserID int
+	}
+	rows := make([]row, 0, len(ids))
+	// Ошибку не проглатываем - см. комментарий в carAuthors.
+	if err := s.db.WithContext(ctx).Table("employees e").
+		Select("e.id AS id, app.sender_user_id AS sender_user_id").
+		Joins("JOIN attachments att ON att.id = e.attachment_id").
+		Joins("JOIN applications app ON app.id = att.application_id").
+		Where("e.id IN ?", ids).
+		Scan(&rows).Error; err != nil {
+		slog.Warn("корзина: не удалось определить авторов сотрудников для уведомления", "error", err)
+		return nil
+	}
+	out := make(map[int]int, len(rows))
+	for _, r := range rows {
+		out[r.ID] = r.SenderUserID
+	}
+	return out
+}
+
+// trashLabelMap превращает [{id,label}] в map для точечного поиска label по id -
+// notifyTrashRestored формирует текст уведомления на восстановленную запись.
+func trashLabelMap(details []models.TrashDetail) map[int]string {
+	out := make(map[int]string, len(details))
+	for _, d := range details {
+		out[d.ID] = d.Label
+	}
+	return out
+}
+
+// notifyTrashRestored сообщает автору восстановленной записи (заявителю, к чьей
+// заявке она относилась), что запись вернули из корзины. Само восстановление -
+// автору не шлём: он и так знает, что восстановил. Автора не нашлось (authors[id]
+// отсутствует) - тоже молча пропускаем, это не ошибка (запись без вложения/заявки).
+func (s *trashService) notifyTrashRestored(ctx context.Context, kind string, ids []int, authors map[int]int, labels map[int]string, actorUserID int) {
+	if s.notificationService == nil {
+		return
+	}
+	title := "Запись восстановлена из корзины"
+	for _, id := range ids {
+		authorID, ok := authors[id]
+		if !ok || authorID == actorUserID {
+			continue
+		}
+		label := labels[id]
+		if label == "" {
+			label = kind
+		}
+		body := fmt.Sprintf("%s «%s» восстановили из корзины.", kind, label)
+		if err := s.notificationService.CreateForUser(ctx, authorID, NotificationTypeTrashRestored, title, body, nil); err != nil {
+			slog.Warn("не удалось уведомить о восстановлении записи из корзины",
+				"entity", kind, "entity_id", id, "user_id", authorID, "error", err)
+		}
+	}
 }
 
 // carDetails возвращает [{id,label}] машин для лога корзины (номер + марка).

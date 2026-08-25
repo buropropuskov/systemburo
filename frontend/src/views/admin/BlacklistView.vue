@@ -1,6 +1,9 @@
 <template>
   <section class="blacklist-page">
-    <div class="blacklist-card">
+    <div
+      class="blacklist-card"
+      data-testid="ob-admin-blacklist"
+    >
       <VehicleBlacklistTab
         v-show="activeTab === 'vehicles'"
         :current-user-name="currentUserName"
@@ -56,7 +59,8 @@ export default {
   components: { FilterTabs, VehicleBlacklistTab, PersonBlacklistTab },
   data() {
     return {
-      activeTab: 'vehicles',
+      // Из адреса: переход из сквозного поиска знает, в какой вкладке лежит найденное.
+      activeTab: this.$route?.query?.tab === 'persons' ? 'persons' : 'vehicles',
       vehicleCount: 0,
       personCount: 0,
       currentUserName: '',

@@ -1,5 +1,9 @@
 <template>
-  <div class="del-stack">
+  <div
+    class="del-stack"
+    role="status"
+    aria-live="polite"
+  >
     <transition-group name="del">
       <div
         v-for="item in store.items"
@@ -39,7 +43,7 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue';
+import { watch } from 'vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useAuthStore } from '@/stores/auth';
 
@@ -49,11 +53,13 @@ const auth = useAuthStore();
 // Длительности тянем только под аутентификацией. Этот компонент смонтирован в App.vue
 // всегда, в т.ч. на публичных /maintenance, /500 и логине, где /settings/notifications
 // отдаёт 401; client.js на 401 пробует refresh и при провале делает router.push('/'),
-// сбивая юзера с публичной страницы (флак e2e /maintenance, /500). Залогиненному
-// durations подтянутся при заходе на списки (Cars/People/Trash).
-onMounted(() => {
-  if (auth.isAuthenticated) store.loadDurations();
-});
+// сбивая юзера с публичной страницы (флак e2e /maintenance, /500).
+// immediate покрывает вход по живой сессии, реакция на смену флага - вход через форму:
+// логин уводит на /news роутером, компонент не перемонтируется, и одного onMounted было
+// мало - настроенные в админке длительности не применялись до захода в Машины/Люди/Корзину.
+watch(() => auth.isAuthenticated, (authed) => {
+  if (authed) store.loadDurations();
+}, { immediate: true });
 
 // Цвет прогресс-бара: 100% (только удалили) - зелёный, 0% (вот-вот исчезнет) - красный.
 // Для error/warning/info бар статичного цвета - нет семантики "истекает".
@@ -77,7 +83,10 @@ function barColorFor(item) {
   position: fixed;
   top: 75px;
   right: 20px;
-  z-index: 11000;
+  /* Выше всей лестницы модалок (история 12000-13000, ConfirmDialog 20000,
+     SessionExpiredModal 25000, BanOverlay 26000): их оверлеи fixed inset:0 накрывают
+     угол со стеком, и тост об ошибке из открытой модалки пропадал под затемнением. */
+  z-index: 29000;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -127,9 +136,12 @@ function barColorFor(item) {
 
 .del-text {
   flex: 1;
+  min-width: 0;
   font-size: 14px;
   color: var(--text);
-  white-space: nowrap;
+  /* Текст ошибки приходит с бэка произвольной длины (notify bold: result.message):
+     при nowrap он не переносился и вылезал за карточку. */
+  overflow-wrap: anywhere;
 }
 
 .del-text :deep(strong) {
@@ -191,8 +203,8 @@ function barColorFor(item) {
 }
 
 @media (max-width: 768px) {
-  /* Текст шёл в одну строку (nowrap) и вылезал за карточку: замер на 390 давал
-     ширину 490px и правый край на 527. На узком экране переносим. */
+  /* Карточка тянется во всю ширину экрана: при width:max-content замер на 390
+     давал ширину 490px и правый край на 527. Перенос текста теперь базовый. */
   .del-stack {
     left: 12px;
     right: 12px;
@@ -204,12 +216,6 @@ function barColorFor(item) {
     width: auto;
     min-width: 0;
     max-width: 100%;
-  }
-
-  .del-text {
-    min-width: 0;
-    white-space: normal;
-    overflow-wrap: anywhere;
   }
 }
 </style>

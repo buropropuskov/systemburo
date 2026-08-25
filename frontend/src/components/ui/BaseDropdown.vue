@@ -3,43 +3,52 @@
     ref="dropdown"
     class="base-dropdown"
   >
-    <button
-      type="button"
-      class="base-dropdown__button"
-      :class="{ 'base-dropdown__button--open': isOpen, 'base-dropdown__button--disabled': disabled }"
-      :disabled="disabled"
-      @click="toggle"
+    <!-- Слот триггера: по умолчанию - штатная кнопка-поле. Заменяется, когда
+         открывающий элемент уже существует в своём виде (кнопка «Обучение»
+         в шапке «Обзора»), чтобы не заводить ради него второй дропдаун. -->
+    <slot
+      name="trigger"
+      :toggle="toggle"
+      :is-open="isOpen"
     >
-      <span
-        class="base-dropdown__text"
-        :class="{ 'base-dropdown__text--placeholder': isEmptySelection }"
+      <button
+        type="button"
+        class="base-dropdown__button"
+        :class="{ 'base-dropdown__button--open': isOpen, 'base-dropdown__button--disabled': disabled }"
+        :disabled="disabled"
+        @click="toggle"
       >
-        <template v-if="multiple">{{ multipleText }}</template>
-        <slot
-          v-else-if="selectedOption"
-          name="selected"
-          :option="selectedOption"
+        <span
+          class="base-dropdown__text"
+          :class="{ 'base-dropdown__text--placeholder': isEmptySelection }"
         >
-          {{ selectedOption[labelKey] }}
-        </slot>
-        <template v-else>{{ placeholder }}</template>
-      </span>
-      <svg
-        class="base-dropdown__arrow"
-        :class="{ 'base-dropdown__arrow--open': isOpen }"
-        viewBox="0 0 10 6"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path
-          d="M1 1L5 5L9 1"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-      </svg>
-    </button>
+          <template v-if="multiple">{{ multipleText }}</template>
+          <slot
+            v-else-if="selectedOption"
+            name="selected"
+            :option="selectedOption"
+          >
+            {{ selectedOption[labelKey] }}
+          </slot>
+          <template v-else>{{ placeholder }}</template>
+        </span>
+        <svg
+          class="base-dropdown__arrow"
+          :class="{ 'base-dropdown__arrow--open': isOpen }"
+          viewBox="0 0 10 6"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M1 1L5 5L9 1"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+    </slot>
 
     <teleport
       to="body"
@@ -123,6 +132,7 @@
 <script>
 import { getViewportZoom } from '@/utils/viewportScale';
 import { wholeItemsHeight, measureChromeHeight } from '@/utils/dropdownMetrics';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 
 // Минимум пунктов в списке: даже в тесном месте должно быть видно, что он прокручивается.
 const MIN_VISIBLE_OPTIONS = 2;
@@ -160,6 +170,13 @@ export default {
       type: Boolean,
       default: false,
     },
+    // Поля опции, по которым идёт поиск. Пусто - только labelKey. Список нужен там,
+    // где значимый текст лежит вне подписи: у мест разгрузки код площадки живёт в
+    // description, и поиск по нему работал до переезда на этот дропдаун.
+    searchKeys: {
+      type: Array,
+      default: () => [],
+    },
     // Множественный выбор (#1398): modelValue - массив значений, выбор пункта тоглит
     // его и НЕ закрывает меню. Одиночная ветка (multiple=false) не меняется.
     multiple: {
@@ -185,6 +202,21 @@ export default {
     menuZIndex: {
       type: Number,
       default: 2000,
+    },
+    // Минимальная ширина телепортнутого меню. По умолчанию меню повторяет ширину
+    // триггера; когда триггер узкий, а пункты содержательные (название + описание),
+    // ширину задаём отдельно - и тогда же прижимаем меню к правому краю экрана,
+    // чтобы уширение не вынесло его за вьюпорт.
+    menuMinWidth: {
+      type: Number,
+      default: 0,
+    },
+    // Потолок высоты телепортнутого меню. 320 хватает справочникам с одной строкой
+    // в пункте; списку, где у пункта ещё и описание, - нет, и он уезжает в скролл
+    // при пяти элементах. Всё равно клампится по вьюпорту, так что поднять безопасно.
+    menuMaxHeight: {
+      type: Number,
+      default: 320,
     },
   },
   emits: ['update:modelValue'],
@@ -224,12 +256,17 @@ export default {
       }
       return `${label}: ${count}`;
     },
+    searchFields() {
+      return this.searchKeys.length ? this.searchKeys : [this.labelKey];
+    },
+    // Поиск через общий util (#1157), а не плоское вхождение подстроки: иначе
+    // забытая раскладка ("hjvfirf") и транслит ("romashka") не находят "Ромашка".
+    // Плоское совпадение остаётся подмножеством - base всегда входит в варианты.
     filteredOptions() {
       if (!this.searchable || !this.searchQuery) return this.options;
-      const query = this.searchQuery.toLowerCase();
-      return this.options.filter((opt) =>
-        String(opt[this.labelKey]).toLowerCase().includes(query)
-      );
+      const variants = buildSearchVariants(this.searchQuery);
+      if (!variants.length) return this.options;
+      return this.options.filter((opt) => matchesSearch(this.optionHaystack(opt), variants));
     },
     optionsStyle() {
       return this.optionsMaxHeight ? { maxHeight: `${this.optionsMaxHeight}px` } : null;
@@ -237,6 +274,13 @@ export default {
   },
   watch: {
     isOpen(open) {
+      // Слушатель Escape живёт ровно столько, сколько открыто меню: висеть постоянно
+      // ему незачем, дропдаунов на странице бывает десяток.
+      if (open) {
+        document.addEventListener('keydown', this.handleEscape, true);
+      } else {
+        document.removeEventListener('keydown', this.handleEscape, true);
+      }
       if (!this.teleport) return;
       if (open) {
         this.updateMenuPosition();
@@ -260,9 +304,16 @@ export default {
   },
   beforeUnmount() {
     document.removeEventListener('click', this.handleClickOutside, true);
+    document.removeEventListener('keydown', this.handleEscape, true);
     this.removeRepositionListeners();
   },
   methods: {
+    optionHaystack(option) {
+      return this.searchFields
+        .map((key) => option[key])
+        .filter((value) => value !== null && value !== undefined && value !== '')
+        .join(' ');
+    },
     toggle() {
       if (this.disabled) return;
       this.isOpen = !this.isOpen;
@@ -321,6 +372,18 @@ export default {
       return option[this.valueKey] === this.modelValue;
     },
 
+    /**
+     * Escape закрывает открытое меню - как и любое другое окно проекта. Событие
+     * дальше не идёт: без этого то же нажатие закроет ещё и модалку под списком,
+     * и человек потеряет форму вместо того, чтобы свернуть список.
+     */
+    handleEscape(e) {
+      if (e.key !== 'Escape') return;
+      this.isOpen = false;
+      this.searchQuery = '';
+      e.stopPropagation();
+    },
+
     handleClickOutside(e) {
       const inTrigger = this.$refs.dropdown && this.$refs.dropdown.contains(e.target);
       const inMenu = this.$refs.menu && this.$refs.menu.contains(e.target);
@@ -347,6 +410,7 @@ export default {
         width: raw.width / z,
       };
       const vh = window.innerHeight / z;
+      const vw = window.innerWidth / z;
       const gap = 5;
       const margin = 8; // не впритык к краю экрана
       const spaceBelow = vh - r.bottom - gap - margin;
@@ -355,12 +419,17 @@ export default {
       // (иначе высокое меню на низком вьюпорте/мобильном bottom-sheet уезжает за экран).
       const openUp = spaceBelow < 200 && spaceAbove > spaceBelow;
       const avail = Math.max(120, Math.floor(openUp ? spaceAbove : spaceBelow));
+      const width = Math.max(Math.round(r.width), this.menuMinWidth);
+      // Меню шире триггера уехало бы за правый край - сдвигаем влево ровно
+      // настолько, чтобы уместиться. При menuMinWidth=0 ширина равна триггеру,
+      // тот всегда на экране, и сдвиг не срабатывает.
+      const left = Math.min(Math.round(r.left), Math.max(margin, Math.round(vw - width - margin)));
       this.menuStyle = {
         position: 'fixed',
-        left: `${Math.round(r.left)}px`,
-        width: `${Math.round(r.width)}px`,
+        left: `${left}px`,
+        width: `${width}px`,
         // клампим по доступному пространству выбранной стороны, чтобы меню не выходило за экран
-        maxHeight: `${Math.min(320, avail)}px`,
+        maxHeight: `${Math.min(this.menuMaxHeight, avail)}px`,
         // top:'auto' в ветке флипа обязателен - иначе базовый CSS
         // .base-dropdown__menu{top:calc(100%+5px)} не сбрасывается и конфликтует с bottom.
         ...(openUp

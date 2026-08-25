@@ -65,12 +65,53 @@ func ToXLSX(t Table) ([]byte, error) {
 
 	styleHeader(f, sheet, headerRow, len(t.Headers))
 	adjustColWidths(f, sheet, t.Headers, t.Rows)
+	if err := enableFilterAndFreeze(f, sheet, headerRow, len(t.Headers), len(t.Rows)); err != nil {
+		return nil, err
+	}
 
 	buf, err := f.WriteToBuffer()
 	if err != nil {
 		return nil, fmt.Errorf("failed to write xlsx: %w", err)
 	}
 	return buf.Bytes(), nil
+}
+
+// enableFilterAndFreeze вешает на шапку автофильтр и закрепляет её при прокрутке.
+// Без этого выгрузка открывается «плоским» листом: чтобы отобрать строки или просто
+// не терять шапку на второй сотне записей, получатель каждый раз делает это руками.
+//
+// Диапазон фильтра идёт от строки шапки до последней строки данных: excelize вешает
+// фильтр на прямоугольник, и указать одну строку шапки недостаточно - Excel тогда
+// считает таблицей только её. Пустая выборка (0 строк) - лист остаётся без фильтра:
+// фильтровать нечего, а диапазон из одной строки Excel открывает с предупреждением.
+func enableFilterAndFreeze(f *excelize.File, sheet string, headerRow, cols, rows int) error {
+	if cols == 0 {
+		return nil
+	}
+	// Закрепляем всё, что выше первой строки данных: у выгрузок с заголовком и
+	// подзаголовком это шапка документа плюс шапка таблицы, у голых - только шапка.
+	firstDataRow := headerRow + 1
+	if err := f.SetPanes(sheet, &excelize.Panes{
+		Freeze:      true,
+		YSplit:      headerRow,
+		TopLeftCell: fmt.Sprintf("A%d", firstDataRow),
+		ActivePane:  "bottomLeft",
+	}); err != nil {
+		return fmt.Errorf("закрепление шапки xlsx: %w", err)
+	}
+	if rows == 0 {
+		return nil
+	}
+
+	lastCol, err := excelize.ColumnNumberToName(cols)
+	if err != nil {
+		return fmt.Errorf("имя последнего столбца xlsx: %w", err)
+	}
+	rangeRef := fmt.Sprintf("A%d:%s%d", headerRow, lastCol, headerRow+rows)
+	if err := f.AutoFilter(sheet, rangeRef, nil); err != nil {
+		return fmt.Errorf("автофильтр xlsx: %w", err)
+	}
+	return nil
 }
 
 // Границы адаптивной ширины столбца xlsx (в «символах» - единица ширины excelize,

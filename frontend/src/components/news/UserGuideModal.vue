@@ -100,7 +100,7 @@
                   <div class="file-card__meta">
                     {{ fileTypeLabel(currentSection.file) }}
                     <span class="sep">·</span>
-                    {{ formatSize(currentSection.file.size) }}
+                    {{ formatBytes(currentSection.file.size) }}
                     <span class="sep">·</span>
                     обновлено {{ formatDate(currentSection.file.updated_at) }}
                   </div>
@@ -195,6 +195,7 @@ import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import FileTypeIcon from '@/components/ui/FileTypeIcon.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import { downloadGuideFile } from '@/api/guide';
+import { formatBytes } from '@/utils/download';
 import { useDeletionsStore } from '@/stores/deletions';
 
 let uid = 0;
@@ -278,13 +279,7 @@ export default {
       const ext = (file.ext || '').replace(/^\./, '').toUpperCase();
       return ext;
     },
-    formatSize(bytes) {
-      if (!bytes) return '';
-      const mb = bytes / (1024 * 1024);
-      if (mb >= 1) return `${mb.toFixed(1).replace('.', ',')} МБ`;
-      const kb = Math.max(1, Math.round(bytes / 1024));
-      return `${kb} КБ`;
-    },
+    formatBytes,
     formatDate(iso) {
       if (!iso) return '';
       const d = new Date(iso);

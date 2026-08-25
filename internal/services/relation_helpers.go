@@ -7,10 +7,10 @@ import (
 )
 
 var allowedRelationTables = map[string]bool{
-	"organization_users":    true,
-	"companies_users":       true,
-	"organization_tables":   true,
-	"companies_tables":      true,
+	"organization_users":     true,
+	"companies_users":        true,
+	"organization_tables":    true,
+	"companies_tables":       true,
 	"employee_target_tables": true,
 }
 

@@ -95,11 +95,11 @@
               <p :class="{ 'active-sort': sortField === 'id' }">
                 ID
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{ sorted: sortField === 'id', desc: sortField === 'id' && sortDirection === 'desc' }"
-              >
+              />
             </div>
             <div
               class="header-col name-col"
@@ -108,11 +108,11 @@
               <p :class="{ 'active-sort': sortField === 'name' }">
                 Наименование
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{ sorted: sortField === 'name', desc: sortField === 'name' && sortDirection === 'desc' }"
-              >
+              />
             </div>
           </div>
 
@@ -761,6 +761,9 @@ import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { apiRequest } from '@/api/client';
 import { bulkArchiveLicenseFormats, bulkRestoreLicenseFormats } from '@/api/licenseFormats';
+import AppIcon from '@/components/icons/AppIcon.vue';
+import { fetchCurrentUserName } from '@/utils/currentUserName';
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 function defaultCell() {
   return {
@@ -782,7 +785,8 @@ const CELL_TYPE_LABELS = {
 
 export default {
   name: 'NumberFormat',
-  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, LicensePlateFormatHistoryModal },
+  mixins: [openFromSearchLink((vm) => vm.formats, 'selectFormat', (row) => row?.format?.id)],
+  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, LicensePlateFormatHistoryModal, AppIcon },
   setup() {
     // Колбэки закрытия присваиваются в created - нужен доступ к this (проверка dirty).
     const addOverlay = { close: () => {} };
@@ -1002,6 +1006,7 @@ export default {
         if (!res.ok) throw new Error('fetch failed');
         const data = await res.json();
         this.formats = Array.isArray(data) ? data : [];
+        this.openFromSearchLink();
         if (this.selectedFormat) {
           const fresh = this.formats.find(f => f.format.id === this.selectedFormat.format.id);
           const visible = fresh && (this.showArchive ? !fresh.format.is_active : fresh.format.is_active);
@@ -1195,16 +1200,7 @@ export default {
       this.historyForFormat = item.format;
     },
     async fetchCurrentUser() {
-      // Имя нужно для футера Excel-экспорта истории ("Отчёт сформировал").
-      try {
-        const res = await apiRequest('/users/me');
-        if (!res.ok) return;
-        const u = await res.json();
-        const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
-        this.currentUserName = parts.join(' ') || u.username || '';
-      } catch {
-        // Имя - необязательная деталь экспорта, молчим (footer покажет дефолт).
-      }
+      this.currentUserName = await fetchCurrentUserName();
     },
     getCellTypeLabel(type) {
       return CELL_TYPE_LABELS[type] || type;
@@ -1350,7 +1346,7 @@ export default {
   height: 50px;
   padding: 0 20px;
   border-bottom: 1px solid var(--border);
-  background: var(--accent-tint);
+  background: var(--accent-tint-solid);
   overflow-x: auto;
   overflow-y: hidden;
 }
@@ -1532,17 +1528,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: 0.2s;
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {

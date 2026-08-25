@@ -1,6 +1,6 @@
 <template>
   <AdminPageShell>
-    <NewsManagementComponent />
+    <NewsManagementComponent data-testid="ob-admin-news" />
   </AdminPageShell>
 </template>
 

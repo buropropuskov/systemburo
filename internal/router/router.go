@@ -1,12 +1,22 @@
 package router
 
 import (
+	"net/http"
+
 	"systemburo/internal/handlers"
 	mw "systemburo/internal/middleware"
 	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
+	echomw "github.com/labstack/echo/v4/middleware"
 )
+
+// applicationsBodyLimit - потолок тела запроса на группу /applications (blank-import,
+// срез A2A3). Раньше единственным пределом был client_max_body_size 50M в nginx (не в
+// этом репозитории) - без него прямой запрос к go-backend в обход nginx (локальная
+// разработка, другой reverse-proxy) читал тело неограниченно. Значение зеркалит nginx,
+// а не ужесточает его: то, что проходило через nginx, продолжает проходить и здесь.
+const applicationsBodyLimit = "50M"
 
 // Dependencies - все хендлеры/сервисы/middleware, нужные для регистрации маршрутов.
 // Использование именованных полей вместо длинного списка позиционных параметров
@@ -36,6 +46,7 @@ type Dependencies struct {
 	UniqueEmployee      *handlers.UniqueEmployeeHandler
 	Feedback            *handlers.FeedbackHandler
 	Application         *handlers.ApplicationHandler
+	ApplicationFiles    *handlers.ApplicationFileHandler
 	Approver            *handlers.ApproverHandler
 	Permissions         *handlers.PermissionHandler
 	PermGroups          *handlers.PermissionGroupHandler
@@ -47,6 +58,7 @@ type Dependencies struct {
 	Settings            *handlers.SettingsHandler
 	News                *handlers.NewsHandler
 	Notifications       *handlers.NotificationHandler
+	Push                *handlers.PushHandler
 	RequestLogs         *handlers.RequestLogsHandler
 	EmployeesHistory    *handlers.EmployeesHistoryHandler
 	BugReport           *handlers.BugReportHandler
@@ -56,6 +68,7 @@ type Dependencies struct {
 	PersonBlacklist     *handlers.PersonBlacklistHandler
 	AttachmentTemplates *handlers.AttachmentTemplateHandler
 	AttachmentBlanks    *handlers.AttachmentBlankHandler
+	AttachmentImport    *handlers.AttachmentImportHandler
 	Trash               *handlers.TrashHandler
 	DocumentGroups      *handlers.DocumentGroupHandler
 	Documents           *handlers.DocumentHandler
@@ -67,6 +80,11 @@ type Dependencies struct {
 	Audit               *handlers.AuditHandler
 	AuthEvents          *handlers.AuthEventHandler
 	Events              *handlers.EventsHandler
+	Search              *handlers.SearchHandler
+	BlankArchive        *handlers.BlankArchiveHandler
+	BlankArchiveStats   *handlers.BlankArchiveStatsHandler
+	ArchiveDownload     *handlers.ArchiveDownloadHandler
+	Impersonation       *handlers.ImpersonationHandler
 
 	// Services (для middleware и audit)
 	PermResolver *services.PermissionResolver
@@ -77,6 +95,24 @@ type Dependencies struct {
 	BanCheck         echo.MiddlewareFunc
 	LoginLimiter     echo.MiddlewareFunc
 	LastSeen         echo.MiddlewareFunc
+	// ImportListLimiter - свой rate limit на POST /attachments/:id/import-list
+	// (blank-import, C1C2), сверх общего RateLimit в main.go. nil в тестах - разбор
+	// .xlsx на несколько подтестов подряд не должен упираться в лимит.
+	ImportListLimiter echo.MiddlewareFunc
+	// SelfPasswordLimiter - rate limit на PUT /users/me/password. Форма принимает
+	// текущий пароль, то есть годится для подбора не хуже страницы входа, а лестница
+	// блокировки входа её не прикрывает. nil в тестах - там подряд идут и удачные,
+	// и заведомо неудачные попытки одной учёткой.
+	SelfPasswordLimiter echo.MiddlewareFunc
+	// ConsentGate - PDConsentGate: закрывает API до согласия на обработку ПД
+	// (#1567). nil по умолчанию, в том числе в тестах: иначе каждый тест, где
+	// согласия нет, начал бы получать 403. Тесты самого гейта поднимают
+	// приложение через SetupTestAppWithConsentGate.
+	ConsentGate echo.MiddlewareFunc
+	// MustChangePassword - mw.MustChangePassword: закрывает protected-API
+	// пользователю, обязанному задать свой пароль вместо присланного письмом
+	// (#1911). nil по умолчанию и в тестах - по той же причине, что и ConsentGate.
+	MustChangePassword echo.MiddlewareFunc
 	// TableReportGate - RequireTableVerb(..., "report"): гейт отчётов по проходам
 	// правом table.<name>.report. НЕ опционален для роутов pass-report (main и
 	// testutil обязаны заполнять) - без гейта отчёт открылся бы любому залогиненному.
@@ -94,8 +130,11 @@ type Dependencies struct {
 	TablePassGate echo.MiddlewareFunc
 
 	// Misc
-	JWTSecret  []byte
-	UploadPath string
+	JWTSecret []byte
+	// JWTRefreshSecret нужен раздаче загруженных файлов: она пускает по cookie
+	// продления сеанса, потому что тег <img> заголовок Authorization не шлёт.
+	JWTRefreshSecret []byte
+	UploadPath       string
 }
 
 // Setup регистрирует все маршруты. См. Dependencies для описания полей.
@@ -130,6 +169,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	settings := d.Settings
 	news := d.News
 	notifications := d.Notifications
+	push := d.Push
 	requestLogs := d.RequestLogs
 	employeesHistory := d.EmployeesHistory
 	bugReport := d.BugReport
@@ -139,6 +179,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	personBlacklist := d.PersonBlacklist
 	attachmentTemplates := d.AttachmentTemplates
 	attachmentBlanks := d.AttachmentBlanks
+	attachmentImport := d.AttachmentImport
 	trash := d.Trash
 	docGroups := d.DocumentGroups
 	docs := d.Documents
@@ -149,19 +190,38 @@ func Setup(e *echo.Echo, d Dependencies) {
 	audit := d.Audit
 	authEvents := d.AuthEvents
 	events := d.Events
+	archiveDownload := d.ArchiveDownload
 	permResolver := d.PermResolver
 	denialLog := d.DenialLog
 	// requireAdmin — гейт admin-страниц по page.admin (super/admin проходят,
 	// обычные — по гранту). Заменяет легаси type-code проверки в сервисах (Ф5).
 	requireAdmin := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdmin)
-	// Справочники (типы вложений, настройка их полей и Excel-бланков). Ключ тот же, что
-	// у фронтовых страниц /admin/*: иначе носитель права видит раздел и ловит 403.
+	// Справочники раздела /admin/* целиком. Ключ тот же, что у фронтовых страниц:
+	// иначе носитель права видит раздел и ловит 403.
+	//
+	// page.admin этих маршрутов больше не открывает, и наследования «page.admin даёт
+	// все page.admin.*» здесь намеренно нет (#1982): вместе со справочниками оно
+	// протащило бы журнал обращений к персональным данным, раздел пользователей и
+	// настройки - то есть расширило бы права под видом переезда. Действующие
+	// администраторы проходят по признаку is_admin (adminAll в резолвере), а не по
+	// ключу, поэтому переезд их не задевает.
 	requireDirectories := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminDirectories)
 	// Конструктор системных таблиц: создание/изменение/удаление структуры и настроек
 	// таблиц КПП. Ключ тот же, что у фронтовой страницы /table-constructor.
 	requireTablesCtor := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminTablesCtor)
+	// Массовый ввод из бланка (blank-import, C1C2): скачивание пустого бланка и приём
+	// заполненного гейтятся ОДНИМ правом - иначе пользователь скачивает бланк, заполняет
+	// его и упирается в 403 на загрузке (класс "видно, но 403").
+	requireImportList := mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionImportList)
+	// importListLimiter - свой rate limit сверх общего (RateLimit в main.go): приём файла
+	// разбирает .xlsx на до 2000 строк, дороже обычной ручки. Опционален и nil в тестах
+	// (тот же приём, что у LoginLimiter ниже) - иначе один тестовый файл с полудюжиной
+	// подтестов на одну ручку упёрся бы в лимит посреди прогона.
+	importListLimiter := d.ImportListLimiter
 	maintenanceBlock := d.MaintenanceBlock
 	banCheck := d.BanCheck
+	consentGate := d.ConsentGate
+	mustChangePassword := d.MustChangePassword
 	loginLimiter := d.LoginLimiter
 	lastSeen := d.LastSeen
 	jwtSecret := d.JWTSecret
@@ -175,11 +235,20 @@ func Setup(e *echo.Echo, d Dependencies) {
 	api := e.Group("/api")
 
 	// Статика загруженных файлов (фото мест разгрузки и системных таблиц).
-	// Публично, без JWT: тег <img> не отправляет Authorization. Под /api, чтобы
-	// прод-nginx (проксирует /api на backend) раздавал файлы без отдельного
-	// location и правок nginx.
+	// Под /api, чтобы прод-nginx (проксирует /api на backend) раздавал файлы без
+	// отдельного location и правок nginx. Доступ закрыт mw.FileAccess: тег <img>
+	// не отправляет Authorization, поэтому пропуском служит cookie продления
+	// сеанса (#2133). До этого каталог раздавался всем, кто знает адрес файла.
+	// Роут регистрируется вручную, а не через api.Group("/uploads").Static: группа
+	// echo заводит себе fallback RouteNotFound("/*"), он оказывается точнее
+	// статического "/uploads*" и перехватывает запросы файлов на 404.
 	if d.UploadPath != "" {
-		api.Static("/uploads", d.UploadPath)
+		api.Add(
+			http.MethodGet,
+			"/uploads*",
+			echo.StaticDirectoryHandler(echo.MustSubFS(e.Filesystem, d.UploadPath), false),
+			mw.FileAccess(d.JWTSecret, d.JWTRefreshSecret),
+		)
 	}
 
 	// Public routes. /login опционально защищён per-IP rate limiter-ом.
@@ -204,6 +273,15 @@ func Setup(e *echo.Echo, d Dependencies) {
 		api.GET("/events", events.Stream)
 	}
 
+	// Потоковый ZIP файлового архива за период (#1615, B3). Публичный роут намеренно,
+	// как и /events: прямая ссылка/клик по кнопке скачивания не может нести заголовок
+	// Authorization. Авторизация - одноразовым билетом из query (выдаётся защищённым
+	// POST /file-archive/download-ticket ниже), сам билет несёт и право, и границы
+	// периода - consume внутри Download.
+	if archiveDownload != nil {
+		api.GET("/file-archive/download", archiveDownload.Download)
+	}
+
 	// Protected routes
 	protected := api.Group("")
 	protected.Use(mw.JWTAuth(jwtSecret))
@@ -218,12 +296,31 @@ func Setup(e *echo.Echo, d Dependencies) {
 	if banCheck != nil {
 		protected.Use(banCheck)
 	}
+	// ConsentGate - после BanCheck: забаненный не может дать согласие (проверка
+	// бана режет POST), поэтому ему показываем блокировку, а не требование
+	// согласия. Супер-админ и роуты из PDConsentWhitelist проходят. nil в тестах.
+	if consentGate != nil {
+		protected.Use(consentGate)
+	}
+	// MustChangePassword - после гейта согласия: согласие спрашивается раньше всего
+	// остального, а сменить пароль до него всё равно не дают (смены нет в белом
+	// списке согласия). Пропускает только MustChangePasswordWhitelist, остальное -
+	// 403 с кодом PASSWORD_CHANGE_REQUIRED. nil в тестах: иначе каждый тест, где
+	// флаг поднят сидом, начал бы получать 403 вместо своего ответа. Тесты самого
+	// гейта поднимают приложение через SetupTestAppWithPasswordGate.
+	if mustChangePassword != nil {
+		protected.Use(mustChangePassword)
+	}
 	// LastSeen - после JWTAuth (нужен user_id). Обновляет users.last_seen для
 	// учёта онлайна (#632), с in-memory троттлингом и асинхронной записью.
 	// nil в тестах, где БД-запись не нужна.
 	if lastSeen != nil {
 		protected.Use(lastSeen)
 	}
+	// Гейт опасных действий в режиме «войти как пользователь» (#1912). Без условия
+	// и без зависимостей: список закрытого статичен, а необязательный гейт означал бы,
+	// что в тестах смена пароля из чужой учётной записи проходит.
+	protected.Use(mw.DenyUnderImpersonation())
 
 	protected.POST("/logout", auth.Logout)
 	protected.POST("/logout-all", auth.LogoutAll)
@@ -240,6 +337,26 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// userID из JWT. Права не требуются, оформление доступно любому.
 	protected.GET("/users/me/theme", theme.GetTheme)
 	protected.PUT("/users/me/theme", theme.SetTheme)
+
+	// Смена СВОЕГО пароля (#1915). До этого единственным путём смены был
+	// PUT /users/:username/password под page.admin.users - работник не мог сменить
+	// свой пароль вообще, только через бюро. Права не требуются, личность
+	// подтверждается текущим паролем внутри сервиса.
+	if users != nil {
+		selfPasswordHandlers := []echo.MiddlewareFunc{}
+		if d.SelfPasswordLimiter != nil {
+			selfPasswordHandlers = append(selfPasswordHandlers, d.SelfPasswordLimiter)
+		}
+		protected.PUT("/users/me/password", users.ChangeOwnPassword, selfPasswordHandlers...)
+	}
+
+	// Сквозной поиск по разделам. Гейт эндпоинта -- только авторизация, и это
+	// намеренно: раздел, на который нет права, отсекается отбором провайдеров, а
+	// строки внутри раздела сужает сам провайдер. Права на сам поиск не существует --
+	// он не даёт доступа ни к чему, чего нет в листингах.
+	if d.Search != nil {
+		protected.GET("/search", d.Search.Search)
+	}
 
 	// Выдача одноразового билета для SSE-потока (#840). Защищён JWTAuth+banCheck:
 	// забаненный/разлогиненный билет не получит, значит и поток не переоткроет.
@@ -259,6 +376,15 @@ func Setup(e *echo.Echo, d Dependencies) {
 	att.PUT("/:id/restore", attachments.Restore, requireDirectories)
 	att.GET("/:id/history", attachments.GetHistory, requireDirectories)
 	att.GET("/:id", attachments.GetByID)
+	// Пустой бланк для заполнения списка участников и приём заполненного - под одним
+	// правом action.import.list (blank-import, C1C2): скачивание без права загрузки
+	// оставило бы пользователя с заполненным файлом, который загрузить некуда.
+	att.GET("/:id/blank-template", attachmentBlanks.DownloadTemplate, requireImportList)
+	importListHandlers := []echo.MiddlewareFunc{requireImportList}
+	if importListLimiter != nil {
+		importListHandlers = append(importListHandlers, importListLimiter)
+	}
+	att.POST("/:id/import-list", attachmentImport.ImportList, importListHandlers...)
 	// Привязка ручного вложения-сироты к заявке (#1049 режим-2): только super/admin.
 	// Внимание: :id здесь = экземпляр attachments.id (ручная сирота), а НЕ unique_attachment
 	// (шаблон), как в CRUD-маршрутах группы выше. Разные таблицы под одним префиксом.
@@ -268,8 +394,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// entity_type/entity_id. Admin-only - кросс-сущностный аудит чувствителен.
 	protected.GET("/audit", audit.GetAuditLog, requireAdmin)
 
-	// Управление типами пользователей (admin-only, page.admin)
-	utm := protected.Group("/user-types-management", requireAdmin)
+	// Управление типами пользователей - справочник раздела (page.admin.directories),
+	// тем же правом фронт открывает /admin/user-types.
+	utm := protected.Group("/user-types-management", requireDirectories)
 	utm.GET("", userTypes.GetAll)
 	utm.POST("", userTypes.Create)
 	utm.PUT("/:id", userTypes.Update)
@@ -279,18 +406,18 @@ func Setup(e *echo.Echo, d Dependencies) {
 	utm.POST("/:id/reassign-users", userTypes.ReassignUsers)
 
 	// Гражданства. Список и история — для всех авторизованных (дропдаун гражданств
-	// в форме заявки); изменяющие операции — page.admin (Ф5, ранее service checkAdmin).
+	// в форме заявки); изменяющие операции — админ справочников (page.admin.directories).
 	csg := protected.Group("/citizenships")
 	csg.GET("", cs.GetAll)
-	csg.POST("", cs.Create, requireAdmin)
-	csg.PUT("/:id", cs.Update, requireAdmin)
-	csg.DELETE("/:id", cs.Delete, requireAdmin)
-	csg.POST("/:id/restore", cs.Restore, requireAdmin)
+	csg.POST("", cs.Create, requireDirectories)
+	csg.PUT("/:id", cs.Update, requireDirectories)
+	csg.DELETE("/:id", cs.Delete, requireDirectories)
+	csg.POST("/:id/restore", cs.Restore, requireDirectories)
 	// Групповые операции (статический bulk приоритетнее param :id в Echo).
-	csg.POST("/bulk/archive", cs.BulkArchive, requireAdmin)
-	csg.POST("/bulk/restore", cs.BulkRestore, requireAdmin)
+	csg.POST("/bulk/archive", cs.BulkArchive, requireDirectories)
+	csg.POST("/bulk/restore", cs.BulkRestore, requireDirectories)
 	csg.GET("/:id/history", cs.GetHistory)
-	csg.POST("/clear-default", cs.ClearDefaults, requireAdmin)
+	csg.POST("/clear-default", cs.ClearDefaults, requireDirectories)
 
 	// Форматы номерных знаков
 	lpfGroup := protected.Group("/license-plate-formats")
@@ -330,6 +457,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// полем is_blacklisted (#1528/#1530), список ЧС в браузер больше не грузится.
 	vblGroup.GET("", vehicleBlacklist.GetAll, requireBlacklist)
 	vblGroup.GET("/check", vehicleBlacklist.Check)
+	// Предпросмотр последствий внесения - под правом: в ответе ФИО, номера заявок и посты.
+	vblGroup.GET("/impact", vehicleBlacklist.Impact, requireBlacklist)
 	vblGroup.GET("/history", vehicleBlacklist.GetAllHistory, requireBlacklist)
 	vblGroup.GET("/:id/history", vehicleBlacklist.GetHistory, requireBlacklist)
 	vblGroup.POST("", vehicleBlacklist.Create, requireBlacklist)
@@ -347,6 +476,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// остаётся открытым: форма проверяет конкретного человека, не выгружая список.
 	pblGroup.GET("", personBlacklist.GetAll, requireBlacklist)
 	pblGroup.GET("/check", personBlacklist.Check)
+	pblGroup.GET("/impact", personBlacklist.Impact, requireBlacklist)
 	pblGroup.GET("/history", personBlacklist.GetAllHistory, requireBlacklist)
 	pblGroup.GET("/:id/history", personBlacklist.GetHistory, requireBlacklist)
 	pblGroup.POST("", personBlacklist.Create, requireBlacklist)
@@ -390,8 +520,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// без гейта, иначе заявитель не соберёт вложение.
 	att.GET("/:id/field-config", attachmentTemplates.GetFieldConfig)
 
-	// Организации. Изменяющие операции и история - page.admin (Ф5, ранее handler-level
-	// CheckAdminPermissions); списки и привязка пользователей - как было, без гейта.
+	// Организации. Изменяющие операции, история и состав - админ справочников
+	// (page.admin.directories, тем же правом фронт открывает /admin/organizations).
+	// Открытым остаётся то, без чего не собрать заявку: наименования (GetAll),
+	// ответственные (/:id/users), таблицы и места разгрузки - их читают форма подачи
+	// и VehicleForm.
 	// Подсказки при ручном вводе наименования в заявке (#1437). Гейт - то же право,
 	// что разблокирует ручной ввод: без него заявка идёт от своей организации, и
 	// подсказывать нечего. Статический сегмент suggest в Echo приоритетнее :id.
@@ -407,66 +540,79 @@ func Setup(e *echo.Echo, d Dependencies) {
 	orgg.POST("/:id/moderation/approve", org.ApproveModeration, requireOrgModerate)
 	orgg.PATCH("/:id/moderation/rename", org.RenameModeration, requireOrgModerate)
 	orgg.POST("/:id/moderation/merge", org.MergeModeration, requireOrgModerate)
-	orgg.POST("", org.Create, requireAdmin)
-	orgg.PUT("/:id", org.Update, requireAdmin)
-	orgg.DELETE("/:id", org.Delete, requireAdmin)
-	orgg.POST("/:id/restore", org.Restore, requireAdmin)
-	orgg.GET("/:id/history", org.GetHistory, requireAdmin)
-	orgg.GET("/with-users", org.GetWithUsers)
-	orgg.GET("/with-users-extended", org.GetWithUsersExtended)
+	orgg.POST("", org.Create, requireDirectories)
+	orgg.PUT("/:id", org.Update, requireDirectories)
+	orgg.DELETE("/:id", org.Delete, requireDirectories)
+	orgg.POST("/:id/restore", org.Restore, requireDirectories)
+	orgg.GET("/:id/history", org.GetHistory, requireDirectories)
+	// Списки для таблицы управления справочником: число работников, тип, архивные
+	// записи и статус разбора. Строки этой таблицы больше ничем не отдаются, а
+	// открытый /organizations даёт только наименования активных, так что гейт тут
+	// закрывает реальную разницу, а не повторяет соседа.
+	orgg.GET("/with-users", org.GetWithUsers, requireDirectories)
+	orgg.GET("/with-users-extended", org.GetWithUsersExtended, requireDirectories)
 	orgg.GET("/:id/users", org.GetOrganizationUsers)
-	orgg.PUT("/:id/users", org.UpdateOrganizationUsers)
-	orgg.GET("/:id/members", org.GetMembers)
-	// Блокеры архивации и перенос всех в другую организацию - гейт как у Delete (page.admin).
-	orgg.GET("/:id/blocking-users", org.GetBlockingUsers, requireAdmin)
-	orgg.POST("/:id/reassign-users", org.ReassignUsers, requireAdmin)
+	// Состав ответственных - запись, а не чтение: метод стирает organization_users
+	// и пересобирает набор из тела запроса, включая флаги is_primary и
+	// required_approval. Второй делает человека согласующим (IsReviewer в
+	// approver_service проверяет ровно его) и тянет его в ответственные по заявкам
+	// организации, так что без гейта любой работник вписывал себя сам. Право то же,
+	// что у соседей по составу - reassign-users и bulk/users.
+	orgg.PUT("/:id/users", org.UpdateOrganizationUsers, requireDirectories)
+	// Участники - ФИО, должности и логины работников организации. Они же блокируют
+	// архивацию: набор active-only, и delete-флоу спрашивает этот же маршрут.
+	orgg.GET("/:id/members", org.GetMembers, requireDirectories)
+	// Перенос всех участников в другую организацию - гейт как у Delete.
+	orgg.POST("/:id/reassign-users", org.ReassignUsers, requireDirectories)
 	orgg.GET("/:id/tables", org.GetOrganizationTables)
-	orgg.PUT("/:id/tables", org.UpdateOrganizationTables, requireAdmin)
+	orgg.PUT("/:id/tables", org.UpdateOrganizationTables, requireDirectories)
 	orgg.GET("/:id/unload-places", org.GetOrganizationUnloadPlaces)
-	orgg.PUT("/:id/unload-places", org.UpdateOrganizationUnloadPlaces, requireAdmin)
+	orgg.PUT("/:id/unload-places", org.UpdateOrganizationUnloadPlaces, requireDirectories)
 	// Групповые операции (bulk). Статический сегмент bulk имеет приоритет над
 	// param :id в Echo, поэтому /bulk/restore не конфликтует с /:id/restore.
-	orgg.POST("/bulk/type", org.BulkUpdateType, requireAdmin)
-	orgg.POST("/bulk/unload-places", org.BulkAssignUnloadPlaces, requireAdmin)
-	orgg.POST("/bulk/tables", org.BulkAssignTables, requireAdmin)
-	orgg.POST("/bulk/users", org.BulkAssignUsers, requireAdmin)
-	orgg.POST("/bulk/archive", org.BulkArchive, requireAdmin)
-	orgg.POST("/bulk/restore", org.BulkRestore, requireAdmin)
+	orgg.POST("/bulk/type", org.BulkUpdateType, requireDirectories)
+	orgg.POST("/bulk/unload-places", org.BulkAssignUnloadPlaces, requireDirectories)
+	orgg.POST("/bulk/tables", org.BulkAssignTables, requireDirectories)
+	orgg.POST("/bulk/users", org.BulkAssignUsers, requireDirectories)
+	orgg.POST("/bulk/archive", org.BulkArchive, requireDirectories)
+	orgg.POST("/bulk/restore", org.BulkRestore, requireDirectories)
 	protected.GET("/get-organization", org.GetMyOrganization)
 
-	// Компании. Изменяющие операции и история - page.admin (Ф5, ранее service checkAdmin);
-	// списки и привязка пользователей (UpdateUsers) - как было, без отдельного гейта.
+	// Компании. Зеркало organizations: изменяющие операции, история и состав - админ
+	// справочников (page.admin.directories, тем же правом фронт открывает
+	// /admin/companies); открыт тот же набор чтений, что нужен форме заявки.
 	cg := protected.Group("/companies")
 	cg.GET("", comp.GetAll)
 	cg.GET("/suggest", comp.Suggest, requireOrgOverride)
 	cg.POST("/:id/moderation/approve", comp.ApproveModeration, requireOrgModerate)
 	cg.PATCH("/:id/moderation/rename", comp.RenameModeration, requireOrgModerate)
 	cg.POST("/:id/moderation/merge", comp.MergeModeration, requireOrgModerate)
-	cg.POST("", comp.Create, requireAdmin)
-	cg.PUT("/:id", comp.Update, requireAdmin)
-	cg.DELETE("/:id", comp.Delete, requireAdmin)
-	cg.POST("/:id/restore", comp.Restore, requireAdmin)
-	cg.GET("/:id/history", comp.GetHistory, requireAdmin)
-	cg.GET("/with-users", comp.GetWithUsers)
-	cg.GET("/with-users-extended", comp.GetWithUsersExtended)
+	cg.POST("", comp.Create, requireDirectories)
+	cg.PUT("/:id", comp.Update, requireDirectories)
+	cg.DELETE("/:id", comp.Delete, requireDirectories)
+	cg.POST("/:id/restore", comp.Restore, requireDirectories)
+	cg.GET("/:id/history", comp.GetHistory, requireDirectories)
+	cg.GET("/with-users", comp.GetWithUsers, requireDirectories)
+	cg.GET("/with-users-extended", comp.GetWithUsersExtended, requireDirectories)
 	cg.GET("/:id/users", comp.GetUsers)
-	cg.PUT("/:id/users", comp.UpdateUsers)
-	cg.GET("/:id/members", comp.GetMembers)
-	// Блокеры архивации и перенос всех в другую компанию - гейт как у Delete (page.admin).
-	cg.GET("/:id/blocking-users", comp.GetBlockingUsers, requireAdmin)
-	cg.POST("/:id/reassign-users", comp.ReassignUsers, requireAdmin)
+	// Зеркало organizations: запись состава с теми же флагами и тем же следствием
+	// для согласования, гейт держим одинаковым.
+	cg.PUT("/:id/users", comp.UpdateUsers, requireDirectories)
+	cg.GET("/:id/members", comp.GetMembers, requireDirectories)
+	// Перенос всех участников в другую компанию - гейт как у Delete.
+	cg.POST("/:id/reassign-users", comp.ReassignUsers, requireDirectories)
 	cg.GET("/:id/tables", comp.GetTables)
-	cg.PUT("/:id/tables", comp.UpdateTables, requireAdmin)
+	cg.PUT("/:id/tables", comp.UpdateTables, requireDirectories)
 	cg.GET("/:id/unload-places", comp.GetUnloadPlaces)
-	cg.PUT("/:id/unload-places", comp.UpdateUnloadPlaces, requireAdmin)
+	cg.PUT("/:id/unload-places", comp.UpdateUnloadPlaces, requireDirectories)
 	// Групповые операции (bulk). Статический сегмент bulk имеет приоритет над
 	// param :id в Echo, поэтому /bulk/restore не конфликтует с /:id/restore.
-	cg.POST("/bulk/type", comp.BulkUpdateType, requireAdmin)
-	cg.POST("/bulk/unload-places", comp.BulkAssignUnloadPlaces, requireAdmin)
-	cg.POST("/bulk/tables", comp.BulkAssignTables, requireAdmin)
-	cg.POST("/bulk/users", comp.BulkAssignUsers, requireAdmin)
-	cg.POST("/bulk/archive", comp.BulkArchive, requireAdmin)
-	cg.POST("/bulk/restore", comp.BulkRestore, requireAdmin)
+	cg.POST("/bulk/type", comp.BulkUpdateType, requireDirectories)
+	cg.POST("/bulk/unload-places", comp.BulkAssignUnloadPlaces, requireDirectories)
+	cg.POST("/bulk/tables", comp.BulkAssignTables, requireDirectories)
+	cg.POST("/bulk/users", comp.BulkAssignUsers, requireDirectories)
+	cg.POST("/bulk/archive", comp.BulkArchive, requireDirectories)
+	cg.POST("/bulk/restore", comp.BulkRestore, requireDirectories)
 
 	// Места разгрузки
 	upg := protected.Group("/unload-places")
@@ -479,9 +625,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	upg.DELETE("/:id", up.Delete, requireDirectories)
 	upg.POST("/:id/restore", up.Restore, requireDirectories)
 	upg.GET("/:id/usage", up.GetUsage)
-	upg.POST("/:id/detach-all", up.DetachAll, requireAdmin)
-	upg.DELETE("/:id/organizations/:org_id", up.DetachOrganization, requireAdmin)
-	upg.DELETE("/:id/companies/:company_id", up.DetachCompany, requireAdmin)
+	upg.POST("/:id/detach-all", up.DetachAll, requireDirectories)
+	upg.DELETE("/:id/organizations/:org_id", up.DetachOrganization, requireDirectories)
+	upg.DELETE("/:id/companies/:company_id", up.DetachCompany, requireDirectories)
 	// Групповые операции (статический bulk приоритетнее param :id в Echo).
 	upg.POST("/bulk/archive", up.BulkArchive, requireDirectories)
 	upg.POST("/bulk/restore", up.BulkRestore, requireDirectories)
@@ -511,6 +657,13 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// любому авторизованному.
 	protected.GET("/work-modes", d.WorkModes.GetWorkModes)
 
+	// Кандидаты в получатели заявки - без права page.admin.users: выбор получателя есть
+	// у любого, кто подаёт заявку, а раздача этого списка через админский /users/all
+	// отбивала форму подачи 403 у арендатора. Отдаёт узкий срез (коллеги по организации
+	// и компании плюс руководители) - не эквивалент списка всех учёток.
+	// Статический сегмент объявлен до /users/:username: в роутинге Echo он приоритетнее.
+	protected.GET("/users/recipient-candidates", users.GetRecipientCandidates)
+
 	// Управление пользователями - page.admin.users (Ф5, ранее service checkAdmin
 	// по type-коду manager/buropropuskov). Тот же ключ, что и у FE-роута раздела.
 	requireUsers := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminUsers)
@@ -518,12 +671,18 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.GET("/users/all", users.GetAll, requireUsers)
 	protected.PUT("/users/:username/type", users.UpdateType, requireUsers)
 	protected.PUT("/users/:username/password", users.UpdatePassword, requireUsers)
+	// Смена пароля с отправкой письмом (#1910) - под тем же правом, что и ручная
+	// установка пароля: это её замена, а не новое полномочие.
+	protected.POST("/users/:username/rotate-password", users.RotatePassword, requireUsers)
 	protected.PUT("/users/:username/info", users.UpdateInfo, requireUsers)
 	protected.PUT("/users/:username/organization", users.UpdateOrganization, requireUsers)
 	protected.PUT("/users/:username/company", users.UpdateCompany, requireUsers)
 	protected.DELETE("/users/:username", users.Delete, requireUsers)
 	protected.POST("/users/:username/restore", users.Restore, requireUsers)
 	protected.GET("/users/:username/history", users.GetHistory, requireUsers)
+	// Снятие блокировки входа живёт в auth (там политика лока), но гейтится как
+	// остальное управление учётками.
+	protected.POST("/users/:username/reset-lockout", auth.ResetLockout, requireUsers)
 	// Групповые операции над пользователями (username-keyed). Статические сегменты
 	// bulk/* приоритетнее /users/:username в роутинге Echo.
 	protected.POST("/users/bulk/archive", users.BulkArchive, requireUsers)
@@ -541,13 +700,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Машины (в заявках)
 	carsGroup := protected.Group("/cars")
-	carsGroup.GET("/active-for-tables", cars.GetActiveCarsForTables)
 	carsGroup.GET("/active-for-table/:table_id", cars.GetActiveCarsForTable)
 	// Ручное добавление машин без заявки (#1049): super/admin проходят авто,
 	// остальные - по гранту entity.cars.manual_add.
 	carsGroup.POST("/manual", cars.CreateManualCars,
 		mw.RequirePermissionV2(permResolver, denialLog, services.KeyEntityCarsManualAdd))
-	carsGroup.GET("/fact-for-tables", cars.GetFactCarsForTables)
 	carsGroup.GET("/fact-for-table/:table_id", cars.GetFactCarsForTable)
 	carsGroup.GET("/unload-places", cars.GetCarUnloadPlaces)
 	carsGroup.GET("/fact-unload-places", cars.GetFactCarUnloadPlaces)
@@ -669,6 +826,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	ucg.GET("/ownership-info", uc.GetOwnershipInfo)
 	ucg.GET("/lookup", uc.Lookup, requireBlacklist)
 	ucg.GET("/:id/history", uc.GetHistory)
+	// Журнал всего реестра (включая удалённые записи) - раньше конкретного /:id/history,
+	// иначе «history» попало бы в :id и разбор номера вернул бы 400.
+	ucg.GET("/history", uc.GetRegistryLog)
 
 	// Реестр сотрудников (unique_employees)
 	ueg := protected.Group("/unique-employees")
@@ -679,6 +839,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	ueg.GET("/ownership-info", ue.GetOwnershipInfo)
 	ueg.GET("/lookup", ue.Lookup, requireBlacklist)
 	ueg.GET("/:id/history", ue.GetHistory)
+	ueg.GET("/history", ue.GetRegistryLog)
 
 	// Обратная связь. Отправка (POST) и свои обращения (GET /my) - любому
 	// авторизованному; админ-операции (список/статистика/статус/прочтение) -
@@ -694,10 +855,31 @@ func Setup(e *echo.Echo, d Dependencies) {
 	fbg.PUT("/:id/flag", fb.SetFlag, requireFeedbackAdmin)
 
 	// Заявки
-	apg := protected.Group("/applications")
+	apg := protected.Group("/applications", echomw.BodyLimit(applicationsBodyLimit))
 	apg.GET("", app.GetApplications)
 	apg.POST("", app.CreateApplication)
 	apg.POST("/submit-complete-application", app.SubmitCompleteApplication)
+
+	// Файлы заявки (#1721). Черновики лежат до подачи, поэтому загрузка и удаление
+	// висят на группе заявок без :id. Отдельного права нет: файлы видны тем же,
+	// кому видна заявка, проверка доступа - внутри обработчиков.
+	if d.ApplicationFiles != nil {
+		apg.POST("/files", d.ApplicationFiles.UploadDraft)
+		apg.DELETE("/files/:id", d.ApplicationFiles.DeleteDraft)
+		apg.GET("/:id/files", d.ApplicationFiles.List)
+		apg.GET("/:id/files/:file_id", d.ApplicationFiles.Download)
+		// Удаление приложенного файла - под общим админским правом (page.admin), тем
+		// же, что открывает раздел администрирования: состав заявки после подачи
+		// неизменен, а вычистить приложенное вопреки запрету должен уметь не только
+		// супер-администратор.
+		apg.DELETE("/:id/files/:file_id", d.ApplicationFiles.DeleteAttached, requireAdmin)
+	}
+	// Выгрузка реестра заявок (#1832) - под тем же правом, что скачивание бланка:
+	// «Экспорт заявок». Роут объявлен до /:id, иначе номер заявки перехватил бы слово
+	// export. Обращения пишутся в журнал 152-ФЗ (pdPaths): один файл уносит
+	// персональные данные пачкой.
+	apg.GET("/export", app.ExportApplications,
+		mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionExportApplications))
 	apg.GET("/user", app.GetUserApplications)
 	apg.GET("/user/status-updates-count", app.GetUserStatusUpdatesCount) // #1349 - счётчик чипа "Обновления" в ЛК
 	apg.GET("/unread-count", app.GetUnreadCount)
@@ -707,9 +889,15 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.GET("/:id", app.GetApplicationByID)
 	apg.PUT("/:id", app.UpdateApplication)
 	apg.GET("/:id/responsible-users", app.GetApplicationResponsibleUsers)
+	apg.GET("/:id/participants", app.GetApplicationParticipants) // все участники заявки с ролями и контактами
 	apg.GET("/:id/details", app.GetApplicationDetails)
 	apg.GET("/:id/attachments", app.GetApplicationAttachments)
 	apg.GET("/:id/blank", attachmentBlanks.Download) // #183 - скачать заполненный .xlsx
+	if archiveDownload != nil {
+		// ZIP сохранённых бланков заявки из файлового архива (#1615, B3). Гейт тот же,
+		// что у скачивания одного бланка (canDownloadBlank) - не выше и не ниже.
+		apg.GET("/:id/archive", archiveDownload.Archive)
+	}
 	apg.POST("/:id/update-items-status", app.UpdateApplicationItemsStatus)
 	apg.POST("/:id/forward", app.ForwardApplication)
 	apg.GET("/:id/forward-messages", app.GetForwardMessages) // #967 - ветка заявки (пересылки)
@@ -720,10 +908,27 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.POST("/:id/take-to-work", app.TakeApplicationToWork)
 	// #1393 - принимающий доназначает посты и места элементам заявки
 	apg.PUT("/:id/elements/tables", app.AssignElementTables)
+	// Принимающий убирает человека или машину из поданной заявки: решение для случая,
+	// когда пропустить помеченный элемент нельзя, а заявку провести надо.
+	apg.DELETE("/:id/elements", app.RemoveApplicationElements)
 	apg.PUT("/:id/elements/unload-places", app.AssignCarUnloadPlaces)
 	apg.POST("/:id/revoke-from-work", app.RevokeApplicationFromWork)
 	apg.POST("/:id/restore-to-work", app.RestoreApplicationToWork)
 	apg.POST("/:id/withdraw", app.WithdrawApplication)
+	// Дополнение поданной заявки (#1685). Право - продолжение подачи; владение заявкой
+	// право не покрывает, его проверяет сервис. Чтение раундов открыто всем, кому видна
+	// заявка (CanAccessApplication в handler) - согласующему раунд нужен так же, как автору.
+	apg.POST("/:id/supplements", app.CreateSupplement,
+		mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionSupplementApplication))
+	apg.GET("/:id/supplements", app.GetApplicationSupplements)
+	// Голосование по раунду дополнения. Право не требуется, как и у согласования заявки:
+	// голосовать вправе только состав раунда, и это проверяет сервис.
+	apg.POST("/:id/supplements/:sid/approve", app.ApproveSupplement)
+	apg.POST("/:id/supplements/:sid/revoke-approval", app.RevokeSupplementApproval)
+	// Решение по раунду. Права тоже нет: принять/отклонить вправе только принимающий,
+	// снять - только автор заявки, и обе роли проверяет сервис.
+	apg.POST("/:id/supplements/:sid/take-to-work", app.DecideSupplement)
+	apg.POST("/:id/supplements/:sid/cancel", app.CancelSupplement)
 	apg.GET("/:id/history", app.GetApplicationHistory)
 	apg.POST("/:id/revoke-approval", app.RevokeApproval)
 	apg.POST("/history", app.AddHistoryEntry)
@@ -743,15 +948,22 @@ func Setup(e *echo.Echo, d Dependencies) {
 	att.GET("/:id/employees", app.GetAttachmentEmployees)
 	att.GET("/:id/items", app.GetAttachmentItems)
 
-	// Утверждающие заявок. Управление - page.admin (Ф5, ранее service checkAdmin);
-	// журнал (history) доступен всем авторизованным (как и раньше - без checkAdmin).
+	// Утверждающие заявок. Управление - админ справочников (page.admin.directories,
+	// тем же правом фронт открывает /admin/approvers); журнал (history) доступен
+	// всем авторизованным (как и раньше - без checkAdmin).
 	aag := protected.Group("/application-approvers")
-	aag.GET("", approvers.GetAll, requireAdmin)
-	aag.GET("/available-users", approvers.GetAvailableUsers, requireAdmin)
+	aag.GET("", approvers.GetAll, requireDirectories)
+	// Получатели заявки: только отображаемые имена, поэтому без права на справочники -
+	// иначе заявитель не видел бы, кому уходит его заявка.
+	aag.GET("/recipients", approvers.GetRecipients)
+	aag.GET("/available-users", approvers.GetAvailableUsers, requireDirectories)
 	aag.GET("/history", approvers.GetHistory)
-	aag.POST("", approvers.Create, requireAdmin)
-	aag.PATCH("/:id", approvers.Update, requireAdmin)
-	aag.DELETE("/:id", approvers.Delete, requireAdmin)
+	// Ответ про себя доступен любому авторизованному: карточке заявки нужно знать,
+	// показывать ли кнопки принимающего, а весь состав ей не нужен и закрыт админом.
+	aag.GET("/me", approvers.IsApprover)
+	aag.POST("", approvers.Create, requireDirectories)
+	aag.PATCH("/:id", approvers.Update, requireDirectories)
+	aag.DELETE("/:id", approvers.Delete, requireDirectories)
 
 	// permission.audit.manage = управление системой прав (роли, группы, назначения,
 	// индивидуальные права пользователей). super + admin проходят (audit.manage не
@@ -770,8 +982,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 	permGroup.GET("/user/:id", permissions.GetUserPermissions, auditManage)
 	permGroup.GET("/user/:id/effective", permissions.GetUserEffectivePermissions, auditManage)
 	permGroup.PUT("/user/:id", permissions.UpdateUserPermissions, auditManage)
-	permGroup.GET("/tree", permissions.GetPermissionTree)
-	permGroup.GET("/catalog", permissions.GetCatalog)
+	// Каталог - полный перечень ключей системы с человеческими названиями, то есть
+	// карта устройства доступа. Читают его только редакторы прав (модалка прав
+	// пользователя, роли, группы), поэтому гейтим как остальную группу (#1967).
+	permGroup.GET("/catalog", permissions.GetCatalog, auditManage)
 	// Генерация прав для таблицы. Фронт напрямую не дёргает - права создаются
 	// автоматически внутри создания таблицы (system_table_service). Прямой роут
 	// закрыт тем же правом, что и конструктор, чтобы обычный юзер не мог плодить
@@ -824,50 +1038,102 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.POST("/users/bulk/ban", userBan.BulkBan, banUser)
 	protected.POST("/users/bulk/unban", userBan.BulkUnban, banUser)
 
+	// Режим «войти как пользователь» (#1912) - замена практике «администратор знает
+	// пароль работника». Вход гейтится правом, возврат в свою учётную запись - нет:
+	// его делает тот, кто уже в режиме, и отказать ему значило бы запереть человека
+	// в чужой учётной записи до истечения маркера.
+	if d.Impersonation != nil {
+		requireImpersonate := mw.RequirePermissionV2(permResolver, denialLog, services.KeyUserImpersonate)
+		protected.POST("/users/:id/impersonate", d.Impersonation.Start, requireImpersonate)
+		protected.POST("/impersonation/stop", d.Impersonation.Stop)
+	}
+
 	// Согласие на обработку ПД (152-ФЗ)
 	consents := protected.Group("/consents")
+	// Состояние согласия и его подтверждение при первом входе (#1567). Доступны
+	// любому авторизованному: именно ими кормится окно согласия.
+	consents.GET("/gate", consent.GetGate)
+	consents.POST("/accept", consent.Accept)
 	consents.POST("", consent.Grant)
 	consents.DELETE("/:type", consent.Revoke)
 	consents.GET("", consent.List)
 	consents.GET("/check/:type", consent.Check)
 
-	// Настройки системы
-	protected.GET("/settings", settings.GetAll)
+	// Отзыв согласия за работника: он приходит с просьбой к администратору,
+	// своей кнопки отзыва у него нет. Право то же, что у раздела работников.
+	protected.DELETE("/users/:username/consent", consent.RevokeForUser, requireUsers)
+
+	// Настройки системы. GetAll/Update - под page.admin.settings (#7, ранее
+	// checkSuper в settings_service.go): администраторы получают ключ через
+	// adminAll (не super-only), точечно снимается личным deny-override.
+	requireSettings := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminSettings)
+	protected.GET("/settings", settings.GetAll, requireSettings)
 	protected.GET("/settings/upload", settings.GetUploadSettings)
 	protected.GET("/settings/notifications", settings.GetNotificationSettings)
 	protected.GET("/settings/password-policy", settings.GetPasswordPolicy)
-	protected.PUT("/settings/:key", settings.Update)
+	// Почта (#1906): состояние настройки и проверочное письмо. Оба под тем же
+	// правом, что и остальные настройки. Конкретные пути объявлены ДО
+	// PUT /settings/:key намеренно - иначе echo увидел бы в "mail" значение
+	// параметра key и попытался бы сохранить настройку с таким именем.
+	protected.GET("/settings/mail/status", settings.GetMailStatus, requireSettings)
+	protected.POST("/settings/mail/test", settings.SendTestMail, requireSettings)
+	protected.GET("/settings/password-rotation/status", settings.GetPasswordRotationStatus, requireSettings)
+	protected.GET("/settings/password-rotation/last", settings.GetPasswordRotationLast, requireSettings)
+	// Ручной прогон - под своим правом, а не под настройками: сброс паролей всей
+	// организации весит больше, чем правка телефона бюро (#1910).
+	protected.POST("/settings/password-rotation/run", settings.RunPasswordRotation,
+		mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionRotatePasswords))
+	protected.PUT("/settings/:key", settings.Update, requireSettings)
 
-	// Новости. Активные (GET "") - всем авторизованным; управление - page.admin
-	// (Ф5, ранее service checkAdmin).
+	// Новости. Активные (GET "") - всем авторизованным; управление - админ справочников
+	// (page.admin.directories, тем же правом фронт открывает /admin/news).
 	ng := protected.Group("/news")
 	ng.GET("", news.GetActiveNews)
-	ng.GET("/all", news.GetAllNews, requireAdmin)
-	ng.POST("", news.CreateNews, requireAdmin)
-	ng.PUT("/:id", news.UpdateNews, requireAdmin)
-	ng.DELETE("/:id", news.DeleteNews, requireAdmin)
+	ng.GET("/all", news.GetAllNews, requireDirectories)
+	ng.POST("", news.CreateNews, requireDirectories)
+	ng.PUT("/:id", news.UpdateNews, requireDirectories)
+	ng.DELETE("/:id", news.DeleteNews, requireDirectories)
 
-	// Объявления. Активное (GET /active) - всем авторизованным; управление - page.admin.
+	// Объявления. Активное (GET /active) - всем авторизованным; управление - тем же
+	// правом, что новости: это один экран «Новости и объявления».
 	ag := protected.Group("/announcements")
 	ag.GET("/active", news.GetActiveAnnouncement)
-	ag.GET("/all", news.GetAllAnnouncements, requireAdmin)
-	ag.POST("", news.CreateAnnouncement, requireAdmin)
-	ag.POST("/set-active", news.SetActiveAnnouncement, requireAdmin)
-	ag.POST("/:id/hide", news.HideAnnouncement, requireAdmin)
-	ag.PUT("/:id", news.UpdateAnnouncement, requireAdmin)
-	ag.DELETE("/:id", news.DeleteAnnouncement, requireAdmin)
+	ag.GET("/all", news.GetAllAnnouncements, requireDirectories)
+	ag.POST("", news.CreateAnnouncement, requireDirectories)
+	ag.POST("/set-active", news.SetActiveAnnouncement, requireDirectories)
+	ag.POST("/:id/hide", news.HideAnnouncement, requireDirectories)
+	ag.PUT("/:id", news.UpdateAnnouncement, requireDirectories)
+	ag.DELETE("/:id", news.DeleteAnnouncement, requireDirectories)
 
 	// Уведомления. Свои - любому авторизованному; рассылка (Create) - админ
 	// (page.admin, Ф5: ранее handler-проверка type_id 5/6 manager/buropropuskov).
+	// Подписки (preferences) и «прочитать все» (read-all) - тоже любому авторизованному:
+	// это настройка и действие над собственной лентой, не рассылка (#1748).
 	notif := protected.Group("/notifications")
 	notif.GET("", notifications.GetNotifications)
+	notif.GET("/preferences", notifications.GetPreferences)
+	notif.PUT("/preferences", notifications.UpdatePreferences)
+	notif.PUT("/read-all", notifications.MarkAllRead)
 	notif.POST("", notifications.Create, requireAdmin)
 	notif.PUT("/:id/read", notifications.MarkRead)
 	notif.DELETE("/:id", notifications.Delete)
 	notif.DELETE("", notifications.DeleteAll)
 
-	// Логи запросов (мониторинг) - целиком admin-only, page.admin (Ф5, ранее service checkAdmin).
-	rlg := protected.Group("/request-logs", requireAdmin)
+	// Web Push (#974): подписка браузера на доставку уведомлений при закрытой вкладке -
+	// личная настройка устройства, тот же доступ, что у preferences/read-all выше.
+	notif.GET("/push/status", push.GetStatus)
+	notif.POST("/push/subscribe", push.Subscribe)
+	notif.DELETE("/push/subscribe", push.Unsubscribe)
+	// Сводка использования push - НЕ личная настройка, а админский разрез (раздел
+	// статистики): гейт page.statistics, как у всей остальной статистики дашборда.
+	notif.GET("/push/summary", push.GetSummary, mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageStatistics))
+
+	// Логи запросов (мониторинг) - под page.admin.monitoring (#2125): тем же ключом
+	// раздел гейтится в меню и роутере фронта, а требование page.admin отбивало
+	// носителя ключа на API. Администраторы проходят через adminAll, личный
+	// deny-override на этот ключ раздел закрывает.
+	requireMonitoring := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminMonitoring)
+	rlg := protected.Group("/request-logs", requireMonitoring)
 	rlg.GET("", requestLogs.GetLogs)
 	rlg.GET("/users", requestLogs.GetUsers)
 	rlg.GET("/stats", requestLogs.GetStats)
@@ -884,28 +1150,28 @@ func Setup(e *echo.Echo, d Dependencies) {
 	adminMaint.GET("/maintenance", maintenance.GetAdminStatus)
 	adminMaint.PUT("/maintenance", maintenance.ToggleMaintenance)
 
-	// Документы (#39). Admin-операции под page.admin (requireAdmin определён выше);
-	// скачивание и публичный список -- под auth.
+	// Документы (#39). Admin-операции под page.admin.directories - тем же правом фронт
+	// открывает /admin/documents; скачивание и публичный список -- под auth.
 
 	// Сброс онбординг-тура пользователю - админ-действие (после сброса у юзера
 	// снова автозапуск). Под page.admin, в отличие от self-эндпоинтов /onboarding.
 	protected.POST("/users/:username/onboarding/reset", onboarding.ResetForUser, requireAdmin)
 	if docGroups != nil {
 		dgGroup := protected.Group("/document-groups")
-		dgGroup.GET("", docGroups.List, requireAdmin)
-		dgGroup.POST("", docGroups.Create, requireAdmin)
-		dgGroup.PUT("/reorder", docGroups.Reorder, requireAdmin)
-		dgGroup.PUT("/:id", docGroups.Update, requireAdmin)
-		dgGroup.DELETE("/:id", docGroups.Delete, requireAdmin)
+		dgGroup.GET("", docGroups.List, requireDirectories)
+		dgGroup.POST("", docGroups.Create, requireDirectories)
+		dgGroup.PUT("/reorder", docGroups.Reorder, requireDirectories)
+		dgGroup.PUT("/:id", docGroups.Update, requireDirectories)
+		dgGroup.DELETE("/:id", docGroups.Delete, requireDirectories)
 	}
 	if docs != nil {
 		docsGroup := protected.Group("/documents")
-		docsGroup.GET("", docs.List, requireAdmin)
-		docsGroup.POST("", docs.Upload, requireAdmin)
-		docsGroup.PUT("/reorder", docs.Reorder, requireAdmin)
-		docsGroup.PUT("/:id", docs.UpdateMeta, requireAdmin)
-		docsGroup.PUT("/:id/file", docs.ReplaceFile, requireAdmin)
-		docsGroup.DELETE("/:id", docs.Delete, requireAdmin)
+		docsGroup.GET("", docs.List, requireDirectories)
+		docsGroup.POST("", docs.Upload, requireDirectories)
+		docsGroup.PUT("/reorder", docs.Reorder, requireDirectories)
+		docsGroup.PUT("/:id", docs.UpdateMeta, requireDirectories)
+		docsGroup.PUT("/:id/file", docs.ReplaceFile, requireDirectories)
+		docsGroup.DELETE("/:id", docs.Delete, requireDirectories)
 		docsGroup.GET("/:id/download", docs.Download)
 
 		protected.GET("/public/documents", docs.GetPublic)
@@ -934,6 +1200,55 @@ func Setup(e *echo.Echo, d Dependencies) {
 		dpGroup.GET("/document", settings.ServeDataProcessingDoc)
 		dpGroup.POST("/document", settings.UploadDataProcessingDoc, requireAdmin)
 		dpGroup.DELETE("/document", settings.DeleteDataProcessingDoc, requireAdmin)
+
+		// Текст согласия на обработку ПД для запроса при первом входе (#1567).
+		// Пока только управление под page.admin: пользовательская ручка появится
+		// вместе с самим запросом согласия.
+		pdcGroup := protected.Group("/settings/pd-consent", requireAdmin)
+		pdcGroup.GET("", settings.GetPDConsentSettings)
+		pdcGroup.GET("/collection", settings.GetPDConsentCollection)
+		pdcGroup.PUT("/text", settings.UpdatePDConsentText)
+		pdcGroup.PUT("/required", settings.UpdatePDConsentRequired)
+		pdcGroup.POST("/require-again", settings.BumpPDConsentVersion)
+	}
+
+	// Файловый архив бланков (#1615): настройки раскладки и живое превью. Просмотр
+	// раздела - по page.admin.file_archive, правка настроек - дополнительно по
+	// action.manage.file_archive: сменённый шаблон разводит новые файлы мимо тех,
+	// что уже лежат на диске, и это действие тяжелее просмотра.
+	if blankArchive := d.BlankArchive; blankArchive != nil {
+		requireFileArchive := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminFileArchive)
+		manageFileArchive := mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionManageFileArchive)
+		faGroup := protected.Group("/file-archive", requireFileArchive)
+		faGroup.GET("/settings", blankArchive.GetSettings)
+		// Записи настроек здесь нет намеренно (#1615): раскладку каталогов, пороги
+		// места и срок заморозки задаёт тот, кто разворачивает систему, командой
+		// server archive на сервере. Корень архива и так живёт в переменной
+		// окружения, а сменённый шаблон переносит дерево заявок целиком - держать
+		// такое за веб-сессией администратора бюро значит отдавать управление
+		// хранилищем персональных данных тому, чья работа - пропуска. В разделе
+		// остаётся показ текущих значений (GET выше) и наблюдение.
+		// Пересоздание файлов заявки переписывает диск - право то же, что на настройки.
+		faGroup.POST("/applications/:id/reexport", blankArchive.Reexport, manageFileArchive)
+		// Бэкфилл за период и пересборка типа после правки шаблона (#1615, B4) - тот же
+		// уровень доступа: ручка ставит в очередь запись поверх файлов на диске.
+		faGroup.POST("/backfill", blankArchive.Backfill, manageFileArchive)
+		// Сводка места и квоты (#1615, срез B2) - тот же уровень доступа, что и
+		// просмотр настроек: занятое место видит любой, кому виден раздел.
+		if stats := d.BlankArchiveStats; stats != nil {
+			faGroup.GET("/stats", stats.GetStats)
+		}
+		// Скачивание из файлового архива (#1615, срез B3). Список и оценка объёма -
+		// тот же уровень, что просмотр раздела; фактическая выгрузка байтов (билет,
+		// отдельный файл) требует дополнительно action.download.file_archive - право
+		// на скачивание тяжелее просмотра сводки, как настройка тяжелее просмотра.
+		if archiveDownload != nil {
+			downloadFileArchive := mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionDownloadFileArchive)
+			faGroup.GET("/items", archiveDownload.ListItems)
+			faGroup.POST("/estimate", archiveDownload.EstimateDownload)
+			faGroup.POST("/download-ticket", archiveDownload.IssueDownloadTicket, downloadFileArchive)
+			faGroup.GET("/files/:id", archiveDownload.DownloadFile, downloadFileArchive)
+		}
 	}
 
 	// Статистика дашборда (#632). Доступ ограничен page.statistics.

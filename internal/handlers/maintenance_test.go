@@ -93,7 +93,7 @@ func TestMaintenance_Toggle_RejectsInvalidWindow(t *testing.T) {
 		"окончание раньше начала": fmt.Sprintf(`{"enabled":true,"planned_start":%q,"planned_end":%q}`, end, start),
 		"окончание равно началу":  fmt.Sprintf(`{"enabled":true,"planned_start":%q,"planned_end":%q}`, start, start),
 		"задана только половина":  fmt.Sprintf(`{"enabled":true,"planned_start":%q}`, start),
-		"не дата":                 `{"enabled":true,"planned_start":"вчера","planned_end":"завтра"}`,
+		"не дата": `{"enabled":true,"planned_start":"вчера","planned_end":"завтра"}`,
 	}
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {

@@ -34,6 +34,22 @@ func (h *ApproverHandler) GetAll(c echo.Context) error {
 	return RespondSuccess(c, result)
 }
 
+// GetRecipients godoc
+// @Summary      Принимающие для строки получателей заявки
+// @Description  Отдаёт только отображаемые имена: маску, если она задана администратором, иначе ФИО. Доступно любому авторизованному работнику.
+// @Tags         application-approvers
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {array} models.ApplicationRecipient
+// @Router       /application-approvers/recipients [get]
+func (h *ApproverHandler) GetRecipients(c echo.Context) error {
+	result, err := h.service.GetRecipients(c.Request().Context())
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, result)
+}
+
 // GetAvailableUsers godoc
 // @Summary      Пользователи, доступные для назначения утверждающими
 // @Tags         application-approvers
@@ -147,4 +163,29 @@ func (h *ApproverHandler) GetHistory(c echo.Context) error {
 		return err
 	}
 	return RespondSuccess(c, history)
+}
+
+// IsApprover godoc
+// @Summary      Роли текущего пользователя в согласовании заявок
+// @Description  Возвращает только ответ про себя: is_approver - принимающий,
+// @Description  is_reviewer - согласующий хоть в одной организации или компании.
+// @Description  Полный состав принимающих отдаёт GET /application-approvers, он
+// @Description  закрыт правом администратора.
+// @Tags         application-approvers
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} map[string]bool
+// @Router       /application-approvers/me [get]
+func (h *ApproverHandler) IsApprover(c echo.Context) error {
+	username := GetUsername(c)
+	ctx := c.Request().Context()
+	isApprover, err := h.service.IsApprover(ctx, username)
+	if err != nil {
+		return err
+	}
+	isReviewer, err := h.service.IsReviewer(ctx, username)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]bool{"is_approver": isApprover, "is_reviewer": isReviewer})
 }

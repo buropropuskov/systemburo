@@ -46,6 +46,9 @@ type VehicleBlacklistService interface {
 	BulkRestore(ctx context.Context, ids []int, userID int) (*BulkOpResult, error)
 	// Check - заблокирована ли машина (number+mark) активной записью.
 	Check(ctx context.Context, carNumber string, markID int) (models.VehicleBlacklistCheckResult, error)
+	// Impact - предпросмотр последствий внесения: какие активные машины перестанут
+	// действовать, из каких таблиц постов уйдут и в каких заявках фигурируют.
+	Impact(ctx context.Context, carNumber string, markID int) (*BlacklistImpact, error)
 	// CheckByName - проверка по номеру и имени марки (для машин без mark_id, например
 	// выбранных из существующих unique_cars). Совпадение по mark_name, как в каскаде.
 	CheckByName(ctx context.Context, carNumber, markName string) (models.VehicleBlacklistCheckResult, error)
@@ -491,6 +494,8 @@ func (s *vehicleBlacklistService) queryHistory(ctx context.Context, entityID *in
 	if err := s.db.WithContext(ctx).Raw(query, args...).Scan(&rows).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения истории чёрного списка")
 	}
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
 	items := make([]models.VehicleBlacklistHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.VehicleBlacklistHistoryItem{
@@ -499,7 +504,7 @@ func (s *vehicleBlacklistService) queryHistory(ctx context.Context, entityID *in
 			ActionType: r.ActionType,
 			Details:    r.Details,
 			UserID:     r.UserID,
-			UserName:   r.UserName,
+			UserName:   maskName(masks, r.UserID, r.UserName),
 			CreatedAt:  r.CreatedAt,
 		})
 	}
@@ -592,4 +597,9 @@ func isUniqueViolation(err error) bool {
 		return true
 	}
 	return strings.Contains(err.Error(), "23505") || strings.Contains(err.Error(), "duplicate key value")
+}
+
+// Impact - см. VehicleBlacklistService.Impact.
+func (s *vehicleBlacklistService) Impact(ctx context.Context, carNumber string, markID int) (*BlacklistImpact, error) {
+	return vehicleBlacklistImpact(ctx, s.db, carNumber, markID)
 }

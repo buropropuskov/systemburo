@@ -1361,6 +1361,8 @@ func (s *systemTableService) GetHistory(ctx context.Context, tableID int) ([]mod
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching system table history")
 	}
 
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
 	items := make([]models.SystemTableHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.SystemTableHistoryItem{
@@ -1368,7 +1370,7 @@ func (s *systemTableService) GetHistory(ctx context.Context, tableID int) ([]mod
 			ActionType: r.ActionType,
 			Details:    r.Details,
 			UserID:     r.UserID,
-			UserName:   r.UserName,
+			UserName:   maskName(masks, r.UserID, r.UserName),
 			CreatedAt:  r.CreatedAt,
 		})
 	}

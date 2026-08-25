@@ -73,7 +73,10 @@ var listExecRegistry = map[string]listExecSchema{
 				"ELSE COALESCE(att.entry_date_from, '') || ' - ' || COALESCE(att.entry_date_to, '') END"},
 			"work_time": {expr: "CASE WHEN COALESCE(att.entry_time_from, att.entry_time_to, '') = '' THEN '' " +
 				"ELSE COALESCE(att.entry_time_from, '') || ' - ' || COALESCE(att.entry_time_to, '') END"},
-			"people_count": {expr: "(SELECT COUNT(*) FROM employees emp WHERE emp.attachment_id = att.id AND emp.is_purged = false)"},
+			// Люди непринятого дополнения в счёт не идут (#1685): отчёт показывает, сколько
+			// человек по заявке реально работает, а решения по добавке ещё нет.
+			"people_count": {expr: "(SELECT COUNT(*) FROM employees emp WHERE emp.attachment_id = att.id AND emp.is_purged = false" +
+				" AND " + admittedSupplementCond("emp") + ")"},
 		},
 		filterExpr: map[string]string{
 			"organization": "org.name",
@@ -169,7 +172,28 @@ type listPlan struct {
 // БД) — тестируется напрямую. Порядок и подписи столбцов берутся из каталога B1,
 // SQL-выражения — из listExecRegistry. Неизвестная сущность/фильтр или столбец
 // каталога без выражения -> ErrInvalidReportRequest.
-func buildListPlan(req models.ReportRequest) (*listPlan, error) {
+// responsibleMaskedExpr - колонка «принимающий», когда персональные данные скрыты
+// до согласия: вместо ФИО и телефона показывается логин. Условие повторяет
+// consentMasksWithState, но в SQL: строку собирает база, и подменить её после
+// выборки нечем - идентификатора работника в выдаче отчёта нет.
+//
+// Скрываем только тех, кого запрос согласия реально касается (та же мерка, что у
+// гейта и у gatedUsersWhere): супер-администратор проходит гейт всегда, архивных и
+// заблокированных отбивают раньше, и согласия у них нет не потому, что они его не
+// дали. Без этой оговорки отчёт обезличивал бы тех, кто во всей остальной системе
+// показывается открыто.
+const responsibleMaskedExpr = `CASE
+	WHEN ru.id IS NULL THEN ''
+	WHEN ru.is_super_admin OR NOT ru.is_active OR ru.is_banned OR EXISTS (
+		SELECT 1 FROM pd_consents c
+		WHERE c.user_id = ru.id AND c.consent_type = 'pd_processing'
+		  AND c.granted = true AND c.revoked_at IS NULL
+	) THEN COALESCE(NULLIF(TRIM(CONCAT_WS(' ', ru.last_name, ru.first_name, ru.middle_name)), ''), '')
+		|| CASE WHEN COALESCE(ru.phone, '') <> '' THEN ', тел. ' || ru.phone ELSE '' END
+	ELSE '@' || COALESCE(ru.username, '')
+END`
+
+func buildListPlan(req models.ReportRequest, maskPD bool) (*listPlan, error) {
 	exec, ok := listExecRegistry[req.Entity]
 	if !ok {
 		return nil, errInvalidReport("entity")
@@ -192,7 +216,11 @@ func buildListPlan(req models.ReportRequest) (*listPlan, error) {
 			// Каталог объявил столбец, для которого нет SQL-выражения — баг конфигурации.
 			return nil, errInvalidReport("column")
 		}
-		selects = append(selects, def.expr+" AS "+c.key)
+		expr := def.expr
+		if maskPD && c.key == "responsible" {
+			expr = responsibleMaskedExpr
+		}
+		selects = append(selects, expr+" AS "+c.key)
 		plan.selectArgs = append(plan.selectArgs, def.args...)
 		cols = append(cols, models.ReportColumnInfo{Key: c.key, Label: c.label, Type: c.format})
 	}

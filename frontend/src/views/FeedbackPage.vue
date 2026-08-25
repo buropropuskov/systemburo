@@ -1,6 +1,9 @@
 <template>
   <AdminPageShell>
-    <div class="feedback-container dashboard-card">
+    <div
+      class="feedback-container dashboard-card"
+      data-testid="ob-admin-feedback"
+    >
       <div class="management-header">
         <h3 class="management-title">
           Обратная связь
@@ -250,6 +253,9 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, getCurrentInstance } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { readSearchFromRoute } from '@/utils/searchQueryParam';
+import { openItemFromRoute } from '@/utils/openQueryParam';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
@@ -269,7 +275,10 @@ const loading = ref(false);
 const updatingId = ref(null);
 const flaggingId = ref(null);
 const activeFilter = ref('all');
-const searchQuery = ref('');
+const route = useRoute();
+const router = useRouter();
+// Из адреса: переход из сквозного поиска приносит запрос с собой.
+const searchQuery = ref(readSearchFromRoute(route));
 const searchVariants = computed(() => buildSearchVariants(searchQuery.value));
 const sortKey = ref('id');
 const sortDir = ref('desc');
@@ -351,11 +360,21 @@ function patchLocal(id, patch) {
   if (idx !== -1) feedbacks.value[idx] = { ...feedbacks.value[idx], ...patch };
 }
 
+/** Переход из сквозного поиска: `?open` раскрывает найденное обращение. */
+function openFromSearchLink() {
+  openItemFromRoute({ router, route, items: feedbacks.value, open: (item) => selectRow(item.id) });
+}
+
+// Пользователь уже на этой странице: список не перезагружается, а адрес сменился.
+// Страницу монтируют и в тестах без роутера - к query обращаемся мягко.
+watch(() => route?.query?.open, (val) => { if (val) openFromSearchLink(); });
+
 async function refresh() {
   loading.value = true;
   try {
     const data = await getAllFeedback();
     feedbacks.value = Array.isArray(data) ? data : [];
+    openFromSearchLink();
   } catch (e) {
     console.error('Ошибка при загрузке обращений:', e);
     deletions.notify({ prefix: 'Не удалось загрузить ', bold: 'обращения', type: 'error' });

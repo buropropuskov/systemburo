@@ -1,3 +1,5 @@
+const { expect } = require('@playwright/test');
+
 class ApplicationCenterPage {
   constructor(page) {
     this.page = page;
@@ -34,6 +36,18 @@ class ApplicationCenterPage {
 
   getAllRows() {
     return this.page.locator('[data-testid^="center-row-"]');
+  }
+
+  /**
+   * Находит заявку по номеру и открывает её карточку. Номер уникален, поэтому поиска
+   * достаточно - id заявки тесту знать неоткуда, он приходит из модалки успеха.
+   */
+  async openApplication(applicationNumber) {
+    await this.goto();
+    await this.search(applicationNumber);
+    const row = this.getAllRows().first();
+    await expect(row).toBeVisible();
+    await row.click();
   }
 
   // Статусы, подтверждения, теги и справочники (организации/компании/места/проходы)

@@ -327,6 +327,24 @@ func TestBlacklistOverride_Delete(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, rec.Code, "body: %s", rec.Body.String())
 	})
 
+	t.Run("принимающий (не ответственный по заявке) может подтвердить пропуск", func(t *testing.T) {
+		require.Equal(t, int64(0), overrideCount(), "предусловие: подтверждения ещё нет")
+
+		accToken := testutil.RegisterAndLogin(t, e, "bd_acceptor_set", "pass123", 1, td.OrgID, td.CompanyID)
+		accID := getUserID(t, db, "bd_acceptor_set")
+		db.Exec("INSERT INTO application_approvers (user_id, created_at) VALUES (?, NOW()) ON CONFLICT DO NOTHING", accID)
+
+		rec := testutil.POST(t, e, overridePath, fmt.Sprintf(`{"flag_id":%d,"comment":"проверил лично"}`, flag.ID), testutil.AuthHeader(accToken))
+		require.Equal(t, http.StatusOK, rec.Code, "override принимающим: %s", rec.Body.String())
+
+		var ovr models.ApplicationBlacklistOverride
+		require.NoError(t, db.Where("flag_id = ?", flag.ID).First(&ovr).Error)
+		assert.Equal(t, accID, ovr.OverriddenByUserID, "подтверждение записано на принимающего")
+
+		rec = testutil.DELETE(t, e, deletePath, testutil.AuthHeader(accToken))
+		require.Equal(t, http.StatusOK, rec.Code, "уборка подтверждения: %s", rec.Body.String())
+	})
+
 	t.Run("принимающий (не ответственный по заявке) может снять", func(t *testing.T) {
 		rec := testutil.POST(t, e, overridePath, fmt.Sprintf(`{"flag_id":%d,"comment":"снова"}`, flag.ID), testutil.AuthHeader(apprToken))
 		require.Equal(t, http.StatusOK, rec.Code, "re-override: %s", rec.Body.String())

@@ -396,3 +396,55 @@ describe('ApplicationActionBar - hover кнопок принятия', () => {
     expect(shared).not.toContain('transition: all');
   });
 });
+
+describe('ApplicationActionBar - роль принимающего приходит признаком, а не списком', () => {
+  const props = {
+    application: { id: 1, confirmation: 'Согласовано', status: 'В обработке' },
+    currentUserId: 7,
+    responsibleUsers: [],
+  };
+
+  it('принимающий без прав администратора видит "Принять": состав принимающих ему не отдаётся', () => {
+    const wrapper = mountBar({ ...props, approvers: [], isApprover: true });
+    expect(wrapper.find(TAKE).exists()).toBe(true);
+  });
+
+  it('без признака и без состава кнопок приёма нет', () => {
+    const wrapper = mountBar({ ...props, approvers: [], isApprover: false });
+    expect(wrapper.find(TAKE).exists()).toBe(false);
+  });
+
+  it('администратору роль по-прежнему видна из загруженного состава', () => {
+    const wrapper = mountBar({ ...props, approvers: [{ user_id: 7 }], isApprover: false });
+    expect(wrapper.find(TAKE).exists()).toBe(true);
+  });
+});
+
+/**
+ * Подсказка гейта стоит в одном ряду со статусными бейджами. Формулировка
+ * «Подтвердите пропуск по помеченным» не влезала в ширину плашки, переносилась на
+ * вторую строку и распирала весь ряд по высоте (жалоба владельца). Смысл при этом
+ * терять нельзя, поэтому полная фраза осталась подсказкой при наведении.
+ */
+describe('ApplicationActionBar - подсказка гейта ЧС держится в одну строку', () => {
+  const SFC = readFileSync(resolve(__dirname, '../ApplicationActionBar.vue'), 'utf8');
+
+  it('текст короткий', () => {
+    const wrapper = mountBar({ hasUnoverriddenBlacklistFlags: true });
+    const text = wrapper.find(HINT).text();
+    expect(text).toBe('Подтвердите метки ЧС');
+  });
+
+  it('перенос запрещён стилем, ширина плашки его больше не режет', () => {
+    const rule = SFC.match(/\.blacklist-gate-hint\s*\{([^}]*)\}/);
+    expect(rule).not.toBeNull();
+    expect(rule[1]).toMatch(/white-space:\s*nowrap/);
+    expect(rule[1]).not.toMatch(/max-width/);
+  });
+
+  it('полная формулировка осталась в подсказке при наведении', () => {
+    const wrapper = mountBar({ hasUnoverriddenBlacklistFlags: true });
+    expect(wrapper.find(HINT).attributes('title'))
+      .toBe('Подтвердите пропуск по всем помеченным элементам, чтобы согласовать заявку');
+  });
+});

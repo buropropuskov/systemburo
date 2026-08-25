@@ -174,23 +174,6 @@ func TestPermissions_UpdateUserPermissions_Upsert(t *testing.T) {
 	assert.Equal(t, "deny", perms[0].Value)
 }
 
-func TestPermissions_GetTree(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-
-	token := testutil.RegisterAndLogin(t, e, "treeuser", "password123", 1, td.OrgID, td.CompanyID)
-	h := testutil.AuthHeader(token)
-
-	rec := testutil.GET(t, e, "/permissions/tree", h)
-	require.Equal(t, http.StatusOK, rec.Code)
-
-	tree := testutil.ParseResponse[[]models.PermissionTreeNode](t, rec)
-	// Should have at least the seeded tab permissions
-	assert.GreaterOrEqual(t, len(tree), 4)
-}
-
 func TestPermissions_AutoGenerate(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

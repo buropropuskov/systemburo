@@ -3,8 +3,10 @@
     <!-- Backdrop для мобильного drawer'а -->
     <transition name="nav-backdrop">
       <div
-        v-if="mobileOpen"
+        v-if="mobileOpen || swipeOffset > 0"
         class="nav-menu__backdrop"
+        :class="{ 'nav-menu__backdrop--dragging': swipeDragging }"
+        :style="swipeDragging ? { opacity: swipeBackdropOpacity } : null"
         @click="closeMobile"
       />
     </transition>
@@ -19,8 +21,10 @@
         'nav-menu--pinned': uiStore.sidebarExpanded,
         'nav-menu--hidden': uiStore.sidebarHidden,
         'nav-menu--mobile-open': mobileOpen,
+        'nav-menu--dragging': swipeDragging,
         'nav-menu--banned': isBanned,
       }"
+      :style="swipeOffset ? { transform: `translateX(min(0px, calc(-100% + ${swipeOffset}px)))` } : null"
       @mouseenter="expandMenu"
       @mouseleave="collapseMenu"
     >
@@ -111,22 +115,6 @@
           </div>
         </div>
 
-        <!-- Поиск: место зарезервировано всегда (в свёрнутом - лупа по центру). -->
-        <div class="nav-search-row">
-          <span class="nav-search-ic">
-            <NavIcon
-              name="search"
-              :size="16"
-            />
-          </span>
-          <input
-            v-model="searchQuery"
-            type="text"
-            class="nav-search"
-            placeholder="Поиск..."
-            aria-label="Поиск по меню"
-          >
-        </div>
 
         <div class="nav-scroll">
           <!-- ЗАЯВКИ -->
@@ -138,7 +126,7 @@
               ЗАЯВКИ
             </div>
             <div
-              v-show="matches('Центр заявок') && can('page.center')"
+              v-show="can('page.center')"
               class="nav-item"
               :class="{ active: isActive('/center') }"
               data-testid="nav-link-center"
@@ -166,7 +154,7 @@
               </span>
             </div>
             <div
-              v-show="matches('Новая заявка') && can('page.new_application')"
+              v-show="can('page.new_application')"
               class="nav-item"
               :class="{ active: isActive('/new-application') }"
               data-testid="nav-link-new-application"
@@ -180,7 +168,7 @@
               <span class="nav-text">Новая заявка</span>
             </div>
             <div
-              v-show="authStore.canViewAccessibleAttachments && matches('Доступные мне')"
+              v-show="authStore.canViewAccessibleAttachments"
               class="nav-item"
               :class="{ active: isActive('/accessible-attachments') }"
               data-testid="nav-link-accessible-attachments"
@@ -286,7 +274,7 @@
                  «Таблиц» - их нет у большинства ролей). -->
             <div data-testid="ob-nav-group-data">
               <div
-                v-show="matches('Сотрудники') && can('page.employees')"
+                v-show="can('page.employees')"
                 class="nav-item"
                 :class="{ active: isActive('/employeesview') }"
                 data-testid="nav-link-employees"
@@ -301,7 +289,7 @@
               </div>
 
               <div
-                v-show="matches('Автомобили') && can('page.cars')"
+                v-show="can('page.cars')"
                 class="nav-item"
                 :class="{ active: isActive('/carsview') }"
                 data-testid="nav-link-cars"
@@ -326,7 +314,7 @@
               АНАЛИТИКА
             </div>
             <div
-              v-show="matches('Аналитика') && can('page.statistics')"
+              v-show="can('page.statistics')"
               class="nav-item"
               :class="{ active: isActive('/analytics') }"
               data-testid="nav-link-analytics"
@@ -352,7 +340,7 @@
               АДМИНИСТРИРОВАНИЕ
             </div>
             <div
-              v-show="matches('Администрирование')"
+              v-show="canSeeAdmin"
               class="nav-item has-dropdown"
               :class="{ active: adminOpen }"
               data-testid="nav-link-admin"
@@ -409,7 +397,7 @@
             ПОЛЬЗОВАТЕЛЬ
           </div>
           <div
-            v-show="matches('Обзор и новости') && can('page.news')"
+            v-show="can('page.news')"
             class="nav-item"
             :class="{ active: isActive('/news') }"
             data-testid="nav-link-news"
@@ -423,7 +411,7 @@
             <span class="nav-text">Обзор и новости</span>
           </div>
           <div
-            v-show="matches('Личный кабинет') && can('page.personal_cabinet')"
+            v-show="can('page.personal_cabinet')"
             class="nav-item"
             :class="{ active: isActive('/personal-cabinet') }"
             data-testid="nav-link-cabinet"
@@ -438,7 +426,7 @@
           </div>
           <!-- Тёмная тема: тумблер, тем осталось две (#1415) -->
           <div
-            v-show="matches('Тёмная тема') || matches('Оформление')"
+            v-show="true"
             class="nav-item nav-item--theme"
             data-testid="nav-theme-toggle"
             role="switch"
@@ -464,7 +452,6 @@
           </div>
 
           <div
-            v-show="matches('Выйти')"
             class="nav-item"
             data-testid="nav-button-logout"
             @click="logout"
@@ -530,7 +517,10 @@
           <span class="admin-count">{{ adminCountLabel }}</span>
         </div>
 
-        <div class="admin-search-row">
+        <div
+          class="admin-search-row"
+          data-testid="ob-admin-search"
+        >
           <span class="admin-search-ic">
             <NavIcon
               name="search"
@@ -546,7 +536,10 @@
           >
         </div>
 
-        <div class="admin-column__scroll">
+        <div
+          class="admin-column__scroll"
+          data-testid="ob-admin-groups"
+        >
           <div
             v-for="group in filteredAdminGroups"
             :key="group.title"
@@ -634,6 +627,7 @@
 </template>
 
 <script>
+import { getCurrentInstance } from 'vue'
 import { apiRequest } from '@/api/client'
 import { getUnreadCount } from '@/api/applications'
 import { getFeedbackStats } from '@/api/feedback'
@@ -641,9 +635,13 @@ import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { useSoundStore } from '@/stores/sound'
 import { usePermissionsStore } from '@/stores/permissions'
+import { ADMIN_GROUPS } from '@/constants/navSections';
 import { useThemeStore } from '@/stores/theme'
+import { useOnboardingStore } from '@/stores/onboarding'
 import { playPreset } from '@/utils/notificationSound'
 import eventStream from '@/services/eventStream'
+import { useNarrowScreen } from '@/composables/useNarrowScreen'
+import { useEdgeSwipeOpen } from '@/composables/useEdgeSwipeOpen'
 import NavIcon from '@/components/icons/NavIcon.vue'
 import SwitchToggle from '@/components/ui/SwitchToggle.vue'
 import FeedbackModal from '@/components/FeedbackModal.vue'
@@ -652,6 +650,8 @@ import FeedbackModal from '@/components/FeedbackModal.vue'
 // модалки обратной связи, иначе уезжающая панель (z-index 10000) секунду рисуется
 // поверх появляющегося overlay модалки (9999) и подрезает форму.
 const DRAWER_CLOSE_MS = 300
+// Номинальная ширина drawer'а из мобильного @media: на неё опирается и свайп открытия.
+const DRAWER_WIDTH = 280
 
 export default {
   name: 'NavMenu',
@@ -666,7 +666,26 @@ export default {
     const soundStore = useSoundStore()
     const permissionsStore = usePermissionsStore()
     const themeStore = useThemeStore()
-    return { authStore, uiStore, soundStore, permissionsStore, themeStore }
+    // Онбординг-тур просит раскрыть колонку Админки на своих шагах (reveal.open).
+    const onboardingStore = useOnboardingStore()
+    // Свайп открытия drawer'а (W4.1). Состояние drawer'а живёт в data(), поэтому до
+    // него дотягиваемся через инстанс: колбэки жеста зовутся уже после монтирования,
+    // когда и поля, и методы на месте.
+    const instance = getCurrentInstance()
+    const { isNarrow } = useNarrowScreen()
+    const drawerSwipe = useEdgeSwipeOpen(() => instance.proxy.openMobile(), {
+      width: DRAWER_WIDTH,
+      // Открытая модалка блокирует прокрутку фона инлайн-стилем - там свайп вправо
+      // принадлежит ей (лист, карусель внутри), а не навигации под ней.
+      isEnabled: () => isNarrow.value
+        && !instance.proxy.mobileOpen
+        && document.body.style.overflow !== 'hidden',
+    })
+    return {
+      authStore, uiStore, soundStore, permissionsStore, themeStore, onboardingStore,
+      swipeOffset: drawerSwipe.offset,
+      swipeDragging: drawerSwipe.isDragging,
+    }
   },
   data() {
     return {
@@ -709,63 +728,31 @@ export default {
       // «Сообщить о проблеме» из drawer'а (W3.3): модалка та же, что в шапке.
       showFeedbackModal: false,
       isBanned: false,
-      searchQuery: '',
       adminOpen: false,
+      // Колонку раскрыл тур (reveal), а не пользователь - только такую он и закроет.
+      adminOpenedByTour: false,
       adminSearch: '',
       // Разделы Админки по группам мокапа (#510). permission - ключ права на
       // раздел (совпадает с meta.permission роутов, #187 Фаза 2): пункт виден
-      // только если can(permission). super/admin проходят, Техработы - super-only.
-      adminGroups: [
-        {
-          title: 'Доступ и роли',
-          items: [
-            { label: 'Пользователи', icon: 'users', path: '/admin/users', permission: 'page.admin.users' },
-            { label: 'Роли', icon: 'roles', path: '/admin/roles', permission: 'permission.audit.manage' },
-            { label: 'Группы прав', icon: 'permission-groups', path: '/admin/permission-groups', permission: 'permission.audit.manage' },
-            { label: 'Журнал отказов', icon: 'access-denials', path: '/admin/access-denials', permission: 'permission.audit.read' },
-            { label: 'Доступ к перс. данным', icon: 'access-denials', path: '/admin/pd-audit', permission: 'page.admin.pd_audit' },
-            { label: 'Чёрный список', icon: 'blacklist', path: '/admin/blacklist', permission: 'page.admin.blacklist' },
-          ],
-        },
-        {
-          title: 'Справочники',
-          items: [
-            { label: 'Организации', icon: 'organizations', path: '/admin/organizations', permission: 'page.admin.directories' },
-            { label: 'Компании', icon: 'companies', path: '/admin/companies', permission: 'page.admin.directories' },
-            { label: 'Места разгрузки', icon: 'unload-places', path: '/admin/unload-places', permission: 'page.admin.directories' },
-            { label: 'Форматы номеров', icon: 'number-formats', path: '/admin/number-formats', permission: 'page.admin.directories' },
-            { label: 'Гражданства', icon: 'citizenship', path: '/admin/citizenship', permission: 'page.admin.directories' },
-            { label: 'Марки авто', icon: 'marks', path: '/admin/marks', permission: 'page.admin.directories' },
-            { label: 'Типы вложений', icon: 'attachment-types', path: '/admin/attachment-types', permission: 'page.admin.directories' },
-            { label: 'Типы пользователей', icon: 'user-types', path: '/admin/user-types', permission: 'page.admin.directories' },
-            { label: 'Принимающие', icon: 'approvers', path: '/admin/approvers', permission: 'page.admin.directories' },
-            { label: 'Документы', icon: 'documents', path: '/admin/documents', permission: 'page.admin.directories' },
-            { label: 'Новости и объявления', icon: 'news', path: '/admin/news', permission: 'page.admin.directories' },
-            { label: 'Руководство', icon: 'guide', path: '/admin/guide', permission: 'page.admin' },
-          ],
-        },
-        {
-          title: 'Система',
-          items: [
-            { label: 'Настройки', icon: 'settings', path: '/admin/settings', permission: 'page.admin' },
-            { label: 'Конструктор таблиц', icon: 'table-constructor', path: '/table-constructor', permission: 'page.admin.tables_constructor' },
-            { label: 'Техработы', icon: 'system-control', path: '/admin/system-control', permission: 'page.admin.system_control' },
-          ],
-        },
-        {
-          title: 'Аудит и связь',
-          items: [
-            { label: 'Обратная связь', icon: 'feedback', path: '/admin/feedback', permission: 'page.admin.feedback' },
-            { label: 'Мониторинг запросов', icon: 'requests', path: '/admin/requests', permission: 'page.admin.monitoring' },
-          ],
-        },
-      ],
+      // только если can(permission). super/admin проходят, Техработы - super-only
+      // (бэкенд денаит ключ в admin-режиме через каталог прав). Настройки (#7) -
+      // точечный ключ page.admin.settings, не super-only: обычным админам его
+      // выдаёт adminAll, точечно снимается личным deny-override.
+      adminGroups: ADMIN_GROUPS,
     };
   },
   computed: {
     /** Тумблер в меню: включён на тёмной теме (#1415). */
     isDarkTheme() {
       return this.themeStore.current === 'dark';
+    },
+    /**
+     * Затемнение густеет вместе с вытянутой панелью. Считаем от номинальной ширины
+     * drawer'а: на узком экране он упирается в 85vw и доходит до края раньше, поэтому
+     * значение подрезаем единицей.
+     */
+    swipeBackdropOpacity() {
+      return Math.min(1, this.swipeOffset / DRAWER_WIDTH);
     },
     // Рельс раскрыт если закреплён (пин) или временно по hover. В full-hide
     // не раскрываем - рельс схлопнут в 0. При открытой Админке рельс
@@ -789,7 +776,10 @@ export default {
     // Пустые группы отбрасываем. Поверх этого работают поиск и счётчик.
     permittedAdminGroups() {
       return this.adminGroups
-        .map((g) => ({ ...g, items: g.items.filter((i) => this.can(i.permission)) }))
+        .map((g) => ({
+          ...g,
+          items: g.items.filter((i) => this.can(i.permission)),
+        }))
         .filter((g) => g.items.length > 0);
     },
     // Видимость пункта/секции «Администрирование»: хотя бы один доступный раздел.
@@ -816,20 +806,11 @@ export default {
       else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) word = 'раздела';
       return `${n} ${word}`;
     },
-    // Активен ли поиск по рельсу.
-    searchActive() {
-      return this.searchQuery.trim().length > 0;
-    },
-    // Таблицы под правами (#187 Фаза 2): сначала по гранту table.<name>.view
-    // (super/admin видят все), затем по поиску рельса (по отображаемому имени).
+    // Таблицы под правами (#187 Фаза 2): по гранту table.<name>.view
+    // (super/admin видят все). Поиск по таблицам живёт в окне сквозного поиска.
     filteredTables() {
-      const permitted = this.systemTables.filter(
+      return this.systemTables.filter(
         (t) => this.can(`table.${this.getTableName(t)}.view`),
-      );
-      const q = this.searchQuery.trim().toLowerCase();
-      if (!q) return permitted;
-      return permitted.filter(
-        (t) => this.getTableDisplayName(t).toLowerCase().includes(q),
       );
     },
     // Таблицы, разложенные по типу: машины и люди - иначе на нескольких постах
@@ -855,39 +836,25 @@ export default {
     // Пункт «Таблицы» виден если есть доступные таблицы; при поиске - ещё и если
     // совпала его метка. Нет доступных таблиц (нет грантов) - пункт скрыт целиком.
     tablesItemVisible() {
-      if (this.filteredTables.length > 0) return true;
-      return this.searchActive && this.matches('Таблицы');
+      return this.filteredTables.length > 0;
     },
-    // При поиске с совпавшими таблицами дропдаун раскрывается сам, чтобы показать
-    // найденное; иначе - по ручному клику.
     tablesDropdownOpen() {
-      if (this.searchActive && this.filteredTables.length > 0) return true;
       return this.dropdowns.tables;
     },
-    // Видимость секций при поиске: пустую группу (все пункты отфильтрованы) прячем
-    // целиком, чтобы результат был плоским, без осиротевших заголовков. Без поиска
-    // все секции видны.
-    // Видимость секции = есть хотя бы один доступный (по правам) и совпавший с
-    // поиском пункт. v(label,key) = matches(label) && can(key) - объединяет поиск
-    // и право. Пустые секции (все пункты недоступны/отфильтрованы) скрываются
-    // целиком, без осиротевшего заголовка.
+    // Видимость секции = есть хотя бы один доступный по правам пункт. Пустая секция
+    // скрывается целиком, без осиротевшего заголовка.
     sectionVisible() {
-      const v = (label, key) => this.matches(label) && this.can(key);
       return {
-        requests: v('Центр заявок', 'page.center')
-          || v('Новая заявка', 'page.new_application')
-          || (this.authStore.canViewAccessibleAttachments && this.matches('Доступные мне')),
+        requests: this.can('page.center')
+          || this.can('page.new_application')
+          || this.authStore.canViewAccessibleAttachments,
         data: this.tablesItemVisible
-          || v('Сотрудники', 'page.employees')
-          || v('Автомобили', 'page.cars'),
-        analytics: v('Аналитика', 'page.statistics'),
-        admin: this.canSeeAdmin && this.matches('Администрирование'),
-        // «Выйти» и «Оформление» доступны всегда (право не требуется) - секция
-        // пользователя видна.
-        user: v('Обзор и новости', 'page.news')
-          || v('Личный кабинет', 'page.personal_cabinet')
-          || this.matches('Оформление')
-          || this.matches('Выйти'),
+          || this.can('page.employees')
+          || this.can('page.cars'),
+        analytics: this.can('page.statistics'),
+        admin: this.canSeeAdmin,
+        // «Выйти» и «Оформление» доступны всегда - секция пользователя видна всегда.
+        user: true,
       };
     },
   },
@@ -902,6 +869,19 @@ export default {
     },
     'uiStore.sidebarExpanded': 'syncContentMargin',
     'uiStore.sidebarHidden': 'syncContentMargin',
+    // Онбординг просит показать колонку Админки. Закрываем только то, что открыли
+    // сами: колонку, уже открытую пользователем, тур схлопывать не должен.
+    'onboardingStore.revealOpen'(target) {
+      if (target === 'admin-column') {
+        if (!this.adminOpen) {
+          this.adminOpenedByTour = true;
+          this.toggleAdmin();
+        }
+      } else if (this.adminOpenedByTour) {
+        this.adminOpenedByTour = false;
+        this.closeAdmin();
+      }
+    },
   },
   async mounted() {
     document.body.classList.add('auth-active');
@@ -994,12 +974,6 @@ export default {
       if (!tableName) return false;
       return this.$route.params.tableName === tableName;
     },
-    // Клиентский фильтр пунктов рельса по подстроке (поиск в развёрнутом виде).
-    matches(label) {
-      const q = this.searchQuery.trim().toLowerCase();
-      if (!q) return true;
-      return label.toLowerCase().includes(q);
-    },
     togglePin() {
       this.uiStore.toggleSidebarPinned();
       // Снимаем временный hover-стейт, чтобы не конфликтовал с пином.
@@ -1031,6 +1005,8 @@ export default {
     closeAdmin() {
       this.adminOpen = false;
       this.adminSearch = '';
+      // Колонку закрыли (Esc, клик вне, смена раздела) - тур больше не «владелец».
+      this.adminOpenedByTour = false;
     },
     navigateToAdminPath(path) {
       this.$router.push(path);
@@ -1052,6 +1028,13 @@ export default {
       this.mobileOpen = !this.mobileOpen;
       // Блокируем scroll body когда drawer открыт
       document.body.classList.toggle('nav-drawer-open', this.mobileOpen);
+    },
+    // Открытие свайпом (W4.1): жест уже дотянул панель до порога, дальше её доводит
+    // обычная анимация - как если бы нажали бургер.
+    openMobile() {
+      if (this.mobileOpen) return;
+      this.mobileOpen = true;
+      document.body.classList.add('nav-drawer-open');
     },
     closeMobile() {
       if (!this.mobileOpen) return;
@@ -1522,56 +1505,6 @@ export default {
 .nav-ctrl--pin.is-pinned {
   color: var(--nav-primary);
   background: var(--nav-primary-soft);
-}
-
-/* Поиск: строка с зарезервированной высотой (всегда занимает место - не двигает
-   пункты при разворачивании). В свёрнутом - только лупа по центру. */
-.nav-search-row {
-  display: flex;
-  align-items: center;
-  position: relative;
-  height: 38px;
-  margin: 8px 7px;
-  flex-shrink: 0;
-}
-
-.nav-search-ic {
-  position: absolute;
-  left: 10px;
-  display: flex;
-  align-items: center;
-  color: var(--nav-text-faint);
-  pointer-events: none;
-  z-index: 1;
-}
-
-.nav-search {
-  width: 100%;
-  height: 100%;
-  padding: 0 12px 0 34px;
-  border: 1px solid var(--nav-border);
-  border-radius: var(--radius-md, 15px);
-  background: var(--nav-bg);
-  font-family: 'Montserrat', sans-serif;
-  font-size: 13px;
-  color: var(--nav-text);
-  outline: none;
-  opacity: 0;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
-}
-
-.nav-menu.expanded .nav-search {
-  opacity: 1;
-  transition-delay: 0.05s;
-}
-
-.nav-search::placeholder {
-  color: var(--nav-text-muted);
-}
-
-.nav-search:focus {
-  border-color: var(--nav-primary);
-  box-shadow: 0 0 0 3px var(--nav-primary-soft);
 }
 
 /* Прокручиваемая середина (секции выше ПОЛЬЗОВАТЕЛЬ). */
@@ -2322,6 +2255,13 @@ export default {
     transform: translateX(0);
   }
 
+  /* Пока панель идёт за пальцем, transition только мешает - она должна стоять ровно
+     там, где палец, а не догонять его. По отпусканию класс снимается, и панель
+     доезжает обычной кривой от текущего места. */
+  .nav-menu.nav-menu--dragging {
+    transition: none;
+  }
+
   /* padding-top держит запас под pill «Сообщить о проблеме» (top:12 + height:34 = 46)
      + отступ вниз, чтобы бренд/пункты не липли к кнопке. */
   .nav-menu .nav-content {
@@ -2332,7 +2272,6 @@ export default {
   /* В drawer'е всё всегда развёрнуто - hover/collapse не работают на touch.
      Перебиваем свёрнутые desktop-оверрайды. */
   .nav-menu .nav-brand__name,
-  .nav-menu .nav-search,
   .nav-menu .nav-text,
   .nav-menu .section-title,
   .nav-menu .dropdown-arrow,
@@ -2340,6 +2279,14 @@ export default {
     opacity: 1 !important;
     transform: none !important;
     pointer-events: auto;
+  }
+
+  /* Тумблер темы проявляется по .expanded, а drawer этот класс не получает
+     (expandMenu гейтит hover-разворот на мобилке) - показываем отдельно.
+     pointer-events остаются выключены: клик ловит вся строка. */
+  .nav-menu .nav-theme-switch {
+    opacity: 1 !important;
+    transform: none !important;
   }
 
   /* Пин/сворачивание рельса бессмысленны в тач-drawer'е (B.1, W3.3) - убираем. */
@@ -2358,7 +2305,9 @@ export default {
   }
 
   .nav-menu .nav-item.has-dropdown,
-  .nav-menu:not(.expanded) .nav-item.has-dropdown {
+  .nav-menu:not(.expanded) .nav-item.has-dropdown,
+  .nav-menu .nav-item--theme,
+  .nav-menu:not(.expanded) .nav-item--theme {
     justify-content: space-between;
   }
 
@@ -2379,19 +2328,6 @@ export default {
     padding: 14px 12px 8px;
   }
 
-  .nav-menu .nav-search-row,
-  .nav-menu:not(.expanded) .nav-search-row {
-    justify-content: flex-start;
-    margin: 0 12px 8px;
-  }
-
-  .nav-menu .nav-search-ic,
-  .nav-menu:not(.expanded) .nav-search-ic {
-    position: absolute;
-    left: 11px;
-    width: auto;
-  }
-
   .nav-menu:not(.expanded) .nav-scroll {
     overflow-y: auto;
   }
@@ -2407,6 +2343,12 @@ export default {
     inset: 0;
     background: var(--overlay);
     z-index: 9999;
+  }
+
+  /* Затемнение густеет ровно настолько, насколько вытянута панель, поэтому догонять
+     палец переходом ему нельзя - только мгновенное значение. */
+  .nav-menu__backdrop--dragging {
+    transition: none;
   }
 
   .nav-menu__close {
@@ -2453,14 +2395,6 @@ export default {
   .nav-menu .nav-ctrl {
     width: 44px;
     height: 44px;
-  }
-
-  .nav-menu .nav-search-row {
-    height: 44px;
-  }
-
-  .nav-menu .nav-search {
-    height: 100%;
   }
 
   .nav-menu .dropdown-item {

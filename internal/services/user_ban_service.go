@@ -2,7 +2,9 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -19,11 +21,12 @@ import (
 // доступ на следующем `/refresh` -- это работает в связке с frontend
 // polling по `/me/permissions`.
 type UserBanService struct {
-	db                *gorm.DB
-	resolver          *PermissionResolver
-	banCache          *BanCheckService
-	recorder          AuditRecorder
-	realtimePublisher realtime.Publisher
+	db                  *gorm.DB
+	resolver            *PermissionResolver
+	banCache            *BanCheckService
+	recorder            AuditRecorder
+	realtimePublisher   realtime.Publisher
+	notificationService NotificationService
 }
 
 // UserBanServiceOption конфигурирует UserBanService при создании.
@@ -35,6 +38,13 @@ type UserBanServiceOption func(*UserBanService)
 // Опционально, best-effort nil-safe: только сигнал, на сам бан не влияет.
 func WithBanRealtimePublisher(p realtime.Publisher) UserBanServiceOption {
 	return func(s *UserBanService) { s.realtimePublisher = p }
+}
+
+// WithBanNotifications подключает персистентные уведомления о блокировке и
+// разблокировке учётки (#1748 S3). Опционально, nil-safe: без неё уведомления
+// просто не создаются (тесты, offline) - на сам бан не влияет.
+func WithBanNotifications(ns NotificationService) UserBanServiceOption {
+	return func(s *UserBanService) { s.notificationService = ns }
 }
 
 // NewUserBanService конструирует сервис. banCache опционален: если nil,
@@ -59,6 +69,72 @@ func (s *UserBanService) notifyBanChanged(targetUserID int, eventType string) {
 		Type:  eventType,
 		Scope: fmt.Sprintf("user:%d", targetUserID),
 	})
+}
+
+// notifyBanned создаёт персистентное уведомление владельцу заблокированной учётки
+// (#1748 S3). Отдельно от notifyBanChanged (тот только толкает real-time сигнал
+// перечитать права #840) - эта запись остаётся в ленте уведомлений и объясняет
+// причину блокировки. targetUserID==actorUserID отсекается уже в Ban() (самобан
+// запрещён раньше), проверка здесь - дополнительная защита от несогласованного
+// вызова в будущем. Best-effort: ошибка не должна откатывать сам бан.
+func (s *UserBanService) notifyBanned(ctx context.Context, targetUserID, actorUserID int, reason string) {
+	if s.notificationService == nil || targetUserID == actorUserID {
+		return
+	}
+
+	// Кто именно заблокировал, в тексте не называем: человеку важен факт и причина,
+	// а не должность того, кто нажал кнопку. Единое правило для всех уведомлений об
+	// учётной записи - см. смену пароля и роли (#974).
+	message := "Ваша учётная запись заблокирована."
+	if reason != "" {
+		message = fmt.Sprintf("Ваша учётная запись заблокирована. Причина: %s", reason)
+	}
+
+	dataPayload := map[string]any{
+		"reason":    reason,
+		"banned_at": time.Now().UTC().Format(time.RFC3339),
+		"banned_by": actorUserID,
+	}
+	dataBytes, err := json.Marshal(dataPayload)
+	if err != nil {
+		slog.Warn("не удалось сериализовать payload уведомления о блокировке учётки", "error", err)
+		return
+	}
+	dataStr := string(dataBytes)
+
+	if err := s.notificationService.CreateForUser(
+		ctx, targetUserID, NotificationTypeUserBanned,
+		"Учётная запись заблокирована", message, &dataStr,
+	); err != nil {
+		slog.Warn("не удалось создать уведомление о блокировке учётки", "user_id", targetUserID, "error", err)
+	}
+}
+
+// notifyUnbanned - симметричная пара notifyBanned для снятия блокировки.
+// reason - причина СНЯТОЙ блокировки (для контекста в data), не новая.
+func (s *UserBanService) notifyUnbanned(ctx context.Context, targetUserID, actorUserID int, reason string) {
+	if s.notificationService == nil || targetUserID == actorUserID {
+		return
+	}
+
+	dataPayload := map[string]any{
+		"reason":      reason,
+		"unbanned_at": time.Now().UTC().Format(time.RFC3339),
+		"unbanned_by": actorUserID,
+	}
+	dataBytes, err := json.Marshal(dataPayload)
+	if err != nil {
+		slog.Warn("не удалось сериализовать payload уведомления о разблокировке учётки", "error", err)
+		return
+	}
+	dataStr := string(dataBytes)
+
+	if err := s.notificationService.CreateForUser(
+		ctx, targetUserID, NotificationTypeUserUnbanned,
+		"Учётная запись разблокирована", "Доступ к вашей учётной записи восстановлен.", &dataStr,
+	); err != nil {
+		slog.Warn("не удалось создать уведомление о разблокировке учётки", "user_id", targetUserID, "error", err)
+	}
 }
 
 // Ban блокирует пользователя и отзывает его активные refresh-токены.
@@ -111,6 +187,7 @@ func (s *UserBanService) Ban(ctx context.Context, targetUserID, actorUserID int,
 		s.recorder.Log(ctx, nil, models.AuditEntityUser, &targetUserID, models.UserActionBanned, &actorUserID,
 			map[string]any{"reason": trimmedReason})
 		s.notifyBanChanged(targetUserID, "user.banned")
+		s.notifyBanned(ctx, targetUserID, actorUserID, trimmedReason)
 	}
 	return err
 }
@@ -204,5 +281,10 @@ func (s *UserBanService) Unban(ctx context.Context, targetUserID, actorUserID in
 	}
 	s.recorder.Log(ctx, nil, models.AuditEntityUser, &targetUserID, models.UserActionUnbanned, &actorUserID, d)
 	s.notifyBanChanged(targetUserID, "user.unbanned")
+	unbannedReason := ""
+	if hasPrev && prev.BanReason != nil {
+		unbannedReason = *prev.BanReason
+	}
+	s.notifyUnbanned(ctx, targetUserID, actorUserID, unbannedReason)
 	return nil
 }

@@ -19,11 +19,6 @@ export async function updateUserPermissions(userId, data) {
   return res.json();
 }
 
-export async function getPermissionTree() {
-  const res = await apiRequest('/permissions/tree');
-  return res.json();
-}
-
 // Эффективные права целевого юзера с источником (роль/группа/override) для
 // правого столбца UserAccessModal. Формат: {mode, permissions[{key,value,source}],
 // denied, banned, ban_reason}. Только super-admin (#187 Фаза 3).

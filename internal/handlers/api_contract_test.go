@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/require"
@@ -200,6 +201,56 @@ func TestAPIContract_ApplicationDetail(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	assertResponseShape(t, rec, "application_detail.golden")
+}
+
+// Контракт GET /applications/:id/details - расширенной детали заявки. Не путать с
+// application_detail.golden: тот бьёт по GET /applications/:id, и набор ключей у ручек
+// разный. Раунд дополнения (#1685) заводится намеренно: при отсутствии открытого раунда
+// open_supplement приезжает null, и форма вложенного объекта осталась бы незафиксированной.
+func TestAPIContract_ApplicationDetails(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "contract_app_details", "pass123", 1, td.OrgID, td.CompanyID)
+
+	uaID := seedUniqueAttachment(t, db, "cars", fmt.Sprintf("contract_dtls_%s", t.Name()), "Details Template")
+	body := fmt.Sprintf(`{
+		"message": "details test",
+		"organization": "Test Organization",
+		"responsible_person": "Test",
+		"contact_phone": "+79001234567",
+		"data_approval": true,
+		"attachments": [{
+			"attachment_type": "cars",
+			"attachment_name": "car_tmpl",
+			"attachment_display_name": "Details Template",
+			"unique_attachment_id": %d,
+			"entry_date_from": "2026-04-01",
+			"entry_date_to": "2099-12-31",
+			"entry_time_from": "08:00",
+			"entry_time_to": "18:00",
+			"data": {
+				"vehicles": [{"car_number": "A003AA777", "car_brand": "TestDetails"}]
+			}
+		}]
+	}`, uaID)
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, "seed app: %s", rec.Body.String())
+
+	var env map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env))
+	data := env["data"].(map[string]interface{})
+	appID := int(data["application_id"].(float64))
+
+	comment := "Добавили машину"
+	suppRound(t, db, appID, getUserID(t, db, "contract_app_details"), 1, models.SupplementPending, &comment)
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/details", appID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	assertResponseShape(t, rec, "application_details.golden")
 }
 
 func TestAPIContract_UsersMe(t *testing.T) {

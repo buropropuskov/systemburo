@@ -27,7 +27,15 @@ import OnlineUsersModal from '../OnlineUsersModal.vue';
 
 const mountDashboard = () => mount(StatisticsDashboard, {
   props: { from: '2026-06-01', to: '2026-06-07' },
-  global: { stubs: { AnalyticsAreaChart: true, AnalyticsBarChart: true, AnalyticsDonutChart: true, RefreshButton: true, OnlineUsersModal: true } },
+  global: {
+    // PushAdoptionSummary (#974) стоит рядом с остальными тяжёлыми детьми -
+    // как и они, стабится: своя загрузка (api/webPush) не замокана в этом
+    // файле, тестируется отдельно в PushAdoptionSummary.spec.js.
+    stubs: {
+      AnalyticsAreaChart: true, AnalyticsBarChart: true, AnalyticsDonutChart: true,
+      RefreshButton: true, OnlineUsersModal: true, PushAdoptionSummary: true,
+    },
+  },
 });
 
 const tileByText = (wrapper, label) =>
@@ -97,6 +105,37 @@ describe('StatisticsDashboard — плитки', () => {
     expect(text).toContain('Вложения');
     expect(text).toContain('Паспорт');
     expect(text).toContain('Виза');
+  });
+
+  it('плитки идут по имени, а не в порядке ответа', async () => {
+    // Ответ отсортирован по убыванию количества, и на другом периоде состав
+    // ненулевых меняется: плитки переезжали местами, а перемещённые вдобавок
+    // переигрывали анимацию появления.
+    state.summary = {
+      by_attachment_type: [
+        { name: 'Разовый пропуск', count: 9 },
+        { name: 'Автозаявка', count: 4 },
+        { name: 'Заявка на ввоз', count: 0 },
+      ],
+    };
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    const labels = wrapper.findAll('.an-panel__tiles > .dashboard__tile')
+      .map((el) => el.find('.dashboard__tile-label').text());
+    expect(labels).toEqual(['Автозаявка', 'Заявка на ввоз', 'Разовый пропуск']);
+  });
+
+  it('длинный список типов рендерит плитку на каждый тип', async () => {
+    // Типы вложений заводит администратор: их бывает и десяток. Раскладку в две
+    // колонки на таком списке стережёт замок в assets/__tests__.
+    state.summary = {
+      by_attachment_type: Array.from({ length: 10 }, (_, i) => ({ name: `Тип ${i + 1}`, count: i })),
+    };
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    expect(wrapper.findAll('.an-panel__tiles > .dashboard__tile')).toHaveLength(10);
   });
 });
 

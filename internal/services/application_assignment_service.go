@@ -48,8 +48,8 @@ type AssignElementTablesRequest struct {
 // AssignCarUnloadPlacesRequest - назначение мест разгрузки машинам заявки.
 // У сотрудников мест разгрузки нет, поэтому запрос только про машины.
 type AssignCarUnloadPlacesRequest struct {
-	CarIDs   []int `json:"car_ids" validate:"required,min=1"`
-	PlaceIDs []int `json:"place_ids"`
+	CarIDs   []int  `json:"car_ids" validate:"required,min=1"`
+	PlaceIDs []int  `json:"place_ids"`
 	Mode     string `json:"mode" validate:"required,oneof=add replace"`
 }
 
@@ -192,7 +192,7 @@ func (s *applicationService) AssignElementTables(ctx context.Context, username s
 		return err
 	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, elementID := range elementIDs {
 			var current []int
 			if err := tx.Raw(fmt.Sprintf("SELECT table_id FROM %s WHERE %s = ?", linkTable, linkColumn), elementID).
@@ -231,6 +231,14 @@ func (s *applicationService) AssignElementTables(ctx context.Context, username s
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	// Слепок заявки хранит посты каждой машины/сотрудника (#1615, B1): назначение
+	// постов их меняет и на диске должно обновиться.
+	s.enqueueArchiveExport(applicationID, BlankExportReasonUpdate)
+	return nil
 }
 
 // AssignCarUnloadPlaces добавляет или снимает места разгрузки у машин заявки.
@@ -255,7 +263,7 @@ func (s *applicationService) AssignCarUnloadPlaces(ctx context.Context, username
 		return err
 	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, carID := range carIDs {
 			var current []int
 			if err := tx.Raw("SELECT unload_place_id FROM car_unload_places WHERE car_id = ? ORDER BY order_index", carID).
@@ -291,6 +299,13 @@ func (s *applicationService) AssignCarUnloadPlaces(ctx context.Context, username
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	// Слепок заявки хранит места разгрузки каждой машины (#1615, B1).
+	s.enqueueArchiveExport(applicationID, BlankExportReasonUpdate)
+	return nil
 }
 
 // recordUnloadPlacesChange пишет в историю машины смену набора мест разгрузки

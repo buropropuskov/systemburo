@@ -274,7 +274,7 @@ describe('оформление: кнопки и теги', () => {
   it('рамка тега цвета текста включается только в тёмной теме', () => {
     // В тёмной приглушённая color-mix-рамка Badge сливалась с подложкой, в светлой
     // она к месту - там вид остаётся прежним.
-    for (const file of ['../../views/ApplicationsCenter.vue', '../../components/UserApplications.vue']) {
+    for (const file of ['../../components/ApplicationTag.vue', '../../components/UserApplications.vue']) {
       const css = read(file)
       const darkRule = css.match(/\[data-theme="dark"\]\s+\.rt-tag\s*\{([^}]*)\}/)
       expect(darkRule, `${file}: нет правила рамки для тёмной темы`).not.toBeNull()
@@ -307,13 +307,15 @@ describe('страницы-заглушки следуют теме', () => {
     }
   })
 
-  it('декоративная сетка тонируется акцентом темы', () => {
+  it('декоративная сетка тонируется переменной темы', () => {
     for (const rel of pages) {
       const css = readFileSync(resolve(__dirname, rel), 'utf8')
       const grid = css.match(/background-image:\s*\n?\s*linear-gradient[\s\S]*?;/)
       expect(grid, `${rel}: не найдена сетка`).not.toBeNull()
       expect(grid[0], `${rel}: сетка прошита синим литералом`).not.toMatch(/rgba?\(\s*79/)
-      expect(grid[0]).toContain('var(--accent)')
+      // Цвет линий приходит из --decor-line: в светлой теме это примесь акцента,
+      // в тёмной - нейтральная рамка (акцентная сетка красила весь экран синим).
+      expect(grid[0]).toMatch(/var\(--decor-line\)|var\(--accent\)/)
     }
   })
 })

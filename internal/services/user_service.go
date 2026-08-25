@@ -18,14 +18,28 @@ import (
 // UserService — интерфейс бизнес-логики управления пользователями (admin-only).
 type UserService interface {
 	// Create создаёт нового пользователя (admin-only). callerUserID - id админа для аудита.
+	// Пустой пароль означает «придумай сама и вышли письмом» и допустим только при
+	// указанном адресе почты.
 	Create(ctx context.Context, callerUserID int, req models.RegisterRequest) error
 	// GetAll возвращает список пользователей с организацией, компанией и типом.
 	// includeArchived=false отдаёт только активных (is_active=true).
 	GetAll(ctx context.Context, includeArchived bool) ([]models.UserInfoResponse, error)
+	// GetRecipientCandidates возвращает тех, кого автор заявки может добавить получателем:
+	// коллег по организации и компании плюс руководителей. В отличие от GetAll доступен
+	// без прав администратора - выбор получателя есть у любого, кто подаёт заявку.
+	GetRecipientCandidates(ctx context.Context, username string) ([]models.RecipientCandidate, error)
 	// UpdateType обновляет тип пользователя.
 	UpdateType(ctx context.Context, callerUserID int, username string, req models.UpdateUserTypeRequest) error
-	// UpdatePassword обновляет пароль пользователя.
-	UpdatePassword(ctx context.Context, callerUserID int, username string, req models.UpdatePasswordRequest) error
+	// UpdatePassword обновляет пароль пользователя. meta (адрес, клиент) идёт в
+	// историю входов и может быть nil там, где http-контекста нет.
+	UpdatePassword(ctx context.Context, callerUserID int, username string, req models.UpdatePasswordRequest, meta *RequestMeta) error
+	// UpdatePasswordKeepingSession - то же, но сохраняет одну сессию: ту, из
+	// которой человек сам сменил пароль. keepRefreshToken - её маркер продления
+	// из cookie; пустая строка означает «отозвать все».
+	UpdatePasswordKeepingSession(ctx context.Context, callerUserID int, username string, req models.UpdatePasswordRequest, meta *RequestMeta, keepRefreshToken string) error
+	// ChangeOwnPassword меняет пароль ТЕКУЩЕГО пользователя по подтверждению
+	// текущим паролем. Единственный путь смены пароля без права page.admin.users.
+	ChangeOwnPassword(ctx context.Context, userID int, req models.ChangeOwnPasswordRequest, meta *RequestMeta, keepRefreshToken string) error
 	// UpdateInfo обновляет ФИО, должность, email и телефон пользователя.
 	UpdateInfo(ctx context.Context, callerUserID int, username string, req models.UpdateUserInfoRequest) error
 	// UpdateOrganization обновляет организацию пользователя.
@@ -43,6 +57,9 @@ type UserService interface {
 	SetBanCache(banCache *BanCheckService)
 	// SetPasswordPolicyProvider подключает источник политики паролей.
 	SetPasswordPolicyProvider(p PasswordPolicyProvider)
+	// SetMailSender подключает почту и адрес системы для писем работнику с
+	// учётными данными. Опционально: без почты пароль задаёт администратор.
+	SetMailSender(mail MailSender, baseURL string)
 
 	// GetUserUnloadPlaces возвращает активные места разгрузки, привязанные к охраннику.
 	GetUserUnloadPlaces(ctx context.Context, username string) ([]models.UnloadPlace, error)
@@ -80,6 +97,9 @@ type userService struct {
 	recorder            AuditRecorder
 	banCache            *BanCheckService
 	policy              PasswordPolicyProvider
+	mail                MailSender
+	// baseURL - адрес системы для писем. Пустой означает «ссылку не вставлять».
+	baseURL string
 }
 
 // NewUserService создаёт новый экземпляр сервиса управления пользователями.
@@ -105,6 +125,19 @@ func (s *userService) SetBanCache(banCache *BanCheckService) {
 // после конструирования - settingsService в main.go создаётся позже userService).
 func (s *userService) SetPasswordPolicyProvider(p PasswordPolicyProvider) {
 	s.policy = p
+}
+
+// SetMailSender подключает почту (опционально, после конструирования -
+// mailService в main.go создаётся позже userService).
+func (s *userService) SetMailSender(mail MailSender, baseURL string) {
+	s.mail = mail
+	s.baseURL = normalizeBaseURL(baseURL)
+}
+
+// mailReady сообщает, есть ли куда отправить письмо с учётными данными. Без
+// настроенной почты пароль придётся задать администратору вручную.
+func (s *userService) mailReady() bool {
+	return s.mail != nil && s.mail.Enabled()
 }
 
 // passwordPolicy возвращает активную политику, либо безопасный дефолт, если
@@ -236,24 +269,65 @@ func (s *userService) Create(ctx context.Context, callerUserID int, req models.R
 		return echo.NewHTTPError(http.StatusBadRequest, "Необходимо указать организацию или компанию (хотя бы одно)")
 	}
 
+	// Адрес почты проверяется на формат и занятость (#1908) - тем же кодом, что и
+	// при правке карточки, иначе мусор заезжал бы через форму создания. Проверка
+	// идёт до разбора пароля: от наличия адреса зависит, обязателен ли пароль.
+	if req.Email != nil {
+		normalized, err := validateUserEmail(ctx, s.db, *req.Email, 0)
+		if err != nil {
+			return err
+		}
+		req.Email = &normalized
+	}
+
+	hasEmail := req.Email != nil && *req.Email != ""
+	// Пароль, не заданный администратором, придумывает система и высылает
+	// работнику письмом. Без адреса или без настроенной почты придумывать его
+	// некому: пароль, который негде прочитать, запирает человека снаружи.
+	if req.Password == "" {
+		if !hasEmail {
+			return echo.NewHTTPError(http.StatusBadRequest,
+				"Без адреса почты пароль задаёт администратор: укажите пароль или заполните адрес")
+		}
+		if !s.mailReady() {
+			return echo.NewHTTPError(http.StatusBadRequest,
+				"Почта не настроена, отправить пароль работнику некуда: задайте пароль вручную")
+		}
+		req.Password = GeneratePassword(s.passwordPolicy())
+	}
+
 	if err := ValidatePassword(s.passwordPolicy(), req.Password); err != nil {
 		return err
 	}
 
+	// Письмо с учётными данными уходит всякий раз, когда есть куда: работник
+	// должен узнать логин и пароль от системы, а не по телефону от того, кто
+	// завёл ему учётную запись.
+	sendLetter := hasEmail && s.mailReady()
+
+	// Отсчёт срока действия пароля начинается с момента заведения учётной записи
+	// (#1907): иначе новый работник попадал бы под первую же плановую смену.
+	passwordSetAt := time.Now()
 	user := models.User{
-		Username:       req.Username,
-		Password:       hashPassword(req.Password),
-		OrganizationID: intPtrOrNil(req.OrganizationID),
-		CompanyID:      intPtrOrNil(req.CompanyID),
-		TypeID:         req.TypeID,
-		LastName:       req.LastName,
-		FirstName:      req.FirstName,
-		MiddleName:     req.MiddleName,
-		Position:       req.Position,
-		Email:          req.Email,
-		Phone:          req.Phone,
+		Username:          req.Username,
+		Password:          hashPassword(req.Password),
+		PasswordChangedAt: &passwordSetAt,
+		OrganizationID:    intPtrOrNil(req.OrganizationID),
+		CompanyID:         intPtrOrNil(req.CompanyID),
+		TypeID:            req.TypeID,
+		LastName:          req.LastName,
+		FirstName:         req.FirstName,
+		MiddleName:        req.MiddleName,
+		Position:          req.Position,
+		Email:             req.Email,
+		Phone:             req.Phone,
+		// Свой пароль работник задаёт при первом входе независимо от того, кто
+		// придумал текущий: и придуманный системой, и заданный администратором
+		// прошёл через чужие руки, а высланный письмом ещё и лежит открытым
+		// текстом в почтовом ящике.
+		MustChangePassword: true,
 	}
-	if err := s.db.WithContext(ctx).Create(&user).Error; err != nil {
+	if err := s.createWithWelcomeLetter(ctx, &user, req.Password, sendLetter); err != nil {
 		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
 			return echo.NewHTTPError(http.StatusBadRequest, "Username already exists")
 		}
@@ -279,6 +353,34 @@ func (s *userService) Create(ctx context.Context, callerUserID int, req models.R
 	return nil
 }
 
+// createWithWelcomeLetter заводит учётную запись и, если есть куда, ставит в
+// очередь письмо с учётными данными. Одной транзакцией: сбой между записями
+// оставил бы работника с паролем, которого он не видел, или письмо с паролем от
+// учётной записи, которой нет.
+func (s *userService) createWithWelcomeLetter(ctx context.Context, user *models.User, password string, sendLetter bool) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(user).Error; err != nil {
+			return err
+		}
+		// Первый пароль запоминается вместе с учётной записью: запрет на повтор
+		// сравнивает новый пароль с прежними, и без этой строки работник смог бы
+		// «сменить» выданный ему пароль на него же.
+		if err := recordUsedPassword(ctx, tx, user.ID, user.Password); err != nil {
+			return err
+		}
+		if !sendLetter {
+			return nil
+		}
+		return s.mail.Enqueue(ctx, tx, MailMessage{
+			To:           *user.Email,
+			Subject:      "Учётная запись в системе бюро пропусков",
+			Body:         accountCreatedLetterBody(*user, password, s.baseURL),
+			TemplateCode: MailTemplateAccountCreated,
+			UserID:       &user.ID,
+		})
+	})
+}
+
 // GetAll возвращает пользователей с JOIN на организацию, компанию и тип.
 // По умолчанию только активные; includeArchived=true добавляет архивных.
 func (s *userService) GetAll(ctx context.Context, includeArchived bool) ([]models.UserInfoResponse, error) {
@@ -290,7 +392,8 @@ func (s *userService) GetAll(ctx context.Context, includeArchived bool) ([]model
 			c.name as company, u.company_id,
 			u.type_id, ut.name as user_type, u.role_id,
 			u.last_name, u.first_name, u.middle_name,
-			u.position, u.email, u.phone`).
+			u.position, u.email, u.phone, u.last_seen, u.lockout_level,
+			CASE WHEN u.locked_until > NOW() THEN u.locked_until END AS locked_until`).
 		Joins("LEFT JOIN organizations o ON u.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON u.company_id = c.id").
 		Joins("LEFT JOIN user_types ut ON u.type_id = ut.id")
@@ -302,7 +405,43 @@ func (s *userService) GetAll(ctx context.Context, includeArchived bool) ([]model
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching users")
 	}
 
+	masks, consentActive := consentMasksWithState(ctx, s.db)
+	grants := loadConsentGrants(ctx, s.db)
+	for i := range result {
+		if at, ok := grants[result[i].ID]; ok {
+			result[i].ConsentGranted = true
+			granted := at
+			result[i].ConsentAt = &granted
+		}
+		// Кого запрос согласия реально касается - та же мерка, что у гейта.
+		result[i].ConsentRequired = consentActive && !result[i].IsSuperAdmin &&
+			result[i].IsActive && !result[i].IsBanned
+		if _, hidden := masks[result[i].ID]; !hidden {
+			continue
+		}
+		maskUserParts(masks, result[i].ID, &result[i].LastName, &result[i].FirstName, &result[i].MiddleName)
+		maskUserContacts(masks, result[i].ID, &result[i].Email, &result[i].Phone)
+		result[i].PDHidden = true
+	}
 	return result, nil
+}
+
+// GetRecipientCandidates возвращает кандидатов в получатели заявки для текущего
+// пользователя. Пустой список - штатный ответ (человек один в своей организации, и
+// руководителей в системе нет), а не ошибка.
+func (s *userService) GetRecipientCandidates(ctx context.Context, username string) ([]models.RecipientCandidate, error) {
+	var me models.User
+	if err := s.db.WithContext(ctx).
+		Select("id, organization_id, company_id").
+		Where("username = ?", username).
+		First(&me).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, echo.NewHTTPError(http.StatusUnauthorized, "User not found")
+		}
+		slog.Error("не удалось определить пользователя для списка получателей", "error", err, "username", username)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching recipient candidates")
+	}
+	return loadRecipientCandidates(ctx, s.db, me)
 }
 
 // UpdateType обновляет type_id пользователя с проверкой существования типа.
@@ -341,30 +480,96 @@ func (s *userService) UpdateType(ctx context.Context, callerUserID int, username
 // UpdatePassword хеширует и обновляет пароль пользователя.
 // После смены пароля все refresh_tokens юзера отзываются - иначе старые
 // сессии (возможно скомпрометированные) продолжили бы жить до истечения TTL.
-func (s *userService) UpdatePassword(ctx context.Context, callerUserID int, username string, req models.UpdatePasswordRequest) error {
+//
+// Пароль, заданный администратором, работник меняет при первом входе, и если у
+// него указан адрес почты - получает этот пароль письмом. Своя смена (тот же
+// метод из ChangeOwnPassword) ни того, ни другого не делает.
+func (s *userService) UpdatePassword(ctx context.Context, callerUserID int, username string, req models.UpdatePasswordRequest, meta *RequestMeta) error {
+	return s.UpdatePasswordKeepingSession(ctx, callerUserID, username, req, meta, "")
+}
+
+// UpdatePasswordKeepingSession меняет пароль, оставляя живой одну сессию.
+//
+// Человек, сменивший пароль сам, не должен вылетать из системы: он только что
+// подтвердил, что это он, и выкидывать его на форму входа - раздражение без
+// выигрыша в безопасности. Все остальные сессии гаснут, поэтому угнанная на
+// другом устройстве умирает, как и раньше. Так это устроено в системах, где
+// смена пароля - обычное действие, а не аварийная процедура.
+func (s *userService) UpdatePasswordKeepingSession(ctx context.Context, callerUserID int, username string, req models.UpdatePasswordRequest, meta *RequestMeta, keepRefreshToken string) error {
 	if err := ValidatePassword(s.passwordPolicy(), req.Password); err != nil {
 		return err
 	}
 
+	// Целевую запись читаем до обновления: от неё зависит признак обязательной
+	// смены, адрес для письма с новым паролем и перечень прежних паролей - он
+	// живёт по id, а сюда приходит логин. Not-found = пользователь не найден;
+	// обновление по username тогда просто не тронет строк.
+	var user models.User
+	found := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error == nil
+
+	if found {
+		if err := ensurePasswordNotReused(ctx, s.db, user.ID, req.Password); err != nil {
+			return err
+		}
+	}
+
 	hashed := hashPassword(req.Password)
 
-	if err := s.db.WithContext(ctx).
-		Table("users").
-		Where("username = ?", username).
-		Update("password", hashed).Error; err != nil {
+	// Пароль, заданный администратором, работник обязан сменить при первом входе:
+	// его придумал не он, а если у работника есть адрес - пароль ещё и лежит
+	// открытым текстом в почтовом ящике. Своя смена под это не подпадает: человек
+	// только что задал пароль сам.
+	adminSet := found && user.ID != callerUserID
+	sendLetter := adminSet && s.mailReady() && user.Email != nil && *user.Email != ""
+
+	// Дата смены двигается вместе с паролем (#1907): от неё считается срок
+	// действия при плановой смене. Письмо о новом пароле и отпечаток пароля в
+	// перечне прежних пишутся той же транзакцией - иначе сбой между записями
+	// оставит работника с паролем, которого он не видел, либо запрет на пароль,
+	// который не сохранился.
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Table("users").
+			Where("username = ?", username).
+			Updates(map[string]any{
+				"password":             hashed,
+				"password_changed_at":  time.Now(),
+				"must_change_password": adminSet,
+			}).Error; err != nil {
+			return err
+		}
+		if found {
+			if err := recordUsedPassword(ctx, tx, user.ID, hashed); err != nil {
+				return err
+			}
+		}
+		if !sendLetter {
+			return nil
+		}
+		return s.mail.Enqueue(ctx, tx, MailMessage{
+			To:           *user.Email,
+			Subject:      "Новый пароль в системе бюро пропусков",
+			Body:         passwordSetByAdminLetterBody(user, req.Password, s.baseURL),
+			TemplateCode: MailTemplatePasswordSetByAdmin,
+			UserID:       &user.ID,
+		})
+	}); err != nil {
+		slog.Error("не удалось обновить пароль", "username", username, "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating password")
 	}
 
 	// Revoke all active refresh tokens: чтобы существующие сессии с этой учёткой
 	// (возможно скомпрометированные) не дожили до своего TTL. Юзеру придётся
-	// перелогиниться на всех устройствах. Not-found = пользователь без активных
-	// сессий - это ок.
-	var user models.User
-	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error; err == nil {
-		s.db.WithContext(ctx).
+	// перелогиниться на всех устройствах.
+	if found {
+		revoke := s.db.WithContext(ctx).
 			Model(&models.RefreshToken{}).
-			Where("user_id = ? AND is_revoked = false", user.ID).
-			Update("is_revoked", true)
+			Where("user_id = ? AND is_revoked = false", user.ID)
+		if keepRefreshToken != "" {
+			// Сессию, из которой шла смена, оставляем живой - её владелец только
+			// что подтвердил личность текущим паролем.
+			revoke = revoke.Where("token_hash <> ?", hashRefreshToken(keepRefreshToken))
+		}
+		revoke.Update("is_revoked", true)
 
 		// Аудит: факт сброса пароля без значения.
 		s.recorder.Log(ctx, nil, models.AuditEntityUser, &user.ID, models.UserActionPasswordReset, &callerUserID, nil)
@@ -373,9 +578,88 @@ func (s *userService) UpdatePassword(ctx context.Context, callerUserID int, user
 		// вызывающего с целевым (гейт page.admin.users допускает и смену
 		// админом собственного пароля).
 		s.notifyPasswordChanged(ctx, &user, callerUserID)
+
+		// Событие в истории входов. Модель AuthEvent обещает запись при смене
+		// пароля с самого начала, но до этого её не делал никто: человек видел
+		// в своей ленте входы и отказы, а факт подмены пароля - нет.
+		detail := "пароль задан администратором"
+		if callerUserID == user.ID {
+			detail = "смена своего пароля"
+		}
+		s.recordPasswordChangeEvent(ctx, &user, meta, true, detail)
 	}
 
 	return nil
+}
+
+// ChangeOwnPassword меняет пароль текущего пользователя. Требует подтверждения
+// текущим паролем: перехваченная сессия иначе даёт смену пароля, то есть полный
+// захват учётной записи. Дальше переиспользует UpdatePassword - отзыв сессий,
+// аудит и уведомление там уже написаны и должны работать одинаково независимо
+// от того, кто менял пароль.
+func (s *userService) ChangeOwnPassword(ctx context.Context, userID int, req models.ChangeOwnPasswordRequest, meta *RequestMeta, keepRefreshToken string) error {
+	var user models.User
+	if err := s.db.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "Пользователь не найден")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error loading user")
+	}
+
+	currentMatches, err := verifyPassword(user.Password, req.CurrentPassword)
+	if err != nil {
+		// Хеш в базе не разбирается - дефект данных этой учётки, а не ошибка во
+		// введённом пароле. "Текущий пароль указан неверно" тут была бы такой же
+		// ложью, как счётчик неудачных попыток при входе по битому хешу (#2017):
+		// человек с верным паролем не смог бы сменить его вовсе.
+		slog.Error("не удалось проверить текущий пароль: повреждена запись в базе", "username", user.Username, "error", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось проверить текущий пароль. Обратитесь к администратору.")
+	}
+	if !currentMatches {
+		// Неудачная попытка тоже попадает в историю: подбор текущего пароля через
+		// эту форму - такой же признак инцидента, как серия неудачных входов.
+		s.recordPasswordChangeEvent(ctx, &user, meta, false, "неверный текущий пароль")
+		return echo.NewHTTPError(http.StatusBadRequest, "Текущий пароль указан неверно")
+	}
+
+	// user.Password уже успешно разобран строкой выше - вторая проверка того же
+	// хеша ошибку разбора вернуть не может, но обрабатываем её на случай расхождения.
+	sameAsCurrent, err := verifyPassword(user.Password, req.NewPassword)
+	if err != nil {
+		slog.Error("не удалось сравнить новый пароль с текущим", "username", user.Username, "error", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось проверить новый пароль. Обратитесь к администратору.")
+	}
+	if sameAsCurrent {
+		return echo.NewHTTPError(http.StatusBadRequest, "Новый пароль совпадает с текущим")
+	}
+
+	return s.UpdatePasswordKeepingSession(ctx, userID, user.Username,
+		models.UpdatePasswordRequest{Password: req.NewPassword}, meta, keepRefreshToken)
+}
+
+// recordPasswordChangeEvent пишет запись в auth_events. Best-effort по образцу
+// authService.recordAuthEvent: провал журнала не отменяет уже сменённый пароль.
+func (s *userService) recordPasswordChangeEvent(ctx context.Context, user *models.User, meta *RequestMeta, success bool, detail string) {
+	ip, ua := "", ""
+	if meta != nil {
+		ip = meta.IPAddress
+		ua = meta.UserAgent
+	}
+	if len(ua) > 255 {
+		ua = ua[:255]
+	}
+	ev := models.AuthEvent{
+		UserID:    &user.ID,
+		Username:  user.Username,
+		EventType: models.AuthEventPasswordChanged,
+		Success:   success,
+		IPAddress: ip,
+		UserAgent: ua,
+		Detail:    detail,
+	}
+	if err := s.db.WithContext(ctx).Create(&ev).Error; err != nil {
+		slog.Warn("не удалось записать событие смены пароля", "user_id", user.ID, "error", err)
+	}
 }
 
 // notifyPasswordChanged создаёт уведомление о смене пароля. Вызывается
@@ -390,7 +674,11 @@ func (s *userService) notifyPasswordChanged(ctx context.Context, target *models.
 	// с целевым). Иначе это сделал админ через раздел управления пользователями.
 	selfChange := callerUserID != 0 && callerUserID == target.ID
 
-	message := "Администратор изменил ваш пароль."
+	// Кто именно сменил пароль, человеку не сообщаем: должность меняющего к делу не
+	// относится, а важен сам факт - пароль стал другим, и если это был не ты, надо
+	// идти разбираться. Прежняя формулировка называла администратора, хотя сменить
+	// пароль может и не он.
+	message := "Ваш пароль в системе был изменён."
 	if selfChange {
 		message = "Ваш пароль был успешно изменён."
 	}
@@ -408,7 +696,7 @@ func (s *userService) notifyPasswordChanged(ctx context.Context, target *models.
 
 	if err := s.notificationService.CreateForUser(
 		ctx, target.ID,
-		"password_changed",
+		NotificationTypePasswordChanged,
 		"Пароль изменён",
 		message,
 		&dataStr,
@@ -437,12 +725,34 @@ func (s *userService) UpdateInfo(ctx context.Context, callerUserID int, username
 		Scan(&prev)
 
 	updates := map[string]interface{}{
-		"last_name":   req.LastName,
-		"first_name":  req.FirstName,
-		"middle_name": req.MiddleName,
-		"position":    req.Position,
-		"email":       req.Email,
-		"phone":       req.Phone,
+		"position": req.Position,
+	}
+	// ФИО пишем, только если поле пришло. Пустая строка по-прежнему очищает его, а
+	// отсутствие поля означает "не трогай": форма редактирования не показывает ФИО
+	// работника, скрытое до его согласия на обработку данных, и не должна затирать
+	// настоящее значение правкой соседнего поля.
+	if req.LastName != nil {
+		updates["last_name"] = *req.LastName
+	}
+	if req.FirstName != nil {
+		updates["first_name"] = *req.FirstName
+	}
+	if req.MiddleName != nil {
+		updates["middle_name"] = *req.MiddleName
+	}
+	// Контакты скрываются вместе с ФИО, и правило для них то же: нет поля в
+	// запросе - не трогаем, пустая строка по-прежнему очищает.
+	if req.Email != nil {
+		// Адрес проверяется на формат и на занятость (#1908): он стал каналом
+		// доставки паролей, и опечатка в нём означает пароль в никуда.
+		normalized, err := validateUserEmail(ctx, s.db, *req.Email, s.targetUserID(ctx, username))
+		if err != nil {
+			return err
+		}
+		updates["email"] = normalized
+	}
+	if req.Phone != nil {
+		updates["phone"] = *req.Phone
 	}
 	if req.IsImportant != nil {
 		updates["is_important"] = *req.IsImportant
@@ -617,6 +927,8 @@ func (s *userService) GetHistory(ctx context.Context, username string) ([]models
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching user history")
 	}
 
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
 	items := make([]models.UserHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.UserHistoryItem{
@@ -624,7 +936,7 @@ func (s *userService) GetHistory(ctx context.Context, username string) ([]models
 			ActionType:  r.ActionType,
 			Details:     r.Details,
 			ActorUserID: r.ActorUserID,
-			ActorName:   r.ActorName,
+			ActorName:   maskName(masks, r.ActorUserID, r.ActorName),
 			CreatedAt:   r.CreatedAt,
 		})
 	}

@@ -4,6 +4,8 @@ import { isErrorPageReachable, closeIncidentOnLeave } from '@/utils/errorPageAcc
 import { shouldRedirectToMaintenance } from '@/utils/maintenanceAccess';
 import { useAuthStore } from '@/stores/auth';
 import { useMaintenanceStore } from '@/stores/maintenance';
+import { usePDConsentStore } from '@/stores/pdConsent';
+import { buildLoginRedirect } from '@/utils/postLoginRedirect';
 import LoginComponent from './components/LoginComponent.vue';
 import TablesComponent from './components/TablesComponent.vue';
 import AccountComponent from './components/AccountComponent.vue';
@@ -14,7 +16,6 @@ import TableConstructor from './components/TableConstructor.vue';
 import EmployeeView from './views/EmployeeView.vue';
 import NewsAndReview from './views/NewsAndReview.vue';
 import FeedbackPage from './views/FeedbackPage.vue';
-import RequestsView from './views/RequestsView.vue';
 
 // Гейтинг прав (#187, Фаза 2): admin/table-маршруты несут meta.permission и
 // проверяются в beforeEach через usePermissionsStore.hasPermission. super/admin
@@ -33,6 +34,12 @@ const routes = [
     component: LoginComponent,
     meta: { requiresAuth: false }
   },
+  // Привычный адрес формы входа. Сама форма живёт на '/', поэтому '/login' без
+  // этой записи уезжал в ловушку неизвестных адресов и встречал человека
+  // страницей 404 - по старой закладке, по ссылке из переписки или просто по
+  // памяти. Query переносим: в нём приходит и redirect защищённой страницы
+  // (#974), и open_application из push-уведомления.
+  { path: '/login', redirect: (to) => ({ path: '/', query: to.query }) },
   {
     path: '/new-application',
     name: 'NewApplication',
@@ -45,14 +52,8 @@ const routes = [
     component: () => import('./views/DataProcessingView.vue'),
     meta: { requiresAuth: true }
   },
-  {
-    path: '/submit-form',
-    redirect: '/new-application'
-  },
-  {
-    path: '/table',
-    redirect: '/personal-cabinet'
-  },
+  { path: '/submit-form', redirect: '/new-application' },
+  { path: '/table', redirect: '/personal-cabinet' },
   {
     path: '/table/:tableName',
     name: 'DynamicTable',
@@ -75,6 +76,14 @@ const routes = [
     path: '/personal-cabinet',
     name: 'Account',
     component: AccountComponent,
+    meta: { requiresAuth: true }
+  },
+  // Тонкая настройка уведомлений (#1748, S8) - своя, не админская: доступна
+  // любому авторизованному так же, как ЛК и Автомобили, без permission-гейта.
+  {
+    path: '/notification-settings',
+    name: 'NotificationSettings',
+    component: () => import('./views/NotificationSettingsView.vue'),
     meta: { requiresAuth: true }
   },
   {
@@ -104,10 +113,7 @@ const routes = [
     component: TableConstructor,
     meta: { requiresAuth: true, permission: 'page.admin.tables_constructor' }
   },
-  {
-    path: '/number-format',
-    redirect: '/admin/number-formats'
-  },
+  { path: '/number-format', redirect: '/admin/number-formats' },
   {
     path: '/employeesview',
     name: 'EmployeeView',
@@ -129,14 +135,25 @@ const routes = [
   {
     path: '/admin/requests',
     name: 'RequestsView',
-    component: RequestsView,
+    // По требованию: вместе с разделом из стартовой загрузки уходит Chart.js.
+    component: () => import('./views/RequestsView.vue'),
     meta: { requiresAuth: true, permission: 'page.admin.monitoring' }
   },
+  {
+    path: '/admin/data-processing',
+    name: 'AdminDataProcessing',
+    component: () => import('./views/admin/DataProcessingView.vue'),
+    meta: { requiresAuth: true, permission: 'page.admin' }
+  },
+  // page.admin.settings (#7): точечный ключ каталога прав, не super-only -
+  // администраторы получают его через adminAll, а конкретному администратору
+  // доступ можно точечно отобрать личным deny-override. Раньше бэкенд требовал
+  // именно супер-админа (checkSuper в settings_service.go), это отменено.
   {
     path: '/admin/settings',
     name: 'AdminSettings',
     component: () => import('./views/AdminSettings.vue'),
-    meta: { requiresAuth: true, permission: 'page.admin' }
+    meta: { requiresAuth: true, permission: 'page.admin.settings' }
   },
   {
     path: '/admin/users',
@@ -247,6 +264,12 @@ const routes = [
     meta: { requiresAuth: true, permission: 'page.admin' }
   },
   {
+    path: '/admin/file-archive',
+    name: 'AdminFileArchive',
+    component: () => import('./views/admin/FileArchiveView.vue'),
+    meta: { requiresAuth: true, permission: 'page.admin.file_archive' }
+  },
+  {
     path: '/analytics',
     name: 'analytics',
     component: () => import('./views/StatisticsView.vue'),
@@ -335,8 +358,24 @@ router.beforeEach(async (to, from, next) => {
   }
 
   if (to.meta.requiresAuth && !isAuthenticated) {
-    next('/');
+    // #974: сохраняем адрес, на который метил переход, в query - push-уведомление
+    // приводит человека спустя дни, когда сессия давно протухла, и без этого
+    // логин всегда высаживал на дефолтную ленту вместо заявки из уведомления.
+    next(buildLoginRedirect(to.fullPath));
     return;
+  }
+
+  // Состояние гейта согласия (#1567) должно быть известно ДО того, как
+  // смонтируется страница. Иначе между входом и ответом гейта страница успевает
+  // отрисоваться и запросить свои данные, все запросы получают отказ, а окно
+  // согласия встаёт поверх уже нарисованного интерфейса - на живом стенде это
+  // мигание страницы и волна отказов на каждом входе.
+  //
+  // Ждать безопасно: refresh() дедуплицируется, после первого ответа становится
+  // no-op, а сетевую ошибку глушит сам - навигация не залипнет и при недоступном
+  // сервере.
+  if (to.meta.requiresAuth) {
+    await usePDConsentStore().refresh();
   }
   // Гейт "Доступные мне": супер-админ проходит сразу; иначе резолвим код типа
   // пользователя (один раз, лениво) и пускаем только охранника. userTypeCode
@@ -358,6 +397,30 @@ router.beforeEach(async (to, from, next) => {
       return;
     }
   }
+  // Push-уведомление (#974): service worker не знает прав пользователя (живёт
+  // вне вкладки, вне Pinia) и потому не может сам решить Центр vs личный
+  // кабинет - ведёт на нейтральный /?open_application=<id>, а маршрут выбирает
+  // ЭТОТ гард, тем же кодом, что и клик по карточке уведомления
+  // (useNotificationNavigation.resolveApplicationRoute). Гость уходит на вход
+  // через уже существующий #974 механизм (query.redirect) - после логина
+  // снова попадёт на этот же адрес, но авторизованным.
+  if (to.path === '/' && to.query.open_application) {
+    if (!isAuthenticated) {
+      next(buildLoginRedirect(to.fullPath));
+      return;
+    }
+    // Права на старте подгружаются асинхронно (#187e) - без ожидания носитель
+    // page.center иногда попадал бы в личный кабинет (isStale -> hasPermission
+    // на пустом кэше false), баг ловится только на холодном заходе и нестабильно.
+    const { usePermissionsStore } = await import('@/stores/permissions');
+    const permStore = usePermissionsStore();
+    if (permStore.isStale) await permStore.fetchPermissions();
+    const { useNotificationNavigation } = await import('@/composables/useNotificationNavigation');
+    const { resolveApplicationRoute } = useNotificationNavigation();
+    next(resolveApplicationRoute(to.query.open_application));
+    return;
+  }
+
   if (to.path === '/' && isAuthenticated) {
     next('/news');
     return;

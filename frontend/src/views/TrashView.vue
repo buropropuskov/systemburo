@@ -44,12 +44,19 @@
             class="trash-filters__search"
             @input="onSearchChange"
           />
-          <OrganizationFilter
-            ref="organizationFilter"
-            :value="filters.organizationId"
-            :organizations="organizations"
-            @change="onOrganizationChange"
-          />
+          <div class="trash-filters__control">
+            <BaseDropdown
+              :model-value="filters.organizationIds"
+              :options="organizations"
+              placeholder="Все организации"
+              summary-label="Организация"
+              data-testid="trash-filter-organizations"
+              multiple
+              searchable
+              teleport
+              @update:model-value="onOrganizationsChange"
+            />
+          </div>
           <DateFilter
             :selected-date="filters.selectedDate"
             :date-range-start="filters.dateFrom"
@@ -68,11 +75,10 @@
             :disabled="!items.length || isExporting"
             @click="onExport"
           >
-            <img
-              src="@/assets/icons/export.png"
+            <AppIcon
+              name="export"
               class="trash-tool-btn__icon"
-              alt=""
-            >
+            />
             Экспорт
           </button>
           <button
@@ -81,11 +87,10 @@
             :disabled="!items.length"
             @click="onClearAll"
           >
-            <img
-              src="@/assets/icons/trashcan.png"
+            <AppIcon
+              name="trashcan"
               class="trash-tool-btn__icon"
-              alt=""
-            >
+            />
             Очистить
           </button>
         </div>
@@ -173,16 +178,15 @@
                 @click="col.sortable && sortBy(col.key)"
               >
                 <span>{{ col.label }}</span>
-                <img
+                <AppIcon
                   v-if="col.sortable"
-                  src="@/assets/icons/sort.png"
+                  name="sort"
                   class="trash-table__sort"
                   :class="{
                     'trash-table__sort--sorted': sortField === col.key,
                     'trash-table__sort--desc': sortField === col.key && sortDir === 'desc',
                   }"
-                  alt=""
-                >
+                />
               </th>
               <th class="trash-table__th-actions" />
             </tr>
@@ -290,10 +294,10 @@
                   data-testid="trash-purge-one"
                   @click="onPurgeOne(item.id)"
                 >
-                  <img
-                    src="@/assets/icons/trashcan.png"
-                    alt=""
-                  >
+                  <AppIcon
+                    name="trashcan"
+                    class="trash-icon-btn__icon"
+                  />
                 </button>
               </td>
             </tr>
@@ -361,7 +365,7 @@ import { apiRequest } from '@/api/client';
 import { useDeletionsStore } from '@/stores/deletions';
 import { listTrash, restoreItems, purgeItem, clearTrash } from '@/api/trash';
 import SearchComponent from '@/components/SearchComponent.vue';
-import OrganizationFilter from '@/components/OrganizationFilter.vue';
+import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsModal.vue';
@@ -369,13 +373,15 @@ import EmployeeDetailsModal from '@/components/CreateApplication/EmployeeDetails
 import TrashHistoryModal from '@/components/TrashHistoryModal.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import ApplicationDetail from '@/components/ApplicationDetail/ApplicationDetail.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'TrashView',
   components: {
-    SearchComponent, OrganizationFilter, DateFilter, RefreshButton,
+    SearchComponent, BaseDropdown, DateFilter, RefreshButton,
     VehicleDetailsModal, EmployeeDetailsModal, TrashHistoryModal, ConfirmationModal,
     ApplicationDetail,
+    AppIcon,
   },
   data() {
     return {
@@ -390,7 +396,7 @@ export default {
       error: '',
       filters: {
         search: '',
-        organizationId: null,
+        organizationIds: [],
         selectedDate: null,
         dateFrom: null,
         dateTo: null,
@@ -476,9 +482,6 @@ export default {
   async mounted() {
     this.fetchCurrentUser();
     this.fetchOrganizations();
-    // Подгружаем настроенные длительности уведомлений после авторизации
-    // (на холодном старте App.vue запрос мог уйти до получения токена).
-    useDeletionsStore().loadDurations();
     await this.fetchTable();
     if (this.tableID) await this.reload();
   },
@@ -535,8 +538,8 @@ export default {
           dateFrom: this.filters.selectedDate || this.filters.dateFrom || '',
           dateTo: this.filters.selectedDate || this.filters.dateTo || '',
         };
-        if (this.filters.organizationId) {
-          params.organizationId = this.filters.organizationId;
+        if (this.filters.organizationIds.length) {
+          params.organizationIds = this.filters.organizationIds;
         }
         const data = await listTrash(this.tableID, params);
         this.items = Array.isArray(data) ? data : [];
@@ -550,8 +553,8 @@ export default {
       clearTimeout(this.searchTimer);
       this.searchTimer = setTimeout(() => this.reload(), 300);
     },
-    onOrganizationChange(payload) {
-      this.filters.organizationId = payload && payload.id ? payload.id : null;
+    onOrganizationsChange(ids) {
+      this.filters.organizationIds = Array.isArray(ids) ? ids : [];
       this.reload();
     },
     onDateClear() {
@@ -956,19 +959,21 @@ export default {
   flex: 0 0 auto;
 }
 
-.trash-filters :deep(.field) {
+/* Ширина ряда живёт на обёртке: у .base-dropdown своей ширины нет, и без неё кнопка
+   дёргалась бы при смене подписи "Все организации" -> "Организация: 2". */
+.trash-filters__control {
   width: 200px;
+  max-width: 100%;
+}
+
+/* Кнопка дропдауна под контракт ряда: те же 35px, радиус 15px и отступы, что у поиска
+   и календаря рядом. :deep обязателен - кнопка живёт внутри дочернего компонента и хэша
+   этого файла не несёт; min-height:0 гасит собственные 30px BaseDropdown. */
+.trash-filters__control :deep(.base-dropdown__button) {
   height: 35px;
-  background-color: var(--surface);
-  border: 1px solid var(--border);
+  min-height: 0;
   border-radius: 15px;
   padding: 0 10px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  box-sizing: border-box;
-  cursor: pointer;
 }
 
 .trash-tool-btn {
@@ -1162,7 +1167,7 @@ export default {
 }
 
 .trash-table__th--sortable:hover .trash-table__sort {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .trash-table__th--active {
@@ -1170,6 +1175,7 @@ export default {
 }
 
 .trash-table__sort {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   margin-left: 6px;
@@ -1179,7 +1185,7 @@ export default {
 }
 
 .trash-table__sort--sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
   opacity: 1;
 }
 
@@ -1259,7 +1265,7 @@ export default {
   background: var(--border);
 }
 
-.trash-icon-btn img {
+.trash-icon-btn__icon {
   width: 20px;
   height: 20px;
 }
@@ -1336,9 +1342,8 @@ export default {
   }
 
   /* Фильтры на всю ширину телефона (в столбце они иначе 200px слева). */
-  .trash-filters :deep(.field) {
+  .trash-filters__control {
     width: 100%;
-    max-width: 100%;
   }
 }
 </style>

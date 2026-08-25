@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"systemburo/internal/apperr"
-	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
 )
@@ -29,13 +28,21 @@ func RespondCreated(c echo.Context, data any) error {
 	return c.JSON(http.StatusCreated, Response{Success: true, Data: data})
 }
 
+// RespondAccepted wraps data in a success envelope with status 202: запрос принят,
+// но обработка асинхронна (фоновый воркер) и результат этим ответом не гарантирован.
+func RespondAccepted(c echo.Context, data any) error {
+	return c.JSON(http.StatusAccepted, Response{Success: true, Data: data})
+}
+
 // RespondMessage sends a success envelope with a message string as data.
 func RespondMessage(c echo.Context, msg string) error {
 	return c.JSON(http.StatusOK, Response{Success: true, Data: msg})
 }
 
-// RespondPaginated wraps data + pagination meta in a success envelope.
-func RespondPaginated(c echo.Context, data any, meta models.PaginationMeta) error {
+// RespondPaginated wraps data + pagination meta in a success envelope. meta is typically
+// models.PaginationMeta, but any is accepted so callers can embed it with extra fields
+// (e.g. models.NotificationListMeta adds unread_count, #1748).
+func RespondPaginated(c echo.Context, data any, meta any) error {
 	return c.JSON(http.StatusOK, Response{Success: true, Data: data, Meta: meta})
 }
 
@@ -60,7 +67,7 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 			c.Response().Header().Set(k, v)
 		}
 		if code >= http.StatusInternalServerError {
-			slog.Error("internal error", "error", err)
+			slog.Error("internal error", "error", err, "path", c.Request().URL.Path, "method", c.Request().Method)
 		}
 	} else if he, ok := err.(*echo.HTTPError); ok {
 		code = he.Code
@@ -71,6 +78,12 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 			msg = m.Error()
 		default:
 			msg = http.StatusText(code)
+		}
+		// 5xx через echo.HTTPError раньше не логировался вовсе: клиент получал
+		// текст, а в логах не оставалось ничего, и такую аварию нельзя было
+		// разобрать постфактум. Путь этот массовый - сервисы отдают 500 именно так.
+		if code >= http.StatusInternalServerError {
+			slog.Error("internal error", "error", err, "path", c.Request().URL.Path, "method", c.Request().Method)
 		}
 	} else {
 		slog.Error("unhandled error", "error", err)

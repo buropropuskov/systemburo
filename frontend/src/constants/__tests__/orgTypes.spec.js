@@ -4,7 +4,6 @@ import {
   ORG_TYPE_CREATE_OPTIONS,
   ORG_TYPE_DETAIL_OPTIONS,
   ORG_TYPE_FILTER_OPTIONS,
-  ORG_TYPE_FILTER_ALL,
   ORG_TYPE_FILTER_UNSPECIFIED,
   orgTypeLabel,
 } from '../orgTypes'
@@ -25,10 +24,13 @@ describe('константы типов справочников (#1046)', () =>
     expect(unspecified.label).toBe('не указан')
   })
 
-  it('опции фильтра: «Тип: все» + значения + «не указан»', () => {
-    expect(ORG_TYPE_FILTER_OPTIONS).toHaveLength(ORG_TYPES.length + 2)
-    expect(ORG_TYPE_FILTER_OPTIONS[0].value).toBe(ORG_TYPE_FILTER_ALL)
+  // «Тип: все» больше не опция: роль «все» играет пустой выбор мультифильтра
+  // плюс встроенная строка «Сбросить выбор (N)» в BaseDropdown (#1398).
+  it('опции фильтра: значения + «не указан», без сентинела «все»', () => {
+    expect(ORG_TYPE_FILTER_OPTIONS).toHaveLength(ORG_TYPES.length + 1)
+    expect(ORG_TYPE_FILTER_OPTIONS[0].value).toBe(ORG_TYPES[0])
     expect(ORG_TYPE_FILTER_OPTIONS.at(-1).value).toBe(ORG_TYPE_FILTER_UNSPECIFIED)
+    expect(ORG_TYPE_FILTER_OPTIONS.some(o => o.value === 'all')).toBe(false)
   })
 
   it('orgTypeLabel: значение как есть, пусто/NULL -> «не указан»', () => {

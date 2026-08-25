@@ -45,6 +45,35 @@ export function columnMinWidth(fieldName) {
 }
 
 /**
+ * Ширина, которая реально достаётся столбцам внутри строки-флекса.
+ *
+ * `clientWidth` контейнера её завышает: у строки заголовков свои боковые
+ * отступы, а между ячейками стоит `gap`, причём схлопнутая по приоритету
+ * ячейка остаётся flex-элементом - её зазор не исчезает ни при каком наборе
+ * столбцов. На широком мониторе запас ошибку скрывал, а на планшетных ширинах
+ * лишние ~76px (12 зазоров по 4px + 20px отступов строки) оставляли в
+ * раскладке столбец, который в неё не помещался: строка вылезала за карточку,
+ * а тело таблицы получало горизонтальную прокрутку и разъезжалось с шапкой
+ * (#1097 S8 волна 4).
+ *
+ * @param {Element|null|undefined} rowEl строка заголовков (`.header-row`)
+ * @returns {number} доступная ширина; 0 - если строка скрыта или ещё не измерена
+ */
+export function measureRowAvailableWidth(rowEl) {
+  if (!rowEl || typeof window === 'undefined' || typeof window.getComputedStyle !== 'function') {
+    return 0;
+  }
+  const outer = rowEl.clientWidth;
+  if (!outer) return 0;
+
+  const style = window.getComputedStyle(rowEl);
+  const paddings = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+  const gap = parseFloat(style.columnGap) || 0;
+  const gaps = gap * Math.max(0, rowEl.children.length - 1);
+  return Math.max(0, outer - paddings - gaps);
+}
+
+/**
  * Выбирает поля, которые не помещаются в доступную ширину.
  *
  * Порядок скрытия: сначала больший priority (менее важные), при равенстве -

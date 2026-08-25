@@ -36,13 +36,21 @@
               <div class="admin-toggle__txt">
                 <b>Администратор</b>
                 <span>Все права. Можно точечно выключать справа.</span>
+                <small
+                  v-if="adminLockReason"
+                  class="admin-toggle__lock"
+                  data-testid="admin-toggle-lock-reason"
+                >
+                  {{ adminLockReason }}
+                </small>
               </div>
               <button
                 type="button"
                 class="tgl"
                 data-testid="admin-toggle"
-                :class="{ on: localIsAdmin || isSuper, locked: isSuper }"
-                :disabled="isSuper || saving"
+                :class="{ on: localIsAdmin || isSuper, locked: adminLocked }"
+                :disabled="adminLocked || saving"
+                :title="adminLockReason"
                 :aria-pressed="localIsAdmin || isSuper"
                 aria-label="Администратор"
                 @click="toggleAdmin"
@@ -184,14 +192,25 @@
               <span class="src src--override">лично</span>
             </div>
 
+            <div class="perm-search">
+              <input
+                v-model="search"
+                class="lk-input"
+                type="text"
+                placeholder="Поиск права..."
+                data-testid="user-permissions-search"
+              >
+            </div>
+
             <LoaderSpinner
               v-if="loading"
               label="Загрузка прав..."
             />
             <EffectivePermissionsTree
               v-else
-              :catalog="catalog"
+              :catalog="filteredCatalog"
               :state-by-key="stateByKey"
+              :expand-all="searchActive"
               @toggle="onToggleKey"
             />
           </div>
@@ -228,7 +247,9 @@
 
 <script>
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { useAuthStore } from '@/stores/auth';
 import { useDeletionsStore } from '@/stores/deletions';
+import { usePermissionsStore } from '@/stores/permissions';
 import { useUiStore } from '@/stores/ui';
 import {
   listRoles,
@@ -246,8 +267,12 @@ import {
 } from '@/api/permissions';
 import { apiRequest } from '@/api/client';
 import EffectivePermissionsTree from './EffectivePermissionsTree.vue';
+import { filterCatalog, flattenCatalog } from '@/utils/permissionCatalog';
 import LoaderSpinner from '../ui/LoaderSpinner.vue';
 import BaseDropdown from '../ui/BaseDropdown.vue';
+
+// Ключ, которым бэкенд закрывает PUT /users/:id/admin (services.KeyActionGrantAdmin).
+const GRANT_ADMIN_KEY = 'action.grant.admin';
 
 /**
  * Модалка «Права доступа» в две колонки: слева источники прав (флаг Администратор,
@@ -288,6 +313,7 @@ export default {
       overrideInit: {},
       overrideMap: {},
       banReasonInput: '',
+      search: '',
     };
   },
   computed: {
@@ -299,6 +325,29 @@ export default {
     },
     isBanned() {
       return this.effective.mode === 'banned' || !!this.effective.banned || !!this.user?.is_banned;
+    },
+    // Признак администратора выдаёт action.grant.admin, а он super-only. Одной
+    // hasPermission тут мало: в режиме admin стор отвечает «да» на любой ключ, которого
+    // нет в denied (stores/permissions.js), а super-only ключи туда не попадают -- бэкенд
+    // же отказывает всем, кроме супера (PermissionSet.Has). Признак берём из каталога,
+    // он приходит тем же запросом, что и права.
+    canGrantAdmin() {
+      const node = this.flatCatalog.find((n) => n.key === GRANT_ADMIN_KEY);
+      // Каталог ещё не приехал -- считаем ключ закрытым, иначе тумблер успевает
+      // побыть доступным, пока грузятся права.
+      const superOnly = node ? !!node.super_only : true;
+      if (superOnly && !useAuthStore().isSuperAdmin) return false;
+      return usePermissionsStore().hasPermission(GRANT_ADMIN_KEY);
+    },
+    adminLocked() {
+      return this.isSuper || !this.canGrantAdmin;
+    },
+    // Причина недоступности тумблера. Про целевого пользователя -- первой: она
+    // держится даже у того, кому выдавать администраторов разрешено.
+    adminLockReason() {
+      if (this.isSuper) return 'У супер-администратора и так все права';
+      if (!this.canGrantAdmin) return 'Выдать признак может только Системный администратор';
+      return '';
     },
     banReasonCurrent() {
       return this.effective.ban_reason || this.user?.ban_reason || '';
@@ -323,13 +372,17 @@ export default {
     availableGroups() {
       return this.groups.filter((g) => !this.selectedGroupIds.has(g.id));
     },
+    // Плоский список и состояния считаются по ПОЛНОМУ каталогу, а поиск сужает
+    // только то, что рисует дерево: иначе набранный запрос обнулял бы состояние
+    // спрятанных прав, и сохранение уносило бы их вместе с собой.
     flatCatalog() {
-      const flat = [];
-      for (const node of this.catalog) {
-        flat.push(node);
-        for (const child of node.children || []) flat.push(child);
-      }
-      return flat;
+      return flattenCatalog(this.catalog);
+    },
+    filteredCatalog() {
+      return filterCatalog(this.catalog, this.search);
+    },
+    searchActive() {
+      return this.search.trim().length > 0;
     },
     stateByKey() {
       const result = {};
@@ -479,7 +532,7 @@ export default {
       return { on: false, source: null, locked: false };
     },
     toggleAdmin() {
-      if (this.isSuper || this.saving) return;
+      if (this.adminLocked || this.saving) return;
       this.localIsAdmin = !this.localIsAdmin;
     },
     onToggleKey(key) {
@@ -739,6 +792,14 @@ export default {
   font-weight: 500;
 }
 
+.admin-toggle__lock {
+  display: block;
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+  margin-top: 6px;
+  font-weight: 600;
+}
+
 /* --- Поля --- */
 .field-block {
   display: flex;
@@ -916,6 +977,16 @@ export default {
   width: 100%;
 }
 
+/* --- Поиск по правам --- */
+.perm-search {
+  margin-bottom: 12px;
+}
+
+.perm-search .lk-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 /* --- Легенда правого столбца --- */
 .legend {
   display: flex;
@@ -967,7 +1038,6 @@ export default {
   height: var(--d);
   border-radius: 50%;
   background: var(--surface);
-  box-shadow: 0 1px 3px var(--shadow-drop);
   transition: left 0.2s ease;
 }
 

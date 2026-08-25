@@ -61,10 +61,20 @@
             class="form__message-tc"
             :rows="3"
             placeholder="Введите сопроводительное письмо / сообщение"
-          />
+          >
+            <template #attachments>
+              <ApplicationFilesUpload
+                ref="filesUpload"
+                v-model="applicationFileIds"
+              />
+            </template>
+          </TextConstructor>
           <!-- Согласие и отправка — правая колонка шапки, рядом с полем сообщения -->
           <div class="form__submit-bar">
-            <div class="consent-section">
+            <div
+              class="consent-section"
+              data-testid="ob-app-consent"
+            >
               <div class="consent-checkbox">
                 <input
                   id="consent"
@@ -94,11 +104,29 @@
                 <button
                   class="send-all-btn"
                   data-testid="create-app-button-submit"
-                  :disabled="!canSubmit"
+                  :disabled="!canSubmit || isSubmitting"
                   @click="submitApplication"
                 >
-                  Отправить заявку
+                  <span
+                    v-if="isSubmitting"
+                    class="send-all-btn__spinner"
+                    aria-hidden="true"
+                  />
+                  {{ isSubmitting ? 'Отправляем...' : 'Отправить заявку' }}
                 </button>
+                <!-- Честный статус долгой подачи (эпик blank-import, срез E2E3): большой
+                     импортированный список отправляется дольше обычного, кнопка одна
+                     "погасла" читалась бы как зависшая форма. -->
+                <div
+                  v-if="isSubmitting"
+                  class="submit-progress-hint"
+                  data-testid="create-app-submit-progress"
+                  role="status"
+                  aria-live="polite"
+                >
+                  Заявка отправляется - при большом числе строк это может занять до пары
+                  минут. Не закрывайте страницу.
+                </div>
                 <div
                   v-if="showSubmitTooltip && !canSubmit && tooltipSections.length"
                   class="submit-tooltip"
@@ -216,13 +244,42 @@
         </div>
 
         <!-- 4 ряд: Динамические формы в зависимости от типа вложения -->
+        <!-- data-attachment-type читает онбординг: форма одна на все бланки, и по
+             одному лишь её появлению не понять, успела ли она перерисоваться под
+             выбранный бланк. -->
         <div
           class="form__data"
           data-testid="ob-app-formdata"
+          :data-attachment-type="selectedAttachment && selectedAttachment.attachment_type"
         >
+          <!-- Режим импорта (blank-import-ux, U4): панель встаёт НА МЕСТО формы ручного
+               ввода, список рядом остаётся - вход и выход из режима живут в его шапке.
+               На время правки строки панель прячется, а НЕ размонтируется: разбор файла,
+               выбор мест и правки проблемных строк живут в ней, а повторное монтирование
+               заново отправило бы принятые строки в список. -->
+          <BlankImportPanel
+            v-if="importMode"
+            v-show="!importPausedForEdit"
+            :attachment-type="selectedAttachment ? selectedAttachment.attachment_type : 'people'"
+            :result="importResult"
+            :uploading="importUploading"
+            :downloading="downloadingBlankTemplate"
+            :all-passage-tables="allPassageTables"
+            :all-unloading-places="allUnloadingPlaces"
+            :field-config="currentFieldConfig"
+            :pending-count="pendingImportCount"
+            @file="uploadImportFile"
+            @download-blank="downloadBlankTemplate"
+            @stage="stageImportRows"
+            @import="handleImportRows"
+            @reset="resetImportResult"
+            @close="closeImportMode"
+          />
+
           <!-- Для автомобилей -->
           <template v-if="selectedAttachment && selectedAttachment.attachment_type === 'cars'">
             <VehicleForm
+              v-if="!importMode || importPausedForEdit"
               :key="vehicleFormKey"
               ref="vehicleForm"
               :field-config="currentFieldConfig"
@@ -247,15 +304,20 @@
               :all-unloading-places="allUnloadingPlaces"
               :license-plate-formats="licensePlateFormats"
               :detail-info="detailViewInfo"
+              :can-import="canImportList"
+              :import-active="importMode"
               @sort="sortBy"
               @edit-vehicle="editVehicle"
               @delete-vehicle="deleteVehicle"
+              @toggle-import="toggleImportMode"
+              @clear-list="clearList('cars')"
             />
           </template>
 
           <!-- Для людей/сотрудников -->
           <template v-else-if="selectedAttachment && selectedAttachment.attachment_type === 'people'">
             <EmployeeForm
+              v-if="!importMode || importPausedForEdit"
               :key="employeeFormKey"
               ref="employeeForm"
               :field-config="currentFieldConfig"
@@ -277,9 +339,13 @@
               :sort-direction="sortDirection"
               :all-tables="allPassageTables"
               :detail-info="detailViewInfo"
+              :can-import="canImportList"
+              :import-active="importMode"
               @sort="sortBy"
               @edit-employee="editEmployee"
               @delete-employee="deleteEmployee"
+              @toggle-import="toggleImportMode"
+              @clear-list="clearList('people')"
             />
           </template>
 
@@ -296,7 +362,6 @@
               @item-added="handleItemAdded"
               @items-added="handleItemsAdded"
               @item-updated="handleItemUpdated"
-              @edit-cancelled="handleItemEditCancelled"
               @update:unload-places="onApplicationUnloadPlacesChange"
             />
             <ItemsList
@@ -331,9 +396,10 @@
       :company="company"
       :has-organization="hasOrganization"
       :has-company="hasCompany"
+      :processing="isBindingActionInProgress"
       @confirm-binding="confirmBinding"
       @skip-binding="skipBinding"
-      @close="closeBindingModal"
+      @close="cancelBindingModal"
     />
 
     <ApplicationSuccessModal
@@ -363,13 +429,17 @@
 </template>
 
 <script>
-import { apiRequest } from '@/api/client'
+import { apiRequest, createExtendedTimeoutSignal } from '@/api/client'
 import { mapWithConcurrency } from '@/utils/mapWithConcurrency'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionsStore } from '@/stores/permissions'
+import { downloadBlankTemplate as fetchBlankTemplate, uploadImportList } from '@/api/blankImport'
+import { saveBlobAs } from '@/api/attachment-templates'
+import { toAttachmentContent } from '@/utils/applicationEntityPayload';
 import { useDeletionsStore } from '@/stores/deletions'
 import { formatRussianPhone, isValidRussianPhone } from '@/composables/useRussianPhoneMask'
 import BlankSelector from '../BlankSelector.vue';
+import ApplicationFilesUpload from './ApplicationFilesUpload.vue';
 import UserInfoRow from './UserInfoRow.vue';
 import DateRangeSection from './DateRangeSection.vue';
 import VehicleForm from './VehicleForm.vue';
@@ -386,8 +456,11 @@ import ApplicationRecipientsRow from './ApplicationRecipientsRow.vue';
 import DuplicateConflictModal from './DuplicateConflictModal.vue';
 import SchedulePlaceWarningPanel from './SchedulePlaceWarningPanel.vue';
 import DataProcessingModal from '@/components/DataProcessingModal.vue';
+import BlankImportPanel from './BlankImportPanel.vue';
 import {
     findFirstDuplicate,
+    findDuplicateEmployee,
+    findDuplicateVehicle,
     isSameEmployee,
     isSameVehicle,
     employeeLabel,
@@ -398,9 +471,40 @@ import {
 // крупная заявка не выстрелила сотнями одновременных POST и не упёрлась в лимит.
 const BIND_CONCURRENCY = 6;
 
+// Право на импорт списка из заполненного бланка (эпик blank-import, срез C1C2).
+// Кнопка скачивания ПУСТОГО бланка (B2) гейтится тем же правом: скачал -
+// значит сможет и загрузить обратно, иначе получится класс "видно, но 403".
+const ACTION_IMPORT_LIST_PERMISSION = 'action.import.list';
+
+// Подача заявки с массовым импортом (до 2000 строк) не укладывается в дефолтный
+// таймаут apiRequest (10с) - даём этому единственному запросу отдельный, куда
+// более щедрый бюджет (эпик blank-import, срез E2E3).
+const SUBMIT_TIMEOUT_MS = 120000;
+
+// Предварительная строка (эпик blank-import-ux, срез U5): разобрана из бланка и уже
+// видна в списке, но в подачу не уходит, пока в сводке импорта не нажата «Добавить».
+// Флаг живёт на самой строке, поэтому в черновик localStorage он попадает вместе с ней
+// и переживает перезагрузку без отдельного хранилища.
+const isPendingRow = (row) => !!row && row.isPending === true;
+
+/** Строки, которые реально уходят в заявку: без предварительных. */
+const submittedRows = (rows) => (rows || []).filter((row) => !isPendingRow(row));
+
+// Кросс-браузерное распознавание переполнения квоты localStorage: разные
+// движки шлют разный name/code (см. MDN QuotaExceededError).
+function isQuotaExceededError(error) {
+    return error instanceof DOMException && (
+        error.name === 'QuotaExceededError'
+        || error.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+        || error.code === 22
+        || error.code === 1014
+    );
+}
+
 export default {
     name: 'CreateApplication',
     components: {
+        ApplicationFilesUpload,
         BlankSelector,
         SchedulePlaceWarningPanel,
         UserInfoRow,
@@ -417,11 +521,15 @@ export default {
         TextConstructor,
         ApplicationRecipientsRow,
         DuplicateConflictModal,
-        DataProcessingModal
+        DataProcessingModal,
+        BlankImportPanel
     },
     data() {
         return {
             message: '',
+            // Файлы, приложенные к заявке (#1721). Наверх приходят id уже
+            // загруженных черновиков: подача привязывает их к заявке.
+            applicationFileIds: [],
             // Прилип ли заголовок вложения к верху (для подложки и границы при скролле).
             blankStuck: false,
             // Конфликт дублирования (#952): на странице уже есть черновик, а из ЛК пришёл
@@ -455,6 +563,21 @@ export default {
 
             selectedAttachment: null,
             attachments: [],
+
+            // Скачивание пустого бланка для массового ввода (эпик blank-import, B2):
+            // блокирует повторный клик, пока летит запрос.
+            downloadingBlankTemplate: false,
+
+            // Режим импорта из бланка (blank-import-ux, U4): панель вместо формы
+            // ручного ввода. Живёт на вложение - переключение вложения его гасит.
+            importMode: false,
+            importUploading: false,
+            // {rows, summary} последнего разбора - показывается панелью вместо дропзона.
+            importResult: null,
+            // Правка строки списка при открытом импорте: панель уступает место форме и
+            // возвращается, когда правка завершена. Режим при этом не выключается -
+            // разбор файла и выбор мест переживают правку.
+            importPausedForEdit: false,
 
             // #1183: предупреждения выбранных мест текущей формы для плавающей панели.
             placeNotices: [],
@@ -497,6 +620,20 @@ export default {
             createdApplicationNumber: '',
             createdAttachmentsData: [],
 
+            // Блокирует повторное нажатие "Отправить заявку", пока летит подача
+            // (эпик blank-import, срез E2E3): без гарда двойной клик на большом
+            // списке успевает уйти вторым POST раньше, чем отработает первый.
+            isSubmitting: false,
+            // Уточнение isSubmitting: true строго ПОДМНОЖЕСТВО isSubmitting=true, с момента
+            // клика "Привязать и отправить"/"Отправить без привязки" внутри модалки привязки
+            // и до завершения confirmBinding/skipBinding (mapWithConcurrency-привязка + сам
+            // submit). Пока модалка только ОТКРЫТА и юзер решает - false, крестик/оверлей/
+            // Escape/свайп закрывают её штатно. Как только процесс стартовал - true, и
+            // UniversalBindingModal (проп processing) сама блокирует и свои кнопки, и закрытие -
+            // иначе повторный клик внутри модалки или "отмена" посреди работающего confirmBinding
+            // оставляют его фоновый прогон невидимым и ведут ко второму параллельному submit.
+            isBindingActionInProgress: false,
+
             showSubmitTooltip: false,
             tooltipTimer: null,
 
@@ -518,6 +655,15 @@ export default {
         // запись из профиля, а сервер всё равно привяжет заявку к ней.
         canOverrideDirectory() {
             return usePermissionsStore().hasPermission('application.organization.override');
+        },
+
+        // Кнопка входа в импорт в шапке списка (U4): видна только когда у пользователя
+        // есть право на загрузку списка (C1C2) и выбрано вложение со списком
+        // участников - у ТМЦ (items) списочной части в бланке нет.
+        canImportList() {
+            return usePermissionsStore().hasPermission(ACTION_IMPORT_LIST_PERMISSION)
+                && !!this.selectedAttachment
+                && ['cars', 'people'].includes(this.selectedAttachment.attachment_type);
         },
 
         // Привязка машин и сотрудников к организации возможна, только когда организация
@@ -551,6 +697,16 @@ export default {
         items() {
             if (!this.selectedAttachment) return [];
             return this.itemsByAttachment[this.attachmentKey(this.selectedAttachment)] || [];
+        },
+
+        // Предварительные строки текущего вложения (U5). Сводка импорта считает свои
+        // счётчики по ЭТОМУ числу, а не по summary разбора: удалил строку из списка -
+        // сводка обязана пересчитаться, иначе кнопка обещает добавить то, чего нет.
+        pendingImportCount() {
+            if (!this.selectedAttachment) return 0;
+            const key = this.attachmentKey(this.selectedAttachment);
+            return this.rowsForAttachment(this.selectedAttachment.attachment_type, key)
+                .filter(isPendingRow).length;
         },
 
         hasCars() {
@@ -650,23 +806,33 @@ export default {
             this.attachments.forEach(attachment => {
                 const key = this.attachmentKey(attachment);
                 const label = attachment.attachment_display_name || attachment.attachment_name || attachment.display_name || `вложение #${attachment.id}`;
-                let hasAttachmentData;
+                // Предварительные строки в подачу не идут, поэтому и в счёт «есть данные»
+                // не идут тоже: вложение из одних серых строк для сервера пустое.
+                const rows = this.rowsForAttachment(attachment.attachment_type, key);
+                const ready = submittedRows(rows);
+                const pending = rows.length - ready.length;
+                const isEmpty = ready.length === 0 && pending === 0;
+
                 switch (attachment.attachment_type) {
                     case 'cars':
-                        hasAttachmentData = (this.vehiclesByAttachment[key] || []).length > 0;
-                        if (!hasAttachmentData) reasons.push(`"${label}": добавьте хотя бы одно авто`);
+                        if (isEmpty) reasons.push(`"${label}": добавьте хотя бы одно авто`);
                         break;
                     case 'people':
-                        hasAttachmentData = (this.employeesByAttachment[key] || []).length > 0;
-                        if (!hasAttachmentData) reasons.push(`"${label}": добавьте хотя бы одного сотрудника`);
+                        if (isEmpty) reasons.push(`"${label}": добавьте хотя бы одного сотрудника`);
                         break;
                     case 'items':
-                        hasAttachmentData = (this.itemsByAttachment[key] || []).length > 0;
-                        if (!hasAttachmentData) reasons.push(`"${label}": добавьте хотя бы одну позицию`);
+                        if (isEmpty) reasons.push(`"${label}": добавьте хотя бы одну позицию`);
                         if (this.itemsUnloadRequired && this.applicationUnloadPlaces.length === 0) {
                             reasons.push(`"${label}": выберите место разгрузки`);
                         }
                         break;
+                }
+
+                // Не «предупредим и отправим»: незамеченные серые строки ушли бы в никуда
+                // вместе с черновиком, который подача чистит. Поэтому подача ждёт решения -
+                // добавить их или удалить.
+                if (pending > 0) {
+                    reasons.push(`"${label}": строки из бланка ещё предварительные (${pending}) - нажмите «Добавить» в сводке импорта или удалите их`);
                 }
 
                 const dateData = this.attachmentDatesByAttachment[key];
@@ -715,14 +881,17 @@ export default {
                 const displayName = attachment.display_name || attachment.attachment_display_name || attachment.attachment_name || `вложение #${attachment.id}`;
                 const errors = [];
 
-                let items = [];
-                if (type === 'cars') items = this.vehiclesByAttachment[key] || [];
-                else if (type === 'people') items = this.employeesByAttachment[key] || [];
-                else if (type === 'items') items = this.itemsByAttachment[key] || [];
+                const allRows = this.rowsForAttachment(type, key);
+                const items = submittedRows(allRows);
+                const pending = allRows.length - items.length;
 
-                if (type === 'cars' && items.length === 0) errors.push('Не добавлено ни одного автомобиля');
-                else if (type === 'people' && items.length === 0) errors.push('Не добавлено ни одного сотрудника');
+                if (type === 'cars' && items.length === 0 && pending === 0) errors.push('Не добавлено ни одного автомобиля');
+                else if (type === 'people' && items.length === 0 && pending === 0) errors.push('Не добавлено ни одного сотрудника');
                 else if (type === 'items' && items.length === 0) errors.push('Не добавлено ни одной позиции');
+
+                if (pending > 0) {
+                    errors.push(`Строки из бланка ещё предварительные (${pending})`);
+                }
 
                 if (type === 'items' && this.itemsUnloadRequired && this.applicationUnloadPlaces.length === 0) {
                     errors.push('Не выбрано место разгрузки');
@@ -867,10 +1036,23 @@ export default {
             });
         }
     },
-    mounted() {
+    async mounted() {
+        // Профиль подтягиваем ДО восстановления черновика (#1457). loadUserData
+        // безусловно перезаписывает организацию, компанию, ФИО и телефон, а раньше он
+        // стоял после восстановления и приходил вторым: заявитель, набравший чужую
+        // организацию по праву application.organization.override (#1437), после
+        // перезагрузки страницы молча получал обратно свою. Порядок «профиль, затем
+        // черновик» оставляет за черновиком последнее слово.
+        //
+        // Сбой профиля не должен стоить введённого: ошибку глотаем и всё равно
+        // восстанавливаем черновик, иначе форма откроется пустой.
+        try {
+            await this.loadUserData();
+        } catch (error) {
+            console.error('Не удалось загрузить данные профиля:', error);
+        }
         this.restoreFromLocalStorage();
         this.checkPendingDuplicate();
-        this.loadUserData();
         this.loadAllUnloadingPlaces();
         this.loadLicensePlateFormats();
         this.loadPassageTables();
@@ -921,7 +1103,6 @@ export default {
 
                 if (response.ok) {
                     const tables = await response.json();
-                    console.log('Загруженные таблицы в CreateApplication:', tables);
                     this.allPassageTables = tables;
                 } else {
                     console.error("Ошибка при загрузке системных таблиц");
@@ -936,8 +1117,10 @@ export default {
   for (const attachment of this.attachments) {
     if (attachment.attachment_type !== 'cars') continue;
 
-    const vehicles = this.vehiclesByAttachment[this.attachmentKey(attachment)] || [];
-    
+    // Проверяем то, что уйдёт в заявку: предварительная строка активной машиной
+    // никого не блокирует, а запрос на неё - лишний круг по сети на каждую строку.
+    const vehicles = submittedRows(this.vehiclesByAttachment[this.attachmentKey(attachment)]);
+
     for (const vehicle of vehicles) {
       try {
         const params = new URLSearchParams();
@@ -1236,6 +1419,24 @@ export default {
             };
             if (this.organizationId) await collect(`/organizations/${this.organizationId}/users`);
             if (this.companyId) await collect(`/companies/${this.companyId}/users`);
+
+            // Принимающие: заявка уходит им, и в получателях они должны быть видны
+            // всегда - даже когда согласующих у организации нет. Имя приходит готовым:
+            // маска, если администратор её задал, иначе ФИО.
+            try {
+                const r = await apiRequest('/application-approvers/recipients', {});
+                if (r.ok) {
+                    const recipients = await r.json();
+                    (recipients || []).forEach(u => {
+                        if (u.user_id && !byId.has(u.user_id)) {
+                            byId.set(u.user_id, { user_id: u.user_id, name: u.name });
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки принимающих:', error);
+            }
+
             this.defaultApprovers = Array.from(byId.values());
         },
 
@@ -1283,11 +1484,285 @@ export default {
             }
         },
 
+        // Скачивание пустого бланка для массового заполнения списка (эпик blank-import,
+        // B1 отдаёт файл, B2 - эта кнопка). Наличие list-маппингов не запрашивается
+        // отдельным эндпоинтом заранее - эндпоинт сам возвращает 404 с готовым русским
+        // текстом ("Шаблон бланка не настроен" / "В бланке не размечен список
+        // участников"), его и показываем как есть.
+        async downloadBlankTemplate() {
+            if (!this.selectedAttachment || this.downloadingBlankTemplate) return;
+            const uaId = this.selectedAttachment.template_id || this.selectedAttachment.id;
+            this.downloadingBlankTemplate = true;
+            try {
+                const { blob, filename } = await fetchBlankTemplate(uaId);
+                saveBlobAs(blob, filename);
+            } catch (error) {
+                useDeletionsStore().notify({ prefix: error.message || 'Не удалось скачать бланк для заполнения', type: 'error' });
+            } finally {
+                this.downloadingBlankTemplate = false;
+            }
+        },
+
+        // Вход и выход из режима импорта (U4). Разобранный файл режим не переживает:
+        // вернуться к ручному вводу и снова открыть импорт - это новая загрузка, а не
+        // продолжение старой сводки.
+        toggleImportMode() {
+            if (this.importMode) {
+                this.closeImportMode();
+                return;
+            }
+            this.importMode = true;
+        },
+
+        /**
+         * Выход из режима импорта. Предварительные строки живут ровно столько, сколько
+         * открыт разбор: закрыли панель, не нажав «Добавить», - их уносит вместе с
+         * разбором (решение владельца). Иначе серые строки остались бы в списке без
+         * сводки, то есть без способа ни принять их, ни убрать штатно.
+         *
+         * Правка строки (pauseImportForEdit) закрытием НЕ считается - там панель прячется,
+         * а не закрывается, и сюда не заходит.
+         */
+        closeImportMode() {
+            const dropped = this.dropPendingRows();
+            this.importMode = false;
+            this.importPausedForEdit = false;
+            this.importResult = null;
+
+            if (dropped > 0) {
+                useDeletionsStore().notify({
+                    bold: `Разбор бланка закрыт: убрано строк ${dropped}`,
+                    suffix: ' - они не были добавлены в заявку',
+                });
+            }
+        },
+
+        /**
+         * Убирает предварительные строки вложения. По умолчанию - текущего: при смене
+         * вложения метод зовётся ДО подмены selectedAttachment, то есть чистит то, из
+         * которого уходят.
+         *
+         * @param {Object} [attachment] вложение, если нужно не текущее
+         * @returns {number} сколько строк убрано
+         */
+        dropPendingRows(attachment) {
+            const target = attachment || this.selectedAttachment;
+            if (!target) return 0;
+
+            const rows = this.rowsForAttachment(target.attachment_type, this.attachmentKey(target));
+            let dropped = 0;
+            // Идём с конца: splice по ходу сдвигает индексы впереди стоящих строк.
+            for (let i = rows.length - 1; i >= 0; i -= 1) {
+                if (!isPendingRow(rows[i])) continue;
+                rows.splice(i, 1);
+                dropped += 1;
+            }
+
+            if (dropped > 0) this.saveToLocalStorage();
+            return dropped;
+        },
+
+        resetImportResult() {
+            this.importResult = null;
+        },
+
+        /**
+         * Список рядом с панелью импорта остаётся кликабельным, а правка строки живёт в
+         * форме ручного ввода, которую занимает панель. Панель уступает ей место, но
+         * остаётся смонтированной: разбор файла, выбранные места и правки проблемных
+         * строк живут в ней, и выход из режима стоил бы человеку всей загрузки.
+         *
+         * @param {Function} openEditor открывает нужную форму на правке строки
+         */
+        pauseImportForEdit(openEditor) {
+            // Режим выключен или форма уже показана - открывать нечего, зовём сразу.
+            if (!this.importMode || this.importPausedForEdit) {
+                openEditor();
+                return;
+            }
+            this.importPausedForEdit = true;
+            this.$nextTick(openEditor);
+        },
+
+        /**
+         * Правка завершена (сохранена или отменена) - сводка возвращается на место формы.
+         */
+        resumeImportAfterEdit() {
+            if (this.importPausedForEdit) this.importPausedForEdit = false;
+        },
+
+        // Загрузка заполненного бланка (эпик blank-import, D1D2). Файл уходит сразу по
+        // выбору/сбросу - интерфейс рассчитан на неопытного пользователя, отдельного шага
+        // "подтвердить загрузку" нет. 200/207 оба показывают сводку (D2); строки с
+        // ошибками разбирает сама сводка, здесь их не фильтруем.
+        async uploadImportFile(file) {
+            if (!this.selectedAttachment || this.importUploading) return;
+            const uaId = this.selectedAttachment.template_id || this.selectedAttachment.id;
+            this.importUploading = true;
+            try {
+                this.importResult = await uploadImportList(uaId, file);
+            } catch (error) {
+                useDeletionsStore().notify({
+                    prefix: 'Не удалось загрузить список: ',
+                    bold: error.message || 'ошибка сервера',
+                    type: 'error',
+                });
+            } finally {
+                this.importUploading = false;
+            }
+        },
+
+        /**
+         * Разобранные бланком строки встают в список СРАЗУ, предварительными (U5): человек
+         * видит, что именно прочитано, и правит это в привычном списке, а не в таблице
+         * разбора. Дедуп живёт здесь, а не на «Добавить»: строка входит в список в этот
+         * момент, и дубль, показанный серым, пришлось бы гасить уже после того, как человек
+         * его увидел и посчитал добавленным.
+         */
+        stageImportRows({ attachmentType, rows }) {
+            // Сводка ждёт справочник гражданств, прежде чем отдать строки, и за это время
+            // человек успевает выйти из режима или переключить вложение. Панель к тому
+            // моменту уже размонтирована, но её эмит доходит - без гарда строки легли бы
+            // в чужое вложение.
+            if (!this.importMode || !this.selectedAttachment) return;
+            if (this.selectedAttachment.attachment_type !== attachmentType) return;
+
+            const staged = this.addImportedRows(attachmentType, rows, true);
+            if (staged > 0) {
+                useDeletionsStore().notify({
+                    bold: `Строк из бланка: ${staged}`,
+                    suffix: ' - показаны в списке предварительно, выберите места и нажмите «Добавить»',
+                });
+            }
+        },
+
+        /**
+         * «Добавить» в сводке: предварительные строки становятся обычными и получают
+         * выбранные места, а вручную исправленные проблемные строки приходят этим же
+         * событием и заводятся сразу обычными.
+         *
+         * @param {{attachmentType: string, rows: Array<Object>, places?: Object}} payload
+         */
+        handleImportRows({ attachmentType, rows, places }) {
+            // Тот же гард, что у stageImportRows: сейчас эмит синхронный и разойтись
+            // нечему, но стоит появиться ожиданию перед ним - строки лягут в чужое
+            // вложение. Защита стоит дешевле, чем разбор такого случая потом.
+            if (!this.selectedAttachment) return;
+            if (this.selectedAttachment.attachment_type !== attachmentType) return;
+
+            const fixedRows = rows || [];
+            if (!fixedRows.length && this.pendingImportCount === 0) return;
+
+            const added = this.addImportedRows(attachmentType, fixedRows, false);
+            const activated = this.activatePendingRows(attachmentType, places);
+
+            if (added + activated > 0) {
+                useDeletionsStore().notify({
+                    bold: `Добавлено строк: ${added + activated}`,
+                    suffix: ' из импортированного бланка',
+                });
+            }
+
+            // Строки в списке - режим отработал, возвращаем форму ручного ввода.
+            this.closeImportMode();
+        },
+
+        /**
+         * Снимает предварительность со строк текущего вложения и раскатывает по ним
+         * выбранные в сводке места (в файле их нет и не будет - решение владельца).
+         *
+         * @param {string} attachmentType cars | people
+         * @param {Object} places патч полей мест, общий для всех строк пачки
+         * @returns {number} сколько строк стало обычными
+         */
+        activatePendingRows(attachmentType, places) {
+            if (!this.selectedAttachment) return 0;
+
+            const rows = this.rowsForAttachment(attachmentType, this.attachmentKey(this.selectedAttachment));
+            let activated = 0;
+            rows.forEach((row, index) => {
+                if (!isPendingRow(row)) return;
+                const activeRow = { ...row, ...(places || {}) };
+                delete activeRow.isPending;
+                rows.splice(index, 1, activeRow);
+                activated += 1;
+            });
+
+            if (activated > 0) this.saveToLocalStorage();
+            return activated;
+        },
+
+        // Строки уходят в список заявки ТЕМ ЖЕ путём, что ручное массовое добавление
+        // (существующие handleEmployeesAdded/handleVehiclesAdded) - без своей копии логики
+        // создания строк (см. addExistingEmployees/addExistingCars).
+        // Дубли ВНУТРИ файла бэкенд уже отсеивает при разборе (attachment_import_validate.go,
+        // строка попадает в rows только один раз) - здесь только пересечение с тем, что уже
+        // добавлено в текущее вложение заявки, теми же findDuplicateEmployee/findDuplicateVehicle,
+        // что и ручной ввод. Строку-в-строку внутри самой пачки (правка проблемных строк вручную
+        // может свести две разные строки к одному человеку/машине) та же накопительная проверка
+        // гасит побочным эффектом - как и addExistingEmployees/addExistingCars для каталога.
+        addImportedRows(attachmentType, rows, pending) {
+            if (!rows || !rows.length) return 0;
+            const isPeople = attachmentType === 'people';
+            const findDuplicate = isPeople ? findDuplicateEmployee : findDuplicateVehicle;
+            const label = isPeople ? employeeLabel : vehicleLabel;
+
+            // employeeLabel фолбэком показывает паспорт, если ФИО пусто (так он и задуман
+            // для ручного ввода). В импорте это означало бы паспорт в тексте уведомления,
+            // поэтому здесь безымянная строка называется обезличенно.
+            const safeLabel = (row) => {
+                const text = label(row);
+                if (!isPeople) return text;
+                const hasName = [row.lastName, row.firstName, row.middleName]
+                    .some((part) => (part || '').trim());
+                return hasName ? text : 'Строка без ФИО';
+            };
+
+            const list = [...(isPeople ? this.employees : this.vehicles)];
+            const toAdd = [];
+            const skipped = [];
+            rows.forEach((row) => {
+                if (findDuplicate(list, row)) {
+                    skipped.push(safeLabel(row));
+                    return;
+                }
+                list.push(row);
+                toAdd.push(row);
+            });
+
+            if (skipped.length > 0) {
+                // Файл может нести до 2000 строк - в тост попадают первые несколько имён,
+                // а не вся пачка целиком (SystemTableColumnsTab.vue - тот же приём "и ещё N").
+                const shown = skipped.slice(0, 5).join(', ');
+                const more = skipped.length > 5 ? ` и ещё ${skipped.length - 5}` : '';
+                useDeletionsStore().notify({
+                    prefix: `${shown}${more} `,
+                    bold: skipped.length > 1
+                        ? 'уже в списке - пропущены при импорте'
+                        : (isPeople ? 'уже в списке - пропущен при импорте' : 'уже в списке - пропущена при импорте'),
+                    type: 'error',
+                });
+            }
+
+            if (toAdd.length === 0) return 0;
+
+            const marked = pending ? toAdd.map((row) => ({ ...row, isPending: true })) : toAdd;
+            if (isPeople) {
+                this.handleEmployeesAdded(marked);
+            } else {
+                this.handleVehiclesAdded(marked);
+            }
+            return marked.length;
+        },
+
         async handleAttachmentSelected(attachment) {
             // Смена вложения - гасим панель предупреждений; новая форма пришлёт свои
             // группы через @notices-change (иначе стейл-группы прошлого вложения
             // мелькнут до пересчёта). Это реальный путь переключения между вложениями.
             this.placeNotices = [];
+            // Режим импорта (D1D2, U4) - у другого вложения свой шаблон/право, открытая
+            // панель и разобранный файл иначе переживают переключение.
+            this.closeImportMode();
             this.preserveFormHeight();
 
             if (!attachment) {
@@ -1414,6 +1889,13 @@ export default {
         },
 
         selectAttachment(attachment) {
+            // Добавление нового вложения идёт сюда, минуя handleAttachmentSelected, и без
+            // этого панель импорта переживала смену: у вложения другого типа кнопки
+            // «Импорт» нет вовсе, так что закрыть её штатно было нечем, а сводка
+            // показывала числа от прошлого вложения.
+            if (this.importMode && this.attachmentKey(this.selectedAttachment) !== this.attachmentKey(attachment)) {
+                this.closeImportMode();
+            }
             this.selectedAttachment = attachment;
         },
 
@@ -1563,13 +2045,14 @@ export default {
             
             const index = vehicles.findIndex(v => v.id === updatedVehicle.id);
             if (index !== -1) {
-                vehicles.splice(index, 1, updatedVehicle);
+                vehicles.splice(index, 1, this.keepPendingFlag(vehicles[index], updatedVehicle));
                 this.saveToLocalStorage();
             }
+            this.resumeImportAfterEdit();
         },
 
         handleVehicleEditCancelled() {
-            this.vehicleFormKey += 1;
+            this.resumeImportAfterEdit();
         },
 
         deleteVehicle(vehicleId) {
@@ -1586,10 +2069,11 @@ export default {
         },
 
         editVehicle(vehicle) {
-            if (this.$refs.vehicleForm) {
+            this.pauseImportForEdit(() => {
+                if (!this.$refs.vehicleForm) return;
                 this.$refs.vehicleForm.editVehicle(vehicle);
                 this.scrollToEntityForm();
-            }
+            });
         },
 
         handleEmployeeAdded(newEmployee) {
@@ -1636,13 +2120,26 @@ export default {
             
             const index = employees.findIndex(e => e.id === updatedEmployee.id);
             if (index !== -1) {
-                employees.splice(index, 1, updatedEmployee);
+                employees.splice(index, 1, this.keepPendingFlag(employees[index], updatedEmployee));
                 this.saveToLocalStorage();
             }
+            this.resumeImportAfterEdit();
+        },
+
+        /**
+         * Формы отдают свой объект строки и про предварительность ничего не знают -
+         * без переноса флага правка серой строки молча делала бы её обычной.
+         *
+         * @param {Object} previous строка до правки
+         * @param {Object} updated строка, собранная формой
+         * @returns {Object}
+         */
+        keepPendingFlag(previous, updated) {
+            return isPendingRow(previous) ? { ...updated, isPending: true } : updated;
         },
 
         handleEmployeeEditCancelled() {
-            this.employeeFormKey += 1;
+            this.resumeImportAfterEdit();
         },
 
         deleteEmployee(employeeId) {
@@ -1658,11 +2155,43 @@ export default {
             }
         },
 
+        /**
+         * «Очистить» в шапке списка (blank-import-ux, U6): убирает ВСЕ строки текущего
+         * вложения - и заведённые руками, и предварительные из бланка. Подтверждение
+         * спрашивает сам список, здесь только удаление: отмены на странице нет.
+         * Сводка импорта считает готовые к добавлению по pendingImportCount, поэтому
+         * после очистки она сама показывает ноль и не обещает добавить пустоту.
+         *
+         * @param {string} attachmentType cars | people
+         */
+        clearList(attachmentType) {
+            if (!this.selectedAttachment) return;
+            if (this.selectedAttachment.attachment_type !== attachmentType) return;
+
+            const key = this.attachmentKey(this.selectedAttachment);
+            const rows = this.rowsForAttachment(attachmentType, key);
+            const removed = rows.length;
+            if (removed === 0) return;
+
+            // splice, а не новый массив: на этот же экземпляр смотрят restoreAttachmentData
+            // и черновик, подмена ссылки оставила бы их со старыми строками.
+            rows.splice(0);
+            this.saveToLocalStorage();
+
+            useDeletionsStore().notify({
+                bold: `Убрано строк: ${removed}`,
+                suffix: attachmentType === 'people'
+                    ? ' из списка сотрудников'
+                    : ' из списка транспортных средств',
+            });
+        },
+
         editEmployee(employee) {
-            if (this.$refs.employeeForm) {
+            this.pauseImportForEdit(() => {
+                if (!this.$refs.employeeForm) return;
                 this.$refs.employeeForm.editEmployee(employee);
                 this.scrollToEntityForm();
-            }
+            });
         },
 
         formatFullName(employee) {
@@ -1718,10 +2247,6 @@ export default {
                 items.splice(index, 1, updatedItem);
                 this.saveToLocalStorage();
             }
-        },
-
-        handleItemEditCancelled() {
-            this.itemsFormKey += 1;
         },
 
         deleteItem(itemId) {
@@ -1838,72 +2363,93 @@ export default {
         },
 
         async submitApplication() {
-            this.validateAllFields();
-            
-            if (!this.canSubmit) {
-                useDeletionsStore().notify({ prefix: 'Заполните все обязательные поля во всех вложениях', type: 'error' });
-                return;
-            }
+            // Гард от повторного клика: пока летит подача (проверки + сам POST,
+            // включая время внутри модалки привязки и после неё), второй клик
+            // по кнопке - no-op, а не второй параллельный прогон.
+            if (this.isSubmitting) return;
+            this.isSubmitting = true;
+            // Модалка привязки доводит подачу до sendCompleteApplication сама
+            // (confirmBinding/skipBinding) и сама снимает isSubmitting по
+            // завершении - здесь снимаем только если до неё дело не дошло.
+            let handedOffToBindingModal = false;
 
-            // Формы гасят дубли при добавлении, но черновик из localStorage мог накопить их
-            // раньше - такую заявку на бэк не пускаем.
-            const duplicate = this.findDuplicateEntry();
-            if (duplicate) {
-                useDeletionsStore().notify({
-                    prefix: `Во вложении "${duplicate.attachmentName}" повторяется `,
-                    bold: duplicate.label,
-                    suffix: ' - удалите лишнюю строку',
-                    type: 'error',
-                });
-                return;
-            }
+            try {
+                this.validateAllFields();
 
-            // Проверяем активные машины
-  const activeVehicles = await this.checkVehiclesBeforeSubmit();
-  
-  if (activeVehicles.length > 0) {
-    const vehicleList = activeVehicles.map(v => this.formatActiveVehicleConflict(v)).join('; ');
-    useDeletionsStore().notify({ prefix: 'Невозможно отправить заявку. Уже в активных заявках: ', bold: vehicleList, type: 'error' });
-    return;
-  }
-
-            let hasDateErrors = false;
-            let errorMessage = '';
-            
-            this.attachments.forEach(attachment => {
-                const dateData = this.attachmentDatesByAttachment[this.attachmentKey(attachment)];
-                if (dateData) {
-                    if (!dateData.isOneDay && dateData.startDate && dateData.endDate) {
-                        const start = new Date(dateData.startDate.split('.').reverse().join('-'));
-                        const end = new Date(dateData.endDate.split('.').reverse().join('-'));
-                        if (start > end) {
-                            hasDateErrors = true;
-                            errorMessage = `В вложении "${attachment.display_name}" дата окончания не может быть раньше даты начала`;
-                        }
-                    }
-
+                if (!this.canSubmit) {
+                    useDeletionsStore().notify({ prefix: 'Заполните все обязательные поля во всех вложениях', type: 'error' });
+                    return;
                 }
-            });
 
-            if (hasDateErrors) {
-                useDeletionsStore().notify({ prefix: errorMessage, type: 'error' });
-                return;
-            }
+                // Формы гасят дубли при добавлении, но черновик из localStorage мог накопить их
+                // раньше - такую заявку на бэк не пускаем.
+                const duplicate = this.findDuplicateEntry();
+                if (duplicate) {
+                    useDeletionsStore().notify({
+                        prefix: `Во вложении "${duplicate.attachmentName}" повторяется `,
+                        bold: duplicate.label,
+                        suffix: ' - удалите лишнюю строку',
+                        type: 'error',
+                    });
+                    return;
+                }
 
-            await this.collectNewDataForBinding();
+                // Проверяем активные машины
+                const activeVehicles = await this.checkVehiclesBeforeSubmit();
 
-            const vehiclesForBinding = this.newVehiclesToBind.filter(vehicle => 
-                vehicle.plateNumber !== 'По факту' && vehicle.mark !== 'По факту'
-            );
-            
-            const employeesForBinding = this.newEmployeesToBind.filter(employee => 
-                employee.passportSeriesNumber !== 'По факту' && employee.position !== 'По факту'
-            );
+                if (activeVehicles.length > 0) {
+                    const vehicleList = activeVehicles.map(v => this.formatActiveVehicleConflict(v)).join('; ');
+                    useDeletionsStore().notify({ prefix: 'Невозможно отправить заявку. Уже в активных заявках: ', bold: vehicleList, type: 'error' });
+                    return;
+                }
 
-            if (vehiclesForBinding.length > 0 || employeesForBinding.length > 0) {
-                this.showBindingModal = true;
-            } else {
-                await this.sendCompleteApplication();
+                let hasDateErrors = false;
+                let errorMessage = '';
+
+                this.attachments.forEach(attachment => {
+                    const dateData = this.attachmentDatesByAttachment[this.attachmentKey(attachment)];
+                    if (dateData) {
+                        if (!dateData.isOneDay && dateData.startDate && dateData.endDate) {
+                            const start = new Date(dateData.startDate.split('.').reverse().join('-'));
+                            const end = new Date(dateData.endDate.split('.').reverse().join('-'));
+                            if (start > end) {
+                                hasDateErrors = true;
+                                errorMessage = `В вложении "${attachment.display_name}" дата окончания не может быть раньше даты начала`;
+                            }
+                        }
+
+                    }
+                });
+
+                if (hasDateErrors) {
+                    useDeletionsStore().notify({ prefix: errorMessage, type: 'error' });
+                    return;
+                }
+
+                await this.collectNewDataForBinding();
+
+                const vehiclesForBinding = this.newVehiclesToBind.filter(vehicle =>
+                    vehicle.plateNumber !== 'По факту' && vehicle.mark !== 'По факту'
+                );
+
+                const employeesForBinding = this.newEmployeesToBind.filter(employee =>
+                    employee.passportSeriesNumber !== 'По факту' && employee.position !== 'По факту'
+                );
+
+                if (vehiclesForBinding.length > 0 || employeesForBinding.length > 0) {
+                    // Модалка привязки перекрывает форму оверлеем, а confirmBinding/
+                    // skipBinding доводят подачу до sendCompleteApplication и сами
+                    // снимают isSubmitting по завершении - кнопка остаётся
+                    // заблокированной весь путь, а не только пока модалка открыта.
+                    handedOffToBindingModal = true;
+                    this.showBindingModal = true;
+                } else {
+                    await this.sendCompleteApplication();
+                }
+            } finally {
+                if (!handedOffToBindingModal) {
+                    this.isSubmitting = false;
+                }
             }
         },
 
@@ -1912,15 +2458,17 @@ export default {
             for (const attachment of this.attachments) {
                 const key = this.attachmentKey(attachment);
 
+                // Гард стережёт ТЕЛО подачи, поэтому смотрит на те же строки, что в него
+                // уйдут - предварительные в нём не участвуют.
                 if (attachment.attachment_type === 'people') {
-                    const employee = findFirstDuplicate(this.employeesByAttachment[key], isSameEmployee);
+                    const employee = findFirstDuplicate(submittedRows(this.employeesByAttachment[key]), isSameEmployee);
                     if (employee) {
                         return { attachmentName: attachment.display_name, label: employeeLabel(employee) };
                     }
                 }
 
                 if (attachment.attachment_type === 'cars') {
-                    const vehicle = findFirstDuplicate(this.vehiclesByAttachment[key], isSameVehicle);
+                    const vehicle = findFirstDuplicate(submittedRows(this.vehiclesByAttachment[key]), isSameVehicle);
                     if (vehicle) {
                         return { attachmentName: attachment.display_name, label: vehicleLabel(vehicle) };
                     }
@@ -1937,8 +2485,10 @@ export default {
             const existingVehicles = await this.loadExistingVehicles();
             const existingEmployees = await this.loadExistingEmployees();
             
+            // Привязка заводит записи в справочнике под то, что уйдёт в заявку -
+            // предварительные строки туда не входят и справочник не трогают.
             Object.keys(this.vehiclesByAttachment).forEach(attachmentId => {
-                const vehicles = this.vehiclesByAttachment[attachmentId] || [];
+                const vehicles = submittedRows(this.vehiclesByAttachment[attachmentId]);
                 vehicles.forEach(vehicle => {
                     if (!vehicle.isExisting) {
                         const isByFact = vehicle.plateNumber === 'По факту' || vehicle.mark === 'По факту';
@@ -1961,7 +2511,7 @@ export default {
             });
             
             Object.keys(this.employeesByAttachment).forEach(attachmentId => {
-                const employees = this.employeesByAttachment[attachmentId] || [];
+                const employees = submittedRows(this.employeesByAttachment[attachmentId]);
                 employees.forEach(employee => {
                     if (!employee.isExisting) {
                         const isByFact = employee.passportSeriesNumber === 'По факту' || 
@@ -2015,6 +2565,12 @@ export default {
         },
         
         async confirmBinding(bindingData) {
+            // Гард от повторного клика внутри самой модалки: пока привязка уже летит
+            // (mapWithConcurrency по сотням строк массового импорта - окно широкое),
+            // второй emit того же confirm-binding - no-op, не второй набор запросов.
+            if (this.isBindingActionInProgress) return;
+            this.isBindingActionInProgress = true;
+
             try {
                 if (this.newVehiclesToBind.length > 0 && bindingData.vehicles.hasVehiclesForBinding) {
                     const vehiclesToBind = this.newVehiclesToBind.filter(vehicle => 
@@ -2043,8 +2599,13 @@ export default {
                 }
 
                 if (this.newEmployeesToBind.length > 0 && bindingData.employees.hasEmployeesForBinding) {
-                    const employeesToBind = this.newEmployeesToBind.filter(employee => 
+                    // Запись реестра хранит персональные данные, поэтому создаётся только
+                    // с подтверждённым согласием субъекта (гейт в uniqueEmployeeService.Create).
+                    // Отсеиваем неотмеченных здесь, чтобы не получать 400 на привязке: сама
+                    // заявка при этом уходит, просто человек не попадает в справочник.
+                    const employeesToBind = this.newEmployeesToBind.filter(employee =>
                         employee.passportSeriesNumber !== 'По факту' && employee.position !== 'По факту'
+                        && employee.pdConsent === true
                     );
                     
                     if (employeesToBind.length > 0) {
@@ -2058,6 +2619,7 @@ export default {
                                 passport_series_number: employee.passportSeriesNumber,
                                 patent_number: employee.patentNumber,
                                 other_permission: employee.otherPermission,
+                                pd_consent: true,
                                 user_id: null,
                                 organization_id: bindingData.employees.bindToOrganization ? this.organizationId : null,
                                 company_id: bindingData.employees.bindToCompany ? this.companyId : null
@@ -2077,18 +2639,44 @@ export default {
             } catch (error) {
                 console.error('Ошибка при привязке:', error);
                 this.closeBindingModal();
+            } finally {
+                this.isBindingActionInProgress = false;
+                this.isSubmitting = false;
             }
         },
 
-        skipBinding() {
+        async skipBinding() {
+            // Тот же гард, что и в confirmBinding - "Отправить без привязки" тоже
+            // не должен запускать sendCompleteApplication дважды на двойной клик.
+            if (this.isBindingActionInProgress) return;
+            this.isBindingActionInProgress = true;
+
             this.closeBindingModal();
-            this.sendCompleteApplication();
+            try {
+                await this.sendCompleteApplication();
+            } finally {
+                this.isBindingActionInProgress = false;
+                this.isSubmitting = false;
+            }
         },
 
         closeBindingModal() {
             this.showBindingModal = false;
             this.newVehiclesToBind = [];
             this.newEmployeesToBind = [];
+        },
+
+        /** Пользователь закрыл модалку сам (крестик/оверлей/Escape/свайп), не подтвердив
+         * и не пропустив привязку - продолжения не будет, снимаем isSubmitting здесь,
+         * иначе кнопка "Отправить заявку" зависнет в состоянии "Отправляем..." навсегда.
+         * Пока confirmBinding/skipBinding уже работают (isBindingActionInProgress) -
+         * модалка сама блокирует эти пути (проп processing), это - страховка на случай
+         * программного вызова: закрыть/отменить фоновый прогон отсюда нельзя, иначе он
+         * останется невидимым и всё равно дойдёт до sendCompleteApplication. */
+        cancelBindingModal() {
+            if (this.isBindingActionInProgress) return;
+            this.closeBindingModal();
+            this.isSubmitting = false;
         },
 
         onSuccessClose() {
@@ -2130,6 +2718,21 @@ export default {
             this.clearLocalStorageAfterSubmit();
         },
 
+        /**
+         * Строки вложения по его типу: формы хранят их в трёх раздельных словарях.
+         *
+         * @param {string} attachmentType cars | people | items
+         * @param {string|number} key ключ вложения (local_id либо id)
+         * @returns {Array<Object>}
+         */
+        rowsForAttachment(attachmentType, key) {
+            switch (attachmentType) {
+                case 'cars': return this.vehiclesByAttachment[key] || [];
+                case 'people': return this.employeesByAttachment[key] || [];
+                case 'items': return this.itemsByAttachment[key] || [];
+                default: return [];
+            }
+        },
         async sendCompleteApplication() {
             if (this.attachments.length === 0) {
                 useDeletionsStore().notify({ prefix: 'Добавьте вложения для отправки', type: 'error' });
@@ -2138,6 +2741,7 @@ export default {
 
             const applicationData = {
                 message: this.message || null,
+                file_ids: this.applicationFileIds,
                 // Контракт подачи #1437: id, когда поле связано с записью справочника
                 // (профиль или выбранная подсказка), наименование - когда введено руками.
                 // Заполнять оба не нужно: при заданном id наименование не смотрится.
@@ -2174,45 +2778,15 @@ export default {
                     data: {}
                 };
 
-                switch (attachment.attachment_type) {
-                    case 'cars': {
-                        const vehicles = this.vehiclesByAttachment[key] || [];
-                        attachmentData.data.vehicles = vehicles.map(vehicle => ({
-                            car_number: vehicle.plateNumber,
-                            car_brand: vehicle.mark,
-                            mark_id: vehicle.markId || null,
-                            mark_name: vehicle.markName || vehicle.mark || null,
-                            unload_place: vehicle.unloadingPlace,
-                            unload_places: vehicle.unloadPlaces || [],
-                            passage_tables: vehicle.passage_tables || []
-                        }));
-                        break;
-                    }
-                    case 'people': {
-                        const employees = this.employeesByAttachment[key] || [];
-                        attachmentData.data.employees = employees.map(employee => ({
-                            last_name: employee.lastName,
-                            first_name: employee.firstName,
-                            middle_name: employee.middleName,
-                            citizenship_id: employee.citizenshipId,
-                            position: employee.position,
-                            passport_series_number: employee.passportSeriesNumber,
-                            patent_number: employee.patentNumber,
-                            other_permission: employee.otherPermission,
-                            target_tables: employee.targetTables || []
-                        }));
-                        break;
-                    }
-                    case 'items': {
-                        const items = this.itemsByAttachment[key] || [];
-                        attachmentData.data.items = items.map((item, index) => ({
-                            name: item.itemName,
-                            count: item.quantity,
-                            order_index: index + 1
-                        }));
-                        break;
-                    }
-                }
+                // Предварительные строки (U5) в тело подачи не попадают: они живут в
+                // черновике до нажатия «Добавить» в сводке импорта.
+                Object.assign(
+                    attachmentData.data,
+                    toAttachmentContent(
+                        attachment.attachment_type,
+                        submittedRows(this.rowsForAttachment(attachment.attachment_type, key)),
+                    )
+                );
 
                 const customValues = this.customFieldsByAttachment[key] || {};
                 if (Object.keys(customValues).length > 0) {
@@ -2284,11 +2858,16 @@ export default {
 
                 const response = await apiRequest("/applications/submit-complete-application", {
                     method: "POST",
-                    body: JSON.stringify(finalRequestData)
+                    body: JSON.stringify(finalRequestData),
+                    // Массовый импорт даёт до 2000 строк - дефолтных 10с apiRequest не хватает.
+                    signal: createExtendedTimeoutSignal(SUBMIT_TIMEOUT_MS),
                 });
 
                 if (response.ok) {
                     const result = await response.json();
+                    // Файлы уже привязаны к заявке - список в форме больше не нужен.
+                    this.applicationFileIds = [];
+                    this.$refs.filesUpload?.reset();
                     this.createdApplicationNumber = result.application_number;
                     this.createdAttachmentsData = this.attachments.map(att => {
                         const dateData = this.attachmentDatesByAttachment[this.attachmentKey(att)] || this.getDefaultDateData();
@@ -2438,11 +3017,48 @@ export default {
             this.clearLocalStorageAfterSubmit();
         },
 
+        /**
+         * Учётная запись, которой принадлежит черновик. Берётся из маркера доступа:
+         * данные профиля в форму приезжают асинхронно, а сохранение может случиться
+         * раньше них.
+         * @returns {number|null}
+         */
+        draftOwnerId() {
+            return useAuthStore().userPayload?.user_id ?? null;
+        },
+
+        /**
+         * Черновик текущего работника либо null. Чужой (и старый, без владельца)
+         * стирается: браузер на проходной и в бюро один на смену, и после смены
+         * учётной записи форма подставляла организацию и компанию предыдущего - сервер
+         * такую заявку отбивал отказом «подать от другой организации», а человек видел
+         * в своей форме чужое место работы.
+         * @returns {object|null}
+         */
+        readOwnDraft() {
+            const raw = localStorage.getItem('draftApplicationState');
+            if (!raw) return null;
+            try {
+                const draft = JSON.parse(raw);
+                const me = this.draftOwnerId();
+                // Пока маркер не разобран, судить о владельце не по чему - отдаём как есть,
+                // иначе черновик пропадал бы на ровном месте при задержке восстановления сеанса.
+                if (me === null || draft?.ownerId === me) return draft;
+                localStorage.removeItem('draftApplicationState');
+                return null;
+            } catch (e) {
+                console.error('Битый draftApplicationState:', e);
+                localStorage.removeItem('draftApplicationState');
+                return null;
+            }
+        },
+
         saveToLocalStorage() {
             try {
                 const hasAttachments = this.attachments.length > 0;
 
                 const savedData = {
+                    ownerId: this.draftOwnerId(),
                     message: this.message,
                     organization: this.organization,
                     company: this.company,
@@ -2481,6 +3097,17 @@ export default {
                 localStorage.setItem('draftApplicationState', JSON.stringify(savedData));
             } catch (error) {
                 console.error('Ошибка сохранения состояния в localStorage:', error);
+                // Импорт бланком на 2000 строк с паспортами/патентами - сотни килобайт
+                // черновика, квота браузера (обычно 5-10 МБ на источник) может кончиться.
+                // Форма при этом не должна молчать или падать: данные всё ещё в памяти
+                // Vue и уйдут на сервер по кнопке "Отправить", теряется только автосохранение.
+                if (isQuotaExceededError(error)) {
+                    useDeletionsStore().notify({
+                        prefix: 'Не удалось сохранить черновик заявки: в хранилище браузера закончилось место. ',
+                        suffix: 'Данные пока не потеряны - продолжайте заполнение и отправьте заявку, не закрывая вкладку.',
+                        type: 'error',
+                    });
+                }
             }
         },
 
@@ -2490,19 +3117,23 @@ export default {
             // открыл бы вложение прежнего черновика поверх выбранного пользователем.
             const seq = ++this.restoreSeq;
             try {
-                const savedData = localStorage.getItem('draftApplicationState');
-                if (savedData) {
-                    const parsedData = JSON.parse(savedData);
-                    
+                const parsedData = this.readOwnDraft();
+                if (parsedData) {
+
                     this.message = parsedData.message || '';
-                    this.organization = parsedData.organization || '';
-                    this.company = parsedData.company || '';
+                    // Шапку заявителя берём из черновика только если она там есть. Пустое
+                    // значение не затираем: организация, компания, ФИО и телефон приходят
+                    // из записи работника и уже подставлены, а поля нередактируемы -
+                    // затёртое вручную не вернуть. Черновики, сохранённые до этой правки,
+                    // несут пустую шапку и без проверки обнуляли форму при каждом открытии.
+                    if (parsedData.organization) this.organization = parsedData.organization;
+                    if (parsedData.company) this.company = parsedData.company;
                     // Черновики, сохранённые до #1437, id не несут: у них поле было
                     // нередактируемым, поэтому наименование отвечает записи профиля.
                     if ('organizationId' in parsedData) this.organizationId = parsedData.organizationId || null;
                     if ('companyId' in parsedData) this.companyId = parsedData.companyId || null;
-                    this.responsiblePerson = parsedData.responsiblePerson || '';
-                    this.phoneNumber = formatRussianPhone(parsedData.phoneNumber || '');
+                    if (parsedData.responsiblePerson) this.responsiblePerson = parsedData.responsiblePerson;
+                    if (parsedData.phoneNumber) this.phoneNumber = formatRussianPhone(parsedData.phoneNumber);
                     this.consentGiven = parsedData.consentGiven || false;
                     this.readers = parsedData.readers || [];
 
@@ -2538,10 +3169,42 @@ export default {
                         // пользователя за это время важнее нашего «открыть первое».
                         if (selectSeq !== this.attachmentSelectSeq) return;
                         this.selectedAttachment = first;
+                        this.restorePendingImport();
                     }
                 }
             } catch (error) {
                 console.error('Ошибка восстановления состояния из localStorage:', error);
+            }
+        },
+
+        /**
+         * Черновик перезагрузку переживает, разбор бланка - нет: в localStorage лежат
+         * только строки. Серая строка без сводки бесполезна (принять её нечем и убрать
+         * штатно тоже), поэтому после восстановления сводка открывается по ним сама.
+         * Где открыть её невозможно - строки убираем, чтобы список не врал.
+         */
+        restorePendingImport() {
+            // Сводка открывается только у выбранного вложения; у остальных серые строки
+            // остались бы без хозяина (черновики прежних версий могли их накопить).
+            const currentKey = this.attachmentKey(this.selectedAttachment);
+            this.attachments.forEach((attachment) => {
+                if (this.attachmentKey(attachment) === currentKey) return;
+                this.dropPendingRows(attachment);
+            });
+
+            if (this.pendingImportCount === 0) return;
+            if (this.canImportList) {
+                this.importMode = true;
+                return;
+            }
+
+            const dropped = this.dropPendingRows();
+            if (dropped > 0) {
+                useDeletionsStore().notify({
+                    bold: `Строки из бланка убраны: ${dropped}`,
+                    suffix: ' - массовый ввод для этого вложения недоступен',
+                    type: 'error',
+                });
             }
         },
 
@@ -2559,6 +3222,12 @@ export default {
                 localStorage.removeItem('pendingDuplicateState');
                 return;
             }
+            // Дубль, отложенный другой учётной записью, не подхватываем: браузер общий.
+            const me = this.draftOwnerId();
+            if (me !== null && pending?.ownerId !== me) {
+                localStorage.removeItem('pendingDuplicateState');
+                return;
+            }
 
             if (this.hasExistingDraftData()) {
                 this.pendingDuplicate = pending;
@@ -2571,16 +3240,10 @@ export default {
 
         // Есть ли на странице осмысленный черновик (вложения или текст сообщения).
         hasExistingDraftData() {
-            const raw = localStorage.getItem('draftApplicationState');
-            if (!raw) return false;
-            try {
-                const d = JSON.parse(raw);
-                return (Array.isArray(d.attachments) && d.attachments.length > 0)
-                    || (typeof d.message === 'string' && d.message.trim().length > 0);
-            } catch (e) {
-                console.error('Битый draftApplicationState:', e);
-                return false;
-            }
+            const d = this.readOwnDraft();
+            if (!d) return false;
+            return (Array.isArray(d.attachments) && d.attachments.length > 0)
+                || (typeof d.message === 'string' && d.message.trim().length > 0);
         },
 
         // Применяет дубль: replace - целиком заменяет черновик; merge - дописывает вложения
@@ -2588,10 +3251,21 @@ export default {
         applyPendingDuplicate(pending, mode) {
             let finalDraft = pending;
             if (mode === 'merge') {
-                const raw = localStorage.getItem('draftApplicationState');
-                const existing = raw ? JSON.parse(raw) : {};
-                finalDraft = this.mergeDrafts(existing, pending);
+                finalDraft = this.mergeDrafts(this.readOwnDraft() || {}, pending);
             }
+            // Шапку заявителя дубль не несёт: организация, компания, ФИО и телефон берутся
+            // из записи работника и в форме уже заполнены. Без переноса восстановление
+            // затрёт их пустыми значениями, а поля заблокированы - вернуть нечем.
+            finalDraft = {
+                organization: this.organization,
+                company: this.company,
+                organizationId: this.organizationId,
+                companyId: this.companyId,
+                responsiblePerson: this.responsiblePerson,
+                phoneNumber: this.phoneNumber,
+                ...finalDraft,
+                ownerId: this.draftOwnerId(),
+            };
             localStorage.setItem('draftApplicationState', JSON.stringify(finalDraft));
             this.restoreFromLocalStorage();
         },
@@ -2957,7 +3631,9 @@ export default {
         cursor: pointer;
         transition: background-color 0.2s;
         width: auto;
-        display: inline-block;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
         flex-shrink: 0;
         height: fit-content;
     }
@@ -2970,6 +3646,50 @@ export default {
         background: var(--text-muted);
         cursor: not-allowed;
         opacity: 0.6;
+    }
+
+    /* Крутилка на кнопке подачи - вместе со сменой текста объясняет, ПОЧЕМУ кнопка
+       погасла: голый disabled без визуальной причины читается как мёртвая форма. */
+    .send-all-btn__spinner {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        border: 2px solid color-mix(in srgb, var(--accent-contrast) 35%, transparent);
+        border-top-color: var(--accent-contrast);
+        animation: send-all-btn-spin 0.7s linear infinite;
+        flex-shrink: 0;
+    }
+
+    @keyframes send-all-btn-spin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* Как в LoaderSpinner.vue: не гасим крутилку совсем (текст "Отправляем..." сам по
+       себе не объясняет, что форма ещё жива), а замедляем - тот же приём, что там. */
+    @media (prefers-reduced-motion: reduce) {
+        .send-all-btn__spinner {
+            animation-duration: 2.4s;
+        }
+    }
+
+    .submit-progress-hint {
+        margin-top: 8px;
+        max-width: 320px;
+        font-size: 12px;
+        line-height: 1.4;
+        color: var(--text-muted);
+        animation: submit-progress-hint-in 0.2s ease-out;
+    }
+
+    @keyframes submit-progress-hint-in {
+        from {
+            opacity: 0;
+            transform: translateY(-4px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 
     .form__info-row {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,7 +42,10 @@ const forwardAttachmentVisible = `(
 // applicationsListSelect - общий список столбцов для листингов заявок (Центр, пагинация,
 // заявки пользователя). Теги has_roof_access/has_free_parking учитывают видимость пересыла
 // (forwardAttachmentVisible). Плейсхолдеры (?) связываются через applicationsListSelectArgs.
-const applicationsListSelect = `
+//
+// var, а не const: has_open_supplement собирается из models.OpenSupplementStatuses - см.
+// hasOpenSupplementPredicate. Плейсхолдеров он не добавляет, порядок аргументов не трогает.
+var applicationsListSelect = `
 		a.*,
 		COALESCE(o.name, c.name) as organization_name,
 		c.name as company_name,
@@ -56,7 +60,16 @@ const applicationsListSelect = `
 		EXISTS (SELECT 1 FROM application_reads ar WHERE ar.application_id = a.id AND ar.user_id = ?) as is_read,
 		EXISTS (SELECT 1 FROM attachments att WHERE att.application_id = a.id AND att.roof_access = true AND ` + forwardAttachmentVisible + `) as has_roof_access,
 		EXISTS (SELECT 1 FROM attachments att WHERE att.application_id = a.id AND att.free_parking = true AND ` + forwardAttachmentVisible + `) as has_free_parking,
-		(SELECT COUNT(*) FROM application_blacklist_flags f WHERE f.application_id = a.id AND NOT EXISTS (SELECT 1 FROM application_blacklist_overrides o WHERE o.flag_id = f.id)) as blacklist_flags_count,
+		(SELECT COUNT(*) FROM application_blacklist_flags f
+		  WHERE f.application_id = a.id
+		    AND NOT EXISTS (SELECT 1 FROM application_blacklist_overrides o WHERE o.flag_id = f.id)
+		    -- Снятый из чёрного списка запрет в счётчике не участвует: предупреждать не о чем.
+		    AND (
+		          (f.element_type = 'car' AND EXISTS (
+		             SELECT 1 FROM vehicle_blacklists vb WHERE vb.id = f.matched_blacklist_id AND vb.is_active))
+		       OR (f.element_type = 'employee' AND EXISTS (
+		             SELECT 1 FROM person_blacklists pb WHERE pb.id = f.matched_blacklist_id AND pb.is_active))
+		        )) as blacklist_flags_count,
 		(
 			EXISTS (SELECT 1 FROM application_questions q WHERE q.application_id = a.id
 				AND q.author_user_id <> ?
@@ -65,7 +78,9 @@ const applicationsListSelect = `
 				AND ans.author_user_id <> ?
 				AND ans.created_at > COALESCE((SELECT r.read_at FROM application_question_reads r WHERE r.question_id = ans.question_id AND r.user_id = ?), to_timestamp(0)))
 		) as has_unseen_questions,
-		` + hasStatusUpdatePredicate + ` as has_status_update
+		EXISTS (SELECT 1 FROM application_files af WHERE af.application_id = a.id) as has_files,
+		` + hasStatusUpdatePredicate + ` as has_status_update,
+		` + hasOpenSupplementPredicate + ` as has_open_supplement
 	`
 
 // applicationsListSelectArgs связывает плейсхолдеры applicationsListSelect: is_read (1)
@@ -103,6 +118,12 @@ type ApplicationService interface {
 	// GetApplicationsPaginated возвращает страницу заявок с общим количеством.
 	GetApplicationsPaginated(ctx context.Context, username string, filter ApplicationFilter, page, perPage int) ([]ApplicationWithDetails, int64, error)
 
+	// GetRegistryExtras добирает к списку заявок то, чего нет в строке Центра, но
+	// нужно в выгруженном реестре (#1832): сколько людей и машин в заявке и границы
+	// срока действия её вложений. Одним запросом на всю выборку - в списке заявок
+	// сотни строк, и подзапрос на каждую превратил бы выгрузку в N+1.
+	GetRegistryExtras(ctx context.Context, applicationIDs []int) (map[int]ApplicationRegistryExtras, error)
+
 	// GetUserApplications возвращает заявки текущего пользователя с фильтрацией.
 	GetUserApplications(ctx context.Context, username string, filter ApplicationFilter) ([]ApplicationWithDetails, error)
 
@@ -129,7 +150,7 @@ type ApplicationService interface {
 	UpdateApplication(ctx context.Context, username string, applicationID int, req ApplicationUpdateRequest) (*ApplicationUpdateResponse, error)
 
 	// ForwardApplication пересылает заявку ответственным/просматривающим.
-	ForwardApplication(ctx context.Context, username string, applicationID int, req ForwardApplicationRequest) error
+	ForwardApplication(ctx context.Context, username string, applicationID int, isSuperAdmin bool, req ForwardApplicationRequest) error
 
 	// ApproveApplicationByUser согласование/отказ заявки пользователем.
 	ApproveApplicationByUser(ctx context.Context, username string, applicationID int, req UserApprovalRequest) error
@@ -156,8 +177,36 @@ type ApplicationService interface {
 	// WithdrawApplication отзыв своей заявки отправителем (#951).
 	WithdrawApplication(ctx context.Context, username string, applicationID int) error
 
+	// CreateSupplement добавляет людей, машины или ТМЦ во вложения уже поданной заявки
+	// (#1685). Доступно автору заявки и супер-админу; статусы заявки и голоса основного
+	// круга при этом не откатываются - повторный круг живёт отдельным дополнением.
+	CreateSupplement(ctx context.Context, username string, applicationID int, isSuperAdmin bool, req CreateSupplementRequest) (*CreateSupplementResponse, error)
+
+	// GetApplicationSupplements возвращает раунды дополнения заявки (новые сверху).
+	GetApplicationSupplements(ctx context.Context, applicationID int) ([]SupplementInfo, error)
+
+	// ApproveSupplement - голос согласующего по раунду дополнения (#1685). Пишет итог в
+	// application_supplements.status; confirmation и status самой заявки не двигает.
+	ApproveSupplement(ctx context.Context, username string, applicationID, supplementID int, req SupplementApprovalRequest) (*SupplementVoteResponse, error)
+
+	// RevokeSupplementApproval возвращает голос по раунду дополнения в pending (#1685).
+	RevokeSupplementApproval(ctx context.Context, username string, applicationID, supplementID int, req SupplementRevokeApprovalRequest) (*SupplementVoteResponse, error)
+
+	// DecideSupplement - решение принимающего по согласованному раунду (#1685): принятие
+	// поднимает на КПП строки ЭТОГО раунда, отказ оставляет их неактивными навсегда.
+	// confirmation и status самой заявки не двигает ни одна ветка.
+	DecideSupplement(ctx context.Context, username string, applicationID, supplementID int, req SupplementDecisionRequest) (*SupplementDecisionResponse, error)
+
+	// CancelSupplement снимает незакрытый раунд по воле автора заявки (#1685).
+	CancelSupplement(ctx context.Context, username string, applicationID, supplementID int, isSuperAdmin bool, req SupplementCancelRequest) (*SupplementDecisionResponse, error)
+
 	// GetApplicationResponsibleUsers возвращает ответственных пользователей заявки.
 	GetApplicationResponsibleUsers(ctx context.Context, applicationID int) ([]ResponsibleUserInfo, error)
+
+	// GetApplicationParticipants возвращает всех участников заявки одним списком:
+	// отправителя, принявшего в работу, согласующих, ответственных и читателей - с
+	// ролями, контактами и состоянием голоса. Персональные данные маскируются.
+	GetApplicationParticipants(ctx context.Context, applicationID int) ([]ApplicationParticipant, error)
 
 	// GetApplicationHistory возвращает историю заявки.
 	GetApplicationHistory(ctx context.Context, applicationID int) ([]ApplicationHistoryItem, error)
@@ -182,20 +231,24 @@ type ApplicationService interface {
 	// CanViewAttachment сообщает, доступно ли вложение просматривающему с учётом пересыла.
 	CanViewAttachment(ctx context.Context, applicationID, attachmentID, viewerUserID int) (bool, error)
 
-	// GetAttachmentCars возвращает автомобили вложения.
-	GetAttachmentCars(ctx context.Context, attachmentID int) ([]CarWithPlaces, error)
+	// GetAttachmentCars возвращает автомобили вложения. scope - см. SupplementScope:
+	// охране идёт только допущенное на КПП, автору заявки - весь состав.
+	GetAttachmentCars(ctx context.Context, attachmentID int, scope SupplementScope) ([]CarWithPlaces, error)
 
-	// GetAttachmentEmployees возвращает сотрудников вложения.
-	GetAttachmentEmployees(ctx context.Context, attachmentID int) ([]EmployeeWithTables, error)
+	// GetAttachmentEmployees возвращает сотрудников вложения. scope - см. SupplementScope.
+	GetAttachmentEmployees(ctx context.Context, attachmentID int, scope SupplementScope) ([]EmployeeWithTables, error)
 
-	// GetAttachmentItems возвращает ТМЦ вложения.
-	GetAttachmentItems(ctx context.Context, attachmentID int) ([]ItemInfo, error)
+	// GetAttachmentItems возвращает ТМЦ вложения. scope - см. SupplementScope.
+	GetAttachmentItems(ctx context.Context, attachmentID int, scope SupplementScope) ([]ItemInfo, error)
 
 	// AssignElementTables назначает или снимает посты проезда/прохода у машин и
 	// сотрудников заявки; доступно принимающему, пока заявка не закрыта (#1393).
 	AssignElementTables(ctx context.Context, username string, applicationID int, req AssignElementTablesRequest) error
 	// AssignCarUnloadPlaces назначает или снимает места разгрузки у машин заявки (#1393).
 	AssignCarUnloadPlaces(ctx context.Context, username string, applicationID int, req AssignCarUnloadPlacesRequest) error
+	// RemoveApplicationElements убирает людей или машины из поданной заявки; доступно
+	// принимающему. Возвращает число реально убранных элементов.
+	RemoveApplicationElements(ctx context.Context, username string, applicationID int, req RemoveApplicationElementsRequest) (int, error)
 	// UpdateApplicationItemsStatus активирует все машины и сотрудников заявки (status->1) и
 	// пишет историю попадания в таблицу проходной. username - актор истории.
 	UpdateApplicationItemsStatus(ctx context.Context, applicationID int, username string) error
@@ -225,6 +278,10 @@ type ApplicationService interface {
 	// GetApplicationIDByAttachment возвращает ID заявки по ID вложения. Для manual-вложения
 	// без заявки (#1049) возвращает 0 - вызыватели трактуют 0 как "нет заявки".
 	GetApplicationIDByAttachment(ctx context.Context, attachmentID int) (int, error)
+	// IsApplicationSender - подал ли заявку сам пользователь. Уже, чем
+	// CanAccessApplication: доступ есть и у согласующих с получателями пересылки,
+	// а сведения документов участников вводил в форму инициатор.
+	IsApplicationSender(ctx context.Context, applicationID, userID int) (bool, error)
 
 	// IsSecurityUser сообщает, является ли аккаунт типом security (резолв по user_types.code).
 	IsSecurityUser(ctx context.Context, userID int) (bool, error)
@@ -266,6 +323,10 @@ type ApplicationService interface {
 	// MarkQuestionRead помечает конкретный вопрос-топик прочитанным (#973) - гасит его новизну
 	// для пользователя (per-топик отметка, недочитанные топики остаются новыми).
 	MarkQuestionRead(ctx context.Context, username string, applicationID, questionID int) error
+
+	// SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1) -
+	// точки изменения заявки ставят её на пересборку бланков после commit.
+	SetBlankExportEnqueuer(e BlankExportEnqueuer)
 }
 
 // --- DTO: запросы ---
@@ -346,6 +407,10 @@ type CompleteApplicationRequest struct {
 	// Readers - получатели-читатели заявки (#884): доступ только на просмотр.
 	// Кладутся в application_viewers (как форвард-флоу), без права согласования.
 	Readers *[]int `json:"readers"`
+	// FileIDs - файлы, загруженные до подачи (#1721). Привязываются к заявке в
+	// этой же транзакции: прикрепить файл после подачи нельзя, а неназванный в
+	// подаче черновик убирает уборщик.
+	FileIDs []int `json:"file_ids"`
 }
 
 // OrganizationTitle - введённое наименование организации: поле нового контракта, а при
@@ -404,6 +469,9 @@ type VehicleInput struct {
 	// TargetTables — таблицы «Проезд» (#1036): машина видна только в них. Зеркало
 	// EmployeeInput.TargetTables.
 	TargetTables []int `json:"passage_tables"`
+	// PDConsent - см. EmployeeInput.PDConsent. У машин поле шаблона выключено по
+	// умолчанию, флаг приходит только когда администратор его включил.
+	PDConsent bool `json:"pd_consent"`
 }
 
 // EmployeeInput данные сотрудника при создании.
@@ -417,6 +485,9 @@ type EmployeeInput struct {
 	PatentNumber         *string `json:"patent_number"`
 	OtherPermission      *string `json:"other_permission"`
 	TargetTables         []int   `json:"target_tables"`
+	// PDConsent - заявитель подтвердил, что субъект дал согласие на обработку своих
+	// персональных данных. Только флаг: дату и автора отметки ставит сервер.
+	PDConsent bool `json:"pd_consent"`
 }
 
 // ItemInput данные ТМЦ при создании.
@@ -531,7 +602,27 @@ type ApplicationWithDetails struct {
 	HasRoofAccess                bool    `json:"has_roof_access"`
 	HasFreeParking               bool    `json:"has_free_parking"`
 	HasUnseenQuestions           bool    `json:"has_unseen_questions"`
-	HasStatusUpdate              bool    `json:"has_status_update"`
+	// HasFiles - к заявке приложены файлы (#1721). В списке Центра рисуется скрепкой:
+	// признак, а не количество - в строке списка важно «есть или нет», состав виден в карточке.
+	HasFiles        bool `json:"has_files"`
+	HasStatusUpdate bool `json:"has_status_update"`
+	// HasOpenSupplement - по заявке идёт незакрытый раунд дополнения (#1685). Статус и
+	// согласование самой заявки при этом не откатываются, поэтому без отдельной метки
+	// повторный круг в списке ничем себя не выдаёт.
+	HasOpenSupplement bool `json:"has_open_supplement"`
+}
+
+// ApplicationRegistryExtras - то, чего нет в строке Центра, но нужно в выгруженном
+// реестре (#1832): состав заявки числами и границы срока действия её вложений.
+//
+// Даты вложений хранятся строками (varchar с ISO-датой), поэтому границы берутся
+// MIN/MAX по строке: для YYYY-MM-DD лексикографический порядок совпадает с
+// хронологическим. Пустая строка - срок не задан.
+type ApplicationRegistryExtras struct {
+	PeopleCount   int
+	CarsCount     int
+	EntryDateFrom string
+	EntryDateTo   string
 }
 
 // ApplicationCreateResponse ответ при создании заявки.
@@ -623,22 +714,27 @@ type ViewerWithUser struct {
 
 // AttachmentInfo информация о вложении заявки.
 type AttachmentInfo struct {
-	ID                          int                 `json:"id"`
-	AttachmentType              string              `json:"attachment_type"`
-	AttachmentName              string              `json:"attachment_name"`
-	AttachmentDisplayName       string              `json:"attachment_display_name"`
-	EntryDateFrom               *string             `json:"entry_date_from"`
-	EntryDateTo                 *string             `json:"entry_date_to"`
-	EntryTimeFrom               *string             `json:"entry_time_from"`
-	EntryTimeTo                 *string             `json:"entry_time_to"`
-	RoofAccess                  bool                `json:"roof_access"`
-	FreeParking                 bool                `json:"free_parking"`
-	CreatedAt                   *time.Time          `json:"created_at"`
-	UniqueAttachmentID          *int                `json:"unique_attachment_id"`
-	UniqueAttachmentTitle       *string             `json:"unique_attachment_title"`
-	UniqueAttachmentDisplayName *string             `json:"unique_attachment_display_name"`
-	HasTemplate                 bool                `json:"has_template"`
-	CustomValues                []CustomValueDetail `gorm:"-" json:"custom_values,omitempty"`
+	ID                          int        `json:"id"`
+	AttachmentType              string     `json:"attachment_type"`
+	AttachmentName              string     `json:"attachment_name"`
+	AttachmentDisplayName       string     `json:"attachment_display_name"`
+	EntryDateFrom               *string    `json:"entry_date_from"`
+	EntryDateTo                 *string    `json:"entry_date_to"`
+	EntryTimeFrom               *string    `json:"entry_time_from"`
+	EntryTimeTo                 *string    `json:"entry_time_to"`
+	RoofAccess                  bool       `json:"roof_access"`
+	FreeParking                 bool       `json:"free_parking"`
+	CreatedAt                   *time.Time `json:"created_at"`
+	UniqueAttachmentID          *int       `json:"unique_attachment_id"`
+	UniqueAttachmentTitle       *string    `json:"unique_attachment_title"`
+	UniqueAttachmentDisplayName *string    `json:"unique_attachment_display_name"`
+	HasTemplate                 bool       `json:"has_template"`
+	// ArchiveStatus - статус строки реестра файлового архива (blank_exports)
+	// для этого вложения (#1615, C6). Пусто, если строки нет вовсе: архив
+	// выключен, тумблер типа выключен, либо заявка ещё не выгружалась.
+	// DownloadBlanksModal показывает бейдж только на распознанных статусах.
+	ArchiveStatus string              `json:"archive_status"`
+	CustomValues  []CustomValueDetail `gorm:"-" json:"custom_values,omitempty"`
 }
 
 // CustomValueDetail значение кастомного поля для отображения.
@@ -669,6 +765,11 @@ type CarWithPlaces struct {
 	// BlacklistSimilar - предупреждение о возможном обходе ЧС (#481): заполнено, если
 	// номер близок к активной записи ЧС (но не точное совпадение). nil - элемент чист.
 	BlacklistSimilar *BlacklistFlagInfo `json:"blacklist_similar,omitempty"`
+	// IsBlacklisted - точное попадание в действующий чёрный список; строка остаётся в
+	// заявке, но показывается зачёркнутой.
+	IsBlacklisted bool `json:"is_blacklisted"`
+	// SupplementMark - каким раундом дополнения строка добавлена (#1685).
+	SupplementMark
 }
 
 // BlacklistFlagInfo - данные per-element предупреждения о возможном обходе ЧС (#481)
@@ -711,6 +812,11 @@ type EmployeeWithTables struct {
 	// BlacklistSimilar - предупреждение о возможном обходе ЧС (#481): заполнено, если
 	// ФИО близко к активной записи ЧС (но не точное совпадение). nil - элемент чист.
 	BlacklistSimilar *BlacklistFlagInfo `json:"blacklist_similar,omitempty"`
+	// IsBlacklisted - точное попадание в действующий чёрный список. Из заявки строка
+	// не исчезает (заявка - документ), но показывается зачёркнутой.
+	IsBlacklisted bool `json:"is_blacklisted"`
+	// SupplementMark - каким раундом дополнения строка добавлена (#1685).
+	SupplementMark
 }
 
 // TableInfoRef ссылка на системную таблицу.
@@ -726,6 +832,8 @@ type ItemInfo struct {
 	Name        string     `json:"name"`
 	Count       int        `json:"count"`
 	DateCreated *time.Time `json:"date_created"`
+	// SupplementMark - каким раундом дополнения позиция добавлена (#1685).
+	SupplementMark
 }
 
 // --- Реализация ---
@@ -741,6 +849,32 @@ type applicationService struct {
 	tablesProducer      *TablesRefreshPublisher
 	availableProducer   *AvailableRefreshPublisher
 	permissionResolver  *PermissionResolver
+	// blankExports - постановка заявки в очередь на выгрузку в файловый архив
+	// (#1615, B1). Сеттер, а не конструкторская опция: BlankExportService поднимается
+	// позже applicationService в cmd/server/main.go (зависит от attachmentBlankService).
+	blankExports BlankExportEnqueuer
+	// files - файлы, приложенные при подаче (#1721). Опциональна: без неё file_ids
+	// в подаче не разбираются. Пределы заявки проверяются в момент привязки.
+	files        ApplicationFileService
+	fileMaxCount int
+	fileMaxTotal int64
+}
+
+// SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1). nil
+// безопасен - enqueueArchiveExport становится no-op, раздел настроек архива при
+// этом всё равно открывается (архив мог не подняться из-за каталога).
+func (s *applicationService) SetBlankExportEnqueuer(e BlankExportEnqueuer) {
+	s.blankExports = e
+}
+
+// enqueueArchiveExport ставит заявку в очередь на выгрузку бланков в файловый
+// архив. Best-effort и синхронный (карта в памяти под мьютексом) - вызывается из
+// каждой точки, где заявка реально изменилась после commit.
+func (s *applicationService) enqueueArchiveExport(applicationID int, reason string) {
+	if s.blankExports == nil {
+		return
+	}
+	s.blankExports.EnqueueApplication(applicationID, reason)
 }
 
 // ApplicationServiceOption конфигурирует applicationService при создании.
@@ -772,6 +906,16 @@ func WithApplicationPermissionResolver(r *PermissionResolver) ApplicationService
 	return func(s *applicationService) { s.permissionResolver = r }
 }
 
+// WithApplicationFiles подключает файлы, прикладываемые при подаче (#1721). Без
+// неё поле file_ids в подаче игнорируется, и заявка создаётся без вложенных файлов.
+func WithApplicationFiles(f ApplicationFileService, maxCount int, maxTotal int64) ApplicationServiceOption {
+	return func(s *applicationService) {
+		s.files = f
+		s.fileMaxCount = maxCount
+		s.fileMaxTotal = maxTotal
+	}
+}
+
 // NewApplicationService создаёт экземпляр сервиса заявок.
 func NewApplicationService(db *gorm.DB, permSvc PermissionService, notifSvc NotificationService, vehicleBL VehicleBlacklistService, personBL PersonBlacklistService, recorder AuditRecorder, opts ...ApplicationServiceOption) ApplicationService {
 	s := &applicationService{
@@ -791,18 +935,66 @@ func NewApplicationService(db *gorm.DB, permSvc PermissionService, notifSvc Noti
 // --- Основные методы ---
 
 // GetApplications возвращает список заявок для Центра заявок с фильтрацией.
-// maskResponsibleNames подменяет ФИО принимающего его маской в списке заявок
-// (responsible_name / responsible_full_name) для заявитель-видимых списков. Sender и прочие
-// имена не трогаются. No-op, если ни у одного принимающего нет маски.
-func (s *applicationService) maskResponsibleNames(ctx context.Context, rows []ApplicationWithDetails) {
-	masks := loadApproverMasks(ctx, s.db)
+// maskApplicationNames подменяет в списке заявок ФИО принимающего заданной ему
+// маской, а ФИО подавшего и принимающего - логином, если человек не давал согласия
+// на обработку персональных данных. No-op, если маскировать некого.
+func (s *applicationService) maskApplicationNames(ctx context.Context, rows []ApplicationWithDetails) {
+	masks := loadNameMasks(ctx, s.db)
 	if masks == nil {
 		return
 	}
 	for i := range rows {
 		rows[i].ResponsibleName = maskName(masks, rows[i].ResponsibleUserID, rows[i].ResponsibleName)
 		rows[i].ResponsibleFullName = maskNamePtr(masks, rows[i].ResponsibleUserID, rows[i].ResponsibleFullName)
+		sender := rows[i].SenderUserID
+		rows[i].SenderName = maskName(masks, &sender, rows[i].SenderName)
+		rows[i].SenderFullName = maskNamePtr(masks, &sender, rows[i].SenderFullName)
 	}
+}
+
+// GetRegistryExtras добирает состав и сроки по списку заявок одним запросом.
+// Отдельным методом, а не полем ApplicationWithDetails: строке Центра эти числа не
+// нужны, а лишний GROUP BY на каждом открытии списка платили бы все.
+func (s *applicationService) GetRegistryExtras(ctx context.Context, applicationIDs []int) (map[int]ApplicationRegistryExtras, error) {
+	out := make(map[int]ApplicationRegistryExtras, len(applicationIDs))
+	if len(applicationIDs) == 0 {
+		return out, nil
+	}
+
+	var rows []struct {
+		ApplicationID int
+		PeopleCount   int
+		CarsCount     int
+		EntryDateFrom string
+		EntryDateTo   string
+	}
+	// COUNT(DISTINCT) обязателен: у заявки несколько вложений, и join людей с
+	// машинами размножает строки друг друга (декартово произведение внутри группы).
+	err := s.db.WithContext(ctx).
+		Table("attachments AS at").
+		Select(`at.application_id AS application_id,
+			COUNT(DISTINCT e.id) AS people_count,
+			COUNT(DISTINCT c.id) AS cars_count,
+			COALESCE(MIN(NULLIF(at.entry_date_from, '')), '') AS entry_date_from,
+			COALESCE(MAX(NULLIF(at.entry_date_to, '')), '') AS entry_date_to`).
+		Joins("LEFT JOIN employees e ON e.attachment_id = at.id").
+		Joins("LEFT JOIN cars c ON c.attachment_id = at.id").
+		Where("at.application_id IN ?", applicationIDs).
+		Group("at.application_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("сводка вложений для реестра заявок: %w", err)
+	}
+
+	for _, r := range rows {
+		out[r.ApplicationID] = ApplicationRegistryExtras{
+			PeopleCount:   r.PeopleCount,
+			CarsCount:     r.CarsCount,
+			EntryDateFrom: r.EntryDateFrom,
+			EntryDateTo:   r.EntryDateTo,
+		}
+	}
+	return out, nil
 }
 
 func (s *applicationService) GetApplications(ctx context.Context, username string, filter ApplicationFilter) ([]ApplicationWithDetails, error) {
@@ -834,7 +1026,7 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	s.maskResponsibleNames(ctx, rows)
+	s.maskApplicationNames(ctx, rows)
 	return rows, nil
 }
 
@@ -874,7 +1066,7 @@ func (s *applicationService) GetAttachableApplications(ctx context.Context, user
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	s.maskResponsibleNames(ctx, rows)
+	s.maskApplicationNames(ctx, rows)
 	return rows, nil
 }
 
@@ -925,7 +1117,7 @@ func (s *applicationService) GetApplicationsPaginated(ctx context.Context, usern
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	s.maskResponsibleNames(ctx, rows)
+	s.maskApplicationNames(ctx, rows)
 	return rows, total, nil
 }
 
@@ -978,7 +1170,7 @@ func (s *applicationService) GetUserApplications(ctx context.Context, username s
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	s.maskResponsibleNames(ctx, rows)
+	s.maskApplicationNames(ctx, rows)
 	return rows, nil
 }
 
@@ -1012,7 +1204,7 @@ func (s *applicationService) GetUserApplicationsPaginated(ctx context.Context, u
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	s.maskResponsibleNames(ctx, rows)
+	s.maskApplicationNames(ctx, rows)
 	return rows, total, nil
 }
 
@@ -1091,7 +1283,7 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 	}
 
 	// Получаем ответственных
-	responsibles, err := s.fetchResponsibleUsers(tx, applicationID)
+	responsibles, err := s.fetchResponsibleUsers(ctx, tx, applicationID)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -1118,10 +1310,13 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 		responsibleName = *row.ResponsibleName
 	}
 
-	// Маскировка ФИО принимающего (кто принял заявку) для заявитель-видимой детали.
-	masks := loadApproverMasks(ctx, s.db)
+	// Маскировка ФИО в детали: заданная маска принимающего и логин вместо ФИО у тех,
+	// кто не давал согласия на обработку персональных данных.
+	masks := loadNameMasks(ctx, s.db)
 	responsibleName = maskName(masks, row.ResponsibleUserID, responsibleName)
 	responsibleFullName := maskNamePtr(masks, row.ResponsibleUserID, row.ResponsibleFullName)
+	senderName = maskName(masks, &row.SenderUserID, senderName)
+	senderFullName := maskNamePtr(masks, &row.SenderUserID, row.SenderFullName)
 
 	response := map[string]interface{}{
 		"id":                    row.ID,
@@ -1135,7 +1330,7 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 		"company_id":            row.CompanyID,
 		"company_name":          companyName,
 		"sender_user_id":        row.SenderUserID,
-		"sender_full_name":      row.SenderFullName,
+		"sender_full_name":      senderFullName,
 		"sender_name":           senderName,
 		"sender_is_important":   row.SenderIsImportant,
 		"message":               row.Message,
@@ -1195,12 +1390,24 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	responsibles, _ := s.fetchResponsibleUsers(s.db.WithContext(ctx), applicationID)
+	responsibles, _ := s.fetchResponsibleUsers(ctx, s.db.WithContext(ctx), applicationID)
 
 	// Зеркало гейта согласования (#481): пока есть помеченные элементы без override,
 	// фронт держит кнопку "Согласовать" заблокированной. Источник правды - тот же
 	// hasUnoverriddenBlacklistFlags, что блокирует согласование на бэке (409).
 	blacklistBlocked, err := hasUnoverriddenBlacklistFlags(ctx, s.db, applicationID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Повторный круг по дополнению (#1685). Статус и согласование заявки он не двигает -
+	// без этих двух полей карточка не отличит идущий раунд от его отсутствия.
+	masks := loadNameMasks(ctx, s.db)
+	openSupplement, err := s.loadOpenSupplement(ctx, applicationID, masks)
+	if err != nil {
+		return nil, err
+	}
+	supplementsCount, err := s.countSupplements(ctx, applicationID)
 	if err != nil {
 		return nil, err
 	}
@@ -1222,10 +1429,13 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 		responsibleName = *row.ResponsibleName
 	}
 
-	// Маскировка ФИО принимающего (кто принял заявку) для заявитель-видимой детали.
-	masks := loadApproverMasks(ctx, s.db)
+	// Маскировка ФИО в детали: заданная маска принимающего и логин вместо ФИО у тех,
+	// кто не давал согласия на обработку персональных данных. masks загружены выше -
+	// их же получает автор открытого раунда, второй раз справочник не тянем.
 	responsibleName = maskName(masks, row.ResponsibleUserID, responsibleName)
 	responsibleFullName := maskNamePtr(masks, row.ResponsibleUserID, row.ResponsibleFullName)
+	senderName = maskName(masks, &row.SenderUserID, senderName)
+	senderFullName := maskNamePtr(masks, &row.SenderUserID, row.SenderFullName)
 
 	response := map[string]interface{}{
 		"id":                    row.ID,
@@ -1239,7 +1449,7 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 		"company_id":            row.CompanyID,
 		"company_name":          companyName,
 		"sender_user_id":        row.SenderUserID,
-		"sender_full_name":      row.SenderFullName,
+		"sender_full_name":      senderFullName,
 		"sender_name":           senderName,
 		"sender_is_important":   row.SenderIsImportant,
 		"message":               row.Message,
@@ -1256,6 +1466,11 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 		"company_moderation_status":      row.CompanyModerationStatus,
 
 		"has_unoverridden_blacklist_flags": blacklistBlocked,
+
+		// Дополнение заявки (#1685): открытый раунд (null - идущего нет) и общее число
+		// раундов, включая закрытые.
+		"open_supplement":   openSupplement,
+		"supplements_count": supplementsCount,
 	}
 
 	return response, nil
@@ -1400,58 +1615,157 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 // Машины матчатся по номеру + mark_id (как и фронтовый /check); машины без mark_id
 // ("по факту"/свободная марка) пропускаем - по mark_id в ЧС они попасть не могут.
 // Люди - строгое совпадение ФИО. Возвращает 409 при первом совпадении.
+//
+// Вложения собираются в плоские списки ДО проверки, а не проверяются по одному
+// (blank-import, срез A2A3): раньше каждое вложение проверялось отдельно, что на
+// многовложенной заявке означало N отдельных загрузок ЧС вместо одной на весь запрос.
+// Порядок ошибок (какая строка сообщается первой) не гарантирован при нескольких
+// одновременных нарушениях в разных вложениях - гард всё равно отклонит заявку 409.
 func (s *applicationService) validateBlacklist(ctx context.Context, req CompleteApplicationRequest) error {
+	var vehicles []VehicleInput
+	var employees []EmployeeInput
 	for _, att := range req.Attachments {
 		if att.Data.Vehicles != nil {
-			for _, v := range *att.Data.Vehicles {
-				// Машины из mark-дропдауна приходят с mark_id (строгий матч), выбранные из
-				// существующих unique_cars - без mark_id, но с car_brand (имя марки): для них
-				// fallback на матч по имени, иначе заблокированная машина прошла бы гард.
-				var (
-					res models.VehicleBlacklistCheckResult
-					err error
-				)
-				switch {
-				case v.MarkID != nil:
-					res, err = s.vehicleBlacklist.Check(ctx, v.CarNumber, *v.MarkID)
-				case strings.TrimSpace(v.CarBrand) != "":
-					res, err = s.vehicleBlacklist.CheckByName(ctx, v.CarNumber, v.CarBrand)
-				default:
-					continue
-				}
-				if err != nil {
-					return err
-				}
-				if res.IsBlacklisted {
-					return echo.NewHTTPError(http.StatusConflict,
-						fmt.Sprintf("Машина %s %s в чёрном списке: %s", v.CarNumber, v.CarBrand, res.Reason))
-				}
-			}
+			vehicles = append(vehicles, *att.Data.Vehicles...)
 		}
 		if att.Data.Employees != nil {
-			for _, e := range *att.Data.Employees {
-				// Тихая деградация ЧС (#529): если ФИО скрыто конфигом - данных для
-				// совпадения нет, матчить нечем, пропускаем (не падаем, не 500).
-				if strings.TrimSpace(e.LastName) == "" && strings.TrimSpace(e.FirstName) == "" {
-					continue
-				}
-				middleName := ""
-				if e.MiddleName != nil {
-					middleName = *e.MiddleName
-				}
-				res, err := s.personBlacklist.Check(ctx, e.LastName, e.FirstName, middleName)
-				if err != nil {
-					return err
-				}
-				if res.IsBlacklisted {
-					fio := strings.TrimSpace(fmt.Sprintf("%s %s %s", e.LastName, e.FirstName, middleName))
-					return echo.NewHTTPError(http.StatusConflict,
-						fmt.Sprintf("Человек %s в чёрном списке: %s", fio, res.Reason))
-				}
+			employees = append(employees, *att.Data.Employees...)
+		}
+	}
+	return s.validateBlacklistEntries(ctx, vehicles, employees)
+}
+
+// validateBlacklistEntries - тот же гард на плоском наборе строк, без обёртки вложений.
+// Дополнение заявки (#1685) добавляет людей и машины в уже существующее вложение и формы
+// подачи не собирает, но обходить ЧС не вправе так же, как подача.
+//
+// На объёме (blank-import, срез A2A3) вход может нести тысячи строк - раньше на каждую
+// шёл отдельный SELECT (Check/CheckByName), что превращало ЧС-гард в тысячи round-trip.
+// Активные записи ЧС по объёму - десятки/сотни, а не тысячи, поэтому дешевле загрузить
+// их ОДНИМ запросом на каждый тип и матчить в памяти, чем гонять запрос на каждую строку
+// заявки. Семантика точного совпадения (LOWER(TRIM(...)) =) сохранена один в один.
+func (s *applicationService) validateBlacklistEntries(ctx context.Context, vehicles []VehicleInput, employees []EmployeeInput) error {
+	if len(vehicles) > 0 {
+		idx, err := s.loadVehicleBlacklistIndex(ctx)
+		if err != nil {
+			return err
+		}
+		for _, v := range vehicles {
+			// Машины из mark-дропдауна приходят с mark_id (строгий матч), выбранные из
+			// существующих unique_cars - без mark_id, но с car_brand (имя марки): для них
+			// fallback на матч по имени, иначе заблокированная машина прошла бы гард.
+			var (
+				match models.VehicleBlacklist
+				found bool
+			)
+			switch {
+			case v.MarkID != nil:
+				match, found = idx.byMarkID[vehicleBlacklistKey(v.CarNumber, strconv.Itoa(*v.MarkID))]
+			case strings.TrimSpace(v.CarBrand) != "":
+				match, found = idx.byMarkName[vehicleBlacklistKey(v.CarNumber, normalizeBlacklistKey(v.CarBrand))]
+			default:
+				continue
+			}
+			if found {
+				return echo.NewHTTPError(http.StatusConflict,
+					fmt.Sprintf("Машина %s %s в чёрном списке: %s", v.CarNumber, v.CarBrand, match.Reason))
+			}
+		}
+	}
+	if len(employees) > 0 {
+		idx, err := s.loadPersonBlacklistIndex(ctx)
+		if err != nil {
+			return err
+		}
+		for _, e := range employees {
+			// Тихая деградация ЧС (#529): если ФИО скрыто конфигом - данных для
+			// совпадения нет, матчить нечем, пропускаем (не падаем, не 500).
+			if strings.TrimSpace(e.LastName) == "" && strings.TrimSpace(e.FirstName) == "" {
+				continue
+			}
+			middleName := ""
+			if e.MiddleName != nil {
+				middleName = *e.MiddleName
+			}
+			match, found := idx[personBlacklistKey(e.LastName, e.FirstName, middleName)]
+			if found {
+				fio := strings.TrimSpace(fmt.Sprintf("%s %s %s", e.LastName, e.FirstName, middleName))
+				return echo.NewHTTPError(http.StatusConflict,
+					fmt.Sprintf("Человек %s в чёрном списке: %s", fio, match.Reason))
 			}
 		}
 	}
 	return nil
+}
+
+// vehicleBlacklistIndex - активные записи ЧС машин, проиндексированные под оба пути
+// матчинга Check/CheckByName (mark_id и имя марки), чтобы validateBlacklistEntries не
+// ходил в БД на каждую строку заявки.
+type vehicleBlacklistIndex struct {
+	byMarkID   map[string]models.VehicleBlacklist
+	byMarkName map[string]models.VehicleBlacklist
+}
+
+// loadVehicleBlacklistIndex грузит ВСЕ активные записи ЧС машин одним запросом и строит
+// индекс по обоим ключам матчинга. ORDER BY id ASC + "первый выигрывает" воспроизводит
+// поведение исходного Check/CheckByName (First() без явного Order сортирует по PK).
+func (s *applicationService) loadVehicleBlacklistIndex(ctx context.Context) (vehicleBlacklistIndex, error) {
+	var rows []models.VehicleBlacklist
+	if err := s.db.WithContext(ctx).Where("is_active = ?", true).Order("id asc").Find(&rows).Error; err != nil {
+		slog.Error("Ошибка загрузки чёрного списка машин", "error", err)
+		return vehicleBlacklistIndex{}, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки чёрного списка")
+	}
+	idx := vehicleBlacklistIndex{
+		byMarkID:   make(map[string]models.VehicleBlacklist, len(rows)),
+		byMarkName: make(map[string]models.VehicleBlacklist, len(rows)),
+	}
+	for _, r := range rows {
+		keyID := vehicleBlacklistKey(r.CarNumber, strconv.Itoa(r.MarkID))
+		if _, exists := idx.byMarkID[keyID]; !exists {
+			idx.byMarkID[keyID] = r
+		}
+		keyName := vehicleBlacklistKey(r.CarNumber, normalizeBlacklistKey(r.MarkName))
+		if _, exists := idx.byMarkName[keyName]; !exists {
+			idx.byMarkName[keyName] = r
+		}
+	}
+	return idx, nil
+}
+
+// loadPersonBlacklistIndex грузит ВСЕ активные записи ЧС людей одним запросом,
+// индексированные по нормализованному ФИО (см. loadVehicleBlacklistIndex).
+func (s *applicationService) loadPersonBlacklistIndex(ctx context.Context) (map[string]models.PersonBlacklist, error) {
+	var rows []models.PersonBlacklist
+	if err := s.db.WithContext(ctx).Where("is_active = ?", true).Order("id asc").Find(&rows).Error; err != nil {
+		slog.Error("Ошибка загрузки чёрного списка людей", "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки чёрного списка")
+	}
+	idx := make(map[string]models.PersonBlacklist, len(rows))
+	for _, r := range rows {
+		middle := ""
+		if r.MiddleName != nil {
+			middle = *r.MiddleName
+		}
+		key := personBlacklistKey(r.LastName, r.FirstName, middle)
+		if _, exists := idx[key]; !exists {
+			idx[key] = r
+		}
+	}
+	return idx, nil
+}
+
+// normalizeBlacklistKey - тот же LOWER(TRIM(...)), что использовали Check/CheckByName в
+// SQL, но в памяти: ключ индекса ЧС должен быть регистронезависим и без крайних пробелов.
+func normalizeBlacklistKey(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
+}
+
+func vehicleBlacklistKey(carNumber, marker string) string {
+	return normalizeBlacklistKey(carNumber) + "|" + marker
+}
+
+func personBlacklistKey(lastName, firstName, middleName string) string {
+	return normalizeBlacklistKey(lastName) + "|" + normalizeBlacklistKey(firstName) + "|" + normalizeBlacklistKey(middleName)
 }
 
 // requiredFieldKeys - ключи полей, которые админ ЯВНО настроил обязательными для
@@ -1494,6 +1808,8 @@ func employeeFieldPresent(e EmployeeInput, key string) bool {
 		return e.OtherPermission != nil && strings.TrimSpace(*e.OtherPermission) != ""
 	case "target_tables":
 		return len(e.TargetTables) > 0
+	case PDConsentFieldKey:
+		return e.PDConsent
 	}
 	return true
 }
@@ -1510,6 +1826,8 @@ func vehicleFieldPresent(v VehicleInput, key string) bool {
 		return len(v.UnloadPlaces) > 0
 	case "passage_tables":
 		return len(v.TargetTables) > 0
+	case PDConsentFieldKey:
+		return v.PDConsent
 	}
 	return true
 }
@@ -1525,55 +1843,92 @@ func itemFieldPresent(i ItemInput, key string) bool {
 	return true
 }
 
+// consentAt и consentBy превращают флаг согласия субъекта на обработку персональных
+// данных в пару «когда» и «кто». Время и автора ставит сервер: запрос несёт только флаг,
+// иначе датой согласия можно было бы прислать что угодно. Флаг снят - обе величины NULL,
+// отметки нет.
+//
+// Где стоит строгость: форма подачи не даёт добавить человека без галочки (поле
+// pd_consent в реестре полей видимо и обязательно по умолчанию), а сервер отказывает
+// только когда администратор ЯВНО настроил поле обязательным - тем же порядком, что и у
+// прочих полей вложения (#529 H-9: строгая серверная проверка включается настройкой,
+// иначе существующие шаблоны ломаются). Отдельная точка ввода - карточка реестра
+// сотрудников: там согласие требуется всегда, см. uniqueEmployeeService.Create.
+func consentAt(granted bool, at time.Time) *time.Time {
+	if !granted {
+		return nil
+	}
+	v := at
+	return &v
+}
+
+func consentBy(granted bool, userID int) *int {
+	if !granted {
+		return nil
+	}
+	v := userID
+	return &v
+}
+
 // validateConfiguredRequiredFields проверяет, что поля, явно настроенные админом
 // обязательными (override visible+required), присутствуют в подаче. Скрытые и
 // ненастроенные поля не валидируются. Запускается до транзакции (#529 H-9).
 func (s *applicationService) validateConfiguredRequiredFields(ctx context.Context, req CompleteApplicationRequest) error {
 	for _, att := range req.Attachments {
-		var overrides []models.AttachmentFieldConfig
-		if err := s.db.WithContext(ctx).
-			Where("unique_attachment_id = ?", att.UniqueAttachmentID).
-			Find(&overrides).Error; err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки настройки полей")
+		if err := s.validateAttachmentRequiredFields(ctx, att.UniqueAttachmentID, att.AttachmentType, att.Data); err != nil {
+			return err
 		}
-		required := requiredFieldKeys(overrides)
-		if len(required) == 0 {
-			continue
-		}
-		labels := fieldDefByKey(att.AttachmentType)
-		fail := func(key string) error {
-			label := key
-			if d, ok := labels[key]; ok {
-				label = d.Label
-			}
-			return echo.NewHTTPError(http.StatusBadRequest,
-				fmt.Sprintf("Поле «%s» обязательно для заполнения", label))
-		}
+	}
+	return nil
+}
 
-		if att.Data.Employees != nil {
-			for _, e := range *att.Data.Employees {
-				for key := range required {
-					if !employeeFieldPresent(e, key) {
-						return fail(key)
-					}
+// validateAttachmentRequiredFields - та же проверка для содержимого ОДНОГО вложения.
+// Дополнение заявки (#1685) сыплет строки в существующее вложение, а настройка полей
+// живёт на его шаблоне: правила обязательности для добавленных строк те же, что при подаче.
+func (s *applicationService) validateAttachmentRequiredFields(ctx context.Context, uniqueAttachmentID int, attachmentType string, data AttachmentContentData) error {
+	var overrides []models.AttachmentFieldConfig
+	if err := s.db.WithContext(ctx).
+		Where("unique_attachment_id = ?", uniqueAttachmentID).
+		Find(&overrides).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки настройки полей")
+	}
+	required := requiredFieldKeys(overrides)
+	if len(required) == 0 {
+		return nil
+	}
+	labels := fieldDefByKey(attachmentType)
+	fail := func(key string) error {
+		label := key
+		if d, ok := labels[key]; ok {
+			label = d.Label
+		}
+		return echo.NewHTTPError(http.StatusBadRequest,
+			fmt.Sprintf("Поле «%s» обязательно для заполнения", label))
+	}
+
+	if data.Employees != nil {
+		for _, e := range *data.Employees {
+			for key := range required {
+				if !employeeFieldPresent(e, key) {
+					return fail(key)
 				}
 			}
 		}
-		if att.Data.Vehicles != nil {
-			for _, v := range *att.Data.Vehicles {
-				for key := range required {
-					if !vehicleFieldPresent(v, key) {
-						return fail(key)
-					}
+	}
+	if data.Vehicles != nil {
+		for _, v := range *data.Vehicles {
+			for key := range required {
+				if !vehicleFieldPresent(v, key) {
+					return fail(key)
 				}
 			}
 		}
-		if att.Data.Items != nil {
-			for _, item := range *att.Data.Items {
-				for key := range required {
-					if !itemFieldPresent(item, key) {
-						return fail(key)
-					}
+	}
+	if data.Items != nil {
+		for _, item := range *data.Items {
+			for key := range required {
+				if !itemFieldPresent(item, key) {
+					return fail(key)
 				}
 			}
 		}
@@ -1601,14 +1956,15 @@ type pendingEmployeeFlag struct {
 // (точное совпадение уже отклонено в validateBlacklist -> 409), а предупреждение. Любая
 // ошибка поиска/записи флага логируется и проглатывается - неудача warning-слоя НЕ должна
 // валить уже созданную заявку. Вне транзакции сабмита: ошибка здесь не отравит и не откатит её.
-func (s *applicationService) detectBlacklistSimilarity(ctx context.Context, appID int, vehicles []pendingVehicleFlag, employees []pendingEmployeeFlag) {
+// supplementID - каким дополнением пришли проверяемые строки (#1685); nil у исходной подачи.
+func (s *applicationService) detectBlacklistSimilarity(ctx context.Context, appID int, supplementID *int, vehicles []pendingVehicleFlag, employees []pendingEmployeeFlag) {
 	for _, v := range vehicles {
 		matches, err := s.vehicleBlacklist.FindSimilar(ctx, v.carNumber)
 		if err != nil {
 			slog.Warn("blacklist similarity check failed (vehicle)", "err", err, "app_id", appID, "car_id", v.carID)
 			continue
 		}
-		s.saveBlacklistFlag(ctx, appID, models.BlacklistElementCar, v.carID, normalize.Plate(v.carNumber), matches)
+		s.saveBlacklistFlag(ctx, appID, supplementID, models.BlacklistElementCar, v.carID, normalize.Plate(v.carNumber), matches)
 	}
 	for _, e := range employees {
 		matches, err := s.personBlacklist.FindSimilar(ctx, e.lastName, e.firstName, e.middleName)
@@ -1616,14 +1972,14 @@ func (s *applicationService) detectBlacklistSimilarity(ctx context.Context, appI
 			slog.Warn("blacklist similarity check failed (person)", "err", err, "app_id", appID, "employee_id", e.empID)
 			continue
 		}
-		s.saveBlacklistFlag(ctx, appID, models.BlacklistElementEmployee, e.empID, normalize.Name(e.lastName, e.firstName, e.middleName), matches)
+		s.saveBlacklistFlag(ctx, appID, supplementID, models.BlacklistElementEmployee, e.empID, normalize.Name(e.lastName, e.firstName, e.middleName), matches)
 	}
 }
 
 // saveBlacklistFlag сохраняет ЛУЧШЕЕ совпадение как флаг элемента: matches приходят
 // отсортированными по убыванию близости (контракт FindSimilar). Пустой срез - элемент
 // чист, флаг не пишем. Ошибку записи логируем и проглатываем (best-effort warning-слой).
-func (s *applicationService) saveBlacklistFlag(ctx context.Context, appID int, elementType string, elementID int, elementNormalized string, matches []models.BlacklistSimilarMatch) {
+func (s *applicationService) saveBlacklistFlag(ctx context.Context, appID int, supplementID *int, elementType string, elementID int, elementNormalized string, matches []models.BlacklistSimilarMatch) {
 	if len(matches) == 0 {
 		return
 	}
@@ -1635,6 +1991,7 @@ func (s *applicationService) saveBlacklistFlag(ctx context.Context, appID int, e
 	}
 	flag := models.ApplicationBlacklistFlag{
 		ApplicationID:      appID,
+		SupplementID:       supplementID,
 		ElementType:        elementType,
 		ElementID:          elementID,
 		ElementNormalized:  elementNormalized,
@@ -1668,6 +2025,55 @@ func (s *applicationService) isBlacklistSuppressed(ctx context.Context, elementT
 		return false
 	}
 	return cnt > 0
+}
+
+// Пакетные потолки подачи (blank-import, срез A2A3): вставка тысяч строк по одной душит
+// БД тысячами round-trip, а один INSERT на весь список рискует упереться в лимит числа
+// параметров запроса на большом вложении. Числа - компромисс между этими крайностями,
+// не бизнес-правило: изменение значения не меняет то, что записывается, только сколько
+// запросов на это уходит.
+const (
+	employeeInsertBatchSize = 500
+	carInsertBatchSize      = 500
+	bindingInsertBatchSize  = 1000
+	auditInsertBatchSize    = 1000
+)
+
+// insertCarsBatch вставляет машины одного вложения multi-values INSERT пачками по
+// carInsertBatchSize вместо построчного tx.Raw на каждую (blank-import, срез A2A3).
+// Raw SQL, не GORM: у Car нет шифрующих хуков (в отличие от Employee), пакетная вставка
+// машин раньше и так шла raw построчно - меняется только число round-trip, не механизм.
+// RETURNING id для multi-row INSERT возвращает строки в порядке VALUES (гарантия
+// Postgres для одного оператора), поэтому i-й id в результате соответствует i-й машине
+// входного среза - на этом порядке строится сопоставление с pending-флагами/аудитом/
+// привязками ниже.
+func insertCarsBatch(tx *gorm.DB, attID int, vehicles []VehicleInput, entryDateFrom, entryTimeFrom, entryDateTo, entryTimeTo *string, actorUserID int, submittedAt time.Time) ([]int, error) {
+	carIDs := make([]int, 0, len(vehicles))
+	for start := 0; start < len(vehicles); start += carInsertBatchSize {
+		end := start + carInsertBatchSize
+		if end > len(vehicles) {
+			end = len(vehicles)
+		}
+		chunk := vehicles[start:end]
+		placeholders := make([]string, 0, len(chunk))
+		args := make([]interface{}, 0, len(chunk)*10)
+		for _, v := range chunk {
+			placeholders = append(placeholders, "(?, ?, ?, ?, ?::date, ?::time, ?::date, ?::time, 0, ?, ?)")
+			args = append(args, attID, v.CarNumber, v.CarBrand, v.UnloadPlace, entryDateFrom, entryTimeFrom, entryDateTo, entryTimeTo,
+				consentAt(v.PDConsent, submittedAt), consentBy(v.PDConsent, actorUserID))
+		}
+		query := "INSERT INTO cars (attachment_id, car_number, car_brand, unload_place, entry_date_from, entry_time_from, entry_date_to, entry_time_to, status, pd_consent_at, pd_consent_by_user_id) VALUES " +
+			strings.Join(placeholders, ", ") + " RETURNING id"
+		var chunkIDs []int
+		if err := tx.Raw(query, args...).Scan(&chunkIDs).Error; err != nil {
+			return nil, err
+		}
+		if len(chunkIDs) != len(chunk) {
+			return nil, fmt.Errorf("car insert вернул %d id на %d строк", len(chunkIDs), len(chunk))
+		}
+		carIDs = append(carIDs, chunkIDs...)
+	}
+	return carIDs, nil
 }
 
 // SubmitCompleteApplication создаёт полную заявку с вложениями, машинами и сотрудниками.
@@ -1767,6 +2173,16 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating application")
 	}
 
+	// Файлы, приложенные при подаче (#1721). Внутри транзакции: не найденный
+	// среди своих черновиков файл откатывает подачу, вместо того чтобы создать
+	// заявку без документа, который заявитель считает приложенным.
+	if s.files != nil {
+		if err := s.files.Attach(tx, user.ID, appID, req.FileIDs, s.fileMaxCount, s.fileMaxTotal); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
 	// Записываем создание в историю
 	metaCreate, _ := json.Marshal(map[string]string{"confirmation": "Согласование", "status": "Непрочитано"})
 	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &appID, "create", &user.ID,
@@ -1820,19 +2236,33 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		}
 	}
 
-	// Добавляем обязательных из запроса
+	// req.RequiredUsers - список из формы подачи, дублирующий required_approval,
+	// который уже прочитан выше из organization_users/companies_users. Присланное
+	// значение признак не меняет ни в одну сторону (#2037): заявитель не назначает
+	// согласующих, он только видит состав организации, поэтому обязательность
+	// целиком определяется справочником.
+	//
+	// Раньше пользователь, не найденный среди responsibleUsers, тихо ДОБАВЛЯЛСЯ в
+	// согласующие (#2048): подделанный запрос с чужим user_id заводил в ответственные
+	// постороннего из другой организации, тот видел заявку целиком и мог её согласовать.
+	// Форма всегда шлёт id из состава уже прочитанной организации/компании (см. функцию
+	// отправки в CreateApplication.vue - список берётся из ответа /organizations/{id}/users
+	// и /companies/{id}/users), поэтому для легитимной подачи exists здесь истинно всегда,
+	// а расхождение - признак подделанного запроса. Отклоняем подачу целиком, а не тихо
+	// выбрасываем чужого пользователя: заявитель должен получить внятный отказ, а не
+	// заявку, тихо созданную без части того, что он просил.
 	if req.RequiredUsers != nil {
 		for _, reqUser := range *req.RequiredUsers {
 			exists := false
-			for i, ru := range responsibleUsers {
+			for _, ru := range responsibleUsers {
 				if ru.UserID == reqUser.UserID {
 					exists = true
-					responsibleUsers[i].RequiredApproval = reqUser.RequiredApproval
 					break
 				}
 			}
 			if !exists {
-				responsibleUsers = append(responsibleUsers, respUser{reqUser.UserID, false, reqUser.RequiredApproval})
+				tx.Rollback()
+				return nil, echo.NewHTTPError(http.StatusBadRequest, "Назначить согласующим можно только ответственного этой организации или компании")
 			}
 		}
 	}
@@ -1860,13 +2290,32 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	// Читатели-получатели заявки (#884): доступ только на просмотр через application_viewers
 	// (как форвард-флоу) - CanAccessApplication пускает их на чтение, но не в согласующие.
 	// Пропускаем тех, кто уже ответственный (у них доступ и так есть).
-	if req.Readers != nil {
+	if req.Readers != nil && len(*req.Readers) > 0 {
+		// Читателем можно назначить только того, кого форма и предлагала выбрать:
+		// иначе подделанный запрос открывал бы заявку любому пользователю системы.
+		// Чужие идентификаторы отбрасываем молча - так же, как дубли ответственных
+		// строкой ниже; запрос при этом остаётся валидным и заявка подаётся.
+		//
+		// Тот же список стережёт пересылку (ForwardApplication): второй путь к INSERT
+		// в application_viewers обязан пускать тот же круг, иначе закрытая на подаче
+		// дыра открывается через /forward.
+		allowedReaders, err := recipientCandidateIDs(ctx, tx, *user)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+
 		seenViewer := make(map[int]bool, len(responsibleUsers))
 		for _, ru := range responsibleUsers {
 			seenViewer[ru.UserID] = true
 		}
 		for _, readerID := range *req.Readers {
 			if readerID <= 0 || seenViewer[readerID] {
+				continue
+			}
+			if _, allowed := allowedReaders[readerID]; !allowed {
+				slog.Warn("читатель заявки отброшен: вне списка доступных получателей",
+					"application_id", appID, "reader_id", readerID, "author_id", user.ID)
 				continue
 			}
 			seenViewer[readerID] = true
@@ -1899,38 +2348,61 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		switch att.AttachmentType {
 		case "cars":
 			if att.Data.Vehicles != nil {
+				vehicles := *att.Data.Vehicles
+				// Машины остаются raw SQL (у Car нет шифрующих хуков), но одним пакетным
+				// multi-values INSERT вместо построчного (blank-import, срез A2A3).
+				carIDs, err := insertCarsBatch(tx, attID, vehicles, att.EntryDateFrom, att.EntryTimeFrom, att.EntryDateTo, att.EntryTimeTo, user.ID, baseTime)
+				if err != nil {
+					tx.Rollback()
+					slog.Error("Ошибка создания машин (batch)", "attachment_id", attID, "error", err)
+					return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating car")
+				}
+
 				// Дедуп-union мест всех машин вложения для attachment_unload_places (#706).
 				// car_unload_places продолжаем писать для read-side и истории.
 				carPlacesSet := make(map[int]struct{})
-				for _, v := range *att.Data.Vehicles {
-					var carID int
-					err := tx.Raw(`
-						INSERT INTO cars (attachment_id, car_number, car_brand, unload_place, entry_date_from, entry_time_from, entry_date_to, entry_time_to, status)
-						VALUES (?, ?, ?, ?, ?::date, ?::time, ?::date, ?::time, 0)
-						RETURNING id
-					`, attID, v.CarNumber, v.CarBrand, v.UnloadPlace, att.EntryDateFrom, att.EntryTimeFrom, att.EntryDateTo, att.EntryTimeTo).Scan(&carID).Error
-					if err != nil {
-						tx.Rollback()
-						return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating car")
-					}
-
+				auditEntries := make([]models.AuditLog, 0, len(vehicles))
+				var unloadBindings []models.CarUnloadPlace
+				var tableBindings []models.CarTargetTable
+				for i, v := range vehicles {
+					carID := carIDs[i]
 					pendingVehicleFlags = append(pendingVehicleFlags, pendingVehicleFlag{carID: carID, carNumber: v.CarNumber})
 
 					carCreateComment := fmt.Sprintf("Автомобиль %s %s создан", v.CarNumber, v.CarBrand)
-					s.recorder.Log(ctx, tx, models.AuditEntityCar, &carID, "create", &user.ID, carAuditDetails{Comment: &carCreateComment})
+					entry, err := buildAuditLogEntry(ctx, models.AuditEntityCar, &carID, "create", &user.ID, carAuditDetails{Comment: &carCreateComment})
+					if err != nil {
+						slog.Error("не удалось подготовить аудит создания машины (submit)", "car_id", carID, "error", err)
+					} else {
+						auditEntries = append(auditEntries, entry)
+					}
 
 					for _, placeID := range v.UnloadPlaces {
-						tx.Exec("INSERT INTO car_unload_places (car_id, unload_place_id, order_index) VALUES (?, ?, 1)", carID, placeID)
-						carPlacesSet[placeID] = struct{}{}
+						pid, oneIdx := placeID, 1
+						unloadBindings = append(unloadBindings, models.CarUnloadPlace{CarID: carID, UnloadPlaceID: pid, OrderIndex: &oneIdx})
+						carPlacesSet[pid] = struct{}{}
 					}
 
 					// Таблицы «Проезд» (#1036): машина видна только в выбранных cars-таблицах
 					// (зеркало employee_target_tables). Историю попадания в таблицу пишем НЕ здесь,
 					// а при активации заявки (status->1) - при подаче машина ещё неактивна (#1085).
 					for _, tableID := range v.TargetTables {
-						if res := tx.Exec("INSERT INTO car_target_tables (car_id, table_id, order_index) VALUES (?, ?, 1)", carID, tableID); res.Error != nil {
-							slog.Error("не удалось привязать машину к таблице (submit)", "car_id", carID, "table_id", tableID, "error", res.Error)
-						}
+						tid, oneIdx := tableID, 1
+						tableBindings = append(tableBindings, models.CarTargetTable{CarID: carID, TableID: tid, OrderIndex: &oneIdx, Source: "application"})
+					}
+				}
+				if len(auditEntries) > 0 {
+					if err := tx.CreateInBatches(&auditEntries, auditInsertBatchSize).Error; err != nil {
+						slog.Error("не удалось записать аудит создания машин (submit)", "attachment_id", attID, "error", err)
+					}
+				}
+				if len(unloadBindings) > 0 {
+					if err := tx.CreateInBatches(&unloadBindings, bindingInsertBatchSize).Error; err != nil {
+						slog.Error("не удалось привязать машины к местам разгрузки (submit)", "attachment_id", attID, "error", err)
+					}
+				}
+				if len(tableBindings) > 0 {
+					if err := tx.CreateInBatches(&tableBindings, bindingInsertBatchSize).Error; err != nil {
+						slog.Error("не удалось привязать машины к таблицам (submit)", "attachment_id", attID, "error", err)
 					}
 				}
 				// Пишем дедупированные места в attachment_unload_places (источник для охранника).
@@ -1941,48 +2413,90 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 
 		case "people":
 			if att.Data.Employees != nil {
-				for _, e := range *att.Data.Employees {
+				employeesInput := *att.Data.Employees
+				employeeRecords := make([]models.Employee, 0, len(employeesInput))
+				for _, e := range employeesInput {
 					statusZero := 0
 					lastName := e.LastName
 					firstName := e.FirstName
 					citizenshipID := e.CitizenshipID
 					position := e.Position
-					passportSeriesNumber := e.PassportSeriesNumber
-					employee := models.Employee{
+					employeeRecords = append(employeeRecords, models.Employee{
 						AttachmentID:         &attID,
 						LastName:             &lastName,
 						FirstName:            &firstName,
 						MiddleName:           e.MiddleName,
 						CitizenshipID:        &citizenshipID,
 						Position:             &position,
-						PassportSeriesNumber: &passportSeriesNumber,
-						PatentNumber:         e.PatentNumber,
+						PassportSeriesNumber: nilIfBlank(e.PassportSeriesNumber),
+						PatentNumber:         nilIfBlankPtr(e.PatentNumber),
 						OtherPermission:      e.OtherPermission,
 						Status:               &statusZero,
-					}
-					if err := tx.Create(&employee).Error; err != nil {
-						tx.Rollback()
-						return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating employee")
-					}
+						PDConsentAt:          consentAt(e.PDConsent, baseTime),
+						PDConsentByUserID:    consentBy(e.PDConsent, user.ID),
+					})
+				}
+				// CreateInBatches, НЕ raw SQL: Employee.BeforeSave (models/employee.go)
+				// шифрует паспорт/патент и пишет HMAC. Хуки срабатывают только через GORM
+				// (Create/CreateInBatches), поэтому пакетная вставка обязана остаться на
+				// нём - иначе персональные данные легли бы в базу открытым текстом
+				// (blank-import, срез A2A3). GORM возвращает id каждой строки в тот же
+				// элемент среза (RETURNING на Postgres), порядок с employeesInput совпадает.
+				if err := tx.CreateInBatches(&employeeRecords, employeeInsertBatchSize).Error; err != nil {
+					tx.Rollback()
+					slog.Error("Ошибка создания сотрудников (batch)", "attachment_id", attID, "error", err)
+					return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating employee")
+				}
+
+				auditEntries := make([]models.AuditLog, 0, len(employeeRecords))
+				var tableBindings []models.EmployeeTargetTable
+				for i, employee := range employeeRecords {
 					empID := employee.ID
+					e := employeesInput[i]
 
 					empMiddle := ""
 					if e.MiddleName != nil {
 						empMiddle = *e.MiddleName
 					}
 					pendingEmployeeFlags = append(pendingEmployeeFlags, pendingEmployeeFlag{
-						empID: empID, lastName: lastName, firstName: firstName, middleName: empMiddle,
+						empID: empID, lastName: e.LastName, firstName: e.FirstName, middleName: empMiddle,
 					})
-					empComment := fmt.Sprintf("Сотрудник %s создан", strings.TrimSpace(strings.Join([]string{lastName, firstName, empMiddle}, " ")))
-					s.recorder.Log(ctx, tx, models.AuditEntityEmployee, &empID, "create", &user.ID, carAuditDetails{Comment: &empComment})
+					empComment := fmt.Sprintf("Сотрудник %s создан", strings.TrimSpace(strings.Join([]string{e.LastName, e.FirstName, empMiddle}, " ")))
+					entry, err := buildAuditLogEntry(ctx, models.AuditEntityEmployee, &empID, "create", &user.ID, carAuditDetails{Comment: &empComment})
+					if err != nil {
+						slog.Error("не удалось подготовить аудит создания сотрудника (submit)", "employee_id", empID, "error", err)
+					} else {
+						auditEntries = append(auditEntries, entry)
+					}
 
 					// Историю попадания в таблицу пишем НЕ здесь, а при активации заявки
 					// (status->1) - при подаче сотрудник ещё неактивен (#1085).
 					for _, tableID := range e.TargetTables {
-						if res := tx.Exec("INSERT INTO employee_target_tables (employee_id, table_id, order_index) VALUES (?, ?, 1)", empID, tableID); res.Error != nil {
-							slog.Error("не удалось привязать сотрудника к таблице (submit)", "employee_id", empID, "table_id", tableID, "error", res.Error)
-						}
+						tid, oneIdx := tableID, 1
+						tableBindings = append(tableBindings, models.EmployeeTargetTable{EmployeeID: empID, TableID: tid, OrderIndex: &oneIdx, Source: "application"})
 					}
+				}
+
+				if len(auditEntries) > 0 {
+					if err := tx.CreateInBatches(&auditEntries, auditInsertBatchSize).Error; err != nil {
+						slog.Error("не удалось записать аудит создания сотрудников (submit)", "attachment_id", attID, "error", err)
+					}
+				}
+				if len(tableBindings) > 0 {
+					if err := tx.CreateInBatches(&tableBindings, bindingInsertBatchSize).Error; err != nil {
+						slog.Error("не удалось привязать сотрудников к таблицам (submit)", "attachment_id", attID, "error", err)
+					}
+				}
+
+				// Сводная запись в ленте самой заявки (blank-import, срез A2A3): N карточек
+				// «Сотрудник ФИО создан» продолжают писаться выше для истории каждого
+				// сотрудника (её читает /employees/:id/history) - эта запись их не
+				// заменяет, а добавляет ОДНУ строку в историю заявки, чтобы не пролистывать
+				// всех сотрудников, чтобы понять сколько их добавлено разом.
+				if len(employeeRecords) > 0 {
+					summary := fmt.Sprintf("Добавлено сотрудников: %d", len(employeeRecords))
+					s.recorder.Log(ctx, tx, models.AuditEntityApplication, &appID, models.AuditActionEmployeesBulkAdded, &user.ID,
+						applicationAuditDetails{Comment: &summary})
 				}
 			}
 
@@ -2026,20 +2540,47 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
+	// Файловый архив (#1615, B1): подача - первая точка, где у заявки вообще
+	// появляются бланки на выгрузку.
+	s.enqueueArchiveExport(appID, BlankExportReasonSubmit)
+
 	// Мягкая проверка возможного обхода ЧС по похожему номеру/ФИО (#481): помечает
 	// элементы флагом для предупреждения согласующим. Best-effort, заявку не блокирует.
 	// Синхронно (не в горутине) намеренно: флаги должны быть готовы сразу для детали
 	// заявки и детерминированны для тестов; сабмит не hot-path, элементов в заявке мало.
-	s.detectBlacklistSimilarity(ctx, appID, pendingVehicleFlags, pendingEmployeeFlags)
+	s.detectBlacklistSimilarity(ctx, appID, nil, pendingVehicleFlags, pendingEmployeeFlags)
+
+	// Данные для подробностей уведомления: без них окно показывает один текст, а
+	// кнопка перехода к заявке не появляется вовсе - именно на этих двух типах
+	// согласующий и заявитель упирались в тупик (#1748).
+	// Отправитель кладётся в данные, а не только в текст: окно подробностей строит поля
+	// из них, и без организации принимающий видит один номер заявки.
+	senderTitle := s.applicationSenderTitle(ctx, organizationID, companyID)
+	senderPerson := formatFullName(user.LastName, user.FirstName, user.MiddleName)
+	if strings.TrimSpace(senderPerson) == "" {
+		senderPerson = user.Username
+	}
+	submitPayloadFields := map[string]any{
+		"application_id":     appID,
+		"application_number": applicationNumber,
+	}
+	if senderTitle != "" {
+		submitPayloadFields["organization"] = senderTitle
+	}
+	if senderPerson != "" {
+		submitPayloadFields["sender_name"] = senderPerson
+	}
+	submitPayloadBytes, _ := json.Marshal(submitPayloadFields)
+	submitPayload := string(submitPayloadBytes)
 
 	// Уведомление отправителю о создании заявки
 	if s.notificationService != nil {
 		if err := s.notificationService.CreateForUser(
 			ctx, user.ID,
-			"application_created",
+			NotificationTypeApplicationCreated,
 			"Заявка отправлена",
 			fmt.Sprintf("Ваша заявка %s отправлена и ожидает согласования.", applicationNumber),
-			nil,
+			&submitPayload,
 		); err != nil {
 			slog.Warn("notification create failed", "err", err, "user_id", user.ID, "app_id", appID)
 		}
@@ -2053,14 +2594,28 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 			}
 			if err := s.notificationService.CreateForUser(
 				ctx, ru.UserID,
-				"application_approval_required",
+				NotificationTypeApplicationApprovalRequired,
 				"Требуется согласование",
 				fmt.Sprintf("Поступила новая заявка %s на согласование.", applicationNumber),
-				nil,
+				&submitPayload,
 			); err != nil {
 				slog.Warn("notification create failed", "err", err, "user_id", ru.UserID, "app_id", appID)
 			}
 		}
+	}
+
+	// Принимающим - о заявке, которая легла в Центр и ждёт, что её возьмут в работу.
+	// Согласующий и принимающий - разные роли: первый голосует и получает уведомление
+	// выше, второй берёт заявку в работу и до этого о подаче не узнавал вообще ничего,
+	// хотя именно он ждёт её в Центре.
+	if s.notificationService != nil {
+		s.notifyApproversAboutNewApplication(ctx, user.ID, appID, pendingAcceptanceNote{
+			number:       applicationNumber,
+			organization: senderTitle,
+			sender:       senderPerson,
+			messageText:  optionalString(req.Message),
+			fileNames:    s.applicationFileNames(ctx, req.FileIDs),
+		}, submitPayload)
 	}
 
 	// Подача завела наименование, которого не было в справочнике (#1437): зовём тех,
@@ -2202,12 +2757,15 @@ func (s *applicationService) UpdateApplication(ctx context.Context, username str
 
 	// Любое изменение заявки этим путём (статус/подтверждение/коммент) участники
 	// видят в детали live (#840 V4).
-	s.notifyApplicationUpdated(ctx, applicationID)
+	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
 	// Инициатору - уведомление об исходе согласования, если admin выставил confirmation
 	// в финальное значение (Согласовано/Не согласовано) и оно реально сменилось (#1349).
 	if confirmationChanged {
 		if outcome := confirmationOutcome(req.Confirmation); outcome != "" {
-			s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, outcome)
+			s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, outcome, &statusChangeContext{
+				ActorName: formatFullName(user.LastName, user.FirstName, user.MiddleName),
+				Comment:   optionalString(req.ResponsibleComment),
+			})
 		}
 	}
 	// Прямое выставление "Согласовано" (admin-путь, минуя approve-флоу) делает

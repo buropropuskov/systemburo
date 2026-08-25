@@ -98,15 +98,23 @@ func TestCarTargetSource_DetailIncludesTargetTables(t *testing.T) {
 	appID, _, _ := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
 
-	rec := testutil.GET(t, e, "/cars/active-for-tables", testutil.AuthHeader(token))
+	// «Ключ есть, но пустой» смотрим на составе заявки: машина без выбранного «Проезда»
+	// в адресную выдачу таблицы не попадает по определению, а фронт должен различать
+	// «привязок нет» и «поле не пришло». Раньше проверка шла через /cars/active-for-tables -
+	// тот путь снят вместе с техдолгом (#1050).
+	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", appID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+	atts := testutil.ParseSlice(t, rec)
+	require.NotEmpty(t, atts)
+	attID := int(atts[0]["id"].(float64))
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/attachments/%d/cars", attID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 	cars := testutil.ParseSlice(t, rec)
 	require.Len(t, cars, 1)
 
-	// seedCarViaCompleteApp не выбирает «Проезд» - ключ должен присутствовать пустым,
-	// а не отсутствовать (FE различает «нет привязок» от «поле не пришло»).
 	tt, ok := cars[0]["target_tables"]
-	require.True(t, ok, "target_tables должен присутствовать в ответе detail-пути проходной")
+	require.True(t, ok, "target_tables должен присутствовать в составе заявки")
 	assert.Empty(t, tt)
 
 	dn := "Проезд Src Detail"

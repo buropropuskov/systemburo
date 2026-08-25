@@ -39,13 +39,12 @@ function mountPage(tableName = 'kpp_4') {
         ApplicationDetail: true,
         TableExportModal: true,
         ManualAddModal: true,
-        OrganizationFilter: true,
-        UnloadingPlaceFilter: true,
+        BaseDropdown: true,
         DateFilter: true,
       },
       mocks: {
         $route: { params: { tableName } },
-        $router: { push: vi.fn() },
+        $router: { push: vi.fn(), replace: vi.fn().mockResolvedValue(undefined) },
       },
     },
   });

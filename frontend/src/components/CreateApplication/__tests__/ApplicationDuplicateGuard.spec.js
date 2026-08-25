@@ -59,7 +59,9 @@ async function mountEmployeeForm(existingEmployees = []) {
 }
 
 async function fillEmployee(w, { lastName, firstName, middleName = '', passportSeriesNumber = '' }) {
-    await w.setData({ lastName, firstName, middleName, passportSeriesNumber, position: 'Слесарь' });
+    // pdConsent: форма не даёт добавить человека без отметки о согласии субъекта на
+    // обработку персональных данных - для этих кейсов она просто должна быть.
+    await w.setData({ lastName, firstName, middleName, passportSeriesNumber, position: 'Слесарь', pdConsent: true });
 }
 
 async function mountVehicleForm(existingVehicles = []) {

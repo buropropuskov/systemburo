@@ -1,6 +1,9 @@
 package services
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 // Единый каталог точечных прав (#эпик-прав). Источник правды для UI настройки
 // прав и для валидации входящих ключей. Иерархия: категория-заголовок -> листья.
@@ -22,12 +25,19 @@ const (
 	KeyPageAvailable      = "page.available"
 	KeyPageTables         = "page.tables"
 
-	KeyPageAdminMonitoring  = "page.admin.monitoring"
+	KeyPageAdminMonitoring = "page.admin.monitoring"
 	// Журнал доступа к персональным данным (152-ФЗ). Отдельно от permission.audit.read:
 	// тот про отказы в доступе, а здесь видно, кто и когда смотрел паспорта (#1472).
 	KeyPageAdminPDAudit     = "page.admin.pd_audit"
 	KeyPageAdminDirectories = "page.admin.directories"
 	KeyPageAdminTablesCtor  = "page.admin.tables_constructor"
+	// Раздел «Файловый архив» (#1615): состояние выгрузки бланков на диск, её
+	// настройки и выгрузка файлов. Слово «архив» отдельно уже занято архивными
+	// заявками, поэтому раздел называется файловым и в ключе, и в интерфейсе.
+	KeyPageAdminFileArchive = "page.admin.file_archive"
+	// Раздел «Настройки» (#7): администраторы получают ключ через adminAll (не
+	// super-only), точечно снимается личным deny-override у конкретного человека.
+	KeyPageAdminSettings = "page.admin.settings"
 
 	KeyHeaderReportProblem     = "header.report_problem"
 	KeyHeaderCreateApplication = "header.create_application"
@@ -39,6 +49,18 @@ const (
 	KeyDetailOpenApplication  = "detail.open_application"
 	KeyDetailEntryExitHistory = "detail.entry_exit_history"
 	KeyDetailDocuments        = "detail.documents"
+	// KeyDetailDocumentsExport - выгрузка документов человека (серия и номер паспорта,
+	// номер патента, иное разрешение) в заполненный бланк заявки. Право парное к
+	// detail.documents и работает только вместе с ним: видеть документы на экране
+	// карточки и вынести их файлом наружу - действия разного веса, и второе не должно
+	// доставаться каждому, кто может подать заявку. Отзыв detail.documents гасит и
+	// выгрузку, отдельным действием ходить не надо.
+	//
+	// В базовую роль не входит намеренно: администраторы получают ключ через adminAll,
+	// остальным он выдаётся точечно. Без права бланк уходит с прочерками в этих
+	// ячейках, а источник "сохранённый файл" закрывается - лежащая на диске копия
+	// собрана с документами, и обезличить её при отдаче нечем.
+	KeyDetailDocumentsExport = "detail.documents.export"
 
 	KeySectionRegistryOrganization = "section.registry.organization"
 	KeySectionRegistryCompany      = "section.registry.company"
@@ -60,6 +82,33 @@ const (
 	KeyApplicationOrganizationModerate = "application.organization.moderate"
 
 	KeyActionGrantAdmin = "action.grant.admin"
+
+	// KeyActionRotatePasswords - запуск смены паролей всем работникам вручную
+	// (#1910). Отдельно от page.admin.settings намеренно: правка телефона бюро и
+	// сброс паролей всей организации - действия разного веса, и второе не должно
+	// достаться каждому, кто может поменять первое.
+	KeyActionRotatePasswords = "action.password.rotate_all"
+
+	// KeyUserImpersonate - вход в систему от имени другого пользователя (#1912):
+	// разбор проблемной учётной записи без знания её пароля. Не super-only
+	// намеренно: администраторы и так меняют работникам пароли (PUT
+	// /users/:username/password), то есть уже могут войти под чужим именем - только
+	// молча и с потерей следа в журнале. Сделать право недоступным администратору
+	// значило бы оставить их на этой практике. Рядовому пользователю право не
+	// достаётся, пока его не выдадут явно, а войти от имени более полномочного не
+	// даёт сам сервис.
+	KeyUserImpersonate = "user.impersonate"
+
+	// KeyActionManageFileArchive - правка настроек файлового архива: рубильник,
+	// шаблоны раскладки, пороги места. Отделено от просмотра раздела: смотреть
+	// состояние выгрузки полезно и дежурному, а менять раскладку - нет, сменённый
+	// шаблон разводит новые файлы мимо тех, что уже лежат на диске.
+	KeyActionManageFileArchive = "action.manage.file_archive"
+
+	// KeyActionDownloadFileArchive - выгрузка файлов архива на рабочий компьютер
+	// (ZIP за период, ZIP заявки, отдельный бланк). Право отдельное, потому что это
+	// вынос персональных данных за пределы системы разом и помногу.
+	KeyActionDownloadFileArchive = "action.download.file_archive"
 
 	KeyGuideUser  = "guide.user"
 	KeyGuideAdmin = "guide.admin"
@@ -85,6 +134,12 @@ type CatalogNode struct {
 	Category    string        `json:"category"`
 	SuperOnly   bool          `json:"super_only,omitempty"`
 	Children    []CatalogNode `json:"children,omitempty"`
+	// Description -- необязательная подсказка для узлов, чьё название само по
+	// себе неоднозначно (#1998: page.admin выглядит зонтиком над всем разделом
+	// администрирования, а на деле открывает два пункта меню и россыпь действий).
+	// Показывается всплывающей подсказкой в редакторах прав; для большинства
+	// узлов, где DisplayName самодостаточен, остаётся пустой.
+	Description string `json:"description,omitempty"`
 }
 
 // superOnlyKeys -- права, доступные ТОЛЬКО супер-админу. Обычный администратор
@@ -105,7 +160,24 @@ func staticCatalog() []CatalogNode {
 		{Key: KeyPageEmployees, DisplayName: "Сотрудники", Category: CatNavigation},
 		{Key: KeyPageCars, DisplayName: "Автомобили", Category: CatNavigation},
 		{Key: KeyPageStatistics, DisplayName: "Аналитика", Category: CatNavigation},
-		{Key: KeyPageAdmin, DisplayName: "Администрирование", Category: CatNavigation},
+		// До #1982 page.admin открывал весь раздел администрирования и название
+		// "Администрирование" было точным. После переезда справочников за ним
+		// остались только пункты меню «Руководство» и «Обработка данных» плюс
+		// точечные действия по системе (не отдельный раздел) -- старое название
+		// вводило раздающего права в заблуждение (#1998). Справочники, пользователи,
+		// настройки и остальные разделы администрирования выдаются своими ключами
+		// page.admin.* и этим правом не открываются.
+		{
+			Key:         KeyPageAdmin,
+			DisplayName: "Общие административные действия",
+			Category:    CatNavigation,
+			Description: "Открывает пункты меню «Руководство» и «Обработка данных», а также " +
+				"административные действия в разных разделах системы: привязка файлов к заявке, " +
+				"перенос и отвязка записей в системных таблицах, рассылка уведомлений, тайм-слоты " +
+				"бюро, журнал аудита, мониторинг запросов, сброс онбординга пользователю и настройки " +
+				"согласия на обработку персональных данных. Раздел «Справочники» им не открывается " +
+				"- это отдельное право page.admin.directories.",
+		},
 		{Key: KeyPageNews, DisplayName: "Обзор и новости", Category: CatNavigation},
 		{Key: KeyPagePersonal, DisplayName: "Личный кабинет", Category: CatNavigation},
 
@@ -117,8 +189,10 @@ func staticCatalog() []CatalogNode {
 		{Key: KeyCenterArchive, DisplayName: "Раздел «Архив»", Category: CatCenter},
 		{Key: KeyCenterApplicationHistory, DisplayName: "Кнопка «История заявки»", Category: CatCenter},
 		{Key: KeyActionForwardApplication, DisplayName: "Переслать заявку", Category: CatCenter},
+		{Key: KeyActionSupplementApplication, DisplayName: "Дополнить заявку", Category: CatCenter},
 		{Key: KeyActionApproveApplication, DisplayName: "Согласовать заявку", Category: CatCenter},
 		{Key: KeyActionExportApplications, DisplayName: "Экспорт заявок", Category: CatCenter},
+		{Key: KeyActionImportList, DisplayName: "Импорт списка из бланка", Category: CatCenter},
 		{Key: KeyApplicationOrganizationOverride, DisplayName: "Подача заявки от другой организации", Category: CatCenter},
 		{Key: KeyApplicationOrganizationModerate, DisplayName: "Разбор организаций на проверке", Category: CatCenter},
 
@@ -126,7 +200,23 @@ func staticCatalog() []CatalogNode {
 		{Key: KeyDetailFullHistory, DisplayName: "Кнопка «Полная история»", Category: CatDetail},
 		{Key: KeyDetailOpenApplication, DisplayName: "Кнопка «Открыть заявку»", Category: CatDetail},
 		{Key: KeyDetailEntryExitHistory, DisplayName: "Раздел «История въездов и выездов»", Category: CatDetail},
-		{Key: KeyDetailDocuments, DisplayName: "Раздел «Документы»", Category: CatDetail},
+		{
+			Key:         KeyDetailDocuments,
+			DisplayName: "Раздел «Документы»",
+			Category:    CatDetail,
+			Children: []CatalogNode{
+				{
+					Key:         KeyDetailDocumentsExport,
+					DisplayName: "Документы: выгрузка в бланк",
+					Category:    CatDetail,
+					Description: "Разрешает скачивать бланк заявки с паспортными данными, номером " +
+						"патента и иным разрешением участников, а также забирать сохранённые копии " +
+						"бланков из файлового архива. Без права бланк скачивается с прочерками в этих " +
+						"ячейках. Работает только вместе с правом на раздел «Документы»: закрыт просмотр " +
+						"на экране - закрыта и выгрузка.",
+				},
+			},
+		},
 
 		// Сотрудники и автомобили
 		{Key: KeyEntityCarsRead, DisplayName: "Автомобили: просмотр", Category: CatRegistry},
@@ -149,10 +239,16 @@ func staticCatalog() []CatalogNode {
 		{Key: KeyPageBlacklist, DisplayName: "Раздел «Чёрный список»", Category: CatAdmin},
 		{Key: KeyPageAdminDirectories, DisplayName: "Раздел «Справочники»", Category: CatAdmin},
 		{Key: KeyPageAdminTablesCtor, DisplayName: "Раздел «Конструктор таблиц»", Category: CatAdmin},
+		{Key: KeyPageAdminFileArchive, DisplayName: "Раздел «Файловый архив»", Category: CatAdmin},
+		{Key: KeyPageAdminSettings, DisplayName: "Раздел «Настройки»", Category: CatAdmin},
+		{Key: KeyActionManageFileArchive, DisplayName: "Файловый архив: настройка", Category: CatAdmin},
+		{Key: KeyActionDownloadFileArchive, DisplayName: "Файловый архив: выгрузка файлов", Category: CatAdmin},
 		{Key: KeyAuditRead, DisplayName: "Журнал отказов в доступе", Category: CatAdmin},
 		{Key: KeyAuditManage, DisplayName: "Управление ролями и группами", Category: CatAdmin},
 		{Key: KeyActionBanUser, DisplayName: "Блокировка пользователей", Category: CatAdmin},
+		{Key: KeyUserImpersonate, DisplayName: "Вход от имени пользователя", Category: CatAdmin},
 		{Key: KeyActionGrantAdmin, DisplayName: "Выдача прав администратора", Category: CatAdmin, SuperOnly: true},
+		{Key: KeyActionRotatePasswords, DisplayName: "Смена паролей всем работникам", Category: CatAdmin},
 		{Key: KeyPageSystemControl, DisplayName: "Режим техработ", Category: CatAdmin, SuperOnly: true},
 
 		// Обзор и новости (управление новостями -- в Администрировании, /admin/news).
@@ -197,6 +293,19 @@ func AllCatalogKeys() []string {
 func IsSuperOnly(key string) bool {
 	_, ok := superOnlyKeys[key]
 	return ok
+}
+
+// SuperOnlyKeys возвращает отсортированный список ключей, доступных только
+// супер-админу. Нужен ответу /permissions/my (#1997): PermissionSet.Has режет
+// эти ключи для обычного admin, но раньше это не отражалось в Denied -- фронтовый
+// стор в admin-режиме считал ключ выданным, если его нет в denied.
+func SuperOnlyKeys() []string {
+	keys := make([]string, 0, len(superOnlyKeys))
+	for k := range superOnlyKeys {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // IsCatalogKey сообщает, что ключ есть в статическом каталоге.

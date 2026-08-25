@@ -5,10 +5,16 @@
         v-if="show"
         class="modal-overlay"
         :style="{ zIndex: overlayZIndex }"
-        @mousedown="onOverlayMousedown"
-        @mouseup="onOverlayMouseup"
       >
-        <div class="modal-wrapper">
+        <!-- Обёртка занимает всю площадь затемнения, поэтому закрытие по клику мимо
+             окна висит на ней, а не на самом затемнении: до него событие не доходит.
+             Держать обработчики на обоих нельзя - состояние «клик начался на фоне»
+             у них общее, и всплывшее с обёртки событие его сбрасывало. -->
+        <div
+          class="modal-wrapper"
+          @mousedown="onOverlayMousedown"
+          @mouseup="onOverlayMouseup"
+        >
           <!-- Основное модальное окно с деталями ТС -->
           <div
             class="modal-content compact-modal main-modal"
@@ -158,7 +164,7 @@
                     </p>
                     <p class="warning-details">
                       Действует до: {{ formatDate(activeInfo.entry_date_to) }} {{ formatTime(activeInfo.entry_time_to) }}<br>
-                      Заявка №{{ activeInfo.application_number }}<br>
+                      Заявка {{ activeInfo.application_number }}<br>
                       Организация: {{ activeInfo.organization_name || 'Не указана' }}<br>
                       Компания: {{ activeInfo.company_name || 'Не указана' }}
                     </p>
@@ -235,6 +241,16 @@
                         <span class="detail-value">{{ formatTimeRange(vehicle.entry_time_from, vehicle.entry_time_to) || '-' }}</span>
                       </div>
                     </div>
+                    <!-- За кем закреплена запись реестра: служебная пометка бюро, поэтому
+                         подписью под блоком, а не строкой наравне с данными машины.
+                         Сервер отдаёт её только администратору, см. EmployeeDetailsModal. -->
+                    <p
+                      v-if="vehicle.user_name"
+                      class="owner-note"
+                      data-testid="vehicle-owner-login"
+                    >
+                      Запись закреплена за: {{ vehicle.user_name }}
+                    </p>
                   </div>
                 </div>
 
@@ -341,11 +357,11 @@
                       :disabled="entryExitHistory.length === 0 || isExporting"
                       @click="exportHistory"
                     >
-                      <img
+                      <AppIcon
                         v-if="!isExporting"
-                        src="@/assets/icons/export.png"
+                        name="export"
                         class="export-icon"
-                      >
+                      />
                       <span v-if="!isExporting">Экспорт</span>
                       <div
                         v-else
@@ -514,16 +530,19 @@ import AddToBlacklistModal from '@/components/admin/blacklist/AddToBlacklistModa
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useEscapeClose } from '@/composables/useEscapeClose';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { usePermissionsStore } from '@/stores/permissions';
 import { getModalActionPermission } from '@/constants/detailModalActions';
 import { useDeletionsStore } from '@/stores/deletions';
 import { checkVehicleBlacklist, createVehicleBlacklist } from '@/api/blacklist';
 import { listMarks } from '@/api/marks';
 import ExcelJS from 'exceljs';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
     name: 'VehicleDetailsModal',
     components: {
+        AppIcon,
         UnloadPlaceModal,
         TableInfoModal,
         CarHistoryModal,
@@ -591,7 +610,9 @@ export default {
     emits: ['close', 'open-application', 'override', 'cancel-override'],
     setup(props, { emit }) {
         const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
-        useEscapeClose(() => emit('close'), () => props.show);
+        // Слой карточки: из заявки она лежит поверх её панели (10003), иначе 10001 -
+// то же значение, что у оверлея, чтобы Escape закрывал именно верхнее окно.
+useEscapeClose(() => emit('close'), () => props.show, props.source === 'application' ? 10003 : 10001);
         // Bottom-sheet свайп-вниз-закрытие на мобилке (#1097 r2). getScrollTop от тела:
         // свайп из контента закрывает, только когда прокручено вверх; с ползунка - всегда.
         const sheetBody = ref(null);
@@ -599,8 +620,10 @@ export default {
             getScrollTop: () => sheetBody.value?.scrollTop ?? 0,
             handleSelector: '.sheet-handle',
         });
+        const { isNarrow } = useNarrowScreen();
         return {
             onOverlayMousedown, onOverlayMouseup,
+            isNarrow,
             sheetBody,
             sheetOffset: swipe.offset,
             sheetDragging: swipe.isDragging,
@@ -670,7 +693,10 @@ export default {
             const application = this.canOpenApplication ? 1 : 0;
             return history + application;
         },
+        // На телефоне в строку шапки помещается только короткое имя: длинный вариант
+        // отжимал крестик и переносился на вторую строку рядом с кнопками действий.
         modalTitle() {
+            if (this.isNarrow) return 'Информация';
             const count = this.visibleActionsCount;
             if (count >= 2) return 'Информация';
             if (count === 1) return 'Детальная информация';
@@ -1703,6 +1729,13 @@ export default {
   grid-column: 1 / -1;
 }
 
+.owner-note {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+
 .detail-label {
   font-size: 11px;
   color: var(--text-muted);
@@ -1966,9 +1999,16 @@ export default {
   min-height: 120px;
 }
 
-.modal-fade-enter-active,
+/* Появление и скрытие - как у остальных окон (BaseModal): затемнение гаснет
+   прозрачностью, само окно приезжает масштабом. Прежние правила задавали переход
+   корню перехода (.modal-overlay), а не окну внутри него, поэтому затемнение
+   плавно гасло, а окно прыгало. */
+.modal-fade-enter-active {
+  transition: opacity 0.3s ease;
+}
+
 .modal-fade-leave-active {
-  transition: all 0.4s ease;
+  transition: opacity 0.2s ease;
 }
 
 .modal-fade-enter-from,
@@ -1976,26 +2016,34 @@ export default {
   opacity: 0;
 }
 
-.modal-fade-enter-active .modal-overlay,
-.modal-fade-leave-active .modal-overlay {
-  transition: all 0.4s ease;
+.modal-fade-enter-active .modal-content {
+  animation: details-modal-in 0.3s ease;
 }
 
-.modal-fade-enter-active .modal-content,
 .modal-fade-leave-active .modal-content {
-  transition: all 0.4s ease;
+  animation: details-modal-out 0.2s ease;
 }
 
-.modal-fade-enter-from .modal-overlay,
-.modal-fade-leave-to .modal-overlay {
-  background: transparent;
-  backdrop-filter: blur(0px);
+@keyframes details-modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
-.modal-fade-enter-from .modal-content,
-.modal-fade-leave-to .modal-content {
-  opacity: 0;
-  transform: scale(0.9) translateY(-20px);
+@keyframes details-modal-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
 }
 
 .place-slide-enter-active,

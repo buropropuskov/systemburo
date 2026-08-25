@@ -8,12 +8,23 @@
  *
  * Учёт по владельцам, а не счётчиком: повторный `lock` от того же окна (watch срабатывает
  * дважды) не разъезжается с одним `release`.
+ *
+ * `overflow: hidden` ставится и на `<body>`, и на `<html>` (#1097 w8): фактический
+ * скроллящийся элемент документа - `document.scrollingElement`, и им оказывается
+ * `<html>`, а не `<body>` (замерено на живой странице - Центр заявок со списком выше
+ * вьюпорта). Пропагация overflow тела на viewport, на которую полагался старый код,
+ * в браузере не сработала - `window.scrollTo`/тач-скролл фона продолжали двигать
+ * `documentElement.scrollTop` при одном лишь `body.style.overflow='hidden'`. Лочим
+ * оба узла - тогда блокировка держит независимо от того, кто у документа реально
+ * скроллится.
  */
 const owners = new Set();
 
 function apply() {
   if (typeof document === 'undefined') return;
-  document.body.style.overflow = owners.size ? 'hidden' : '';
+  const value = owners.size ? 'hidden' : '';
+  document.body.style.overflow = value;
+  document.documentElement.style.overflow = value;
 }
 
 /**

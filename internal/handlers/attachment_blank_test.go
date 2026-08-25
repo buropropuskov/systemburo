@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"net/http"
@@ -91,6 +92,7 @@ func TestBlankAccessAndTemplateRoutes(t *testing.T) {
 	w := setupBlankWorld(t)
 	t.Run("скачивание бланка", func(t *testing.T) { blankDownloadGateSection(t, w) })
 	t.Run("настройка шаблона под правом", func(t *testing.T) { templateRoutesSection(t, w) })
+	t.Run("пустой бланк для заполнения", func(t *testing.T) { blankTemplateDownloadSection(t, w) })
 	t.Run("границы списка", func(t *testing.T) { templateParamsSection(t, w) })
 	t.Run("журнал доступа к персональным данным", func(t *testing.T) { pdAuditSection(t, w) })
 	t.Run("копирование привязок", func(t *testing.T) { copyMappingsSection(t, w) })
@@ -393,101 +395,131 @@ func TestBlankGenerate(t *testing.T) {
 	t.Run("ТМЦ соседних вложений заявки", func(t *testing.T) { crossAttachmentItemsSection(t, db, td) })
 	t.Run("таблица ТМЦ в бланке работ", func(t *testing.T) { itemsTableSection(t, db, td) })
 	t.Run("подпись согласовавших", func(t *testing.T) { approverSignatureSection(t, db, td) })
+	t.Run("повторная генерация побайтово совпадает", func(t *testing.T) { determinismSection(t, db, td) })
 	t.Run("транспорт заявки в бланке ввоза", func(t *testing.T) { crossAttachmentCarsSection(t, db, td) })
 }
 
-// Бланк «Заявки на ввоз» печатает марку и номер транспорта из «Автозаявки» той же
-// заявки: под это в бланке отведена одна ячейка, своих машин у вложения-ввоза нет.
-func crossAttachmentCarsSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
+// determinismSection - гейт дедупликации файлового архива (#1615). Архив не будет
+// перезаписывать файл, если sha256 нового бланка совпал с сохранённым: это экономит
+// запись и, что важнее, не двигает mtime - иначе инкрементальная выгрузка на рабочий
+// ПК каждый раз тянула бы архив целиком, а ночная сверка переписывала бы его весь.
+//
+// Проверяется самый рискованный путь: переполненный список (excelize дублирует
+// строки) вместе с условным форматированием (после excelize бланк пересобирается из
+// zip вручную). Появится здесь текущее время - дедупликация не сработает никогда.
+func determinismSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	userTypeID := secUserTypeIDByCode(t, db, "user")
-	sender := models.User{Username: "blankcrosscarsender", Password: "x", TypeID: userTypeID, OrganizationID: secPtrInt(td.OrgID)}
+	sender := models.User{Username: "blankdetsender", Password: "x", TypeID: userTypeID, OrganizationID: secPtrInt(td.OrgID)}
 	require.NoError(t, db.Create(&sender).Error)
 
-	name := "import_cars_blank"
-	ua := models.UniqueAttachment{AttachmentType: "items", Name: &name, IsActive: true}
+	name := "det_blank"
+	ua := models.UniqueAttachment{AttachmentType: "cars", Name: &name, IsActive: true}
 	require.NoError(t, db.Create(&ua).Error)
 
 	f := excelize.NewFile()
 	defer func() { require.NoError(t, f.Close()) }()
-	require.NoError(t, f.SetCellValue(f.GetSheetName(0), "I21", "заполняется бюро"))
-	path := filepath.Join(t.TempDir(), "import_cars.xlsx")
+	sheet := f.GetSheetName(0)
+	style, err := f.NewConditionalStyle(&excelize.Style{Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"FFC7CE"}}})
+	require.NoError(t, err)
+	require.NoError(t, f.SetConditionalFormat(sheet, "A20:D20", []excelize.ConditionalFormatOptions{
+		{Type: "formula", Criteria: `$A$20=""`, Format: &style},
+	}))
+	path := filepath.Join(t.TempDir(), "det.xlsx")
 	require.NoError(t, f.SaveAs(path))
 
 	tpl := models.AttachmentTemplate{
-		UniqueAttachmentID: ua.ID, IsActive: true, FilePath: path, OriginalFileName: "import_cars.xlsx",
-		ListStartRow: 30, ListEndRow: 32, MaxListRows: 3,
+		UniqueAttachmentID: ua.ID, IsActive: true, FilePath: path,
+		OriginalFileName: "det.xlsx", ListStartRow: 10, ListEndRow: 12, MaxListRows: 3,
 	}
 	require.NoError(t, db.Create(&tpl).Error)
 	require.NoError(t, db.Create(&[]models.AttachmentTemplateMapping{
-		{TemplateID: tpl.ID, CellRef: "I21", FieldPath: "app_cars.marks_numbers"},
-		{TemplateID: tpl.ID, CellRef: "I22", FieldPath: "app_cars.count"},
-		{TemplateID: tpl.ID, CellRef: "B30", FieldPath: "item.name", IsListField: true},
+		{TemplateID: tpl.ID, CellRef: "A1", FieldPath: "application.application_number"},
+		{TemplateID: tpl.ID, CellRef: "B10", FieldPath: "car.car_number", IsListField: true},
 	}).Error)
 
-	// car - машина автозаявки: номер и марка.
-	type car struct{ number, mark string }
-	makeApp := func(t *testing.T, cars ...car) (int, int) {
-		t.Helper()
-		now := time.Now()
-		conf, status := "Согласовано", models.StatusInWork
-		app := models.Application{
-			OrganizationID: td.OrgID, SenderUserID: sender.ID,
-			Confirmation: &conf, Status: &status, SendingDatetime: &now,
+	now := time.Now()
+	conf, status := "Согласовано", models.StatusInWork
+	number := "№ 20260731/077"
+	app := models.Application{
+		OrganizationID: td.OrgID, SenderUserID: sender.ID, ApplicationNumber: &number,
+		Confirmation: &conf, Status: &status, SendingDatetime: &now,
+	}
+	require.NoError(t, db.Create(&app).Error)
+	att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars", UniqueAttachmentID: &ua.ID}
+	require.NoError(t, db.Create(&att).Error)
+
+	const carCount = 5 // на две больше, чем строк списка в шаблоне
+	firstNumber := ""
+	for i := 0; i < carCount; i++ {
+		carNumber := fmt.Sprintf("Д %03d ДД 777", 401+i)
+		if i == 0 {
+			firstNumber = carNumber
 		}
-		require.NoError(t, db.Create(&app).Error)
-		imp := models.Attachment{ApplicationID: &app.ID, AttachmentType: "items", UniqueAttachmentID: &ua.ID}
-		require.NoError(t, db.Create(&imp).Error)
-		cargo := "Кабель"
-		require.NoError(t, db.Create(&models.Item{AttachmentID: imp.ID, Name: &cargo}).Error)
-		if len(cars) > 0 {
-			auto := models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars"}
-			require.NoError(t, db.Create(&auto).Error)
-			for _, c := range cars {
-				number, mark := c.number, c.mark
-				row := models.Car{AttachmentID: auto.ID, CarNumber: &number}
-				if mark != "" {
-					row.MarkName = &mark
-				}
-				require.NoError(t, db.Create(&row).Error)
-			}
-		}
-		return app.ID, imp.ID
+		require.NoError(t, db.Create(&models.Car{AttachmentID: att.ID, CarNumber: &carNumber}).Error)
 	}
 
-	cells := func(t *testing.T, appID, attID int, refs ...string) []string {
-		t.Helper()
-		reader, _, err := services.NewAttachmentBlankService(db).
-			GenerateBlank(context.Background(), appID, attID)
-		require.NoError(t, err)
-		out, err := excelize.OpenReader(reader)
-		require.NoError(t, err)
-		defer func() { require.NoError(t, out.Close()) }()
-		got := make([]string, 0, len(refs))
-		for _, ref := range refs {
-			v, err := out.GetCellValue(out.GetSheetName(0), ref)
-			require.NoError(t, err)
-			got = append(got, v)
+	svc := services.NewAttachmentBlankService(db)
+	first := generateBlankBytes(t, svc, app.ID, att.ID)
+	second := generateBlankBytes(t, svc, app.ID, att.ID)
+
+	// Сначала убеждаемся, что бланк содержательный: два одинаково пустых результата
+	// тоже "совпадают побайтово", и без этой проверки гейт был бы зелёным впустую.
+	require.NotEmpty(t, first)
+	out, err := excelize.OpenReader(bytes.NewReader(first))
+	require.NoError(t, err)
+	defer func() { require.NoError(t, out.Close()) }()
+	gotNumber, err := out.GetCellValue(out.GetSheetName(0), "A1")
+	require.NoError(t, err)
+	require.Equal(t, number, gotNumber)
+	gotCar, err := out.GetCellValue(out.GetSheetName(0), "B10")
+	require.NoError(t, err)
+	require.Equal(t, firstNumber, gotCar)
+	gotOverflow, err := out.GetCellValue(out.GetSheetName(0), "B14")
+	require.NoError(t, err)
+	require.NotEmpty(t, gotOverflow, "список должен был расшириться, иначе рискованный путь не проверен")
+
+	require.Equal(t, sha256.Sum256(first), sha256.Sum256(second),
+		"два бланка по одним данным разошлись побайтово: дедупликация архива по хешу работать не будет")
+
+	// Страховка на будущее, а не проверка сегодняшнего риска: excelize v2.11 пишет в
+	// docProps/core.xml фиксированную дату и своего времени не проставляет, так что
+	// сейчас условие выполняется всегда. Сторожит она апгрейд библиотеки или чей-то
+	// SetDocProps(time.Now()) в сервисе - равенство двух прогонов в одном процессе
+	// такую утечку пропустит, а архив сравнивает хеш с сохранённым другим процессом
+	// и днями раньше, и там момент генерации разошёлся бы.
+	core := blankCoreProps(t, first)
+	require.NotEmpty(t, core, "в книге нет docProps/core.xml - проверка ниже стала бы пустой")
+	require.NotContains(t, core, time.Now().Format("2006-01-02"),
+		"в свойства книги попал момент генерации - хеш будет меняться от прогона к прогону")
+}
+
+func generateBlankBytes(t *testing.T, svc services.AttachmentBlankService, appID, attID int) []byte {
+	t.Helper()
+	reader, _, err := svc.GenerateBlank(context.Background(), appID, attID, services.BlankOptions{IncludeDocuments: true})
+	require.NoError(t, err)
+	data, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	return data
+}
+
+// blankCoreProps возвращает docProps/core.xml готовой книги - именно туда офисные
+// форматы пишут время изменения. Пустая строка, если раздела в книге нет.
+func blankCoreProps(t *testing.T, data []byte) string {
+	t.Helper()
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	require.NoError(t, err)
+	for _, file := range zr.File {
+		if file.Name != "docProps/core.xml" {
+			continue
 		}
-		return got
+		rc, err := file.Open()
+		require.NoError(t, err)
+		defer func() { require.NoError(t, rc.Close()) }()
+		content, err := io.ReadAll(rc)
+		require.NoError(t, err)
+		return string(content)
 	}
-
-	t.Run("марка и номер приходят из автозаявки", func(t *testing.T) {
-		appID, attID := makeApp(t,
-			car{number: "О 593 УЕ 325", mark: "ГАЗель"},
-			car{number: "Х 101 ХХ 777"})
-		got := cells(t, appID, attID, "I21", "I22", "B30")
-		require.Equal(t, "ГАЗель О 593 УЕ 325\nХ 101 ХХ 777", got[0],
-			"машина без марки печатается одним номером")
-		require.Equal(t, "2", got[1])
-		require.Equal(t, "Кабель", got[2], "собственный список ТМЦ заполняется как раньше")
-	})
-
-	t.Run("заявка без автозаявки оставляет ячейку шаблона", func(t *testing.T) {
-		appID, attID := makeApp(t)
-		got := cells(t, appID, attID, "I21", "I22")
-		require.Equal(t, "заполняется бюро", got[0])
-		require.Empty(t, got[1])
-	})
+	return ""
 }
 
 // Подпись «СОГЛАСОВАНО» в бланке: обязательные согласования перечисляются все,
@@ -564,7 +596,7 @@ func approverSignatureSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	cells := func(t *testing.T, appID, attID int, refs ...string) []string {
 		t.Helper()
 		reader, _, err := services.NewAttachmentBlankService(db).
-			GenerateBlank(context.Background(), appID, attID)
+			GenerateBlank(context.Background(), appID, attID, services.BlankOptions{IncludeDocuments: true})
 		require.NoError(t, err)
 		out, err := excelize.OpenReader(reader)
 		require.NoError(t, err)
@@ -683,7 +715,7 @@ func itemsTableSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	blank := func(t *testing.T, appID, attID int) *excelize.File {
 		t.Helper()
 		reader, _, err := services.NewAttachmentBlankService(db).
-			GenerateBlank(context.Background(), appID, attID)
+			GenerateBlank(context.Background(), appID, attID, services.BlankOptions{IncludeDocuments: true})
 		require.NoError(t, err)
 		out, err := excelize.OpenReader(reader)
 		require.NoError(t, err)
@@ -843,7 +875,7 @@ func crossAttachmentItemsSection(t *testing.T, db *gorm.DB, td testutil.TestData
 	generate := func(t *testing.T, appID, attID int) *excelize.File {
 		t.Helper()
 		reader, _, err := services.NewAttachmentBlankService(db).
-			GenerateBlank(context.Background(), appID, attID)
+			GenerateBlank(context.Background(), appID, attID, services.BlankOptions{IncludeDocuments: true})
 		require.NoError(t, err)
 		out, err := excelize.OpenReader(reader)
 		require.NoError(t, err)
@@ -982,7 +1014,7 @@ func printTitlesSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	repeatedHeaders := func(t *testing.T, appID, attID int) (map[string]int, int) {
 		t.Helper()
 		reader, _, err := services.NewAttachmentBlankService(db).
-			GenerateBlank(context.Background(), appID, attID)
+			GenerateBlank(context.Background(), appID, attID, services.BlankOptions{IncludeDocuments: true})
 		require.NoError(t, err)
 		raw, err := io.ReadAll(reader)
 		require.NoError(t, err)
@@ -1103,7 +1135,7 @@ func listOverflowConditionalSection(t *testing.T, db *gorm.DB, td testutil.TestD
 	}
 
 	reader, _, err := services.NewAttachmentBlankService(db).
-		GenerateBlank(context.Background(), app.ID, att.ID)
+		GenerateBlank(context.Background(), app.ID, att.ID, services.BlankOptions{IncludeDocuments: true})
 	require.NoError(t, err)
 	out, err := excelize.OpenReader(reader)
 	require.NoError(t, err)
@@ -1194,7 +1226,7 @@ func listRepeatedFieldSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	}
 
 	reader, _, err := services.NewAttachmentBlankService(db).
-		GenerateBlank(context.Background(), app.ID, att.ID)
+		GenerateBlank(context.Background(), app.ID, att.ID, services.BlankOptions{IncludeDocuments: true})
 	require.NoError(t, err)
 	out, err := excelize.OpenReader(reader)
 	require.NoError(t, err)
@@ -1266,7 +1298,7 @@ func listTypeSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	require.NoError(t, db.Create(&models.Item{AttachmentID: att.ID, Name: &cargo, Count: &count}).Error)
 
 	reader, filename, err := services.NewAttachmentBlankService(db).
-		GenerateBlank(context.Background(), app.ID, att.ID)
+		GenerateBlank(context.Background(), app.ID, att.ID, services.BlankOptions{IncludeDocuments: true})
 	require.NoError(t, err)
 	require.Contains(t, filename, ".xlsx")
 
@@ -1334,7 +1366,7 @@ func concatSeparatorSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	cellValue := func(t *testing.T) string {
 		t.Helper()
 		reader, _, err := services.NewAttachmentBlankService(db).
-			GenerateBlank(context.Background(), app.ID, att.ID)
+			GenerateBlank(context.Background(), app.ID, att.ID, services.BlankOptions{IncludeDocuments: true})
 		require.NoError(t, err)
 		out, err := excelize.OpenReader(reader)
 		require.NoError(t, err)
@@ -1415,7 +1447,7 @@ func attachmentPlacesSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	require.NoError(t, db.Create(&models.AttachmentUnloadPlace{AttachmentID: att.ID, UnloadPlaceID: second.ID, OrderIndex: &two}).Error)
 
 	reader, _, err := services.NewAttachmentBlankService(db).
-		GenerateBlank(context.Background(), app.ID, att.ID)
+		GenerateBlank(context.Background(), app.ID, att.ID, services.BlankOptions{IncludeDocuments: true})
 	require.NoError(t, err)
 	out, err := excelize.OpenReader(reader)
 	require.NoError(t, err)
@@ -1492,7 +1524,7 @@ func carBindingsSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	require.NoError(t, db.Create(&models.CarTargetTable{CarID: car.ID, TableID: post.ID, OrderIndex: &one}).Error)
 
 	reader, _, err := services.NewAttachmentBlankService(db).
-		GenerateBlank(context.Background(), app.ID, att.ID)
+		GenerateBlank(context.Background(), app.ID, att.ID, services.BlankOptions{IncludeDocuments: true})
 	require.NoError(t, err)
 	out, err := excelize.OpenReader(reader)
 	require.NoError(t, err)
@@ -1685,7 +1717,7 @@ func listOverflowSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	}
 
 	reader, _, err := services.NewAttachmentBlankService(db).
-		GenerateBlank(context.Background(), app.ID, att.ID)
+		GenerateBlank(context.Background(), app.ID, att.ID, services.BlankOptions{IncludeDocuments: true})
 	require.NoError(t, err)
 	out, err := excelize.OpenReader(reader)
 	require.NoError(t, err)
@@ -1717,4 +1749,98 @@ func listOverflowSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 		}
 	}
 	require.Equal(t, 22, signRow, "подпись должна съехать на две строки, а не на четыре")
+}
+
+// Бланк «Заявки на ввоз» печатает марку и номер транспорта из «Автозаявки» той же
+// заявки: под это в бланке отведена одна ячейка, своих машин у вложения-ввоза нет.
+func crossAttachmentCarsSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
+	userTypeID := secUserTypeIDByCode(t, db, "user")
+	sender := models.User{Username: "blankcrosscarsender", Password: "x", TypeID: userTypeID, OrganizationID: secPtrInt(td.OrgID)}
+	require.NoError(t, db.Create(&sender).Error)
+
+	name := "import_cars_blank"
+	ua := models.UniqueAttachment{AttachmentType: "items", Name: &name, IsActive: true}
+	require.NoError(t, db.Create(&ua).Error)
+
+	f := excelize.NewFile()
+	defer func() { require.NoError(t, f.Close()) }()
+	require.NoError(t, f.SetCellValue(f.GetSheetName(0), "I21", "заполняется бюро"))
+	path := filepath.Join(t.TempDir(), "import_cars.xlsx")
+	require.NoError(t, f.SaveAs(path))
+
+	tpl := models.AttachmentTemplate{
+		UniqueAttachmentID: ua.ID, IsActive: true, FilePath: path, OriginalFileName: "import_cars.xlsx",
+		ListStartRow: 30, ListEndRow: 32, MaxListRows: 3,
+	}
+	require.NoError(t, db.Create(&tpl).Error)
+	require.NoError(t, db.Create(&[]models.AttachmentTemplateMapping{
+		{TemplateID: tpl.ID, CellRef: "I21", FieldPath: "app_cars.marks_numbers"},
+		{TemplateID: tpl.ID, CellRef: "I22", FieldPath: "app_cars.count"},
+		{TemplateID: tpl.ID, CellRef: "B30", FieldPath: "item.name", IsListField: true},
+	}).Error)
+
+	// car - машина автозаявки: номер и марка.
+	type car struct{ number, mark string }
+	makeApp := func(t *testing.T, cars ...car) (int, int) {
+		t.Helper()
+		now := time.Now()
+		conf, status := "Согласовано", models.StatusInWork
+		app := models.Application{
+			OrganizationID: td.OrgID, SenderUserID: sender.ID,
+			Confirmation: &conf, Status: &status, SendingDatetime: &now,
+		}
+		require.NoError(t, db.Create(&app).Error)
+		imp := models.Attachment{ApplicationID: &app.ID, AttachmentType: "items", UniqueAttachmentID: &ua.ID}
+		require.NoError(t, db.Create(&imp).Error)
+		cargo := "Кабель"
+		require.NoError(t, db.Create(&models.Item{AttachmentID: imp.ID, Name: &cargo}).Error)
+		if len(cars) > 0 {
+			auto := models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars"}
+			require.NoError(t, db.Create(&auto).Error)
+			for _, c := range cars {
+				number, mark := c.number, c.mark
+				row := models.Car{AttachmentID: auto.ID, CarNumber: &number}
+				if mark != "" {
+					row.MarkName = &mark
+				}
+				require.NoError(t, db.Create(&row).Error)
+			}
+		}
+		return app.ID, imp.ID
+	}
+
+	cells := func(t *testing.T, appID, attID int, refs ...string) []string {
+		t.Helper()
+		reader, _, err := services.NewAttachmentBlankService(db).
+			GenerateBlank(context.Background(), appID, attID)
+		require.NoError(t, err)
+		out, err := excelize.OpenReader(reader)
+		require.NoError(t, err)
+		defer func() { require.NoError(t, out.Close()) }()
+		got := make([]string, 0, len(refs))
+		for _, ref := range refs {
+			v, err := out.GetCellValue(out.GetSheetName(0), ref)
+			require.NoError(t, err)
+			got = append(got, v)
+		}
+		return got
+	}
+
+	t.Run("марка и номер приходят из автозаявки", func(t *testing.T) {
+		appID, attID := makeApp(t,
+			car{number: "О 593 УЕ 325", mark: "ГАЗель"},
+			car{number: "Х 101 ХХ 777"})
+		got := cells(t, appID, attID, "I21", "I22", "B30")
+		require.Equal(t, "ГАЗель О 593 УЕ 325\nХ 101 ХХ 777", got[0],
+			"машина без марки печатается одним номером")
+		require.Equal(t, "2", got[1])
+		require.Equal(t, "Кабель", got[2], "собственный список ТМЦ заполняется как раньше")
+	})
+
+	t.Run("заявка без автозаявки оставляет ячейку шаблона", func(t *testing.T) {
+		appID, attID := makeApp(t)
+		got := cells(t, appID, attID, "I21", "I22")
+		require.Equal(t, "заполняется бюро", got[0])
+		require.Empty(t, got[1])
+	})
 }

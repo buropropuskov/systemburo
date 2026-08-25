@@ -2,8 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { setActivePinia, createPinia } from 'pinia';
 
+function emptyPage() {
+  return { ok: true, json: () => Promise.resolve({ success: true, data: [], meta: { total: 0, unread_count: 0 } }) };
+}
+
 vi.mock('@/api/client', () => ({
   apiRequest: vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve([]) })),
+  apiRequestRaw: vi.fn(),
 }));
 vi.mock('@/services/eventStream', () => ({
   default: {
@@ -14,7 +19,7 @@ vi.mock('@/services/eventStream', () => ({
   },
 }));
 
-import { apiRequest } from '@/api/client';
+import { apiRequest, apiRequestRaw } from '@/api/client';
 import eventStream from '@/services/eventStream';
 import UserNotifications from '../UserNotifications.vue';
 
@@ -30,6 +35,8 @@ describe('UserNotifications - real-time доставка через SSE (#840)',
   beforeEach(() => {
     apiRequest.mockClear();
     apiRequest.mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
+    apiRequestRaw.mockClear();
+    apiRequestRaw.mockResolvedValue(emptyPage());
     eventStream.connect.mockClear();
     eventStream.disconnect.mockClear();
     eventStream.subscribe.mockClear();
@@ -48,16 +55,16 @@ describe('UserNotifications - real-time доставка через SSE (#840)',
     wrapper.unmount();
   });
 
-  it('колбэк subscribe дёргает fetchNotifications', async () => {
+  it('колбэк subscribe дёргает fetchNotifications (список порциями - через apiRequestRaw, #1748 S7)', async () => {
     const wrapper = mountN();
     await flushPromises();
 
     const scopeCb = eventStream.subscribe.mock.calls.find((c) => c[0] === 'notifications')[1];
-    apiRequest.mockClear();
+    apiRequestRaw.mockClear();
     scopeCb();
     await flushPromises();
 
-    expect(apiRequest).toHaveBeenCalledWith('/notifications');
+    expect(apiRequestRaw).toHaveBeenCalledWith('/notifications?limit=20&offset=0&filter=all');
 
     wrapper.unmount();
   });
@@ -68,14 +75,14 @@ describe('UserNotifications - real-time доставка через SSE (#840)',
     await flushPromises();
 
     wrapper.vm.sseConnected = true;
-    apiRequest.mockClear();
+    apiRequestRaw.mockClear();
     await vi.advanceTimersByTimeAsync(30000);
-    expect(apiRequest).not.toHaveBeenCalled();
+    expect(apiRequestRaw).not.toHaveBeenCalled();
 
     wrapper.vm.sseConnected = false;
-    apiRequest.mockClear();
+    apiRequestRaw.mockClear();
     await vi.advanceTimersByTimeAsync(30000);
-    expect(apiRequest).toHaveBeenCalledWith('/notifications');
+    expect(apiRequestRaw).toHaveBeenCalledWith('/notifications?limit=20&offset=0&filter=all');
 
     wrapper.unmount();
     vi.useRealTimers();

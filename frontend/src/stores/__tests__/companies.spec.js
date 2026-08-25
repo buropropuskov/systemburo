@@ -47,7 +47,9 @@ describe('companies store', () => {
 
       await store.fetchCompaniesWithUsers()
 
-      expect(apiRequest).toHaveBeenCalledWith('/companies/with-users-extended')
+      // silent403 обязателен: зеркало организаций, тот же штатный отказ у админа
+      // пользователей - см. комментарий в stores/organizations.js.
+      expect(apiRequest).toHaveBeenCalledWith('/companies/with-users-extended', { silent403: true })
       expect(store.itemsWithUsers).toEqual([
         { id: 1, name: 'Acme Inc', user_count: 3, originalName: 'Acme Inc' },
       ])
@@ -59,7 +61,7 @@ describe('companies store', () => {
 
       await store.fetchCompaniesWithUsers(true)
 
-      expect(apiRequest).toHaveBeenCalledWith('/companies/with-users-extended?include_archived=true')
+      expect(apiRequest).toHaveBeenCalledWith('/companies/with-users-extended?include_archived=true', { silent403: true })
     })
   })
 
@@ -85,7 +87,7 @@ describe('companies store', () => {
 
       await store.refresh(true)
 
-      expect(apiRequest).toHaveBeenCalledWith('/companies/with-users-extended?include_archived=true')
+      expect(apiRequest).toHaveBeenCalledWith('/companies/with-users-extended?include_archived=true', { silent403: true })
     })
   })
 

@@ -37,7 +37,7 @@ func (h *ApplicationHandler) ForwardApplication(c echo.Context) error {
 		return err
 	}
 
-	if err := h.service.ForwardApplication(c.Request().Context(), username, id, req); err != nil {
+	if err := h.service.ForwardApplication(c.Request().Context(), username, id, IsSuperAdmin(c), req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Application forwarded successfully")
@@ -429,6 +429,41 @@ func (h *ApplicationHandler) AssignElementTables(c echo.Context) error {
 		return err
 	}
 	return RespondMessage(c, "Посты обновлены")
+}
+
+// RemoveApplicationElements godoc
+// @Summary      Удаление людей или машин из поданной заявки
+// @Description  Принимающий убирает элемент из заявки: элемент, по которому решение «пропустить» неприемлемо, иначе держал бы всю заявку. Удаление мягкое - строка уходит в корзину, история сохраняется.
+// @Tags         applications
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id      path int                                          true "ID заявки"
+// @Param        request body services.RemoveApplicationElementsRequest    true "Тип элементов, идентификаторы и причина"
+// @Success      200 {object} map[string]interface{} "success + число убранных"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/elements [delete]
+func (h *ApplicationHandler) RemoveApplicationElements(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	var req services.RemoveApplicationElementsRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+
+	removed, err := h.service.RemoveApplicationElements(c.Request().Context(), username, id, req)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]any{"removed": removed})
 }
 
 // AssignCarUnloadPlaces godoc

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"systemburo/internal/httpx"
 	"systemburo/internal/realtime"
 
 	"github.com/labstack/echo/v4"
@@ -85,6 +86,13 @@ func (h *EventsHandler) Stream(c echo.Context) error {
 	userID, ok := h.tickets.Consume(ticket, time.Now())
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired ticket")
+	}
+
+	// Поток живёт eventsStreamMaxLifetime, то есть заведомо дольше общего
+	// HTTP_WRITE_TIMEOUT. Без снятия срока сервер закрыл бы соединение молча,
+	// посреди потока, и фронт увидел бы это как разрыв сети.
+	if err := httpx.AllowLongResponse(c); err != nil {
+		slog.Warn("events: не удалось снять срок записи, поток оборвётся по HTTP_WRITE_TIMEOUT", "user_id", userID, "error", err)
 	}
 
 	res := c.Response()

@@ -77,6 +77,18 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 				tx.Rollback()
 				return echo.NewHTTPError(http.StatusBadRequest, "Заявку нельзя принять в работу: не завершено согласование")
 			}
+			// Согласующих нет - согласовывать нечего, и решение принимающего его заменяет:
+			// отмечаем согласование выполненным. Иначе заявка остаётся в подтверждении
+			// "Согласование" навсегда: пересчёт голосов на пустом списке ничего не меняет,
+			// и заявитель видит принятую в работу заявку как ожидающую согласования.
+			if err := tx.Exec(`
+				UPDATE applications
+				SET confirmation = ?,
+				    confirmation_datetime = COALESCE(confirmation_datetime, NOW())
+				WHERE id = ?`, models.ConfirmationApproved, applicationID).Error; err != nil {
+				tx.Rollback()
+				return echo.NewHTTPError(http.StatusInternalServerError, "Error updating confirmation")
+			}
 		}
 
 		// accepted_at через COALESCE: заявку могли отозвать из работы и принять снова
@@ -117,19 +129,28 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 			tx.Rollback()
 			return err
 		}
+
+		if err := s.cancelOpenSupplements(ctx, tx, applicationID); err != nil {
+			tx.Rollback()
+			return err
+		}
 	}
 
 	if err := tx.Commit().Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
-	s.notifyApplicationUpdated(ctx, applicationID)
+	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
 	// Инициатору - уведомление об исходе принятия/отказа (#1349). Гейт actor != sender
 	// внутри хелпера: если принимающий = отправитель, себе не шлём.
+	decision := &statusChangeContext{
+		ActorName: formatFullName(user.LastName, user.FirstName, user.MiddleName),
+		Comment:   optionalString(req.Comment),
+	}
 	if req.Action == "accept" {
-		s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, statusOutcomeAccepted)
+		s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, statusOutcomeAccepted, decision)
 	} else if req.Action == "reject" {
-		s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, statusOutcomeRejected)
+		s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, statusOutcomeRejected, decision)
 	}
 	return nil
 }
@@ -188,11 +209,18 @@ func (s *applicationService) RevokeApplicationFromWork(ctx context.Context, user
 		return err
 	}
 
+	// Тот же переход снимает и открытый раунд дополнения (#1685): строки заявки погашены,
+	// принимать раунду уже нечего. Иначе pending висел бы у согласующих вечной задачей.
+	if err := s.cancelOpenSupplements(ctx, tx, applicationID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
-	s.notifyApplicationUpdated(ctx, applicationID)
+	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
 	return nil
 }
 
@@ -249,11 +277,18 @@ func (s *applicationService) RestoreApplicationToWork(ctx context.Context, usern
 		return err
 	}
 
+	// Тот же переход снимает и открытый раунд дополнения (#1685): строки заявки погашены,
+	// принимать раунду уже нечего. Иначе pending висел бы у согласующих вечной задачей.
+	if err := s.cancelOpenSupplements(ctx, tx, applicationID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
-	s.notifyApplicationUpdated(ctx, applicationID)
+	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
 	return nil
 }
 
@@ -302,6 +337,10 @@ func (s *applicationService) WithdrawApplication(ctx context.Context, username s
 		return echo.NewHTTPError(http.StatusConflict, "Заявку в этом статусе отозвать нельзя")
 	}
 
+	// Кому уведомление об отзыве (#1748, S4): согласующие, чьё решение ещё не
+	// поступило. Собираем ДО смены статуса - предикат матчит только живую заявку.
+	pendingApproverIDs := s.pendingApproversBeforeWithdraw(ctx, tx, applicationID)
+
 	// withdrawn_at - точка отсчёта месяца до архива (вложения при отзыве гасятся,
 	// их сроки для архивации больше не показательны).
 	if err := tx.Exec("UPDATE applications SET status = ?, withdrawn_at = NOW() WHERE id = ?", models.StatusWithdrawn, applicationID).Error; err != nil {
@@ -323,6 +362,13 @@ func (s *applicationService) WithdrawApplication(ctx context.Context, username s
 		tx.Rollback()
 		return err
 	}
+
+	// Тот же переход снимает и открытый раунд дополнения (#1685): строки заявки погашены,
+	// принимать раунду уже нечего. Иначе pending висел бы у согласующих вечной задачей.
+	if err := s.cancelOpenSupplements(ctx, tx, applicationID); err != nil {
+		tx.Rollback()
+		return err
+	}
 	// ...и сами вложения (общий helper их не трогает - он про cars/employees).
 	if err := tx.Exec("UPDATE attachments SET status = 0 WHERE application_id = ?", applicationID).Error; err != nil {
 		tx.Rollback()
@@ -333,7 +379,8 @@ func (s *applicationService) WithdrawApplication(ctx context.Context, username s
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
-	s.notifyApplicationUpdated(ctx, applicationID)
+	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
+	s.notifyWithdrawn(ctx, applicationID, formatFullName(user.LastName, user.FirstName, user.MiddleName), pendingApproverIDs)
 	return nil
 }
 
@@ -373,7 +420,7 @@ func (s *applicationService) UpdateApplicationItemsStatus(ctx context.Context, a
 	// их аудитории обновиться live (#840 V2.2). После commit: строки уже видны.
 	s.tablesProducer.NotifyApplicationActivated(ctx, applicationID)
 	// Принятие сменило статус заявки - участники увидят его в детали live (#840 V4).
-	s.notifyApplicationUpdated(ctx, applicationID)
+	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
 
 	return nil
 }
@@ -500,6 +547,11 @@ func (s *applicationService) CheckExpiredAttachments(ctx context.Context) error 
 			tx.Rollback()
 			return err
 		}
+
+		if err := s.cancelOpenSupplements(ctx, tx, id); err != nil {
+			tx.Rollback()
+			return err
+		}
 		completedAppIDs = append(completedAppIDs, id)
 		slog.Info("Заявка завершена", "application_id", id)
 	}
@@ -511,8 +563,8 @@ func (s *applicationService) CheckExpiredAttachments(ctx context.Context) error 
 	// Завершение - смена статуса заявки: участники видят её live в детали и списках (#1349).
 	// Инициатору - уведомление "завершена" (actor=nil: завершил крон, шлём и отправителю).
 	for _, id := range completedAppIDs {
-		s.notifyApplicationUpdated(ctx, id)
-		s.notifyInitiatorStatusChanged(ctx, id, nil, statusOutcomeCompleted)
+		s.notifyApplicationUpdated(ctx, id, archiveDataChanged)
+		s.notifyInitiatorStatusChanged(ctx, id, nil, statusOutcomeCompleted, nil)
 	}
 
 	slog.Info("Проверка истекших вложений завершена")

@@ -48,7 +48,9 @@ class UserControlPage {
   }
 
   async firstRowLogin() {
-    return this.rows.first().locator('.user-login').innerText();
+    const shown = await this.rows.first().locator('.user-login').innerText();
+    // В списке логин подписан с собачкой (#1567), а искать и сравнивать надо сам логин.
+    return shown.replace(/^\s*@/, '');
   }
 
   async expectLoaded() {

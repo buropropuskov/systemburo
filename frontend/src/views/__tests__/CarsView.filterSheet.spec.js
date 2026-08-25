@@ -44,7 +44,7 @@ function mountView() {
   const perms = usePermissionsStore();
   perms.mode = 'super';
   return mount(CarsView, {
-    global: { stubs, mocks: { $route: { query: {} }, $router: { push: vi.fn() } } },
+    global: { stubs, mocks: { $route: { query: {} }, $router: { push: vi.fn(), replace: vi.fn().mockResolvedValue(undefined) } } },
   });
 }
 

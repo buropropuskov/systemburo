@@ -57,7 +57,7 @@ describe('SystemControl - режим технических работ', () => {
       support_phone: '+7 495 123-45-67',
     });
     expect(wrapper.vm.draftMessage).toBe('Миграция базы');
-    expect(wrapper.vm.draftSupportPhone).toBe('+7 495 123-45-67');
+    expect(wrapper.vm.draftSupportPhone).toBe('+7 (495) 123 45-67');
     expect(wrapper.vm.plannedStartIso).toBe('2026-07-28T10:00:00.000Z');
     expect(wrapper.vm.plannedEndIso).toBe('2026-07-28T14:00:00.000Z');
   });

@@ -22,7 +22,7 @@ function mountNav() {
     global: {
       mocks: {
         $bus: { on: vi.fn(), off: vi.fn(), emit: vi.fn() },
-        $router: { push: vi.fn() },
+        $router: { push: vi.fn(), replace: vi.fn().mockResolvedValue(undefined) },
         $route: { path: '/news', params: {} },
       },
       stubs: { FeedbackModal: true },
@@ -74,16 +74,6 @@ describe('NavMenu: список таблиц по типам (#1307)', () => {
     expect(wrapper.findAll('.dropdown-group-title')).toHaveLength(0);
     expect(wrapper.findAll('[data-testid="nav-tables-list"] .dropdown-item').map((el) => el.text()))
       .toEqual(['КПП №4', 'ПОСТ №72 (АВТО)']);
-  });
-
-  it('поиск по рельсу сохраняет разбивку и убирает опустевшие группы', async () => {
-    wrapper = mountNav();
-    await flushPromises();
-    await wrapper.setData({ systemTables: TABLES, searchQuery: 'АВТО' });
-
-    const groups = wrapper.vm.groupedTables;
-    expect(groups.map((g) => g.label)).toEqual(['Автомобили']);
-    expect(groups[0].tables.map((t) => t.display_name)).toEqual(['ПОСТ №72 (АВТО)']);
   });
 
   it('таблица с неизвестным типом попадает в «Прочие», а не теряется', async () => {

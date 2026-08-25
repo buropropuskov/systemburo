@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
+import { setActivePinia, createPinia } from 'pinia';
 import SchedulePlaceWarningPanel from '../SchedulePlaceWarningPanel.vue';
+import { useUiStore } from '@/stores/ui';
 
 // jsdom не реализует matchMedia - без мока useNarrowScreen выходит по гарду и
 // isNarrow навсегда false, то есть мобильное поведение не проверяется.
@@ -38,6 +40,10 @@ const mountPanel = (groups) => mount(SchedulePlaceWarningPanel, { props: { group
 
 afterEach(() => {
   document.body.innerHTML = '';
+});
+
+beforeEach(() => {
+  setActivePinia(createPinia());
 });
 
 describe('SchedulePlaceWarningPanel', () => {
@@ -190,5 +196,46 @@ describe('SchedulePlaceWarningPanel - обводка шапки', () => {
   it('тень панели берётся из токена темы', () => {
     const root = css.match(/\.warn-panel\s*\{([\s\S]*?)\}/);
     expect(root[1]).toMatch(/box-shadow:[^;]*var\(--shadow-drop\)/);
+  });
+});
+
+/**
+ * Слой панели задаётся инлайн-стилем, а не v-bind() в scoped CSS: панель уходит в
+ * Teleport, переменная от v-bind до неё не доезжает, и в браузере z-index становится
+ * auto - панель проваливалась под sticky-шапку списка Т/С и под ряд дат (обе z-index: 1).
+ * В jsdom правило CSS не применяется, поэтому слой проверяется по атрибуту style.
+ */
+describe('SchedulePlaceWarningPanel - слой', () => {
+  const src = readFileSync(resolve(__dirname, '../SchedulePlaceWarningPanel.vue'), 'utf8');
+
+  it('z-index не задаётся через v-bind() в стилях', () => {
+    const styles = src.slice(src.indexOf('<style'));
+    expect(styles, 'v-bind() в scoped CSS телепортированной панели не доезжает')
+      .not.toMatch(/z-index:\s*v-bind/);
+  });
+
+  it('слой по умолчанию доезжает до элемента', () => {
+    mountPanel([scheduleGroup()]);
+    expect(panel().style.zIndex).toBe('990');
+  });
+
+  it('слой из пропа перебивает дефолтный', () => {
+    mount(SchedulePlaceWarningPanel, {
+      props: { groups: [scheduleGroup()], zIndex: 1010 },
+      attachTo: document.body,
+    });
+    expect(panel().style.zIndex).toBe('1010');
+  });
+});
+
+describe('панель и онбординг-тур', () => {
+  // Панель плавающая и во время тура ложилась на подсвеченный блок сроков (#1771).
+  it('во время тура панель не рендерится', () => {
+    useUiStore().tourActive = true;
+    const wrapper = mount(SchedulePlaceWarningPanel, {
+      props: { groups: [{ id: 1, name: 'Ворота 1', notes: ['Проверьте режим'] }] },
+      global: { stubs: { Teleport: true } },
+    });
+    expect(wrapper.find('.warn-panel').exists()).toBe(false);
   });
 });

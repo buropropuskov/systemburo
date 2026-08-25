@@ -12,7 +12,7 @@ import (
 // (tableID) видна, - аудиторию real-time сигнала tables.refresh (#840).
 //
 // Зеркалит authoritative-гейт видимости таблицы. Эндпоинты проходной
-// (GET /system-tables, /cars/active-for-tables) не фильтруют по юзеру - они
+// (GET /system-tables, /cars/active-for-table/:id) не фильтруют по юзеру - они
 // auth-only, а видимость КАЖДОЙ таблицы фронт гейтит правом table.<name>.view
 // (NavMenu показывает пункт таблицы только при can(`table.${name}.view`)). Значит
 // аудитория сигнала = все, у кого резолвер прав подтверждает это право.

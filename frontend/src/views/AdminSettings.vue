@@ -11,6 +11,7 @@
         class="admin-settings__sidebar"
         role="navigation"
         aria-label="Разделы настроек"
+        data-testid="ob-admin-settings"
       >
         <div
           v-for="section in sections"
@@ -407,6 +408,180 @@
               </label>
             </div>
 
+            <h3 class="section-title rotation-title">
+              Срок действия паролей
+            </h3>
+
+            <div
+              class="rotation-status"
+              data-testid="rotation-status"
+            >
+              <p>
+                Ближайшая проверка: <b>{{ nextRotationRunText }}</b>.
+                Срок действия пароля вышел у работников: <b>{{ rotationStatus.expired }}</b>.
+                Пароли им не меняются и письмами не рассылаются: каждый входит своим
+                прежним паролем, а система просит задать новый и до этого никуда не пускает.
+              </p>
+              <p>
+                Учётных записей с почтой: <b>{{ rotationStatus.eligible }}</b>,
+                без почты: <b>{{ rotationStatus.without_email }}</b>.
+                <span v-if="rotationStatus.without_email > 0">
+                  Проверки сроков это не касается, но предупредить их заранее не получится -
+                  адреса проставляет бюро.
+                </span>
+              </p>
+              <p
+                v-if="!rotationStatus.mail_configured"
+                class="rotation-warning"
+              >
+                Почта не настроена. Проверке сроков она не нужна, но предупреждения о скором
+                истечении отправлять нечем, и обновить пароль всем работникам нельзя - новый
+                пароль доставить некуда. Параметры SMTP задаются в файле параметров.
+              </p>
+              <div class="rotation-actions">
+                <button
+                  class="btn btn--secondary"
+                  :disabled="testingMail"
+                  data-testid="mail-test-button"
+                  @click="sendTestMail"
+                >
+                  {{ testingMail ? 'Отправляем...' : 'Отправить проверочное письмо' }}
+                </button>
+                <button
+                  v-if="rotationStatus.mail_configured"
+                  class="btn btn--danger"
+                  :disabled="rotationRunning"
+                  data-testid="rotation-run-button"
+                  @click="askRunRotation"
+                >
+                  {{ rotationRunning ? 'Меняем пароли...' : 'Обновить пароль всем работникам' }}
+                </button>
+              </div>
+            </div>
+
+            <BaseModal
+              :show="confirmRotation"
+              title="Сменить пароли всем работникам?"
+              width="440px"
+              content-testid="rotation-confirm"
+              @close="confirmRotation = false"
+            >
+              <p>
+                Пароли сменятся у <b>{{ rotationStatus.eligible }}</b> работников с указанным
+                адресом почты. Каждому уйдёт письмо с новым паролем.
+              </p>
+              <p>
+                Все текущие сессии будут завершены - людям придётся войти заново.
+                <span v-if="rotationStatus.without_email > 0">
+                  Работников без почты ({{ rotationStatus.without_email }}) действие не затронет.
+                </span>
+              </p>
+              <template #actions>
+                <button
+                  class="btn btn--secondary"
+                  @click="confirmRotation = false"
+                >
+                  Отмена
+                </button>
+                <button
+                  class="btn btn--danger"
+                  data-testid="rotation-confirm-button"
+                  @click="runRotationNow"
+                >
+                  Сменить пароли
+                </button>
+              </template>
+            </BaseModal>
+
+            <div class="form-group">
+              <label class="switch-label">
+                <span class="switch-text">Требовать смену пароля по истечении срока</span>
+                <span
+                  class="switch"
+                  :class="{ 'switch--on': settings.password_rotation_enabled }"
+                  role="switch"
+                  :aria-checked="String(settings.password_rotation_enabled)"
+                  tabindex="0"
+                  data-testid="rotation-toggle"
+                  @click="toggleRotation"
+                  @keydown.enter="toggleRotation"
+                  @keydown.space.prevent="toggleRotation"
+                >
+                  <span class="switch__thumb" />
+                </span>
+              </label>
+              <span class="form-hint">
+                Раз в сутки система отбирает работников с истёкшим сроком и просит их
+                задать новый пароль при следующем входе.
+              </span>
+            </div>
+
+            <div class="form-group">
+              <label
+                class="form-label"
+                for="pw-rotation-days"
+              >
+                Срок действия пароля, суток
+              </label>
+              <input
+                id="pw-rotation-days"
+                v-model.number="settings.password_rotation_days"
+                type="number"
+                class="form-input"
+                :min="30"
+                :max="120"
+                :disabled="!settings.password_rotation_enabled"
+              >
+              <span class="form-hint">
+                От 30 до 120 суток. Верхняя граница - требование приказа ФСТЭК России N 21
+                для информационных систем персональных данных.
+              </span>
+            </div>
+
+            <div class="form-group">
+              <label
+                class="form-label"
+                for="pw-rotation-notify"
+              >
+                Предупреждать заранее, суток
+              </label>
+              <input
+                id="pw-rotation-notify"
+                v-model.number="settings.password_rotation_notify_days_before"
+                type="number"
+                class="form-input"
+                :min="0"
+                :max="30"
+                :disabled="!settings.password_rotation_enabled"
+              >
+              <span class="form-hint">0 - не предупреждать</span>
+            </div>
+
+            <div class="form-group">
+              <label class="switch-label">
+                <span class="switch-text">Требовать сменить пароль при первом входе</span>
+                <span
+                  class="switch"
+                  :class="{ 'switch--on': settings.password_force_change_on_next_login, 'switch--disabled': !settings.password_rotation_enabled }"
+                  role="switch"
+                  :aria-checked="String(settings.password_force_change_on_next_login)"
+                  tabindex="0"
+                  data-testid="force-change-toggle"
+                  @click="toggleForceChange"
+                  @keydown.enter="toggleForceChange"
+                  @keydown.space.prevent="toggleForceChange"
+                >
+                  <span class="switch__thumb" />
+                </span>
+              </label>
+              <span class="form-hint">
+                Относится к паролям, которые придумывает сама система: обновление всем
+                работникам и сброс из карточки. Такой пароль уходит письмом открытым
+                текстом, и обязательная смена при входе ограничивает срок его жизни в
+                почтовом ящике. По истечении срока смена требуется всегда.
+              </span>
+            </div>
+
             <button
               class="btn btn--primary"
               :disabled="saving"
@@ -414,93 +589,6 @@
             >
               {{ saving ? 'Сохранение...' : 'Сохранить' }}
             </button>
-          </div>
-
-          <!-- Обработка данных -->
-          <div
-            v-else-if="activeSection === 'data-processing'"
-            class="settings-section"
-          >
-            <h3 class="section-title">
-              Обработка данных
-            </h3>
-            <p class="dp-desc">
-              Документ открывается по ссылке «согласие» при подаче заявки и доступен по адресу
-              <code>/data-processing</code>. PDF показывается прямо на странице, DOC и DOCX —
-              только для скачивания.
-            </p>
-
-            <p
-              v-if="dpLoading"
-              class="form-hint"
-            >
-              Загрузка...
-            </p>
-
-            <div
-              v-else-if="dpMeta"
-              class="dp-card"
-            >
-              <div class="dp-card__info">
-                <span class="dp-card__name">{{ dpMeta.file_name }}</span>
-                <span class="dp-card__meta">{{ dpExtLabel }} · загружен {{ dpUploadedLabel }}</span>
-              </div>
-              <div class="dp-card__actions">
-                <a
-                  class="btn btn--ghost"
-                  href="/data-processing"
-                  target="_blank"
-                  rel="noopener"
-                >Открыть</a>
-                <button
-                  class="btn btn--ghost"
-                  :disabled="dpBusy"
-                  @click="downloadDp"
-                >
-                  Скачать
-                </button>
-                <label
-                  class="btn btn--ghost"
-                  :class="{ 'btn--disabled': dpBusy }"
-                >
-                  {{ dpUploading ? 'Загрузка...' : 'Заменить' }}
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx"
-                    hidden
-                    :disabled="dpBusy"
-                    @change="onDpFileChange"
-                  >
-                </label>
-                <button
-                  class="btn btn--danger"
-                  :disabled="dpBusy"
-                  @click="deleteDp"
-                >
-                  {{ dpDeleting ? 'Удаление...' : 'Удалить' }}
-                </button>
-              </div>
-            </div>
-
-            <div
-              v-else
-              class="dp-upload"
-            >
-              <label
-                class="btn btn--primary"
-                :class="{ 'btn--disabled': dpUploading }"
-              >
-                {{ dpUploading ? 'Загрузка...' : 'Загрузить документ' }}
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx"
-                  hidden
-                  :disabled="dpUploading"
-                  @change="onDpFileChange"
-                >
-              </label>
-              <span class="form-hint">PDF, DOC или DOCX.</span>
-            </div>
           </div>
 
           <!-- Напоминания согласующим -->
@@ -584,22 +672,14 @@
         </SkeletonTransition>
       </div>
     </div>
-
   </section>
 </template>
 
 <script>
 import { getSettings, updateSetting } from '@/api/settings';
-import {
-  getDataProcessingMeta,
-  uploadDataProcessingDoc,
-  deleteDataProcessingDoc,
-  downloadDataProcessingDoc,
-} from '@/api/dataProcessing';
-import { SkeletonTransition, SkeletonLine, SkeletonBlock } from '@/components/ui';
+import { SkeletonTransition, SkeletonLine, SkeletonBlock, BaseModal } from '@/components/ui';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { useDeletionsStore } from '@/stores/deletions';
-import { useUiStore } from '@/stores/ui';
 import { useContactsStore } from '@/stores/contacts';
 import { apiRequest } from '@/api/client';
 import WorkScheduleTab from '@/components/WorkScheduleTab.vue';
@@ -612,6 +692,7 @@ export default {
     SkeletonBlock,
     WorkScheduleTab,
     BaseDropdown,
+    BaseModal,
   },
   data() {
     return {
@@ -621,12 +702,27 @@ export default {
         { value: 'pagination', label: 'Пагинация' },
         { value: 'notifications', label: 'Уведомления' },
         { value: 'security', label: 'Безопасность' },
-        { value: 'data-processing', label: 'Обработка данных' },
         { value: 'contacts', label: 'Информация Бюро' },
         { value: 'approvals', label: 'Напоминания' },
       ],
       loading: false,
       saving: false,
+      testingMail: false,
+      rotationRunning: false,
+      confirmRotation: false,
+      // Состояние сроков действия паролей. Пока не загрузилось - почта считается
+      // ненастроенной: это запирающая сторона, кнопка обновления паролей до ответа
+      // сервера не показывается.
+      rotationStatus: {
+        mail_configured: false,
+        enabled: false,
+        rotation_days: 90,
+        eligible: 0,
+        without_email: 0,
+        expired: 0,
+        expiring_soon: 0,
+        next_run_at: null,
+      },
       loadError: null,
       settings: {
         max_file_size: 10 * 1024 * 1024,
@@ -643,6 +739,10 @@ export default {
         password_require_lowercase: false,
         password_require_digit: true,
         password_require_special: false,
+        password_rotation_enabled: false,
+        password_rotation_days: 90,
+        password_rotation_notify_days_before: 7,
+        password_force_change_on_next_login: true,
         bureau_phone: '',
         bureau_email: '',
         approval_reminder_enabled: true,
@@ -658,11 +758,6 @@ export default {
         { key: 'password_require_digit', label: 'Требовать цифру' },
         { key: 'password_require_special', label: 'Требовать спецсимвол' },
       ],
-      dpMeta: null,
-      dpLoaded: false,
-      dpLoading: false,
-      dpUploading: false,
-      dpDeleting: false,
       bureauTimeSlots: [],
       bureauSlotsLoaded: false,
       bureauSlotsLoading: false,
@@ -670,6 +765,16 @@ export default {
     };
   },
   computed: {
+    /** Дата ближайшей проверки сроков, человеческим языком. */
+    nextRotationRunText() {
+      const raw = this.rotationStatus.next_run_at;
+      if (!raw) return 'после включения';
+      const at = new Date(raw);
+      if (Number.isNaN(at.getTime())) return 'после включения';
+      return at.toLocaleString('ru-RU', {
+        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+      });
+    },
     fileSizeMB() {
       return Math.round(this.settings.max_file_size / (1024 * 1024));
     },
@@ -691,24 +796,12 @@ export default {
         return this.settings.allowed_doc_types.split(',').map(t => t.trim()).filter(Boolean);
       }
     },
-    dpBusy() {
-      return this.dpUploading || this.dpDeleting;
-    },
-    dpExtLabel() {
-      const ext = (this.dpMeta?.ext || '').replace('.', '').toUpperCase();
-      return ext || 'Документ';
-    },
-    dpUploadedLabel() {
-      if (!this.dpMeta?.uploaded_at) return '';
-      const d = new Date(this.dpMeta.uploaded_at);
-      if (Number.isNaN(d.getTime())) return '';
-      return d.toLocaleDateString('ru-RU');
-    },
   },
   watch: {
     activeSection(section) {
-      if (section === 'data-processing' && !this.dpLoaded) {
-        this.fetchDataProcessingDoc();
+      if (section === 'data-processing') {
+        if (!this.dpLoaded) this.fetchDataProcessingDoc();
+        if (!this.pdcLoaded) this.fetchPdConsentSettings();
       }
       if (section === 'contacts' && !this.bureauSlotsLoaded) {
         this.fetchBureauSchedule();
@@ -717,8 +810,109 @@ export default {
   },
   mounted() {
     this.fetchSettings();
+    this.fetchRotationStatus();
   },
   methods: {
+    /**
+     * Состояние сроков: у скольких работников пароль истёк, скольким уйдёт
+     * предупреждение и настроена ли почта. Без этих чисел администратор включает
+     * проверку вслепую, поэтому блок грузится вместе с экраном, а не по нажатию.
+     */
+    async fetchRotationStatus() {
+      try {
+        const response = await apiRequest('/settings/password-rotation/status');
+        if (!response.ok) return;
+        const json = await response.json();
+        this.rotationStatus = json.data ?? json;
+      } catch (error) {
+        // Состояние справочное: сбой оставляет блок в исходном виде и не мешает
+        // править остальные настройки.
+        console.error('Не удалось загрузить состояние плановой смены паролей:', error);
+      }
+    },
+
+    /**
+     * Ручной прогон: спрашиваем подтверждение с числом затрагиваемых учётных
+     * записей. Действие обрывает сессии всей организации, поэтому кнопка не
+     * должна срабатывать с одного клика.
+     */
+    askRunRotation() {
+      this.confirmRotation = true;
+    },
+
+    async runRotationNow() {
+      this.confirmRotation = false;
+      this.rotationRunning = true;
+      try {
+        const response = await apiRequest('/settings/password-rotation/run', { method: 'POST' });
+        if (response.ok) {
+          useDeletionsStore().notify({
+            bold: 'Смена паролей запущена',
+            suffix: ': письма встают в очередь и уходят по мере отправки',
+          });
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          useDeletionsStore().notify({
+            prefix: 'Не удалось запустить смену: ',
+            bold: errorData.message || 'ошибка',
+            type: 'error',
+          });
+        }
+      } catch (error) {
+        console.error('Ошибка сети при запуске смены паролей:', error);
+        useDeletionsStore().notify({ bold: 'Нет связи с сервером', type: 'error' });
+      } finally {
+        this.rotationRunning = false;
+        await this.fetchRotationStatus();
+      }
+    },
+
+    /**
+     * Проверка сроков включается независимо от почты: она ничего не рассылает, а
+     * лишь требует сменить пароль на входе. Запрет без почты стоит у ручного
+     * обновления, где придуманный пароль надо кому-то выслать.
+     */
+    toggleRotation() {
+      this.settings.password_rotation_enabled = !this.settings.password_rotation_enabled;
+    },
+
+    toggleForceChange() {
+      if (!this.settings.password_rotation_enabled) return;
+      this.settings.password_force_change_on_next_login = !this.settings.password_force_change_on_next_login;
+    },
+
+    /**
+     * Проверочное письмо: единственный способ убедиться, что чужой почтовый сервер
+     * принимает письма от системы, до того как от него зависят пароли работников.
+     */
+    async sendTestMail() {
+      const to = window.prompt('На какой адрес отправить проверочное письмо?');
+      if (!to) return;
+      this.testingMail = true;
+      try {
+        const response = await apiRequest('/settings/mail/test', {
+          method: 'POST',
+          body: JSON.stringify({ to }),
+        });
+        if (response.ok) {
+          useDeletionsStore().notify({ prefix: 'Проверочное письмо отправлено на ', bold: to });
+          await this.fetchRotationStatus();
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          useDeletionsStore().notify({
+            prefix: 'Письмо не ушло: ',
+            bold: errorData.message || 'ошибка',
+            type: 'error',
+          });
+        }
+      } catch (error) {
+        console.error('Ошибка сети при отправке проверочного письма:', error);
+        useDeletionsStore().notify({ bold: 'Нет связи с сервером', type: 'error' });
+      } finally {
+        this.testingMail = false;
+      }
+    },
+
     async fetchSettings() {
       this.loading = true;
       this.loadError = null;
@@ -778,6 +972,18 @@ export default {
             break;
           case 'password.require_special':
             this.settings.password_require_special = item.value === 'true';
+            break;
+          case 'password.rotation_enabled':
+            this.settings.password_rotation_enabled = item.value === 'true';
+            break;
+          case 'password.rotation_days':
+            this.settings.password_rotation_days = Number(item.value) || 90;
+            break;
+          case 'password.rotation_notify_days_before':
+            this.settings.password_rotation_notify_days_before = Number(item.value) || 0;
+            break;
+          case 'password.force_change_on_next_login':
+            this.settings.password_force_change_on_next_login = item.value === 'true';
             break;
           case 'contacts.bureau_phone':
             this.settings.bureau_phone = item.value || '';
@@ -974,6 +1180,10 @@ export default {
         await updateSetting('password.require_lowercase', String(this.settings.password_require_lowercase));
         await updateSetting('password.require_digit', String(this.settings.password_require_digit));
         await updateSetting('password.require_special', String(this.settings.password_require_special));
+        await updateSetting('password.rotation_enabled', String(this.settings.password_rotation_enabled));
+        await updateSetting('password.rotation_days', String(this.settings.password_rotation_days));
+        await updateSetting('password.rotation_notify_days_before', String(this.settings.password_rotation_notify_days_before));
+        await updateSetting('password.force_change_on_next_login', String(this.settings.password_force_change_on_next_login));
         useDeletionsStore().notify({ prefix: 'Требования к паролю сохранены' });
       } catch (error) {
         console.error('Ошибка сохранения:', error);
@@ -983,65 +1193,17 @@ export default {
       }
     },
 
-    async fetchDataProcessingDoc() {
-      this.dpLoading = true;
-      try {
-        this.dpMeta = await getDataProcessingMeta();
-        this.dpLoaded = true;
-      } catch (error) {
-        console.error('Ошибка загрузки документа согласия:', error);
-        useDeletionsStore().notify({ prefix: 'Не удалось загрузить документ', type: 'error' });
-      } finally {
-        this.dpLoading = false;
-      }
-    },
 
-    async onDpFileChange(event) {
-      const file = event.target.files?.[0];
-      // Сбрасываем input, иначе повторный выбор того же файла не вызовет change.
-      event.target.value = '';
-      if (!file) return;
-      this.dpUploading = true;
-      try {
-        this.dpMeta = await uploadDataProcessingDoc(file);
-        this.dpLoaded = true;
-        useDeletionsStore().notify({ prefix: 'Документ ', bold: this.dpMeta.file_name, suffix: ' загружен' });
-      } catch (error) {
-        useDeletionsStore().notify({ prefix: error?.message || 'Ошибка загрузки документа', type: 'error' });
-      } finally {
-        this.dpUploading = false;
-      }
-    },
 
-    async downloadDp() {
-      if (!this.dpMeta) return;
-      try {
-        await downloadDataProcessingDoc(this.dpMeta.file_name);
-      } catch (error) {
-        console.error('Ошибка скачивания документа согласия:', error);
-        useDeletionsStore().notify({ prefix: 'Не удалось скачать документ', type: 'error' });
-      }
-    },
 
-    async deleteDp() {
-      if (!this.dpMeta) return;
-      const ok = await useUiStore().confirm({
-        message: `Удалить документ «${this.dpMeta.file_name}»? Пользователи перестанут видеть его при подаче заявки.`,
-      });
-      if (!ok) return;
-      const name = this.dpMeta.file_name;
-      this.dpDeleting = true;
-      try {
-        await deleteDataProcessingDoc();
-        this.dpMeta = null;
-        useDeletionsStore().notify({ prefix: 'Документ ', bold: name, suffix: ' удалён' });
-      } catch (error) {
-        console.error('Ошибка удаления документа согласия:', error);
-        useDeletionsStore().notify({ prefix: 'Ошибка удаления документа', type: 'error' });
-      } finally {
-        this.dpDeleting = false;
-      }
-    },
+
+
+
+
+
+
+
+
   },
 };
 </script>
@@ -1282,6 +1444,42 @@ export default {
   background: var(--accent);
 }
 
+/* Блок состояния сроков: справочные числа перед тем, как включать проверку.
+   Тревожная подложка только у предупреждения о почте. */
+.rotation-title {
+  margin-top: 28px;
+}
+
+.rotation-status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.rotation-status p {
+  margin: 0;
+}
+
+.rotation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rotation-warning {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.switch--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .switch__thumb {
   position: absolute;
   top: 2px;
@@ -1291,7 +1489,6 @@ export default {
   background: var(--surface);
   border-radius: 50%;
   transition: transform 0.2s ease;
-  box-shadow: 0 1px 3px var(--shadow-drop);
 }
 
 .switch--on .switch__thumb {
@@ -1362,68 +1559,32 @@ export default {
   pointer-events: none;
 }
 
-/* Обработка данных */
-.dp-desc {
-  font-size: 12px;
-  color: var(--text);
-  line-height: 1.5;
-  margin: 0 0 16px 0;
-}
 
-.dp-desc code {
-  background: var(--accent-tint);
-  color: var(--accent-text);
-  padding: 1px 6px;
-  border-radius: var(--radius-sm);
-  font-size: 11px;
-}
 
-.dp-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-}
 
-.dp-card__info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
 
-.dp-card__name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  word-break: break-word;
-}
 
-.dp-card__meta {
-  font-size: 11px;
-  color: var(--text-muted);
-}
 
-.dp-card__actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
 
-.dp-upload {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
 
-.dp-upload .form-hint {
-  margin-top: 0;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* Состояния загрузки и ошибки */
 .loading-state {

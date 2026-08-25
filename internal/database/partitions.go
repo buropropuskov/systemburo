@@ -32,6 +32,12 @@ func installLogPartitioning(db *gorm.DB) error {
 		if err := ensureRequestLogsDaily(tx); err != nil {
 			return fmt.Errorf("request_logs_daily: %w", err)
 		}
+		if err := ensureLogDurationColumns(tx); err != nil {
+			return err
+		}
+		if err := ensureLogFilterIndexes(tx); err != nil {
+			return err
+		}
 		// Партиции на вчера..+7 дней, чтобы запись не падала до первого прохода воркера.
 		now := time.Now().UTC()
 		if err := ensureDailyPartitions(tx, "request_logs", now.AddDate(0, 0, -1), now.AddDate(0, 0, 7)); err != nil {
@@ -94,20 +100,37 @@ func ensurePartitionedRequestLogs(db *gorm.DB) error {
 			response_status INTEGER,
 			response_body   TEXT,
 			duration_ms     INTEGER,
+			duration_us     BIGINT,
 			created_at      TIMESTAMPTZ NOT NULL,
 			PRIMARY KEY (id, created_at)
 		) PARTITION BY RANGE (created_at)`).Error; err != nil {
 		return err
 	}
-	for _, idx := range []string{
+	slog.Info("request_logs создана как партиционированная по created_at")
+	return nil
+}
+
+// ensureLogFilterIndexes держит индексы request_logs под фильтры экрана мониторинга.
+// Вызывается отдельно от создания таблицы: на уже установленных стендах таблица давно
+// есть, а индексов под статус и метод не было - выборка «только ошибки» шла
+// последовательным чтением всех партиций.
+//
+// Статус и метод идут в паре с created_at: журнал всегда читается за период и всегда
+// в порядке от свежих записей, поэтому одиночный индекс по статусу пришлось бы
+// досортировывать. CREATE INDEX на партиционированной таблице сам расходится по
+// партициям, включая созданные позже.
+func ensureLogFilterIndexes(db *gorm.DB) error {
+	stmts := []string{
 		`CREATE INDEX IF NOT EXISTS idx_request_logs_created_at ON request_logs (created_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_request_logs_user_id ON request_logs (user_id)`,
-	} {
-		if err := db.Exec(idx).Error; err != nil {
-			return err
+		`CREATE INDEX IF NOT EXISTS idx_request_logs_status_created ON request_logs (response_status, created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_request_logs_method_created ON request_logs (method, created_at DESC)`,
+	}
+	for _, stmt := range stmts {
+		if err := db.Exec(stmt).Error; err != nil {
+			return fmt.Errorf("index request_logs: %w", err)
 		}
 	}
-	slog.Info("request_logs создана как партиционированная по created_at")
 	return nil
 }
 
@@ -126,8 +149,29 @@ func ensureRequestLogsDaily(db *gorm.DB) error {
 			error_count     BIGINT      NOT NULL,
 			avg_duration_ms INTEGER     NOT NULL,
 			p95_duration_ms INTEGER     NOT NULL,
+			avg_duration_us BIGINT      NOT NULL DEFAULT 0,
+			p95_duration_us BIGINT      NOT NULL DEFAULT 0,
 			PRIMARY KEY (day, user_id, endpoint, method, status_class)
 		)`).Error
+}
+
+// ensureLogDurationColumns досоздаёт микросекундные колонки длительности на уже
+// установленных стендах. Миллисекунды остаются как есть: они округлены вниз, и
+// треть запросов отвечает быстрее миллисекунды, из-за чего перцентили по ним
+// вырождались в ноль (#2125). ADD COLUMN на партиционированной таблице
+// распространяется на все партиции сам.
+func ensureLogDurationColumns(db *gorm.DB) error {
+	stmts := []string{
+		`ALTER TABLE request_logs ADD COLUMN IF NOT EXISTS duration_us BIGINT`,
+		`ALTER TABLE request_logs_daily ADD COLUMN IF NOT EXISTS avg_duration_us BIGINT NOT NULL DEFAULT 0`,
+		`ALTER TABLE request_logs_daily ADD COLUMN IF NOT EXISTS p95_duration_us BIGINT NOT NULL DEFAULT 0`,
+	}
+	for _, stmt := range stmts {
+		if err := db.Exec(stmt).Error; err != nil {
+			return fmt.Errorf("add duration column: %w", err)
+		}
+	}
+	return nil
 }
 
 // partitionSuffix возвращает суффикс суточной партиции вида 2026_06_21.
@@ -244,31 +288,47 @@ func rollupLegacyRequestLogs(db *gorm.DB) {
 	slog.Info("request_logs_legacy свёрнута в агрегаты и удалена")
 }
 
+// LogEndpointExpr -- нормализованный маршрут запроса: query-строка отброшена,
+// числовые сегменты пути заменены на :id, чтобы записи схлопывались по
+// логическому маршруту.
+//
+// Выражение общее со свёрткой намеренно: «Аналитика» дочитывает дни новее
+// последней свёртки прямо из детальных партиций и складывает их с агрегатами.
+// Разъедься нормализация -- один и тот же маршрут пришёл бы в топ двумя строками.
+//
+// Разделитель адреса и query задан как chr(63): знак вопроса в кавычках gorm
+// принимает за место подстановки и разъезжается на аргументах запроса (#2125).
+const LogEndpointExpr = `regexp_replace(split_part(COALESCE(url, ''), chr(63), 1), '/[0-9]+', '/:id', 'g')`
+
 // aggregateLogTable сворачивает таблицу/партицию логов в request_logs_daily.
-// Endpoint нормализуется: query-строка отбрасывается, числовые сегменты пути
-// заменяются на :id, чтобы агрегаты схлопывались по логическому маршруту.
 func aggregateLogTable(db *gorm.DB, table string) error {
 	stmt := fmt.Sprintf(`
 		INSERT INTO request_logs_daily
 			(day, user_id, endpoint, method, status_class,
-			 request_count, error_count, avg_duration_ms, p95_duration_ms)
+			 request_count, error_count, avg_duration_ms, p95_duration_ms,
+			 avg_duration_us, p95_duration_us)
 		SELECT
 			created_at::date,
 			COALESCE(user_id, 0),
-			regexp_replace(split_part(COALESCE(url, ''), '?', 1), '/[0-9]+', '/:id', 'g'),
+			`+LogEndpointExpr+`,
 			COALESCE(method, ''),
 			COALESCE(response_status, 0) / 100,
 			count(*),
 			count(*) FILTER (WHERE response_status >= 400),
 			COALESCE(avg(duration_ms), 0)::int,
-			COALESCE(percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms), 0)::int
+			COALESCE(percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms), 0)::int,
+			COALESCE(avg(COALESCE(duration_us, duration_ms * 1000)), 0)::bigint,
+			COALESCE(percentile_cont(0.95) WITHIN GROUP (
+				ORDER BY COALESCE(duration_us, duration_ms * 1000)), 0)::bigint
 		FROM %s
 		GROUP BY 1, 2, 3, 4, 5
 		ON CONFLICT (day, user_id, endpoint, method, status_class) DO UPDATE SET
 			request_count   = request_logs_daily.request_count + EXCLUDED.request_count,
 			error_count     = request_logs_daily.error_count + EXCLUDED.error_count,
 			avg_duration_ms = EXCLUDED.avg_duration_ms,
-			p95_duration_ms = EXCLUDED.p95_duration_ms`, table)
+			p95_duration_ms = EXCLUDED.p95_duration_ms,
+			avg_duration_us = EXCLUDED.avg_duration_us,
+			p95_duration_us = EXCLUDED.p95_duration_us`, table)
 	return db.Exec(stmt).Error
 }
 

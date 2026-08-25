@@ -1,10 +1,11 @@
 <template>
   <BaseModal
     :show="show"
-    :title="`Отчёт по проходам — ${tableDisplayName}`"
+    :title="reportTitle"
     width="720px"
     radius="30px"
     content-class="pass-report-modal"
+    content-testid="ob-pass-report"
     @close="$emit('close')"
   >
     <div
@@ -17,7 +18,7 @@
             {{ liveTitle }}
           </div>
           <div class="pr-today__hint">
-            смена с 21:30 вчера до 21:30 сегодня
+            отчётные сутки: с 21:30 вчера до 21:30 сегодня
           </div>
         </div>
         <RefreshButton
@@ -40,11 +41,10 @@
             class="pr-card"
           >
             <div class="pr-card__title">
-              <img
-                :src="s.icon"
+              <AppIcon
+                :name="s.icon"
                 class="pr-card__icon"
-                alt=""
-              >
+              />
               {{ s.title }}
             </div>
             <div class="pr-card__stat pr-card__stat--in">
@@ -64,21 +64,22 @@
           </div>
         </div>
 
-        <!-- Кейс «открыл в 21:31»: в 21:30 смена сменилась, текущая новая - пустая.
-             Уходящий охранник тупанул бы на нулях; подсказываем, что его смена уже
-             в прошлых днях. Показываем всегда, когда текущая смена пуста. -->
+        <!-- Кейс «открыл в 21:31»: в 21:30 начались новые отчётные сутки, текущие -
+             пустые. Уходящий охранник тупанул бы на нулях; подсказываем, что его
+             отметки уже в прошлых днях. Показываем всегда, когда текущие отчётные
+             сутки пусты. -->
         <div
           v-if="liveIsEmpty"
           class="pr-hint"
           data-testid="pass-report-empty-hint"
         >
-          <b>За текущую смену отметок пока нет.</b>
-          Смена меняется каждый день в 21:30. Если ищете отчёт за прошедший день -
+          <b>За текущие отчётные сутки отметок пока нет.</b>
+          Отчётные сутки меняются каждый день в 21:30. Если ищете отчёт за прошедший день -
           нажмите «Показать прошлые дни» ниже.
         </div>
 
-        <!-- Разбивка по охранникам видна, только когда за смену отмечал не один
-             человек (у деда на посту одна строка - лишний шум не показываем). -->
+        <!-- Разбивка по охранникам видна, только когда за отчётные сутки отмечал не
+             один человек (у деда на посту одна строка - лишний шум не показываем). -->
         <div
           v-if="live.rows && live.rows.length > 1"
           class="pr-breakdown"
@@ -196,12 +197,11 @@
                 data-testid="pass-report-export"
                 @click="exportToExcel"
               >
-                <img
+                <AppIcon
                   v-if="!isExporting"
-                  src="@/assets/icons/export.png"
+                  name="export"
                   class="pr-export__icon"
-                  alt=""
-                >
+                />
                 <span>{{ isExporting ? 'Формируем файл...' : 'Скачать в Excel' }}</span>
               </button>
             </template>
@@ -217,10 +217,9 @@ import ExcelJS from 'exceljs';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import DateFilter from '@/components/DateFilter.vue';
-import carIcon from '@/assets/icons/car.png';
-import peopleIcon from '@/assets/icons/employees.png';
 import { getPassReportLive, listPassReports } from '@/api/pass-reports';
 import { useDeletionsStore } from '@/stores/deletions';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 
@@ -232,7 +231,7 @@ function ymd(d) {
 
 export default {
   name: 'PassReportModal',
-  components: { BaseModal, RefreshButton, DateFilter },
+  components: { AppIcon, BaseModal, RefreshButton, DateFilter },
   props: {
     show: { type: Boolean, required: true },
     tableId: { type: Number, default: null },
@@ -260,12 +259,24 @@ export default {
     sectionDefs() {
       const defs = [];
       if (this.tableType === 'cars' || this.anyCount('car_entries') || this.anyCount('car_exits')) {
-        defs.push({ key: 'cars', icon: carIcon, title: 'Машины', inLabel: 'Заехало', outLabel: 'Выехало', inField: 'car_entries', outField: 'car_exits' });
+        defs.push({ key: 'cars', icon: 'car', title: 'Машины', inLabel: 'Заехало', outLabel: 'Выехало', inField: 'car_entries', outField: 'car_exits' });
       }
       if (this.tableType === 'people' || this.anyCount('people_entries') || this.anyCount('people_exits')) {
-        defs.push({ key: 'people', icon: peopleIcon, title: 'Люди', inLabel: 'Зашло', outLabel: 'Вышло', inField: 'people_entries', outField: 'people_exits' });
+        defs.push({ key: 'people', icon: 'employees', title: 'Люди', inLabel: 'Зашло', outLabel: 'Вышло', inField: 'people_entries', outField: 'people_exits' });
       }
       return defs;
+    },
+    /**
+     * Машины ездят, люди ходят - заголовок берёт слово по типу таблицы. Прежде
+     * окно всегда звалось «Отчёт по проходам», в том числе на таблице машин, хотя
+     * внутри оно и так считает «Заехало/Выехало» для одних и «Зашло/Вышло» для
+     * других, а в заявке система говорит «Посты проезда» и «Места прохода».
+     */
+    reportTitle() {
+      const kind = this.tableType === 'cars'
+        ? 'проездам'
+        : this.tableType === 'people' ? 'проходам' : 'проездам и проходам';
+      return `Отчёт по ${kind} — ${this.tableDisplayName}`;
     },
     liveTitle() {
       if (!this.live) return 'Сегодня';
@@ -273,8 +284,8 @@ export default {
       if (Number.isNaN(d.getTime())) return 'Сегодня';
       return `Сегодня, ${d.getDate()} ${MONTHS[d.getMonth()]}`;
     },
-    // Текущая смена пуста по всем активным секциям - основание показать подсказку
-    // про смену в 21:30 (кейс «открыл сразу после 21:30»).
+    // Текущие отчётные сутки пусты по всем активным секциям - основание показать
+    // подсказку про границу в 21:30 (кейс «открыл сразу после 21:30»).
     liveIsEmpty() {
       const t = this.live?.totals;
       if (!t) return false;
@@ -487,7 +498,7 @@ export default {
 .pr-card__icon {
   width: 26px;
   height: 26px;
-  object-fit: contain;
+  color: var(--text);
 }
 
 .pr-card__stat {

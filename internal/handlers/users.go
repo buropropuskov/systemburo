@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"systemburo/internal/models"
@@ -12,6 +13,14 @@ import (
 // UsersHandler — HTTP-обработчики управления пользователями (admin-only).
 type UsersHandler struct {
 	service services.UserService
+	// rotation - смена пароля с отправкой письмом (#1910). Подключается сеттером:
+	// сервис создаётся позже хендлера, а в тестах его может не быть.
+	rotation *services.PasswordRotationService
+}
+
+// SetRotationService подключает сервис смены пароля с отправкой письмом.
+func (h *UsersHandler) SetRotationService(s *services.PasswordRotationService) {
+	h.rotation = s
 }
 
 // NewUsersHandler создаёт новый экземпляр обработчика пользователей.
@@ -58,6 +67,25 @@ func (h *UsersHandler) Create(c echo.Context) error {
 func (h *UsersHandler) GetAll(c echo.Context) error {
 	includeArchived := c.QueryParam("include_archived") == "true"
 	result, err := h.service.GetAll(c.Request().Context(), includeArchived)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, result)
+}
+
+// GetRecipientCandidates godoc
+// @Summary      Кандидаты в получатели заявки
+// @Description  Пользователи, которых автор может добавить получателем заявки: коллеги по организации и компании плюс руководители. Доступно любому авторизованному - выбор получателя есть у всех, кто подаёт заявку, а список людей своей организации и так открыт (/organizations/{id}/users).
+// @Tags         users
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {array}  models.RecipientCandidate
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /users/recipient-candidates [get]
+func (h *UsersHandler) GetRecipientCandidates(c echo.Context) error {
+	username, _ := c.Get("username").(string)
+	result, err := h.service.GetRecipientCandidates(c.Request().Context(), username)
 	if err != nil {
 		return err
 	}
@@ -111,10 +139,46 @@ func (h *UsersHandler) UpdatePassword(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.UpdatePassword(c.Request().Context(), userID, username, req); err != nil {
+	if err := h.service.UpdatePassword(c.Request().Context(), userID, username, req, requestMeta(c)); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Password updated successfully")
+}
+
+// ChangeOwnPassword godoc
+// @Summary      Смена собственного пароля
+// @Description  Меняет пароль текущего пользователя по подтверждению текущим паролем. Права не требуются.
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body models.ChangeOwnPasswordRequest true "Текущий и новый пароль"
+// @Success      200 {string} string "Password changed successfully"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      429 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /users/me/password [put]
+func (h *UsersHandler) ChangeOwnPassword(c echo.Context) error {
+	userID, _ := c.Get("user_id").(int)
+	if userID == 0 {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Пользователь не авторизован")
+	}
+	var req models.ChangeOwnPasswordRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	// Маркер продления текущей сессии: она переживёт смену пароля, остальные
+	// погаснут. Без cookie (запрос мимо браузера) сохранять нечего - тогда
+	// отзываются все, как и раньше.
+	keep := ""
+	if cookie, err := c.Cookie(services.RefreshCookieName); err == nil && cookie != nil {
+		keep = cookie.Value
+	}
+	if err := h.service.ChangeOwnPassword(c.Request().Context(), userID, req, requestMeta(c), keep); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Password changed successfully")
 }
 
 // UpdateInfo godoc
@@ -482,4 +546,35 @@ func (h *UsersHandler) SetUserTables(c echo.Context) error {
 		return err
 	}
 	return RespondMessage(c, "Tables updated successfully")
+}
+
+// RotatePassword godoc
+// @Summary      Сменить пароль работнику и отправить письмом
+// @Description  Генерирует пароль по действующей политике, меняет его и отправляет работнику на почту. Требует настроенной почты и указанного адреса.
+// @Tags         users
+// @Produce      json
+// @Security     BearerAuth
+// @Param        username path string true "Имя пользователя"
+// @Success      200 {string} string "Password rotated"
+// @Failure      400 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      412 {object} models.HTTPError
+// @Router       /users/{username}/rotate-password [post]
+//
+// RotatePassword меняет пароль работнику и отправляет его письмом. Закрывает
+// случай «работник потерял пароль»: до этого пароль придумывали руками и
+// диктовали по телефону, то есть он проходил через третьи уши.
+func (h *UsersHandler) RotatePassword(c echo.Context) error {
+	if h.rotation == nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "Смена пароля с отправкой письмом недоступна")
+	}
+	username := c.Param("username")
+	if err := h.rotation.RotateOne(c.Request().Context(), username, GetUserID(c)); err != nil {
+		if errors.Is(err, services.ErrRotationMailNotConfigured) {
+			return echo.NewHTTPError(http.StatusPreconditionFailed,
+				"Почта не настроена: отправить новый пароль нечем")
+		}
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	return RespondMessage(c, "Password rotated")
 }

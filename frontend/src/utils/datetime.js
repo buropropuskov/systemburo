@@ -12,6 +12,19 @@ export function formatDateTime(value) {
 }
 
 /**
+ * Название дня недели по дате. Индексация от воскресенья - как у Date.getDay(),
+ * а не как в расписаниях, где неделя начинается с понедельника.
+ * @param {string|Date|null|undefined} value
+ * @returns {string} 'Среда' или '' для пустого/невалидного значения
+ */
+export function weekdayName(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'][d.getDay()];
+}
+
+/**
  * ISO-момент -> значение для `<input type="datetime-local">` (локальное время
  * без зоны). Через части даты, а не toISOString(): срез ISO-строки увёл бы
  * время на UTC и показал бы админу не тот час, который он выбрал.
@@ -73,6 +86,25 @@ export function formatDateRu(value) {
   const s = String(value).slice(0, 10);
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
   return m ? `${m[3]}.${m[2]}.${m[1]}` : String(value);
+}
+
+const MONTH_NAMES_RU = [
+  'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+  'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
+];
+
+/**
+ * Форматирует период 'YYYY-MM' (разбивка файлового архива по месяцам) в
+ * 'Месяц ГГГГ'. Разбор вручную, как в formatDateRu — new Date('YYYY-MM')
+ * трактуется как UTC-полночь и в МСК съезжает на предыдущий месяц.
+ * @param {string|null|undefined} value
+ * @returns {string}
+ */
+export function formatMonthRu(value) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(value || ''));
+  if (!m) return String(value || '');
+  const name = MONTH_NAMES_RU[Number(m[2]) - 1];
+  return name ? `${name} ${m[1]}` : String(value);
 }
 
 /**

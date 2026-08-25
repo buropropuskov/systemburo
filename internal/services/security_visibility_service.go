@@ -42,6 +42,9 @@ type AvailableAttachment struct {
 	CompanyName       *string    `json:"company_name"`
 	SenderName        *string    `json:"sender_name"`
 	SenderFullName    *string    `json:"sender_full_name"`
+	// SenderUserID нужен маскировке ФИО подавшего, не давшего согласия на обработку
+	// персональных данных: без него строку не с чем сопоставить.
+	SenderUserID *int `json:"sender_user_id"`
 }
 
 // availableAttachmentFilters - опциональные пользовательские фильтры вкладки "Доступные мне"
@@ -97,7 +100,10 @@ const availableAttachmentFrom = `
 
 // availableAttachmentSelect - столбцы листинга. Подзапросы places ссылаются на a.id напрямую
 // (без плейсхолдеров); аргументы в порядке: видимость -> фильтры BE-S6 -> LIMIT/OFFSET.
-const availableAttachmentSelect = `
+// var, а не const: предикат допуска строится той же admittedSupplementCond, что и остальные
+// читатели состава - иначе условие пришлось бы продублировать литералом и оно разъехалось бы
+// с моделью при первом же переименовании статуса.
+var availableAttachmentSelect = `
 	a.id as attachment_id,
 	a.attachment_type,
 	a.attachment_name,
@@ -112,6 +118,7 @@ const availableAttachmentSelect = `
 	app.sending_datetime,
 	COALESCE(o.name, c.name) as organization_name,
 	c.name as company_name,
+	app.sender_user_id,
 	format_short_name(su.last_name, su.first_name, su.middle_name) as sender_name,
 	format_full_name(su.last_name, su.first_name, su.middle_name) as sender_full_name,
 	CASE WHEN a.attachment_type = 'people' THEN (
@@ -119,7 +126,7 @@ const availableAttachmentSelect = `
 		FROM employees e
 		JOIN employee_target_tables ett ON ett.employee_id = e.id
 		JOIN system_tables st ON st.id = ett.table_id
-		WHERE e.attachment_id = a.id
+		WHERE e.attachment_id = a.id AND ` + admittedSupplementCond("e") + `
 	) ELSE (
 		SELECT string_agg(DISTINCT up.name, ', ')
 		FROM attachment_unload_places aup
@@ -165,6 +172,10 @@ func securityVisibilityWhere(userID int, unrestricted bool) (string, []interface
 	if unrestricted {
 		return confirm, args
 	}
+	// Сотрудник непринятого дополнения не открывает вложение охране (#1685). Пост ему
+	// назначается сразу при подаче, поэтому без этого условия вложение всплыло бы в
+	// "Доступные мне" по человеку, решения по которому ещё нет - и охранник увидел бы
+	// заявку, к посту которой ни один ДОПУЩЕННЫЙ сотрудник не относится.
 	place := `(
 		(a.attachment_type IN ('cars','items') AND EXISTS (
 			SELECT 1 FROM attachment_unload_places aup
@@ -175,7 +186,8 @@ func securityVisibilityWhere(userID int, unrestricted bool) (string, []interface
 			SELECT 1 FROM employees e
 			JOIN employee_target_tables ett ON ett.employee_id = e.id
 			JOIN security_user_tables sut ON sut.table_id = ett.table_id
-			WHERE e.attachment_id = a.id AND sut.user_id = ?))
+			WHERE e.attachment_id = a.id AND sut.user_id = ?
+			  AND ` + admittedSupplementCond("e") + `))
 	)`
 	args = append(args, userID, userID)
 	return confirm + " AND " + place, args
@@ -247,13 +259,19 @@ func availableAttachmentFilterWhere(f AvailableAttachmentFilters) (string, []int
 			baseCond, baseArgs := ilikePatternsArgs(baseCols, variants)
 
 			// Машины этого вложения: номер (+ слитно/раздельно при цифрах), марка, место разгрузки.
-			carCond, carArgs := ilikePatternsArgs([]string{"c2.car_number", "c2.mark_name", "c2.unload_place"}, variants)
+			// Обе колонки марки: mark_name заполнен у единиц записей, у остальных марка
+			// в устаревшей car_brand (тот же перекос, что в поиске Центра заявок).
+			carCond, carArgs := ilikePatternsArgs([]string{"c2.car_number", "c2.mark_name", "c2.car_brand", "c2.unload_place"}, variants)
 			platePattern := ""
 			if strings.ContainsAny(s, "0123456789") {
 				carCond += " OR REPLACE(c2.car_number, ' ', '') ILIKE ?"
 				platePattern = "%" + normalize.Plate(s) + "%"
 			}
-			carSub := `EXISTS(SELECT 1 FROM cars c2 WHERE c2.attachment_id = a.id AND (` + carCond + `))`
+			// Непринятое дополнение в поиске не участвует (#1685): иначе запрос по номеру или
+			// фамилии подтверждал бы охране, что человек или машина уже заявлены, хотя решения
+			// по ним ещё нет и в составе вложения он их не увидит.
+			carSub := `EXISTS(SELECT 1 FROM cars c2 WHERE c2.attachment_id = a.id
+				AND ` + admittedSupplementCond("c2") + ` AND (` + carCond + `))`
 
 			// Места разгрузки вложения: в этом view источник - attachment_unload_places
 			// (по attachment_id напрямую, #706), как в availableAttachmentSelect, а не через cars.
@@ -265,7 +283,7 @@ func availableAttachmentFilterWhere(f AvailableAttachmentFilters) (string, []int
 			// Сотрудники этого вложения: ФИО/должность + опечатки.
 			empCond, empArgs := ilikePatternsArgs([]string{"e.last_name", "e.first_name", "e.middle_name", "e.position"}, variants)
 			empSub := `EXISTS(SELECT 1 FROM employees e
-				WHERE e.attachment_id = a.id AND (` + empCond + `
+				WHERE e.attachment_id = a.id AND ` + admittedSupplementCond("e") + ` AND (` + empCond + `
 					OR strict_word_similarity(?, concat_ws(' ', e.last_name, e.first_name, e.middle_name)) > 0.3))`
 
 			// Согласующие заявки: ФИО + комментарий + опечатки.
@@ -373,6 +391,12 @@ func (s *applicationService) GetAvailableAttachmentsForSecurity(ctx context.Cont
 	rows := make([]AvailableAttachment, 0)
 	if err := s.db.WithContext(ctx).Raw(dataSQL, dataArgs...).Scan(&rows).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to fetch available attachments: %w", err)
+	}
+	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+		for i := range rows {
+			rows[i].SenderName = maskNamePtr(masks, rows[i].SenderUserID, rows[i].SenderName)
+			rows[i].SenderFullName = maskNamePtr(masks, rows[i].SenderUserID, rows[i].SenderFullName)
+		}
 	}
 	return rows, total, nil
 }

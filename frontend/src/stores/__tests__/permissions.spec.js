@@ -96,6 +96,49 @@ describe('permissions store', () => {
     })
   })
 
+  describe('hasPermission — mode: admin, super-only ключи (#1997)', () => {
+    // Стор сам по себе давно верно читает denied ("выдано, если ключа нет в
+    // denied") -- баг #1997 был в бэкенде: GetMyPermissions клал в Denied только
+    // личные deny-override, а super-only ключи (выдача админки, режим техработ)
+    // резолвер режет для admin неявно (PermissionSet.Has), в ответ они не
+    // попадали. Обычный admin видел тумблер доступным, сервер отказывал на
+    // сохранении. Тесты фиксируют актуальный контракт бэка (Denied включает
+    // super-only для admin) с реальными именами ключей каталога.
+    it('не выдаёт super-only ключ обычному admin, если бэк включил его в denied', async () => {
+      getMyPermissions.mockResolvedValue({
+        mode: 'admin',
+        permissions: [],
+        denied: ['action.grant.admin', 'page.admin.system_control'],
+        banned: false,
+        banReason: null,
+      })
+
+      const store = usePermissionsStore()
+      await store.fetchPermissions()
+
+      expect(store.hasPermission('action.grant.admin')).toBe(false)
+      expect(store.hasPermission('page.admin.system_control')).toBe(false)
+      // Обычное admin-право (не super-only, не в denied) остаётся доступным.
+      expect(store.hasPermission('page.admin.users')).toBe(true)
+    })
+
+    it('супер-админу (mode: super) super-only ключ доступен', async () => {
+      getMyPermissions.mockResolvedValue({
+        mode: 'super',
+        permissions: [],
+        denied: [],
+        banned: false,
+        banReason: null,
+      })
+
+      const store = usePermissionsStore()
+      await store.fetchPermissions()
+
+      expect(store.hasPermission('action.grant.admin')).toBe(true)
+      expect(store.hasPermission('page.admin.system_control')).toBe(true)
+    })
+  })
+
   describe('hasPermission — mode: banned', () => {
     it('возвращает false для любого ключа', () => {
       const store = usePermissionsStore()

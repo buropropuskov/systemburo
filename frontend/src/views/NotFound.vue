@@ -77,7 +77,8 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: var(--color-bg);
+  /* Фон страницы, не подложка внутри карточки: --color-bg это алиас --surface-2. */
+  background: var(--bg);
 }
 
 .not-found__card {

@@ -4,6 +4,7 @@
       <div
         v-if="show"
         class="modal-overlay"
+        :style="{ zIndex }"
         @click.self="handleCancel"
       >
         <div class="modal">
@@ -12,6 +13,15 @@
           </div>
           <div class="modal-message">
             {{ message }}
+          </div>
+          <!-- Необязательная вставка между текстом и кнопками: поле комментария к
+               решению по дополнению (#1685). Без переданного содержимого не рисуется
+               ничего, поэтому остальные вызовы окна выглядят как раньше. -->
+          <div
+            v-if="$slots.default"
+            class="modal-extra"
+          >
+            <slot />
           </div>
           <div class="modal-actions">
             <button
@@ -68,6 +78,14 @@ export default {
         show: {
             type: Boolean,
             default: false
+        },
+        // z-index оверлея. Дефолт 1000 - базовый слой модалок, как у BaseModal.
+        // Поднимать, когда подтверждение вызывается ИЗ другой модалки: та стоит на
+        // 1001+, и подтверждение на базовом слое оказывается под ней (окно вроде бы
+        // открылось, а на экране его нет).
+        zIndex: {
+            type: Number,
+            default: 1000
         }
     },
     emits: ['cancel', 'confirm'],
@@ -103,6 +121,8 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Фактическое значение приходит инлайном из пропа zIndex; правило оставлено
+     запасным на случай, если стиль не применился. */
   z-index: 1000;
   backdrop-filter: blur(0.1px);
   -webkit-backdrop-filter: blur(0.1px);
@@ -129,6 +149,10 @@ export default {
     color: var(--text-muted);
     margin-bottom: 20px;
     line-height: 1.4;
+}
+
+.modal-extra {
+    margin-bottom: 16px;
 }
 
 .modal-actions {

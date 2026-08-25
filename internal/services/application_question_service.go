@@ -92,6 +92,9 @@ func (s *applicationService) GetApplicationQuestions(ctx context.Context, applic
 		return questions, nil
 	}
 
+	// Логин вместо ФИО у авторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
+
 	ids := make([]int, 0, len(qRows))
 	idx := make(map[int]int, len(qRows))
 	for i, q := range qRows {
@@ -99,7 +102,7 @@ func (s *applicationService) GetApplicationQuestions(ctx context.Context, applic
 			ID:            q.ID,
 			ApplicationID: applicationID,
 			AuthorUserID:  q.AuthorUserID,
-			AuthorName:    q.AuthorName,
+			AuthorName:    maskName(masks, &q.AuthorUserID, q.AuthorName),
 			Subject:       q.Subject,
 			Text:          q.Text,
 			Attachments:   []QuestionAttachmentItem{},
@@ -136,7 +139,7 @@ func (s *applicationService) GetApplicationQuestions(ctx context.Context, applic
 				ID:           a.ID,
 				QuestionID:   a.QuestionID,
 				AuthorUserID: a.AuthorUserID,
-				AuthorName:   a.AuthorName,
+				AuthorName:   maskName(masks, &a.AuthorUserID, a.AuthorName),
 				Text:         a.Text,
 				CreatedAt:    a.CreatedAt,
 			})
@@ -330,7 +333,7 @@ func (s *applicationService) CreateApplicationQuestion(ctx context.Context, user
 		appNum := applicationNumberOrFallback(app.ApplicationNumber, applicationID)
 		authorName := formatFullName(user.LastName, user.FirstName, user.MiddleName)
 		payloadStr := questionNotificationPayload(applicationID, appNum, question.ID)
-		if err := s.notificationService.CreateForUser(ctx, app.SenderUserID, "application_question",
+		if err := s.notificationService.CreateForUser(ctx, app.SenderUserID, NotificationTypeApplicationQuestion,
 			"Новый вопрос по заявке",
 			fmt.Sprintf("%s задал(-а) вопрос по заявке %s: %s", authorName, appNum, subject),
 			&payloadStr); err != nil {
@@ -351,7 +354,7 @@ func (s *applicationService) CreateApplicationQuestion(ctx context.Context, user
 		}
 	}
 
-	s.notifyApplicationUpdated(ctx, applicationID)
+	s.notifyApplicationUpdated(ctx, applicationID, archiveDataUnchanged)
 
 	return &QuestionWithAnswers{
 		ID:            question.ID,
@@ -449,7 +452,7 @@ func (s *applicationService) CreateApplicationAnswer(ctx context.Context, userna
 			authorName := formatFullName(user.LastName, user.FirstName, user.MiddleName)
 			payloadStr := questionNotificationPayload(applicationID, appNum, questionID)
 			for _, rid := range recipientIDs {
-				if err := s.notificationService.CreateForUser(ctx, rid, "application_answer",
+				if err := s.notificationService.CreateForUser(ctx, rid, NotificationTypeApplicationAnswer,
 					"Новый ответ на вопрос",
 					fmt.Sprintf("%s ответил(-а) на вопрос «%s» по заявке %s", authorName, q.Subject, appNum),
 					&payloadStr); err != nil {
@@ -459,7 +462,7 @@ func (s *applicationService) CreateApplicationAnswer(ctx context.Context, userna
 		}
 	}
 
-	s.notifyApplicationUpdated(ctx, applicationID)
+	s.notifyApplicationUpdated(ctx, applicationID, archiveDataUnchanged)
 
 	return &AnswerItem{
 		ID:           answer.ID,

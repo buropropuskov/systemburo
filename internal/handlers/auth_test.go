@@ -3,7 +3,9 @@ package handlers_test
 import (
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -184,7 +186,7 @@ func TestLogin_Success(t *testing.T) {
 	assert.NotEmpty(t, refreshCookie.Value)
 	assert.True(t, refreshCookie.HttpOnly, "cookie должна быть HttpOnly")
 	assert.Equal(t, http.SameSiteStrictMode, refreshCookie.SameSite)
-	assert.Equal(t, "/", refreshCookie.Path)
+	assert.Equal(t, "/api", refreshCookie.Path, "cookie ходит только к API, не за картинками и не на pgAdmin")
 
 	assert.Equal(t, td.OrgID, *resp.OrganizationID)
 	assert.Equal(t, td.CompanyID, *resp.CompanyID)
@@ -208,8 +210,8 @@ func TestLogin_WrongPassword(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 	assert.Contains(t, rec.Body.String(), "Неверный логин или пароль")
 	// Существующий логин + неверный пароль -> остаток попыток до блокировки.
-	// Первая неудача: 10 - 1 = 9.
-	assert.Equal(t, "9", rec.Header().Get("X-Auth-Attempts-Remaining"))
+	// Первая неудача: 5 - 1 = 4.
+	assert.Equal(t, "4", rec.Header().Get("X-Auth-Attempts-Remaining"))
 }
 
 func TestLogin_NonexistentUser(t *testing.T) {
@@ -224,7 +226,7 @@ func TestLogin_NonexistentUser(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "Неверный логин или пароль")
 	// Несуществующий логин ТОЖЕ получает счётчик (per-IP guard) - тот же ответ, что
 	// и для существующего, иначе по наличию счётчика можно перебирать имена.
-	assert.Equal(t, "9", rec.Header().Get("X-Auth-Attempts-Remaining"))
+	assert.Equal(t, "4", rec.Header().Get("X-Auth-Attempts-Remaining"))
 }
 
 // --- POST /refresh-token ---
@@ -261,7 +263,11 @@ func TestRefreshToken_Success(t *testing.T) {
 	assert.NotEmpty(t, newRefreshCookie.Value)
 }
 
-func TestRefreshToken_BodyFallback(t *testing.T) {
+// Маркер продления принимается только из cookie. Раньше при её отсутствии он
+// читался из тела запроса - остаток тех времён, когда маркер отдавался клиенту в
+// JSON. Тест сторожит, что путь закрыт: тело с ДЕЙСТВИТЕЛЬНЫМ маркером сеанс не
+// продлевает.
+func TestRefreshToken_BodyIgnored(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -270,11 +276,18 @@ func TestRefreshToken_BodyFallback(t *testing.T) {
 	testutil.RegisterUser(t, e, "snakeuser", "pass123", 1, td.OrgID, td.CompanyID)
 	_, refreshToken := testutil.LoginUser(t, e, "snakeuser", "pass123")
 
-	// Fallback: если cookie нет, читаем из body snake_case.
 	body := `{"refresh_token":"` + refreshToken + `"}`
 	rec := testutil.POST(t, e, "/refresh-token", body, nil)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code, "тело запроса не должно продлевать сеанс")
 
-	assert.Equal(t, http.StatusOK, rec.Code)
+	// Тот же маркер в cookie работает - значит отказ выше про путь, а не про
+	// негодный маркер.
+	req := httptest.NewRequest(http.MethodPost, "/api/refresh-token", strings.NewReader("{}"))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: refreshToken})
+	viaCookie := httptest.NewRecorder()
+	e.ServeHTTP(viaCookie, req)
+	assert.Equal(t, http.StatusOK, viaCookie.Code, "cookie с тем же маркером должна продлевать сеанс")
 }
 
 func TestRefreshToken_InvalidToken(t *testing.T) {
@@ -543,7 +556,7 @@ func TestLogin_FailedLoginIncrementsCounter(t *testing.T) {
 	var user models.User
 	require.NoError(t, db.Where("username = ?", "lockuser").First(&user).Error)
 	assert.Equal(t, 1, user.FailedLoginCount)
-	assert.Nil(t, user.LockedUntil, "до 10 попыток lock не ставится")
+	assert.Nil(t, user.LockedUntil, "до 5 попыток lock не ставится")
 }
 
 func TestLogin_SuccessResetsFailedCounter(t *testing.T) {
@@ -570,7 +583,7 @@ func TestLogin_SuccessResetsFailedCounter(t *testing.T) {
 	assert.Nil(t, user.LockedUntil)
 }
 
-func TestLogin_BlocksAfter10FailedAttempts(t *testing.T) {
+func TestLogin_BlocksAfter5FailedAttempts(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -578,19 +591,180 @@ func TestLogin_BlocksAfter10FailedAttempts(t *testing.T) {
 
 	testutil.RegisterUser(t, e, "lockme", "correctpass", 1, td.OrgID, td.CompanyID)
 
-	// Попытки 1..9: счётчик убывает 9..1, статус 401.
-	for i := 1; i <= 9; i++ {
+	// Попытки 1..4: счётчик убывает 4..1, статус 401.
+	for i := 1; i <= 4; i++ {
 		rec := testutil.POST(t, e, "/login", `{"username":"lockme","password":"wrong"}`, nil)
 		require.Equal(t, http.StatusUnauthorized, rec.Code, "попытка %d", i)
-		assert.Equal(t, strconv.Itoa(10-i), rec.Header().Get("X-Auth-Attempts-Remaining"),
+		assert.Equal(t, strconv.Itoa(5-i), rec.Header().Get("X-Auth-Attempts-Remaining"),
 			"остаток на попытке %d", i)
 	}
 
-	// 10-я попытка исчерпывает лимит - сразу таймер блокировки (429), а не "осталось 0".
+	// 5-я попытка исчерпывает лимит - сразу таймер блокировки (429), а не "осталось 0".
 	rec := testutil.POST(t, e, "/login", `{"username":"lockme","password":"wrong"}`, nil)
 	require.Equal(t, http.StatusTooManyRequests, rec.Code)
-	assert.NotEmpty(t, rec.Header().Get("Retry-After"), "на 10-й неудаче сразу таймер")
+	assert.NotEmpty(t, rec.Header().Get("Retry-After"), "на 5-й неудаче сразу таймер")
 	assert.Empty(t, rec.Header().Get("X-Auth-Attempts-Remaining"), "при блокировке счётчик не отдаём")
+
+	// Первая ступень лестницы - минута, ступень поднята для следующего круга.
+	var user models.User
+	require.NoError(t, db.Where("username = ?", "lockme").First(&user).Error)
+	require.NotNil(t, user.LockedUntil)
+	assert.InDelta(t, 60, time.Until(*user.LockedUntil).Seconds(), 5, "первая блокировка - минута")
+	assert.Equal(t, 1, user.LockoutLevel)
+	assert.Equal(t, 0, user.FailedLoginCount, "после блокировки счётчик обнулён")
+}
+
+// TestLogin_LockoutLadderEscalates - каждый следующий круг из 5 неудач держит
+// учётку дольше предыдущего: 1 -> 5 -> 15 -> 30 -> 60 минут, дальше не растёт.
+func TestLogin_LockoutLadderEscalates(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "ladder", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	// Ожидаемые ступени в минутах; последняя повторяется - лестница упирается в час.
+	wantMinutes := []float64{1, 5, 15, 30, 60, 60}
+	for step, want := range wantMinutes {
+		// Отматываем уже поставленную блокировку в прошлое: ждать её вживую нельзя,
+		// а истёкший лок - ровно то состояние, в котором человек приходит за новым кругом.
+		require.NoError(t, db.Model(&models.User{}).Where("username = ?", "ladder").
+			Update("locked_until", time.Now().Add(-time.Second)).Error)
+
+		// Каждый круг - со своего адреса: per-IP гвард живёт в памяти и отдал бы
+		// свою плоскую минуту, не доходя до учётки (в жизни его минута к этому
+		// моменту уже истекла, здесь ждать её нечем).
+		round := http.Header{}
+		round.Set("X-Forwarded-For", fmt.Sprintf("203.0.113.%d", step+1))
+
+		for i := 1; i <= 5; i++ {
+			rec := testutil.POST(t, e, "/login", `{"username":"ladder","password":"wrong"}`, round)
+			// Пятая неудача круга даёт таймер, остальные - обычный отказ.
+			if i == 5 {
+				require.Equal(t, http.StatusTooManyRequests, rec.Code, "круг %d, попытка %d", step+1, i)
+			} else {
+				require.Equal(t, http.StatusUnauthorized, rec.Code, "круг %d, попытка %d", step+1, i)
+			}
+		}
+
+		var user models.User
+		require.NoError(t, db.Where("username = ?", "ladder").First(&user).Error)
+		require.NotNil(t, user.LockedUntil, "круг %d", step+1)
+		assert.InDelta(t, want, time.Until(*user.LockedUntil).Minutes(), 0.2,
+			"круг %d: блокировка на %v минут", step+1, want)
+	}
+}
+
+// TestLogin_SuccessResetsLockoutLadder - успешный вход опускает лестницу на первую
+// ступень: следующая серия опечаток снова стоит минуту, а не полчаса.
+func TestLogin_SuccessResetsLockoutLadder(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "climber", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	// Поднимаем лестницу на третью ступень и отпускаем блокировку.
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "climber").
+		Updates(map[string]interface{}{
+			"lockout_level":        3,
+			"locked_until":         time.Now().Add(-time.Second),
+			"last_failed_login_at": time.Now().Add(-time.Minute),
+		}).Error)
+
+	rec := testutil.POST(t, e, "/login", `{"username":"climber","password":"correctpass"}`, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var user models.User
+	require.NoError(t, db.Where("username = ?", "climber").First(&user).Error)
+	assert.Equal(t, 0, user.LockoutLevel, "успешный вход обнуляет ступень")
+	assert.Nil(t, user.LastFailedLoginAt)
+}
+
+// TestLogin_StaleFailuresDoNotAccumulate - неудачи старше окна не копятся:
+// четыре опечатки утром и одна вечером не должны запирать учётку.
+func TestLogin_StaleFailuresDoNotAccumulate(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "forgetful", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	// Состояние "четыре неудачи, но давно".
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "forgetful").
+		Updates(map[string]interface{}{
+			"failed_login_count":   4,
+			"last_failed_login_at": time.Now().Add(-time.Hour),
+		}).Error)
+
+	rec := testutil.POST(t, e, "/login", `{"username":"forgetful","password":"wrong"}`, nil)
+	require.Equal(t, http.StatusUnauthorized, rec.Code, "давние неудачи не должны запирать")
+
+	var user models.User
+	require.NoError(t, db.Where("username = ?", "forgetful").First(&user).Error)
+	assert.Equal(t, 1, user.FailedLoginCount, "счётчик начат заново")
+	assert.Nil(t, user.LockedUntil)
+}
+
+// TestLogin_LadderDecaysAfterQuietDay - сутки без неудач возвращают лестницу
+// на первую ступень: старая блокировка не встречает человека сразу часом.
+func TestLogin_LadderDecaysAfterQuietDay(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "longago", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "longago").
+		Updates(map[string]interface{}{
+			"lockout_level":        4,
+			"failed_login_count":   0,
+			"last_failed_login_at": time.Now().Add(-48 * time.Hour),
+		}).Error)
+
+	for i := 1; i <= 5; i++ {
+		testutil.POST(t, e, "/login", `{"username":"longago","password":"wrong"}`, nil)
+	}
+
+	var user models.User
+	require.NoError(t, db.Where("username = ?", "longago").First(&user).Error)
+	require.NotNil(t, user.LockedUntil)
+	assert.InDelta(t, 60, time.Until(*user.LockedUntil).Seconds(), 5,
+		"после суток тишины блокировка снова минутная")
+	assert.Equal(t, 1, user.LockoutLevel)
+}
+
+// TestLogin_LockTimerBeatsIPTimer - когда учётка заперта дольше, чем адрес,
+// пользователю показывается больший остаток: меньший обещал бы вход раньше срока.
+func TestLogin_LockTimerBeatsIPTimer(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "longlock", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	// Учётка уже на четвёртой ступени (следующая блокировка - полчаса). Отметка
+	// последней неудачи обязательна: без неё ступень считается протухшей и падает.
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "longlock").
+		Updates(map[string]interface{}{
+			"lockout_level":        3,
+			"last_failed_login_at": time.Now(),
+		}).Error)
+
+	var rec *httptest.ResponseRecorder
+	for i := 1; i <= 5; i++ {
+		rec = testutil.POST(t, e, "/login", `{"username":"longlock","password":"wrong"}`, nil)
+	}
+	require.Equal(t, http.StatusTooManyRequests, rec.Code)
+
+	retryAfter, err := strconv.Atoi(rec.Header().Get("Retry-After"))
+	require.NoError(t, err)
+	assert.Greater(t, retryAfter, 60, "таймер учётки (30 минут), а не минута адреса")
 }
 
 // TestLogin_NonexistentUserAlsoBlocks - несуществующий логин ведёт тот же per-IP
@@ -600,10 +774,10 @@ func TestLogin_NonexistentUserAlsoBlocks(t *testing.T) {
 	defer cleanup()
 	testutil.CleanDB(t, db)
 
-	for i := 1; i <= 9; i++ {
+	for i := 1; i <= 4; i++ {
 		rec := testutil.POST(t, e, "/login", `{"username":"ghost","password":"x"}`, nil)
 		require.Equal(t, http.StatusUnauthorized, rec.Code, "попытка %d", i)
-		assert.Equal(t, strconv.Itoa(10-i), rec.Header().Get("X-Auth-Attempts-Remaining"),
+		assert.Equal(t, strconv.Itoa(5-i), rec.Header().Get("X-Auth-Attempts-Remaining"),
 			"счётчик и для несуществующего логина, попытка %d", i)
 	}
 	rec := testutil.POST(t, e, "/login", `{"username":"ghost","password":"x"}`, nil)
@@ -625,12 +799,12 @@ func TestLogin_ExpiredLockResetsCounter(t *testing.T) {
 	// Истёкшая блокировка + счётчик на пороге (состояние после отбытой минуты).
 	pastLock := time.Now().Add(-1 * time.Second)
 	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "trapme").
-		Updates(map[string]interface{}{"locked_until": pastLock, "failed_login_count": 10}).Error)
+		Updates(map[string]interface{}{"locked_until": pastLock, "failed_login_count": 5}).Error)
 
 	rec := testutil.POST(t, e, "/login", `{"username":"trapme","password":"wrong"}`, nil)
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
-	assert.Equal(t, "9", rec.Header().Get("X-Auth-Attempts-Remaining"),
-		"свежий цикл: 10 - 1 = 9, а не мгновенный ре-лок")
+	assert.Equal(t, "4", rec.Header().Get("X-Auth-Attempts-Remaining"),
+		"свежий цикл: 5 - 1 = 4, а не мгновенный ре-лок")
 
 	var user models.User
 	require.NoError(t, db.Where("username = ?", "trapme").First(&user).Error)
@@ -654,7 +828,7 @@ func TestLogin_LockedAccountRejectsEvenCorrectPassword(t *testing.T) {
 	// Даже правильный пароль возвращает 429 пока lock не истечёт.
 	rec := testutil.POST(t, e, "/login", `{"username":"locked","password":"correctpass"}`, nil)
 	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
-	assert.Contains(t, rec.Body.String(), "заблокирована")
+	assert.Contains(t, rec.Body.String(), "Вход заблокирован")
 	// Retry-After даёт фронту остаток для таймера обратного отсчёта.
 	assert.NotEmpty(t, rec.Header().Get("Retry-After"), "блокировка учётки должна отдавать Retry-After")
 }
@@ -670,7 +844,7 @@ func TestLogin_ExpiredLockAllowsLogin(t *testing.T) {
 	// Lock в прошлом - не должен препятствовать входу.
 	pastLock := time.Now().Add(-1 * time.Minute)
 	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "unlocked").
-		Updates(map[string]interface{}{"locked_until": pastLock, "failed_login_count": 10}).Error)
+		Updates(map[string]interface{}{"locked_until": pastLock, "failed_login_count": 5}).Error)
 
 	rec := testutil.POST(t, e, "/login", `{"username":"unlocked","password":"correctpass"}`, nil)
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -680,6 +854,202 @@ func TestLogin_ExpiredLockAllowsLogin(t *testing.T) {
 	require.NoError(t, db.Where("username = ?", "unlocked").First(&user).Error)
 	assert.Equal(t, 0, user.FailedLoginCount)
 	assert.Nil(t, user.LockedUntil)
+}
+
+// TestLogin_BlockedIPStillShowsLongerAccountTimer - когда заперты и адрес, и
+// учётка, отдаётся больший срок. Меньший обещал бы вход раньше, чем он откроется:
+// человек досидел бы минуту адреса и упёрся в ту же плашку.
+func TestLogin_BlockedIPStillShowsLongerAccountTimer(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "bothlocked", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	from := http.Header{}
+	from.Set("X-Forwarded-For", "192.0.2.55")
+	// Пять неудач запирают адрес на минуту и учётку на первую ступень.
+	for i := 1; i <= 5; i++ {
+		testutil.POST(t, e, "/login", `{"username":"bothlocked","password":"wrong"}`, from)
+	}
+	// Учётку удлиняем до получаса - как если бы это был не первый её круг.
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "bothlocked").
+		Update("locked_until", time.Now().Add(30*time.Minute)).Error)
+
+	rec := testutil.POST(t, e, "/login", `{"username":"bothlocked","password":"correctpass"}`, from)
+	require.Equal(t, http.StatusTooManyRequests, rec.Code)
+	retryAfter, err := strconv.Atoi(rec.Header().Get("Retry-After"))
+	require.NoError(t, err)
+	assert.Greater(t, retryAfter, 60, "срок учётки, а не минута адреса")
+}
+
+// TestLogin_LockoutMessageSameForUnknownUser - текст блокировки не отличает
+// существующий логин от выдуманного, иначе по нему можно перебирать имена.
+func TestLogin_LockoutMessageSameForUnknownUser(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "real", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	lockedBody := func(username, ip string) string {
+		h := http.Header{}
+		h.Set("X-Forwarded-For", ip)
+		var rec *httptest.ResponseRecorder
+		for i := 1; i <= 5; i++ {
+			rec = testutil.POST(t, e, "/login",
+				fmt.Sprintf(`{"username":%q,"password":"wrong"}`, username), h)
+		}
+		require.Equal(t, http.StatusTooManyRequests, rec.Code, "логин %s", username)
+		return rec.Body.String()
+	}
+
+	assert.Equal(t, lockedBody("real", "192.0.2.71"), lockedBody("ghost", "192.0.2.72"),
+		"ответ на исчерпание попыток одинаков для существующего и выдуманного логина")
+}
+
+// --- Сброс блокировки входа из админки (#1600) ---
+
+// TestResetLockout_UnlocksAccount - после сброса заблокированный входит сразу,
+// не дожидаясь конца кулдауна, а лестница возвращается на первую ступень.
+func TestResetLockout_UnlocksAccount(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	testutil.RegisterUser(t, e, "stuck", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	// Человек залочен на полчаса и стоит на четвёртой ступени.
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "stuck").
+		Updates(map[string]interface{}{
+			"locked_until":         time.Now().Add(30 * time.Minute),
+			"lockout_level":        3,
+			"failed_login_count":   0,
+			"last_failed_login_at": time.Now(),
+		}).Error)
+
+	// До сброса даже верный пароль не пускает.
+	rec := testutil.POST(t, e, "/login", `{"username":"stuck","password":"correctpass"}`, nil)
+	require.Equal(t, http.StatusTooManyRequests, rec.Code)
+
+	rec = testutil.POST(t, e, "/users/stuck/reset-lockout", "", testutil.AuthHeader(adminToken))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, true, testutil.ParseMap(t, rec)["reset"])
+
+	var user models.User
+	require.NoError(t, db.Where("username = ?", "stuck").First(&user).Error)
+	assert.Nil(t, user.LockedUntil)
+	assert.Equal(t, 0, user.LockoutLevel, "лестница опущена на первую ступень")
+	assert.Nil(t, user.LastFailedLoginAt)
+
+	// И вход открывается тем же паролем.
+	rec = testutil.POST(t, e, "/login", `{"username":"stuck","password":"correctpass"}`, nil)
+	assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+}
+
+// TestResetLockout_ClearsIPGuard - сброс снимает и блокировку адреса, с которого
+// человек ошибался: иначе лок с учётки снят, а войти всё равно нельзя.
+func TestResetLockout_ClearsIPGuard(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	testutil.RegisterUser(t, e, "typist", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	from := http.Header{}
+	from.Set("X-Forwarded-For", "198.51.100.7")
+	for i := 1; i <= 5; i++ {
+		testutil.POST(t, e, "/login", `{"username":"typist","password":"wrong"}`, from)
+	}
+	// Адрес заперт: верный пароль не проходит.
+	rec := testutil.POST(t, e, "/login", `{"username":"typist","password":"correctpass"}`, from)
+	require.Equal(t, http.StatusTooManyRequests, rec.Code)
+
+	rec = testutil.POST(t, e, "/users/typist/reset-lockout", "", testutil.AuthHeader(adminToken))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = testutil.POST(t, e, "/login", `{"username":"typist","password":"correctpass"}`, from)
+	assert.Equal(t, http.StatusOK, rec.Code, "с того же адреса вход открылся: %s", rec.Body.String())
+}
+
+// TestResetLockout_NothingToReset - на незаблокированном сброс отвечает reset=false
+// и не пишет событие: администратор не должен видеть в журнале пустые срабатывания.
+func TestResetLockout_NothingToReset(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	testutil.RegisterUser(t, e, "clean", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	rec := testutil.POST(t, e, "/users/clean/reset-lockout", "", testutil.AuthHeader(adminToken))
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, false, testutil.ParseMap(t, rec)["reset"])
+
+	var events int64
+	require.NoError(t, db.Model(&models.AuthEvent{}).
+		Where("username = ? AND event_type = ?", "clean", models.AuthEventLockoutReset).
+		Count(&events).Error)
+	assert.Zero(t, events, "пустой сброс не пишет событие")
+}
+
+// TestResetLockout_RecordsAuthEvent - снятие видно в истории входов рядом с самой
+// блокировкой, с указанием, кто снял.
+func TestResetLockout_RecordsAuthEvent(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	testutil.RegisterUser(t, e, "logged", "correctpass", 1, td.OrgID, td.CompanyID)
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "logged").
+		Update("locked_until", time.Now().Add(time.Hour)).Error)
+
+	rec := testutil.POST(t, e, "/users/logged/reset-lockout", "", testutil.AuthHeader(adminToken))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var ev models.AuthEvent
+	require.NoError(t, db.Where("username = ? AND event_type = ?", "logged", models.AuthEventLockoutReset).
+		First(&ev).Error)
+	assert.True(t, ev.Success)
+	assert.Contains(t, ev.Detail, "testadmin", "в детали виден снявший блокировку")
+}
+
+// TestResetLockout_RequiresUsersPermission - обычный пользователь снять блокировку
+// не может: эндпоинт под тем же гейтом, что и остальное управление учётками.
+func TestResetLockout_RequiresUsersPermission(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "plain", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.RegisterUser(t, e, "victim", "pass123", 1, td.OrgID, td.CompanyID)
+	token, _ := testutil.LoginUser(t, e, "plain", "pass123")
+
+	rec := testutil.POST(t, e, "/users/victim/reset-lockout", "", testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+}
+
+// TestResetLockout_UnknownUser - несуществующий логин даёт 404, а не молчаливый успех.
+func TestResetLockout_UnknownUser(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	rec := testutil.POST(t, e, "/users/призрак/reset-lockout", "", testutil.AuthHeader(adminToken))
+	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 
 // --- Refresh token family invalidation (P0.1) ---

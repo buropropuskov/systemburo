@@ -10,61 +10,90 @@
       </div>
 
       <template
-        v-for="node in section.nodes"
-        :key="node.key"
+        v-for="entry in section.entries"
+        :key="entry.id"
       >
         <div
-          class="ep-row"
-          :class="{ 'ep-row--locked': stateOf(node.key).locked }"
-          :data-key="node.key"
+          v-if="entry.type === 'table'"
+          class="ep-group"
+          :data-table="entry.slug"
         >
-          <span class="ep-row__label">
-            {{ node.display_name }}
-            <small v-if="node.super_only">только Системный администратор</small>
-          </span>
-          <span
-            v-if="badgeFor(node.key)"
-            class="src"
-            :class="`src--${badgeFor(node.key)}`"
+          <div class="ep-group__head">
+            <button
+              type="button"
+              class="ep-group__toggle"
+              :aria-expanded="isOpen(entry) ? 'true' : 'false'"
+              :aria-controls="entry.domId"
+              :aria-label="`${entry.name}: выдано ${entry.granted} из ${entry.total}`"
+              @click="toggleGroup(entry.id)"
+            >
+              <svg
+                class="ep-group__chevron"
+                :class="{ 'ep-group__chevron--open': isOpen(entry) }"
+                width="10"
+                height="10"
+                viewBox="0 0 10 10"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M3 1.5L6.5 5L3 8.5"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <span class="ep-group__name">{{ entry.name }}</span>
+              <span class="ep-group__count">{{ entry.granted }} из {{ entry.total }}</span>
+            </button>
+            <button
+              v-if="entry.togglable"
+              type="button"
+              class="ep-group__all"
+              @click="toggleAll(entry)"
+            >
+              {{ entry.allOn ? 'Снять все' : 'Выбрать все' }}
+            </button>
+          </div>
+
+          <div
+            class="ep-group__body"
+            :class="{ 'ep-group__body--open': isOpen(entry) }"
           >
-            {{ srcLabel(badgeFor(node.key)) }}
-          </span>
-          <button
-            type="button"
-            class="tgl"
-            :class="{ on: stateOf(node.key).on, locked: stateOf(node.key).locked }"
-            :disabled="stateOf(node.key).locked"
-            :aria-pressed="stateOf(node.key).on"
-            :aria-label="node.display_name"
-            @click="onToggle(node.key)"
-          />
+            <div
+              :id="entry.domId"
+              class="ep-group__inner"
+              :inert="isOpen(entry) ? null : true"
+            >
+              <EffectivePermissionRow
+                v-for="verb in entry.nodes"
+                :key="verb.node.key"
+                :node="verb.node"
+                :state="stateOf(verb.node.key)"
+                :label="verb.label"
+                modifier="verb"
+                @toggle="onToggle"
+              />
+            </div>
+          </div>
         </div>
 
-        <div
-          v-for="child in node.children || []"
-          :key="child.key"
-          class="ep-row ep-row--child"
-          :class="{ 'ep-row--locked': stateOf(child.key).locked }"
-          :data-key="child.key"
-        >
-          <span class="ep-row__label">{{ child.display_name }}</span>
-          <span
-            v-if="badgeFor(child.key)"
-            class="src"
-            :class="`src--${badgeFor(child.key)}`"
-          >
-            {{ srcLabel(badgeFor(child.key)) }}
-          </span>
-          <button
-            type="button"
-            class="tgl"
-            :class="{ on: stateOf(child.key).on, locked: stateOf(child.key).locked }"
-            :disabled="stateOf(child.key).locked"
-            :aria-pressed="stateOf(child.key).on"
-            :aria-label="child.display_name"
-            @click="onToggle(child.key)"
+        <template v-else>
+          <EffectivePermissionRow
+            :node="entry.node"
+            :state="stateOf(entry.node.key)"
+            @toggle="onToggle"
           />
-        </div>
+          <EffectivePermissionRow
+            v-for="child in entry.node.children || []"
+            :key="child.key"
+            :node="child"
+            :state="stateOf(child.key)"
+            modifier="child"
+            @toggle="onToggle"
+          />
+        </template>
       </template>
     </section>
 
@@ -78,28 +107,36 @@
 </template>
 
 <script>
-const SRC_LABELS = {
-  role: 'роль',
-  group: 'группа',
-  override: 'лично',
-  admin: 'админ',
-};
+import EffectivePermissionRow from './EffectivePermissionRow.vue';
+import { parseTableKey, parseTablePermission } from '@/utils/permissionCatalog';
 
 /**
  * Презентационный правый столбец модалки прав: дерево эффективных прав из каталога
  * с бейджем источника (роль/группа/лично/админ) и тумблером на каждое право.
  * Вся бизнес-логика (режим/наследование/override) считается в UserAccessModal и
- * приходит готовой в stateByKey -- здесь только отрисовка. Изолирован от
- * PermissionTree.vue (тот шарится с AdminPermissionGroups в checkbox-виде).
+ * приходит готовой в stateByKey -- здесь только отрисовка.
+ *
+ * Права системных таблиц (table.<slug>.<verb>) собираются во второй уровень: на
+ * таблицу их приходит десяток, и плоским списком один пост занимал 20 строк
+ * прокрутки (#1880). Статические категории раскрыты всегда, свёрнуты только
+ * таблицы; expandAll раскрывает всё принудительно -- потребители включают его на
+ * время поиска, чтобы найденное право было видно и кликабельно сразу.
  */
 export default {
   name: 'EffectivePermissionsTree',
+  components: { EffectivePermissionRow },
   props: {
     catalog: { type: Array, default: () => [] },
     // key -> { on: boolean, source: 'role'|'group'|'override'|'admin'|null, locked: boolean }
     stateByKey: { type: Object, default: () => ({}) },
+    expandAll: { type: Boolean, default: false },
   },
   emits: ['toggle'],
+  data() {
+    return {
+      openGroups: new Set(),
+    };
+  },
   computed: {
     sections() {
       const order = [];
@@ -112,19 +149,105 @@ export default {
         }
         byCat.get(cat).push(node);
       }
-      return order.map((category) => ({ category, nodes: byCat.get(category) }));
+      return order.map((category) => ({
+        category,
+        entries: this.buildEntries(byCat.get(category)),
+      }));
     },
   },
   methods: {
     stateOf(key) {
       return this.stateByKey[key] || { on: false, source: null, locked: false };
     },
-    badgeFor(key) {
-      const st = this.stateOf(key);
-      return st.on ? st.source : null;
+    /**
+     * Строки секции: право таблицы уходит в группу по слагу (позицию занимает
+     * первое право этой таблицы), всё остальное остаётся строкой верхнего уровня.
+     *
+     * Группа собирается по слагу из ключа, а не по успеху полного разбора: право
+     * с глаголом вне словаря (в базе живут legacy `table.<slug>.edit`) иначе
+     * висело бы отдельной строкой рядом со своей же таблицей, и администратор
+     * читал бы её как поломку. Такому праву достаётся пустая подпись -- строка
+     * покажет display_name от бэкенда, единственный источник смысла для
+     * незнакомого глагола. Слаг из ключа не выводится -- строка остаётся наверху.
+     */
+    buildEntries(nodes) {
+      const entries = [];
+      const groups = new Map();
+      for (const node of nodes) {
+        const parsed = parseTableKey(node.key);
+        if (!parsed) {
+          entries.push({ type: 'node', id: node.key, node });
+          continue;
+        }
+        const table = parseTablePermission(node);
+        let group = groups.get(parsed.slug);
+        if (!group) {
+          group = {
+            type: 'table',
+            id: `table::${parsed.slug}`,
+            domId: `ep-group-${parsed.slug.replace(/[^a-zA-Z0-9_-]/g, '-')}`,
+            slug: parsed.slug,
+            name: '',
+            nodes: [],
+          };
+          groups.set(parsed.slug, group);
+          entries.push(group);
+        }
+        if (!group.name && table) group.name = table.tableName;
+        group.nodes.push({ node, label: table ? table.verbTitle : '' });
+      }
+      for (const group of groups.values()) {
+        // Ни одно право таблицы не разобралось целиком -- живого имени взять
+        // неоткуда, показываем слаг: он хотя бы совпадает с ключами внутри.
+        if (!group.name) group.name = group.slug;
+        this.countGroup(group);
+      }
+      return entries;
     },
-    srcLabel(source) {
-      return SRC_LABELS[source] || source;
+    /**
+     * Счётчик группы. Заблокированные права идут в «выдано» (они действуют, просто
+     * приходят из роли или группы), но не в число переключаемых. Знаменатель --
+     * число прав этой таблицы, реально пришедших в catalog, а не длина словаря
+     * глаголов: новый глагол на бэкенде увеличивает его сам, а при активном поиске
+     * счётчик описывает ровно видимые строки, а не всю таблицу.
+     */
+    countGroup(group) {
+      let granted = 0;
+      let togglable = 0;
+      let togglableOn = 0;
+      for (const { node } of group.nodes) {
+        const st = this.stateOf(node.key);
+        if (st.on) granted += 1;
+        if (!st.locked) {
+          togglable += 1;
+          if (st.on) togglableOn += 1;
+        }
+      }
+      group.granted = granted;
+      group.total = group.nodes.length;
+      group.togglable = togglable;
+      group.allOn = togglable > 0 && togglableOn === togglable;
+    },
+    isOpen(group) {
+      return this.expandAll || this.openGroups.has(group.id);
+    },
+    toggleGroup(id) {
+      const next = new Set(this.openGroups);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      this.openGroups = next;
+    },
+    /**
+     * «Выбрать все» по таблице. Заблокированные права пропускаем -- их снимают
+     * только там, откуда они пришли; уже полный набор клик снимает.
+     */
+    toggleAll(group) {
+      const turnOn = !group.allOn;
+      for (const { node } of group.nodes) {
+        const st = this.stateOf(node.key);
+        if (st.locked || st.on === turnOn) continue;
+        this.$emit('toggle', node.key);
+      }
     },
     onToggle(key) {
       if (this.stateOf(key).locked) return;
@@ -154,100 +277,98 @@ export default {
   border-bottom: 1px solid var(--color-border);
 }
 
-.ep-row {
+/* --- Свёрнутая таблица --------------------------------------------------- */
+.ep-group {
+  margin: 6px 0;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.ep-group__head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 9px 6px;
-  border-radius: 12px;
-  transition: background 0.12s ease;
+  gap: 8px;
+  padding: 4px 10px 4px 6px;
 }
 
-.ep-row:hover {
-  background: var(--color-bg);
-}
-
-.ep-row--child {
-  padding-left: 26px;
-}
-
-.ep-row--child .ep-row__label {
-  font-size: 13px;
-  color: var(--accent-text);
-}
-
-.ep-row--locked {
-  opacity: 0.65;
-}
-
-.ep-row__label {
+.ep-group__toggle {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 4px;
+  border: none;
+  background: transparent;
+  font-family: inherit;
   font-size: 14px;
-  font-weight: 500;
-}
-
-.ep-row__label small {
-  display: block;
-  font-size: 11.5px;
-  color: var(--color-text-muted);
-  font-weight: 500;
-  margin-top: 1px;
-}
-
-.src {
-  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  padding: 2px 8px;
-  border-radius: var(--radius-pill);
-  text-transform: lowercase;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ep-group__chevron {
+  flex: none;
+  color: var(--color-text-muted);
+  transition: transform 0.2s ease;
+}
+
+.ep-group__chevron--open {
+  transform: rotate(90deg);
+}
+
+.ep-group__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.src--role { background: #eef0f6; color: #6b7280; }
-.src--group { background: var(--color-primary-tint); color: var(--accent-text); }
-.src--override { background: #fff4e3; color: #e8870c; }
-.src--admin { background: #e9f9ef; color: var(--success-text); }
-
-.tgl {
-  --w: 40px;
-  --h: 23px;
-  --d: 17px;
-  width: var(--w);
-  height: var(--h);
+.ep-group__count {
   flex: none;
-  border-radius: var(--radius-pill);
-  background: var(--border);
-  position: relative;
-  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.ep-group__all {
+  flex: none;
   border: none;
-  padding: 0;
-  transition: background 0.2s ease;
+  background: transparent;
+  padding: 6px 10px;
+  border-radius: var(--radius-pill);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-text);
+  cursor: pointer;
+  transition: background 0.15s ease;
 }
 
-.tgl::after {
-  content: '';
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: var(--d);
-  height: var(--d);
-  border-radius: 50%;
-  background: var(--surface);
-  box-shadow: 0 1px 3px var(--shadow-drop);
-  transition: left 0.2s ease;
-}
-
-.tgl.on { background: var(--color-primary); }
-.tgl.on::after { left: calc(var(--w) - var(--d) - 3px); }
-
-.tgl.locked {
+.ep-group__all:hover {
   background: var(--accent-tint);
-  cursor: not-allowed;
-  opacity: 0.7;
 }
 
-.tgl.locked.on { background: #b9bedd; }
+/* Раскрытие через grid-template-rows 0fr<->1fr, как выпадающие списки NavMenu:
+   высота анимируется плавно и двигает то, что ниже. */
+.ep-group__body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.22s ease;
+}
+
+.ep-group__body--open {
+  grid-template-rows: 1fr;
+}
+
+/* Ни padding, ни margin: box-sizing здесь content-box, и они пережили бы
+   схлопывание строки грида видимой полосой. Отступы несут сами строки. */
+.ep-group__inner {
+  overflow: hidden;
+  min-height: 0;
+}
 
 .ep-empty {
   color: var(--color-text-muted);

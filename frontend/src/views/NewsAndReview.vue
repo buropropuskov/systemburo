@@ -7,13 +7,16 @@
           class="news-container"
           data-testid="ob-news"
         >
-          <div class="news-header">
+          <div
+            class="news-header"
+            data-testid="ob-news-head"
+          >
             <h2 class="news-title">
               <span class="news-title__full">Последние новости</span>
               <span class="news-title__short">Новости</span>
             </h2>
             <div class="header-actions">
-              <OnboardingButton />
+              <OnboardingMenu />
               <RefreshButton @refresh="fetchAllData" />
             </div>
           </div>
@@ -272,12 +275,15 @@ import { useDeletionsStore } from '@/stores/deletions'
 import { sanitizeHtml } from '@/utils/sanitize.js'
 import DocumentsBlock from '../components/news/DocumentsBlock.vue'
 import WorkModesModal from '../components/news/WorkModesModal.vue'
-import OnboardingButton from '../components/onboarding/OnboardingButton.vue'
+import OnboardingMenu from '../components/onboarding/OnboardingMenu.vue'
 import { ref } from 'vue'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
+import { useOnboardingStore } from '@/stores/onboarding'
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
   name: 'LatestNews',
+  mixins: [openFromSearchLink((vm) => vm.newsItems, 'openNewsModal')],
   components: {
     RefreshButton,
     AnnouncementModal,
@@ -285,7 +291,7 @@ export default {
     UserGuideModal,
     DocumentsBlock,
     WorkModesModal,
-    OnboardingButton,
+    OnboardingMenu,
   },
   setup() {
     // Читалка новости на мобилке - bottom-sheet со свайп-вниз-закрытием (W3.4).
@@ -316,6 +322,7 @@ export default {
       onSheetTouchStart: swipe.onTouchStart,
       onSheetTouchMove: swipe.onTouchMove,
       onSheetTouchEnd: swipe.onTouchEnd,
+      onboardingStore: useOnboardingStore(),
     }
   },
   data() {
@@ -324,6 +331,8 @@ export default {
       showViewAnnouncementModal: false,
       showGuide: false,
       showModes: false,
+      // Расписание открыл тур - только такое окно он и закрывает за собой.
+      modesOpenedByTour: false,
       viewingAnnouncement: null,
       newsItems: [],
       activeAnnouncement: null,
@@ -352,7 +361,25 @@ export default {
     }
     eventStream.disconnect()
   },
+  watch: {
+    /**
+     * Онбординг просит показать расписание: открываем окно режимов работы по
+     * сигналу и закрываем, когда сигнал гаснет. Чужое окно не трогаем.
+     */
+    'onboardingStore.revealOpen'(target) {
+      if (target === 'work-modes') {
+        if (this.showModes) return
+        this.modesOpenedByTour = true
+        this.showModes = true
+        return
+      }
+      if (!this.modesOpenedByTour) return
+      this.modesOpenedByTour = false
+      this.showModes = false
+    },
+  },
   methods: {
+
     sanitizeHtml,
     handleEscKey(e) {
       if (e.key === 'Escape' && this.showNewsDetailsModal) this.closeNewsDetailsModal()
@@ -376,6 +403,7 @@ export default {
       try {
         const response = await apiRequest('/news')
         if (response.ok) this.newsItems = await response.json()
+        this.openFromSearchLink()
       } catch (error) { console.error('Ошибка загрузки новостей:', error) }
       finally { this.loadingNews = false }
     },
@@ -459,10 +487,11 @@ export default {
   100% { transform: rotate(360deg); }
 }
 
+/* Фон не задаём: это страница, её фон - --bg от body. Своя заливка в --surface делала
+   «Обзор и новости» единственным экраном с карточным цветом во всю площадь. */
 .news {
     padding: 20px;
     font-family: 'Montserrat', sans-serif;
-    background: var(--surface);
 }
 
 .content-wrapper {

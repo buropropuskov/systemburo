@@ -6,6 +6,10 @@ type Item struct {
 	ID           int        `json:"id"`
 	AttachmentID int        `gorm:"index" json:"attachment_id"`
 	Attachment   Attachment `gorm:"constraint:OnDelete:CASCADE" json:"-"`
+	// SupplementID - каким дополнением заявки добавлена позиция ТМЦ (#1685). NULL - пришла
+	// с исходной подачей. У items, в отличие от машин и сотрудников, нет поля status:
+	// невидимость непринятых держится только фильтрами читателей по этой колонке.
+	SupplementID *int       `gorm:"index" json:"supplement_id"`
 	Name         *string    `gorm:"size:255" json:"name"`
 	Count        *int       `json:"count"`
 	DateCreated  *time.Time `json:"date_created"`

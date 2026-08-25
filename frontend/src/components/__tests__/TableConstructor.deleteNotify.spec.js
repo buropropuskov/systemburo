@@ -36,7 +36,7 @@ function mountC() {
         SystemTableHistoryModal: true,
         ConfirmationModal: true,
       },
-      mocks: { $router: { push: vi.fn() } },
+      mocks: { $router: { push: vi.fn(), replace: vi.fn().mockResolvedValue(undefined) } },
     },
   });
   return { wrapper, notify };

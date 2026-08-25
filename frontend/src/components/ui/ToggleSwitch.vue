@@ -82,7 +82,6 @@ export default {
   height: 16px;
   border-radius: 50%;
   background: var(--surface);
-  box-shadow: 0 1px 3px var(--shadow-drop);
   transition: transform 0.2s ease;
 }
 

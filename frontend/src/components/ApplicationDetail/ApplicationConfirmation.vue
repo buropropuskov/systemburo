@@ -33,10 +33,20 @@
     >
       <h5>Ответственные за согласование ({{ sortedResponsibleUsers.length }}):</h5>
       <div class="users-list">
+        <!-- Строка согласующего открывает его карточку (#1952). Роль и клавиатура
+             заданы руками: <button> сюда не годится - внутри блочная разметка с
+             бейджами и комментарием, которую кнопке иметь нельзя. -->
         <div
           v-for="user in sortedResponsibleUsers"
           :key="user.id"
           class="user-item"
+          data-testid="app-confirmation-user"
+          role="button"
+          tabindex="0"
+          :aria-label="`Открыть карточку: ${getUserDisplayName(user)}`"
+          @click="$emit('select-user', user)"
+          @keydown.enter.prevent="$emit('select-user', user)"
+          @keydown.space.prevent="$emit('select-user', user)"
         >
           <!-- ФИО -->
           <div class="user-name-block">
@@ -103,6 +113,7 @@
 <script>
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import { isAwaitingApproval, approverSilenceDays, approverSilenceLabel } from '@/utils/pendingApproval'
+import { useApprovalStatus } from '@/composables/useApprovalStatus'
 
 export default {
     name: 'ApplicationConfirmation',
@@ -124,6 +135,14 @@ export default {
             type: Boolean,
             default: false
         }
+    },
+    // select-user - клик по согласующему. Карточку открывает родитель: контакты и
+    // роли лежат в ответе /applications/:id/participants, которого у этого блока нет.
+    emits: ['select-user'],
+    // Словарь голосов согласующих общий с панелью раундов дополнения (#1685) -
+    // getStatusText/getStatusClass приходят оттуда под теми же именами, что были методами.
+    setup() {
+        return useApprovalStatus();
     },
     computed: {
         sortedResponsibleUsers() {
@@ -165,24 +184,6 @@ export default {
         getUserDisplayName(user) {
             const names = [user.last_name, user.first_name, user.middle_name].filter(Boolean);
             return names.length > 0 ? names.join(' ') : user.username;
-        },
-        
-        getStatusText(status) {
-            const statusMap = {
-                'approved': 'Согласовано',
-                'rejected': 'Отказано',
-                'pending': 'Ожидание'
-            };
-            return statusMap[status] || 'Неизвестно';
-        },
-        
-        getStatusClass(status) {
-            const classes = {
-                'approved': 'status-approved',
-                'rejected': 'status-rejected',
-                'pending': 'status-pending'
-            };
-            return classes[status] || 'status-default';
         },
         
         formatDateTime(dateTimeString) {
@@ -263,6 +264,13 @@ export default {
     margin-bottom: 20px;
 }
 
+/* Список согласующих скрыт, когда их нет: тогда последним остаётся блок выше, и его
+   margin-bottom складывался с padding секции в пустоту снизу (#1587). Зазоры между
+   блоками при этом сохраняются - обнуляется только последний. */
+.confirmation-section > *:last-child {
+    margin-bottom: 0;
+}
+
 .info-row {
     display: flex;
     justify-content: space-between;
@@ -327,11 +335,17 @@ export default {
     transition: all 0.2s ease;
     gap: 3px;
     position: relative;
+    cursor: pointer;
 }
 
 .user-item:hover {
     border-color: var(--accent);
     background: var(--accent-tint);
+}
+
+.user-item:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
 .user-name-block {

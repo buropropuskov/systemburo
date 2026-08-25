@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { nextTick } from 'vue';
 
@@ -964,5 +964,97 @@ describe('ProcessingAnalytics — крайние состояния', () => {
     // На экране — данные seq 2 (42 заявки), а не устаревшие seq 1 (999).
     expect(wrapper.text()).toContain('42 заявки за период');
     expect(wrapper.text()).not.toContain('999');
+  });
+});
+
+describe('ProcessingAnalytics — журнал на телефоне (#1097 w8)', () => {
+  const origMatchMedia = window.matchMedia;
+
+  /** Тот же приём, что в StatisticsDashboardFeedLimit.spec.js. */
+  function mockNarrowViewport(matches) {
+    window.matchMedia = vi.fn().mockImplementation((query) => ({
+      matches,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+  }
+
+  afterEach(() => {
+    window.matchMedia = origMatchMedia;
+  });
+
+  it('на десктопе остаются табы роли, дропдаун не рендерится', async () => {
+    mockNarrowViewport(false);
+    state.summary = fullSummary();
+    state.journal = journalEntries();
+    const wrapper = mountTab();
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="filter-tab-approval"]').exists()).toBe(true);
+    expect(wrapper.findComponent({ name: 'BaseDropdown' }).exists()).toBe(false);
+  });
+
+  it('на телефоне табы роли уступают выпадающей кнопке, выбор уходит тем же фильтром на бэк', async () => {
+    mockNarrowViewport(true);
+    state.summary = fullSummary();
+    state.journal = journalEntries();
+    const wrapper = mountTab();
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="filter-tab-approval"]').exists()).toBe(false);
+    const dropdown = wrapper.findComponent({ name: 'BaseDropdown' });
+    expect(dropdown.exists()).toBe(true);
+
+    const callsBefore = state.journalCalls.length;
+    await dropdown.find('.base-dropdown__button').trigger('click');
+    await nextTick();
+    const target = dropdown.findAll('.base-dropdown__item').find((i) => i.text() === 'Принятия');
+    expect(target).toBeTruthy();
+    await target.trigger('click');
+    await flushPromises();
+
+    expect(state.journalCalls).toHaveLength(callsBefore + 1);
+    expect(state.journalCalls.at(-1)).toMatchObject({ role: 'acceptance', offset: 0 });
+  });
+
+  it('на телефоне поиск свёрнут в иконку, раскрывается по тапу и уходит тем же дебаунсом', async () => {
+    vi.useFakeTimers();
+    try {
+      mockNarrowViewport(true);
+      state.summary = fullSummary();
+      state.journal = journalEntries();
+      const wrapper = mountTab();
+      await flushPromises();
+
+      expect(wrapper.find('.proc__journal-search-icon').exists()).toBe(true);
+      expect(wrapper.find('.proc__journal-search-overlay').exists()).toBe(false);
+      // Десктопный SearchComponent на телефоне не рендерится вовсе - его подменяет иконка.
+      expect(wrapper.find('.proc__journal-search input').exists()).toBe(false);
+
+      await wrapper.find('.proc__journal-search-icon').trigger('click');
+      await flushPromises();
+      expect(wrapper.find('.proc__journal-search-overlay').exists()).toBe(true);
+
+      const input = wrapper.find('.proc__journal-search-input');
+      const callsBefore = state.journalCalls.length;
+      await input.setValue('Кузнецов');
+      expect(state.journalCalls).toHaveLength(callsBefore); // до паузы бэк не дёргаем
+
+      vi.advanceTimersByTime(300);
+      await flushPromises();
+      expect(state.journalCalls.at(-1)).toMatchObject({ q: 'Кузнецов', offset: 0 });
+
+      // Крестик очищает поле и закрывает оверлей - тот же приём, что в Центре/кабинете.
+      await wrapper.find('.proc__journal-search-clear').trigger('click');
+      await flushPromises();
+      expect(wrapper.find('.proc__journal-search-overlay').exists()).toBe(false);
+      expect(state.journalCalls.at(-1)).toMatchObject({ q: '' });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

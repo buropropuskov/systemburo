@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
+	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -23,6 +25,12 @@ func TestUsers_GetAll(t *testing.T) {
 	// Register a second user
 	testutil.RegisterUser(t, e, "regularuser", "password123", 1, td.OrgID, td.CompanyID)
 
+	// Активность одного из юзеров: колонка «В сети» в админке рисуется по last_seen,
+	// поэтому список обязан отдавать его как заполненным, так и явным null.
+	seen := time.Now().UTC().Add(-2 * time.Minute)
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "regularuser").
+		Update("last_seen", seen).Error)
+
 	rec := testutil.GET(t, e, "/users/all", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
@@ -35,7 +43,21 @@ func TestUsers_GetAll(t *testing.T) {
 		assert.Contains(t, u, "username")
 		assert.Contains(t, u, "type_id")
 		assert.Contains(t, u, "user_type")
+		assert.Contains(t, u, "last_seen")
 	}
+
+	byLogin := map[string]map[string]any{}
+	for _, u := range list {
+		if login, ok := u["username"].(string); ok {
+			byLogin[login] = u
+		}
+	}
+	require.Contains(t, byLogin, "regularuser")
+	activeSeen, ok := byLogin["regularuser"]["last_seen"].(string)
+	require.True(t, ok, "last_seen активного юзера приходит строкой-датой")
+	parsed, err := time.Parse(time.RFC3339Nano, activeSeen)
+	require.NoError(t, err)
+	assert.WithinDuration(t, seen, parsed, time.Second)
 }
 
 func TestUsers_GetAll_Unauthorized(t *testing.T) {

@@ -28,6 +28,15 @@
         </button>
       </div>
 
+      <!-- Текст согласия важнее файла: он и есть та редакция, которую подтверждает
+           пользователь при входе (#1567). Рендер только через sanitizeHtml -
+           в system_settings HTML лежит сырым. -->
+      <article
+        v-else-if="hasText"
+        class="dp-modal__text"
+        v-html="safeHtml"
+      />
+
       <div
         v-else-if="!meta"
         class="dp-modal__state"
@@ -36,7 +45,7 @@
           Документ ещё не загружен
         </p>
         <p class="dp-modal__hint">
-          Администратор пока не разместил документ о порядке обработки персональных данных.
+          Документ о порядке обработки персональных данных пока не размещён.
         </p>
       </div>
 
@@ -82,6 +91,8 @@ import {
   fetchDataProcessingBlob,
   downloadDataProcessingDoc,
 } from '@/api/dataProcessing';
+import { usePDConsentStore } from '@/stores/pdConsent';
+import { sanitizeHtml, stripHtml } from '@/utils/sanitize';
 
 /**
  * Модалка согласия на обработку ПД для мобильного показа: bottom-sheet (BaseModal)
@@ -96,6 +107,7 @@ const props = defineProps({
 });
 defineEmits(['close']);
 
+const consent = usePDConsentStore();
 const meta = ref(null);
 const blob = ref(null);
 const loading = ref(false);
@@ -110,16 +122,26 @@ let loadSeq = 0;
 const isPdf = computed(
   () => meta.value && (meta.value.mime_type === 'application/pdf' || meta.value.ext === '.pdf'),
 );
+// Редактор на очищенном документе отдаёт "<p></p>": голый Boolean счёл бы это
+// текстом и показал пустой лист вместо файла. Считаем по видимому тексту -
+// той же меркой, что и серверный гейт (hasVisibleText).
+const hasText = computed(() => stripHtml(consent.html).length > 0);
+const safeHtml = computed(() => sanitizeHtml(consent.html));
 
 async function load() {
   const seq = ++loadSeq;
   loading.value = true;
   error.value = null;
+  // Сетевую ошибку стор глушит сам: текста просто не будет, и мы уйдём на файл.
+  await consent.refresh();
+  if (seq !== loadSeq) return;
   try {
     const nextMeta = await getDataProcessingMeta();
     if (seq !== loadSeq) return;
     meta.value = nextMeta;
-    if (isPdf.value) {
+    // Когда текст задан, файл не читаем вовсе - показывать будем текст, а блоб
+    // весит мегабайты и грузился бы впустую.
+    if (!hasText.value && isPdf.value) {
       const nextBlob = await fetchDataProcessingBlob();
       if (seq !== loadSeq) return;
       blob.value = nextBlob;
@@ -127,7 +149,13 @@ async function load() {
     loaded.value = true;
   } catch {
     if (seq !== loadSeq) return;
-    error.value = 'Не удалось загрузить документ. Попробуйте ещё раз.';
+    // Текст есть - окно остаётся полезным: показываем его, а не экран ошибки.
+    // meta не обнуляем: если упало чтение файла, имя документа уже известно и
+    // кнопка скачивания рабочая. loaded НЕ поднимаем - иначе «грузим раз на
+    // сеанс» навсегда запомнил бы неудачу и следующее открытие не повторило бы.
+    if (!hasText.value) {
+      error.value = 'Не удалось загрузить документ. Попробуйте ещё раз.';
+    }
     loaded.value = false;
   } finally {
     if (seq === loadSeq) loading.value = false;
@@ -168,6 +196,40 @@ watch(
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+}
+
+.dp-modal__text {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 20px;
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.dp-modal__text :deep(p) {
+  margin: 0 0 10px;
+}
+
+.dp-modal__text :deep(h1),
+.dp-modal__text :deep(h2),
+.dp-modal__text :deep(h3) {
+  margin: 18px 0 10px;
+  line-height: 1.35;
+}
+
+.dp-modal__text :deep(ul),
+.dp-modal__text :deep(ol) {
+  margin: 0 0 10px;
+  padding-left: 22px;
+}
+
+.dp-modal__text :deep(img) {
+  max-width: 100%;
+  height: auto;
 }
 
 .dp-modal__state {

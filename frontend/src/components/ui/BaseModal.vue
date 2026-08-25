@@ -4,6 +4,7 @@
       <div
         v-if="show"
         class="base-modal-overlay"
+        :data-theme="theme || null"
         :style="{ zIndex }"
         @mousedown="handleOverlayMousedown"
         @mouseup="handleOverlayMouseup"
@@ -15,6 +16,7 @@
           :style="{ maxWidth: width, '--base-modal-radius': radius || null, ...(sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : {}) }"
           role="dialog"
           aria-modal="true"
+          :data-testid="contentTestid || null"
           :aria-label="title"
           @click.stop
           @mousedown.stop
@@ -68,6 +70,7 @@
 import { ref } from 'vue';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack';
 
 export default {
   name: 'BaseModal',
@@ -92,6 +95,12 @@ export default {
       type: Boolean,
       default: true,
     },
+    // Якорь для онбординга: окно телепортируется в body, и достучаться до него
+    // из родителя нечем - имя передаётся явно.
+    contentTestid: {
+      type: String,
+      default: '',
+    },
     contentClass: {
       type: String,
       default: '',
@@ -106,6 +115,15 @@ export default {
     // content-class телепортируется в body и scoped :deep из родителя до него не
     // достаёт - пробрасываем значение CSS-переменной инлайном.
     radius: {
+      type: String,
+      default: '',
+    },
+    // Тема окна: пусто -> следует за выбранной темой системы. Значение из
+    // utils/theme.js ставит «островок» на слой окна (tokens.css оформляет любой
+    // элемент с data-theme, не только <html>). Нужно окнам с экранов, которые
+    // сами живут вне тем: вход - светлый остров, но окно телепортируется в body
+    // и без этого пропа оставалось тёмным поверх светлого экрана.
+    theme: {
       type: String,
       default: '',
     },
@@ -152,12 +170,17 @@ export default {
     };
   },
   watch: {
-    show(val) {
-      // Через общий замок: окна живут стопкой, и прямое присвоение снимало блокировку,
-      // поставленную окном-родителем (закрыли вложенное - фон поехал под открытым).
-      setBodyScrollLock(this, val);
-      // Переоткрытие: сбросить застрявший после свайп-закрытия offset/closing (лист снизу).
-      if (val) this.resetSwipe();
+    show: {
+      immediate: true,
+      handler(val) {
+        // Через общий замок: окна живут стопкой, и прямое присвоение снимало блокировку,
+        // поставленную окном-родителем (закрыли вложенное - фон поехал под открытым).
+        setBodyScrollLock(this, val);
+        // Та же стопка отвечает на вопрос «кто сверху» для Escape.
+        setModalOpen(this, val, Number(this.zIndex) || 0);
+        // Переоткрытие: сбросить застрявший после свайп-закрытия offset/closing (лист снизу).
+        if (val) this.resetSwipe();
+      },
     },
   },
   mounted() {
@@ -166,6 +189,7 @@ export default {
   beforeUnmount() {
     document.removeEventListener('keydown', this.handleKeydown);
     releaseBodyScrollLock(this);
+    releaseModal(this);
   },
   methods: {
     handleOverlayMousedown(e) {
@@ -183,6 +207,12 @@ export default {
     handleKeydown(e) {
       if (!this.show) return;
       if (e.key === 'Escape' && this.closable) {
+        // Одно нажатие - один закрытый слой. Стопка отвечает, кто сейчас сверху, а
+        // пометка на событии страхует от порядка слушателей: слой, ответивший первым,
+        // забирает нажатие себе, даже если со стопки он снимется только следующим тиком.
+        if (isEscapeHandled(e)) return;
+        if (!isTopModal(this)) return;
+        markEscapeHandled(e);
         this.$emit('close');
       }
       if (e.key === 'Tab') {

@@ -447,7 +447,11 @@ func TestDirectoryModeration(t *testing.T) {
 
 	// Бейдж «на проверке» в админских справочниках рисуется по этому полю: расширенный
 	// список - единственный источник строк таблицы управления организациями и компаниями.
+	// Читаем под администратором, а не под разбирающим: список закрыт правом раздела
+	// справочников (#2002), а разбирающий работает в заявке, где плашка собирается из
+	// самой заявки и этот маршрут ему не нужен.
 	t.Run("расширенный список справочника отдаёт статус разбора", func(t *testing.T) {
+		adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 		draft := seedModerationOrg(t, db, `ООО "Бейджевая"`, models.ModerationPending)
 		compType := models.OrgTypeContractor
 		companyDraft := models.Company{Name: `ООО "Бейджевая компания"`, Type: &compType, IsActive: true, ModerationStatus: models.ModerationPending}
@@ -455,7 +459,7 @@ func TestDirectoryModeration(t *testing.T) {
 
 		statuses := func(path string) map[int]interface{} {
 			out := map[int]interface{}{}
-			for _, row := range testutil.ParseSlice(t, testutil.GET(t, e, path, testutil.AuthHeader(token))) {
+			for _, row := range testutil.ParseSlice(t, testutil.GET(t, e, path, testutil.AuthHeader(adminToken))) {
 				if id, ok := row["id"].(float64); ok {
 					out[int(id)] = row["moderation_status"]
 				}

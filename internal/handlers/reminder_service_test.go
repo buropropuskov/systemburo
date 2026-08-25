@@ -263,10 +263,10 @@ func TestReminderService_DisabledSetting_NoReminders(t *testing.T) {
 	svc, settingsSvc := newReminderServices(db)
 	ctx := context.Background()
 
-	_, err := settingsSvc.Update(ctx, true, "approval.reminder_enabled", "false")
+	_, err := settingsSvc.Update(ctx, "approval.reminder_enabled", "false")
 	require.NoError(t, err)
 	defer func() {
-		_, _ = settingsSvc.Update(ctx, true, "approval.reminder_enabled", "true")
+		_, _ = settingsSvc.Update(ctx, "approval.reminder_enabled", "true")
 	}()
 
 	orgID := newReminderOrg(t, db)

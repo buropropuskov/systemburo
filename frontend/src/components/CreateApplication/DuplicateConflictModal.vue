@@ -80,7 +80,7 @@ const props = defineProps({
 const emit = defineEmits(['replace', 'merge', 'cancel']);
 
 // Escape закрывает как "Отмена" (гейтим по show, т.к. модалка присутствует в DOM всегда).
-useEscapeClose(() => emit('cancel'), () => props.show);
+useEscapeClose(() => emit('cancel'), () => props.show, 20000);
 
 // Свайп вниз = отмена, как крестик и клик по затемнению.
 const swipe = useSwipeDismiss(() => emit('cancel'), { handleSelector: '.sheet-handle' });

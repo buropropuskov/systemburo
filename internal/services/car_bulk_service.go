@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -67,6 +68,7 @@ func (s *carService) BulkMoveTable(ctx context.Context, req BulkMoveCarsTableReq
 	}
 
 	s.tablesProducer.NotifyTables(ctx, allTableIDs)
+	s.enqueueArchiveExportForCars(ctx, req.IDs)
 	return res.finalize(), nil
 }
 
@@ -89,6 +91,7 @@ func (s *carService) BulkAddTable(ctx context.Context, req BulkAddCarsTableReque
 	}
 
 	s.tablesProducer.NotifyTables(ctx, tableIDs)
+	s.enqueueArchiveExportForCars(ctx, req.IDs)
 	return res.finalize(), nil
 }
 
@@ -114,7 +117,34 @@ func (s *carService) BulkUnbindTable(ctx context.Context, req BulkUnbindCarsTabl
 	}
 
 	s.tablesProducer.NotifyTables(ctx, []int{req.TableID})
+	s.enqueueArchiveExportForCars(ctx, req.IDs)
 	return res.finalize(), nil
+}
+
+// enqueueArchiveExportForCars резолвит машины в заявки через их вложение и
+// ставит заявки в очередь на пересборку файлового архива (#1615, B1): слепок
+// заявки хранит посты «Проезд» каждой машины, а bulk-операции меняют их в обход
+// application_assignment_service, у которого свой enqueue после commit.
+func (s *carService) enqueueArchiveExportForCars(ctx context.Context, carIDs []int) {
+	if s.blankExports == nil {
+		return
+	}
+	unique := uniqueInts(carIDs)
+	if len(unique) == 0 {
+		return
+	}
+	var appIDs []int
+	err := s.db.WithContext(ctx).Raw(`
+		SELECT DISTINCT a.application_id
+		FROM cars c
+		JOIN attachments a ON a.id = c.attachment_id
+		WHERE c.id IN ? AND a.application_id IS NOT NULL
+	`, unique).Scan(&appIDs).Error
+	if err != nil {
+		slog.Warn("не удалось резолвить заявки для пересборки архива после bulk-операции с машинами", "error", err)
+		return
+	}
+	s.blankExports.EnqueueApplications(appIDs, BlankExportReasonUpdate)
 }
 
 // moveCarTable - одна машина операции BulkMoveTable, своя транзакция (партиционирует

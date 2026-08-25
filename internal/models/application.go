@@ -104,6 +104,17 @@ type ApplicationApproverWithUser struct {
 	CreatedAt    *time.Time `json:"created_at"`
 }
 
+// ApplicationRecipient — принимающий в списке получателей заявки. Отдаётся любому
+// работнику: заявитель должен видеть, кому уйдёт заявка. Поэтому здесь только
+// отображаемое имя - маска, если администратор её задал, иначе ФИО. Ни организации,
+// ни должности, ни контактов: полный состав с этими сведениями отдаёт GetAll, и он
+// закрыт правом администратора.
+type ApplicationRecipient struct {
+	UserID int    `json:"user_id"`
+	Name   string `json:"name"`
+	Masked bool   `json:"masked"`
+}
+
 // AvailableApproverUser — пользователь, доступный для назначения утверждающим.
 type AvailableApproverUser struct {
 	ID           int     `json:"id"`

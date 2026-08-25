@@ -1,6 +1,9 @@
 package download
 
 import (
+	"archive/zip"
+	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -82,4 +85,64 @@ func TestServe_NoNameNoDisposition(t *testing.T) {
 func TestSanitizeName(t *testing.T) {
 	assert.Equal(t, `ab\"c`, sanitizeName("a\r\nb\"c"))
 	assert.Equal(t, "normal.pdf", sanitizeName("normal.pdf"))
+}
+
+// readZip разбирает ответ StreamZip обратно и возвращает содержимое по имени записи.
+func readZip(t *testing.T, body []byte) map[string]string {
+	t.Helper()
+	zr, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	require.NoError(t, err)
+
+	out := make(map[string]string, len(zr.File))
+	for _, f := range zr.File {
+		rc, err := f.Open()
+		require.NoError(t, err)
+		content, err := io.ReadAll(rc)
+		require.NoError(t, err)
+		require.NoError(t, rc.Close())
+		out[f.Name] = string(content)
+	}
+	return out
+}
+
+func TestStreamZip_HeadersAndCyrillicNames(t *testing.T) {
+	p1 := writeTemp(t, "a.xlsx", "первый файл")
+	p2 := writeTemp(t, "b.xlsx", "второй файл")
+	c, rec := newCtx()
+
+	entries := []ZipEntry{
+		{Path: p1, Name: "2026/Июль/Пропуск на людей (№1).xlsx"},
+		{Path: p2, Name: "2026/Июль/Пропуск на людей (№2).xlsx"},
+	}
+	require.NoError(t, StreamZip(c, "архив.zip", entries))
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "application/zip", rec.Header().Get(echo.HeaderContentType))
+	assert.Contains(t, rec.Header().Get(echo.HeaderContentDisposition), "attachment")
+
+	files := readZip(t, rec.Body.Bytes())
+	require.Len(t, files, 2)
+	assert.Equal(t, "первый файл", files["2026/Июль/Пропуск на людей (№1).xlsx"])
+	assert.Equal(t, "второй файл", files["2026/Июль/Пропуск на людей (№2).xlsx"])
+}
+
+// Файл, пропавший с диска между отбором записей и потоковой отдачей, не должен
+// оборвать весь архив - на его месте должна оказаться заметка об ошибке, а
+// остальные записи дойти как обычно.
+func TestStreamZip_MissingFileBecomesErrorNote(t *testing.T) {
+	ok := writeTemp(t, "ok.xlsx", "содержимое")
+	c, rec := newCtx()
+
+	entries := []ZipEntry{
+		{Path: "/no/such/file-xyz.xlsx", Name: "пропавший.xlsx"},
+		{Path: ok, Name: "цел.xlsx"},
+	}
+	require.NoError(t, StreamZip(c, "архив.zip", entries))
+	assert.Equal(t, http.StatusOK, rec.Code, "частичный сбой не должен менять статус - тело уже пошло в сеть")
+
+	files := readZip(t, rec.Body.Bytes())
+	require.Len(t, files, 2)
+	assert.Equal(t, "содержимое", files["цел.xlsx"])
+	require.Contains(t, files, "пропавший.xlsx"+zipErrorSuffix)
+	assert.Contains(t, files["пропавший.xlsx"+zipErrorSuffix], "пропавший.xlsx")
 }

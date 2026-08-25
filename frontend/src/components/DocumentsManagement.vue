@@ -114,7 +114,7 @@
           <div>
             <div class="doc-detail-filename">{{ selectedDoc.file_name }}</div>
             <div class="doc-detail-meta">
-              {{ formatFileSize(selectedDoc.file_size) }} &middot;
+              {{ formatBytes(selectedDoc.file_size) }} &middot;
               загружен {{ formatDate(selectedDoc.created_at) }}
             </div>
           </div>
@@ -321,7 +321,7 @@
                 <div class="uq-fields">
                   <div class="uq-filename">
                     {{ item.file.name }}
-                    <span class="uq-size">&middot; {{ formatFileSize(item.file.size) }}</span>
+                    <span class="uq-size">&middot; {{ formatBytes(item.file.size) }}</span>
                   </div>
                   <input
                     v-model="item.title"
@@ -537,6 +537,7 @@ import LoaderSpinner from './ui/LoaderSpinner.vue';
 import FileTypeIcon from './ui/FileTypeIcon.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { formatBytes } from '@/utils/download';
 import {
   listDocumentGroups,
   createDocumentGroup,
@@ -980,12 +981,7 @@ export default {
       if (!dt) return '';
       return new Date(dt).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
     },
-    formatFileSize(bytes) {
-      if (!bytes) return '';
-      if (bytes < 1024) return `${bytes} Б`;
-      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} КБ`;
-      return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
-    },
+    formatBytes,
     fileWord(n) {
       if (n % 10 === 1 && n % 100 !== 11) return 'файл';
       if ([2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100)) return 'файла';

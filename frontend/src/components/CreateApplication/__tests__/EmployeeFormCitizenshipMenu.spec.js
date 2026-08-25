@@ -67,22 +67,29 @@ describe('EmployeeForm: положение меню гражданства', () 
     expect(style.top).toBe('auto');
   });
 
-  it('открытие вешает пересчёт на скролл и ресайз, закрытие снимает', async () => {
+  // Пересчёт висит всё время жизни формы, а не только пока меню открыто: стрелка на
+  // закрытой кнопке показывает сторону раскрытия, а скролл эту сторону меняет.
+  it('форма слушает скролл и ресайз, размонтирование снимает слушатели', async () => {
     const add = vi.spyOn(window, 'addEventListener');
     const remove = vi.spyOn(window, 'removeEventListener');
     const w = mountForm({ top: 100, bottom: 140 });
+    await w.vm.$nextTick();
+
+    expect(add).toHaveBeenCalledWith('scroll', w.vm.onDropViewportChange, true);
+    expect(add).toHaveBeenCalledWith('resize', w.vm.onDropViewportChange);
 
     w.vm.isCitizenshipDropdownOpen = true;
     await w.vm.$nextTick();
-    expect(add).toHaveBeenCalledWith('scroll', w.vm.repositionCitizenshipMenu, true);
-    expect(add).toHaveBeenCalledWith('resize', w.vm.repositionCitizenshipMenu);
     expect(w.vm.citizenshipMenuStyle).not.toBe(null);
 
     w.vm.isCitizenshipDropdownOpen = false;
     await w.vm.$nextTick();
-    expect(remove).toHaveBeenCalledWith('scroll', w.vm.repositionCitizenshipMenu, true);
-    expect(remove).toHaveBeenCalledWith('resize', w.vm.repositionCitizenshipMenu);
     expect(w.vm.citizenshipMenuStyle).toBe(null);
+
+    const handler = w.vm.onDropViewportChange;
+    w.unmount();
+    expect(remove).toHaveBeenCalledWith('scroll', handler, true);
+    expect(remove).toHaveBeenCalledWith('resize', handler);
 
     add.mockRestore();
     remove.mockRestore();

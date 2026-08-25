@@ -3,11 +3,15 @@
     <div class="management-header rt-header-inline">
       <h3 class="management-title">
         Учётные записи пользователей
+        <span
+          class="online-count"
+          data-testid="users-online-count"
+        >в сети: {{ onlineCount }}</span>
       </h3>
       <div class="search-container header-controls">
         <BaseDropdown
           class="archive-dropdown"
-          :model-value="showArchive ? 'archive' : 'active'"
+          :model-value="listMode"
           :options="archiveOptions"
           label-key="label"
           value-key="value"
@@ -20,6 +24,7 @@
         <button
           class="lk-button lk-button--primary rt-btn-compact"
           aria-label="Создать"
+          data-testid="ob-users-create"
           @click="openCreateModal"
         >
           <span
@@ -131,14 +136,14 @@
               <p :class="{ 'active-sort': sortField === 'username' }">
                 Логин
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'username',
                   'desc': sortField === 'username' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
             <div
               class="header-col name-col"
@@ -147,14 +152,14 @@
               <p :class="{ 'active-sort': sortField === 'full_name' }">
                 Фамилия И.О.
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'full_name',
                   'desc': sortField === 'full_name' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
             <div
               class="header-col org-col"
@@ -163,14 +168,14 @@
               <p :class="{ 'active-sort': sortField === 'organization' }">
                 Организация / Отдел
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'organization',
                   'desc': sortField === 'organization' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
             <div
               class="header-col company-col"
@@ -179,14 +184,14 @@
               <p :class="{ 'active-sort': sortField === 'company' }">
                 Компания
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'company',
                   'desc': sortField === 'company' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
             <div
               class="header-col position-col"
@@ -195,14 +200,14 @@
               <p :class="{ 'active-sort': sortField === 'position' }">
                 Должность
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{
                   'sorted': sortField === 'position',
                   'desc': sortField === 'position' && sortDirection === 'desc'
                 }"
-              >
+              />
             </div>
             <div
               class="header-col type-col"
@@ -211,20 +216,39 @@
               <p :class="{ 'active-sort': sortField === 'user_type' }">
                 Тип
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{
                   'sorted': sortField === 'user_type',
                   'desc': sortField === 'user_type' && sortDirection === 'desc'
                 }"
-              >
+              />
+            </div>
+            <div
+              class="header-col seen-col"
+              @click="sortBy('last_seen')"
+            >
+              <p :class="{ 'active-sort': sortField === 'last_seen' }">
+                В сети
+              </p>
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
+                  'sorted': sortField === 'last_seen',
+                  'desc': sortField === 'last_seen' && sortDirection === 'desc'
+                }"
+              />
             </div>
           </div>
         </div>
         
         <!-- Тело таблицы -->
-        <div class="users-body">
+        <div
+          class="users-body"
+          data-testid="ob-users-list"
+        >
           <div
             v-for="(user, index) in sortedUsers"
             :key="user.username"
@@ -250,17 +274,30 @@
                 class="user-col login-col"
                 data-label="Логин"
               >
-                <span class="user-login">{{ user.username }}</span>
+                <span class="user-login">{{ formatLogin(user.username) }}</span>
                 <span
                   v-if="user.is_active === false"
                   class="inactive-badge"
                 >(архив)</span>
+                <span
+                  v-if="isLockedOut(user)"
+                  class="lockout-badge"
+                  data-testid="users-row-lockout"
+                  :title="lockoutTitle(user)"
+                >вход заблокирован</span>
+
               </div>
               <div
                 class="user-col name-col"
                 data-label="Фамилия И.О."
               >
-                {{ formatUserName(user) }}
+                <span
+                  v-if="user.pd_hidden"
+                  class="consent-missing"
+                  data-testid="users-row-no-consent"
+                  title="Работник не подтвердил согласие на обработку персональных данных"
+                >без согласия</span>
+                <template v-else>{{ formatUserName(user) }}</template>
               </div>
               <div
                 class="user-col org-col"
@@ -305,26 +342,53 @@
                 >{{ user.user_type }}</span>
                 <span v-else>-</span>
               </div>
+              <div
+                class="user-col seen-col"
+                data-label="В сети"
+                data-testid="users-row-seen"
+              >
+                <!-- Подсказка на самом значении, а не нативный title: тот при каждой
+                     смене атрибута (а давность тикает раз в секунду) гаснет и всплывает
+                     заново прямо под курсором. -->
+                <HintTooltip
+                  :text="seenTitle(user, presenceNow)"
+                  :width="240"
+                  data-testid="users-row-seen-hint"
+                >
+                  <Badge
+                    v-if="isOnline(user, presenceNow)"
+                    variant="success"
+                    size="sm"
+                    dot
+                    data-testid="users-row-online-badge"
+                  >
+                    Онлайн
+                  </Badge>
+                  <span
+                    v-else
+                    class="seen-text"
+                  >{{ formatSeenShort(user, presenceNow) }}</span>
+                </HintTooltip>
+              </div>
             </div>
+          </div>
+          <div
+            v-if="filteredUsers.length === 0"
+            class="no-users"
+          >
+            <p>{{ userSearch ? 'Пользователи не найдены' : 'Пользователи отсутствуют' }}</p>
           </div>
         </div>
         <div class="users-footer">
-          <span class="items-count">{{ showArchive ? 'В архиве' : 'Всего пользователей' }}: {{ sortedUsers.length }}</span>
+          <span class="items-count">{{ countLabel }}: {{ sortedUsers.length }}</span>
         </div>
       </div>
-    </div>
-
-    <div
-      v-if="filteredUsers.length === 0"
-      class="no-users"
-    >
-      <p>{{ userSearch ? 'Пользователи не найдены' : 'Пользователи отсутствуют' }}</p>
     </div>
 
     <!-- Модальное окно редактирования пользователя -->
     <BaseModal
       :show="showEditModal && !!selectedUser"
-      width="880px"
+      width="1040px"
       content-class="user-edit-modal"
       radius="45px"
       :z-index="1001"
@@ -344,29 +408,69 @@
           class="modal-header-actions"
         >
           <button
-            class="lk-button lk-button--secondary"
+            class="lk-button lk-button--secondary lk-button--sm"
             @click="openHistory(selectedUser)"
           >
             История
           </button>
           <template v-if="selectedUser.is_active !== false">
             <button
-              class="lk-button lk-button--secondary"
-              data-testid="user-reset-onboarding"
-              @click="resetOnboarding(selectedUser)"
+              v-if="isLockedOut(selectedUser)"
+              class="lk-button lk-button--primary lk-button--sm"
+              data-testid="user-reset-lockout"
+              :disabled="lockoutResetting"
+              :title="lockoutTitle(selectedUser)"
+              @click="resetLockout(selectedUser)"
             >
-              Сбросить обучение
+              {{ lockoutResetting ? 'Снимаем…' : 'Снять блокировку входа' }}
             </button>
+            <!-- Туров теперь несколько, и сбрасывать их поштучно осмысленно:
+                 у человека может «протухнуть» только один сценарий. Список всех
+                 туров реестра, а не доступных админу - решаем за другого юзера. -->
+            <BaseDropdown
+              class="user-reset-onboarding"
+              :model-value="null"
+              :options="onboardingResetOptions"
+              label-key="title"
+              value-key="key"
+              teleport
+              :menu-z-index="1003"
+              @update:model-value="resetOnboarding(selectedUser, $event)"
+            >
+              <template #trigger="{ toggle }">
+                <button
+                  class="lk-button lk-button--secondary lk-button--sm"
+                  data-testid="user-reset-onboarding"
+                  @click="toggle"
+                >
+                  Сбросить обучение
+                </button>
+              </template>
+              <template #option="{ option }">
+                <span :data-testid="`user-reset-onboarding-${option.key || 'all'}`">{{ option.title }}</span>
+              </template>
+            </BaseDropdown>
             <button
-              class="lk-button lk-button--secondary"
+              v-if="canManageAccess"
+              class="lk-button lk-button--secondary lk-button--sm"
               data-testid="user-access"
               @click="openAccess(selectedUser)"
             >
               Права доступа
             </button>
             <button
+              v-if="canImpersonate"
+              class="lk-button lk-button--secondary lk-button--sm"
+              data-testid="user-impersonate"
+              :disabled="impersonating"
+              title="Открыть систему глазами этого пользователя. Действие пишется в журнал."
+              @click="impersonateUser(selectedUser)"
+            >
+              {{ impersonating ? 'Входим…' : 'Войти как пользователь' }}
+            </button>
+            <button
               v-if="selectedUserIsSecurity"
-              class="lk-button lk-button--secondary"
+              class="lk-button lk-button--secondary lk-button--sm"
               data-testid="user-access-places"
               @click="openAccessPlaces(selectedUser)"
             >
@@ -376,7 +480,7 @@
           <template v-else>
             <span class="archive-badge">В архиве</span>
             <button
-              class="lk-button lk-button--primary"
+              class="lk-button lk-button--primary lk-button--sm"
               @click="restoreUser(selectedUser)"
             >
               Восстановить
@@ -427,7 +531,8 @@
                 <input
                   v-model="selectedUser.last_name"
                   class="lk-input"
-                  placeholder="Введите фамилию"
+                  :placeholder="selectedUser.pd_hidden ? 'Скрыто до согласия на обработку данных' : 'Введите фамилию'"
+                  :disabled="selectedUser.pd_hidden"
                   autocomplete="new-password"
                   autocorrect="off"
                   autocapitalize="off"
@@ -441,7 +546,8 @@
                 <input
                   v-model="selectedUser.middle_name"
                   class="lk-input"
-                  placeholder="Введите отчество"
+                  :placeholder="selectedUser.pd_hidden ? 'Скрыто до согласия на обработку данных' : 'Введите отчество'"
+                  :disabled="selectedUser.pd_hidden"
                   autocomplete="new-password"
                   autocorrect="off"
                   autocapitalize="off"
@@ -484,7 +590,8 @@
                 <input
                   v-model="selectedUser.first_name"
                   class="lk-input"
-                  placeholder="Введите имя"
+                  :placeholder="selectedUser.pd_hidden ? 'Скрыто до согласия на обработку данных' : 'Введите имя'"
+                  :disabled="selectedUser.pd_hidden"
                   autocomplete="new-password"
                   autocorrect="off"
                   autocapitalize="off"
@@ -498,7 +605,8 @@
                 <input
                   :value="selectedUser.phone"
                   class="lk-input"
-                  placeholder="+7 (___) ___ __-__"
+                  :placeholder="selectedUser.pd_hidden ? 'Скрыто до согласия на обработку данных' : '+7 (___) ___ __-__'"
+                  :disabled="selectedUser.pd_hidden"
                   type="tel"
                   autocomplete="new-password"
                   autocorrect="off"
@@ -527,7 +635,8 @@
                 <input
                   v-model="selectedUser.email"
                   class="lk-input"
-                  placeholder="Введите email"
+                  :placeholder="selectedUser.pd_hidden ? 'Скрыто до согласия на обработку данных' : 'Введите email'"
+                  :disabled="selectedUser.pd_hidden"
                   type="email"
                   autocomplete="new-password"
                   autocorrect="off"
@@ -540,6 +649,28 @@
           </div>
 
           <div class="full-width-groups">
+            <div class="detail-group">
+              <label class="detail-label">Согласие на обработку данных:</label>
+              <div class="consent-row">
+                <p
+                  class="consent-state"
+                  :class="{ 'consent-state--missing': selectedUser.consent_required && !selectedUser.consent_granted }"
+                  data-testid="user-consent-state"
+                >
+                  {{ consentStateLabel(selectedUser) }}
+                </p>
+                <button
+                  v-if="selectedUser.consent_granted"
+                  class="lk-button lk-button--danger lk-button--sm"
+                  :disabled="consentRevoking"
+                  data-testid="user-consent-revoke"
+                  @click="revokeConsent(selectedUser)"
+                >
+                  {{ consentRevoking ? 'Отзываем...' : 'Отозвать' }}
+                </button>
+              </div>
+            </div>
+
             <div class="detail-group detail-group--checkbox">
               <ToggleSwitch
                 :model-value="!!selectedUser.is_important"
@@ -582,21 +713,23 @@
                     type="button"
                     @click="generatePassword(selectedUser)"
                   >
-                    <img
-                      src="@/assets/icons/random.png"
+                    <AppIcon
+                      name="random"
                       class="generate-icon"
-                    >
+                    />
                     Генерировать
                   </button>
                   <button
                     :disabled="!changePasswordValid"
                     class="save-password-btn"
+                    title="Сохранить пароль"
+                    aria-label="Сохранить пароль"
                     @click="changeUserPassword(selectedUser)"
                   >
-                    <img
-                      src="@/assets/icons/save.png"
+                    <AppIcon
+                      name="save"
                       class="save-icon"
-                    >
+                    />
                   </button>
                 </div>
               </div>
@@ -621,7 +754,33 @@
                   </li>
                 </ul>
               </div>
+              <p
+                class="field-note"
+                data-testid="change-password-mail-note"
+              >
+                {{ changePasswordNote }}
+              </p>
             </div>
+          </div>
+
+          <!-- Смена пароля с отправкой письмом (#1910): закрывает случай
+               «работник потерял пароль». До этого пароль придумывали руками и
+               диктовали по телефону, то есть он проходил через третьи уши. -->
+          <div
+            v-if="selectedUser.is_active !== false"
+            class="rotate-row"
+          >
+            <button
+              class="lk-button lk-button--secondary"
+              :disabled="rotatingPassword"
+              data-testid="user-rotate-password"
+              @click="rotateUserPassword(selectedUser)"
+            >
+              {{ rotatingPassword ? 'Отправляем...' : 'Сменить пароль и отправить письмом' }}
+            </button>
+            <span class="rotate-row__hint">
+              Система придумает пароль по действующим требованиям и отправит его работнику на почту.
+            </span>
           </div>
 
           <div
@@ -673,12 +832,25 @@
             >
           </div>
           <div class="input-group half">
-            <label class="input-label">Пароль <span class="required">*</span></label>
+            <label class="input-label">
+              Пароль
+              <span
+                v-if="!createEmailFilled"
+                class="required"
+              >*</span>
+            </label>
             <PasswordInput
               v-model="newUser.password"
-              placeholder="Введите пароль"
+              :placeholder="createEmailFilled ? 'Придумает система' : 'Введите пароль'"
               @input="saveDraft"
             />
+            <p
+              v-if="createEmailFilled && !newUser.password"
+              class="field-note"
+              data-testid="create-password-mail-note"
+            >
+              Оставьте поле пустым - система придумает пароль и вышлет работнику письмом вместе с логином.
+            </p>
             <ul
               v-if="newUser.password"
               class="password-checklist"
@@ -694,7 +866,7 @@
             </ul>
           </div>
           <div class="input-group half">
-            <label class="input-label">Организация <span class="required">*</span></label>
+            <label class="input-label">Организация</label>
             <BaseDropdown
               :model-value="newUser.organization_id"
               :options="orgOptionsWithNone"
@@ -706,7 +878,7 @@
             />
           </div>
           <div class="input-group half">
-            <label class="input-label">Компания <span class="required">*</span></label>
+            <label class="input-label">Компания</label>
             <BaseDropdown
               :model-value="newUser.company_id"
               :options="companyOptionsWithNone"
@@ -717,6 +889,9 @@
               @update:model-value="onSelectNewUserCompany"
             />
           </div>
+          <p class="input-group full org-company-hint">
+            Заполните организацию или компанию - достаточно одного из двух.
+          </p>
           <div class="input-group full">
             <label class="input-label">Тип пользователя <span class="required">*</span></label>
             <BaseDropdown
@@ -773,6 +948,9 @@
               type="email"
               @input="saveDraft"
             >
+            <p class="field-note">
+              На этот адрес уйдут логин и пароль. Без адреса пароль задаёт администратор.
+            </p>
           </div>
           <div class="input-group half">
             <label class="input-label">Телефон</label>
@@ -794,14 +972,19 @@
         >
           Отмена
         </button>
-        <button
-          :disabled="!canCreateUser"
-          class="modal-btn modal-btn--confirm"
-          :class="{'modal-btn--disabled': !canCreateUser}"
-          @click="createUser"
+        <span
+          class="hint-anchor hint-anchor--right"
+          :data-hint="createUserHint"
         >
-          Создать
-        </button>
+          <button
+            :disabled="!canCreateUser"
+            class="modal-btn modal-btn--confirm"
+            :class="{'modal-btn--disabled': !canCreateUser}"
+            @click="createUser"
+          >
+            Создать
+          </button>
+        </span>
       </template>
     </BaseModal>
 
@@ -882,8 +1065,12 @@
       @cancel="unbanConfirmVisible = false"
     />
 
+    <!-- Кнопка удаления живёт ВНУТРИ карточки редактирования (:z-index 1001),
+         поэтому подтверждение поднимаем над ней: на базовом слое 1000 оно
+         открывалось под карточкой и было не видно. -->
     <ConfirmationModal
       :show="!!deleteConfirmUser"
+      :z-index="1002"
       title="Удаление пользователя"
       :message="deleteConfirmUser ? `Удалить учётную запись «${deleteConfirmUser.username}»? Действие необратимо.` : ''"
       confirm-text="Удалить"
@@ -920,14 +1107,17 @@
 
 <script>
 import { apiRequest } from '@/api/client'
-import { bulkArchiveUsers, bulkRestoreUsers, bulkUpdateUsersType, bulkAssignUsersOrganization, bulkAssignUsersCompany, bulkBanUsers, bulkUnbanUsers } from '@/api/users';
+import { bulkArchiveUsers, bulkRestoreUsers, bulkUpdateUsersType, bulkAssignUsersOrganization, bulkAssignUsersCompany, bulkBanUsers, bulkUnbanUsers, resetUserLockout } from '@/api/users';
 import { ref } from 'vue';
 import { mapState, mapActions } from 'pinia';
 import { useOrganizationsStore } from '@/stores/organizations';
 import { useCompaniesStore } from '@/stores/companies';
 import { applyPhoneMask } from '@/composables/useRussianPhoneMask'
-import { formatShortName } from '@/utils/formatName'
+import { formatUserLabel, formatLogin } from '@/utils/formatName'
+import { revokeUserConsent } from '@/api/pdConsent'
+import { isOnline, formatSeenShort, seenTitle, lastSeenSortKey } from '@/utils/presence'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 import SearchComponent from './SearchComponent.vue';
 import RefreshButton from './RefreshButton.vue';
 import PasswordInput from './ui/PasswordInput.vue';
@@ -936,6 +1126,8 @@ import { evaluatePassword, passwordMeetsPolicy, generatePassword as buildPasswor
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseModal from './ui/BaseModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
+import Badge from './ui/Badge.vue';
+import HintTooltip from './ui/HintTooltip.vue';
 import ToggleSwitch from './ui/ToggleSwitch.vue';
 import UserHistoryModal from './UserHistoryModal.vue';
 import UserLoginHistory from './UserLoginHistory.vue';
@@ -943,8 +1135,20 @@ import UserAccessModal from './admin/UserAccessModal.vue';
 import UserAccessPlacesModal from './admin/UserAccessPlacesModal.vue';
 import UserBulkOperationsModal from './UserBulkOperationsModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
+import { usePermissionsStore } from '@/stores/permissions';
+import { useAuthStore } from '@/stores/auth';
+import { startImpersonation } from '@/api/impersonation';
 import { useUiStore } from '@/stores/ui';
 import { resetOnboardingForUser } from '@/api/onboarding';
+import { TOURS } from '@/components/onboarding/tours';
+import AppIcon from '@/components/icons/AppIcon.vue';
+
+// Тик подписей присутствия: раз в секунду, потому что младшая единица подписи -
+// секунды, и на более редком тике «12 с» висело бы неверным до полминуты. Пересчёт
+// идёт по уже загруженным данным, без запросов. Опрос списка реже - он ходит на бэк,
+// а last_seen там всё равно пишется с троттлингом 60с (internal/middleware/last_seen.go).
+const PRESENCE_TICK_MS = 1000;
+const PRESENCE_POLL_MS = 60_000;
 
 export default {
   components: {
@@ -954,13 +1158,17 @@ export default {
     ConfirmationModal,
     BaseModal,
     BaseDropdown,
+    Badge,
+    HintTooltip,
     ToggleSwitch,
     UserHistoryModal,
     UserLoginHistory,
     UserAccessModal,
     UserAccessPlacesModal,
-    UserBulkOperationsModal
+    UserBulkOperationsModal,
+    AppIcon,
   },
+  mixins: [openFromSearchLink((vm) => vm.allUsers, 'selectUser', undefined, 'userSearch')],
   props: {
     allUsers: {
       type: Array,
@@ -980,8 +1188,8 @@ export default {
   },
   data() {
     return {
-      userSearch: '',
       refreshing: false,
+      consentRevoking: false,
       selectedUser: null,
       activeTab: 'profile',
       historyForUser: null,
@@ -999,11 +1207,28 @@ export default {
       banReason: '',
       unbanConfirmVisible: false,
       bulkSubmitting: false,
-      showArchive: false,
+      // Режим списка: активные / только присутствующие сейчас / архив. Наборы
+      // bulk-операций у активных и архивных разные, поэтому режим один на всё,
+      // а не отдельный тумблер «онлайн» поверх архива.
+      listMode: 'active',
+      rotatingPassword: false,
       archiveOptions: [
         { value: 'active', label: 'Активные' },
+        { value: 'online', label: 'В сети' },
+        // Без почты (#1908): такому работнику не уйдёт ни предупреждение о скором
+        // истечении пароля, ни новый пароль при обновлении, и бюро должно видеть
+        // эти учётные записи заранее, а не из отчёта после прогона.
+        { value: 'no_email', label: 'Без почты' },
         { value: 'archive', label: 'Архив' },
       ],
+      // presenceNow - тикающее «сейчас» для колонки присутствия. Держим в data, а не
+      // читаем Date.now() внутри computed: иначе пересчёт не триггерится и точка
+      // никогда не гаснет без перезагрузки.
+      presenceNow: Date.now(),
+      lockoutResetting: false,
+      impersonating: false,
+      presenceTimer: null,
+      presencePollTimer: null,
       showNewPass: false,
       currentLanguage: '',
       isCapsLockOn: false,
@@ -1028,7 +1253,50 @@ export default {
   },
   computed: {
     ...mapState(useOrganizationsStore, { organizations: 'items' }),
+    // Кнопка режима «войти как пользователь» (#1912). Право - не единственное
+    // условие: от имени самого себя входить некуда, а архивная и заблокированная
+    // учётные записи не пускают и собственного владельца.
+    canImpersonate() {
+      if (!usePermissionsStore().hasPermission('user.impersonate')) return false;
+      const user = this.selectedUser;
+      if (!user || user.is_active === false || user.is_banned) return false;
+      const auth = useAuthStore();
+      if (user.username === auth.username) return false;
+      // Заведомо закрытые случаи прячем, чтобы кнопка не обещала невозможного.
+      // Полное правило - на бэкенде: набор прав цели клиенту неизвестен, и
+      // именно бэкенд остаётся тем, кто отказывает.
+      if (user.is_super_admin) return false;
+      return !user.is_admin || auth.isSuperAdmin;
+    },
+    // Окно прав доступа целиком стоит на permission.audit.manage: этим правом на
+    // бэкенде закрыты и каталог ключей, и эффективные права цели, и роли с
+    // группами. Без права окно открывалось бы пустым и с чередой отказов, поэтому
+    // прячем сам вход в него.
+    canManageAccess() {
+      return usePermissionsStore().hasPermission('permission.audit.manage');
+    },
     ...mapState(useCompaniesStore, { companies: 'items' }),
+    showArchive() {
+      return this.listMode === 'archive';
+    },
+    onlineOnly() {
+      return this.listMode === 'online';
+    },
+    noEmailOnly() {
+      return this.listMode === 'no_email';
+    },
+    // Подпись футера идёт от режима списка: «Всего пользователей» под отфильтрованным
+    // числом читалось бы как «в системе всего один», хотя это только те, кто в сети.
+    countLabel() {
+      if (this.showArchive) return 'В архиве';
+      if (this.noEmailOnly) return 'Без почты';
+      return this.onlineOnly ? 'В сети' : 'Всего пользователей';
+    },
+    // Счётчик шапки считается по всем учёткам, а не по видимым: он отвечает на
+    // «сколько людей в системе сейчас», и поиск с режимом списка не должны его менять.
+    onlineCount() {
+      return this.allUsers.filter(user => isOnline(user, this.presenceNow)).length;
+    },
     // Опции с пунктом "Не выбрано" (null) для дропдаунов создания - орг/компания опциональны.
     orgOptionsWithNone() {
       return [{ id: null, name: 'Не выбрано' }, ...this.organizations];
@@ -1042,6 +1310,14 @@ export default {
       if (!this.selectedUser) return false;
       const type = this.userTypes.find(t => t.id === this.selectedUser.type_id);
       return type?.code === 'security';
+    },
+    // Пункты сброса обучения: «Все туры» первым, дальше туры реестра поимённо.
+    // Ключ '' = сброс всех - бэкенд трактует запрос без поля tour именно так.
+    onboardingResetOptions() {
+      return [
+        { key: '', title: 'Все туры' },
+        ...TOURS.map((t) => ({ key: t.key, title: t.title })),
+      ];
     },
     allSelected() {
       return this.sortedUsers.length > 0 && this.selectedUsernames.length === this.sortedUsers.length;
@@ -1067,9 +1343,13 @@ export default {
         : { background: '#c62828', borderColor: '#c62828' };
     },
     filteredUsers() {
-      const variants = buildSearchVariants(this.userSearch);
+      // Логин на экране подписан с собачкой (#1567), и её копируют в поиск вместе
+      // с логином. Ищем по самому логину, поэтому ведущую собачку в запросе снимаем.
+      const variants = buildSearchVariants(this.userSearch.replace(/^\s*@/, ''));
       return this.allUsers
         .filter(user => (this.showArchive ? user.is_active === false : user.is_active !== false))
+        .filter(user => !this.onlineOnly || isOnline(user, this.presenceNow))
+        .filter(user => !this.noEmailOnly || !user.email)
         .filter(user => matchesSearch(
           `${user.username} ${user.organization || ''} ${user.company || ''} `
           + `${user.user_type || ''} ${user.position || ''} ${this.formatUserName(user)}`,
@@ -1121,6 +1401,14 @@ export default {
             valueA = a.user_type || '';
             valueB = b.user_type || '';
             break;
+          // Числовые ключи, а не строки: ISO-даты сравнились бы лексикографически
+          // и разъехались бы на разной длине дробной части. Не заходившие получают
+          // -Infinity, то есть читаются как «бесконечно давно» и держатся в том же
+          // конце списка, что и самые старые визиты.
+          case 'last_seen':
+            valueA = lastSeenSortKey(a);
+            valueB = lastSeenSortKey(b);
+            break;
           default:
             return 0;
         }
@@ -1146,17 +1434,63 @@ export default {
     changePasswordValid() {
       return passwordMeetsPolicy(this.passwordPolicy, (this.selectedUser && this.selectedUser.newPassword) || '');
     },
+    createEmailFilled() {
+      return Boolean((this.newUser.email || '').trim());
+    },
+    /**
+     * Пустой пароль допустим только с адресом почты: тогда его придумает система
+     * и вышлет работнику письмом. Без адреса читать такой пароль было бы негде.
+     */
+    createPasswordReady() {
+      if (!this.newUser.password) return this.createEmailFilled;
+      return this.createPasswordValid;
+    },
+    /**
+     * Подсказка под полем пароля в карточке: куда уйдёт заданный пароль. Адрес
+     * не печатаем - у работника без согласия на обработку данных сервер его не
+     * присылает, и подставить туда нечего.
+     */
+    changePasswordNote() {
+      const forced = 'Сменить пароль при первом входе система попросит сама.';
+      if (!this.selectedUser) return forced;
+      if (this.selectedUser.email) {
+        return `Новый пароль уйдёт работнику письмом на его почту. ${forced}`;
+      }
+      if (this.selectedUser.pd_hidden) return forced;
+      return `Адрес почты не указан - передайте пароль работнику лично. ${forced}`;
+    },
     canCreateUser() {
       return (
         this.newUser.username &&
-        this.newUser.password &&
-        this.createPasswordValid &&
+        this.createPasswordReady &&
         this.newUser.type_id &&
         this.hasOrgOrCompany
       );
     },
     hasOrgOrCompany() {
       return Boolean(this.newUser.organization_id || this.newUser.company_id);
+    },
+    /**
+     * Подсказка на заблокированной кнопке "Создать": чего именно не хватает.
+     * Порядок причин совпадает с порядком полей в форме. Пустая строка -
+     * форма заполнена и подсказку показывать не на чем (селектор [data-hint]
+     * пустое значение не берёт).
+     */
+    createUserHint() {
+      if (this.canCreateUser) return '';
+
+      const missing = [];
+      if (!this.newUser.username) missing.push('логин');
+      if (!this.newUser.password && !this.createEmailFilled) missing.push('пароль или адрес почты');
+      if (!this.hasOrgOrCompany) missing.push('организацию или компанию');
+      if (!this.newUser.type_id) missing.push('тип пользователя');
+
+      const reasons = [];
+      if (missing.length) reasons.push(`Заполните: ${missing.join(', ')}`);
+      if (this.newUser.password && !this.createPasswordValid) {
+        reasons.push('Пароль не отвечает требованиям политики');
+      }
+      return reasons.join('. ');
     }
   },
   watch: {
@@ -1165,6 +1499,8 @@ export default {
     // selectedUser держит копию старого user и роль/права в карточке остаются
     // устаревшими до перезагрузки страницы.
     allUsers(list) {
+      // Список приехал - примесь раскроет карточку, если её просили в адресе.
+      this.openFromSearchLink();
       if (!this.selectedUser) return;
       const fresh = list.find((u) => u.username === this.selectedUser.username);
       if (fresh) this.selectedUser = { ...fresh, newPassword: this.selectedUser.newPassword || '' };
@@ -1192,9 +1528,38 @@ export default {
   mounted() {
     this.fetchAllUsers();
     this.loadDraft();
+    this.presenceTimer = setInterval(this.tickPresence, PRESENCE_TICK_MS);
+    this.presencePollTimer = setInterval(this.pollPresence, PRESENCE_POLL_MS);
   },
- 
+  beforeUnmount() {
+    clearInterval(this.presenceTimer);
+    clearInterval(this.presencePollTimer);
+    this.presenceTimer = null;
+    this.presencePollTimer = null;
+  },
+
   methods: {
+    isOnline,
+    formatSeenShort,
+    seenTitle,
+
+    // Пересчёт подписей присутствия из уже загруженного last_seen: запросов не делает,
+    // поэтому тик частый - иначе «в сети» висело бы у ушедшего до следующего опроса.
+    tickPresence() {
+      this.presenceNow = Date.now();
+    },
+
+    // Тихий перезапрос списка: без спиннера и тостов, чтобы присутствие оживало само.
+    // Пропускаем, когда открыта карточка или модалка bulk-операции: watch allUsers
+    // пере-резолвит selectedUser из свежего ответа и затёр бы незасохранённый ввод
+    // формы. В скрытой вкладке не опрашиваем вовсе - смотреть там всё равно некому.
+    pollPresence() {
+      if (document.hidden) return;
+      if (this.showEditModal || this.showCreateModal) return;
+      if (this.bulkModalVisible || this.bulkConfirmVisible || this.banModalVisible || this.unbanConfirmVisible) return;
+      this.fetchAllUsers();
+    },
+
     ...mapActions(useOrganizationsStore, {
       fetchOrganizations: 'fetchOrganizations',
       refreshOrganizations: 'refresh',
@@ -1229,9 +1594,10 @@ export default {
     },
 
     onArchiveModeChange(value) {
-      this.showArchive = value === 'archive';
+      this.listMode = value;
       this.selectedUser = null;
-      // Наборы операций активных и архивных разные - выбор не переносим.
+      // Наборы операций активных и архивных разные - выбор не переносим. Режим «В сети»
+      // тоже сбрасывает выбор: набор строк меняется сам по себе, по мере ухода людей.
       this.clearSelection();
     },
 
@@ -1453,20 +1819,94 @@ export default {
       }
     },
 
-    async resetOnboarding(user) {
+    /**
+     * Сброс прохождения обучения пользователю. Пустой ключ = все туры сразу.
+     *
+     * @param {object} user
+     * @param {string} tourKey ключ тура из реестра либо '' для сброса всех
+     */
+    async resetOnboarding(user, tourKey) {
+      if (tourKey === null || tourKey === undefined) return;
+      const tourTitle = TOURS.find((t) => t.key === tourKey)?.title || '';
+      const scope = tourTitle ? `тур «${tourTitle}»` : 'все туры';
       const ok = await useUiStore().confirm({
         title: 'Сбросить обучение?',
-        message: `Пользователь «${user.username}» снова увидит автозапуск обучающего тура при следующем входе.`,
+        message: `Пользователю «${user.username}» будет сброшен(ы) ${scope}: обучение запустится у него снова при следующем входе.`,
         confirmText: 'Сбросить',
         cancelText: 'Отмена',
         danger: false,
       });
       if (!ok) return;
       try {
-        await resetOnboardingForUser(user.username);
-        useDeletionsStore().notify({ prefix: 'Обучение сброшено для ', bold: user.username, suffix: ' — тур запустится снова при входе' });
+        await resetOnboardingForUser(user.username, tourKey || undefined);
+        useDeletionsStore().notify({
+          prefix: tourTitle ? `Тур «${tourTitle}» сброшен для ` : 'Все туры сброшены для ',
+          bold: user.username,
+          suffix: ' — обучение запустится снова при входе',
+        });
       } catch (error) {
         useDeletionsStore().notify({ prefix: 'Не удалось сбросить обучение: ', bold: error?.message || 'ошибка', type: 'error' });
+      }
+    },
+
+    // Блокировка входа. Срок сравниваем с presenceNow (тикает раз в секунду) -
+    // иначе отметка висела бы до перезагрузки страницы после истечения кулдауна.
+    isLockedOut(user) {
+      if (!user?.locked_until) return false;
+      const until = new Date(user.locked_until).getTime();
+      return Number.isFinite(until) && until > this.presenceNow;
+    },
+
+    lockoutTitle(user) {
+      if (!this.isLockedOut(user)) return '';
+      const until = new Date(user.locked_until);
+      return `Вход заблокирован до ${until.toLocaleString('ru-RU')} после серии неверных паролей`;
+    },
+
+    async resetLockout(user) {
+      if (this.lockoutResetting) return;
+      this.lockoutResetting = true;
+      try {
+        await resetUserLockout(user.username);
+        useDeletionsStore().notify({ prefix: 'Блокировка входа снята для ', bold: user.username });
+        if (this.selectedUser && this.selectedUser.username === user.username) {
+          this.selectedUser.locked_until = null;
+          this.selectedUser.lockout_level = 0;
+        }
+        // Точечно синхронизируем строку списка, а не перезапрашиваем его целиком:
+        // рефетч при открытой карточке пере-резолвит selectedUser и затрёт
+        // незасохранённый ввод формы (та же причина, по которой молчит опрос присутствия).
+        this.$emit('user-updated', { username: user.username, locked_until: null, lockout_level: 0 });
+      } catch (error) {
+        useDeletionsStore().notify({ prefix: 'Не удалось снять блокировку: ', bold: error?.message || 'ошибка', type: 'error' });
+      } finally {
+        this.lockoutResetting = false;
+      }
+    },
+
+    /**
+     * Открывает сеанс работы от имени выбранного пользователя (#1912) и уводит на
+     * стартовый экран: дальше администратор видит систему его глазами, а полоса
+     * внизу напоминает, от чьего имени он действует.
+     *
+     * @param {{ id: number, username: string }} user
+     */
+    async impersonateUser(user) {
+      if (this.impersonating) return;
+      this.impersonating = true;
+      try {
+        const session = await startImpersonation(user.id);
+        await useAuthStore().beginImpersonation(session);
+        useDeletionsStore().notify({ prefix: 'Вы работаете от имени ', bold: session.target.full_name });
+        this.$router.push('/news').catch(() => {});
+      } catch (error) {
+        useDeletionsStore().notify({
+          prefix: 'Не удалось войти от имени пользователя: ',
+          bold: error?.message || 'ошибка',
+          type: 'error',
+        });
+      } finally {
+        this.impersonating = false;
       }
     },
 
@@ -1500,9 +1940,70 @@ export default {
       }
     },
 
+    /**
+     * Отзывает согласие работника по его просьбе. Своей кнопки отзыва у него нет,
+     * поэтому исполнить обращение может только администратор. Предупреждаем о
+     * последствии: человек снова упрётся в окно согласия и до подтверждения
+     * работать не сможет.
+     * @param {{username: string}} user
+     */
+    async revokeConsent(user) {
+      if (!user?.username || this.consentRevoking) return;
+      const ok = await useUiStore().confirm({
+        title: 'Отзыв согласия',
+        message: `Отозвать согласие на обработку данных у ${formatLogin(user.username)}?`
+          + ' Работник снова увидит окно согласия и не сможет работать в системе,'
+          + ' пока не подтвердит его заново.',
+        confirmText: 'Отозвать',
+        danger: true,
+      });
+      if (!ok) return;
+      this.consentRevoking = true;
+      try {
+        await revokeUserConsent(user.username);
+        useDeletionsStore().notify({
+          prefix: 'Согласие отозвано у ',
+          bold: formatLogin(user.username),
+        });
+        // Признаки согласия живут в списке работников - перечитываем его.
+        this.$emit('fetch-users');
+        if (this.selectedUser) {
+          this.selectedUser.consent_granted = false;
+          this.selectedUser.consent_at = null;
+        }
+      } catch (error) {
+        useDeletionsStore().notify({
+          prefix: error?.message || 'Не удалось отозвать согласие',
+          type: 'error',
+        });
+      } finally {
+        this.consentRevoking = false;
+      }
+    },
+
+    /**
+     * Подпись состояния согласия в карточке. Пока запрос выключен, «не дано» ничего
+     * не значит - согласия нет вообще ни у кого, поэтому такое состояние называется
+     * отдельно.
+     * @param {{consent_granted?: boolean, consent_at?: string, consent_required?: boolean}} user
+     * @returns {string}
+     */
+    consentStateLabel(user) {
+      if (user?.consent_granted) {
+        const at = user.consent_at ? new Date(user.consent_at) : null;
+        return at && !Number.isNaN(at.getTime())
+          ? `Дано ${at.toLocaleDateString('ru-RU')}`
+          : 'Дано';
+      }
+      return user?.consent_required ? 'Не дано' : 'Не дано (согласие сейчас не запрашивается)';
+    },
+
+    formatLogin,
+
     formatUserName(user) {
-      const formatted = formatShortName(user);
-      return formatted || '-';
+      // Логин вместо прочерка: ФИО пусто и когда его не заполнили, и когда сервер
+      // скрыл его до согласия на обработку данных - опознать строку надо в обоих случаях.
+      return formatUserLabel(user) || '-';
     },
 
     onSelectOrganization(id) {
@@ -1608,7 +2109,9 @@ export default {
           method: "POST",
           body: JSON.stringify({
             username: this.newUser.username,
-            password: this.newUser.password,
+            // Пустая строка означает «пароль придумает система»: бэкенд примет её
+            // только с адресом почты, иначе откажет с объяснением.
+            password: this.newUser.password || '',
             last_name: this.newUser.last_name || null,
             first_name: this.newUser.first_name || null,
             middle_name: this.newUser.middle_name || null,
@@ -1623,8 +2126,15 @@ export default {
 
         if (response.ok) {
           const createdName = this.newUser.username;
+          // Пароль оставили пустым и запрос прошёл - значит его придумала система
+          // и письмо ушло: без настроенной почты сервер отказал бы.
+          const mailed = !this.newUser.password && this.createEmailFilled;
           this.handleUserCreated();
-          useDeletionsStore().notify({ prefix: 'Пользователь ', bold: createdName, suffix: ' создан' });
+          useDeletionsStore().notify({
+            prefix: 'Пользователь ',
+            bold: createdName,
+            suffix: mailed ? ' создан, пароль отправлен на почту' : ' создан',
+          });
         } else {
           const errorData = await response.json();
           useDeletionsStore().notify({ prefix: 'Не удалось создать пользователя: ', bold: errorData.message || 'ошибка', type: 'error' });
@@ -1637,18 +2147,27 @@ export default {
     
     async updateUserInfo(user) {
       try {
+        const payload = {
+          position: user.position || null,
+          is_important: !!user.is_important,
+        };
+        // У работника, не давшего согласия на обработку данных, сервер не присылает
+        // ни ФИО, ни рабочих контактов. Отправить пустые поля значило бы стереть
+        // настоящие данные правкой соседнего: без ключей сервер их не трогает.
+        if (!user.pd_hidden) {
+          // Пустая строка, а не null: сервер трактует отсутствие ключа как «не
+          // трогай поле», поэтому `|| null` делал очистку невозможной - стереть
+          // почту или телефон в карточке было нельзя, значение просто возвращалось.
+          payload.last_name = user.last_name ?? '';
+          payload.first_name = user.first_name ?? '';
+          payload.middle_name = user.middle_name ?? '';
+          payload.email = user.email ?? '';
+          payload.phone = user.phone ?? '';
+        }
         const response = await apiRequest(`/users/${user.username}/info`,
           {
             method: "PUT",
-            body: JSON.stringify({
-              last_name: user.last_name || null,
-              first_name: user.first_name || null,
-              middle_name: user.middle_name || null,
-              position: user.position || null,
-              email: user.email || null,
-              phone: user.phone || null,
-              is_important: !!user.is_important,
-            }),
+            body: JSON.stringify(payload),
           }
         );
 
@@ -1809,6 +2328,36 @@ export default {
       }
     },
     
+    /**
+     * Смена пароля работнику с отправкой письмом. Пароль в интерфейсе не
+     * показывается намеренно: он уходит владельцу учётной записи, а не тому,
+     * кто нажал кнопку.
+     */
+    async rotateUserPassword(user) {
+      this.rotatingPassword = true;
+      try {
+        const response = await apiRequest(`/users/${user.username}/rotate-password`, { method: 'POST' });
+        if (response.ok) {
+          useDeletionsStore().notify({
+            prefix: 'Новый пароль отправлен на почту работника ',
+            bold: user.username,
+          });
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          useDeletionsStore().notify({
+            prefix: 'Не удалось сменить пароль: ',
+            bold: errorData.message || 'ошибка',
+            type: 'error',
+          });
+        }
+      } catch (error) {
+        console.error('Ошибка сети при смене пароля с отправкой письмом:', error);
+        useDeletionsStore().notify({ bold: 'Нет связи с сервером', type: 'error' });
+      } finally {
+        this.rotatingPassword = false;
+      }
+    },
+
     async changeUserPassword(user) {
       if (!user.newPassword) {
         useDeletionsStore().notify({ bold: 'Введите новый пароль', type: 'error' });
@@ -1852,11 +2401,6 @@ export default {
       this.showEditModal = true;
     },
 
-    closeDetails() {
-      this.closeEditModal();
-      this.selectedUser = null;
-    },
-
     sortBy(field) {
       if (this.sortField === field) {
         this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -1885,7 +2429,7 @@ export default {
   height: 50px;
   padding: 0 20px;
   border-bottom: 1px solid var(--border);
-  background: var(--accent-tint);
+  background: var(--accent-tint-solid);
   overflow-x: auto;
   overflow-y: hidden;
 }
@@ -2025,11 +2569,18 @@ export default {
   display: flex;
   height: fit-content;
   width: 100%;
+  /* Горизонтальная деградация живёт здесь, а не на .users-body: у тела свой
+     overflow-y, и его же горизонтальный скролл увёл бы строки из-под шапки.
+     Скролля контейнер, шапка и строки едут вместе. */
+  overflow-x: auto;
 }
 
 .users-list {
   flex: 1 1 auto;
-  min-width: 0;
+  /* Сумма минимумов восьми колонок с падингами ячеек и строки. Ниже этой ширины
+     список не сжимается, а .users-container отдаёт честный горизонтальный скролл:
+     %-ширины иначе схлопывают текст колонки в ноль вместо прокрутки. */
+  min-width: 770px;
   display: flex;
   flex-direction: column;
 }
@@ -2074,6 +2625,47 @@ export default {
   font-style: italic;
 }
 
+.lockout-badge {
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* Согласие не подтверждено - предупреждение, а не ошибка: человек просто ещё не
+   заходил. Поэтому янтарный, а не красный, как у заблокированного входа. */
+.consent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.consent-state {
+  margin: 0;
+  padding: 7px 0;
+  font-size: 14px;
+  color: var(--color-text, var(--text));
+}
+
+.consent-state--missing {
+  color: var(--warning-text);
+  font-weight: 600;
+}
+
+/* ФИО скрыто до согласия - об этом и говорим в колонке ФИО. Повторять там логин
+   бессмысленно: он стоит в соседней колонке. Предупреждение, а не ошибка: человек
+   просто ещё не заходил, поэтому янтарный, а не красный. */
+.consent-missing {
+  color: var(--warning-text);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .archive-badge {
   background: var(--text-muted);
   color: var(--surface);
@@ -2115,17 +2707,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {
@@ -2138,13 +2731,57 @@ export default {
 }
 
 /* Колонки с фиксированной шириной */
-/* check-col 6% забюджетирован в сумму 100% (14+16+18+15+16+15+6). */
-.login-col { width: 14%; min-width: 110px; }
-.name-col { width: 16%; min-width: 110px; }
-.org-col { width: 18%; min-width: 110px; }
-.company-col { width: 15%; min-width: 110px; }
-.position-col { width: 16%; min-width: 110px; }
-.type-col { width: 15%; min-width: 90px; }
+/* check-col 6% забюджетирован в сумму 100% (6+12+14+16+13+13+11+15).
+   seen-col шире прочих узких: подпись из двух единиц («3 мин 20 с», «5 мес 12 дн»)
+   длиннее одиночной, а обрезать её ellipsis'ом значит терять младшую единицу.
+   Проценты под неё сняты с ФИО и должности, но НЕ с org-col: там живут длинные
+   названия отделов («Технический департамент»), которые сразу уходят в ellipsis. */
+.login-col {
+  width: 12%;
+  min-width: 100px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  overflow: hidden;
+}
+
+/* Метки внутри колонки логина расставляет gap, собственный отступ им не нужен -
+   иначе после переноса на вторую строку слева появляется лишняя ступенька. */
+.login-col .inactive-badge,
+.login-col .lockout-badge {
+  margin-left: 0;
+}
+.name-col { width: 14%; min-width: 100px; }
+.org-col { width: 16%; min-width: 110px; }
+.company-col { width: 13%; min-width: 100px; }
+.position-col { width: 13%; min-width: 95px; }
+.type-col { width: 11%; min-width: 90px; }
+.seen-col { width: 15%; min-width: 104px; }
+
+/* Ячейка присутствия: точка и подпись в одну строку, подпись не переносится -
+   иначе строка таблицы прыгала бы по высоте на «12 мин назад». */
+.seen-col {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.seen-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Счётчик присутствия в шапке блока. Не жирный и не крупный: подпись к заголовку,
+   а не второй заголовок. */
+.online-count {
+  margin-left: 10px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
 
 /* Тело таблицы */
 .users-body {
@@ -2178,6 +2815,7 @@ export default {
 }
 
 .user-login {
+  max-width: 100%;
   color: var(--accent-text);
   font-weight: 600;
   white-space: nowrap;
@@ -2335,6 +2973,9 @@ export default {
 .generate-icon {
   width: 15px;
   height: 15px;
+  /* Значок случайного пароля был фирменного синего - остаётся им. */
+  color: var(--accent-text);
+  stroke-width: 2.2;
 }
 
 .save-password-btn {
@@ -2363,6 +3004,8 @@ export default {
 .save-icon {
   width: 16px;
   height: 16px;
+  /* Цвет наследуется от кнопки (--accent-contrast): дискета была белой на цветном. */
+  stroke-width: 2;
 }
 
 .input-hints {
@@ -2380,9 +3023,17 @@ export default {
 }
 
 .no-users {
-  text-align: center;
-  padding: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  padding: 32px 16px;
   color: var(--text-muted);
+}
+
+.no-users p {
+  margin: 0;
+  text-align: center;
 }
 
 /* Шапка модалки редактирования */
@@ -2411,6 +3062,22 @@ export default {
   gap: 8px;
   /* Прижать кнопки «История»/«Сбросить обучение» к правому краю шапки (перед крестиком). */
   margin-left: auto;
+  /* У охранника кнопок на одну больше («Места доступа»), и ряд перестаёт помещаться:
+     разрешаем перенос вместо вылезания за край. */
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 6px;
+}
+
+.modal-title-group {
+  min-width: 0;
+}
+
+/* Сброс обучения открывается списком туров, но в ряду шапки остаётся кнопкой -
+   обёртка дропдауна не должна занимать ширину сверх своего триггера. */
+.user-reset-onboarding {
+  display: inline-flex;
+  width: auto;
 }
 
 /* Вкладки модалки редактирования */
@@ -2476,6 +3143,21 @@ export default {
 }
 
 /* Опасное действие внизу "Профиля" */
+.rotate-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.rotate-row__hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex: 1;
+  min-width: 200px;
+}
+
 .danger-zone {
   display: flex;
   align-items: center;
@@ -2534,6 +3216,19 @@ export default {
 
 .input-group.full {
   flex: 1 1 100%;
+}
+
+.org-company-hint {
+  margin: -4px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.field-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-muted);
 }
 
 .input-label {
@@ -2642,11 +3337,32 @@ export default {
   .users-container {
     flex-direction: column;
     height: auto;
+    /* В card-режиме горизонтальной деградации нет: строки стали карточками, ширины
+       колонок не действуют. Оставленный скролл давал бы пустую прокрутку на 760px. */
+    overflow-x: visible;
+  }
+
+  /* Тот же откат для минимума ширины - иначе карточки распирают вьюпорт телефона. */
+  .users-list {
+    min-width: 0;
   }
 
   .users-body {
     height: auto;
     max-height: 300px;
+  }
+
+  /* В карточке ячейка несёт ТРИ элемента: подпись data-label (::before из
+     responsive-tables.css), точку и текст. При space-between точка повисла бы
+     ровно посередине строки - отжимаем подпись влево, чтобы точка с подписью
+     времени держались парой справа, как значение любой другой ячейки. */
+  .seen-col::before {
+    margin-right: auto;
+  }
+
+  .seen-text {
+    overflow: visible;
+    text-overflow: clip;
   }
 
   /* Спейсинг карточек: rt-row сидит на .user-row, а не на v-for-корне
@@ -2709,6 +3425,19 @@ export default {
 
 /* Радиус окон редактирования/создания задаётся пропом radius у BaseModal
    (content-class телепортится в body, scoped :deep до него не достаёт). */
+
+/* На телефоне ряд кнопок шапки не помещается рядом с заголовком и уезжал за
+   правый край окна целиком. Отдаём кнопкам всю ширину под заголовком и разрешаем
+   перенос - тогда он считается от края окна, а не от остатка строки. На широком
+   экране переноса нет намеренно: там ряд помещается, и wrap ломал бы его надвое. */
+@media (max-width: 767.98px) {
+  .modal-header-actions {
+    margin-left: 0;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}
 </style>
 
 <!-- Глобальный (не scoped): контент BaseModal телепортится в body, scoped-хэш до
@@ -2717,5 +3446,22 @@ export default {
 .base-modal.user-edit-modal .base-modal__header {
   padding-left: 30px;
   padding-right: 30px;
+}
+
+/* Шапка окна редактирования на телефоне: заголовок и крестик строкой, кнопки
+   под ними. Крестик в разметке идёт последним, поэтому переносим порядком -
+   иначе полоса кнопок во всю ширину сталкивает его на третью строку. */
+@media (max-width: 767.98px) {
+  .base-modal.user-edit-modal .base-modal__header {
+    flex-wrap: wrap;
+  }
+
+  .base-modal.user-edit-modal .base-modal__close {
+    order: 1;
+  }
+
+  .base-modal.user-edit-modal .modal-header-actions {
+    order: 2;
+  }
 }
 </style>

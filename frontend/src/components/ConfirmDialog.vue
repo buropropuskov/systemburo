@@ -5,7 +5,7 @@
         v-if="state"
         class="confirm-overlay"
         data-testid="confirm-overlay"
-        @click.self="cancel"
+        @click="onOverlayClick"
       >
         <div
           class="confirm-dialog"
@@ -68,9 +68,19 @@ export default {
       ui.resolveConfirm(false);
     }
 
-    useEscapeClose(cancel, () => !!state.value);
+    // Диалог блокирующий и поднимается из панелей и меню, которые закрываются по клику
+    // на document (панель уведомлений в шапке, дропдауны). Ответ обнуляет confirmState
+    // синхронно, поэтому проверка «вопрос сейчас открыт» на всплывшем клике уже слепа -
+    // клик не должен доходить до подложки вовсе, иначе она схлопывается ровно в момент
+    // ответа на свой же вопрос (#2058).
+    function onOverlayClick(e) {
+      e.stopPropagation();
+      if (e.target === e.currentTarget) cancel();
+    }
 
-    return { state, confirm, cancel };
+    useEscapeClose(cancel, () => !!state.value, 22000);
+
+    return { state, confirm, cancel, onOverlayClick };
   },
 };
 </script>
@@ -89,8 +99,10 @@ export default {
   /* Глобальный блокирующий confirm должен лежать ПОВЕРХ любых стопок модалок, из которых
      его зовут (деталь заявки 10002, карточка 10003, override 10005, история 12000). Ниже
      тоста (29000), чтобы уведомления оставались видны. Раньше было 1100 - терялся за
-     карточкой авто/сотрудника, открытой из заявки (#481). */
-  z-index: 20000;
+     карточкой авто/сотрудника, открытой из заявки (#481).
+     СТРОГО выше, а не вровень: на 20000 он совпадал с историей заявки, и при равенстве
+     выигрывал тот, кто позже в DOM - вопрос уходил под ленту истории и не кликался. */
+  z-index: 22000;
   padding: 20px;
   backdrop-filter: blur(0.1px);
   -webkit-backdrop-filter: blur(0.1px);

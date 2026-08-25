@@ -1,332 +1,314 @@
 <template>
-  <Teleport to="body">
-    <transition
-      name="manual-modal-fade"
-      @after-leave="resetState"
-    >
+  <BaseModal
+    :show="show"
+    :title="title"
+    width="840px"
+    radius="30px"
+    content-testid="manual-add-modal"
+    @close="close"
+  >
+    <div class="manual-modal">
       <div
-        v-if="show"
-        class="manual-modal-overlay"
-        data-testid="manual-add-modal"
-        @mousedown="onOverlayMousedown"
-        @mouseup="onOverlayMouseup"
+        v-if="canAttach"
+        class="manual-modal__mode"
+        data-testid="manual-add-mode"
       >
+        <FilterTabs
+          :tabs="modeTabs"
+          :model-value="bindMode"
+          @update:model-value="bindMode = $event"
+        />
+      </div>
+
+      <p class="manual-modal__hint">
+        <template v-if="isBinding">
+          Записи попадут в таблицу «{{ tableName }}» и будут привязаны к выбранной
+          заявке (доступно только администратору).
+        </template>
+        <template v-else>
+          Записи попадут в таблицу «{{ tableName }}» без заявки и будут помечены
+          «Добавлено вручную».
+        </template>
+      </p>
+
+      <div
+        v-if="isBinding"
+        class="manual-modal__bind"
+        data-testid="manual-add-bind"
+      >
+        <div class="manual-modal__field">
+          <label class="manual-modal__label">
+            Заявка <span class="manual-modal__req">*</span>
+          </label>
+          <BaseDropdown
+            :model-value="selectedApplicationId"
+            :options="applicationOptions"
+            label-key="label"
+            value-key="id"
+            :searchable="true"
+            :disabled="loadingApplications"
+            :placeholder="loadingApplications ? 'Загрузка заявок...' : 'Выберите заявку'"
+            data-testid="manual-add-application"
+            @update:model-value="onApplicationChange"
+          />
+          <p
+            v-if="!loadingApplications && !applicationOptions.length"
+            class="manual-modal__note"
+          >
+            Нет активных согласованных заявок для привязки.
+          </p>
+        </div>
+
         <div
-          class="manual-modal"
-          @mousedown.stop
+          v-if="selectedApplicationId"
+          class="manual-modal__target"
+          role="radiogroup"
         >
-          <div class="manual-modal__header">
-            <h3>{{ title }}</h3>
-            <button
-              type="button"
-              class="manual-modal__close"
-              aria-label="Закрыть"
-              @click="close"
+          <label class="manual-modal__radio">
+            <input
+              v-model="attachTarget"
+              type="radio"
+              value="new"
+              data-testid="manual-target-new"
             >
-              &times;
-            </button>
-          </div>
-
-          <div class="manual-modal__body">
-            <div
-              v-if="canAttach"
-              class="manual-modal__mode"
-              data-testid="manual-add-mode"
+            <span>Новое вложение в заявке</span>
+          </label>
+          <label class="manual-modal__radio">
+            <input
+              v-model="attachTarget"
+              type="radio"
+              value="existing"
+              :disabled="!attachmentOptions.length"
+              data-testid="manual-target-existing"
             >
-              <FilterTabs
-                :tabs="modeTabs"
-                :model-value="bindMode"
-                @update:model-value="bindMode = $event"
-              />
-            </div>
-
-            <p class="manual-modal__hint">
-              <template v-if="isBinding">
-                Записи попадут в таблицу «{{ tableName }}» и будут привязаны к выбранной
-                заявке (доступно только администратору).
+            <span>
+              Существующее вложение
+              <template v-if="!loadingAttachments && !attachmentOptions.length">
+                (нет подходящих)
               </template>
-              <template v-else>
-                Записи попадут в таблицу «{{ tableName }}» без заявки и будут помечены
-                «Добавлено вручную».
-              </template>
-            </p>
+            </span>
+          </label>
+        </div>
 
-            <div
-              v-if="isBinding"
-              class="manual-modal__bind"
-              data-testid="manual-add-bind"
-            >
-              <div class="manual-modal__field">
-                <label class="manual-modal__label">
-                  Заявка <span class="manual-modal__req">*</span>
-                </label>
-                <BaseDropdown
-                  :model-value="selectedApplicationId"
-                  :options="applicationOptions"
-                  label-key="label"
-                  value-key="id"
-                  :searchable="true"
-                  :disabled="loadingApplications"
-                  :placeholder="loadingApplications ? 'Загрузка заявок...' : 'Выберите заявку'"
-                  data-testid="manual-add-application"
-                  @update:model-value="onApplicationChange"
-                />
-                <p
-                  v-if="!loadingApplications && !applicationOptions.length"
-                  class="manual-modal__note"
-                >
-                  Нет активных согласованных заявок для привязки.
-                </p>
-              </div>
-
-              <div
-                v-if="selectedApplicationId"
-                class="manual-modal__target"
-                role="radiogroup"
-              >
-                <label class="manual-modal__radio">
-                  <input
-                    v-model="attachTarget"
-                    type="radio"
-                    value="new"
-                    data-testid="manual-target-new"
-                  >
-                  <span>Новое вложение в заявке</span>
-                </label>
-                <label class="manual-modal__radio">
-                  <input
-                    v-model="attachTarget"
-                    type="radio"
-                    value="existing"
-                    :disabled="!attachmentOptions.length"
-                    data-testid="manual-target-existing"
-                  >
-                  <span>
-                    Существующее вложение
-                    <template v-if="!loadingAttachments && !attachmentOptions.length">
-                      (нет подходящих)
-                    </template>
-                  </span>
-                </label>
-              </div>
-
-              <div
-                v-if="selectedApplicationId && attachTarget === 'existing'"
-                class="manual-modal__field"
-              >
-                <label class="manual-modal__label">
-                  Вложение заявки <span class="manual-modal__req">*</span>
-                </label>
-                <BaseDropdown
-                  :model-value="selectedAttachmentId"
-                  :options="attachmentOptions"
-                  label-key="label"
-                  value-key="id"
-                  :searchable="true"
-                  :disabled="loadingAttachments"
-                  :placeholder="loadingAttachments ? 'Загрузка вложений...' : 'Выберите вложение'"
-                  data-testid="manual-add-attachment"
-                  @update:model-value="selectedAttachmentId = $event"
-                />
-              </div>
-            </div>
-
-            <div class="manual-modal__grid">
-              <div class="manual-modal__field">
-                <label class="manual-modal__label">
-                  Организация <span class="manual-modal__req">*</span>
-                </label>
-                <BaseDropdown
-                  :model-value="selectedOrgId"
-                  :options="organizations"
-                  label-key="name"
-                  value-key="id"
-                  :searchable="true"
-                  placeholder="Выберите организацию"
-                  data-testid="manual-add-org"
-                  @update:model-value="onOrgChange"
-                />
-              </div>
-              <div class="manual-modal__field">
-                <label class="manual-modal__label">Компания</label>
-                <BaseDropdown
-                  :model-value="selectedCompanyId"
-                  :options="companies"
-                  label-key="name"
-                  value-key="id"
-                  :searchable="true"
-                  placeholder="Без компании"
-                  data-testid="manual-add-company"
-                  @update:model-value="onCompanyChange"
-                />
-              </div>
-            </div>
-
-            <div class="manual-modal__dates">
-              <DateRangeSection
-                :is-one-day="dateData.isOneDay"
-                :start-date="dateData.startDate"
-                :end-date="dateData.endDate"
-                :single-date="dateData.singleDate"
-                :start-time="dateData.startTime"
-                :end-time="dateData.endTime"
-                :roof-access="dateData.roofAccess"
-                :free-parking="dateData.freeParking"
-                :field-config="dateFieldConfig"
-                @update:is-one-day="dateData.isOneDay = $event"
-                @update:start-date="dateData.startDate = $event"
-                @update:end-date="dateData.endDate = $event"
-                @update:single-date="dateData.singleDate = $event"
-                @update:start-time="dateData.startTime = $event"
-                @update:end-time="dateData.endTime = $event"
-                @update:roof-access="dateData.roofAccess = $event"
-                @update:free-parking="dateData.freeParking = $event"
-              />
-            </div>
-
-            <div
-              class="manual-modal__form-section"
-              :class="{ 'manual-modal__form-section--locked': !selectedOrgId }"
-            >
-              <div
-                v-if="!selectedOrgId"
-                class="manual-modal__form-lock"
-                data-testid="manual-form-lock"
-              >
-                Сначала выберите организацию, чтобы {{ isPeople ? 'добавить сотрудников' : 'добавить машины' }}
-              </div>
-
-              <VehicleForm
-                v-if="!isPeople"
-                ref="vehicleForm"
-                :user-organization="selectedOrgName"
-                :user-organization-id="selectedOrgId"
-                :user-company="selectedCompanyName"
-                :user-company-id="selectedCompanyId"
-                :existing-vehicles="addedVehicles"
-                :allow-existing-search="false"
-                :disabled="!selectedOrgId"
-                @vehicle-added="handleVehicleAdded"
-                @vehicles-added="handleVehiclesAdded"
-                @vehicle-updated="handleVehicleUpdated"
-              />
-              <EmployeeForm
-                v-else
-                ref="employeeForm"
-                :user-organization="selectedOrgName"
-                :user-organization-id="selectedOrgId"
-                :user-company="selectedCompanyName"
-                :user-company-id="selectedCompanyId"
-                :existing-employees="addedEmployees"
-                :allow-existing-search="false"
-                :disabled="!selectedOrgId"
-                @employee-added="handleEmployeeAdded"
-                @employees-added="handleEmployeesAdded"
-                @employee-updated="handleEmployeeUpdated"
-              />
-            </div>
-
-            <div
-              v-if="!isPeople && addedVehicles.length"
-              class="manual-modal__added"
-              data-testid="manual-add-list"
-            >
-              <div class="manual-modal__added-title">
-                К добавлению: {{ addedVehicles.length }}
-              </div>
-              <ul class="manual-added-list">
-                <li
-                  v-for="vehicle in addedVehicles"
-                  :key="vehicle.id"
-                  class="manual-added-item"
-                >
-                  <span class="manual-added-name">
-                    {{ vehicle.plateNumber }} - {{ vehicle.mark || 'марка не указана' }}
-                  </span>
-                  <div class="manual-added-actions">
-                    <button
-                      type="button"
-                      class="manual-added-btn"
-                      @click="editVehicle(vehicle)"
-                    >
-                      Изменить
-                    </button>
-                    <button
-                      type="button"
-                      class="manual-added-btn manual-added-btn--danger"
-                      @click="removeVehicle(vehicle)"
-                    >
-                      Удалить
-                    </button>
-                  </div>
-                </li>
-              </ul>
-            </div>
-
-            <div
-              v-if="isPeople && addedEmployees.length"
-              class="manual-modal__added"
-              data-testid="manual-add-list"
-            >
-              <div class="manual-modal__added-title">
-                К добавлению: {{ addedEmployees.length }}
-              </div>
-              <ul class="manual-added-list">
-                <li
-                  v-for="employee in addedEmployees"
-                  :key="employee.id"
-                  class="manual-added-item"
-                >
-                  <span class="manual-added-name">
-                    {{ employeeFullName(employee) }}
-                  </span>
-                  <div class="manual-added-actions">
-                    <button
-                      type="button"
-                      class="manual-added-btn"
-                      @click="editEmployee(employee)"
-                    >
-                      Изменить
-                    </button>
-                    <button
-                      type="button"
-                      class="manual-added-btn manual-added-btn--danger"
-                      @click="removeEmployee(employee)"
-                    >
-                      Удалить
-                    </button>
-                  </div>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div class="manual-modal__footer">
-            <button
-              type="button"
-              class="manual-btn manual-btn--ghost"
-              @click="close"
-            >
-              Отмена
-            </button>
-            <button
-              type="button"
-              class="manual-btn manual-btn--primary"
-              :disabled="!canSubmit"
-              data-testid="manual-add-submit"
-              @click="submit"
-            >
-              {{ submitLabel }}
-            </button>
-          </div>
+        <div
+          v-if="selectedApplicationId && attachTarget === 'existing'"
+          class="manual-modal__field"
+        >
+          <label class="manual-modal__label">
+            Вложение заявки <span class="manual-modal__req">*</span>
+          </label>
+          <BaseDropdown
+            :model-value="selectedAttachmentId"
+            :options="attachmentOptions"
+            label-key="label"
+            value-key="id"
+            :searchable="true"
+            :disabled="loadingAttachments"
+            :placeholder="loadingAttachments ? 'Загрузка вложений...' : 'Выберите вложение'"
+            data-testid="manual-add-attachment"
+            @update:model-value="selectedAttachmentId = $event"
+          />
         </div>
       </div>
-    </transition>
-  </Teleport>
+
+      <div class="manual-modal__grid">
+        <div class="manual-modal__field">
+          <label class="manual-modal__label">
+            Организация <span class="manual-modal__req">*</span>
+          </label>
+          <BaseDropdown
+            :model-value="selectedOrgId"
+            :options="organizations"
+            label-key="name"
+            value-key="id"
+            :searchable="true"
+            placeholder="Выберите организацию"
+            data-testid="manual-add-org"
+            @update:model-value="onOrgChange"
+          />
+        </div>
+        <div class="manual-modal__field">
+          <label class="manual-modal__label">Компания</label>
+          <BaseDropdown
+            :model-value="selectedCompanyId"
+            :options="companies"
+            label-key="name"
+            value-key="id"
+            :searchable="true"
+            placeholder="Без компании"
+            data-testid="manual-add-company"
+            @update:model-value="onCompanyChange"
+          />
+        </div>
+      </div>
+
+      <div class="manual-modal__dates">
+        <DateRangeSection
+          :is-one-day="dateData.isOneDay"
+          :start-date="dateData.startDate"
+          :end-date="dateData.endDate"
+          :single-date="dateData.singleDate"
+          :start-time="dateData.startTime"
+          :end-time="dateData.endTime"
+          :roof-access="dateData.roofAccess"
+          :free-parking="dateData.freeParking"
+          :field-config="dateFieldConfig"
+          @update:is-one-day="dateData.isOneDay = $event"
+          @update:start-date="dateData.startDate = $event"
+          @update:end-date="dateData.endDate = $event"
+          @update:single-date="dateData.singleDate = $event"
+          @update:start-time="dateData.startTime = $event"
+          @update:end-time="dateData.endTime = $event"
+          @update:roof-access="dateData.roofAccess = $event"
+          @update:free-parking="dateData.freeParking = $event"
+        />
+      </div>
+
+      <div
+        class="manual-modal__form-section"
+        :class="{ 'manual-modal__form-section--locked': !selectedOrgId }"
+      >
+        <div
+          v-if="!selectedOrgId"
+          class="manual-modal__form-lock"
+          data-testid="manual-form-lock"
+        >
+          Сначала выберите организацию, чтобы {{ isPeople ? 'добавить сотрудников' : 'добавить машины' }}
+        </div>
+
+        <VehicleForm
+          v-if="!isPeople"
+          ref="vehicleForm"
+          :user-organization="selectedOrgName"
+          :user-organization-id="selectedOrgId"
+          :user-company="selectedCompanyName"
+          :user-company-id="selectedCompanyId"
+          :existing-vehicles="addedVehicles"
+          :allow-existing-search="false"
+          :disabled="!selectedOrgId"
+          @vehicle-added="handleVehicleAdded"
+          @vehicles-added="handleVehiclesAdded"
+          @vehicle-updated="handleVehicleUpdated"
+        />
+        <EmployeeForm
+          v-else
+          ref="employeeForm"
+          :user-organization="selectedOrgName"
+          :user-organization-id="selectedOrgId"
+          :user-company="selectedCompanyName"
+          :user-company-id="selectedCompanyId"
+          :existing-employees="addedEmployees"
+          :allow-existing-search="false"
+          :disabled="!selectedOrgId"
+          @employee-added="handleEmployeeAdded"
+          @employees-added="handleEmployeesAdded"
+          @employee-updated="handleEmployeeUpdated"
+        />
+      </div>
+
+      <div
+        v-if="!isPeople && addedVehicles.length"
+        class="manual-modal__added"
+        data-testid="manual-add-list"
+      >
+        <div class="manual-modal__added-title">
+          К добавлению: {{ addedVehicles.length }}
+        </div>
+        <ul class="manual-added-list">
+          <li
+            v-for="vehicle in addedVehicles"
+            :key="vehicle.id"
+            class="manual-added-item"
+          >
+            <span class="manual-added-name">
+              {{ vehicle.plateNumber }} - {{ vehicle.mark || 'марка не указана' }}
+            </span>
+            <div class="manual-added-actions">
+              <button
+                type="button"
+                class="manual-added-btn"
+                @click="editVehicle(vehicle)"
+              >
+                Изменить
+              </button>
+              <button
+                type="button"
+                class="manual-added-btn manual-added-btn--danger"
+                @click="removeVehicle(vehicle)"
+              >
+                Удалить
+              </button>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <div
+        v-if="isPeople && addedEmployees.length"
+        class="manual-modal__added"
+        data-testid="manual-add-list"
+      >
+        <div class="manual-modal__added-title">
+          К добавлению: {{ addedEmployees.length }}
+        </div>
+        <ul class="manual-added-list">
+          <li
+            v-for="employee in addedEmployees"
+            :key="employee.id"
+            class="manual-added-item"
+          >
+            <span class="manual-added-name">
+              {{ employeeFullName(employee) }}
+            </span>
+            <div class="manual-added-actions">
+              <button
+                type="button"
+                class="manual-added-btn"
+                @click="editEmployee(employee)"
+              >
+                Изменить
+              </button>
+              <button
+                type="button"
+                class="manual-added-btn manual-added-btn--danger"
+                @click="removeEmployee(employee)"
+              >
+                Удалить
+              </button>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <template #actions>
+      <button
+        type="button"
+        class="manual-btn manual-btn--ghost"
+        @click="close"
+      >
+        Отмена
+      </button>
+      <span
+        class="hint-anchor hint-anchor--right"
+        :data-hint="submitHint"
+      >
+        <button
+          type="button"
+          class="manual-btn manual-btn--primary"
+          :disabled="!canSubmit"
+          data-testid="manual-add-submit"
+          @click="submit"
+        >
+          {{ submitLabel }}
+        </button>
+      </span>
+    </template>
+  </BaseModal>
 </template>
 
 <script>
-import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import BaseModal from '@/components/ui/BaseModal.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import DateRangeSection from '@/components/CreateApplication/DateRangeSection.vue';
@@ -339,7 +321,6 @@ import { getAttachableApplications, getApplicationAttachments } from '@/api/appl
 import { attachToApplication } from '@/api/attachments';
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
-import { useOverlayClose } from '@/composables/useOverlayClose';
 
 // Привязка (режим-2) возможна только к активной согласованной заявке - те же
 // критерии, что валидирует бэк (loadActiveApprovedApp), иначе привязка спрячет
@@ -369,7 +350,7 @@ const PEOPLE_DATE_FIELD_CONFIG = {
 
 export default {
     name: 'ManualAddModal',
-    components: { BaseDropdown, FilterTabs, DateRangeSection, VehicleForm, EmployeeForm },
+    components: { BaseModal, BaseDropdown, FilterTabs, DateRangeSection, VehicleForm, EmployeeForm },
     props: {
         show: {
             type: Boolean,
@@ -392,11 +373,6 @@ export default {
         },
     },
     emits: ['close', 'added'],
-    setup() {
-        const closeRef = { fn: null };
-        const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => closeRef.fn && closeRef.fn());
-        return { onOverlayMousedown, onOverlayMouseup, closeRef };
-    },
     data() {
         return {
             organizations: [],
@@ -488,6 +464,31 @@ export default {
                 ? !!(d.singleDate && d.startTime && d.endTime)
                 : !!(d.startDate && d.endDate && d.startTime && d.endTime);
         },
+        /**
+         * Подсказка на заблокированной кнопке отправки: чего не хватает.
+         * Пока идёт сохранение подсказки нет - кнопка выключена по другой
+         * причине и объяснять нечего.
+         */
+        submitHint() {
+            if (this.canSubmit || this.submitting) return '';
+
+            const missing = [];
+            if (this.isBinding && !this.selectedApplicationId) missing.push('заявку');
+            if (this.isBinding && this.attachTarget === 'existing' && !this.selectedAttachmentId) {
+                missing.push('вложение заявки');
+            }
+            if (!this.selectedOrgId) missing.push('организацию');
+            if (!this.datesComplete) missing.push('даты и время');
+
+            const reasons = [];
+            if (missing.length) reasons.push(`Заполните: ${missing.join(', ')}`);
+            if (this.addedCount === 0) {
+                reasons.push(this.isPeople
+                    ? 'Добавьте хотя бы одного сотрудника'
+                    : 'Добавьте хотя бы одну машину');
+            }
+            return reasons.join('. ');
+        },
         canSubmit() {
             if (!this.selectedOrgId || this.addedCount === 0 || !this.datesComplete || this.submitting) {
                 return false;
@@ -500,8 +501,10 @@ export default {
         },
     },
     watch: {
+        // Оверлей/крестик/Escape/свайп и блокировку скролла фона теперь несёт
+        // BaseModal (контракт окон - см. эталон §3.1) - здесь остаётся только
+        // сброс и загрузка формы при открытии.
         show(open) {
-            setBodyScrollLock(this, open);
             if (open) {
                 this.resetState();
                 this.loadDictionaries();
@@ -514,21 +517,11 @@ export default {
         },
     },
     mounted() {
-        this.closeRef.fn = this.close;
-        document.addEventListener('keydown', this.onKeydown);
         if (this.show) {
-            setBodyScrollLock(this, true);
             this.loadDictionaries();
         }
     },
-    beforeUnmount() {
-        document.removeEventListener('keydown', this.onKeydown);
-        releaseBodyScrollLock(this);
-    },
     methods: {
-        onKeydown(e) {
-            if (e.key === 'Escape' && this.show) this.close();
-        },
         async loadDictionaries() {
             try {
                 const [orgs, companies] = await Promise.all([getOrganizations(), getCompanies()]);
@@ -804,8 +797,9 @@ export default {
             this.loadingApplications = false;
             this.loadingAttachments = false;
         },
-        // Сброс формы делаем ПОСЛЕ анимации закрытия (after-leave) и при открытии,
-        // а не в close() до эмита - иначе форма пустеет за кадр до угасания оверлея.
+        // Сброс формы - в watch(show) на открытие (resetState выше), не здесь: BaseModal
+        // сам управляет анимацией закрытия и after-leave родителю не отдаёт, а очистка
+        // ДО угасания оверлея была бы видна пользователю кадром пустой формы.
         close() {
             this.$emit('close');
         },
@@ -814,26 +808,16 @@ export default {
 </script>
 
 <style scoped>
-.manual-modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: var(--overlay);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    padding: 20px;
-}
-
+/* Оверлей/окно/анимация/крестик/Escape/свайп теперь несёт BaseModal (эталон §3.1).
+   `.manual-modal` остаётся контентной обёрткой внутри слота BaseModal - боковой
+   отступ повторяет прежний `.manual-modal__body`, а класс держим ради `:deep()`
+   ниже: он сам стилизуется напрямую (тот же scope, что и у ManualAddModal), а вот
+   классы VehicleForm/EmployeeForm (`.data__completion` и другие) - это разметка
+   ДОЧЕРНИХ компонентов, до неё достаёт только `:deep()` от предка внутри ТОГО ЖЕ
+   дерева scope - в отличие от классов самого BaseModal, `:deep()` в которые из
+   родителя мёртв (эталон §3.1, радиус модалки поэтому задаётся пропом). */
 .manual-modal {
-    background: var(--surface);
-    border-radius: 30px;
-    width: 840px;
-    max-width: 95%;
-    max-height: calc(var(--app-vh, 1vh) * 90);
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 10px 30px var(--shadow-drop);
+    padding: 20px 28px;
 }
 
 /* VehicleForm/EmployeeForm в CreateApplication - левая колонка двухколоночной
@@ -860,22 +844,28 @@ export default {
    но в пределах его ширины (не за границу). Инпут номера фиксирован 202px, а колонка
    тянулась на всю ширину (flex:1) -> «по факту» уезжал за правый край инпута. Сужаем
    колонку номера до ширины инпута, тогда шапка (space-between) прижимает чекбокс ровно
-   к правому краю поля. Колонка марки тянется на остаток, её инпут = ширина колонки. */
-.manual-modal :deep(.completion__fields) {
-    gap: 12px;
-}
+   к правому краю поля. Колонка марки тянется на остаток, её инпут = ширина колонки.
+   Только для ДЕСКТОПНОЙ строки: на телефоне VehicleForm сам переводит
+   `.completion__fields` в колонку (`flex-direction: column`, брейкпоинт 768px), и
+   `flex-basis` из этих правил там читается уже как ВЫСОТА, а не ширина - номер
+   растягивался в блок 202px, марка в 320px, и между полями возникал пустой провал. */
+@media (min-width: 769px) {
+    .manual-modal :deep(.completion__fields) {
+        gap: 12px;
+    }
 
-.manual-modal :deep(.completion__number) {
-    flex: 0 0 202px;
-    max-width: 202px;
-}
+    .manual-modal :deep(.completion__number) {
+        flex: 0 0 202px;
+        max-width: 202px;
+    }
 
-/* Марка тянулась на весь остаток формы (слишком длинный инпут под дропдаун).
-   Ограничиваем разумной шириной; ряд Номер+Марка выравнивается слева, «по факту»
-   держится у правого края марки. */
-.manual-modal :deep(.completion__mark) {
-    flex: 0 1 320px;
-    max-width: 320px;
+    /* Марка тянулась на весь остаток формы (слишком длинный инпут под дропдаун).
+       Ограничиваем разумной шириной; ряд Номер+Марка выравнивается слева, «по факту»
+       держится у правого края марки. */
+    .manual-modal :deep(.completion__mark) {
+        flex: 0 1 320px;
+        max-width: 320px;
+    }
 }
 
 /* Меню марки в заявке открывается СПРАВА от поля (left:100%) - там узкая колонка
@@ -888,41 +878,6 @@ export default {
     right: auto;
     margin-left: 0;
     width: 100%;
-}
-
-.manual-modal__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 24px 28px 16px;
-    border-bottom: 1px solid var(--border);
-}
-
-.manual-modal__header h3 {
-    margin: 0;
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--text);
-}
-
-.manual-modal__close {
-    border: none;
-    background: transparent;
-    font-size: 28px;
-    line-height: 1;
-    cursor: pointer;
-    color: var(--text-muted);
-    padding: 0 4px;
-}
-
-.manual-modal__close:hover {
-    color: var(--text);
-}
-
-.manual-modal__body {
-    padding: 20px 28px;
-    overflow-y: auto;
-    flex: 1;
 }
 
 .manual-modal__hint {
@@ -1019,10 +974,16 @@ export default {
     color: var(--accent-contrast);
     padding: 9px 18px;
     border-radius: 20px;
-    font-size: 13px;
+    /* 13px терялся на телефоне - подняли до кегля соседних заголовков-предупреждений
+       формы (.manual-modal__added-title здесь же и .warning-title в VehicleForm). */
+    font-size: 14px;
     font-weight: 500;
     text-align: center;
-    max-width: calc(100% - 32px);
+    /* Пилюля раньше сжималась по контенту (max-width как потолок) - текст жался
+       узкой колонкой. Владелец просил ширину, не кегль: теперь пилюля занимает
+       доступную ширину формы. */
+    width: calc(100% - 32px);
+    box-sizing: border-box;
     box-shadow: 0 2px 10px var(--shadow-drop);
 }
 
@@ -1085,14 +1046,6 @@ export default {
     text-decoration: underline;
 }
 
-.manual-modal__footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-    padding: 16px 28px 24px;
-    border-top: 1px solid var(--border);
-}
-
 .manual-btn {
     border-radius: 20px;
     padding: 10px 24px;
@@ -1125,26 +1078,6 @@ export default {
 .manual-btn--primary:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-}
-
-.manual-modal-fade-enter-active,
-.manual-modal-fade-leave-active {
-    transition: opacity 0.2s ease;
-}
-
-.manual-modal-fade-enter-from,
-.manual-modal-fade-leave-to {
-    opacity: 0;
-}
-
-.manual-modal-fade-enter-active .manual-modal,
-.manual-modal-fade-leave-active .manual-modal {
-    transition: transform 0.2s ease-out;
-}
-
-.manual-modal-fade-enter-from .manual-modal,
-.manual-modal-fade-leave-to .manual-modal {
-    transform: translateY(20px);
 }
 
 @media (max-width: 640px) {

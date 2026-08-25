@@ -94,17 +94,19 @@ func (r *auditReader) List(ctx context.Context, q AuditQuery) ([]models.AuditLog
 		return nil, 0, fmt.Errorf("scan audit log: %w", err)
 	}
 
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, r.db)
 	items := make([]models.AuditLogItem, 0, len(rows))
-	for _, r := range rows {
+	for _, row := range rows {
 		items = append(items, models.AuditLogItem{
-			ID:          r.ID,
-			EntityType:  r.EntityType,
-			EntityID:    r.EntityID,
-			Action:      r.Action,
-			Details:     r.Details,
-			ActorUserID: r.ActorUserID,
-			ActorName:   r.ActorName,
-			CreatedAt:   r.CreatedAt,
+			ID:          row.ID,
+			EntityType:  row.EntityType,
+			EntityID:    row.EntityID,
+			Action:      row.Action,
+			Details:     row.Details,
+			ActorUserID: row.ActorUserID,
+			ActorName:   maskName(masks, row.ActorUserID, row.ActorName),
+			CreatedAt:   row.CreatedAt,
 		})
 	}
 	return items, total, nil

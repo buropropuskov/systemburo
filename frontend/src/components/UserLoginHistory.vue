@@ -2,11 +2,10 @@
   <div class="login-history">
     <div class="lh-filters">
       <div class="lh-search">
-        <img
-          src="@/assets/icons/search.png"
+        <AppIcon
+          name="search"
           class="lh-search__icon"
-          alt=""
-        >
+        />
         <input
           v-model="search"
           class="lk-input lh-search__input"
@@ -233,6 +232,7 @@ import { formatDateTime } from '@/utils/datetime'
 import { parseUserAgent, formatDevice } from '@/utils/userAgent'
 import { detailLabel } from '@/utils/authEventDetail'
 import { useDeletionsStore } from '@/stores/deletions'
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 // Маппинг типа события в человекочитаемый бейдж. Сырые коды (login_success и т.п.)
 // в интерфейс не попадают - только понятные подписи с цветом по смыслу.
@@ -242,6 +242,7 @@ const EVENT_BADGES = {
   login_failed: { cls: 'lh-badge--danger', label: 'Неудачный вход' },
   login_locked: { cls: 'lh-badge--warn', label: 'Вход заблокирован' },
   account_locked: { cls: 'lh-badge--warn', label: 'Аккаунт заблокирован' },
+  lockout_reset: { cls: 'lh-badge--ok', label: 'Блокировка снята' },
   refresh: { cls: 'lh-badge--muted', label: 'Сессия обновлена' },
   token_reuse_detected: { cls: 'lh-badge--danger', label: 'Подозрительная сессия' },
 }
@@ -263,7 +264,7 @@ function toYMD(d) {
 
 export default {
   name: 'UserLoginHistory',
-  components: { BaseDropdown, DateFilter, Pager },
+  components: { AppIcon, BaseDropdown, DateFilter, Pager },
   props: {
     username: {
       type: String,
@@ -608,6 +609,8 @@ function thinBorder() {
   height: 14px;
   opacity: 0.45;
   pointer-events: none;
+  stroke-width: 2.2;
+  color: var(--text);
 }
 
 .lh-search__input {
@@ -669,7 +672,9 @@ function thinBorder() {
   z-index: 1;
   text-align: left;
   padding: 11px 14px;
-  background: var(--accent-tint);
+  /* Непрозрачная поверхность, а не --accent-tint: тот полупрозрачный (0.22 в тёмной
+     теме), и уезжающие под шапку строки читались сквозь неё. */
+  background: var(--surface-2);
   border-bottom: 1px solid var(--border);
   font-size: 11px;
   font-weight: 600;

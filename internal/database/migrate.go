@@ -10,6 +10,7 @@ import (
 	"systemburo/internal/normalize"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // AllModels returns all GORM models for AutoMigrate.
@@ -35,8 +36,12 @@ func AllModels() []interface{} {
 		&models.UserBanHistory{},
 		&models.RefreshToken{},
 		&models.AuthEvent{},
+		// Прежние пароли учётной записи: по ним отсекается повтор при смене.
+		&models.UsedPassword{},
 		&models.OrganizationUser{},
 		&models.CompaniesUser{},
+		// Прогресс онбординг-туров (#1737): строка на пару (пользователь, тур).
+		&models.UserOnboardingProgress{},
 
 		// License plate cells (depends on LicensePlateFormat)
 		&models.LicensePlateFormatCell{},
@@ -68,6 +73,11 @@ func AllModels() []interface{} {
 		&models.ApplicationResponsibleUser{},
 		&models.ApplicationApprover{},
 		&models.ApplicationViewer{},
+		&models.ApplicationFile{},
+
+		// Supplements (depends on Application, then on each other)
+		&models.ApplicationSupplement{},
+		&models.ApplicationSupplementApproval{},
 
 		// Unique records
 		&models.UniqueAttachment{},
@@ -127,6 +137,13 @@ func AllModels() []interface{} {
 		&models.Feedback{},
 		&models.FeedbackRead{},
 		&models.Notification{},
+		&models.UserNotificationPreference{},
+		// Подписки браузеров на Web Push (#974): доставка уведомлений при закрытой
+		// вкладке, поверх уже существующей ленты уведомлений выше.
+		&models.PushSubscription{},
+		// Очередь исходящих писем (#1906): письмо ставится в неё в одной транзакции
+		// с событием, которое его породило, и отправляется фоновым воркером.
+		&models.EmailMessage{},
 		&models.BugReport{},
 
 		// News
@@ -181,6 +198,17 @@ func AllModels() []interface{} {
 		// [21:30, 21:30) МСК, фиксируются кроном в 21:30. Без FK - история
 		// переживает удаление таблицы/пользователя.
 		&models.DailyPassReport{},
+
+		// Реестр файлового архива бланков (#1615): очередь выгрузки и указатель
+		// «какой файл где лежит». Без FK - строка переживает удаление вложения,
+		// иначе каскад оставил бы на диске файл, про который система забыла.
+		&models.BlankExport{},
+
+		// Партии вымышленных данных проверочного стенда (#1682): перечень созданного,
+		// по которому партия удаляется целиком. На рабочем сервере таблицы остаются
+		// пустыми - наливка туда не пускается отметкой экземпляра.
+		&models.FakeBatch{},
+		&models.FakeBatchItem{},
 	}
 }
 
@@ -211,10 +239,22 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := backfillCarTargetTables(db); err != nil {
 		return err
 	}
+	if err := BackfillPasswordChangedAt(db); err != nil {
+		return err
+	}
+	if err := BackfillUsedPasswords(db); err != nil {
+		return err
+	}
+	if err := ClearDeliveredMailBodies(db); err != nil {
+		return err
+	}
 	if err := BackfillApplicationAcceptedAt(db); err != nil {
 		return err
 	}
 	if err := BackfillOrgNameNormalized(db); err != nil {
+		return err
+	}
+	if err := MigrateOnboardingProgress(db); err != nil {
 		return err
 	}
 	if err := installSQLFunctions(db); err != nil {
@@ -230,6 +270,12 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 	if err := createSearchIndexes(db); err != nil {
+		return err
+	}
+	if err := createBlankExportPathIndex(db); err != nil {
+		return err
+	}
+	if err := createSupplementOpenIndex(db); err != nil {
 		return err
 	}
 	slog.Info("AutoMigrate completed")
@@ -254,10 +300,16 @@ func createStatisticsIndexes(db *gorm.DB) error {
 	return nil
 }
 
-// createSearchIndexes добавляет GIN trgm-индексы под мега-поиск заявок (#46): ILIKE
-// '%...%' и pg_trgm similarity по полям заявки и вложений ускоряются gin_trgm_ops.
-// Все CREATE INDEX IF NOT EXISTS - идемпотентны и аддитивны. Индексы по отдельным
-// колонкам (не по concat-выражению: concat_ws не IMMUTABLE, expression-индекс не создать).
+// createSearchIndexes добавляет GIN trgm-индексы под поиск: сначала под мега-поиск
+// заявок (#46), затем под сквозной поиск по разделам. ILIKE '%...%' и pg_trgm similarity
+// по этим колонкам опираются на gin_trgm_ops. Все CREATE INDEX IF NOT EXISTS -
+// идемпотентны и аддитивны. Индексы по отдельным колонкам (не по concat-выражению:
+// concat_ws не IMMUTABLE, expression-индекс не создать).
+//
+// Важное следствие того же ограничения: функция strict_word_similarity(?, concat_ws(...))
+// в WHERE индексом не покрывается ни при каких индексах ниже и всегда даёт полный
+// просмотр таблицы. Именно поэтому сквозной поиск ищет только по ILIKE, а распознавание
+// опечаток осталось за поиском внутри раздела, который открывают по кнопке.
 func createSearchIndexes(db *gorm.DB) error {
 	stmts := []string{
 		`CREATE INDEX IF NOT EXISTS idx_applications_number_trgm ON applications USING gin (application_number gin_trgm_ops)`,
@@ -276,6 +328,33 @@ func createSearchIndexes(db *gorm.DB) error {
 		`CREATE INDEX IF NOT EXISTS idx_employees_position_trgm ON employees USING gin (position gin_trgm_ops)`,
 		`CREATE INDEX IF NOT EXISTS idx_app_resp_users_comment_trgm ON application_responsible_users USING gin (approval_comment gin_trgm_ops)`,
 		`CREATE INDEX IF NOT EXISTS idx_unload_places_name_trgm ON unload_places USING gin (name gin_trgm_ops)`,
+
+		// Колонки сквозного поиска (GET /api/search). Он ходит по реестрам, учётным
+		// записям, справочникам, чёрным спискам и материалам раздела новостей, причём
+		// запрос уходит на каждый введённый символ -- без индекса это полный просмотр
+		// таблицы на нажатие клавиши. Заявки и вложения уже покрыты списком выше.
+		`CREATE INDEX IF NOT EXISTS idx_unique_cars_number_trgm ON unique_cars USING gin (number gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_unique_cars_mark_trgm ON unique_cars USING gin (mark gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_unique_employees_last_name_trgm ON unique_employees USING gin (last_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_unique_employees_first_name_trgm ON unique_employees USING gin (first_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_unique_employees_middle_name_trgm ON unique_employees USING gin (middle_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_unique_employees_position_trgm ON unique_employees USING gin ("position" gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_users_username_trgm ON users USING gin (username gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_users_position_trgm ON users USING gin ("position" gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_system_tables_name_trgm ON system_tables USING gin (name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_system_tables_display_name_trgm ON system_tables USING gin (display_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_marks_name_trgm ON marks USING gin (name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_citizenships_name_trgm ON citizenships USING gin (name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_lpf_name_trgm ON license_plate_formats USING gin (name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_vehicle_blacklists_number_trgm ON vehicle_blacklists USING gin (car_number gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_vehicle_blacklists_mark_trgm ON vehicle_blacklists USING gin (mark_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_person_blacklists_last_name_trgm ON person_blacklists USING gin (last_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_person_blacklists_first_name_trgm ON person_blacklists USING gin (first_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_person_blacklists_middle_name_trgm ON person_blacklists USING gin (middle_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_news_title_trgm ON news USING gin (title gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_announcements_title_trgm ON announcements USING gin (title gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_documents_title_trgm ON documents USING gin (title gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_feedback_message_trgm ON feedback USING gin (message gin_trgm_ops)`,
 	}
 	for _, stmt := range stmts {
 		if err := db.Exec(stmt).Error; err != nil {
@@ -447,6 +526,80 @@ func backfillCarTargetTables(db *gorm.DB) error {
 		  )`
 	if err := db.Exec(q).Error; err != nil {
 		return fmt.Errorf("backfill car_target_tables: %w", err)
+	}
+	return nil
+}
+
+// BackfillPasswordChangedAt проставляет дату последней смены пароля учётным
+// записям, заведённым до появления столбца (#1907).
+//
+// Ставится ТЕКУЩИЙ момент, а не дата создания учётной записи. Дата создания
+// выглядит честнее, но означает, что в день включения плановой смены истекут разом
+// все учётные записи старше срока - то есть залп писем и оборванные сессии у всей
+// организации сразу. Ради этого и выбран индивидуальный график: отсчёт для всех
+// начинается с внедрения и дальше расходится по датам собственных смен.
+//
+// Идемпотентно: заполняет только NULL. Новые записи получают дату при создании.
+func BackfillPasswordChangedAt(db *gorm.DB) error {
+	res := db.Exec(`UPDATE users SET password_changed_at = NOW() WHERE password_changed_at IS NULL`)
+	if res.Error != nil {
+		return fmt.Errorf("backfill password_changed_at: %w", res.Error)
+	}
+	if res.RowsAffected > 0 {
+		slog.Info("проставлена дата последней смены пароля", "rows", res.RowsAffected)
+	}
+	return nil
+}
+
+// ClearDeliveredMailBodies стирает текст у писем, которым он больше не нужен:
+// отправленных и окончательно не доставленных.
+//
+// Отправитель стирает текст сам, но письма, ушедшие до появления этого правила,
+// лежат в очереди со своим текстом - а в письмах о пароле это пароль открытым
+// текстом. Очередь ничего не удаляет по сроку, поэтому сами они не исчезнут.
+//
+// Ожидающих отправки не касается: им текст ещё предстоит отправить.
+func ClearDeliveredMailBodies(db *gorm.DB) error {
+	res := db.Exec(`
+		UPDATE email_messages SET body = ''
+		WHERE body <> '' AND status IN ('sent', 'failed')`)
+	if res.Error != nil {
+		return fmt.Errorf("очистка текстов доставленных писем: %w", res.Error)
+	}
+	if res.RowsAffected > 0 {
+		slog.Info("тексты отправленных писем стёрты", "rows", res.RowsAffected)
+	}
+	return nil
+}
+
+// BackfillUsedPasswords кладёт действующий пароль в перечень прежних тем учётным
+// записям, которые завели до появления запрета на повтор.
+//
+// Без этого запрет промахивается ровно там, где он нужнее всего. Перечень
+// пополняется при смене пароля, то есть у существующей записи он пуст, и первая
+// смена запоминает НОВЫЙ пароль, а прежний не запоминает никто. Вернуться к нему
+// после этого можно свободно - к тому самому паролю, ради отказа от которого смену
+// и затевали.
+//
+// Копируется хеш из users.password: перечень и действующий пароль хранятся одним
+// способом (Argon2id), и сравнение работает с ним так же, как с записями, которые
+// система сделала сама.
+//
+// Идемпотентно: строка добавляется только тем, у кого перечень пуст. Учётные записи,
+// уже менявшие пароль после внедрения, проход не трогает - иначе действующий пароль
+// попадал бы в перечень дважды при каждом запуске.
+func BackfillUsedPasswords(db *gorm.DB) error {
+	res := db.Exec(`
+		INSERT INTO used_passwords (user_id, password_hash, created_at)
+		SELECT u.id, u.password, NOW()
+		FROM users u
+		WHERE u.password <> ''
+		  AND NOT EXISTS (SELECT 1 FROM used_passwords p WHERE p.user_id = u.id)`)
+	if res.Error != nil {
+		return fmt.Errorf("backfill used_passwords: %w", res.Error)
+	}
+	if res.RowsAffected > 0 {
+		slog.Info("действующие пароли внесены в перечень прежних", "rows", res.RowsAffected)
 	}
 	return nil
 }
@@ -629,6 +782,67 @@ func BackfillApplicationAcceptedAt(db *gorm.DB) error {
 	return nil
 }
 
+// OnboardingProgressMigratedMarker - ключ в system_settings: перенос старой колонки
+// users.onboarding_completed_version в per-tour прогресс выполняется РОВНО один раз.
+// Без маркера каждый старт сервера воскрешал бы прохождение, снятое администратором:
+// колонка остаётся заполненной (её удаление - отдельная задача), и повторный перенос
+// вернул бы удалённую строку прогресса.
+const OnboardingProgressMigratedMarker = "onboarding_progress_migrated"
+
+// securityTypeCodeForOnboarding - код типа аккаунта охранника ЧОП в user_types (тот же,
+// что securityUserTypeCode в services): у охранника единственным пройденным туром был
+// сценарий охраны, у остальных - общий пользовательский.
+const securityTypeCodeForOnboarding = "security"
+
+// MigrateOnboardingProgress РАЗОВО переносит прохождение тура из старой колонки
+// users.onboarding_completed_version в строки user_onboarding_progress (#1737): тур
+// был один на пользователя, теперь их пять и каждый версионируется отдельно.
+//
+// Перенос и маркер идут одной транзакцией. При параллельном старте двух инстанций
+// обе проходят проверку маркера и доходят до вставки, поэтому ON CONFLICT DO NOTHING
+// стоит на ОБЕИХ вставках: проигравшая гонку пишет ноль строк и спокойно коммитится.
+// Без этого на маркере прилетал duplicate key и валил весь AutoMigrate - ловилось
+// параллельным прогоном тестов, где пакеты идут против одной базы.
+func MigrateOnboardingProgress(db *gorm.DB) error {
+	var done int64
+	if err := db.Model(&models.SystemSetting{}).
+		Where("key = ?", OnboardingProgressMigratedMarker).Count(&done).Error; err != nil {
+		return fmt.Errorf("check onboarding progress migration marker: %w", err)
+	}
+	if done > 0 {
+		return nil
+	}
+
+	const q = `
+		INSERT INTO user_onboarding_progress (user_id, tour_key, completed_version, completed_at)
+		SELECT u.id,
+		       CASE WHEN ut.code = ? THEN ? ELSE ? END,
+		       u.onboarding_completed_version,
+		       NOW()
+		FROM users u
+		LEFT JOIN user_types ut ON ut.id = u.type_id
+		WHERE u.onboarding_completed_version IS NOT NULL
+		ON CONFLICT (user_id, tour_key) DO NOTHING`
+
+	return db.Transaction(func(tx *gorm.DB) error {
+		res := tx.Exec(q, securityTypeCodeForOnboarding, models.TourGuard, models.TourUser)
+		if res.Error != nil {
+			return fmt.Errorf("migrate onboarding progress: %w", res.Error)
+		}
+		marker := models.SystemSetting{Key: OnboardingProgressMigratedMarker, Value: "true", Type: "bool"}
+		if err := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "key"}},
+			DoNothing: true,
+		}).Create(&marker).Error; err != nil {
+			return fmt.Errorf("set onboarding progress migration marker: %w", err)
+		}
+		// Логируем и нулевой перенос (свежая установка) - оператору видно, что шаг
+		// отработал, а не молча не дошёл сюда.
+		slog.Info("onboarding progress migrated from legacy column", "rows", res.RowsAffected)
+		return nil
+	})
+}
+
 // backfillBlacklistNormalized заполняет normalized_number/normalized_fio у записей
 // чёрного списка, добавленных до появления этих колонок (#481). Использует ту же
 // функцию нормализации, что и сервисы при Create, - иначе эталон в БД разойдётся с
@@ -684,6 +898,37 @@ func fixAttachmentTemplateIndex(db *gorm.DB) error {
 					ON attachment_templates(unique_attachment_id);
 			END IF;
 		END $$;
+	`).Error
+}
+
+// createBlankExportPathIndex запрещает двум строкам реестра указывать на один и тот
+// же файл на диске (#1615). Индекс частичный: до первой удачной записи rel_dir пуст,
+// и обычный UNIQUE считал бы такие строки конфликтующими - в очереди их сколько угодно.
+//
+// GORM-тегом это не выражается (WHERE в уникальном индексе он не умеет), поэтому
+// сырым SQL по образцу fixAttachmentTemplateIndex.
+func createBlankExportPathIndex(db *gorm.DB) error {
+	return db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_blank_exports_path
+			ON blank_exports (rel_dir, file_name)
+			WHERE rel_dir <> ''
+	`).Error
+}
+
+// createSupplementOpenIndex держит на заявке не больше одного незакрытого дополнения
+// (#1685): пока раунд ждёт голосов или принятия, второй подать нельзя. Иначе состав
+// вложения менялся бы скачками, а согласующий получал бы по одной заявке два
+// неразличимых запроса на согласование. Терминальные статусы (merged, accepted, rejected,
+// refused, cancelled) под условие не попадают, поэтому раунды идут друг за другом сколько угодно.
+//
+// GORM-тегом это не выражается (WHERE в уникальном индексе он не умеет), поэтому
+// сырым SQL по образцу createBlankExportPathIndex. Список статусов дублирует
+// models.OpenSupplementStatuses - в частичном индексе предикат обязан быть литералом.
+func createSupplementOpenIndex(db *gorm.DB) error {
+	return db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS uidx_app_supplement_open
+			ON application_supplements (application_id)
+			WHERE status IN ('pending', 'approved')
 	`).Error
 }
 
@@ -846,6 +1091,9 @@ var baseRoleGrants = []string{
 	"page.news",
 	"page.personal_cabinet",
 	"header.create_application",
+	// Дополнение заявки (#1685) - продолжение подачи: кто подаёт, тот и добавляет людей
+	// или машины в уже поданное. Владение заявкой проверяет сервис.
+	"action.supplement.application",
 	"entity.employees.read",
 	"entity.employees.write",
 	"entity.employees.delete",

@@ -16,7 +16,8 @@
       </div>
       <div class="card-header__settings">
         <RefreshButton
-          @refresh="$emit('refresh-data')"
+          :loading="refreshing"
+          @refresh="handleManualRefresh"
         />
       </div>
     </div>
@@ -158,11 +159,19 @@
       
       <!-- Тело таблицы -->
       <div class="fact-container">
-        <!-- Спиннер ТОЛЬКО когда показывать нечего (первая загрузка). На обновлении
-             таблица остаётся на месте: её подмена спиннером схлопывает высоту
-             документа, и на телефоне страница прыгает в начало. -->
+        <!-- Спиннер ТОЛЬКО на первой загрузке (isLoading, свой внутренний флаг - волна 8).
+             Раньше гейтился пропом `loading` от родителя, а тот отражал ЕГО собственный
+             рефреш - дёргался на клик ЛЮБОЙ из трёх кнопок «Обновить» на экране. «По
+             факту» почти всегда пуста, поэтому чужой клик подменял "Заявок... нет"
+             спиннером и обратно - блок прыгал 94 -> 150 -> 94px без единой смены данных.
+             Тихие обновления (поллинг, SSE, свой клик «Обновить» - handleManualRefresh)
+             держат isLoading в покое: подмена списка спиннером на них схлопывает высоту
+             документа и на телефоне выбрасывает страницу в начало. -->
+        <!-- refreshing (иконка «Обновить» крутится) НЕ гейтит этот блок - только isLoading:
+             тихое обновление обязано остаться тихим, крутящаяся иконка - её собственный,
+             более мелкий сигнал. -->
         <div
-          v-if="loading && !filteredData.length"
+          v-if="isLoading && !filteredData.length"
           class="loading-message"
         >
           <LoaderSpinner :label="tableType === 'cars' ? 'Загрузка машин...' : 'Загрузка...'" />
@@ -183,7 +192,14 @@
               :style="{ animationDelay: `${index * 0.1}s` }"
               @click="openItemDetails(item)"
             >
-              <div class="fact-row rt-row">
+              <!-- rt-pass: строка собирается талоном на мобилке (responsive-tables.css,
+                   часть 3) - той же, что у таблицы «по заявке» под ней: обе стоят на
+                   одном экране, и разнобой между ними виден целиком. Только для машин:
+                   у людей нет ни номера, ни кнопок прохода, талону не из чего собраться. -->
+              <div
+                class="fact-row rt-row"
+                :class="{ 'rt-pass': tableType === 'cars' }"
+              >
                 <!-- Служебные въезд/выезд - всегда первые (только cars) -->
                 <div
                   v-if="tableType === 'cars'"
@@ -222,7 +238,7 @@
                 <!-- Конфигурируемые столбцы -->
                 <div
                   v-if="tableType === 'cars' && isFieldVisible('car_number')"
-                  class="col number-col"
+                  class="col number-col rt-pass__plate"
                   :style="getColStyle('car_number')"
                   data-label="Номер Т/С"
                 >
@@ -230,7 +246,7 @@
                 </div>
                 <div
                   v-if="tableType === 'cars' && isFieldVisible('car_brand')"
-                  class="col brand-col"
+                  class="col brand-col rt-pass__mark"
                   :style="getColStyle('car_brand')"
                   data-label="Марка"
                 >
@@ -349,14 +365,15 @@
                   @click.stop
                 >
                   <button
-                    class="delete-btn"
+                    class="delete-btn rt-pass__act rt-pass__act--danger"
+                    title="Удалить"
                     @click="deleteItem(item)"
                   >
-                    <img
-                      src="@/assets/icons/trashcan.png"
-                      alt="Удалить"
-                      class="delete-icon"
-                    >
+                    <AppIcon
+                      name="trashcan"
+                      class="delete-icon rt-pass__act-icon"
+                    />
+                    <span class="rt-pass__act-label">Удалить</span>
                   </button>
                 </div>
               </div>
@@ -410,11 +427,15 @@ import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
 import FactPassModal from './FactPassModal.vue';
 import ExcelJS from 'exceljs';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
-import { pickOverflowFields, columnMinWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
+import { idFilterSet } from '@/utils/idFilter';
+import { pickOverflowFields, columnMinWidth, measureRowAvailableWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'FactTable',
   components: {
+    AppIcon,
     RefreshButton,
     LoaderSpinner,
     StatusBadge,
@@ -426,21 +447,34 @@ export default {
     tableId: { type: Number, default: null },
     tableData: { type: Object, default: null },
     searchQuery: { type: String, default: '' },
-    selectedOrganizationId: { type: [Number, String], default: null },
-    selectedCompanyId: { type: [Number, String], default: null },
-    selectedUnloadingPlaceId: { type: [Number, String], default: null },
+    // Мультивыбор (#1398): пустой массив - фильтр выключен.
+    selectedOrganizationIds: { type: Array, default: () => [] },
+    selectedCompanyIds: { type: Array, default: () => [] },
+    selectedUnloadingPlaceIds: { type: Array, default: () => [] },
     dateRangeStart: { type: Date, default: null },
     dateRangeEnd: { type: Date, default: null },
     selectedDate: { type: Date, default: null },
     currentUserId: { type: Number, default: null },
     currentUserName: { type: String, default: '' },
-    loading: { type: Boolean, default: false },
     // Режим "Сетка" (#1289): границы ячеек. Управляется одним тумблером страницы.
     grid: { type: Boolean, default: false }
   },
   emits: ['refresh-data', 'open-application'],
+  setup() {
+    // Порог тот же, что у card-правил responsive-tables.css: брейкпоинт компонента
+    // обязан совпадать с брейкпоинтом инфраструктуры, которой он пользуется.
+    const { isNarrow } = useNarrowScreen(767.98);
+    return { isNarrow };
+  },
   data() {
     return {
+      // Свой флаг первой загрузки (волна 8) - `loading` проп родителя отражает ЕГО
+      // собственный рефреш (по клику любой из трёх кнопок «Обновить» на экране), а
+      // не факт того, что у ЭТОЙ таблицы ещё нет данных для первого показа.
+      isLoading: false,
+      // Иконка «Обновить» крутится, пока ручное обновление в полёте (эталон CarsTable/
+      // PeopleTable) - отдельно от isLoading, который держит только первый показ.
+      refreshing: false,
       sortField: null,
       sortDirection: 'desc',
       factData: [],
@@ -492,17 +526,19 @@ export default {
           return matchesSearch(haystack, variants);
         });
       }
-      if (this.selectedOrganizationId) {
-        filtered = filtered.filter(item => item.organization_id == this.selectedOrganizationId);
+      const organizations = idFilterSet(this.selectedOrganizationIds);
+      if (organizations) {
+        filtered = filtered.filter(item => organizations.has(String(item.organization_id)));
       }
-      if (this.selectedCompanyId) {
-        filtered = filtered.filter(item => item.company_id == this.selectedCompanyId);
+      const companies = idFilterSet(this.selectedCompanyIds);
+      if (companies) {
+        filtered = filtered.filter(item => companies.has(String(item.company_id)));
       }
-      if (this.selectedUnloadingPlaceId && this.tableType === 'cars') {
+      const unloadPlaceIds = this.tableType === 'cars' ? idFilterSet(this.selectedUnloadingPlaceIds) : null;
+      if (unloadPlaceIds) {
         filtered = filtered.filter(item => {
-          const carId = item.id;
-          const unloadPlaces = this.factCarUnloadPlacesMap[carId] || [];
-          return unloadPlaces.some(place => place.id == this.selectedUnloadingPlaceId);
+          const unloadPlaces = this.factCarUnloadPlacesMap[item.id] || [];
+          return unloadPlaces.some(place => unloadPlaceIds.has(String(place.id)));
         });
       }
       if (this.selectedDate) {
@@ -560,9 +596,9 @@ export default {
     hasActiveFilters() {
       return !!(
         this.searchQuery ||
-        this.selectedOrganizationId ||
-        this.selectedCompanyId ||
-        (this.tableType === 'cars' && this.selectedUnloadingPlaceId) ||
+        idFilterSet(this.selectedOrganizationIds) ||
+        idFilterSet(this.selectedCompanyIds) ||
+        (this.tableType === 'cars' && idFilterSet(this.selectedUnloadingPlaceIds)) ||
         this.selectedDate ||
         (this.dateRangeStart && this.dateRangeEnd)
       );
@@ -575,6 +611,12 @@ export default {
         this.startPolling();
       },
       immediate: true
+    },
+    // Поворот телефона и переход через брейкпоинт меняют правила подбора столбцов:
+    // ResizeObserver сам по себе сюда не доедет, ширина карточки при повороте может
+    // и не измениться (планшет 768 <-> 767).
+    isNarrow() {
+      this.recalcOverflowFields();
     },
     // Применяем фактовые настройки таблицы (#345 PR-B).
     tableData: {
@@ -650,13 +692,26 @@ export default {
      * Пересчитывает, какие столбцы не помещаются в текущую ширину таблицы.
      */
     recalcOverflowFields() {
+      // На телефоне строка идёт карточкой: у каждого поля своя строка, за ширину
+      // они не конкурируют, и прятать нечего. Подбор здесь не просто бесполезен, а
+      // вреден: он мерит скрытую строку заголовков, получает ноль, берёт ширину
+      // карточки (368 на 390) против 260 служебных и оставляет ровно `keepAtLeast`
+      // столбца из девяти - а «Подробнее» у таблицы «по факту» нет, и остальные
+      // значения не видны нигде.
+      if (this.isNarrow) {
+        this.overflowFields = [];
+        return;
+      }
       const host = this.$el && this.$el.querySelector('.card-content');
       if (!host) return;
       const reserved = SERVICE_COLUMNS_WIDTH.passage
         + SERVICE_COLUMNS_WIDTH.actions;
+      // Мерим строку заголовков, а не всю область: её ширина уже без отступов и
+      // зазоров между ячейками (#1097 S8 волна 4).
+      const measured = measureRowAvailableWidth(host.querySelector('.header-row'));
       this.overflowFields = pickOverflowFields({
         fields: this.configuredFields(),
-        available: host.clientWidth,
+        available: measured || host.clientWidth,
         priorities: this.fieldPriorities,
         orders: this.fieldOrders,
         reserved,
@@ -681,7 +736,8 @@ export default {
     isFieldVisible(fieldName) {
       const v = this.fieldsVisibility[fieldName];
       if (v === false) return false;
-      // Не поместившиеся по ширине (#1307): значения остаются в карточке строки.
+      // Не поместившиеся по ширине (#1307). Панели «Подробнее» здесь нет, поэтому
+      // набор пуст везде, где строка идёт карточкой, - см. recalcOverflowFields.
       return !this.overflowFields.includes(fieldName);
     },
     // Запись добавлена вручную без заявки (#1049): application_id === null.
@@ -727,8 +783,11 @@ export default {
 
     // seq-токен против гонки конкурентных вызовов (поллинг + SSE-сигнал, #632/#840):
     // устаревший (медленно резолвнутый) ответ не должен затирать более свежие данные.
-    async _loadData() {
+    // silent=false (только первый вызов, см. isLoading в data()) показывает полноэкранный
+    // спиннер - на тихих обновлениях (поллинг, SSE, чужая кнопка «Обновить») он не нужен.
+    async _loadData(silent = false) {
       const seq = ++this.refreshSeq;
+      if (!silent) this.isLoading = true;
       try {
         await this.fetchUnloadingPlaces();
         await this.fetchLicensePlateFormats();
@@ -742,6 +801,8 @@ export default {
         }
       } catch (error) {
         console.error(`Ошибка при загрузке данных по факту (${this.tableType}):`, error);
+      } finally {
+        if (!silent) this.isLoading = false;
       }
     },
 
@@ -751,6 +812,21 @@ export default {
 
     async silentRefresh() {
       await this._loadData(true);
+    },
+
+    // Клик по «Обновить» этой карточки раньше только гонял метаданные таблицы через
+    // родителя ($emit('refresh-data')) и вовсе не перезагружал СВОИ строки - тихо
+    // ждал следующего поллинга/SSE. Теперь зовёт и то, и другое: родитель обновляет
+    // конфиг колонок, а silentRefresh - сам список (тихо, без спиннера - иначе клик
+    // по этой кнопке мигал бы спиннером ровно так же, как раньше мигал от ЧУЖИХ).
+    async handleManualRefresh() {
+      this.$emit('refresh-data');
+      this.refreshing = true;
+      try {
+        await this.silentRefresh();
+      } finally {
+        this.refreshing = false;
+      }
     },
 
     async fetchUnloadingPlaces() {
@@ -1073,7 +1149,9 @@ export default {
 
     startPolling() {
       if (this.pollingInterval) return;
-      this.silentRefresh();
+      // Только самый первый вызов - не тихий: показывать нечего, спиннер уместен, если
+      // сеть медленная. Дальше (таймер, SSE, ручное «Обновить») - без него, см. isLoading.
+      this.loadData();
       this.pollingInterval = setInterval(() => {
         // На живом SSE поллинг молчит (обновление уже пришло сигналом tables.refresh) -
         // таймер остаётся подстраховкой на 60с и мгновенно подхватывает при разрыве (#840).
@@ -1341,9 +1419,8 @@ export default {
   gap: 5px;
 }
 
-/* Подпись столбца сжимается с многоточием, а иконка сортировки - нет: раньше
-   длинный заголовок выталкивал её за пределы ячейки, и она либо срезалась,
-   либо наезжала на соседний столбец в режиме «Сетка» (#1307). */
+/* Подпись столбца сжимается с многоточием: раньше длинный заголовок распирал
+   ячейку и наезжал на соседний столбец в режиме «Сетка» (#1307). */
 .header-row .col > p {
   min-width: 0;
   overflow: hidden;
@@ -1352,30 +1429,8 @@ export default {
   margin: 0;
 }
 
-.header-row .col .sort-icon {
-  flex-shrink: 0;
-}
-
 .header-row .col:hover {
   color: var(--text);
-}
-
-.header-row .col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
-}
-
-.sort-icon {
-  width: 12px;
-  height: 12px;
-  transition: .2s;
-}
-
-.sort-icon.sorted {
-  filter: var(--icon-ink-filter);
-}
-
-.sort-icon.desc {
-  transform: rotate(180deg);
 }
 
 .active-sort {
@@ -1406,8 +1461,13 @@ export default {
   cursor: pointer;
 }
 
-.fact-item:hover {
-  background-color: var(--surface-2);
+/* Тач-экран hover не отдаёт, но :hover после тапа залипает до следующего касания -
+   подсветка висела на карточке, по которой уже отработали (эталон §1.5). Гейтим
+   ровно то, до чего на телефоне можно дотронуться: строку и кнопки карточки. */
+@media (hover: hover) {
+  .fact-item:hover {
+    background-color: var(--surface-2);
+  }
 }
 
 @keyframes fadeInUp {
@@ -1451,9 +1511,11 @@ export default {
   padding: 0;
 }
 
-.action-btn:hover:not(:disabled) {
-  background: var(--surface-2);
-  border-color: var(--text-muted);
+@media (hover: hover) {
+  .action-btn:hover:not(:disabled) {
+    background: var(--surface-2);
+    border-color: var(--text-muted);
+  }
 }
 
 .action-btn:disabled {
@@ -1490,8 +1552,10 @@ export default {
   justify-content: center;
 }
 
-.delete-btn:hover:not(:disabled) {
-  background-color: transparent;
+@media (hover: hover) {
+  .delete-btn:hover:not(:disabled) {
+    background-color: transparent;
+  }
 }
 
 .delete-btn:disabled {
@@ -1500,14 +1564,17 @@ export default {
 }
 
 .delete-icon {
+  color: var(--text);
   width: 16px;
   height: 16px;
   opacity: 0.7;
   transition: opacity 0.2s ease;
 }
 
-.delete-btn:hover:not(:disabled) .delete-icon {
-  opacity: 1;
+@media (hover: hover) {
+  .delete-btn:hover:not(:disabled) .delete-icon {
+    opacity: 1;
+  }
 }
 
 .no-data-message {
@@ -1570,30 +1637,155 @@ export default {
 }
 
 @media (max-width: 767.98px) {
+  /* Высота - по содержимому в обе стороны. `min-height: 222px` из базовых стилей
+     держит на десктопе ряд с карточкой-подсказкой; на телефоне подсказка стоит
+     отдельным блоком, а резерв высоты остаётся резервом под список, которого может
+     не быть вовсе: пустая таблица «по факту» занимала 222px + шапку 68 при том, что
+     показывала одну строку «Заявок на машины по факту нет».
+
+     Рамка и фон блока - на месте: без них таблица «по факту» (почти всегда пустая)
+     схлопывалась в голый абзац текста под заголовком - "куда она делась?". Радиус
+     тот же, что на десктопе (30px) - владелец забраковал 15px волны 7 отдельно
+     ("скруглить как и по факту", "таблицам больше скругление нужно дать, как и
+     было"); значение общее с CarsTable/PeopleTable ниже. Заголовок отделяет линия
+     снизу. */
   .fact-table-card {
     width: 100%;
     height: auto;
+    min-height: 0;
     max-height: none;
+    border: 1px solid var(--border);
+    border-radius: 30px;
+    background: var(--surface);
   }
 
+  /* Своя первая загрузка (см. комментарий у `isLoading` в шаблоне выше) схлопывает
+     страницу до высоты спиннера - без резерва документ короче вьюпорта, и палец,
+     потянувший список машин сразу после открытия таблицы, упирается в конец
+     документа на первых же миллиметрах жеста: браузер решает, скроллить страницу
+     дальше или нет, один раз на touchstart, и до конца жеста уже не пересматривает
+     решение - требуется отпустить и начать заново (замер: непрерывный драг во
+     время загрузки стоял на месте весь жест). Резерв только на время спиннера -
+     `.no-data-message` выше держит `flex-grow: 0` намеренно (не резервировать
+     место под постоянно пустую таблицу), к спиннеру это не относится - он живёт
+     секунду-две и после загрузки уступает место либо списку, либо той же надписи.
+     Возвращён вместе с прокруткой документа (волна 14) - без внутренней панели
+     вьюпорта обрыв жеста снова возможен. */
+  .loading-message {
+    min-height: calc(var(--app-vh, 1vh) * 45);
+  }
+
+  /* Шапка блока - один ряд в 48px (контракт волны 6, те же числа у соседних
+     экранов): имя блока кеглем 18, «Обновить» у правого края, переноса нет. В
+     настройках шапки здесь только сама кнопка, поэтому выносить её отдельным
+     элементом, как в CarsTable/PeopleTable, не нужно.
+
+     Боковой отступ слагаемыми, а не числом: рамка карточки + внутренний отступ
+     строки - заголовок стоит над текстом карточек (тело списка своего бокового
+     отступа больше не добавляет, см. `.fact-body` ниже). Прежние 16px по кругу
+     давали шапку в 68px над пустой таблицей. */
   .card-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-    height: auto;
-    padding: 16px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+    height: 48px;
+    padding: 0 calc(1px + 14px);
+  }
+
+  .card-title {
+    font-size: 18px;
   }
 
   .card-header__settings {
-    width: 100%;
-    justify-content: flex-end;
+    margin-left: auto;
   }
 
-  /* rt-row (#1097 S8) сидит на .fact-row, а не на v-for-корне .fact-item -
-     сиблинг-селектор ".rt-row + .rt-row" из responsive-tables.css поэтому не
-     матчит (соседние .fact-item, не .fact-row), спейсинг карточек добираем тут. */
+  /* Строка «Заявок по факту нет» - подпись под шапкой, а не пустой экран: центровка
+     по вертикали вместе с flex-grow растягивала её на всю высоту карточки. Боковой
+     отступ добирает до вертикали заголовка: 8px тело списка уже дало. */
+  .no-data-message {
+    flex-grow: 0;
+    justify-content: flex-start;
+    padding: 14px calc(1px + 14px);
+    font-size: 13px;
+    text-align: left;
+  }
+
+  /* flex-basis именно 0, а не auto: перенос строк во flex считается по
+     ГИПОТЕТИЧЕСКИМ размерам элементов, до применения flex-shrink. При auto
+     гипотетический размер заголовка равен его тексту (замер на 320: 230px), и
+     230 + 12 gap + 36 кнопки не влезали в 246 доступных (320 - 40 padding
+     страницы - 2 рамки карточки - 32 padding шапки) - «Обновить» уезжала на
+     вторую строку, хотя ellipsis у заголовка есть. С basis 0 строка не ломается,
+     заголовок дорастает остатком (198px) и ужимается многоточием. */
+  .card-header__title {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .card-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .card-header__settings {
+    flex-shrink: 0;
+  }
+
+  /* Талон - не карточка со своим зазором (паттерн Центра), а строка настоящей
+     таблицы: рамку и фон блока теперь даёт сам `.fact-table-card` (выше). Полный
+     бордер+радиус части 1 responsive-tables.css у КАЖДОЙ строки поверх рамки
+     контейнера и был «квадратом в квадрате». Строки идут вплотную (зазора нет),
+     разделяет только горизонтальная черта; скругление контейнера получают
+     исключительно верхний край первой строки и нижний край последней - середина
+     остаётся прямоугольной. Радиус строки равен радиусу контейнера (30px) - строка
+     стоит вплотную к рамке (см. `.fact-body` ниже), поэтому кривые продолжают
+     друг друга без излома. */
   .fact-item + .fact-item {
-    margin-top: 8px;
+    margin-top: 0;
+  }
+
+  .fact-table-card .rt-pass {
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-top: none !important;
+    background: transparent !important;
+  }
+
+  .fact-table-card .fact-item:not(:last-child) .rt-pass {
+    border-bottom: 2px solid var(--border) !important;
+  }
+
+  .fact-table-card .fact-item:last-child .rt-pass {
+    border-bottom: none !important;
+  }
+
+  .fact-table-card .fact-item:first-child .rt-pass {
+    border-top-left-radius: 30px !important;
+    border-top-right-radius: 30px !important;
+  }
+
+  .fact-table-card .fact-item:last-child .rt-pass {
+    border-bottom-left-radius: 30px !important;
+    border-bottom-right-radius: 30px !important;
+  }
+
+  /* Тело списка без бокового отступа - строка стоит вплотную к рамке карточки,
+     её собственный `padding: 10px 14px` (часть 1 responsive-tables.css) уже даёт
+     воздух вокруг текста. Добавленные волной 7 8px были лишним отступом (жалоба
+     владельца) и вдобавок отрывали разделитель строк и линию отрыва талона
+     (`.rt-pass::before`, её расчёт базиса рассчитан ровно на этот случай - строка
+     вплотную к краю карточки) от рамки на те же 8px с каждой стороны - обе
+     линии не доставали до краёв. `.card-header` above выравнивается по той же
+     вертикали через `calc(1px + 14px)`. Асимметричный зазор десктопного
+     скроллбара (padding-right 4 + margin-right 4 в базовых стилях) на мобилке не
+     нужен - скролл тач, и margin-right снимаем. */
+  .fact-body {
+    padding: 0;
+    margin-right: 0;
   }
 
   /* Значения в карточке не обрезаем многоточием - там больше горизонтального
@@ -1604,13 +1796,143 @@ export default {
     text-overflow: clip;
   }
 
-  /* Тач-таргет >=44px (WCAG) для кнопок Въезд/Выезд/удаления. */
-  .action-btn {
-    min-width: 70px;
-    height: 44px;
-    font-size: 13px;
+  /* #1097 S9. Обёртку полосы заголовков убираем целиком, а не только её внутренний ряд:
+     глобальный `rt-head-row` прячет `.header-row`, а `.fact-header` остаётся в потоке
+     со своим `border-bottom` и рисует лишнюю линию в 1px перед первой карточкой
+     (замер: height 1 при вьюпорте 320 и 390). Ловушка описана в эталоне, §8.
+
+     Селектор длиннее собственного `.fact-header`, чтобы исход не зависел от порядка
+     правил: базовое правило стоит выше по файлу, но при равной специфичности его хватило
+     бы перенести ниже, чтобы линия вернулась. Закреплению полосы это не мешает - оно
+     живёт в `@media (min-width: 768px)` и сюда не достаёт. */
+  .fact-table-card .fact-header {
+    display: none;
   }
 
+  /* #1097 S9. Карточка по образцу заявки (ApplicationAttachmentDetail.vue): подписи
+     полей убраны, значения выровнены влево, разделитель рисуется сверху.
+
+     Кнопки прохода при этом стояли двумя отдельными строками, и слева от каждой висела
+     дублирующая подпись - "Въезд" подписью и "Въезд" кнопкой в одной строке. Поэтому
+     карточка переведена из колонки в строку с переносом, а перенос во флексе держит
+     БАЗИС, а не ширина. В таблице людей кнопок прохода нет - там просто нечему делить
+     строку, и карточка остаётся прежним стеком полей.
+
+     Специфичность выше правил-источников и `!important` обязательны: те объявлены с
+     `!important` сами, и более коротким селектором их не перебить. */
+  .fact-table-card .fact-row.rt-row {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    column-gap: 8px;
+    row-gap: 0;
+  }
+
+  /* Доли столбцов заданы через `flex: N 0 0`, то есть с базисом 0. В колонке базис
+     управлял высотой и не мешал, а в строке он и есть ширина: `width: 100%` из
+     responsive-tables.css при нулевом базисе не считается вовсе, и ячейки делят одну
+     строку по табличным долям - кнопка прохода в своей 14-пиксельной ячейке при этом
+     вылезает за неё и накрывает соседей. Базис задаём явно: своя строка каждой ячейке.
+
+     Правило целит во ВСЕ дочерние ячейки, а не в `[data-label]`: колонка действий
+     подписи не несёт и иначе осталась бы со своей табличной долей, уехав в ряд к
+     кнопкам. Из этого правила выходят только сами кнопки прохода - ниже. */
+  .fact-table-card .rt-row > * {
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* Разделитель полей рисуем сверху у ячеек 2..N, а не снизу: последней в строке идёт
+     колонка действий без data-label, глобальное `[data-label]:last-child` до неё не
+     достаёт, и пунктир висел бы оторванной чертой над нижним краем карточки. */
+  .fact-table-card .rt-row > [data-label] {
+    justify-content: flex-start !important;
+    text-align: left !important;
+    border-bottom: none !important;
+  }
+
+  /* Только в режиме people: у машин строка собирается талоном, где единственная
+     горизонтальная линия - линия отрыва, и пунктиры её глушат. */
+  .fact-table-card .rt-row:not(.rt-pass) > [data-label] ~ [data-label] {
+    border-top: 1px dashed color-mix(in srgb, var(--border) 60%, var(--surface));
+  }
+
+  /* Ячейки прохода делят верхнюю строку пополам - единственные, кто выходит из
+     «своя строка каждому». Это шапка талона: то, ради чего экран открывают.
+
+     Базис ровно половина, а не 0 с ростом: перенос строк во flex считается по
+     базисам ДО распределения свободного места, поэтому при нулевом базисе в первую
+     строку набиралась ещё и следующая ячейка, свободного места не оставалось, и обе
+     кнопки схлопывались друг на друга. */
+  .fact-table-card .rt-row > .entry-col,
+  .fact-table-card .rt-row > .exit-col {
+    width: auto !important;
+    flex: 0 0 calc(50% - 4px) !important;
+    padding: 5px 0 !important;
+    border-top: none !important;
+  }
+
+  .fact-table-card .rt-row > .entry-col .action-btn,
+  .fact-table-card .rt-row > .exit-col .action-btn {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .fact-table-card .rt-row > [data-label]::before {
+    display: none !important;
+  }
+
+  /* Исключение из "убрать все подписи": значение, которое без подписи не отличить от
+     соседнего такого же. Организация и компания идут двумя строками с однотипными
+     названиями; должность, гражданство, номер заявки, место разгрузки, дата и время -
+     голые значения, которые сами себя не называют. Номер Т/С, марка и бейдж статуса
+     говорят за себя, фамилия с именем и отчеством стоят подряд и читаются как ФИО. */
+  .fact-table-card .rt-row > .organization-col::before,
+  .fact-table-card .rt-row > .company-col::before,
+  .fact-table-card .rt-row > .application-col::before,
+  .fact-table-card .rt-row > .place-col::before,
+  .fact-table-card .rt-row > .position-col::before,
+  .fact-table-card .rt-row > .citizenship-col::before,
+  .fact-table-card .rt-row > .date-col::before,
+  .fact-table-card .rt-row > .time-col::before {
+    display: block !important;
+  }
+
+  /* Статус в карточке телефона не нужен: экран открывают ради проезда, а не ради
+     состояния заявки, и своей строкой в подвале он только оттягивал место у кнопки
+     «Удалить». Прячем целиком, а не разворачиваем строкой - было `order:9999;
+     flex:0 0 100%`. */
+  .fact-table-card .rt-pass > .status-col {
+    display: none !important;
+  }
+
+  /* Подвал талона: под линией отрыва сразу «Удалить», без статуса над ней. Порядок
+     заведомо большим числом - разметочный `order` колонки действий (9999) иначе
+     соседствует с порядком настраиваемых столбцов.
+
+     `overflow: visible` обязателен: базовый `.col { overflow: hidden }` обрезает
+     невидимый ::before, которым кнопка добирает зону нажатия до 44px. */
+  .fact-table-card .rt-pass > .actions-col {
+    order: 10001 !important;
+    flex: 0 0 calc(50% - 4px) !important;
+    width: auto !important;
+    overflow: visible;
+    padding: 10px 0 0;
+  }
+
+  /* Кнопки прохода - главное действие экрана, но не 44px "огромные": замер на
+     карточке 370px давал 158x44 - тач-таргет для двух кнопок в половину строки
+     взят с большим запасом. Норма проекта для контролов такого калибра - 36px
+     (эталон §18); кегль и вес приведены к соседней пилюле «Удалить» (12.5px/600). */
+  .action-btn {
+    min-width: 70px;
+    height: 36px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  /* Режим people: талона нет, кнопка удаления остаётся тач-таргетом 44px. У машин
+     её перебивает пилюля подвала из rt-pass. */
   .delete-btn {
     width: 44px;
     height: 44px;
@@ -1627,6 +1949,52 @@ export default {
   align-items: center;
   justify-content: center;
   gap: 12px;
+}
+
+/* Полоса заголовков столбцов не уезжает при прокрутке страницы (#1097 S8 волна 4).
+   Список прокручивается и внутри карточки (.fact-body), но саму карточку на
+   планшете видно не целиком - страница прокручивается вместе с ней, и статичная
+   полоса уходила за верх экрана: столбцы оставались без подписей.
+
+   Карточка режется `clip`, а не `hidden`: `hidden` делает предка скроллпортом,
+   и sticky внутри него замирает на месте (прилипать не к чему). `clip` обрезает
+   ровно так же - скругление 30px цело, - но скроллпорта не создаёт, поэтому
+   отсчёт идёт от прокрутки документа. Там же живут шапка приложения и шапки
+   списков (эталон: все закреплённые полосы в одной системе отсчёта). Браузер без
+   поддержки `clip` просто оставит прежний `hidden` и прежнее поведение.
+
+   Фон обязателен и обязан быть непрозрачным - строки уходят ПОД полосу;
+   --surface в обеих палитрах задан hex-ом, без альфы. z-index 3 - выше
+   .fact-container, который идёт следом в разметке.
+
+   На мобилке правило не действует - там шапка скрыта (rt-head-row), строки
+   показываются карточками. */
+@media (min-width: 768px) {
+  /* min-width здесь не украшение: карточка - flex-элемент строки .fact-section
+     (рядом карточка-подсказка), и `hidden` заодно обнулял её автоминимум по
+     главной оси. Без него широкая таблица распирала бы секцию. Задаём нулевой
+     минимум явно, чтобы ширина не зависела от того, как браузер трактует
+     автоминимум при `clip`. */
+  .fact-table-card {
+    overflow: clip;
+    min-width: 0;
+  }
+
+  .fact-header {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--surface);
+  }
+}
+
+/* Ровно на 768 (планшет в портрете) шапка приложения ещё закреплена - её
+   медиазапрос max-width: 768px, высота = токен. Полоса заголовков встаёт под
+   неё, иначе прилипает к верху экрана и прячется за шапкой (z-index 100). */
+@media (min-width: 768px) and (max-width: 768px) {
+  .fact-header {
+    top: var(--mobile-header-height);
+  }
 }
 
 /* #345 PR-B: размер шрифта строк через CSS-переменную (только тело). */

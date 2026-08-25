@@ -3,11 +3,15 @@ package services
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"systemburo/internal/models"
 
@@ -42,6 +46,11 @@ type BlankContext struct {
 	CarUnloadPlaces      map[int][]string // car_id → имена мест
 	CarPassageTables     map[int][]string // car_id → имена постов
 	EmployeeTargetTables map[int][]string // employee_id → имена постов
+	// IncludeDocuments - подставлять ли в бланк документы участников (серия и номер
+	// паспорта, номер патента, иное разрешение). false заменяет их прочерком: право
+	// detail.documents.export есть не у каждого, кому доступна сама заявка, а бланк
+	// уносится из системы файлом.
+	IncludeDocuments bool
 	// ApplicationItems - ТМЦ всех «Заявок на ввоз» этой заявки, в порядке вложений.
 	// Списочная секция бланка одна и занята его собственным типом (у заявки на работы -
 	// сотрудниками), поэтому чужие ТМЦ перечисляются одной ячейкой через app_items.*.
@@ -78,19 +87,83 @@ type ApplicationItemRow struct {
 	SourceName string
 }
 
+// BlankOptions - настройки одной генерации бланка. Параметр обязательный, а не
+// значение по умолчанию: каждый вызывающий обязан решить судьбу документов участников
+// осознанно. Умолчание «как было» означало бы, что новый путь генерации молча уносит
+// паспорта, и заметят это уже в скачанном файле.
+type BlankOptions struct {
+	// IncludeDocuments - подставлять паспорт, патент и иное разрешение как есть.
+	// false ставит в эти ячейки прочерк.
+	IncludeDocuments bool
+}
+
 // AttachmentBlankService - генерация заполненных .xlsx-бланков на основе
 // шаблона UniqueAttachment + данных заявки (#183, часть 2).
 type AttachmentBlankService interface {
-	GenerateBlank(ctx context.Context, applicationID, attachmentID int) (io.Reader, string, error)
+	GenerateBlank(ctx context.Context, applicationID, attachmentID int, opts BlankOptions) (io.Reader, string, error)
+	GenerateEmptyBlank(ctx context.Context, uniqueAttachmentID int) (io.Reader, string, error)
 }
 
 type attachmentBlankService struct {
 	db *gorm.DB
+	// templateCache - сырые байты уже читанных .xlsx-шаблонов (#1615, B4): массовый
+	// прогон (бэкфилл за период, ночная сверка) генерирует бланк за бланком одним и
+	// тем же файлом шаблона, и без кэша каждый бланк заново читал бы его с диска.
+	//
+	// Ключ - путь файла, но запись хранит ещё время изменения и размер, и они
+	// сверяются на каждом обращении. Сегодня загрузка пишет новый шаблон под новым
+	// именем, то есть путь не меняет содержимого - но строить кэш на этом инварианте
+	// значит поставить корректность бланков в зависимость от чужого файла: стоит
+	// однажды добавить «заменить шаблон на месте», и система молча раздавала бы
+	// старые бланки до перезапуска. Stat дешевле чтения на два порядка.
+	templateCache   map[string]cachedTemplate
+	templateCacheMu sync.Mutex
+}
+
+// cachedTemplate - содержимое шаблона вместе с приметами файла, по которым видно,
+// что на диске лежит уже другой файл.
+type cachedTemplate struct {
+	data    []byte
+	modTime time.Time
+	size    int64
 }
 
 // NewAttachmentBlankService создаёт сервис.
 func NewAttachmentBlankService(db *gorm.DB) AttachmentBlankService {
-	return &attachmentBlankService{db: db}
+	return &attachmentBlankService{db: db, templateCache: make(map[string]cachedTemplate)}
+}
+
+// loadTemplateFile отдаёт байты .xlsx-шаблона, читая файл с диска только когда он
+// изменился. Возвращаемый срез не мутируется вызывающими (excelize.OpenReader только
+// читает), поэтому безопасен для конкурентного использования без копирования.
+//
+// Пропавший файл выбрасывается из кэша: удалённый шаблон должен давать честную
+// ошибку генерации, а не бланк из памяти процесса.
+func (s *attachmentBlankService) loadTemplateFile(path string) ([]byte, error) {
+	info, statErr := os.Stat(path)
+	if statErr != nil {
+		s.templateCacheMu.Lock()
+		delete(s.templateCache, path)
+		s.templateCacheMu.Unlock()
+		return nil, statErr
+	}
+
+	s.templateCacheMu.Lock()
+	cached, ok := s.templateCache[path]
+	s.templateCacheMu.Unlock()
+	if ok && cached.size == info.Size() && cached.modTime.Equal(info.ModTime()) {
+		return cached.data, nil
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	s.templateCacheMu.Lock()
+	s.templateCache[path] = cachedTemplate{data: data, modTime: info.ModTime(), size: info.Size()}
+	s.templateCacheMu.Unlock()
+	return data, nil
 }
 
 // GenerateBlank возвращает Reader с готовым .xlsx и filename.
@@ -100,7 +173,7 @@ func NewAttachmentBlankService(db *gorm.DB) AttachmentBlankService {
 //  3. Открыть .xlsx через excelize, проставить значения в ячейки.
 //  4. Для list-fields - заполнить строки списка с авторасширением.
 //  5. Сохранить в buffer, вернуть.
-func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationID, attachmentID int) (io.Reader, string, error) {
+func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationID, attachmentID int, opts BlankOptions) (io.Reader, string, error) {
 	// 1. Attachment + UniqueAttachment + Template.
 	var att models.Attachment
 	if err := s.db.WithContext(ctx).
@@ -126,9 +199,15 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 	if err != nil {
 		return nil, "", err
 	}
+	bctx.IncludeDocuments = opts.IncludeDocuments
 
-	// 3. Открыть шаблон.
-	f, err := excelize.OpenFile(template.FilePath)
+	// 3. Открыть шаблон - байты берутся из кэша, а не с диска на каждый вызов
+	// (массовый прогон бьётся об один и тот же файл сотнями заявок подряд).
+	templateBytes, err := s.loadTemplateFile(template.FilePath)
+	if err != nil {
+		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "Не удалось открыть шаблон: "+err.Error())
+	}
+	f, err := excelize.OpenReader(bytes.NewReader(templateBytes))
 	if err != nil {
 		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "Не удалось открыть шаблон: "+err.Error())
 	}
@@ -208,6 +287,91 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 
 	filename := formatBlankFilename(bctx)
 	return bytes.NewReader(out), filename, nil
+}
+
+// GenerateEmptyBlank отдаёт активный бланк типа вложения как файл для заполнения
+// (массовый ввод участников). От GenerateBlank отличается тем, что заявки ещё нет:
+// в файл не подставляется ничего, кроме отпечатка, по которому загруженный обратно
+// файл узнаётся как бланк именно этого типа вложения.
+func (s *attachmentBlankService) GenerateEmptyBlank(ctx context.Context, uniqueAttachmentID int) (io.Reader, string, error) {
+	// Архивный тип вложения бланка не получает: подать по нему заявку всё равно
+	// нельзя, а форма подачи такие типы не показывает (attachments.GetActive). У
+	// заполненного бланка ограничения нет и быть не может - заявку подали, когда тип
+	// был живым.
+	var ua models.UniqueAttachment
+	if err := s.db.WithContext(ctx).
+		Where("id = ? AND is_active = ?", uniqueAttachmentID, true).
+		First(&ua).Error; err != nil {
+		return nil, "", echo.NewHTTPError(http.StatusNotFound, "Тип вложения не найден")
+	}
+
+	var template models.AttachmentTemplate
+	if err := s.db.WithContext(ctx).
+		Preload("Mappings").
+		Where("unique_attachment_id = ? AND is_active = ?", uniqueAttachmentID, true).
+		First(&template).Error; err != nil {
+		return nil, "", echo.NewHTTPError(http.StatusNotFound, "Шаблон бланка не настроен")
+	}
+	// Без списочных привязок бланк заполнять нечем: строки участников в нём просто
+	// некуда писать, а значит и загружать обратно нечего.
+	if !hasListMappings(template.Mappings) {
+		return nil, "", echo.NewHTTPError(http.StatusNotFound,
+			"В бланке не размечен список участников")
+	}
+
+	templateBytes, err := s.loadTemplateFile(template.FilePath)
+	if err != nil {
+		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "Не удалось открыть шаблон: "+err.Error())
+	}
+	f, err := excelize.OpenReader(bytes.NewReader(templateBytes))
+	if err != nil {
+		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "Не удалось открыть шаблон: "+err.Error())
+	}
+	defer f.Close()
+
+	if err := StampBlankFingerprint(f, BlankFingerprint{
+		UniqueAttachmentID: uniqueAttachmentID,
+		TemplateID:         template.ID,
+		ListStartRow:       template.ListStartRow,
+	}); err != nil {
+		return nil, "", echo.NewHTTPError(http.StatusInternalServerError,
+			fmt.Sprintf("Не удалось подготовить бланк (шаблон %d): %s", template.ID, err.Error()))
+	}
+
+	var buf bytes.Buffer
+	if _, err := f.WriteTo(&buf); err != nil {
+		return nil, "", echo.NewHTTPError(http.StatusInternalServerError,
+			fmt.Sprintf("Не удалось собрать бланк (шаблон %d): %s", template.ID, err.Error()))
+	}
+	return bytes.NewReader(buf.Bytes()), emptyBlankFilename(&ua, template.OriginalFileName), nil
+}
+
+// hasListMappings - размечена ли в шаблоне списочная часть.
+func hasListMappings(mappings []models.AttachmentTemplateMapping) bool {
+	for _, m := range mappings {
+		if m.IsListField {
+			return true
+		}
+	}
+	return false
+}
+
+// emptyBlankFilename - имя файла пустого бланка. Владелец ждёт то же имя, под
+// которым шаблон загрузили в систему (OriginalFileName), - служебное "Бланк_<тип>"
+// только для шаблонов без сохранённого оригинального имени (загружены до того, как
+// поле появилось).
+func emptyBlankFilename(ua *models.UniqueAttachment, originalFileName string) string {
+	if trimmed := strings.TrimSpace(originalFileName); trimmed != "" {
+		return sanitizeFilename(trimmed)
+	}
+	name := ""
+	if ua != nil && ua.Name != nil {
+		name = strings.TrimSpace(*ua.Name)
+	}
+	if name == "" {
+		name = "бланк"
+	}
+	return sanitizeFilename(fmt.Sprintf("Бланк_%s.xlsx", strings.ReplaceAll(name, " ", "-")))
 }
 
 // listSource возвращает префикс field_path списочной части и число записей для типа
@@ -466,10 +630,12 @@ func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, at
 	// Согласовавшие заявку - для подписи «СОГЛАСОВАНО» в бланке.
 	bctx.Approvers = s.loadApprovers(ctx, appID)
 
-	// Cars / employees / items - только для этого attachment.
-	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Order("id").Find(&bctx.Cars)
-	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Order("id").Find(&bctx.Employees)
-	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Order("id").Find(&bctx.Items)
+	// Cars / employees / items - только для этого attachment и только допущенное на КПП:
+	// бланк печатают и несут на пост как документ допуска, поэтому строка непринятого
+	// дополнения в нём означала бы проход мимо согласования (#1685).
+	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Where(admittedSupplementCond("cars")).Order("id").Find(&bctx.Cars)
+	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Where(admittedSupplementCond("employees")).Order("id").Find(&bctx.Employees)
+	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Where(admittedSupplementCond("items")).Order("id").Find(&bctx.Items)
 
 	// Привязки машин: места разгрузки и посты «Проезд» - по одному запросу на список,
 	// иначе на каждой строке бланка был бы отдельный поход в базу.
@@ -592,7 +758,9 @@ func applyWrapIfMultiline(f *excelize.File, sheet, ref, value string) {
 }
 
 // loadApplicationItems собирает ТМЦ всех вложений заявки типа items. Ручные вложения
-// (application_id NULL) сюда не попадают - они не принадлежат заявке.
+// (application_id NULL) сюда не попадают - они не принадлежат заявке. Позиции непринятого
+// дополнения тоже: перечень печатается второй секцией того же бланка допуска, что и
+// собственный список вложения (#1685).
 // Поля приёмника перечислены плоско: у анонимно встроенной структуры gorm молча не
 // маппит поля, и весь перечень пришёл бы пустым.
 func loadApplicationItems(ctx context.Context, db *gorm.DB, appID int) []ApplicationItemRow {
@@ -608,6 +776,7 @@ func loadApplicationItems(ctx context.Context, db *gorm.DB, appID int) []Applica
 		FROM items i
 		JOIN attachments a ON i.attachment_id = a.id
 		WHERE a.application_id = ? AND a.attachment_type = 'items'
+		  AND `+admittedSupplementCond("i")+`
 		ORDER BY a.id, i.id
 	`, appID).Scan(&rows).Error
 	if err != nil {

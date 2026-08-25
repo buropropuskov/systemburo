@@ -1,6 +1,6 @@
 <template>
-  <!-- Экран входа лежит на светлой фотографии, которая темы не знает: в тёмной
-       палитре заголовок и карточка контактов на ней пропадали. Поэтому вход -
+  <!-- Экран входа лежит на фирменном синем, который темы не знает: в тёмной
+       палитре заголовок и карточка контактов на нём пропадали. Поэтому вход -
        «светлый остров»: локальный data-theme перекрывает выбранную тему только
        внутри этого экрана (см. assets/tokens.css). -->
   <div
@@ -8,6 +8,189 @@
     data-theme="light"
     @mousemove="handleMouseMove"
   >
+    <div
+      class="login-pattern"
+      :style="parallaxStyle"
+    />
+
+    <!-- Пейзаж вместо снимка: три плана силуэтов с воздушной перспективой -
+         дальний светлее и мягче, ближний темнее и крупнее. Плоская заливка
+         глубины не давала, а именно её давало прежнее фото. Растягивается по
+         ширине (preserveAspectRatio none): формы плавные, искажение не читается,
+         зато экран заполнен и на телефоне. -->
+    <svg
+      v-once
+      class="login-scene"
+      viewBox="0 0 1440 900"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <defs>
+        <linearGradient
+          id="lsSky"
+          x1="0"
+          y1="0"
+          x2="0"
+          y2="1"
+        >
+          <stop
+            offset="0%"
+            stop-color="#1B2278"
+            stop-opacity="0.55"
+          />
+          <stop
+            offset="45%"
+            stop-color="#3A45C9"
+            stop-opacity="0.15"
+          />
+          <stop
+            offset="100%"
+            stop-color="#8FA0FF"
+            stop-opacity="0.18"
+          />
+        </linearGradient>
+        <!-- Заливки планов непрозрачные, прозрачность живёт на группе: иначе холм
+             не перекрывает стволы своих деревьев и они просвечивают до низа. -->
+        <linearGradient
+          id="lsFar"
+          x1="0"
+          y1="0"
+          x2="0"
+          y2="1"
+        >
+          <stop
+            offset="0%"
+            stop-color="#D3DAFF"
+          />
+          <stop
+            offset="100%"
+            stop-color="#AFBCFF"
+          />
+        </linearGradient>
+        <linearGradient
+          id="lsMid"
+          x1="0"
+          y1="0"
+          x2="0"
+          y2="1"
+        >
+          <stop
+            offset="0%"
+            stop-color="#39439F"
+          />
+          <stop
+            offset="100%"
+            stop-color="#232B79"
+          />
+        </linearGradient>
+        <linearGradient
+          id="lsNear"
+          x1="0"
+          y1="0"
+          x2="0"
+          y2="1"
+        >
+          <stop
+            offset="0%"
+            stop-color="#1A2166"
+          />
+          <stop
+            offset="100%"
+            stop-color="#0F1443"
+          />
+        </linearGradient>
+        <radialGradient
+          id="lsSun"
+          cx="50%"
+          cy="50%"
+          r="50%"
+        >
+          <stop
+            offset="0%"
+            stop-color="#FFE6B8"
+            stop-opacity="0.42"
+          />
+          <stop
+            offset="60%"
+            stop-color="#FFC98A"
+            stop-opacity="0.14"
+          />
+          <stop
+            offset="100%"
+            stop-color="#FFC98A"
+            stop-opacity="0"
+          />
+        </radialGradient>
+      </defs>
+
+      <rect
+        x="0"
+        y="0"
+        width="1440"
+        height="900"
+        fill="url(#lsSky)"
+      />
+      <!-- Тёплое свечение у горизонта: единственный тёплый тон на экране, без
+           него синий остаётся однородным на всю высоту. -->
+      <ellipse
+        cx="1000"
+        cy="566"
+        rx="620"
+        ry="215"
+        fill="url(#lsSun)"
+      />
+
+      <!-- Дальний план: пологие холмы у горизонта, почти растворены в дымке -->
+      <path
+        d="M0 610C180 566 320 592 470 604s280-52 430-44 250 60 380 42 160-26 160-26V900H0Z"
+        fill="url(#lsFar)"
+        opacity="0.13"
+      />
+      <!-- Средний план -->
+      <g
+        fill="url(#lsMid)"
+        opacity="0.4"
+      >
+        <path d="M0 700C150 660 260 686 420 674s300-58 470-40 260 62 400 44 150-22 150-22V900H0Z" />
+      </g>
+      <!-- Ближний план: самый тёмный и самый крупный силуэт -->
+      <g
+        fill="url(#lsNear)"
+        opacity="0.68"
+      >
+        <path d="M0 800C170 764 300 790 480 780s330-56 520-34 270 56 440 30V900H0Z" />
+      </g>
+
+    </svg>
+
+    <!-- Линии-траектории в небе: спокойный ритм поверх сетки. -->
+    <svg
+      v-once
+      class="login-lines"
+      viewBox="0 0 1440 900"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <g
+        v-for="(line, i) in backgroundLines"
+        :key="i"
+        class="login-lines__group"
+        :style="{ animationDuration: `${line.dur}s`, animationDelay: `${line.delay}s` }"
+      >
+        <path
+          :d="line.d"
+          fill="none"
+          :stroke="`rgba(255, 255, 255, ${line.alpha})`"
+          :stroke-width="line.w"
+          stroke-linecap="round"
+        />
+      </g>
+    </svg>
+
+    <!-- Семь плавающих кругов - исходное оформление экрана входа, они здесь
+         с самого начала. Пейзаж и линии добавлены под них, а не вместо них. -->
     <div class="login-background">
       <div class="floating-shape shape-1" />
       <div class="floating-shape shape-2" />
@@ -17,12 +200,7 @@
       <div class="floating-shape shape-6" />
       <div class="floating-shape shape-7" />
     </div>
-        
-    <div
-      class="background-image"
-      :style="parallaxStyle"
-    />
-        
+
     <div class="login__container">
       <div class="login__active">
         <div class="login__header">
@@ -49,11 +227,10 @@
               class="login__input"
               :style="input1Style"
             >
-              <img
-                src="@/assets/icons/login.png"
-                alt=""
+              <AppIcon
+                name="login"
                 class="input__icon"
-              >
+              />
               <input
                 v-model="formData.username"
                 class="input"
@@ -72,11 +249,10 @@
               class="login__input"
               :style="input2Style"
             >
-              <img
-                src="@/assets/icons/password.png"
-                alt=""
+              <AppIcon
+                name="password"
                 class="input__icon"
-              >
+              />
               <input
                 v-model="formData.password"
                 class="input"
@@ -126,12 +302,11 @@
                 <p class="button__text">
                   {{ getButtonText }}
                 </p>
-                <img
+                <AppIcon
                   v-if="!isLoading && !isSuccess"
-                  src="@/assets/icons/key-blue.png"
-                  alt=""
+                  name="key"
                   class="input__icon"
-                >
+                />
                 <div
                   v-if="isLoading"
                   class="spinner"
@@ -183,11 +358,10 @@
         </p>
         <div class="info__contacts">
           <div class="contact">
-            <img
-              src="@/assets/icons/email-blue.png"
+            <AppIcon
+              name="email"
               class="contact__icon"
-              alt=""
-            >
+            />
             <p
               class="contact__text contact__text--clickable"
               @click="copyEmail"
@@ -196,11 +370,10 @@
             </p>
           </div>
           <div class="contact">
-            <img
-              src="@/assets/icons/phone-blue.png"
+            <AppIcon
+              name="phone"
               class="contact__icon"
-              alt=""
-            >
+            />
             <p
               class="contact__text contact__text--clickable"
               @click="copyPhone"
@@ -226,13 +399,15 @@
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { useContactsStore } from '@/stores/contacts'
+import { resolveLoginRedirect } from '@/utils/postLoginRedirect'
 import PasswordRecoveryModal from '@/components/PasswordRecoveryModal.vue'
+import AppIcon from '@/components/icons/AppIcon.vue'
 
 // Фолбэк-контакты Бюро, если в настройках системы они ещё не заданы.
 const FALLBACK_BUREAU_EMAIL = 'buropropuskov@dreamisland.ru'
 const FALLBACK_BUREAU_PHONE = '+7 (910) 083 00-55'
 export default {
-    components: { PasswordRecoveryModal },
+    components: { PasswordRecoveryModal, AppIcon },
     emits: ['login-success'],
     data() {
         return {
@@ -258,7 +433,13 @@ export default {
             notificationTimeout: null,
             showPasswordRecovery: false,
             cooldownSeconds: 0,
-            cooldownTimer: null
+            cooldownTimer: null,
+            backgroundLines: [
+                { d: 'M-40 250C260 210 520 300 820 258s420-98 700-126', w: 1.6, alpha: 0.18, dur: 40, delay: 0 },
+                { d: 'M-40 430C300 400 560 470 900 424s380-70 620-92', w: 1.2, alpha: 0.13, dur: 52, delay: -12 },
+                { d: 'M-40 120C240 96 480 150 760 118s460-58 760-74', w: 1.1, alpha: 0.1, dur: 46, delay: -22 },
+                { d: 'M-40 560C280 540 540 596 880 552s400-56 640-70', w: 1, alpha: 0.09, dur: 58, delay: -30 }
+            ]
         }
     },
     computed: {
@@ -271,11 +452,15 @@ export default {
         isCoolingDown() {
             return this.cooldownSeconds > 0;
         },
+        // Кулдаун растёт по лестнице до часа, поэтому час выводим отдельным разрядом:
+        // "60:00" читается как минуты и врёт про порядок ожидания.
         cooldownText() {
             const total = Math.max(0, this.cooldownSeconds);
-            const m = Math.floor(total / 60);
+            const h = Math.floor(total / 3600);
+            const m = Math.floor((total % 3600) / 60);
             const s = total % 60;
-            return `${m}:${String(s).padStart(2, '0')}`;
+            const pad = (n) => String(n).padStart(2, '0');
+            return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
         },
         displayError() {
             if (this.isCoolingDown) {
@@ -553,7 +738,9 @@ export default {
 
             this.$emit('login-success', { token: data.token });
 
-            this.$router.push('/news');
+            // #974: если сюда привёл гард (открыли ссылку/push-уведомление без
+            // сессии), возвращаем на исходный адрес, а не на дефолтную ленту.
+            this.$router.push(resolveLoginRedirect(this.$route.query) || '/news');
         } else {
             // Проверяем статус код для определения типа ошибки
             if (response.status === 429) {
@@ -577,7 +764,15 @@ export default {
                     if (errorText) {
                         try {
                             const errorData = JSON.parse(errorText);
-                            this.errors.general = errorData.message || errorData || "Произошла ошибка";
+                            // Тело ошибки приходит конвертом {success:false, error}. Читали
+                            // только message - его в конверте нет, и на месте текста
+                            // оказывался сам объект, то есть "[object Object]" на экране.
+                            // Форму берём сырую: тут response.text(), а разворачивает конверт
+                            // client.js только у response.json().
+                            const message = typeof errorData === 'string'
+                                ? errorData
+                                : errorData?.error || errorData?.message;
+                            this.errors.general = message || "Произошла ошибка";
                         } catch {
                             this.errors.general = errorText || "Произошла ошибка";
                         }
@@ -664,29 +859,79 @@ export default {
         perspective: 1000px;
     }
 
+    /* Собственная графика вместо снимка: сетка постов с узлами на пересечениях
+       и два световых пятна - под формой слева и в глубине справа. Рисуется
+       градиентами, поэтому весит ноль и не боится масштаба экрана. */
+    .login-pattern {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        background-image:
+            radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.55) 0 1.5px, transparent 2px),
+            linear-gradient(to right, rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+            radial-gradient(115% 85% at 14% 26%, rgba(255, 255, 255, 0.22), transparent 62%),
+            radial-gradient(95% 80% at 86% 96%, rgba(23, 29, 96, 0.4), transparent 68%);
+        background-size: 96px 96px, 96px 96px, 96px 96px, 100% 100%, 100% 100%;
+        background-position: 48px 48px, 0 0, 0 0, 0 0, 0 0;
+        opacity: 0.9;
+        z-index: 1;
+        transition: transform 0.1s ease-out;
+        will-change: transform;
+    }
+
+    /* Слои пейзажа и линий лежат между сеткой и формой. Отдельными элементами,
+       а не фоном .login-pattern: его замок в спеке требует, чтобы слой рисовался
+       градиентами и не тянул файл, а разметке нужны кривые силуэтов. */
+    .login-scene {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        z-index: 2;
+        pointer-events: none;
+    }
+
+    .login-lines {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        z-index: 3;
+        pointer-events: none;
+    }
+
+    .login-lines__group {
+        animation-name: line-sway;
+        animation-iteration-count: infinite;
+        animation-timing-function: ease-in-out;
+        will-change: transform;
+    }
+
+    @keyframes line-sway {
+        0%, 100% {
+            transform: translate3d(0, 0, 0);
+        }
+        50% {
+            transform: translate3d(0, 14px, 0);
+        }
+    }
+
+    /* Круги идут поверх пейзажа и линий: они и раньше плыли над фоном, а не
+       тонули в нём. Отсюда четвёртая ступень лестницы, а не прежняя вторая -
+       вторую и третью заняли слои, добавленные под круги. */
     .login-background {
         position: absolute;
         width: 100%;
         height: 100%;
         top: 0;
         left: 0;
-        z-index: 0;
-    }
-
-    .background-image {
-        position: absolute;
-        width: 100%;
-        height: 100%;
-        top: 0;
-        left: 0;
-        background-image: url('@/assets/background.png');
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-        opacity: 0.35;
-        z-index: 1;
-        transition: transform 0.1s ease-out;
-        will-change: transform;
+        z-index: 4;
+        pointer-events: none;
     }
 
     .floating-shape {
@@ -694,7 +939,6 @@ export default {
         border-radius: 50%;
         background: rgba(255, 255, 255, 0.3);
         animation: float 15s infinite ease-in-out;
-        z-index: 2;
         box-shadow: 0px 3px 10px rgba(0,0,0,0.1);
     }
 
@@ -723,44 +967,44 @@ export default {
     }
 
     .shape-4 {
-    width: 80px;
-    height: 80px;
-    top: 20%;
-    right: 10%;
-    animation-delay: -2s;
-    background: rgba(255, 255, 255, 0.15);
-    box-shadow: 0px 4px 15px rgba(0,0,0,0.2);
-}
+        width: 80px;
+        height: 80px;
+        top: 20%;
+        right: 10%;
+        animation-delay: -2s;
+        background: rgba(255, 255, 255, 0.15);
+        box-shadow: 0px 4px 15px rgba(0,0,0,0.2);
+    }
 
-.shape-5 {
-    width: 120px;
-    height: 120px;
-    bottom: 40%;
-    left: 15%;
-    animation-delay: -7s;
-    background: rgba(255, 255, 255, 0.08);
-    box-shadow: 0px 5px 20px rgba(0,0,0,0.15);
-}
+    .shape-5 {
+        width: 120px;
+        height: 120px;
+        bottom: 40%;
+        left: 15%;
+        animation-delay: -7s;
+        background: rgba(255, 255, 255, 0.08);
+        box-shadow: 0px 5px 20px rgba(0,0,0,0.15);
+    }
 
-.shape-6 {
-    width: 60px;
-    height: 60px;
-    top: 70%;
-    right: 25%;
-    animation-delay: -12s;
-    background: rgba(255, 255, 255, 0.12);
-    box-shadow: 0px 3px 12px rgba(0,0,0,0.18);
-}
+    .shape-6 {
+        width: 60px;
+        height: 60px;
+        top: 70%;
+        right: 25%;
+        animation-delay: -12s;
+        background: rgba(255, 255, 255, 0.12);
+        box-shadow: 0px 3px 12px rgba(0,0,0,0.18);
+    }
 
-.shape-7 {
-    width: 180px;
-    height: 180px;
-    bottom: -30px;
-    right: -30px;
-    animation-delay: -8s;
-    background: rgba(255, 255, 255, 0.05);
-    box-shadow: 0px 6px 25px rgba(0,0,0,0.1);
-}
+    .shape-7 {
+        width: 180px;
+        height: 180px;
+        bottom: -30px;
+        right: -30px;
+        animation-delay: -8s;
+        background: rgba(255, 255, 255, 0.05);
+        box-shadow: 0px 6px 25px rgba(0,0,0,0.1);
+    }
 
     @keyframes float {
         0%, 100% {
@@ -771,6 +1015,15 @@ export default {
         }
         66% {
             transform: translate(-20px, 20px) rotate(240deg);
+        }
+    }
+
+    /* Пользователь, попросивший меньше движения на уровне системы, получает
+       статичный фон - анимации здесь чисто декоративные. */
+    @media (prefers-reduced-motion: reduce) {
+        .login-lines__group,
+        .floating-shape {
+            animation: none;
         }
     }
 
@@ -853,6 +1106,8 @@ export default {
     .contact__icon {
         width: 20px;
         height: 20px;
+        flex-shrink: 0;
+        color: var(--accent-text);
     }
 
     .contact__text {
@@ -939,9 +1194,18 @@ export default {
     }
 
     .input__icon {
-        width: 20px;
-        height: 20px;
+        width: 23px;
+        height: 23px;
+        flex-shrink: 0;
+        /* Глиф держит цвет подсказки в поле, а не текста: см. appIcons.js. */
+        color: var(--text-placeholder);
+        stroke-width: 2.4;
         transition: transform .5s;
+    }
+
+    /* Ключ на кнопке входа - фирменного цвета, в тон подписи кнопки. */
+    .login__button .input__icon {
+        color: var(--accent-text);
     }
 
     .input {
@@ -1087,7 +1351,7 @@ export default {
     }
 
     .login__button.cooling .input__icon {
-        filter: grayscale(1);
+        color: var(--text-muted);
         opacity: 0.45;
     }
 
@@ -1254,11 +1518,19 @@ export default {
 
     /* Tablet и меньше: stacked layout (форма сверху, info снизу) */
     @media (max-width: 1024px) {
+        /* Прокрутку stacked-раскладки держит документ, а не .login__container:
+           свой скролл-контейнер клипал по СВОЕЙ рамке (уже экрана на padding),
+           и элементы, выезжающие по X из-за края экрана, обрезались внутри него. */
+        .login {
+            height: auto;
+            min-height: calc(var(--app-vh, 1vh) * 100);
+            min-height: min(calc(var(--app-vh, 1vh) * 100), 100svh);
+        }
+
         .login__container {
             flex-direction: column;
             align-items: center;
             gap: 30px;
-            overflow-y: auto;
             padding-bottom: 40px;
         }
 
@@ -1273,6 +1545,14 @@ export default {
     @media (max-width: 768px) {
         .login {
             padding: 24px 16px;
+        }
+
+        /* На телефоне низ экрана занимает карточка контактов, и горизонт целиком
+           уходил под неё. Сцена растягивается и приподнимается, чтобы кромка с
+           деревьями осталась в видимой полосе над карточкой. */
+        .login-scene {
+            height: 122%;
+            top: -22%;
         }
 
         .login__header {
@@ -1331,7 +1611,7 @@ export default {
             font-size: 12px;
         }
 
-        /* Floating shapes занимают место и тормозят на мобильных - убираем */
+        /* Круги занимают место и тормозят на мобильных - убираем. */
         .floating-shape {
             display: none;
         }

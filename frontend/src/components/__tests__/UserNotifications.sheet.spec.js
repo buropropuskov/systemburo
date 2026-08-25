@@ -4,6 +4,12 @@ import { setActivePinia, createPinia } from 'pinia';
 
 vi.mock('@/api/client', () => ({
   apiRequest: vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve([]) })),
+  // Список порциями (#1748 S7): apiRequestRaw возвращает envelope с data+meta,
+  // apiRequest не годится - не несёт meta.unread_count/total.
+  apiRequestRaw: vi.fn(() => Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve({ success: true, data: [], meta: { total: 0, unread_count: 0 } }),
+  })),
 }));
 vi.mock('@/services/eventStream', () => ({
   default: {

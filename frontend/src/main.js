@@ -10,11 +10,13 @@ import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import { installBeforeUnloadGuard } from '@/utils/dirtyTracker'
 import { initViewportScale } from '@/utils/viewportScale'
+import { attachPushNavigationListener } from '@/utils/pushNavigation'
 import './assets/tokens.css'
 import './assets/forms.css'
+import './assets/hints.css'
 import './assets/onboarding.css'
 import './assets/responsive-tables.css'
-import './assets/icon-theme.css'
+import './assets/analytics-panels.css'
 
 const app = createApp(App)
 app.config.globalProperties.$bus = bus
@@ -39,6 +41,9 @@ if (useAuthStore().token) boot.push(useThemeStore().syncFromServer())
 await Promise.all(boot)
 
 app.use(router)
+// Клик по push-уведомлению у открытой вкладки обрабатывается тут, а не
+// перезагрузкой страницы service worker'ом (#974).
+attachPushNavigationListener(router)
 await router.isReady()
 installBeforeUnloadGuard()
 app.mount('#app')

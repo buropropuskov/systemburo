@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 
 import ApplicationAttachmentDetail from '../ApplicationAttachmentDetail.vue';
@@ -131,6 +131,7 @@ describe('ApplicationAttachmentDetail — подсветка возможног�
 });
 
 describe('ApplicationAttachmentDetail — кнопка "Пропустить" override (#481, срез 6a)', () => {
+  // Меню действий строки телепортируется в body - стабим Teleport, иначе find его не видит.
   function mountCarsWith(cars, props = {}) {
     return mount(ApplicationAttachmentDetail, {
       props: {
@@ -138,30 +139,40 @@ describe('ApplicationAttachmentDetail — кнопка "Пропустить" ov
         cars,
         ...props,
       },
+      global: { stubs: { Teleport: true } },
     });
   }
 
-  it('canOverride=true: на помеченной строке есть кнопка "Пропустить"', () => {
-    const wrapper = mountCarsWith([car({ blacklist_similar: flag() })], { canOverride: true });
+  it('canOverride+canRemove: на помеченной строке кнопка «Принять» и стрелка меню', () => {
+    const wrapper = mountCarsWith([car({ blacklist_similar: flag() })], { canOverride: true, canRemove: true });
     const btn = wrapper.find('[data-testid="blacklist-override-btn"]');
     expect(btn.exists()).toBe(true);
-    expect(btn.text()).toBe('Пропустить');
+    expect(btn.text()).toContain('Принять');
+    expect(wrapper.find('[data-testid="row-actions-toggle"]').exists()).toBe(true);
   });
 
-  it('canOverride=false (дефолт): кнопки "Пропустить" нет даже на помеченной строке', () => {
+  it('canOverride без canRemove: стрелки нет - в меню остался бы дубль «Принять»', () => {
+    const wrapper = mountCarsWith([car({ blacklist_similar: flag() })], { canOverride: true });
+    expect(wrapper.find('[data-testid="blacklist-override-btn"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="row-actions-toggle"]').exists()).toBe(false);
+    // Кнопка остаётся цельной: половинку скругления обнуляет только сдвоенный вид.
+    expect(wrapper.find('.split-btn').classes()).toContain('split-btn--single');
+  });
+
+  it('canOverride=false (дефолт): кнопки действия нет даже на помеченной строке', () => {
     const wrapper = mountCarsWith([car({ blacklist_similar: flag() })]);
-    expect(wrapper.find('.blacklist-override-btn').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="blacklist-override-btn"]').exists()).toBe(false);
   });
 
   it('overridden строка: кнопки нет даже при canOverride=true', () => {
     const wrapper = mountCarsWith([car({ blacklist_similar: flag({ overridden: true }) })], { canOverride: true });
-    expect(wrapper.find('.blacklist-override-btn').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="blacklist-override-btn"]').exists()).toBe(false);
   });
 
-  it('клик по "Пропустить" эмитит override-element с label и flag, но НЕ open-vehicle', async () => {
+  it('клик по «Принять» сразу эмитит override-element, но НЕ open-vehicle', async () => {
     const f = flag();
     const wrapper = mountCarsWith([car({ car_number: 'А123ВС', blacklist_similar: f })], { canOverride: true });
-    await wrapper.find('.blacklist-override-btn').trigger('click');
+    await wrapper.find('[data-testid="blacklist-override-btn"]').trigger('click');
 
     const emitted = wrapper.emitted('override-element');
     expect(emitted).toHaveLength(1);
@@ -178,8 +189,9 @@ describe('ApplicationAttachmentDetail — кнопка "Пропустить" ov
         employees: [employee({ last_name: 'Иваноф', first_name: 'Иван', blacklist_similar: f })],
         canOverride: true,
       },
+      global: { stubs: { Teleport: true } },
     });
-    await wrapper.find('.blacklist-override-btn').trigger('click');
+    await wrapper.find('[data-testid="blacklist-override-btn"]').trigger('click');
     expect(wrapper.emitted('override-element')[0][0]).toEqual({ label: 'Иваноф Иван Иванович', flag: f });
   });
 });
@@ -524,5 +536,209 @@ describe('ApplicationAttachmentDetail — поиск по списку (#1392)',
     expect(wrapper.find('[data-testid="attachment-flagged-summary"]').text()).toBe('2 похоже на ЧС');
     await search(wrapper, 'к050');
     expect(wrapper.find('[data-testid="attachment-flagged-summary"]').text()).toBe('1 похоже на ЧС');
+  });
+});
+
+describe('ApplicationAttachmentDetail — кнопка "Убрать" элемента из заявки', () => {
+  // Меню действий строки телепортируется в body - стабим Teleport, иначе find его не видит.
+  function mountCarsWith(cars, props = {}) {
+    return mount(ApplicationAttachmentDetail, {
+      props: {
+        attachment: { id: 1, attachment_type: 'cars', attachment_display_name: 'Машины' },
+        cars,
+        ...props,
+      },
+      global: { stubs: { Teleport: true } },
+    });
+  }
+
+  it('canRemove=true: у непомеченной строки отдельная кнопка «Убрать»', () => {
+    const wrapper = mountCarsWith([car()], { canRemove: true });
+    expect(wrapper.find('[data-testid="element-remove-btn"]').exists()).toBe(true);
+  });
+
+  it('на помеченной строке отдельной кнопки нет - «Убрать» лежит в меню под стрелкой', async () => {
+    const wrapper = mountCarsWith([car({ blacklist_similar: flag() })], { canOverride: true, canRemove: true });
+
+    expect(wrapper.find('[data-testid="element-remove-btn"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="row-actions-menu"]').exists()).toBe(false);
+
+    await wrapper.find('[data-testid="row-actions-toggle"]').trigger('click');
+    expect(wrapper.find('[data-testid="row-actions-menu"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="row-action-remove"]').exists()).toBe(true);
+  });
+
+  it('пункт «Убрать из заявки» эмитит remove-element и закрывает меню', async () => {
+    const wrapper = mountCarsWith([car({ id: 9, car_number: 'А123ВС', blacklist_similar: flag() })], { canOverride: true, canRemove: true });
+    await wrapper.find('[data-testid="row-actions-toggle"]').trigger('click');
+    await wrapper.find('[data-testid="row-action-remove"]').trigger('click');
+
+    const removed = wrapper.emitted('remove-element');
+    expect(removed).toHaveLength(1);
+    expect(removed[0][0].id).toBe(9);
+    expect(wrapper.find('[data-testid="row-actions-menu"]').exists()).toBe(false);
+    expect(wrapper.emitted('open-vehicle')).toBeUndefined();
+  });
+
+  it('canRemove=false (дефолт): кнопки нет', () => {
+    const wrapper = mountCarsWith([car({ blacklist_similar: flag() })]);
+    expect(wrapper.find('[data-testid="element-remove-btn"]').exists()).toBe(false);
+  });
+
+  it('клик по «Убрать» на непомеченной строке эмитит remove-element, но не открывает карточку', async () => {
+    const wrapper = mountCarsWith([car({ id: 7, car_number: 'А123ВС' })], { canRemove: true });
+    await wrapper.find('[data-testid="element-remove-btn"]').trigger('click');
+
+    const removed = wrapper.emitted('remove-element');
+    expect(removed).toHaveLength(1);
+    expect(removed[0][0].id).toBe(7);
+    expect(removed[0][0].label).toContain('А123ВС');
+    expect(wrapper.emitted('open-vehicle')).toBeUndefined();
+  });
+});
+
+describe('ApplicationAttachmentDetail — строка, попавшая в чёрный список после подачи', () => {
+  it('is_blacklisted: строка перечёркнута, но остаётся в списке', () => {
+    const wrapper = mount(ApplicationAttachmentDetail, {
+      props: {
+        attachment: { id: 1, attachment_type: 'cars', attachment_display_name: 'Машины' },
+        cars: [car({ id: 3, car_number: 'Ч 001 СС 777', is_blacklisted: true })],
+      },
+    });
+
+    const rows = wrapper.findAll('[data-testid="attachment-element-row"]');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].classes()).toContain('el-row--blacklisted');
+    expect(rows[0].text()).toContain('Ч 001 СС 777');
+  });
+
+  it('чистая строка не перечёркивается', () => {
+    const wrapper = mount(ApplicationAttachmentDetail, {
+      props: {
+        attachment: { id: 1, attachment_type: 'cars', attachment_display_name: 'Машины' },
+        cars: [car({ id: 4 })],
+      },
+    });
+
+    expect(wrapper.find('[data-testid="attachment-element-row"]').classes()).not.toContain('el-row--blacklisted');
+  });
+});
+
+describe('ApplicationAttachmentDetail — обрезка длинного значения в чипе', () => {
+  it('единственное место разгрузки лежит в отдельном элементе под многоточие и помечено chip--solo', () => {
+    const wrapper = mount(ApplicationAttachmentDetail, {
+      props: {
+        attachment: { id: 1, attachment_type: 'cars', attachment_display_name: 'Машины' },
+        cars: [car({ unload_places: [{ id: 1, name: 'Дебаркадер №1' }] })],
+      },
+      global: { stubs: { Teleport: true } },
+    });
+
+    const chip = wrapper.find('[data-testid="attachment-chip"]');
+    expect(chip.exists()).toBe(true);
+    // Многоточие рисует CSS, а проверить в jsdom можно структуру: текст обязан лежать
+    // в своём элементе - на самом чипе (inline-flex) text-overflow не работает.
+    expect(chip.classes()).toContain('chip--solo');
+    expect(chip.find('.chip__text').text()).toBe('Дебаркадер №1');
+    // Полное название остаётся в подсказке.
+    expect(chip.attributes('data-hint')).toBe('Дебаркадер №1');
+  });
+
+  it('несколько мест схлопываются в счётчик, а не обрезаются', () => {
+    const wrapper = mount(ApplicationAttachmentDetail, {
+      props: {
+        attachment: { id: 1, attachment_type: 'cars', attachment_display_name: 'Машины' },
+        cars: [car({
+          unload_places: [
+            { id: 1, name: 'Дебаркадер №1' },
+            { id: 2, name: 'Дебаркадер №2' },
+            { id: 3, name: 'Дебаркадер №3' },
+          ],
+        })],
+      },
+      global: { stubs: { Teleport: true } },
+    });
+
+    const solo = wrapper.findAll('[data-testid="attachment-chip"]').filter((c) => c.classes().includes('chip--solo'));
+    expect(solo).toHaveLength(0);
+  });
+});
+
+describe('ApplicationAttachmentDetail — куда раскрывается меню действий строки', () => {
+  const VIEWPORT = { width: 1200, height: 800 };
+  const MENU_WIDTH = 170;
+  const MARGIN = 8;
+  const GAP = 4;
+
+  function setViewport({ width, height }) {
+    Object.defineProperty(window, 'innerWidth', { value: width, writable: true, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: height, writable: true, configurable: true });
+  }
+
+  function mountFlagged() {
+    return mount(ApplicationAttachmentDetail, {
+      props: {
+        attachment: { id: 1, attachment_type: 'cars', attachment_display_name: 'Машины' },
+        cars: [car({ blacklist_similar: flag() })],
+        canOverride: true,
+        canRemove: true,
+      },
+      global: { stubs: { Teleport: true } },
+    });
+  }
+
+  /** Кнопка в jsdom не имеет размеров - подставляем те, что нужны расчёту. */
+  function openMenuAt(wrapper, rect) {
+    const toggle = wrapper.find('[data-testid="row-actions-toggle"]');
+    toggle.element.getBoundingClientRect = () => rect;
+    return toggle.trigger('click');
+  }
+
+  beforeEach(() => setViewport(VIEWPORT));
+
+  it('снизу есть место - меню встаёт под кнопкой', async () => {
+    const wrapper = mountFlagged();
+    await openMenuAt(wrapper, { top: 200, bottom: 220, right: 1000 });
+
+    expect(wrapper.vm.rowMenuOpenUp).toBe(false);
+    expect(wrapper.vm.rowMenuStyle.top).toBe(`${220 + GAP}px`);
+    expect(wrapper.vm.rowMenuStyle.bottom).toBe('auto');
+  });
+
+  it('строка у нижнего края - меню раскрывается вверх, а не уходит под край карточки', async () => {
+    const wrapper = mountFlagged();
+    await openMenuAt(wrapper, { top: 760, bottom: 780, right: 1000 });
+
+    expect(wrapper.vm.rowMenuOpenUp).toBe(true);
+    expect(wrapper.vm.rowMenuStyle.bottom).toBe(`${VIEWPORT.height - 760 + GAP}px`);
+    // top:'auto' обязателен - иначе обе координаты заданы и меню растягивается.
+    expect(wrapper.vm.rowMenuStyle.top).toBe('auto');
+  });
+
+  it('кнопка у правого края - меню прижато к полю, а не вылезает за окно', async () => {
+    const wrapper = mountFlagged();
+    await openMenuAt(wrapper, { top: 200, bottom: 220, right: VIEWPORT.width - 1 });
+
+    expect(wrapper.vm.rowMenuStyle.right).toBe(`${MARGIN}px`);
+  });
+
+  it('кнопка у левого края - левый край меню остаётся в окне', async () => {
+    const wrapper = mountFlagged();
+    await openMenuAt(wrapper, { top: 200, bottom: 220, right: 100 });
+
+    const right = Number.parseInt(wrapper.vm.rowMenuStyle.right, 10);
+    expect(VIEWPORT.width - right - MENU_WIDTH).toBeGreaterThanOrEqual(MARGIN);
+  });
+
+  it('прокрутка списка двигает меню за строкой, а не оставляет висеть', async () => {
+    const wrapper = mountFlagged();
+    const toggle = wrapper.find('[data-testid="row-actions-toggle"]');
+    toggle.element.getBoundingClientRect = () => ({ top: 200, bottom: 220, right: 1000 });
+    await toggle.trigger('click');
+    expect(wrapper.vm.rowMenuStyle.top).toBe(`${220 + GAP}px`);
+
+    toggle.element.getBoundingClientRect = () => ({ top: 100, bottom: 120, right: 1000 });
+    window.dispatchEvent(new Event('scroll'));
+    expect(wrapper.vm.rowMenuStyle.top).toBe(`${120 + GAP}px`);
   });
 });

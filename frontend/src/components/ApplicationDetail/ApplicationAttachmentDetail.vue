@@ -67,7 +67,7 @@
     >
       <div class="el-section">
         <div class="el-section__head">
-          <h5>{{ sectionTitle }}</h5>
+          <h5>{{ headTitle }}</h5>
           <span
             v-if="!loading && rows.length"
             class="el-count"
@@ -143,10 +143,14 @@
                 v-for="(row, index) in visibleRows"
                 :key="row.id"
                 class="el-row rt-row"
-                :class="{
-                  'el-row--flagged': isFlagged(row),
-                  'el-row--clickable': isClickable
-                }"
+                :class="[
+                  supplementMarks[row.id] ? supplementMarks[row.id].rowClass : null,
+                  {
+                    'el-row--flagged': isFlagged(row),
+                    'el-row--blacklisted': row.is_blacklisted,
+                    'el-row--clickable': isClickable
+                  }
+                ]"
                 data-testid="attachment-element-row"
                 @click="openRow(row)"
               >
@@ -158,7 +162,7 @@
                   v-for="col in columns"
                   :key="col.key"
                   class="el-cell"
-                  :class="col.cls"
+                  :class="[col.cls, { 'el-cell--key': col.type === 'key' }]"
                   :style="cellStyle(col)"
                   :data-label="col.label"
                 >
@@ -169,10 +173,14 @@
                           v-for="chip in visibleChips(row, col)"
                           :key="chip.key"
                           class="chip"
-                          :class="{ 'chip--more': chip.isMore }"
+                          :class="{ 'chip--more': chip.isMore, 'chip--solo': chip.isSolo }"
                           :data-hint="chip.hint"
+                          :title="chip.hint"
                           :data-testid="chip.isMore ? 'attachment-chip-more' : 'attachment-chip'"
-                        >{{ chip.text }}</span>
+                        ><span
+                          class="chip__text"
+                          :title="chip.hint"
+                        >{{ chip.text }}</span></span>
                         <span
                           v-if="!chipItems(row, col).length && !canAssign"
                           class="chip chip--empty"
@@ -202,28 +210,113 @@
                       :data-hint="cellHint(row, col)"
                       :data-testid="col.type === 'key' ? 'attachment-element-key' : null"
                     >{{ col.value(row) }}</span>
-                    <!-- Подстрока рисуется всегда: без неё строка без марки
-                         оказывалась ниже соседних и лента "дышала". -->
                     <span
-                      v-if="col.sub && isCompact"
+                      v-if="rowSub(row, col)"
                       class="val-sub"
-                    >{{ col.sub(row) || '—' }}</span>
+                    >{{ rowSub(row, col) }}</span>
                   </template>
+
+                  <!-- Метка дополнения (#1685) живёт в ключевой колонке: она есть у
+                       всех трёх типов вложения, а колонка действий - только у машин
+                       и сотрудников. Обёртка нужна карточке: она забирает строку
+                       ячейки целиком, и метка встаёт под значением всегда в одном
+                       месте, а не там, где её оставила длина наименования. -->
+                  <div
+                    v-if="col.type === 'key' && supplementMarks[row.id]"
+                    class="supplement-line"
+                  >
+                    <Badge
+                      class="supplement-badge"
+                      :variant="supplementMarks[row.id].variant"
+                      size="sm"
+                      dot
+                      :data-hint="supplementMarks[row.id].hint"
+                      data-testid="attachment-supplement-badge"
+                    >
+                      {{ supplementMarks[row.id].text }}
+                    </Badge>
+                  </div>
                 </div>
 
                 <div
                   v-if="hasStateColumn"
                   class="c-state"
                 >
-                  <button
+                  <!-- Две кнопки в узкую ячейку не влезали: на помеченной строке
+                       остаётся одна «Пропустить», а «Убрать» уходит в её меню. -->
+                  <div
                     v-if="canOverride && isFlagged(row)"
-                    type="button"
-                    class="lk-button lk-button--danger blacklist-override-btn"
-                    data-testid="blacklist-override-btn"
-                    @click.stop="$emit('override-element', { label: rowLabel(row), flag: row.blacklist_similar })"
+                    class="row-actions"
                   >
-                    Пропустить
-                  </button>
+                    <!-- Сдвоенная кнопка: слева действие, справа стрелка меню.
+                         Разделены линией, чтобы было видно, что нажатия разные. -->
+                    <div class="split-btn" :class="{ 'split-btn--single': !hasRowMenu }">
+                      <button
+                        type="button"
+                        class="lk-button lk-button--danger split-btn__main"
+                        data-testid="blacklist-override-btn"
+                        @click.stop="chooseOverride(row)"
+                      >
+                        Принять
+                      </button>
+                      <button
+                        v-if="hasRowMenu"
+                        type="button"
+                        :class="['lk-button', 'lk-button--danger', 'split-btn__toggle', { 'split-btn__toggle--open': openRowMenu === row.id }]"
+                        data-testid="row-actions-toggle"
+                        aria-label="Другие действия"
+                        @click.stop="toggleRowMenu(row.id, $event)"
+                      >
+                        <svg
+                          class="split-btn__caret"
+                          width="10"
+                          height="10"
+                          viewBox="0 0 10 10"
+                          fill="none"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M2 3.5 5 6.5 8 3.5"
+                            stroke="currentColor"
+                            stroke-width="1.6"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                    <!-- Меню телепортируется в body: ячейка состояния узкая и с
+                         overflow: hidden, внутри неё список обрезался целиком. -->
+                    <Teleport to="body">
+                      <transition name="row-menu">
+                        <div
+                          v-if="openRowMenu === row.id"
+                          :class="['row-actions__menu', { 'row-actions__menu--up': rowMenuOpenUp }]"
+                          :style="rowMenuStyle"
+                          data-testid="row-actions-menu"
+                          @click.stop
+                        >
+                          <button
+                            type="button"
+                            class="row-actions__item"
+                            data-testid="row-action-override"
+                            @click.stop="chooseOverride(row)"
+                          >
+                            Принять
+                          </button>
+                          <button
+                            v-if="canRemove"
+                            type="button"
+                            class="row-actions__item row-actions__item--danger"
+                            data-testid="row-action-remove"
+                            @click.stop="chooseRemove(row)"
+                          >
+                            Убрать из заявки
+                          </button>
+                        </div>
+                      </transition>
+                    </Teleport>
+                  </div>
                   <Badge
                     v-else-if="row.blacklist_similar"
                     class="blacklist-badge"
@@ -234,6 +327,16 @@
                   >
                     {{ blacklistLabel(row.blacklist_similar) }}
                   </Badge>
+                  <button
+                    v-if="canRemove && !(canOverride && isFlagged(row))"
+                    type="button"
+                    class="lk-button lk-button--ghost element-remove-btn"
+                    data-testid="element-remove-btn"
+                    data-hint="Убрать из заявки"
+                    @click.stop="$emit('remove-element', { label: rowLabel(row), id: row.id })"
+                  >
+                    Убрать
+                  </button>
                 </div>
               </div>
             </div>
@@ -257,23 +360,64 @@
                 v-if="canAssign && bulkColumns.length"
                 class="el-foot__bulk"
               >
-                <span class="el-foot__bulk-label">Назначить всем:</span>
+                <!-- На телефоне подписи «назначить всем места разгрузки / посты проезда»
+                     не помещаются в подвал ни в каком виде - действия уезжают в лист,
+                     где место под полную подпись есть. -->
                 <button
-                  v-for="col in bulkColumns"
-                  :key="col.key"
+                  v-if="isNarrowViewport"
                   type="button"
                   class="lk-button lk-button--ghost el-foot__bulk-btn"
-                  :data-testid="`attachment-assign-all-${col.assignKind}`"
-                  @click="openAssignAll(col)"
+                  data-testid="attachment-assign-all-open"
+                  @click="bulkSheetOpen = true"
                 >
-                  {{ col.label.toLowerCase() }}
+                  Назначить всем…
                 </button>
+
+                <template v-else>
+                  <span class="el-foot__bulk-label">Назначить всем:</span>
+                  <button
+                    v-for="col in bulkColumns"
+                    :key="col.key"
+                    type="button"
+                    class="lk-button lk-button--ghost el-foot__bulk-btn"
+                    :data-testid="`attachment-assign-all-${col.assignKind}`"
+                    @click="openAssignAll(col)"
+                  >
+                    {{ col.label.toLowerCase() }}
+                  </button>
+                </template>
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- Выбор, чему назначать всем: свёрнутый подвал мобилки раскрывается сюда.
+         Слой 10004 - выше панели детали (10002) и карточек (10003), ниже самого
+         окна назначения (10006), которое открывается поверх этого листа. -->
+    <BaseModal
+      :show="bulkSheetOpen"
+      title="Назначить всем"
+      width="480px"
+      radius="30px"
+      :z-index="10004"
+      content-testid="attachment-assign-all-sheet"
+      @close="bulkSheetOpen = false"
+    >
+      <div class="bulk-sheet">
+        <button
+          v-for="col in bulkColumns"
+          :key="col.key"
+          type="button"
+          class="bulk-sheet__item"
+          :data-testid="`attachment-assign-all-${col.assignKind}`"
+          @click="chooseBulk(col)"
+        >
+          {{ col.bulkLabel || col.label }}
+        </button>
+      </div>
+    </BaseModal>
 
     <!-- Без v-if: BaseModal анимирует по :show, а внешний v-if сносил бы
          компонент мгновенно и уход не проигрывался (см. заметку проекта). -->
@@ -292,11 +436,21 @@
 
 <script>
 import Badge from '@/components/ui/Badge.vue'
+import BaseModal from '@/components/ui/BaseModal.vue'
 import ApplicationAssignModal from './ApplicationAssignModal.vue'
 import SearchComponent from '@/components/SearchComponent.vue'
 import { assignElementTables, assignCarUnloadPlaces } from '@/api/applicationAssignments'
+import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions'
 import { matchesSearchFuzzy } from '@/utils/searchVariants'
+import { formatNumberForDisplay } from '@/composables/useNumberFormat'
+import { useAnchoredMenu } from '@/composables/useAnchoredMenu'
+import {
+    SUPPLEMENT_ACCEPTED,
+    SUPPLEMENT_APPROVED,
+    SUPPLEMENT_PENDING,
+    SUPPLEMENT_CLOSED_STATUSES,
+} from '@/utils/supplementStatuses'
 
 /** Ширины служебных частей строки: порядковый номер, колонка действий, отступы. */
 const NUM_COLUMN_WIDTH = 22;
@@ -325,9 +479,75 @@ const ASSIGN_BUTTON_SPACE = 34;
 /** Запас, чтобы значение не упиралось вплотную в край колонки. */
 const TEXT_SIDE_SPACE = 6;
 
+/* Габариты меню действий строки: ширина совпадает с min-width в стилях, высота - та,
+   по которой решается, помещается ли меню снизу. */
+const ROW_MENU_SIZE = { width: 170, height: 96 };
+
+// Строка состава несёт статус принёсшего её раунда в supplement_status;
+// supplement_id === null - строка пришла с исходной подачей (#1685).
+
+/**
+ * Как выглядит строка в зависимости от судьбы принёсшего её раунда.
+ *
+ * Принятая добавка строку не красит: она уже работает наравне с исходным составом, и
+ * подсветка «нового» висела бы на ней вечно. Отклонённая, наоборот, остаётся в составе
+ * навсегда, поэтому её нужно отличать от рабочей - иначе автор будет ждать пропуска,
+ * которого не будет.
+ *
+ * @param {Object} row строка состава вложения
+ * @returns {{ state: string, variant: string, text: string, hint: string, rowClass: ?string }|null}
+ */
+function supplementRowMark(row) {
+    if (!row || row.supplement_id === null || row.supplement_id === undefined) return null;
+
+    const status = row.supplement_status || null;
+    const title = row.supplement_number ? `Дополнение №${row.supplement_number}` : 'Дополнение';
+    const shortTitle = row.supplement_number ? `Доп. №${row.supplement_number}` : 'Доп.';
+
+    if (SUPPLEMENT_CLOSED_STATUSES.includes(status)) {
+        return {
+            state: 'closed',
+            variant: 'neutral',
+            text: 'Отклонено',
+            hint: `${title} не состоялось: строка на проходную не попадёт.`,
+            rowClass: 'el-row--supplement-closed'
+        };
+    }
+
+    if (row.is_pending && status === SUPPLEMENT_PENDING) {
+        return {
+            state: 'pending',
+            variant: 'warning',
+            text: 'На согласовании',
+            hint: `${title} ждёт голосов согласующих. На проходную строка пока не допущена.`,
+            rowClass: 'el-row--supplement-pending'
+        };
+    }
+
+    if (row.is_pending && status === SUPPLEMENT_APPROVED) {
+        return {
+            state: 'approved',
+            variant: 'info',
+            text: 'Ждёт принятия',
+            hint: `${title} согласовано, ждёт решения принимающего. На проходную строка пока не допущена.`,
+            rowClass: 'el-row--supplement-approved'
+        };
+    }
+
+    // accepted - добавка принята; merged - влита в основной круг заявки. И там и там
+    // строка живёт по общим правилам, остаётся только пометка происхождения.
+    return {
+        state: status === SUPPLEMENT_ACCEPTED ? SUPPLEMENT_ACCEPTED : 'origin',
+        variant: 'primary',
+        text: shortTitle,
+        hint: `Строка добавлена дополнением к поданной заявке (${title}).`,
+        rowClass: null
+    };
+}
+
 export default {
     name: 'ApplicationAttachmentDetail',
-    components: { ApplicationAssignModal, Badge, SearchComponent },
+    components: { ApplicationAssignModal, BaseModal, Badge, SearchComponent },
     props: {
         attachment: {
             type: Object,
@@ -349,8 +569,14 @@ export default {
             type: Boolean,
             default: false
         },
-        // Показываем "Пропустить" только ответственному - у остальных нет права на override.
+        // Показываем "Пропустить" ответственному и принимающему - право на подтверждение
+        // пропуска у них общее.
         canOverride: {
+            type: Boolean,
+            default: false
+        },
+        // "Убрать" - только принимающему: он единственный, кто правит состав поданной заявки.
+        canRemove: {
             type: Boolean,
             default: false
         },
@@ -370,19 +596,36 @@ export default {
             default: null
         }
     },
-    emits: ['open-vehicle', 'open-employee', 'override-element', 'assignments-changed'],
+    emits: ['open-vehicle', 'open-employee', 'override-element', 'remove-element', 'assignments-changed'],
+    setup() {
+        // Одно меню на таблицу: два открытых сразу не нужны, и место считается от той
+        // кнопки, по которой нажали.
+        const menu = useAnchoredMenu(ROW_MENU_SIZE);
+        return {
+            openRowMenu: menu.openId,
+            rowMenuStyle: menu.style,
+            rowMenuOpenUp: menu.openUp,
+            toggleRowMenu: menu.toggle,
+            closeRowMenu: menu.close
+        };
+    },
     data() {
         return {
             containerWidth: 0,
             isNarrowViewport: false,
             resizeObserver: null,
             viewportQuery: null,
+            // Форматы гос. номеров - только для колонки "Гос. номер" (машины). Грузим
+            // один раз при монтировании, не на каждую строку: справочник общий для
+            // всей ленты, matchNumberToFormat раскладывает каждую строку в JS.
+            licensePlateFormats: [],
             // Ширина колонок с чипами: по ней считаем, сколько названий влезает
             // целиком. Пусто до первого замера - тогда работает запасной расчёт.
             chipColumnWidths: {},
             textMeasureContext: null,
             searchQuery: '',
             searchVariants: [],
+            bulkSheetOpen: false,
             assign: {
                 open: false,
                 kind: 'tables',
@@ -397,6 +640,15 @@ export default {
             return this.attachment.attachment_type;
         },
 
+        /**
+         * Есть ли в меню строки хоть один пункт, которого нет в основной кнопке.
+         * Сейчас такой один - "Убрать из заявки", и без права на него меню сводилось
+         * бы к дублю "Принять": стрелка вела бы в никуда.
+         */
+        hasRowMenu() {
+            return this.canRemove;
+        },
+
         rows() {
             if (this.type === 'cars') return this.cars;
             if (this.type === 'people') return this.employees;
@@ -408,6 +660,16 @@ export default {
             if (this.type === 'cars') return 'Автомобили';
             if (this.type === 'people') return 'Сотрудники';
             return 'Товарно-материальные ценности';
+        },
+
+        /**
+         * Заголовок блока делит строку с поиском, поэтому на телефоне длинное
+         * название сокращается: «Товарно-материальные ценности» съедало бы всю
+         * строку и оставляло полю поиска несколько пикселей.
+         */
+        headTitle() {
+            if (this.isNarrowViewport && this.type === 'items') return 'ТМЦ';
+            return this.sectionTitle;
         },
 
         emptyText() {
@@ -432,9 +694,15 @@ export default {
                         cls: 'c-key',
                         label: 'Гос. номер',
                         compactLabel: 'Гос. номер и марка',
-                        grow: 22, min: 114,
-                        growCompact: 38, minCompact: 140,
-                        value: row => row.car_number,
+                        // min/minCompact расширены под бейдж статуса дополнения ("На
+                        // согласовании" и длиннее): при старых 114/140 фон бейджа не
+                        // покрывал строки текста, и пилюля дополнения ложилась в три
+                        // строки (владелец: "жирный шарик" из-за узкой колонки).
+                        grow: 26, min: 160,
+                        growCompact: 40, minCompact: 190,
+                        // Номера машин, заведённых импортом бланка, хранятся слитно -
+                        // раскладываем по формату для показа (#1392 разбор карточки).
+                        value: row => formatNumberForDisplay(row.car_number, this.licensePlateFormats),
                         sub: brand
                     },
                     {
@@ -452,7 +720,7 @@ export default {
                         cls: 'c-places',
                         label: 'Места разгрузки',
                         assignKind: 'places',
-                        grow: 30, min: 100,
+                        grow: 30, min: 128,
                         growCompact: 36, minCompact: 124,
                         field: 'unload_places',
                         nameKey: 'name',
@@ -463,6 +731,8 @@ export default {
                         type: 'chips',
                         cls: 'c-tables',
                         label: 'Проезд',
+                        // В листе места хватает на полную подпись, в колонке - нет.
+                        bulkLabel: 'Посты проезда',
                         assignKind: 'tables',
                         grow: 26, min: 92,
                         growCompact: 26, minCompact: 96,
@@ -558,12 +828,12 @@ export default {
         },
 
         /**
-         * Узкий контейнер: часть колонок схлопывается. На телефоне режим не
-         * включаем - там строка разворачивается в карточку (responsive-tables.css),
-         * и каждому полю нужна своя подпись.
+         * Узкий контейнер: колонка второго плана (марка, должность) уходит из
+         * своей колонки и встаёт рядом с ключевым значением. На телефоне режим
+         * тоже включён: строка разворачивается в карточку, где отдельная строка
+         * под марку - лишняя, а подписи полей всё равно скрыты.
          */
         isCompact() {
-            if (this.isNarrowViewport) return false;
             if (!this.containerWidth) return false;
             return this.containerWidth < this.wideLayoutWidth;
         },
@@ -596,9 +866,7 @@ export default {
         },
 
         searchPlaceholder() {
-            if (this.type === 'cars') return 'Номер, марка, место';
-            if (this.type === 'people') return 'ФИО, должность, место';
-            return 'Наименование';
+            return 'Поиск..';
         },
 
         isFiltered() {
@@ -618,6 +886,16 @@ export default {
 
         flaggedCount() {
             return this.visibleRows.filter(row => this.isFlagged(row)).length;
+        },
+
+        /** Метки дополнения по id строки: считаем один раз, а не по три вызова на ячейку. */
+        supplementMarks() {
+            const marks = {};
+            for (const row of this.rows) {
+                const mark = supplementRowMark(row);
+                if (mark) marks[row.id] = mark;
+            }
+            return marks;
         }
     },
     watch: {
@@ -635,11 +913,19 @@ export default {
         }
     },
     mounted() {
+        // Меню действий строки закрывается кликом мимо него - иначе висит открытым,
+        // пока не нажмут саму кнопку.
+        document.addEventListener('click', this.closeRowMenuOnOutside);
+
         if (typeof window.matchMedia === 'function') {
             this.viewportQuery = window.matchMedia('(max-width: 767.98px)');
             this.isNarrowViewport = this.viewportQuery.matches;
             this.viewportQuery.addEventListener('change', this.onViewportChange);
         }
+
+        // Только для машин - колонка "Гос. номер" единственная, что использует
+        // форматы. У сотрудников/ТМЦ запрос не нужен вовсе.
+        if (this.type === 'cars') this.loadLicensePlateFormats();
 
         // Режим считаем по ширине блока, а не окна: в детали заявки колонка
         // узкая даже на широком экране, в "Доступных мне" - наоборот.
@@ -657,6 +943,7 @@ export default {
         this.$nextTick(this.measureChipColumns);
     },
     beforeUnmount() {
+        document.removeEventListener('click', this.closeRowMenuOnOutside);
         if (this.resizeObserver) {
             this.resizeObserver.disconnect();
             this.resizeObserver = null;
@@ -678,6 +965,32 @@ export default {
 
         onViewportChange(event) {
             this.isNarrowViewport = event.matches;
+        },
+
+        /** Тот же эндпоинт и разбор ответа, что у CarsTable/VehicleForm. */
+        async loadLicensePlateFormats() {
+            try {
+                const response = await apiRequest('/license-plate-formats', {});
+                if (response.ok) this.licensePlateFormats = await response.json();
+            } catch (error) {
+                console.error('Ошибка при загрузке форматов номеров:', error);
+            }
+        },
+
+        /**
+         * Значение колонки второго плана рядом с ключевым: марка у машины,
+         * должность у сотрудника.
+         *
+         * В таблице прочерк обязателен - без него строка без марки оказывалась
+         * ниже соседних и лента "дышала". В карточке подстрока стоит той же
+         * строкой, что и номер, высоту не меняет, и пустой прочерк там только
+         * мусор.
+         *
+         * @returns {?string} текст подстроки или null, если её не рисуем
+         */
+        rowSub(row, col) {
+            if (!col.sub || !this.isCompact) return null;
+            return col.sub(row) || (this.isNarrowViewport ? null : '—');
         },
 
         /** Минимальная ширина колонки в текущем режиме. */
@@ -797,7 +1110,11 @@ export default {
                 key: `chip-${index}`,
                 text,
                 hint: names.length > limit ? null : hint,
-                isMore: false
+                isMore: false,
+                // Единственное название сжимается по ячейке и обрезается многоточием -
+                // полное видно в подсказке. Соседи по колонке так не жмутся: там вместо
+                // обрезки показывается счётчик.
+                isSolo: names.length === 1
             }));
 
             if (names.length > limit) {
@@ -894,6 +1211,16 @@ export default {
             };
         },
 
+        /**
+         * Выбор из листа: лист закрывается сразу, окно назначения открывается
+         * поверх него (10006 против 10004), поэтому уходящий лист ничего не
+         * перекрывает и ждать конца его анимации не нужно.
+         */
+        chooseBulk(col) {
+            this.bulkSheetOpen = false;
+            this.openAssignAll(col);
+        },
+
         closeAssign() {
             this.assign.open = false;
         },
@@ -951,6 +1278,22 @@ export default {
 
         employeeFullName(employee) {
             return [employee.last_name, employee.first_name, employee.middle_name].filter(Boolean).join(' ');
+        },
+
+        closeRowMenuOnOutside(event) {
+            if (this.openRowMenu === null) return;
+            if (event.target && event.target.closest && event.target.closest('.row-actions')) return;
+            this.closeRowMenu();
+        },
+
+        chooseOverride(row) {
+            this.closeRowMenu();
+            this.$emit('override-element', { label: this.rowLabel(row), flag: row.blacklist_similar });
+        },
+
+        chooseRemove(row) {
+            this.closeRowMenu();
+            this.$emit('remove-element', { label: this.rowLabel(row), id: row.id });
         },
 
         blacklistVariant(flag) {
@@ -1223,6 +1566,71 @@ export default {
     background: var(--danger-bg);
 }
 
+/* Строки дополнения (#1685). Подложка + полоса слева - тот же приём, что у ЧС:
+   на мобилке строка разворачивается в карточку, и полоса остаётся единственным
+   признаком роли, поэтому она обязана нести цвет роли, а не оттенок фона.
+
+   :not(.el-row--flagged) обязателен: правила ЧС стоят выше в файле и при равной
+   специфичности проиграли бы этим - помеченная возможным обходом ЧС строка потеряла бы
+   красную подсветку, а это более критичный признак, чем «новая». Бейдж дополнения при
+   этом остаётся - он в другой колонке. */
+/* Подложка у добавленных строк нейтральная, а цвет несут полоса слева и бейдж. Заливка
+   цветом по всей строке спорила с подсветкой чёрного списка и делала состав пёстрым:
+   на вложении с несколькими раундами половина таблицы оказывалась крашеной. Серый при
+   этом лёгкий - строка читается как обычная, просто помеченная. */
+.el-row--supplement-pending:not(.el-row--flagged) {
+    background: var(--surface-sunken);
+    box-shadow: inset 3px 0 0 var(--warning);
+}
+
+.el-row--supplement-pending:not(.el-row--flagged).el-row--clickable:hover {
+    background: var(--surface-sunken);
+}
+
+.el-row--supplement-approved:not(.el-row--flagged) {
+    background: var(--surface-sunken);
+    box-shadow: inset 3px 0 0 var(--info);
+}
+
+.el-row--supplement-approved:not(.el-row--flagged).el-row--clickable:hover {
+    background: var(--surface-sunken);
+}
+
+/* Отклонённое дополнение остаётся в составе навсегда - приглушаем содержимое, чтобы
+   строка не читалась как рабочая. Гасим сами значения, а не строку целиком: opacity на
+   родителе утянула бы за собой и бейдж, который как раз объясняет, почему строка серая. */
+.el-row--supplement-closed:not(.el-row--flagged) {
+    box-shadow: inset 3px 0 0 var(--text-muted);
+}
+
+.el-row--supplement-closed .c-num,
+.el-row--supplement-closed .val,
+.el-row--supplement-closed .val-sub,
+.el-row--supplement-closed .chip,
+.el-row--supplement-closed .qty {
+    opacity: 0.55;
+}
+
+.supplement-badge {
+    display: inline-flex;
+    max-width: 100%;
+    margin-top: 3px;
+}
+
+/* Ключевая колонка машины на десктопе не уже 160px (расширена под этот же бейдж -
+   см. min/minCompact у колонки 'number'), но на мобильной карточке (@768, узкий
+   экран) поле снова может оказаться уже текста, а Badge.vue держит его в один ряд
+   (white-space: nowrap): пилюля зажималась по max-width, и буквы вылезали наружу
+   без фона под ними. Разрешаем перенос текста внутри самого бейджа - фон растёт
+   вместе с ним, вместо того чтобы обрезать или ронять содержимое за свои границы.
+   Три класса нужны, чтобы перебить scoped white-space: nowrap из Badge.vue по
+   специфичности. */
+.el-cell--key .supplement-line .supplement-badge {
+    white-space: normal;
+    text-align: left;
+    line-height: 1.3;
+}
+
 @keyframes slideIn {
     from {
         opacity: 0;
@@ -1333,6 +1741,24 @@ export default {
     text-overflow: ellipsis;
 }
 
+/* Одиночный чип уступает ширине ячейки: без снятого flex-shrink он не сжимался и
+   уезжал под обрезку ячейки без многоточия («Дебаркадер №1» читался как «Дебаркадер»). */
+.chip--solo {
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+/* Текст обязан лежать в своём элементе: сам чип - inline-flex, а на flex-контейнере
+   text-overflow не действует, поэтому многоточия не появлялось, сколько ни ставь
+   overflow: hidden на чип. */
+.chip__text {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .chip--more {
     border-style: dashed;
     border-color: rgba(79, 91, 223, 0.4);
@@ -1371,14 +1797,18 @@ export default {
 
 /* Подсказка проекта: тёмный пузырёк по data-hint, а не браузерный title. */
 .val[data-hint],
-.chip[data-hint],
-.blacklist-badge[data-hint] {
+.blacklist-badge[data-hint],
+.supplement-badge[data-hint] {
     position: relative;
 }
 
+/* У чипа своей подсказки нет: она рисовалась псевдоэлементом внутри него, а чип,
+   строка чипов и сама ячейка обрезают содержимое (overflow: hidden держит раскладку
+   таблицы) - подсказку срезало на всех трёх уровнях, и полное название не показывалось
+   вовсе. Поэтому у чипов подсказка нативная, через title: её не обрезает ничто. */
 .val[data-hint]::after,
-.chip[data-hint]::after,
-.blacklist-badge[data-hint]::after {
+.blacklist-badge[data-hint]::after,
+.supplement-badge[data-hint]::after {
     content: attr(data-hint);
     position: absolute;
     bottom: calc(100% + 9px);
@@ -1397,9 +1827,29 @@ export default {
     z-index: 5;
 }
 
+/* Подсказка дополнения - фраза, а не пара слов: nowrap увёл бы её на полэкрана.
+   Прижата к левому краю бейджа, а не отцентрирована: метка стоит в первой колонке, и
+   центрированная подсказка уходила левее края карточки, где её срезал overflow контейнера
+   детали - хвост фразы просто пропадал. От левого края она разворачивается вправо, где
+   место есть. Стрелка сдвигается туда же, иначе указывала бы мимо. */
+.supplement-badge[data-hint]::after {
+    width: max-content;
+    max-width: 240px;
+    white-space: normal;
+    text-align: left;
+    line-height: 1.35;
+    left: 0;
+    transform: none;
+}
+
+.supplement-badge[data-hint]::before {
+    left: 14px;
+    transform: none;
+}
+
 .val[data-hint]::before,
-.chip[data-hint]::before,
-.blacklist-badge[data-hint]::before {
+.blacklist-badge[data-hint]::before,
+.supplement-badge[data-hint]::before {
     content: '';
     position: absolute;
     bottom: calc(100% + 3px);
@@ -1413,13 +1863,21 @@ export default {
     z-index: 5;
 }
 
-.val[data-hint]:hover::after,
-.val[data-hint]:hover::before,
-.chip[data-hint]:hover::after,
-.chip[data-hint]:hover::before,
-.blacklist-badge[data-hint]:hover::after,
-.blacklist-badge[data-hint]:hover::before {
-    opacity: 1;
+/* Показ подсказки гейтим наличием курсора: на тач-экране :hover после тапа по строке
+   залипает, и тёмный пузырёк шириной до 240px остаётся висеть поверх соседних полей и
+   строк выше - метка дополнения читалась как "написанная поперёк карточки в случайном
+   месте". Пальцу подсказка всё равно недоступна: навести, не нажав, нечем. */
+@media (hover: hover) {
+    .val[data-hint]:hover::after,
+    .val[data-hint]:hover::before,
+    .chip[data-hint]:hover::after,
+    .chip[data-hint]:hover::before,
+    .blacklist-badge[data-hint]:hover::after,
+    .blacklist-badge[data-hint]:hover::before,
+    .supplement-badge[data-hint]:hover::after,
+    .supplement-badge[data-hint]:hover::before {
+        opacity: 1;
+    }
 }
 
 .qty {
@@ -1437,11 +1895,122 @@ export default {
     flex-shrink: 0;
 }
 
-.blacklist-override-btn {
-    flex-shrink: 0;
-    padding: 5px 12px;
-    font-size: 12px;
-    white-space: nowrap;
+/* Строка, попавшая в чёрный список после подачи: из заявки не исчезает - заявка
+   документ, - но перечёркивается, чтобы её не приняли за действующую. */
+.el-row--blacklisted .el-cell,
+.el-row--blacklisted .c-num {
+  text-decoration: line-through;
+  /* Линия красная, а текст остаётся читаемым: перечёркивание тут - признак запрета,
+     и по цвету линии он различается с бледным «неактивно». */
+  text-decoration-color: var(--danger);
+  text-decoration-thickness: 2px;
+  color: var(--text-muted);
+}
+
+.row-actions {
+  position: relative;
+}
+
+/* Сдвоенная кнопка: действие и стрелка меню разделены линией, но выглядят
+   одной кнопкой - у крайних скруглены только внешние углы. */
+.split-btn {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
+.split-btn__main,
+.split-btn__toggle {
+  padding: 5px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.split-btn:not(.split-btn--single) .split-btn__main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  padding-right: 7px;
+}
+
+.split-btn__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  padding-left: 6px;
+  padding-right: 7px;
+}
+
+.split-btn__caret {
+  transition: transform 180ms ease;
+}
+
+.split-btn__toggle--open .split-btn__caret {
+  transform: rotate(180deg);
+}
+
+/* Сторону раскрытия выбирает updateRowMenuPosition: обычно вниз, а когда снизу мало
+   места (помеченная строка часто последняя в списке) - вверх. Меню растёт от того
+   края, которым прижато к кнопке, иначе появление читается как рывок. */
+/* Раскрытие меню: только transform и opacity - остальное дёргает раскладку. */
+.row-menu-enter-active,
+.row-menu-leave-active {
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.row-menu-enter-from,
+.row-menu-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+}
+
+.row-actions__menu--up {
+  transform-origin: bottom right;
+}
+
+.row-actions__menu--up.row-menu-enter-from,
+.row-actions__menu--up.row-menu-leave-to {
+  transform: translateY(4px) scale(0.98);
+}
+
+.row-actions__menu {
+  transform-origin: top right;
+  /* Слой выше карточки заявки (10002) и карточки элемента (10003), но ниже истории. */
+  z-index: 10004;
+  display: flex;
+  flex-direction: column;
+  min-width: 170px;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+
+.row-actions__item {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  font-size: 12px;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.row-actions__item:hover {
+  background: var(--accent-tint);
+}
+
+.row-actions__item--danger {
+  color: var(--danger-text);
+}
+
+.element-remove-btn {
+  padding: 2px 10px;
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--danger-text);
 }
 
 .el-foot__right {
@@ -1479,6 +2048,35 @@ export default {
     font-size: 12.5px;
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
+}
+
+/* Лист выбора «Назначить всем»: пункт во всю ширину, подпись слева, высота 48 -
+   палец попадает без прицеливания, а места хватает на полную формулировку. */
+.bulk-sheet {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 0 10px;
+}
+
+.bulk-sheet__item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 20px;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 15px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.bulk-sheet__item:hover,
+.bulk-sheet__item:active {
+    background: var(--surface-sunken);
 }
 
 .loading-container {
@@ -1521,20 +2119,70 @@ export default {
 /* На мобилке блок вложения - по контенту: фикс min-height:300px оставлял много
    пустого белого снизу при коротких данных. Десктоп-стабильность не трогаем (W3.10). */
 @media (max-width: 767.98px) {
+    /* Единая сетка отступов: секции блока живут на тех же 12px, что и страница
+       детали, поэтому боковые края шапки, ленты и подвала совпадают, а не идут
+       тремя разными уступами (15 у секций против 14 у карточки). */
+    .attachment-header-section,
+    .custom-values-section,
+    .attachment-data-section {
+        padding: 12px;
+    }
+
     .attachment-data-section {
         min-height: 0;
     }
 
-    /* Поиск фиксированной ширины не помещается рядом с заголовком - уводим
-       его отдельной строкой на всю ширину. Селектор специфичнее собственного
-       `.search{width:220px}` компонента поиска, порядок чанков тут не решает. */
+    /* Поиск остаётся в строке заголовка, ужатый до 26px: отдельной строкой во всю
+       ширину он весил как панель управления над списком из трёх машин. Селектор
+       специфичнее собственного `.search{width:220px}` компонента поиска, порядок
+       чанков тут не решает. */
     .el-section__head {
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        gap: 8px;
     }
 
+    /* flex-shrink: 0 - заголовок не отдаёт ширину растущему поиску. Раньше оба
+       делили shrink поровну по content-basis, и на 320-360px "Автомобили"/
+       "Сотрудники" резались до "А..."/"С..." (замер: доступно 242px на 320px,
+       заголовку доставалось всего 61px из нужных 93). Ellipsis оставлен
+       страховкой на непредвиденно длинный текст, а не рабочим режимом. */
+    .el-section__head h5 {
+        min-width: 0;
+        flex-shrink: 0;
+        font-size: 15px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Счётчик - тоже не резервный донор ширины: без flex-shrink:0 трёхзначный
+       итог (сотня машин/сотрудников) сжимался бы наравне с заголовком. */
+    .el-section__head .el-count {
+        flex-shrink: 0;
+    }
+
+    /* 36px - тач-таргет заголовков этого экрана (RefreshButton, шапки
+       справочников); прежние 26px были меньше даже собственных 30px десктопа -
+       владелец не мог попасть пальцем ("Поиск очень маленький").
+       min-width: 70px - пол, ниже которого полю сжиматься некуда: заголовок и
+       счётчик теперь забирают свою ширину первыми (flex-shrink:0 выше), и без
+       пола поиск ужимался бы вплоть до одной иконки. */
     .el-section__head .el-search {
-        width: 100%;
+        flex: 1 1 0;
+        width: auto;
+        min-width: 70px;
+        height: 36px;
         margin-left: 0;
+        padding: 0 10px;
+    }
+
+    .el-section__head .el-search :deep(.search__input) {
+        font-size: 14px;
+    }
+
+    .el-section__head .el-search :deep(.search__icon) {
+        width: 15px;
+        height: 15px;
     }
 
     /* Строку разворачивает в карточку глобальный responsive-tables.css:
@@ -1551,20 +2199,169 @@ export default {
         display: none;
     }
 
+    /* Карточки строк уже несут рамку, фон и скругление, поэтому лента остаётся без
+       своих: иначе рамка идёт вторым контуром вплотную к карточке (замер: лента 334px
+       против карточки 332px), а её скруглённый низ упирается в прямой верх подвала. */
+    .el-table {
+        border: none;
+        border-radius: 0;
+        background: transparent;
+    }
+
+    .el-foot {
+        margin-top: 8px;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        flex-wrap: wrap;
+    }
+
+    /* Компактно на вид, крупно под палец: пилюля 28px, зона нажатия 44 невидимым
+       расширением - подвал от этого не растёт. */
+    .el-foot__bulk-btn {
+        position: relative;
+        min-height: 28px;
+        white-space: nowrap;
+    }
+
+    .el-foot__bulk-btn::before {
+        content: '';
+        position: absolute;
+        inset: -8px -4px;
+    }
+
+    /* Карточка строки: боковые 12px - ровно столько же, сколько у секции и подвала,
+       поэтому их края совпадают (глобальное правило даёт 14 и несёт !important,
+       перебиваем составным селектором). Зазор между полями снимаем: ритм задают
+       отступы самих полей, а собственный gap строки давал бы его дважды.
+
+       Вертикальные 8px равны отступу поля (ниже), поэтому от края карточки до первого
+       значения ровно столько же, сколько между соседними значениями через разделитель:
+       16px по всей карточке. */
+    .el-table .el-row {
+        gap: 0 !important;
+        padding: 8px 12px !important;
+    }
+
+    /* Подписи полей в карточке не показываем: значение говорит само за себя, а колонка
+       меток съедала ширину гос. номера и ФИО. Правило-источник в responsive-tables.css
+       стоит на той же специфичности, поэтому !important - иначе исход решает порядок
+       загрузки чанков. */
+    .el-row .el-cell::before {
+        display: none !important;
+    }
+
+    /* Поле карточки: высоту задаёт содержимое, а сверху и снизу - одинаковые 8px.
+       Так расстояние от значения до разделителя одно и то же с обеих сторон и у всех
+       трёх типов вложения; фиксированные 30px давали текстовому полю 7px до черты, а
+       полю с чипами - вдвое меньше, потому что коробка чипа выше строки текста.
+
+       flex сбрасываем в `0 0 auto`: доли колонок (`flex: 44 1 0`) приходят инлайном из
+       cellStyle() и рассчитаны на строку таблицы, а в карточке строка перевёрнута в
+       колонку, и базис 0 относится там к ВЫСОТЕ - ячейка получала долю высоты по своему
+       grow вместо высоты содержимого. Заодно уходит `min-height`: у флекс-элемента он
+       отменяет автоматический минимум (`min-height: auto` = не ниже контента), который
+       и есть страховка от наложения. Вместе это и печатало должность и места прохода
+       поверх разделителя, когда значение не умещалось в одну строку.
+
+       Переносится из полей только ключевое, и `row-gap` там свой, мелкий: должность,
+       ушедшая под ФИО, должна читаться подписью к значению, а не отдельным полем.
+
+       Разделитель полей рисуем сверху, а не снизу: у машин и сотрудников последней в
+       строке стоит колонка действий без подписи, поэтому глобальное
+       `[data-label]:last-child` не снимало пунктир с последнего поля и он висел
+       оторванной чертой над нижним краем карточки.
+
+       Фиксированной высоты у поля больше нет, и это главное. `min-height` на
+       флекс-элементе отменяет автоматический минимум (`min-height: auto`) - ту самую
+       страховку, которая не даёт содержимому вылезти за коробку. С ней ячейка держала
+       30px при содержимом в 68 (длинная должность плюс места прохода), и лишние 38
+       печатались поверх разделителя и поверх соседнего поля. Высоту теперь задаёт
+       содержимое.
+
+       Отступ один и тот же по обе стороны любой границы: 8px от значения до пунктира и
+       8px от пунктира до следующего значения. Раньше зазор зависел от того, текст в
+       поле или пилюля (7px против 3.5px при фиксированных 30px), - отсюда «хромают
+       отступы вверх и вниз».
+
+       row-gap меньше column-gap намеренно: под ключевое значение переносится подпись
+       (должность под ФИО, марка под номером), и она должна читаться как подпись к
+       нему, а не как ещё одно поле. */
+    .el-table .el-row .el-cell {
+        flex: 0 0 auto !important;
+        padding: 8px 0 !important;
+        column-gap: 8px;
+        row-gap: 2px;
+        align-items: center;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        border-bottom: none !important;
+    }
+
+    .el-row .el-cell ~ .el-cell {
+        border-top: 1px dashed color-mix(in srgb, var(--border) 60%, var(--surface));
+    }
+
+    /* Колонка действий - такая же строка слева, а не 112px, прижатых к правому краю.
+       Пустую (нет ни бейджа ЧС, ни кнопки) не отбиваем чертой: она невидима, а линия
+       над ней осталась бы висеть у нижнего края карточки. */
+    .el-row .c-state {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    /* Пустая колонка отступов не получает: 8px сверху и снизу дали бы ей 16px высоты
+       и карточка кончалась бы полосой пустоты. */
+    .el-row .el-cell ~ .c-state:not(:empty) {
+        padding: 8px 0;
+        align-items: center;
+        border-top: 1px dashed color-mix(in srgb, var(--border) 60%, var(--surface));
+    }
+
     .el-row .chips {
         flex-wrap: wrap;
-        justify-content: flex-end;
+        justify-content: flex-start;
         overflow: visible;
     }
 
     .el-row .val,
     .val-sub {
         white-space: normal;
-        text-align: right;
+        text-align: left;
     }
 
-    .blacklist-override-btn {
-        width: 100%;
+    /* Метке дополнения даём свою строку под значением, иначе она сжимает ФИО и
+       гос. номер до многоточия. */
+    .el-row .el-cell--key {
+        flex-wrap: wrap;
+    }
+
+    /* Гос. номер и марка (ФИО и должность) - одной строкой: номер жирный слева,
+       марка серым следом. Своя строка под марку добавляла карточке четвёртое поле
+       и пунктир там, где хватает одной строки. */
+    .el-row .el-cell--key .val,
+    .el-row .el-cell--key .val-sub {
+        flex: 0 1 auto;
+        min-width: 0;
+    }
+
+    .el-row .el-cell--key .val-sub {
+        margin-top: 0;
+    }
+
+    /* Метка дополнения занимает строку ячейки целиком и начинается слева - место у неё
+       теперь одно при любом содержимом. Прежний `margin-left: auto` прижимал её к
+       правому краю той строки, куда её занесло переносом: у короткого наименования -
+       справа от значения, у длинного - под ним, у гос. номера с длинной маркой - под
+       маркой. Нижние 4px не дают пилюле лечь на пунктир следующего поля. */
+    .el-row .el-cell--key .supplement-line {
+        flex: 0 0 100%;
+        min-width: 0;
+        padding-bottom: 4px;
+    }
+
+    .el-row .el-cell--key .supplement-badge {
+        max-width: 100%;
+        margin-top: 0;
     }
 }
 </style>

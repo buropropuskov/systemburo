@@ -18,6 +18,24 @@ export async function listPersonBlacklist({ includeArchived = false } = {}) {
 }
 
 /**
+ * Предпросмотр последствий внесения человека: где он сейчас фигурирует.
+ * Ничего не меняет - только считает.
+ * @returns {Promise<{matches: number, tables: string[], rows: Array<{label: string, organization?: string, tables: string[], applications: string[]}>}>}
+ */
+export async function personBlacklistImpact({ lastName, firstName, middleName = '' }) {
+  const qs = new URLSearchParams({ last_name: lastName, first_name: firstName, middle_name: middleName });
+  const res = await apiRequest(`/person-blacklist/impact?${qs}`);
+  return res.json();
+}
+
+/** Предпросмотр последствий внесения машины: где она сейчас фигурирует. */
+export async function vehicleBlacklistImpact({ carNumber, markId }) {
+  const qs = new URLSearchParams({ car_number: carNumber, mark_id: String(markId) });
+  const res = await apiRequest(`/vehicle-blacklist/impact?${qs}`);
+  return res.json();
+}
+
+/**
  * Мутация с пробросом ошибки: apiRequest не кидает на 4xx (возвращает {message}),
  * поэтому проверяем res.ok сами - иначе 409/400 проглотились бы как успех.
  */

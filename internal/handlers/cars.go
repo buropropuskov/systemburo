@@ -19,20 +19,6 @@ func NewCarHandler(service services.CarService) *CarHandler {
 	return &CarHandler{service: service}
 }
 
-// GetActiveCarsForTables обрабатывает GET /cars/active-for-tables.
-// @Summary Получение активных машин для таблиц
-// @Tags cars
-// @Security BearerAuth
-// @Produce json
-// @Success 200 {array} services.TableCarResponse
-// @Router /cars/active-for-tables [get]
-func (h *CarHandler) GetActiveCarsForTables(c echo.Context) error {
-	cars, err := h.service.GetActiveCarsForTables(c.Request().Context())
-	if err != nil {
-		return err
-	}
-	return RespondSuccess(c, cars)
-}
 
 // GetActiveCarsForTable обрабатывает GET /cars/active-for-table/:table_id.
 // @Summary Получение активных машин конкретной таблицы «Проезд»
@@ -77,20 +63,6 @@ func (h *CarHandler) CreateManualCars(c echo.Context) error {
 	return RespondSuccess(c, resp)
 }
 
-// GetFactCarsForTables обрабатывает GET /cars/fact-for-tables.
-// @Summary Получение машин «по факту» для таблиц
-// @Tags cars
-// @Security BearerAuth
-// @Produce json
-// @Success 200 {array} services.TableCarResponse
-// @Router /cars/fact-for-tables [get]
-func (h *CarHandler) GetFactCarsForTables(c echo.Context) error {
-	cars, err := h.service.GetFactCarsForTables(c.Request().Context())
-	if err != nil {
-		return err
-	}
-	return RespondSuccess(c, cars)
-}
 
 // GetFactCarsForTable обрабатывает GET /cars/fact-for-table/:table_id.
 // @Summary Получение машин «по факту» конкретной таблицы «Проезд»

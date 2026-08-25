@@ -66,8 +66,26 @@
                 viewBox="0 0 24 24"
                 fill="none"
               >
-                <path
-                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="8.5"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                />
+                <line
+                  x1="12"
+                  y1="11.2"
+                  x2="12"
+                  y2="16.5"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                />
+                <circle
+                  cx="12"
+                  cy="7.9"
+                  r="1"
                   fill="currentColor"
                 />
               </svg>
@@ -152,10 +170,38 @@
                           viewBox="0 0 24 24"
                           fill="none"
                         >
-                          <path
-                            d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V9h14v10z"
-                            fill="#a2a2a2"
-                          />
+                          <g
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            stroke-linecap="round"
+                          >
+                            <rect
+                              x="3.5"
+                              y="5.5"
+                              width="17"
+                              height="15"
+                              rx="2.5"
+                            />
+                            <line
+                              x1="3.5"
+                              y1="10.2"
+                              x2="20.5"
+                              y2="10.2"
+                            />
+                            <line
+                              x1="8"
+                              y1="3.4"
+                              x2="8"
+                              y2="7.2"
+                            />
+                            <line
+                              x1="16"
+                              y1="3.4"
+                              x2="16"
+                              y2="7.2"
+                            />
+                          </g>
                         </svg>
                         {{ att.period }}
                       </span>
@@ -169,10 +215,20 @@
                           viewBox="0 0 24 24"
                           fill="none"
                         >
-                          <path
-                            d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"
-                            fill="#a2a2a2"
-                          />
+                          <g
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <circle
+                              cx="12"
+                              cy="12"
+                              r="8.5"
+                            />
+                            <polyline points="12 7 12 12 15.6 14.2" />
+                          </g>
                         </svg>
                         {{ att.time }}
                       </span>
@@ -201,6 +257,7 @@
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { ref } from 'vue';
 import { useDeletionsStore } from '@/stores/deletions';
+import { copyText } from '@/utils/clipboard';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 
 export default {
@@ -261,23 +318,10 @@ export default {
         async copyNumber() {
             const number = this.applicationNumber;
             if (!number) return;
-            try {
-                if (navigator.clipboard?.writeText) {
-                    await navigator.clipboard.writeText(String(number));
-                } else {
-                    const ta = document.createElement('textarea');
-                    ta.value = String(number);
-                    ta.style.position = 'absolute';
-                    ta.style.left = '-9999px';
-                    document.body.appendChild(ta);
-                    ta.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(ta);
-                }
-                useDeletionsStore().notify({ prefix: 'Номер ', bold: String(number), suffix: ' скопирован', type: 'success' });
-            } catch {
-                useDeletionsStore().notify({ prefix: 'Не удалось ', bold: 'скопировать номер', type: 'error' });
-            }
+            const copied = await copyText(number);
+            useDeletionsStore().notify(copied
+                ? { prefix: 'Номер ', bold: String(number), suffix: ' скопирован', type: 'success' }
+                : { prefix: 'Не удалось ', bold: 'скопировать номер', type: 'error' });
         }
     }
 }

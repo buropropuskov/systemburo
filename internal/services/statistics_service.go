@@ -13,7 +13,12 @@ import (
 // onlineWindowMinutes — окно "онлайн": пользователь считается онлайн, если его
 // last_seen обновлялся за последние N минут. Должно быть >= троттл-окна записи
 // last_seen в middleware (60с), с запасом на простой между запросами.
-const onlineWindowMinutes = 15
+//
+// То же окно продублировано на фронте (ONLINE_WINDOW_MINUTES в
+// frontend/src/utils/presence.js): таблица пользователей гасит точку присутствия
+// по тикающему таймеру, без запроса к бэку. Меняя число здесь, менять и там -
+// иначе плитка дашборда и колонка «В сети» дадут разные ответы.
+const onlineWindowMinutes = 5
 
 // StatisticsService — интерфейс бизнес-логики статистики дашборда.
 type StatisticsService interface {
@@ -214,7 +219,7 @@ func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to ti
 	// cars_entered: источник carsHistoryUnion (audit_log[car], #870 F.5 read-switch);
 	// до-cutover въезды cars_history перенесены в audit_log backfill'ом.
 	if err := s.db.WithContext(ctx).
-		Table(carsHistoryUnion + " ch").
+		Table(carsHistoryUnion+" ch").
 		Where("ch.action_type = 'entry' AND ch.created_at BETWEEN ? AND ?", from, to).
 		Count(&summary.CarsEntered).Error; err != nil {
 		return nil, fmt.Errorf("statistics: cars_entered: %w", err)
@@ -223,7 +228,7 @@ func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to ti
 	// people_entered: источник employeesHistoryUnion (audit_log[employee], #870 F.6
 	// read-switch); до-cutover въезды employees_history перенесены backfill'ом.
 	if err := s.db.WithContext(ctx).
-		Table(employeesHistoryUnion + " eh").
+		Table(employeesHistoryUnion+" eh").
 		Where("eh.action_type = 'entry' AND eh.created_at BETWEEN ? AND ?", from, to).
 		Count(&summary.PeopleEntered).Error; err != nil {
 		return nil, fmt.Errorf("statistics: people_entered: %w", err)
@@ -403,6 +408,12 @@ func (s *statisticsService) GetOnlineUsers(ctx context.Context) ([]models.Online
 		Scan(&users).Error; err != nil {
 		return nil, fmt.Errorf("statistics: online users: %w", err)
 	}
+	// Логин вместо ФИО у тех, кто не давал согласия на обработку данных.
+	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+		for i := range users {
+			users[i].FullName = maskName(masks, &users[i].ID, users[i].FullName)
+		}
+	}
 	return users, nil
 }
 
@@ -538,7 +549,7 @@ func (s *statisticsService) GetRecentPassages(ctx context.Context, limit int) (*
 	}
 
 	if err := s.db.WithContext(ctx).
-		Table(employeesHistoryUnion + " eh").
+		Table(employeesHistoryUnion+" eh").
 		Joins("JOIN employees e ON e.id = eh.employee_id").
 		Joins("LEFT JOIN attachments a ON a.id = e.attachment_id").
 		Joins("LEFT JOIN applications app ON app.id = a.application_id").
@@ -558,7 +569,7 @@ func (s *statisticsService) GetRecentPassages(ctx context.Context, limit int) (*
 	}
 
 	if err := s.db.WithContext(ctx).
-		Table(carsHistoryUnion + " ch").
+		Table(carsHistoryUnion+" ch").
 		Joins("JOIN cars c ON c.id = ch.car_id").
 		Joins("LEFT JOIN attachments a ON a.id = c.attachment_id").
 		Joins("LEFT JOIN applications app ON app.id = a.application_id").
@@ -873,7 +884,9 @@ func (s *statisticsService) execAggregatePlan(ctx context.Context, plan *aggPlan
 // подставляется только через плейсхолдеры. Невалидный запрос -> ErrInvalidReportRequest
 // (400 в handler). Строки сканируются в []map по алиасам столбцов плана.
 func (s *statisticsService) RunReportList(ctx context.Context, req models.ReportRequest) (*models.ReportListResponse, error) {
-	plan, err := buildListPlan(req)
+	// Персональные данные не давших согласия скрыты и в отчётах: колонка принимающего
+	// собирает ФИО с телефоном одной строкой, и подменить её после выборки нечем.
+	plan, err := buildListPlan(req, pdConsentMaskingActive(ctx, s.db))
 	if err != nil {
 		return nil, err
 	}

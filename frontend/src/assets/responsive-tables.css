@@ -59,9 +59,45 @@
  * 767.98px) - правила `.rt-header-inline .refresh-btn`/`.refresh-btn__text` ниже
  * дублируют это для его потребителей и оставлены как подстраховка (тот же порог и
  * результат); при чистке responsive-инфраструктуры их можно убрать.
+ *
+ * ЧАСТЬ 3. Талон проходной (волна 5, мокап docs/mockups/mobile-ux.html, экран
+ * «Проходная»). Строка машины на посту - не строка таблицы, а отрывной талон:
+ * сверху кнопки прохода, под ними линия отрыва, дальше номер крупно и данные,
+ * внизу статус и действия. Накладывается поверх карточки из части 1:
+ *
+ *   <div class="item-data rt-row rt-pass">
+ *     <div class="col entry-col" data-label="Въезд">…</div>
+ *     <div class="col exit-col" data-label="Выезд">…</div>
+ *     <div class="col number-col rt-pass__plate" data-label="Номер Т/С">…</div>
+ *     <div class="col brand-col rt-pass__mark" data-label="Марка">…</div>
+ *     …
+ *     <div class="col actions-col">
+ *       <button class="delete-btn rt-pass__act rt-pass__act--danger">
+ *         <img class="delete-icon rt-pass__act-icon">
+ *         <span class="rt-pass__act-label">Удалить</span>
+ *       </button>
+ *     </div>
+ *   </div>
+ *
+ * Потребители: CarsTable, PeopleTable и FactTable в режиме cars. Талон определяется
+ * не тем, машина в строке или человек, а наличием кнопок прохода: в таблице людей
+ * поста это «Вход»/«Выход», и карточка собирается так же, только вместо номера идёт
+ * ФИО одной строкой. В FactTable в режиме people кнопок прохода нет - там талона нет
+ * тоже, линии отрыва было бы не от чего отрывать.
+ *
+ * Здесь живёт ТОЛЬКО то, что у потребителей совпадает буква в букву. Раскладка
+ * полей - какие столбцы есть, в каком порядке они уходят в подвал, каким полям
+ * оставлена подпись - у каждой таблицы своя и остаётся в ней: у одной есть
+ * «Подробнее», у другой нет, и списки полей-исключений разные.
  */
 
 .rt-btn-icon {
+  display: none;
+}
+
+/* Подпись кнопки подвала талона видна только в карточке: в таблице на её месте
+   узкий служебный столбец, туда влезает лишь значок. */
+.rt-pass__act-label {
   display: none;
 }
 
@@ -127,6 +163,156 @@
     font-weight: 600;
     color: var(--text-muted);
     text-align: left;
+  }
+
+  /* --- Часть 3: талон проходной ---
+     `!important` по всему блоку - по той же причине, что и у части 1: глобальный
+     селектор проигрывает scoped-правилу потребителя и по специфичности, и по
+     порядку загрузки route-чанков. У номера и пилюль это не перестраховка, а
+     необходимость: размер строки таблицы задан у потребителей переменной
+     (`.items-body .col { font-size: var(--table-font-size) }`), а базовые правила
+     кнопок стоят ниже мобильного медиазапроса - оба правила выиграли бы. */
+
+  /* Линия отрыва между кнопками прохода и данными талона: пунктир и два выреза по
+     краям. Псевдоэлемент, а не узел разметки - иначе строка таблицы на десктопе
+     получает лишнего ребёнка. Как flex-элемент встаёт по `order` между кнопками
+     прохода (0-1) и полями (от 10); `.rt-row > *` до псевдоэлемента не достаёт,
+     поэтому базис ему нужен свой.
+
+     Отрицательные поля тянут полосу до краёв карточки: 14px - её собственный
+     padding (см. `.rt-row` выше). Вырезы - радиальные градиенты с центром РОВНО на
+     краю полосы: внешняя половина круга выходит за фон элемента и не рисуется,
+     поэтому полукруг получается без `overflow: hidden` - тот обрезал бы выпадающее
+     меню корзины, живущее внутри строки. Заливка выреза - слой ПОД карточками, он
+     в обеих палитрах темнее их поверхности.
+
+     Базис - ШИРИНА КАРТОЧКИ, то есть 100% плюс оба её padding'а. Отрицательное поле
+     сдвигает полосу влево и добавляет ей свободного места в строке, но НЕ ширины:
+     у flex-элемента используемый размер равен базису, поля лишь смещают его. С
+     базисом 100% полоса выходила на 28px короче карточки и обрывалась справа, а
+     правый вырез оказывался не на краю, а в 28px от него - это и есть «разделитель
+     не во всю длину» (замер на 390: карточка 368 по внутреннему краю рамки, полоса
+     340, правый край полосы 351 против 379 у карточки). */
+  .rt-pass::before {
+    content: '' !important;
+    flex: 0 0 calc(100% + 28px) !important;
+    order: 5 !important;
+    height: 14px !important;
+    margin: 2px -14px 4px !important;
+    background-image:
+      radial-gradient(circle 7px at 0 50%, var(--surface-sunken) 0 5.6px, var(--border) 5.6px 6.6px, transparent 6.7px),
+      radial-gradient(circle 7px at 100% 50%, var(--surface-sunken) 0 5.6px, var(--border) 5.6px 6.6px, transparent 6.7px),
+      repeating-linear-gradient(to right, var(--border) 0 6px, transparent 6px 12px) !important;
+    background-repeat: no-repeat !important;
+    background-position: left center, right center, center !important;
+    background-size: 14px 14px, 14px 14px, 100% 1px !important;
+  }
+
+  /* Поле талона - строка «подпись слева, значение за ней». Пунктира между полями
+     нет намеренно: единственная горизонтальная линия талона - линия отрыва, рядом
+     с шестью пунктирами она перестаёт читаться как отрыв. Ячейки прохода из этого
+     правила выходят своим (специфичнее) - у них свой вертикальный отступ. */
+  .rt-pass > [data-label] {
+    gap: 8px !important;
+    min-height: 24px !important;
+    padding: 3px 0 !important;
+    border-top: none !important;
+  }
+
+  /* Подпись поля того же кегля, что значение, и отличается только цветом (мокап):
+     жирная 12px читалась отдельным столбцом. КАКИМ полям подпись оставлена, решает
+     потребитель - списки у таблиц разные. */
+  .rt-pass > [data-label]::before {
+    font-size: 13px !important;
+    font-weight: 500 !important;
+  }
+
+  /* Номер и марка - одна строка карточки, а не два отдельных поля друг под
+     другом: владелец сверяет номер с маркой одним взглядом. `flex: 0 1 auto` -
+     тот же приём, что и у ФИО в талоне человека: базис по содержимому, а не
+     100% строки, поэтому оба поля встают рядом и делят строку.
+
+     Специфичность взята с запасом (.rt-table + .rt-pass + класс поля +
+     [data-label] = 4 селектора): базовое ".rt-table .rt-row > [data-label]"
+     из части 1 держит `width: 100% !important` при специфичности 3, а
+     потребитель может быть lazy-чанком и переопределить тем же числом с другой
+     стороны (эталон §8) - на равных запас важнее порядка загрузки.
+
+     Номер сверяют глазами с номером на бампере - крупно и моноширинными цифрами,
+     чтобы разряды не плясали. */
+  .rt-table .rt-pass > .rt-pass__plate[data-label] {
+    flex: 0 1 auto !important;
+    width: auto !important;
+    min-width: 0;
+    font-size: 20px !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.04em !important;
+    font-variant-numeric: tabular-nums !important;
+    padding-top: 8px !important;
+  }
+
+  /* Марка - рядом с номером в одной строке, приглушённым цветом. */
+  .rt-table .rt-pass > .rt-pass__mark[data-label] {
+    flex: 0 1 auto !important;
+    width: auto !important;
+    min-width: 0;
+    padding-top: 8px !important;
+    color: var(--text-muted) !important;
+  }
+
+  /* Кнопки подвала - компактные пилюли 28px, зона нажатия остаётся 44px за счёт
+     невидимого ::before. Кнопками по 44px подвал не собрать: на 320 карточке
+     доступно ~268px, и две кнопки с подписями влезают туда только пилюлями.
+
+     Ширину пилюля берёт от своей ячейки, а не от содержимого: ячейки подвала делят
+     строку пополам (раскладка у потребителя), и пилюля по содержимому жалась бы к
+     левому краю своей половины - подпись «Удалить» уже 55px при половине в 131.
+     Прижатые к правому краю карточки кнопки владелец забраковал отдельно.
+
+     Класс свой, а не `.delete-btn` потребителя: под тем же именем внутри строки
+     живёт кнопка подменю корзины (TableRowRemoveMenu) - её собственный класс
+     появился вместе с подписью «Убрать», без неё она стала бы пустой пилюлей. */
+  .rt-pass .rt-pass__act {
+    position: relative !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    width: 100% !important;
+    height: 28px !important;
+    padding: 0 10px !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-pill, 999px) !important;
+    background: var(--surface) !important;
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    /* Раскрытие вертит шеврон внутри пилюли, а не саму пилюлю. */
+    transform: none !important;
+  }
+
+  .rt-pass .rt-pass__act::before {
+    content: '' !important;
+    position: absolute !important;
+    inset: -8px -2px !important;
+  }
+
+  .rt-pass .rt-pass__act svg {
+    flex-shrink: 0 !important;
+  }
+
+  .rt-pass .rt-pass__act--danger {
+    color: var(--danger-text) !important;
+    border-color: color-mix(in srgb, var(--danger) 30%, var(--surface)) !important;
+  }
+
+  /* В пилюле остаётся подпись: значок рядом со словом - лишние 16px ширины в
+     подвале, где её и так впритык. */
+  .rt-pass .rt-pass__act-icon {
+    display: none !important;
+  }
+
+  .rt-pass .rt-pass__act-label {
+    display: inline !important;
   }
 
   /* --- Часть 2: инлайн-кнопки шапки блока ---

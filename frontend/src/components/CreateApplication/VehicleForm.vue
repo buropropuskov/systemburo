@@ -9,6 +9,7 @@
       <button
         v-if="allowExistingSearch"
         class="completion__button"
+        data-testid="ob-form-existing"
         @click="openExistingCarsModal"
       >
         {{ isNarrow ? 'Добавить сущ.' : 'Добавить существующую(-ие)' }}
@@ -127,11 +128,11 @@
           >
             <div class="button__content">
               <span class="button__text">{{ selectedFormatText }}</span>
-              <img
-                src="@/assets/icons/arrow.png"
+              <AppIcon
+                name="arrow"
                 class="button__arrow"
                 :class="{ 'button__arrow--open': isFormatDropdownOpen }"
-              >
+              />
             </div>
           </button>
           <transition name="dropdown">
@@ -260,12 +261,25 @@
                 @click="toggleMarkDropdown"
               >
                 <div class="mark__button-content">
-                  <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
-                  <img
-                    src="@/assets/icons/arrow.png"
+                  <span
+                    class="mark__button-text"
+                    :title="selectedMark || ''"
+                  >{{ selectedMark || 'Выберите марку' }}</span>
+                  <svg
                     class="mark__button-arrow"
                     :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }"
+                    viewBox="0 0 10 6"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
                   >
+                    <path
+                      d="M1 1L5 5L9 1"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
                 </div>
               </button>
               <transition name="dropdown">
@@ -340,6 +354,7 @@
     <div
       v-if="fieldVisible('unloading_places')"
       class="completion__unloading"
+      data-testid="ob-form-places"
     >
       <label class="input__label">Места разгрузки (выбор) <span
         v-if="fieldRequired('unloading_places')"
@@ -357,7 +372,7 @@
             'unloading__item--active': selectedUnloadingPlaces.includes(place.id) && place.status === 'active',
             'unloading__item--inactive': place.status !== 'active'
           }"
-          @click="toggleUnloadingPlace(place)"
+          @click="toggleUnloadingPlace(place, $event)"
           @mouseenter="showInactiveTooltip(place, $event)"
           @mouseleave="hideInactiveTooltip"
         >
@@ -440,6 +455,7 @@
       :user-organization-id="userOrganizationId"
       :user-company-id="userCompanyId"
       :initial-selected-cars="selectedExistingCars"
+      :z-index="existingModalZIndex"
       @cars-selected="onExistingCarsSelected"
       @close="closeExistingCarsModal"
     />
@@ -454,18 +470,21 @@ import { useAuthStore } from '@/stores/auth'
 import { useDeletionsStore } from '@/stores/deletions'
 import { useFormValidation } from '@/composables/useFormValidation'
 import { useNarrowScreen } from '@/composables/useNarrowScreen'
-import { validatePartValue, formatPartValue, initializeNumberParts } from '@/composables/useNumberFormat'
+import { validatePartValue, formatPartValue, initializeNumberParts, matchNumberToFormat } from '@/composables/useNumberFormat'
 import { useFieldConfig } from '@/composables/useFieldConfig'
 import { collectActiveWarnings } from '@/utils/warningWindows'
 import { buildScheduleReport } from '@/utils/scheduleCheck'
 import { findDuplicateVehicle, vehicleLabel } from '@/utils/applicationDuplicates'
 import { getCurrentInstance } from 'vue'
 import ExistingCarsModal from '@/components/CreateApplication/ExistingCarsModal.vue'
+import { resetVehicleFormState } from './entryFormReset'
 import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vue'
+import AppIcon from '@/components/icons/AppIcon.vue'
 
 export default {
     name: 'VehicleForm',
     components: {
+        AppIcon,
         ExistingCarsModal,
         TargetTablesGrid
     },
@@ -512,6 +531,12 @@ export default {
         allowExistingSearch: {
             type: Boolean,
             default: true
+        },
+        // Слой окна «Добавить существующую(-ие)». Дефолт 1000 - подача заявки; форма,
+        // встроенная в окно поверх детали заявки, поднимает его (#1685).
+        existingModalZIndex: {
+            type: Number,
+            default: 1000
         },
         // Срок заявки текущего вложения (#1183 S5): { date_from, date_to, time_from,
         // time_to } в API-формате (YYYY-MM-DD + ЧЧ:ММ). Против него сверяется расписание
@@ -576,6 +601,8 @@ export default {
             numberParts: [],
             isNumberByFact: false,
             availableFormats: [],
+            // Промис загрузки справочника форматов - см. mounted и applyEditedVehicleNumber.
+            formatsReady: null,
             selectedFormat: null,
             isFormatDropdownOpen: false,
             isMarkByFact: false,
@@ -752,8 +779,11 @@ export default {
         }
     },
     async mounted() {
+        // Промис держим отдельно: правка строки может прийти раньше, чем справочник
+        // форматов доедет, и тогда подбор формата по номеру ложно не находит ничего.
+        this.formatsReady = this.loadLicensePlateFormats();
         await Promise.all([
-            this.loadLicensePlateFormats(),
+            this.formatsReady,
             this.loadUnloadingPlaces(),
             this.loadMarks(),
             this.loadPassageTables()
@@ -764,6 +794,7 @@ export default {
     },
     beforeUnmount() {
         if (this.hintTimer) clearTimeout(this.hintTimer);
+        if (this.inactiveTooltipTimer) clearTimeout(this.inactiveTooltipTimer);
         document.removeEventListener('click', this.handleDocumentClick);
         if (this.checkingTimeout) {
             clearTimeout(this.checkingTimeout);
@@ -1132,16 +1163,6 @@ export default {
             }
         },
 
-        getPlaceTooltip(place) {
-            if (place.status !== 'active') {
-                if (place.status_comment) {
-                    return `Недоступно: ${place.status_comment}`;
-                }
-                return 'Недоступно';
-            }
-            return '';
-        },
-
         showInactiveTooltip(place, event) {
             if (place.status !== 'active') {
                 const tooltipText = place.status_comment 
@@ -1164,6 +1185,10 @@ export default {
         },
 
         hideInactiveTooltip() {
+            if (this.inactiveTooltipTimer) {
+                clearTimeout(this.inactiveTooltipTimer);
+                this.inactiveTooltipTimer = null;
+            }
             this.inactiveTooltip.visible = false;
         },
 
@@ -1238,9 +1263,13 @@ export default {
             }
         },
         
-        toggleUnloadingPlace(place) {
-            // Не даем выбрать неактивное место
+        toggleUnloadingPlace(place, event) {
             if (place.status !== 'active') {
+                // На телефоне hover не наступает, и причина недоступности была недостижима:
+                // показываем её по тапу и гасим сама через пару секунд.
+                this.showInactiveTooltip(place, event);
+                if (this.inactiveTooltipTimer) clearTimeout(this.inactiveTooltipTimer);
+                this.inactiveTooltipTimer = setTimeout(() => this.hideInactiveTooltip(), 2500);
                 return;
             }
             
@@ -1458,7 +1487,49 @@ export default {
             this.selectedExistingCars = [];
         },
 
-        editVehicle(vehicle) {
+        // Раскладывает номер редактируемой строки по ячейкам формата (U3). Строка несёт
+        // formatId в двух случаях: добавлена вручную (numberParts.join(' ') - части через
+        // пробел) или пришла из импорта бланка с явно выбранным форматом (доводка владельца,
+        // BlankImportResult.buildVehicleFromRow) - там строка сырая, без пробелов по границам
+        // ячеек. matchNumberToFormat разбирает оба вида одинаково (сам убирает пробелы и
+        // раскладывает по cells формата), поэтому раскладка идёт через него всегда, а не
+        // прямым split(' '). formatId не пришёл или номер в него не лёг - формат подбирается
+        // по самой строке среди ВСЕХ активных форматов. Не подошёл ни один - явно сообщаем об
+        // этом, а не оставляем пустые ячейки под чужим форматом молча.
+        async applyEditedVehicleNumber(vehicle) {
+            if (!this.availableFormats.length && this.formatsReady) {
+                await this.formatsReady;
+            }
+            const knownFormat = vehicle.formatId
+                ? this.availableFormats.find(f => f.format.id === vehicle.formatId)
+                : null;
+
+            if (knownFormat) {
+                const matched = matchNumberToFormat(vehicle.plateNumber, [knownFormat]);
+                if (matched) {
+                    this.selectedFormat = knownFormat;
+                    this.numberParts = matched.parts;
+                    return;
+                }
+            }
+
+            const guessed = matchNumberToFormat(vehicle.plateNumber, this.availableFormats);
+            if (guessed) {
+                this.selectedFormat = guessed.format;
+                this.numberParts = guessed.parts;
+                return;
+            }
+
+            this.selectedFormat = null;
+            this.numberParts = [];
+            useDeletionsStore().notify({
+                prefix: `Номер "${vehicle.plateNumber}" не подошёл ни под один формат. `,
+                bold: 'Выберите формат и введите номер вручную',
+                type: 'error',
+            });
+        },
+
+        async editVehicle(vehicle) {
             this.editingVehicle = vehicle;
             this.selectedExistingCars = [];
             this.activeCarInfo = null; // Сбрасываем информацию об активной заявке
@@ -1497,11 +1568,7 @@ export default {
                     this.isNumberByFact = true;
                 } else {
                     this.isNumberByFact = false;
-                    const format = this.availableFormats.find(f => f.format.id === vehicle.formatId);
-                    if (format) {
-                        this.selectedFormat = format;
-                        this.numberParts = vehicle.plateNumber.split(' ');
-                    }
+                    await this.applyEditedVehicleNumber(vehicle);
                 }
 
                 restoreMarkSelection();
@@ -1517,8 +1584,7 @@ export default {
 
         cancelEdit() {
             this.$emit('edit-cancelled');
-            this.editingVehicle = null;
-            this.clearVehicleForm();
+            resetVehicleFormState(this);
         },
         
         toggleMarkDropdown() {
@@ -1939,7 +2005,6 @@ export default {
     height: 16px;
     border-radius: 50%;
     background: var(--surface);
-    box-shadow: 0 1px 2px var(--shadow-drop);
     transition: transform 0.2s ease;
 }
 
@@ -2062,7 +2127,9 @@ export default {
     border-radius: 15px;
     outline: none;
     cursor: pointer;
-    padding: 0 15px;
+    /* Правый паддинг больше левого - без запаса длинная марка обрезалась
+       эллипсисом впритык к стрелке, и они визуально слипались. */
+    padding: 0 20px 0 15px;
     transition: border-color 0.2s;
 }
 
@@ -2076,6 +2143,9 @@ export default {
     width: 100%;
     height: 100%;
     justify-content: space-between;
+    /* Тот же зазор, что у BaseDropdown.vue: без него текст и стрелка - соседние
+       flex-элементы без гарантированного расстояния - сходятся вплотную. */
+    gap: 10px;
 }
 
 .mark__button-text {
@@ -2085,19 +2155,30 @@ export default {
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 150px;
+    /* Без min-width: 0 flex-элемент с white-space: nowrap отказывается сжиматься
+       ниже собственной content-ширины (дефолтный min-width: auto у flex-детей) -
+       ellipsis объявлен, но не срабатывает, и длинная марка вылезает за поле. */
+    min-width: 0;
     display: block;
 }
 
+/* Стрелка - тот же inline SVG-шеврон, что у BaseDropdown.vue (см. другие дропдауны
+   проекта): растровый arrow.png 10x10 на Retina-экранах масштабируется блоками
+   пикселей и выглядит зазубренным, SVG чёткий на любом DPI. Поворот -90/90deg (не
+   0/180, как у BaseDropdown) - это боковое меню (dropdown__menu открывается вправо
+   от кнопки), не выпадающее вниз. Знак важен: шеврон нарисован остриём вниз, и
+   поворот по часовой уводит его влево, от меню. */
 .mark__button-arrow {
     width: 10px;
     height: 10px;
+    color: var(--text-muted);
     transition: transform 0.2s;
-    transform: rotate(90deg);
+    transform: rotate(-90deg);
     flex-shrink: 0;
 }
 
 .mark__button-arrow--open {
-    transform: rotate(-90deg);
+    transform: rotate(90deg);
 }
 
 .mark__dropdown-menu {
@@ -2147,6 +2228,17 @@ export default {
 
 .mark__dropdown-item:last-child {
     border-bottom: none;
+}
+
+.mark__dropdown-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 56px;
+    padding: 16px 15px;
+    color: var(--text-muted);
+    font-size: 14px;
+    text-align: center;
 }
 
 .mark__item-text {
@@ -2480,10 +2572,25 @@ export default {
         pointer-events: none;
     }
 
-    /* С коротким текстом кнопка встаёт в строку с заголовком. */
+    /* Заголовок блока и кнопка «Добавить сущ.» - строго одна строка. nowrap, а не
+       перенос: флекс решает про перенос по НАТУРАЛЬНОЙ ширине элемента, до
+       flex-shrink, поэтому сжимаемый заголовок кнопку в строке не удерживал -
+       «Добавление Т/С» (165px при 18.72px по умолчанию) плюс кнопка 124px требовали
+       299px при 268 доступных на 320, и кнопка падала под заголовок.
+       Кегль заголовка задан явно (по умолчанию h3 = 18.72px): 15px совпадает с
+       подписью соседнего списка, на узких телефонах 14px - как у неё же. */
     .completion__header {
         align-items: center;
+        flex-wrap: nowrap;
         gap: 8px;
+    }
+
+    .completion__header h3 {
+        min-width: 0;
+        font-size: 15px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .completion__button {
@@ -2544,11 +2651,6 @@ export default {
     .tooltip-content {
         max-width: 100%;
         white-space: pre-line;
-    }
-
-    .completion__header {
-        flex-wrap: wrap;
-        gap: 10px;
     }
 
     .tooltip-content {
@@ -2633,6 +2735,19 @@ export default {
         overflow: visible;
         text-overflow: clip;
         line-height: 1.25;
+    }
+}
+
+/* Узкие телефоны: на 320 ряду шапки формы остаётся 268px. Кегль как у подписи
+   соседнего списка (14px) и более плотные поля кнопки дают запас - заголовок
+   читается целиком, без многоточия. */
+@media (max-width: 480px) {
+    .completion__header h3 {
+        font-size: 14px;
+    }
+
+    .completion__button {
+        padding: 0 12px;
     }
 }
 </style>

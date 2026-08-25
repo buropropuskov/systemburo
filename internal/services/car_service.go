@@ -23,12 +23,8 @@ type CarService interface {
 	// создаёт вложение-сироту (application_id NULL, is_manual, org/company на вложении),
 	// сами машины со status=1 и привязку к целевым таблицам - одной транзакцией.
 	CreateManualCars(ctx context.Context, req ManualCarRequest, userID int) (*ManualCarResponse, error)
-	// GetActiveCarsForTables возвращает активные машины для всех таблиц (без «по факту»).
-	GetActiveCarsForTables(ctx context.Context) ([]TableCarResponse, error)
 	// GetActiveCarsForTable возвращает активные машины конкретной таблицы «Проезд» (#1036).
 	GetActiveCarsForTable(ctx context.Context, tableID int) ([]TableCarResponse, error)
-	// GetFactCarsForTables возвращает машины с номером «по факту».
-	GetFactCarsForTables(ctx context.Context) ([]TableCarResponse, error)
 	// GetFactCarsForTable возвращает машины «по факту» конкретной таблицы «Проезд» (#1036).
 	GetFactCarsForTable(ctx context.Context, tableID int) ([]TableCarResponse, error)
 	// GetCarUnloadPlaces возвращает связи активных машин с местами разгрузки.
@@ -69,6 +65,9 @@ type CarService interface {
 	// Пустой итоговый набор целевых таблиц -> машина деактивируется (как единичный
 	// DeactivateCar).
 	BulkUnbindTable(ctx context.Context, req BulkUnbindCarsTableRequest, actorID int) (*BulkOpResult, error)
+
+	// SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1).
+	SetBlankExportEnqueuer(e BlankExportEnqueuer)
 }
 
 // --- DTO запросов ---
@@ -321,6 +320,14 @@ type carService struct {
 	db             *gorm.DB
 	recorder       AuditRecorder
 	tablesProducer *TablesRefreshPublisher
+	// blankExports - постановка заявки в очередь на выгрузку в файловый архив
+	// (#1615, B1): bulk-перенос машины между таблицами «Проезд» меняет то, что
+	// хранит слепок заявки (заявка.json). Сеттер - тот же порядок инициализации,
+	// что у applicationService.SetBlankExportEnqueuer.
+	blankExports BlankExportEnqueuer
+	// notificationService - уведомление инициатора о первом проходе по заявке
+	// (#1748, S4). Опционально: без неё UpdateCarTerritoryStatus просто не шлёт.
+	notificationService NotificationService
 }
 
 // CarServiceOption конфигурирует carService при создании.
@@ -330,6 +337,17 @@ type CarServiceOption func(*carService)
 // машины (#840 V2.3): строка видна во всех cars-таблицах, обновляем их live.
 func WithCarTablesProducer(p *TablesRefreshPublisher) CarServiceOption {
 	return func(s *carService) { s.tablesProducer = p }
+}
+
+// WithCarNotifications включает уведомление инициатора заявки о первом проходе
+// по ней (#1748, S4) при въезде машины.
+func WithCarNotifications(n NotificationService) CarServiceOption {
+	return func(s *carService) { s.notificationService = n }
+}
+
+// SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1).
+func (s *carService) SetBlankExportEnqueuer(e BlankExportEnqueuer) {
+	s.blankExports = e
 }
 
 // NewCarService создаёт новый экземпляр CarService.

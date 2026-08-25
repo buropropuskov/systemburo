@@ -110,23 +110,40 @@ const stubs = {
         @click="$emit('update:modelValue', t.key)">{{ t.label }}</button>
     </div>`,
   },
-  // Календарь версии: маркер-корень, дату/apply/clear тесты эмитят через vm.$emit
-  // (как реальный DateFilter: applySelection -> update:selectedDate + apply).
+  // Календарь версии: маркер-корень, границы/apply/clear тесты эмитят через vm.$emit
+  // (как реальный DateFilter в range-режиме: applySelection -> границы + apply).
   DateFilter: {
-    props: ['mode', 'selectedDate'],
-    emits: ['update:selectedDate', 'apply', 'clear'],
+    props: ['mode', 'dateRangeStart', 'dateRangeEnd'],
+    emits: ['update:dateRangeStart', 'update:dateRangeEnd', 'apply', 'clear'],
     template: '<div data-testid="tv-date-filter"></div>',
   },
 };
 
-// Выбор дня в календаре версии: эмитит выбранную дату, затем apply (порядок как
-// у реального DateFilter). date - Date или null (сброс).
-async function pickVersionDate(wr, date) {
+// Выбор периода в календаре версии: эмитит границы, затем apply (порядок как у
+// реального DateFilter). Один день = start и end одного дня, null - сброс.
+async function pickVersionRange(wr, start, end = start) {
   const df = wr.findComponent('[data-testid="tv-date-filter"]');
-  df.vm.$emit('update:selectedDate', date);
+  df.vm.$emit('update:dateRangeStart', start ? dayStart(start) : null);
+  df.vm.$emit('update:dateRangeEnd', end ? dayEnd(end) : null);
   df.vm.$emit('apply');
   await flushPromises();
 }
+
+// Границы дня, как их отдаёт DateFilter.applySelection.
+function dayStart(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function dayEnd(date) {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+// Выбор одного дня - частый случай, отдельная обёртка для читаемости.
+const pickVersionDate = (wr, date) => pickVersionRange(wr, date, date);
 
 function mockTable(over = {}, fields = [{ field_name: 'car_number', is_visible: true }]) {
   apiRequest.mockResolvedValue({
@@ -595,6 +612,21 @@ describe('TableVersionsView поиск и фильтр даты (#980 polish-r3)
     expect(new Date(from).getTime()).toBeLessThan(new Date(to).getTime());
   });
 
+  it('выбор периода сужает список версий границами периода, а не одного дня', async () => {
+    listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
+    wrapper = mountView();
+    await flushPromises();
+    listTableSnapshots.mockClear();
+
+    // Так календарь отдаёт "Прошлый месяц" / выбор двух дат в режиме "Период".
+    await pickVersionRange(wrapper, new Date('2026-06-01T00:00:00'), new Date('2026-06-30T00:00:00'));
+
+    expect(listTableSnapshots).toHaveBeenCalledTimes(1);
+    const { from, to } = listTableSnapshots.mock.calls[0][1];
+    expect(new Date(from).toDateString()).toBe(new Date('2026-06-01T12:00:00').toDateString());
+    expect(new Date(to).toDateString()).toBe(new Date('2026-06-30T12:00:00').toDateString());
+  });
+
   it('быстрый повторный выбор дня: применяется только ответ последнего запроса (#632)', async () => {
     // onMounted-загрузку держим висящей (медленный запрос), второй по выбору дня -
     // быстрый; поздний резолв первого не должен затереть актуальный список.
@@ -639,7 +671,8 @@ describe('TableVersionsView поиск и фильтр даты (#980 polish-r3)
     listTableSnapshots.mockClear();
 
     const df = wrapper.findComponent('[data-testid="tv-date-filter"]');
-    df.vm.$emit('update:selectedDate', null);
+    df.vm.$emit('update:dateRangeStart', null);
+    df.vm.$emit('update:dateRangeEnd', null);
     df.vm.$emit('clear');
     await flushPromises();
 

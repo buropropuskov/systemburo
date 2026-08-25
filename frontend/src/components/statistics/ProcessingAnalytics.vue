@@ -181,8 +181,8 @@
             v-else
             class="proc__card proc__card--table proc__card--scroll"
           >
-            <table class="proc__table proc__table--rating">
-              <thead>
+            <table class="proc__table proc__table--rating rt-table">
+              <thead class="rt-head-row">
                 <tr>
                   <th class="proc__rank-h">#</th>
                   <th>Согласующий</th>
@@ -194,14 +194,25 @@
                 <tr
                   v-for="(a, i) in approvers"
                   :key="i"
+                  class="rt-row"
                 >
-                  <td class="proc__rank">{{ i + 1 }}</td>
+                  <td
+                    class="proc__rank"
+                    data-label="Место"
+                  >{{ i + 1 }}</td>
                   <td
                     class="proc__ellipsis"
+                    data-label="Согласующий"
                     :title="a.name"
                   >{{ a.name }}</td>
-                  <td class="proc__num">{{ fmtDur(a.avg_response_time) }}</td>
-                  <td class="proc__num">{{ fmtCount(a.votes_count) }}</td>
+                  <td
+                    class="proc__num"
+                    data-label="Время реакции"
+                  >{{ fmtDur(a.avg_response_time) }}</td>
+                  <td
+                    class="proc__num"
+                    data-label="Нагрузка"
+                  >{{ fmtCount(a.votes_count) }}</td>
                 </tr>
                 <tr v-if="approvers.length === 0">
                   <td
@@ -229,8 +240,8 @@
             v-else
             class="proc__card proc__card--table proc__card--scroll"
           >
-            <table class="proc__table proc__table--rating">
-              <thead>
+            <table class="proc__table proc__table--rating rt-table">
+              <thead class="rt-head-row">
                 <tr>
                   <th class="proc__rank-h">#</th>
                   <th>Принимающий</th>
@@ -242,14 +253,25 @@
                 <tr
                   v-for="(a, i) in acceptors"
                   :key="i"
+                  class="rt-row"
                 >
-                  <td class="proc__rank">{{ i + 1 }}</td>
+                  <td
+                    class="proc__rank"
+                    data-label="Место"
+                  >{{ i + 1 }}</td>
                   <td
                     class="proc__ellipsis"
+                    data-label="Принимающий"
                     :title="a.name"
                   >{{ a.name }}</td>
-                  <td class="proc__num">{{ fmtDur(a.avg_acceptance_time) }}</td>
-                  <td class="proc__num">{{ fmtCount(a.accepts_count) }}</td>
+                  <td
+                    class="proc__num"
+                    data-label="Время принятия"
+                  >{{ fmtDur(a.avg_acceptance_time) }}</td>
+                  <td
+                    class="proc__num"
+                    data-label="Принято"
+                  >{{ fmtCount(a.accepts_count) }}</td>
                 </tr>
                 <tr v-if="acceptors.length === 0">
                   <td
@@ -285,8 +307,8 @@
           v-else
           class="proc__card proc__card--table proc__card--scroll"
         >
-          <table class="proc__table proc__table--breakdown">
-            <thead>
+          <table class="proc__table proc__table--breakdown rt-table">
+            <thead class="rt-head-row">
               <tr>
                 <th>{{ breakdownNameHeader }}</th>
                 <th class="proc__num">Согласование</th>
@@ -299,15 +321,29 @@
               <tr
                 v-for="(o, i) in breakdownRows"
                 :key="i"
+                class="rt-row"
               >
                 <td
                   class="proc__ellipsis"
+                  :data-label="breakdownNameHeader"
                   :title="o.label"
                 >{{ o.label }}</td>
-                <td class="proc__num">{{ fmtDur(o.avg_approval_time) }}</td>
-                <td class="proc__num">{{ fmtDur(o.avg_acceptance_time) }}</td>
-                <td class="proc__num">{{ fmtDur(o.avg_processing_time) }}</td>
-                <td class="proc__num">{{ fmtCount(o.applications_count) }}</td>
+                <td
+                  class="proc__num"
+                  data-label="Согласование"
+                >{{ fmtDur(o.avg_approval_time) }}</td>
+                <td
+                  class="proc__num"
+                  data-label="Принятие"
+                >{{ fmtDur(o.avg_acceptance_time) }}</td>
+                <td
+                  class="proc__num"
+                  data-label="Обработка"
+                >{{ fmtDur(o.avg_processing_time) }}</td>
+                <td
+                  class="proc__num"
+                  data-label="Заявок"
+                >{{ fmtCount(o.applications_count) }}</td>
               </tr>
               <tr v-if="breakdownRows.length === 0">
                 <td
@@ -354,8 +390,8 @@
         v-else
         class="proc__card proc__card--table proc__card--scroll"
       >
-        <table class="proc__table proc__table--stuck">
-          <thead>
+        <table class="proc__table proc__table--stuck rt-table">
+          <thead class="rt-head-row">
             <tr>
               <th class="proc__col-app">Заявка</th>
               <th>Согласующий</th>
@@ -367,8 +403,9 @@
             <tr
               v-for="(a, i) in stuck"
               :key="`${a.application_id}-${i}`"
+              class="rt-row"
             >
-              <td>
+              <td data-label="Заявка">
                 <button
                   type="button"
                   class="proc__stuck-app proc__journal-app--copy"
@@ -378,10 +415,17 @@
               </td>
               <td
                 class="proc__ellipsis"
+                data-label="Согласующий"
                 :title="a.approver_name"
               >{{ a.approver_name }}</td>
-              <td class="proc__num">{{ waitingText(a.waiting_days) }}</td>
-              <td class="proc__num">{{ fmtCount(a.reminder_count) }}</td>
+              <td
+                class="proc__num"
+                data-label="Ждёт"
+              >{{ waitingText(a.waiting_days) }}</td>
+              <td
+                class="proc__num"
+                data-label="Напоминаний"
+              >{{ fmtCount(a.reminder_count) }}</td>
             </tr>
             <tr v-if="stuck.length === 0">
               <td
@@ -404,7 +448,10 @@
     >
       <div class="proc__group-head">
         <h2 class="proc__group-title">Журнал</h2>
-        <span class="proc__group-chip">решения по заявкам: согласования, принятия, отказы, отзывы</span>
+        <span class="proc__group-chip">
+          <span class="proc__group-chip-full">решения по заявкам: согласования, принятия, отказы, отзывы</span>
+          <span class="proc__group-chip-short">решения по заявкам</span>
+        </span>
         <span class="proc__group-rule" />
         <RefreshButton
           :loading="journalLoading"
@@ -414,30 +461,86 @@
       </div>
       <!-- Фильтры ленты (#1251 P5c). Отбор идёт на бэке: страница и «Всего»
            считаются по одному предикату, иначе фильтрация в пределах текущей
-           страницы врала бы о числе событий. -->
+           страницы врала бы о числе событий.
+           На телефоне шесть табов роли не помещаются - заменяются BaseDropdown
+           (десктоп не трогаем, FilterTabs остаются), а дата и поиск встают в
+           одну строку через .proc__journal-daterow (поиск раскрывается поверх
+           неё иконкой - зеркало Центра/кабинета). -->
       <div class="proc__journal-filters">
         <FilterTabs
+          v-if="!isNarrow"
           :model-value="journalRole"
           :tabs="JOURNAL_ROLE_TABS"
           @update:model-value="onJournalRoleChange"
         />
+        <BaseDropdown
+          v-else
+          class="proc__journal-role-dropdown"
+          :model-value="journalRole"
+          :options="JOURNAL_ROLE_TABS"
+          value-key="key"
+          label-key="label"
+          @update:model-value="onJournalRoleChange"
+        />
         <SearchComponent
+          v-if="!isNarrow"
           :model-value="journalSearch"
           class="proc__journal-search"
           title="Номер заявки или ФИО"
           @update:model-value="onJournalSearchInput"
         />
-        <DateFilter
-          mode="range"
-          :selected-date="journalSelectedDate"
-          :date-range-start="journalRangeStart"
-          :date-range-end="journalRangeEnd"
-          @update:selected-date="journalSelectedDate = $event"
-          @update:date-range-start="journalRangeStart = $event"
-          @update:date-range-end="journalRangeEnd = $event"
-          @apply="applyJournalFilters"
-          @clear="clearJournalRange"
-        />
+        <div class="proc__journal-daterow">
+          <DateFilter
+            mode="range"
+            :selected-date="journalSelectedDate"
+            :date-range-start="journalRangeStart"
+            :date-range-end="journalRangeEnd"
+            @update:selected-date="journalSelectedDate = $event"
+            @update:date-range-start="journalRangeStart = $event"
+            @update:date-range-end="journalRangeEnd = $event"
+            @apply="applyJournalFilters"
+            @clear="clearJournalRange"
+          />
+          <button
+            v-if="isNarrow"
+            type="button"
+            class="proc__journal-search-icon"
+            :class="{ 'proc__journal-search-icon--active': journalSearchOpen || !!journalSearch.trim() }"
+            aria-label="Поиск по журналу"
+            @click="toggleJournalSearch"
+          >
+            <AppIcon
+              name="search"
+              class="proc__journal-search-icon__img"
+            />
+          </button>
+          <Transition name="proc-journal-search">
+            <div
+              v-if="isNarrow && journalSearchOpen"
+              class="proc__journal-search-overlay"
+            >
+              <div class="field search">
+                <input
+                  ref="journalSearchInputRef"
+                  :value="journalSearch"
+                  placeholder="Номер заявки или ФИО"
+                  type="text"
+                  class="proc__journal-search-input"
+                  @input="onJournalSearchInput($event.target.value)"
+                >
+                <button
+                  v-if="journalSearch.trim()"
+                  type="button"
+                  class="proc__journal-search-clear"
+                  aria-label="Очистить поиск"
+                  @click="clearJournalSearch"
+                >
+                  &times;
+                </button>
+              </div>
+            </div>
+          </Transition>
+        </div>
         <button
           type="button"
           class="lk-button lk-button--ghost proc__journal-reset"
@@ -459,11 +562,12 @@
       />
       <div
         v-else
-        class="proc__card proc__card--scroll proc__journal"
+        class="proc__card proc__card--scroll proc__journal rt-table"
       >
         <!-- Шапка ленты: те же классы ячеек, что у строк, поэтому колонки совпадают
-             по ширине без отдельной таблицы разметки. -->
-        <div class="proc__journal-line proc__journal-head">
+             по ширине без отдельной таблицы разметки. На телефоне строка события
+             становится карточкой, и шапку прячет rt-head-row. -->
+        <div class="proc__journal-line proc__journal-head rt-head-row">
           <span class="proc__journal-role-h">Событие</span>
           <span class="proc__journal-actor">Кто</span>
           <span class="proc__journal-app">Заявка</span>
@@ -473,30 +577,39 @@
         <div
           v-for="e in journal"
           :key="`${e.application_id}-${e.role}-${e.occurred_at}`"
-          class="proc__journal-row"
+          class="proc__journal-row rt-row"
         >
+          <!-- Бейдж роли без data-label намеренно: в карточке он читается как
+               заголовок события, подпись «Событие: Согласование» была бы маслом масляным. -->
           <span
             class="proc__journal-role"
             :class="`proc__journal-role--${e.role}`"
           >{{ roleLabel(e.role) }}</span>
           <span
             class="proc__journal-actor"
+            data-label="Кто"
             :title="e.actor_name"
           >{{ e.actor_name }}</span>
           <button
             v-if="e.application_number"
             type="button"
             class="proc__journal-app proc__journal-app--copy"
+            data-label="Заявка"
             title="Скопировать номер заявки"
             @click="copyApplicationNumber(e.application_number)"
           >{{ e.application_number }}</button>
           <span
             v-else
             class="proc__journal-app"
+            data-label="Заявка"
           >—</span>
-          <span class="proc__journal-dur">{{ e.working_seconds == null ? '' : fmtDur(e.working_seconds) }}</span>
+          <span
+            class="proc__journal-dur"
+            data-label="Рабочее время"
+          >{{ e.working_seconds == null ? '' : fmtDur(e.working_seconds) }}</span>
           <span
             class="proc__journal-when"
+            data-label="Когда"
             :title="formatTimeAgo(e.occurred_at)"
           >{{ formatDateTime(e.occurred_at) }}</span>
         </div>
@@ -519,20 +632,29 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { getProcessingSummary, getProcessingJournal, getStuckApprovals, runReport } from '@/api/statistics.js';
 import { formatDuration, formatDateTime, formatTimeAgo } from '@/utils/datetime';
 import { MAX_REPORT_LIMIT } from '@/composables/useReportRequest';
+import { useNarrowScreen } from '@/composables/useNarrowScreen.js';
 import eventStream from '@/services/eventStream';
 import { useDeletionsStore } from '@/stores/deletions';
+import { copyText } from '@/utils/clipboard';
 import HintTooltip from '@/components/ui/HintTooltip.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
+import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import Pager from '@/components/ui/Pager.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import SearchComponent from '@/components/SearchComponent.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import AnalyticsAreaChart from './AnalyticsAreaChart.vue';
 import DirIcon from './DirIcon.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
+
+// Табы роли журнала не помещаются на телефоне (шесть кнопок) - на узком экране
+// заменяются одной выпадающей кнопкой (BaseDropdown), а поиск сворачивается в
+// иконку (тот же приём, что в Центре/кабинете - grep search-icon-btn).
+const { isNarrow } = useNarrowScreen();
 
 const props = defineProps({
   from: { type: String, default: '' },
@@ -728,6 +850,33 @@ function onJournalSearchInput(value) {
   journalSearchTimer = setTimeout(applyJournalFilters, JOURNAL_SEARCH_DEBOUNCE_MS);
 }
 
+// Раскрывающийся поиск на телефоне (зеркало Центра/кабинета): иконка-тоггл
+// поверх ряда даты, автофокус на раскрытии - это не searchable-поле внутри
+// BaseDropdown (там автофокус убран в #1303 - выбрасывал клавиатуру поверх
+// списка опций), а отдельная страница поиска по журналу, тот же случай, что
+// уже решён в ApplicationsCenter/UserApplications.
+const journalSearchOpen = ref(false);
+const journalSearchInputRef = ref(null);
+
+// Возврат на десктоп - гасим мобильное раскрытие (зеркало Центра/кабинета).
+watch(isNarrow, (narrow) => {
+  if (!narrow) journalSearchOpen.value = false;
+});
+
+function toggleJournalSearch() {
+  journalSearchOpen.value = !journalSearchOpen.value;
+  if (journalSearchOpen.value) {
+    nextTick(() => { journalSearchInputRef.value?.focus(); });
+  }
+}
+
+function clearJournalSearch() {
+  cancelJournalSearchDebounce();
+  journalSearch.value = '';
+  applyJournalFilters();
+  journalSearchOpen.value = false;
+}
+
 function clearJournalRange() {
   journalSelectedDate.value = null;
   journalRangeStart.value = null;
@@ -747,29 +896,13 @@ function goToJournalPage(next) {
   loadJournal();
 }
 
-// Копирование номера заявки из ленты - тот же приём, что в списке заявок
-// (UserApplications): clipboard с фолбэком на textarea для окружений без него.
 async function copyApplicationNumber(number) {
   if (!number) return;
   const value = String(number);
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(value);
-    } else {
-      const textarea = document.createElement('textarea');
-      textarea.value = value;
-      textarea.setAttribute('readonly', '');
-      textarea.style.position = 'absolute';
-      textarea.style.left = '-9999px';
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-    }
-    useDeletionsStore().notify({ prefix: 'Скопирован номер ', bold: value, type: 'success' });
-  } catch {
-    useDeletionsStore().notify({ prefix: 'Не удалось ', bold: 'скопировать номер', type: 'error' });
-  }
+  const copied = await copyText(value);
+  useDeletionsStore().notify(copied
+    ? { prefix: 'Скопирован номер ', bold: value, type: 'success' }
+    : { prefix: 'Не удалось ', bold: 'скопировать номер', type: 'error' });
 }
 
 const JOURNAL_ROLES = {
@@ -1110,6 +1243,12 @@ defineExpose({ refresh: reload });
   white-space: nowrap;
 }
 
+/* Короткая подпись чипа «Журнал» - только на мобилке (эталон §12: подмена
+   текста парой классов, не обрезка). На десктопе чип один - полный текст. */
+.proc__group-chip-short {
+  display: none;
+}
+
 .proc__group-rule {
   flex: 1;
   height: 1px;
@@ -1336,16 +1475,28 @@ defineExpose({ refresh: reload });
   min-height: 190px;
 }
 
-/* ===== ДВЕ КОЛОНКИ ===== */
+/* ===== ДВЕ КОЛОНКИ =====
+   minmax(0, 1fr), а не 1fr: у трека 1fr минимум - min-content содержимого, и
+   `min-width: 460px` таблицы внутри тянул колонку до 474px независимо от того,
+   что карточка вокруг неё скроллится (`overflow-x: auto` зануляет автоминимум
+   только самому скроллеру, но не деду-гриду). На 390 обе карточки рейтинга
+   вставали шириной 474 в контейнер 368, распирали вкладку вправо, и вбок ехала
+   вся панель целиком вместо таблицы внутри блока. */
 .proc__cols {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 20px;
+}
+
+/* Тот же ноль-минимум нужен и самим секциям: без него распирает уже не трек,
+   а элемент грида (лечим родителя, а не блок внутри - #1685). */
+.proc__cols > .proc__group {
+  min-width: 0;
 }
 
 @media (max-width: 900px) {
   .proc__cols {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1479,6 +1630,15 @@ defineExpose({ refresh: reload });
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+/* Ряд даты на десктопе - те же дети в общем потоке фильтров, без обособления
+   (обёртка нужна только на телефоне под оверлей поиска). Правило ОБЯЗАНО стоять
+   раньше мобильного @media - иначе оно, будучи позже в файле при равной
+   специфичности, перебивает display:flex из media независимо от ширины экрана
+   (заметил по скриншоту стенда: ряд даты не группировался, волна 8). */
+.proc__journal-daterow {
+  display: contents;
 }
 
 .proc__journal-search {
@@ -1647,5 +1807,299 @@ defineExpose({ refresh: reload });
 
 .proc__journal-pager :deep(.pager__btn) {
   padding: 6px 14px;
+}
+
+/* ===== МОБИЛКА (<=768) ===== */
+@media (max-width: 768px) {
+  /* Шапка группы: чип не переносится и на телефоне уходит за правый край панели -
+     «решения по заявкам: согласования, принятия, отказы, отзывы» шире экрана сам
+     по себе, «ждут решения дольше порога напоминаний» не встаёт рядом с длинным
+     заголовком. Разрешаем шапке вторую строку, а чипу - перенос текста; линейка
+     добирает остаток строки. Тот же блок, что у шапок групп дашборда. */
+  .proc__group-head {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .proc__group-chip {
+    white-space: normal;
+  }
+
+  .proc__group-rule {
+    min-width: 24px;
+  }
+
+  /* Журнал: короткая подпись держит заголовок и чип на одной строке даже на
+     320px - полная версия («решения по заявкам: согласования, принятия,
+     отказы, отзывы») перелетала на вторую строку (владелец, волна 8). */
+  .proc__group-chip-full {
+    display: none;
+  }
+
+  .proc__group-chip-short {
+    display: inline;
+  }
+
+  /* Рейтинги на телефоне прокручиваются вместе со страницей (#1097 волна 5):
+     своя область прокрутки внутри прокручиваемой страницы отбирает жест у окна.
+     Sticky-шапка рейтинга при этом теряет смысл - липнуть не к чему, - поэтому
+     снимается вместе с ограничением высоты. */
+  .proc__card--scroll {
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .proc__card--scroll :deep(thead th),
+  .proc__card--scroll th {
+    position: static;
+  }
+
+  /* Фильтры ленты на телефоне - две строки (волна 8, было четыре с лишним):
+     [дропдаун роли][Сбросить] на первой, [дата][поиск] на второй. Порядок
+     задаём order, а не перестановкой в разметке (эталон §2.2) - в DOM ряд
+     даты идёт раньше кнопки сброса (десктопный порядок сохраняем нетронутым:
+     табы -> поиск -> дата -> сброс), а на телефоне сброс должен встать сразу
+     за дропдауном, до ряда даты. */
+  .proc__journal-role-dropdown {
+    order: 1;
+    width: 165px;
+    flex: 0 0 auto;
+  }
+
+  .proc__journal-reset {
+    order: 2;
+    height: 35px;
+    margin-left: auto;
+  }
+
+  /* Ряд даты: `display: contents` на десктопе оставляет DateFilter прямым
+     ребёнком .proc__journal-filters (визуально ничего не меняется), на
+     телефоне становится настоящим flex-рядом и переносится на новую строку
+     через flex-basis: 100% - надёжнее, чем полагаться на то, что ряду 1 не
+     хватит места (#1097 общий урок про "не полагаться на порядок"). */
+  .proc__journal-daterow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+    order: 3;
+    flex: 1 1 100%;
+  }
+
+  /* Ширина поля периода зашита в DateFilter (215px, .date-filter И .date-field
+     оба) - тем же приёмом, что в ArchiveBackfillPanel/ArchiveDownloadPanel,
+     отдаём ей остаток ряда после иконки поиска. */
+  .proc__journal-daterow :deep(.date-filter),
+  .proc__journal-daterow :deep(.date-field) {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .proc__journal-daterow :deep(.date-filter) {
+    flex: 1;
+  }
+
+  /* Иконка-тоггл поиска (мобилка): раскрывает поле оверлеем поверх ряда даты -
+     тот же приём и те же размеры, что в ApplicationsCenter/UserApplications. */
+  .proc__journal-search-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    background: var(--surface);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  @media (hover: hover) {
+    .proc__journal-search-icon:hover {
+      background: var(--color-bg);
+      border-color: var(--accent);
+    }
+  }
+
+  .proc__journal-search-icon--active {
+    background: var(--color-bg);
+    border-color: var(--accent);
+  }
+
+  .proc__journal-search-icon__img {
+    width: 16px;
+    height: 16px;
+    color: var(--text);
+    stroke-width: 2.1;
+  }
+
+  /* Оверлей раскрытия: поверх ряда даты, оставляя иконку (40px) открытой справа. */
+  .proc__journal-search-overlay {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 48px;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    background: var(--surface);
+    border-radius: var(--radius-md);
+  }
+
+  .proc__journal-search-overlay .field.search {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 40px;
+    border: 1px solid var(--color-border);
+    border-radius: 15px;
+    padding: 0 12px;
+    box-sizing: border-box;
+  }
+
+  .proc__journal-search-input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 14px;
+    color: var(--color-text);
+  }
+
+  .proc__journal-search-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  @media (hover: hover) {
+    .proc__journal-search-clear:hover {
+      color: var(--accent-text);
+    }
+  }
+
+  /* Раскрытие вправо-налево - clip-path (композитится, ряд не двигается). */
+  .proc-journal-search-enter-active,
+  .proc-journal-search-leave-active {
+    transition: clip-path 0.25s ease;
+  }
+
+  .proc-journal-search-enter-from,
+  .proc-journal-search-leave-to {
+    clip-path: inset(0 0 0 100%);
+  }
+
+  .proc-journal-search-enter-to,
+  .proc-journal-search-leave-from {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* ===== ТЕЛЕФОН: СТРОКА -> КАРТОЧКА (<=767.98) =====
+   Порог именно 767.98, как у responsive-tables.css: на ровно 768 иначе собирается
+   гибрид - подписи ячеек уже есть, а карточек ещё нет.
+
+   Таблицы вкладки держат минимум ширины (460/680/700), чтобы на десктопе колонки
+   не схлопывались, а узкий контейнер давал честный горизонтальный скролл внутри
+   карточки (#1251). На телефоне этот минимум ни к чему: строка становится карточкой
+   «подпись - значение», и скроллить вбок нечего. Сам минимум обязательно снять -
+   `.rt-table { overflow-x: hidden }` иначе не уберёт переполнение, а молча обрежет
+   карточку по правому краю. */
+@media (max-width: 767.98px) {
+  /* Двухклассовые селекторы: одноклассовые правила-источники объявлены выше по
+     файлу с той же специфичностью, и при равенстве побеждает более позднее - но
+     полагаться на порядок в SFC уже обжигало (#1550). */
+  .proc__table.proc__table--rating,
+  .proc__table.proc__table--breakdown,
+  .proc__table.proc__table--stuck {
+    min-width: 0;
+  }
+
+  /* Двойная рамка: `.proc__card` держит границу и padding вокруг всего блока
+     (--color-border), а каждая строка внутри в карточном режиме получает свою
+     точно такую же рамку (responsive-tables.css `.rt-table .rt-row`) - на
+     телефоне это читается как рамка внутри рамки у Согласующих, Принимающих,
+     Разбивки и Зависших согласований. У Журнала та же ловушка отдельным путём:
+     rt-table навешен на тот же div, что и proc__card (не на вложенную таблицу).
+     Внешний контейнер на телефоне становится прозрачным без своего отступа -
+     границу несут уже сами карточки-строки.
+     :has(.rt-row) обязателен: при нуле строк карточек нет вовсе, и `.proc__table-empty`
+     своей рамки не несёт (только текст) - без гварда пустая выборка осталась бы
+     голым текстом без единого признака таблицы (тот же дефект, что уже ловили на
+     FactTable). Рамку снимаем только когда есть что ею заменить. */
+  .proc__card--table:has(.rt-row),
+  .proc__journal:has(.rt-row) {
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    background: transparent;
+  }
+
+  .proc__journal .proc__journal-line,
+  .proc__journal .proc__journal-row {
+    min-width: 0;
+  }
+
+  /* Обрезка многоточием - приём узкой колонки. В карточке ФИО и название
+     организации показываем целиком: `max-width: 0` иначе схлопнет ячейку в ноль
+     (ширину от rt-* оно перебивает), а длинное слово без пробелов уедет за край. */
+  .rt-row > .proc__ellipsis,
+  .proc__journal-row > .proc__journal-actor {
+    flex: 0 0 auto;
+    max-width: none;
+    overflow: visible;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+  }
+
+  /* Бейдж события - заголовок карточки: по содержимому и слева, иначе ячейка
+     карточки растянула бы пилюлю на всю ширину. */
+  .proc__journal-row > .proc__journal-role {
+    align-self: flex-start;
+    width: auto;
+    margin-bottom: 2px;
+  }
+
+  /* Номер заявки копируется по тапу: зону нажатия доводим до 44px невидимым
+     псевдоэлементом, не раздувая саму строку карточки (эталон адаптива, §8).
+     Именно ::after - ::before у ячейки карточки занят подписью поля (rt-*). */
+  .proc__stuck-app,
+  .proc__journal-app--copy {
+    position: relative;
+  }
+
+  /* Обрезка номера многоточием нужна была узкой ячейке таблицы; в карточке номер
+     стоит отдельной строкой целиком. Снять `overflow: hidden` здесь обязательно:
+     он режет по границе кнопки и её собственную зону нажатия - тап мимо строки
+     номера уходил в соседнюю ячейку. */
+  .proc__stuck-app {
+    max-width: none;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  /* -15px по вертикали, а не -12: строка номера ростом 15px, и 12 дают 39 - до
+     44 не дотягивает. Считать надо от реальной высоты элемента, а не брать
+     число из соседнего компонента. */
+  .proc__stuck-app::after,
+  .proc__journal-app--copy::after {
+    content: '';
+    position: absolute;
+    inset: -15px -10px;
+  }
 }
 </style>

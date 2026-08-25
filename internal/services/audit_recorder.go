@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strconv"
 
 	"systemburo/internal/models"
 
@@ -42,25 +43,66 @@ func (r *auditRecorder) Record(ctx context.Context, exec *gorm.DB, entityType st
 	if exec == nil {
 		exec = r.db
 	}
-	var raw json.RawMessage
-	if details != nil {
-		b, err := json.Marshal(details)
-		if err != nil {
-			return fmt.Errorf("marshal audit details (%s/%s): %w", entityType, action, err)
-		}
-		raw = b
-	}
-	entry := models.AuditLog{
-		EntityType:  entityType,
-		EntityID:    entityID,
-		Action:      action,
-		ActorUserID: actorID,
-		Details:     raw,
+	entry, err := buildAuditLogEntry(ctx, entityType, entityID, action, actorID, details)
+	if err != nil {
+		return err
 	}
 	if err := exec.WithContext(ctx).Create(&entry).Error; err != nil {
 		return fmt.Errorf("insert audit log (%s/%s): %w", entityType, action, err)
 	}
 	return nil
+}
+
+// buildAuditLogEntry строит запись audit_log без записи в БД: общая точка сборки для
+// одиночных Record/Log и пакетных путей (массовая подача, срез A2A3 blank-import),
+// которые копят строки в срез и вставляют одним CreateInBatches вместо N отдельных Create.
+//
+// ctx нужен ради отметки инициатора режима «войти как пользователь» (#1912): она
+// ставится здесь, в единственной точке сборки, - на пакетном пути её иначе не было бы.
+func buildAuditLogEntry(ctx context.Context, entityType string, entityID *int, action string, actorID *int, details interface{}) (models.AuditLog, error) {
+	var raw json.RawMessage
+	if details != nil {
+		b, err := json.Marshal(details)
+		if err != nil {
+			return models.AuditLog{}, fmt.Errorf("marshal audit details (%s/%s): %w", entityType, action, err)
+		}
+		raw = b
+	}
+	return models.AuditLog{
+		EntityType:  entityType,
+		EntityID:    entityID,
+		Action:      action,
+		ActorUserID: actorID,
+		Details:     withImpersonatorDetails(ctx, raw),
+	}, nil
+}
+
+// withImpersonatorDetails дописывает в details инициатора режима «войти как
+// пользователя» (#1912). Отметка ставится здесь, а не в местах записи: иначе
+// «действия внутри режима отличимы» пришлось бы поддерживать в полутора сотнях
+// вызовов, и первый же новый забыл бы про неё. actor_user_id при этом остаётся
+// тем, от чьего имени работают, - подменять его инициатором нельзя, иначе история
+// сущности перестанет отвечать на вопрос «под какой учётной записью это сделано».
+//
+// Details не объект (контракт этого не запрещает) - оставляем запись как есть:
+// потерять действие ради отметки хуже, чем потерять отметку.
+func withImpersonatorDetails(ctx context.Context, raw json.RawMessage) json.RawMessage {
+	actorUserID, ok := ImpersonatorFromContext(ctx)
+	if !ok {
+		return raw
+	}
+	fields := map[string]json.RawMessage{}
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return raw
+		}
+	}
+	fields["impersonated_by"] = json.RawMessage(strconv.Itoa(actorUserID))
+	merged, err := json.Marshal(fields)
+	if err != nil {
+		return raw
+	}
+	return merged
 }
 
 func (r *auditRecorder) Log(ctx context.Context, exec *gorm.DB, entityType string, entityID *int, action string, actorID *int, details interface{}) {

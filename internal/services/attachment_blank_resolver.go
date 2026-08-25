@@ -438,15 +438,33 @@ func resolveEmployee(bctx *BlankContext, e *models.Employee, path string, rowIdx
 			return bctx.Citizenships[*e.CitizenshipID]
 		}
 	case "employee.passport_series_number":
-		return derefStr(e.PassportSeriesNumber)
+		return documentValue(bctx, derefStr(e.PassportSeriesNumber))
 	case "employee.patent_number":
-		return derefStr(e.PatentNumber)
+		return documentValue(bctx, derefStr(e.PatentNumber))
 	case "employee.other_permission":
-		return derefStr(e.OtherPermission)
+		return documentValue(bctx, derefStr(e.OtherPermission))
 	case "employee.target_tables":
 		return strings.Join(bctx.EmployeeTargetTables[e.ID], ", ")
 	}
 	return ""
+}
+
+// documentMask - что стоит в ячейке документа вместо значения, когда выгрузка
+// документов закрыта правом. Прочерк, а не пустота: пустая ячейка читается как
+// «человек не предъявил документ», и охрана на проходной поймёт её именно так.
+// Тире длинное: в печатной форме короткий дефис теряется рядом с цифрами соседних
+// столбцов и читается как случайный символ, а не как «сведений нет».
+const documentMask = "—"
+
+// documentValue отдаёт значение поля из раздела «Документы» карточки либо прочерк,
+// если бланк собирается без документов. Прочерк ставится и там, где поле не
+// заполнено: иначе пустая ячейка рядом с прочерками сама сообщала бы, что паспорта
+// у человека нет, - а это ровно то сведение, которое закрытый режим и прячет.
+func documentValue(bctx *BlankContext, value string) string {
+	if !bctx.IncludeDocuments {
+		return documentMask
+	}
+	return value
 }
 
 func resolveItem(it *models.Item, path string, rowIdx int) string {

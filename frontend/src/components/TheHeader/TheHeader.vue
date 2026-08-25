@@ -68,11 +68,10 @@
         @keydown.enter.prevent="showNotifications = !showNotifications"
         @keydown.space.prevent="showNotifications = !showNotifications"
       >
-        <img
-          src="@/assets/icons/notifications.png"
+        <AppIcon
+          name="notifications"
           class="notifications__icon"
-          alt="Уведомления"
-        >
+        />
         <span
           v-if="unreadCount > 0"
           class="notifications__badge"
@@ -108,6 +107,22 @@
           <span class="appl-btn__label-short">Заявка</span>
         </button>
       </div>
+      <!-- Поиск по системе: крайний правый элемент шапки. Нажатие открывает панель
+           результатов справа и ставит в неё курсор -- ввод идёт уже там, рядом с
+           найденным, а не в другом конце экрана. -->
+      <button
+        class="search-btn"
+        type="button"
+        title="Поиск по системе"
+        aria-label="Поиск по системе"
+        data-testid="header-button-search"
+        @click="openGlobalSearch"
+      >
+        <NavIcon
+          name="search"
+          :size="18"
+        />
+      </button>
     </div>
 
     <!-- Используем отдельный компонент модального окна -->
@@ -128,18 +143,23 @@ import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { usePermissionsStore } from '@/stores/permissions'
+import { useOnboardingStore } from '@/stores/onboarding'
 import FeedbackModal from '@/components/FeedbackModal.vue';
 import AnnouncementModal from '@/components/AnnouncementModal.vue';
 import UserNotifications from '@/components/UserNotifications.vue';
 import { SkeletonLine } from '@/components/ui';
+import NavIcon from '@/components/icons/NavIcon.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'TheHeader',
   components: {
+    AppIcon,
     FeedbackModal,
     AnnouncementModal,
     UserNotifications,
     SkeletonLine,
+    NavIcon,
   },
   emits: ['refresh-feedback'],
   setup() {
@@ -163,6 +183,9 @@ export default {
       showAnnouncement: false,
       activeAnnouncement: null,
       showNotifications: false,
+      // Список открыл тур, а не человек: закрываем по гашению сигнала только то,
+      // что открыли сами (тот же приём, что у панели поиска в App.vue).
+      notificationsOpenedByTour: false,
       unreadCount: 0,
       currentHour: new Date().getHours(),
       // Дата и время (ДД.ММ.ГГГГ ЧЧ:ММ:СС) в шапке - только на десктопе, как было
@@ -187,11 +210,33 @@ export default {
       const name = this.displayName;
       return name ? `${this.greetingPrefix}, ${name}!` : `${this.greetingPrefix}!`;
     },
+    /** Сигнал раскрытия свёрнутого узла от онбординг-тура - см. watch ниже. */
+    onboardingReveal() {
+      return useOnboardingStore().revealOpen;
+    },
   },
   watch: {
     '$route'() {
       this.fetchUserData();
-    }
+    },
+    /**
+     * Тур просит показать список уведомлений (reveal.open): открываем его сам, а
+     * по гашению сигнала закрываем - но только если открыли мы. Список, открытый
+     * человеком до шага, тур не трогает.
+     */
+    onboardingReveal(target) {
+      if (target === 'notifications') {
+        // Флаг ставим и когда список уже открыт: на шаге про список им
+        // распоряжается тур, кто бы его ни открыл. Иначе список, открытый
+        // человеком по просьбе предыдущего шага, оставался висеть поверх
+        // следующих шагов и закрывал собой то, о чём они рассказывают.
+        this.notificationsOpenedByTour = true;
+        this.showNotifications = true;
+      } else if (this.notificationsOpenedByTour) {
+        this.notificationsOpenedByTour = false;
+        this.showNotifications = false;
+      }
+    },
   },
   mounted() {
     this.fetchUserData();
@@ -201,6 +246,10 @@ export default {
       this.initIntersectionObserver();
     });
     this._onDocumentClick = () => {
+      // Пока список держит тур, клик мимо его не закрывает: шаг рассказывает
+      // именно про открытый список, а окно шага живёт вне шапки - иначе клик по
+      // окну гасил список и оставлял шаг ни с чем.
+      if (useOnboardingStore().revealOpen === 'notifications') return;
       if (this.showNotifications) {
         this.showNotifications = false;
       }
@@ -241,6 +290,10 @@ export default {
         console.error('Ошибка при загрузке объявления:', error);
       }
     },
+    /** Открыть панель поиска и поставить в неё курсор. */
+    openGlobalSearch() {
+      this.$bus?.emit?.('global-search:open');
+    },
     openFeedbackModal() {
       this.showFeedbackModal = true;
     },
@@ -262,8 +315,7 @@ export default {
     toggleMobileNav() {
       this.$bus.emit('mobile-nav-toggle');
     },
-    handleFeedbackSubmitted(message) {
-      console.log('Обратная связь отправлена:', message);
+    handleFeedbackSubmitted() {
       // Если мы на странице обратной связи, можно обновить список
       if (this.$route.path === '/feedback') {
         this.$emit('refresh-feedback');
@@ -276,7 +328,6 @@ export default {
       try {
         const authStore = useAuthStore();
         if (!authStore.token) {
-          console.log("Пользователь не авторизован");
           return;
         }
 
@@ -395,6 +446,27 @@ h3 {
 .broadcast { order: 2; }
 .user__notifications { order: 4; }
 .appl-btn__container { order: 5; }
+.search-btn { order: 6; }
+
+/* Поиск: иконка у самого правого края. Размер как у прочих круглых контролов шапки. */
+.search-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.search-btn:hover {
+  background: var(--surface-2);
+  color: var(--color-text);
+}
 
 /* Дата и время в шапке (только десктоп): серый цвет, размер, центрирование и
    min-width как в оригинале до W3; моноширинные цифры, чтобы секунды не дёргали
@@ -487,8 +559,8 @@ h3 {
 }
 
 /* Состояния колокольчика выражены подложкой и прозрачностью, а НЕ подменой filter:
-   filter у иконки занят темой (--icon-mono-filter осветляет глиф в тёмных темах),
-   и локальное значение делало колокольчик то серым, то чёрным на тёмном фоне. */
+   локальный grayscale/contrast делал колокольчик то серым, то чёрным на тёмном
+   фоне. Цвет глифа приходит от текста, менять его состоянию незачем. */
 .user__notifications--active {
   background-color: var(--surface-2);
 }
@@ -521,6 +593,7 @@ h3 {
   height: 20px;
   cursor: pointer;
   transition: opacity 0.2s ease;
+  color: var(--text);
 }
 
 @media (hover: hover) {

@@ -56,19 +56,43 @@ export function passwordMeetsPolicy(policy, password) {
 }
 
 /**
+ * Случайное целое в [0, max) на crypto.getRandomValues.
+ *
+ * Math.random здесь недопустим: значения этого генератора попадают человеку как
+ * учётные данные, а предсказуемый источник равносилен отсутствию пароля.
+ * Отбрасывание хвоста диапазона убирает перекос в сторону младших значений,
+ * который даёт обычный остаток от деления.
+ * @param {number} max
+ * @returns {number}
+ */
+function randomBelow(max) {
+  const limit = Math.floor(0xffffffff / max) * max
+  const buf = new Uint32Array(1)
+  let value
+  do {
+    crypto.getRandomValues(buf)
+    value = buf[0]
+  } while (value >= limit)
+  return value % max
+}
+
+/**
  * Генерит пароль, гарантированно проходящий политику.
  * @param {PasswordPolicy} policy
  * @returns {string}
  */
 export function generatePassword(policy) {
-  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-  const lower = 'abcdefghijklmnopqrstuvwxyz'
-  const digits = '0123456789'
-  // Намеренно узкое подмножество SPECIAL_CHARS (как в прежнем генераторе UserControl):
-  // безопасные для копипаста/шелла символы. Каждый входит в SPECIAL_CHARS, поэтому
-  // сгенерированный пароль всегда проходит require_special.
-  const special = '!#$%&?'
-  const pick = (set) => set[Math.floor(Math.random() * set.length)]
+  // Из наборов исключены визуально неоднозначные символы (0/O, 1/l/I): пароль
+  // переписывают руками с экрана или из письма. Наборы совпадают с Go-генератором
+  // (services/password_generator.go), чтобы пароль от кнопки и пароль от плановой
+  // смены выглядели одинаково.
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+  const lower = 'abcdefghijkmnpqrstuvwxyz'
+  const digits = '23456789'
+  // Подмножество SPECIAL_CHARS: символы, безопасные для копирования и командной
+  // строки. Каждый входит в SPECIAL_CHARS, поэтому require_special выполняется.
+  const special = '!#$%&*+-=?@'
+  const pick = (set) => set[randomBelow(set.length)]
 
   const out = []
   if (policy.require_uppercase) out.push(pick(upper))
@@ -78,12 +102,14 @@ export function generatePassword(policy) {
   if (policy.require_special) out.push(pick(special))
 
   const pool = lower + upper + digits + (policy.require_special ? special : '')
-  const target = Math.max(policy.min_length || 0, out.length, 8)
+  // 12 - тот же нижний предел, что у Go-генератора: пароль, выданный системой,
+  // живёт до первой смены человеком и должен пережить её без подбора.
+  const target = Math.max(policy.min_length || 0, out.length, 12)
   while (out.length < target) out.push(pick(pool))
 
   // перемешиваем, чтобы обязательные символы не оказались в начале
   for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
+    const j = randomBelow(i + 1)
     ;[out[i], out[j]] = [out[j], out[i]]
   }
   return out.join('')

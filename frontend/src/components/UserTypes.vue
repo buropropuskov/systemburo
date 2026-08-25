@@ -42,14 +42,14 @@
               <p :class="{ 'active-sort': sortField === 'id' }">
                 ID
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'id',
                   'desc': sortField === 'id' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
             <div
               class="header-col name-col"
@@ -58,14 +58,14 @@
               <p :class="{ 'active-sort': sortField === 'name' }">
                 Наименование
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'name',
                   'desc': sortField === 'name' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
             <div
               class="header-col users-col"
@@ -74,14 +74,14 @@
               <p :class="{ 'active-sort': sortField === 'users_count' }">
                 Пользователи
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'users_count',
                   'desc': sortField === 'users_count' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
           </div>
 
@@ -166,12 +166,13 @@
               <button
                 v-else
                 class="delete-icon-btn"
+                title="Удалить тип"
                 @click="confirmDeleteType(selectedType)"
               >
-                <img
-                  src="@/assets/icons/delete.png"
+                <AppIcon
+                  name="delete"
                   class="delete-icon"
-                >
+                />
               </button>
             </div>
           </div>
@@ -455,6 +456,7 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { registerDirtyTracker } from '@/utils/dirtyTracker';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   components: {
@@ -463,7 +465,8 @@ export default {
     ConfirmationModal,
     UserTypeHistoryModal,
     BaseModal,
-    BaseDropdown
+    BaseDropdown,
+    AppIcon,
   },
   setup() {
     // Holder: useOverlayClose требует колбэк в setup, а closeModal - метод
@@ -502,11 +505,10 @@ export default {
     };
   },
   computed: {
-    // Гейт кнопки «Перенести» зеркалит BE requireAdmin (page.admin): список
-    // блокеров видит любой, кто открыл экран, а reassign-эндпоинт - только
-    // page.admin, иначе «видно, но 403» (уроки #976/#1083).
+    // Гейт кнопки «Перенести» зеркалит BE: reassign-эндпоинт закрыт тем же
+    // page.admin.directories, что открывает экран (#1982).
     canReassign() {
-      return usePermissionsStore().hasPermission('page.admin');
+      return usePermissionsStore().hasPermission('page.admin.directories');
     },
     // Цели переноса - все типы, кроме источника. Системные НЕ исключаем: перенос
     // в дефолтный (системный) тип допустим, BE это принимает. Источник-системный
@@ -956,17 +958,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {
@@ -1148,6 +1151,7 @@ export default {
 }
 
 .delete-icon {
+  color: var(--danger);
   width: 20px;
   height: 20px;
 }

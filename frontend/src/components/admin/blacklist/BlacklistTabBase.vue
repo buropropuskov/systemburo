@@ -160,11 +160,10 @@
               v-if="entityIcon"
               class="bl-details-icon"
             >
-              <img
-                :src="entityIcon"
-                alt=""
+              <AppIcon
+                :name="entityIcon"
                 class="bl-details-icon-img"
-              >
+              />
             </div>
             <h3 class="bl-details-title">
               {{ getPrimaryText(selected) }}
@@ -277,7 +276,10 @@ import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 import { useDeletionsStore } from '@/stores/deletions';
+import { readSearchFromRoute } from '@/utils/searchQueryParam';
+import { openItemFromRoute } from '@/utils/openQueryParam';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 
 /**
@@ -289,10 +291,11 @@ import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
  */
 export default {
   name: 'BlacklistTabBase',
-  components: { BaseDropdown, SearchComponent, RefreshButton, LoaderSpinner, ConfirmationModal },
+  components: { BaseDropdown, SearchComponent, RefreshButton, LoaderSpinner, ConfirmationModal, AppIcon },
   props: {
     searchPlaceholder: { type: String, default: 'Поиск...' },
     emptyNoun: { type: String, default: 'записей' },
+    // Имя глифа реестра appIcons (не путь к файлу): значок красится цветом текста.
     entityIcon: { type: String, default: '' },
     apiList: { type: Function, required: true },
     getPrimaryText: { type: Function, required: true },
@@ -307,6 +310,9 @@ export default {
     // Префикс data-testid для bulk-элементов - обе вкладки (машины/люди) смонтированы
     // одновременно (v-show в BlacklistView), общий "bl-" дал бы дублирующиеся testid.
     testidPrefix: { type: String, default: 'bl' },
+    // Своя вкладка ('vehicles'/'persons'): обе смонтированы разом, а id записей у них
+    // независимые - без этого переход из поиска раскрывал бы запись и в чужой вкладке.
+    tabKey: { type: String, default: '' },
     // Существительное во мн.ч. для предупреждения о каскаде в confirm-сообщениях
     // ("сотрудники"/"машины" - кого затронет архивация/восстановление).
     cascadeNounPlural: { type: String, default: 'записи' },
@@ -315,7 +321,8 @@ export default {
   data() {
     return {
       items: [],
-      searchQuery: '',
+      // Из адреса: переход из сквозного поиска приносит запрос с собой.
+      searchQuery: readSearchFromRoute(this.$route),
       showArchive: false,
       isLoading: false,
       selected: null,
@@ -406,6 +413,7 @@ export default {
       try {
         const data = await this.apiList({ includeArchived: true });
         this.items = Array.isArray(data) ? data : [];
+        this.openFromSearchLink();
         this.$emit('count', this.items.filter((i) => i.is_active).length);
         if (this.selected) {
           this.selected = this.items.find((i) => i.id === this.selected.id) || null;
@@ -428,6 +436,13 @@ export default {
     selectItem(item) {
       this.selected = item;
       this.resolveCard(item);
+    },
+
+    /** Переход из сквозного поиска: `?tab` выбирает вкладку, `?open` - запись в ней. */
+    openFromSearchLink() {
+      // Компонент монтируют и в тестах без роутера - обращаться к query напрямую нельзя.
+      if (this.$route?.query?.tab !== this.tabKey) return;
+      openItemFromRoute({ router: this.$router, route: this.$route, items: this.items, open: this.selectItem });
     },
     async resolveCard(item) {
       this.cardEntity = null;
@@ -856,7 +871,7 @@ export default {
 .bl-details-icon-img {
   width: 20px;
   height: 20px;
-  object-fit: contain;
+  color: var(--text);
 }
 
 .bl-details-title {

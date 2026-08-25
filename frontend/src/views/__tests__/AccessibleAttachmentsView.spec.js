@@ -157,6 +157,33 @@ describe('AccessibleAttachmentsView (FE-S3)', () => {
     expect(card.find('.attachment-card__meta').text()).not.toContain('01.06.2026');
   });
 
+  // application_number реальных заявок уже начинается с «№» (DEMO-номера - без),
+  // поэтому свой знак давал «Заявка № № 20260808/027» и в мете, и в шапке детали.
+  it('номер заявки печатается как есть, без второго «№»', async () => {
+    const number = '№ 20260808/027';
+    getAccessibleAttachments.mockResolvedValue({
+      items: [makeItem(1, { application_number: number })],
+      meta: { total: 1 },
+    });
+    getAccessibleAttachmentDetail.mockResolvedValue({
+      attachment: { ...makeItem(1, { application_number: number }), application_id: 42 },
+      cars: [],
+    });
+    wrapper = mountView();
+    await flushPromises();
+
+    const meta = wrapper.find('.attachment-card__meta').text();
+    expect(meta).toContain(number);
+    expect(meta).not.toContain('№ № ');
+
+    await wrapper.find('[data-testid="aa-card"]').trigger('click');
+    await flushPromises();
+
+    const title = wrapper.find('.application-block__title').text();
+    expect(title).toContain(`Заявка ${number}`);
+    expect(title).not.toContain('№ № ');
+  });
+
   it('показывает пустое состояние без вложений', async () => {
     getAccessibleAttachments.mockResolvedValue({
       items: [],
@@ -280,7 +307,9 @@ describe('AccessibleAttachmentsView (S4) предпросмотр бланка',
     await btn.trigger('click');
     await flushPromises();
 
-    expect(previewBlank).toHaveBeenCalledWith(42, 1);
+    // Третьим аргументом идёт режим документов: охране без пары прав
+    // (detail.documents и detail.documents.export) бланк открывается с прочерками.
+    expect(previewBlank).toHaveBeenCalledWith(42, 1, { withDocuments: false });
     expect(wrapper.find('[data-testid="aa-preview-viewer"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="aa-preview-loading"]').exists()).toBe(false);
   });

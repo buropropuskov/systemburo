@@ -80,7 +80,6 @@ export default {
   background: var(--surface);
   border-radius: 50%;
   transition: transform 0.2s ease;
-  box-shadow: 0 1px 2px var(--shadow-drop);
 }
 
 .switch-toggle--active .switch-toggle__switch {

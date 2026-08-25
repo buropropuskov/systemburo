@@ -1,4 +1,5 @@
 import { apiRequest, apiRequestRaw } from './client';
+import { useAuthStore } from '@/stores/auth';
 
 export async function getApplications(params = {}) {
   const query = new URLSearchParams(params).toString();
@@ -172,6 +173,135 @@ export async function getApplicationAttachments(id) {
 }
 
 /**
+ * Дополнить поданную заявку (#1685): добавить людей, машины или ТМЦ в существующие
+ * вложения. Формы элементов - те же, что шлёт подача (VehicleInput/EmployeeInput/ItemInput).
+ *
+ * Код ответа кладём на ошибку: 409 («уже есть незакрытое дополнение», «заявку в статусе X
+ * дополнить нельзя») разводится в UI отдельной формулировкой, а по тексту это не отличить.
+ *
+ * @param {number} id ID заявки
+ * @param {{comment?: string|null, additions: Array<{attachment_id: number, vehicles?: object[], employees?: object[], items?: object[]}>}} data
+ * @returns {Promise<{supplement_id: number, number: number, status: string, counts: {vehicles: number, employees: number, items: number}}>}
+ */
+export async function createSupplement(id, data) {
+  const res = await apiRequest(`/applications/${id}/supplements`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    const error = new Error(body?.message || 'Не удалось отправить дополнение');
+    error.status = res.status;
+    throw error;
+  }
+  return body;
+}
+
+/**
+ * Раунды дополнения заявки (#1685), новые сверху. Доступны всем, кому видна заявка.
+ * @param {number} id ID заявки
+ * @returns {Promise<object[]>}
+ */
+export async function getApplicationSupplements(id) {
+  const res = await apiRequest(`/applications/${id}/supplements`);
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.message || 'Не удалось загрузить дополнения заявки');
+  return body;
+}
+
+/**
+ * Участники заявки одним списком (#1952): отправитель, принимающий, согласующие,
+ * ответственные и читатели, по одной записи на человека с набором его ролей.
+ * Доступны всем, кому видна заявка - гейт метода равен гейту доступа к ней.
+ * @param {number} id ID заявки
+ * @returns {Promise<object[]>}
+ */
+export async function getApplicationParticipants(id) {
+  const res = await apiRequest(`/applications/${id}/participants`);
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.message || 'Не удалось загрузить получателей заявки');
+  return body || [];
+}
+
+/**
+ * Разбор ответа по раунду дополнения (#1685). Код держим на ошибке рядом с текстом:
+ * 409 («голосование закрыто», «заявка в статусе X») отличается от 403 только им.
+ * @param {Response} res
+ * @param {string} fallback
+ */
+async function unwrapSupplement(res, fallback) {
+  const body = await res.json();
+  if (!res.ok) {
+    const error = new Error(body?.message || fallback);
+    error.status = res.status;
+    throw error;
+  }
+  return body;
+}
+
+/**
+ * Голос согласующего по раунду дополнения (#1685).
+ * @param {number} id ID заявки
+ * @param {number} supplementId ID раунда
+ * @param {{status: 'approved'|'rejected', comment?: string|null}} data
+ * @returns {Promise<{supplement_id: number, number: number, status: string, my_status: string}>}
+ */
+export async function approveSupplement(id, supplementId, data) {
+  const res = await apiRequest(`/applications/${id}/supplements/${supplementId}/approve`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return unwrapSupplement(res, 'Не удалось отправить голос по дополнению');
+}
+
+/**
+ * Отзыв собственного голоса по раунду дополнения (#1685).
+ * @param {number} id ID заявки
+ * @param {number} supplementId ID раунда
+ * @param {{comment?: string|null}} [data]
+ * @returns {Promise<{supplement_id: number, number: number, status: string, my_status: string}>}
+ */
+export async function revokeSupplementApproval(id, supplementId, data = {}) {
+  const res = await apiRequest(`/applications/${id}/supplements/${supplementId}/revoke-approval`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return unwrapSupplement(res, 'Не удалось отозвать голос по дополнению');
+}
+
+/**
+ * Решение принимающего по согласованному раунду (#1685). activated в ответе - сколько
+ * строк реально встало на пост: оно меньше состава раунда, если часть успела уехать в
+ * корзину или в чёрный список.
+ * @param {number} id ID заявки
+ * @param {number} supplementId ID раунда
+ * @param {{action: 'accept'|'reject', comment?: string|null}} data
+ * @returns {Promise<{supplement_id: number, number: number, status: string, activated: number}>}
+ */
+export async function decideSupplement(id, supplementId, data) {
+  const res = await apiRequest(`/applications/${id}/supplements/${supplementId}/take-to-work`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return unwrapSupplement(res, 'Не удалось принять решение по дополнению');
+}
+
+/**
+ * Автор снимает собственный незакрытый раунд (#1685).
+ * @param {number} id ID заявки
+ * @param {number} supplementId ID раунда
+ * @param {{comment?: string|null}} [data]
+ * @returns {Promise<{supplement_id: number, number: number, status: string, activated: number}>}
+ */
+export async function cancelSupplement(id, supplementId, data = {}) {
+  const res = await apiRequest(`/applications/${id}/supplements/${supplementId}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return unwrapSupplement(res, 'Не удалось снять дополнение');
+}
+
+/**
  * Список вложений, доступных охраннику/админу во вкладке "Доступные мне" (#706).
  * Пагинация лежит в envelope.meta рядом с data, а apiRequest снимает только data
  * и meta теряется - поэтому читаем сырой ответ через apiRequestRaw.
@@ -270,4 +400,40 @@ export async function markQuestionsSeen(id) {
  */
 export async function markQuestionRead(applicationId, questionId) {
   return apiRequest(`/applications/${applicationId}/questions/${questionId}/read`, { method: 'POST' });
+}
+
+/**
+ * Выгрузка реестра заявок в .xlsx (#1832). Параметры - те же фильтры, что у списка:
+ * файл собирает сервер по той же выборке, с тем же скоупингом видимости и той же
+ * подменой ФИО без согласия на обработку данных.
+ *
+ * Идёт мимо apiRequest: тот разворачивает JSON-конверт, а здесь ответ - поток байтов.
+ * Имя файла берётся из Content-Disposition, который ставит сервер.
+ *
+ * @param {Record<string, string|number>} params query-параметры фильтра
+ * @returns {Promise<void>} промис завершения скачивания
+ */
+export async function downloadApplicationsRegistry(params = {}) {
+  const authStore = useAuthStore();
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(
+    `${(import.meta.env.VITE_API_BASE_URL || '') + '/api'}/applications/export${query ? '?' + query : ''}`,
+    {
+      credentials: 'include',
+      headers: { ...(authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}) },
+    },
+  );
+  if (!res.ok) throw new Error(`Не удалось выгрузить реестр: ${res.status}`);
+
+  const disposition = res.headers.get('Content-Disposition') || '';
+  const fromHeader = /filename="?([^";]+)"?/.exec(disposition);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fromHeader ? fromHeader[1] : 'applications.xlsx';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

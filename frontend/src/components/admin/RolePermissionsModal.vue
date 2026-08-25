@@ -90,6 +90,7 @@
             <EffectivePermissionsTree
               :catalog="filteredCatalog"
               :state-by-key="stateByKey"
+              :expand-all="searchActive"
               @toggle="onToggleKey"
             />
           </div>
@@ -123,6 +124,7 @@
 <script>
 import EffectivePermissionsTree from './EffectivePermissionsTree.vue';
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { filterCatalog, flattenCatalog, TABLE_KEY_PREFIX } from '@/utils/permissionCatalog';
 
 /**
  * Единый редактор прав роли: дефолтные группы (чекбоксы) + собственные точечные
@@ -159,12 +161,10 @@ export default {
   },
   computed: {
     flatCatalog() {
-      const flat = [];
-      for (const node of this.catalog) {
-        flat.push(node);
-        for (const child of node.children || []) flat.push(child);
-      }
-      return flat;
+      return flattenCatalog(this.catalog);
+    },
+    searchActive() {
+      return this.search.trim().length > 0;
     },
     catalogKeySet() {
       return new Set(this.flatCatalog.map((n) => n.key));
@@ -205,20 +205,7 @@ export default {
       return new Set([...this.selectedDirect, ...this.groupKeySet]).size;
     },
     filteredCatalog() {
-      const q = this.search.trim().toLowerCase();
-      if (!q) return this.catalog;
-      const match = (n) =>
-        (n.display_name || '').toLowerCase().includes(q) || (n.key || '').toLowerCase().includes(q);
-      const out = [];
-      for (const node of this.catalog) {
-        const kids = (node.children || []).filter(match);
-        if (match(node) || (node.category || '').toLowerCase().includes(q)) {
-          out.push(node);
-        } else if (kids.length) {
-          out.push({ ...node, children: kids });
-        }
-      }
-      return out;
+      return filterCatalog(this.catalog, this.search);
     },
   },
   watch: {
@@ -258,11 +245,18 @@ export default {
       this.selectedGroupIds = next;
     },
     emitSave() {
-      // Только ключи, реально присутствующие в каталоге: осиротевший ключ (нет в
-      // каталоге) не рендерится и не управляем из UI, а бэкенд SetPermissions отбил
-      // бы весь запрос 400 на первом неизвестном ключе -- отфильтровываем, не тащим.
+      // Ключ, которого нет в каталоге, не рендерится и не управляем из UI, но
+      // причины отсутствия две, и обходятся они по-разному.
+      // Статический осиротевший (право выпилили из каталога) -- отбрасываем:
+      // бэкенд SetPermissions отбил бы весь запрос 400 на первом неизвестном.
+      // table.* -- каталог прячет его, пока таблица в архиве или удалена (#1881); бэкенд
+      // такой ключ принимает (IsValidKey пускает весь префикс table.), и он
+      // обязан пережить сохранение: иначе первое же открытие роли молча снимет
+      // права архивных таблиц, а восстановление таблицы их не вернёт.
       this.$emit('save', {
-        directKeys: [...this.selectedDirect].filter((k) => this.catalogKeySet.has(k)),
+        directKeys: [...this.selectedDirect].filter(
+          (k) => this.catalogKeySet.has(k) || k.startsWith(TABLE_KEY_PREFIX),
+        ),
         groupIds: [...this.selectedGroupIds],
       });
     },

@@ -32,6 +32,21 @@ export async function updateUserPassword(username, password) {
   return res.json();
 }
 
+/**
+ * Смена СВОЕГО пароля. Учётка берётся из маркера доступа, имени в запросе нет.
+ * Возвращает сырой Response: вызывающему нужен текст ошибки сервера
+ * (неверный текущий пароль, нарушение политики, превышение числа попыток).
+ * @param {string} currentPassword
+ * @param {string} newPassword
+ * @returns {Promise<Response>}
+ */
+export async function changeOwnPassword(currentPassword, newPassword) {
+  return apiRequest('/users/me/password', {
+    method: 'PUT',
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+}
+
 export async function updateUserInfo(username, data) {
   const res = await apiRequest(`/users/${username}/info`, {
     method: 'PUT',
@@ -141,4 +156,16 @@ export async function bulkBanUsers(usernames, reason) {
 export async function bulkUnbanUsers(usernames) {
   const res = await apiRequest('/users/bulk/unban', { method: 'POST', body: JSON.stringify({ usernames }) });
   return res.json();
+}
+
+/**
+ * Снять блокировку входа: обнуляет счётчик неудачных попыток, лестницу кулдаунов
+ * и сам лок. Возвращает `{ reset }` - false означает, что блокировки и не было.
+ * Бросает на 4xx, чтобы отказ не прошёл молчаливым успехом.
+ */
+export async function resetUserLockout(username) {
+  const res = await apiRequest(`/users/${encodeURIComponent(username)}/reset-lockout`, { method: 'POST' });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.message || 'Не удалось снять блокировку входа');
+  return body;
 }

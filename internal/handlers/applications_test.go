@@ -80,6 +80,18 @@ func assignOrgUser(t *testing.T, db *gorm.DB, orgID, userID int, isPrimary bool)
 	require.NoError(t, err)
 }
 
+// assignOrgUserRequired добавляет пользователя в organization_users с признаком
+// обязательного согласующего - готовит сценарий #2037, где присланный запросом
+// required_approval не должен ни снимать, ни добавлять этот признак.
+func assignOrgUserRequired(t *testing.T, db *gorm.DB, orgID, userID int) {
+	t.Helper()
+	err := db.Exec(
+		"INSERT INTO organization_users (organization_id, user_id, is_primary, required_approval) VALUES (?, ?, false, true) ON CONFLICT DO NOTHING",
+		orgID, userID,
+	).Error
+	require.NoError(t, err)
+}
+
 // getUserID returns user.ID by username.
 func getUserID(t *testing.T, db *gorm.DB, username string) int {
 	t.Helper()
@@ -191,6 +203,250 @@ func TestSubmitCompleteApplication_AddsReaders(t *testing.T) {
 	var respCount int64
 	db.Raw("SELECT COUNT(*) FROM application_responsible_users WHERE application_id = ? AND user_id = ?", appID, readerID).Scan(&respCount)
 	assert.Zero(t, respCount, "читатель не должен попадать в ответственных/согласующих")
+}
+
+// TestSubmitCompleteApplication_RequiredApprovalFromOrgPersists закрепляет базовое
+// поведение (#2037): признак обязательного согласующего читается из organization_users
+// и переносится в application_responsible_users без участия required_users в запросе -
+// именно так подаёт форма-эталон, ничего не заявляя.
+func TestSubmitCompleteApplication_RequiredApprovalFromOrgPersists(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	senderToken := testutil.RegisterAndLogin(t, e, "reqsender", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.RegisterAndLogin(t, e, "reqapprover", "pass123", 1, td.OrgID, td.CompanyID)
+	approverID := getUserID(t, db, "reqapprover")
+	assignOrgUserRequired(t, db, td.OrgID, approverID)
+	uaID := seedUniqueAttachment(t, db, "cars", "cars_req", "Cars REQ")
+
+	body := fmt.Sprintf(`{
+		"message": "required approval from org",
+		"organization_id": %d,
+		"responsible_person": "Test Person",
+		"contact_phone": "+79001234567",
+		"data_approval": true,
+		"attachments": [{
+			"attachment_type": "cars",
+			"attachment_name": "cars_template",
+			"attachment_display_name": "Cars Template",
+			"unique_attachment_id": %d,
+			"entry_date_from": "2026-04-01",
+			"entry_date_to": "2099-12-31",
+			"entry_time_from": "08:00",
+			"entry_time_to": "18:00",
+			"data": { "vehicles": [{ "car_number": "A002AA777", "car_brand": "Toyota" }] }
+		}]
+	}`, td.OrgID, uaID)
+
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(senderToken))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
+
+	var required bool
+	require.NoError(t, db.Raw(
+		"SELECT required_approval FROM application_responsible_users WHERE application_id = ? AND user_id = ?",
+		appID, approverID).Scan(&required).Error)
+	assert.True(t, required, "признак обязательного согласующего из организации должен перейти в заявку")
+}
+
+// TestSubmitCompleteApplication_RequiredApprovalNotDowngradableByClient - дефект
+// #2037: заявитель не назначает согласующих сам, признак обязательности целиком
+// определяется составом организации. Присланный запросом required_approval: false
+// для уже обязательного согласующего не должен его снимать - до фикса строка
+// application_service.go затирала прочитанное из organization_users значение тем,
+// что прислал клиент.
+func TestSubmitCompleteApplication_RequiredApprovalNotDowngradableByClient(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	senderToken := testutil.RegisterAndLogin(t, e, "downsender", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.RegisterAndLogin(t, e, "downapprover", "pass123", 1, td.OrgID, td.CompanyID)
+	approverID := getUserID(t, db, "downapprover")
+	assignOrgUserRequired(t, db, td.OrgID, approverID)
+	uaID := seedUniqueAttachment(t, db, "cars", "cars_down", "Cars DOWN")
+
+	body := fmt.Sprintf(`{
+		"message": "required approval downgrade attempt",
+		"organization_id": %d,
+		"responsible_person": "Test Person",
+		"contact_phone": "+79001234567",
+		"data_approval": true,
+		"required_users": [{"user_id": %d, "required_approval": false}],
+		"attachments": [{
+			"attachment_type": "cars",
+			"attachment_name": "cars_template",
+			"attachment_display_name": "Cars Template",
+			"unique_attachment_id": %d,
+			"entry_date_from": "2026-04-01",
+			"entry_date_to": "2099-12-31",
+			"entry_time_from": "08:00",
+			"entry_time_to": "18:00",
+			"data": { "vehicles": [{ "car_number": "A003AA777", "car_brand": "Toyota" }] }
+		}]
+	}`, td.OrgID, approverID, uaID)
+
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(senderToken))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
+
+	var required bool
+	require.NoError(t, db.Raw(
+		"SELECT required_approval FROM application_responsible_users WHERE application_id = ? AND user_id = ?",
+		appID, approverID).Scan(&required).Error)
+	assert.True(t, required, "клиентский required_approval:false не должен снимать обязательность, назначенную в организации")
+}
+
+// TestSubmitCompleteApplication_RequiredUsersRejectsForeignID - дефект #2048, воспроизведённый
+// на стенде 12.08.2026: заявитель одной организации вписывал в required_users id работника
+// ДРУГОЙ организации, заявка создавалась, и посторонний получал доступ к ней и право голосовать.
+// До фикса ветка application_service.go, не найдя присланный id среди прочитанных из
+// organization_users/companies_users, тихо добавляла его в ответственные вместо отказа.
+// Подача с чужим id должна отклоняться целиком - заявка не создаётся.
+func TestSubmitCompleteApplication_RequiredUsersRejectsForeignID(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	foreignOrg := models.Organization{Name: "Foreign Organization"}
+	require.NoError(t, db.Create(&foreignOrg).Error)
+
+	senderToken := testutil.RegisterAndLogin(t, e, "foreignsender", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.RegisterAndLogin(t, e, "foreignoutsider", "pass123", 1, foreignOrg.ID, td.CompanyID)
+	outsiderID := getUserID(t, db, "foreignoutsider")
+	uaID := seedUniqueAttachment(t, db, "cars", "cars_foreign", "Cars Foreign")
+
+	body := fmt.Sprintf(`{
+		"message": "required users foreign id attempt",
+		"organization_id": %d,
+		"responsible_person": "Test Person",
+		"contact_phone": "+79001234567",
+		"data_approval": true,
+		"required_users": [{"user_id": %d, "required_approval": true}],
+		"attachments": [{
+			"attachment_type": "cars",
+			"attachment_name": "cars_template",
+			"attachment_display_name": "Cars Template",
+			"unique_attachment_id": %d,
+			"entry_date_from": "2026-04-01",
+			"entry_date_to": "2099-12-31",
+			"entry_time_from": "08:00",
+			"entry_time_to": "18:00",
+			"data": { "vehicles": [{ "car_number": "A004AA777", "car_brand": "Toyota" }] }
+		}]
+	}`, td.OrgID, outsiderID, uaID)
+
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(senderToken))
+	assert.Equal(t, http.StatusBadRequest, rec.Code, "чужой id в required_users должен отклонять подачу: %s", rec.Body.String())
+
+	var appCount int64
+	require.NoError(t, db.Raw("SELECT COUNT(*) FROM applications WHERE message = ?", "required users foreign id attempt").Scan(&appCount).Error)
+	assert.Zero(t, appCount, "заявка с посторонним в required_users не должна создаваться")
+}
+
+// TestSubmitCompleteApplication_RequiredUsersAcceptsOrgMember - парный к предыдущему тесту:
+// присланный id, действительно входящий в состав организации заявки, по-прежнему принимается,
+// заявка создаётся, а признак обязательности берётся из справочника (organization_users),
+// а не из тела запроса (#2037).
+func TestSubmitCompleteApplication_RequiredUsersAcceptsOrgMember(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	senderToken := testutil.RegisterAndLogin(t, e, "membersender", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.RegisterAndLogin(t, e, "memberapprover", "pass123", 1, td.OrgID, td.CompanyID)
+	approverID := getUserID(t, db, "memberapprover")
+	assignOrgUserRequired(t, db, td.OrgID, approverID)
+	uaID := seedUniqueAttachment(t, db, "cars", "cars_member", "Cars Member")
+
+	body := fmt.Sprintf(`{
+		"message": "required users org member",
+		"organization_id": %d,
+		"responsible_person": "Test Person",
+		"contact_phone": "+79001234567",
+		"data_approval": true,
+		"required_users": [{"user_id": %d, "required_approval": true}],
+		"attachments": [{
+			"attachment_type": "cars",
+			"attachment_name": "cars_template",
+			"attachment_display_name": "Cars Template",
+			"unique_attachment_id": %d,
+			"entry_date_from": "2026-04-01",
+			"entry_date_to": "2099-12-31",
+			"entry_time_from": "08:00",
+			"entry_time_to": "18:00",
+			"data": { "vehicles": [{ "car_number": "A005AA777", "car_brand": "Toyota" }] }
+		}]
+	}`, td.OrgID, approverID, uaID)
+
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(senderToken))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
+
+	var required bool
+	require.NoError(t, db.Raw(
+		"SELECT required_approval FROM application_responsible_users WHERE application_id = ? AND user_id = ?",
+		appID, approverID).Scan(&required).Error)
+	assert.True(t, required, "участник организации из required_users должен попасть в ответственные с признаком из справочника")
+}
+
+// TestSubmitCompleteApplication_RequiredUsersEmptyWhenLinkBroken - вопрос ревью к фиксу
+// #2048: форма рвёт связь с organization_id, когда наименование организации правится
+// руками (CreateApplication.vue, applyOrganizationChoice), и тогда блок сбора required_users
+// в функции отправки не выполняется вовсе (guard `if (this.organizationId)`), запрос уходит
+// без required_users. Организация при этом резолвится на бэке по наименованию (#1437) и
+// остаётся не nil, поэтому гейт «пустая организация и компания» здесь не участвует - тест
+// проверяет именно ветку required_users с отсутствующим полем. Обязательный согласующий из
+// organization_users всё равно должен попасть в заявку: его сбор (строки выше в сервисе)
+// не зависит от required_users в запросе, а раз клиент ничего не прислал - новой проверке
+// нечего отклонять.
+func TestSubmitCompleteApplication_RequiredUsersEmptyWhenLinkBroken(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	senderToken := testutil.RegisterAndLogin(t, e, "brokenlinksender", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.RegisterAndLogin(t, e, "brokenlinkapprover", "pass123", 1, td.OrgID, td.CompanyID)
+	approverID := getUserID(t, db, "brokenlinkapprover")
+	assignOrgUserRequired(t, db, td.OrgID, approverID)
+	uaID := seedUniqueAttachment(t, db, "cars", "cars_broken", "Cars Broken")
+
+	// Наименованием, без organization_id и без required_users - ровно то, что шлёт форма
+	// после ручной правки поля организации.
+	body := fmt.Sprintf(`{
+		"message": "broken organization link",
+		"organization": "Test Organization",
+		"responsible_person": "Test Person",
+		"contact_phone": "+79001234567",
+		"data_approval": true,
+		"attachments": [{
+			"attachment_type": "cars",
+			"attachment_name": "cars_template",
+			"attachment_display_name": "Cars Template",
+			"unique_attachment_id": %d,
+			"entry_date_from": "2026-04-01",
+			"entry_date_to": "2099-12-31",
+			"entry_time_from": "08:00",
+			"entry_time_to": "18:00",
+			"data": { "vehicles": [{ "car_number": "A006AA777", "car_brand": "Toyota" }] }
+		}]
+	}`, uaID)
+
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(senderToken))
+	require.Equal(t, http.StatusOK, rec.Code, "подача без organization_id и без required_users не должна отклоняться: %s", rec.Body.String())
+	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
+
+	var required bool
+	require.NoError(t, db.Raw(
+		"SELECT required_approval FROM application_responsible_users WHERE application_id = ? AND user_id = ?",
+		appID, approverID).Scan(&required).Error)
+	assert.True(t, required, "обязательный согласующий из справочника должен попасть в заявку даже без required_users в запросе")
 }
 
 // --- 401 Unauthorized tests ---
@@ -313,6 +569,43 @@ func TestGetApplications_SearchFindsItemWork(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "заявка должна находиться по наименованию работ из items-вложения")
+}
+
+// TestGetApplications_SearchFindsCarBrand: поиск находит заявку по марке её машины.
+// Марка хранится в двух колонках: mark_name -- снимок имени марки, он появился позже и
+// заполнен у единиц записей, у остальных марка лежит в устаревшей car_brand. Поиск
+// смотрел только в mark_name, и заявку по марке машины было не найти.
+func TestGetApplications_SearchFindsCarBrand(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "carbrandsearch", "pass123", 1, td.OrgID, td.CompanyID)
+	appID := createSimpleApplication(t, e, token, td.OrgID)
+
+	var attID int
+	require.NoError(t, db.Raw(
+		`INSERT INTO attachments (application_id, attachment_type, created_at, updated_at)
+		 VALUES (?, 'cars', now(), now()) RETURNING id`, appID).Scan(&attID).Error)
+	// mark_name намеренно пуст -- ровно так выглядят реальные записи.
+	require.NoError(t, db.Exec(
+		`INSERT INTO cars (attachment_id, car_number, car_brand, created_at, updated_at)
+		 VALUES (?, ?, ?, now(), now())`, attID, "В 543 НЕ 654", "Мерседесzzqx").Error)
+
+	rec := testutil.GET(t, e,
+		"/applications?search_query="+url.QueryEscape("Мерседесzzqx"),
+		testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	apps := testutil.ParseResponse[[]map[string]interface{}](t, rec)
+	found := false
+	for _, a := range apps {
+		if id, ok := a["id"].(float64); ok && int(id) == appID {
+			found = true
+		}
+	}
+	assert.True(t, found, "заявка должна находиться по марке своей машины")
 }
 
 // TestGetApplications_SearchFindsAttachmentName: поиск находит заявку по

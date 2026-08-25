@@ -2,11 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
-// #680 срез role-gate: кнопку "Переслать" видит только ответственный по заявке
-// (Принимающий). Согласующий (глобальная роль, видит все заявки) и обычный читатель
-// её не видят - BE-проверка forward пускает только sender||responsible.
-// Срез 5 (permission-gating) добавил поверх право action.forward.application: ниже
-// его выдаём во всех тестах, чтобы изолировать именно role/mode-gate (#680).
+// Гейт кнопки "Переслать": режим "Центр" + право action.forward.application + доступ
+// к заявке. Здесь проверяются mode и отсутствие доступа; полный разбор ролей, у кого
+// доступ есть, - в ApplicationDetailForwardAccess.spec.js (#1948).
+// Право ниже выдаётся во всех тестах, чтобы изолировать именно role/mode-gate (#680).
 
 import { usePermissionsStore } from '@/stores/permissions';
 
@@ -52,11 +51,14 @@ describe('ApplicationDetail - гейт кнопки "Переслать" (#680 r
     expect(wrapper.find(FORWARD).exists()).toBe(true);
   });
 
-  it('согласующий (не ответственный) кнопку не видит - forward вернул бы 403', async () => {
+  // Раньше здесь ждали обратного (#680: гейт = только ответственный), но состав
+  // application_approvers - это ПРИНИМАЮЩИЕ, и заявку они видят все: с #1948 гейт
+  // пересылки сравнялся с гейтом доступа, и кнопка им положена.
+  it('принимающий (не ответственный) кнопку видит', async () => {
     const wrapper = await mountDetail({}, { responsibleUsers: [{ id: 2 }], approvers: [{ user_id: 1 }] });
     await wrapper.vm.$nextTick();
     expect(wrapper.vm.isApprover).toBe(true);
-    expect(wrapper.find(FORWARD).exists()).toBe(false);
+    expect(wrapper.find(FORWARD).exists()).toBe(true);
   });
 
   it('посторонний пользователь кнопку не видит', async () => {

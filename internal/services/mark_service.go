@@ -222,6 +222,8 @@ func (s *markService) GetHistory(ctx context.Context, id int) ([]models.MarkHist
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения истории")
 	}
 
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
 	items := make([]models.MarkHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.MarkHistoryItem{
@@ -231,7 +233,7 @@ func (s *markService) GetHistory(ctx context.Context, id int) ([]models.MarkHist
 			OldValue:   r.OldValue,
 			NewValue:   r.NewValue,
 			UserID:     r.UserID,
-			UserName:   r.UserName,
+			UserName:   maskName(masks, r.UserID, r.UserName),
 			Comment:    r.Comment,
 			CreatedAt:  r.CreatedAt,
 		})

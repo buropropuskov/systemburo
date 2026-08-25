@@ -10,11 +10,11 @@
         <template #skeleton>
           <div style="display: flex; gap: 20px; width: 100%;">
             <SkeletonBlock
-              height="200px"
+              height="var(--cabinet-card-height)"
               style="flex: 1;"
             />
             <SkeletonBlock
-              height="200px"
+              height="var(--cabinet-card-height)"
               style="flex: 1;"
             />
           </div>
@@ -199,6 +199,10 @@ export default {
   width: 100%;
   padding: 15px;
   position: relative;
+  /* Высота карточек шапки кабинета - одна на профиль и уведомления, иначе их
+     нижние края расходятся. Ряд согласия над именем помещается в те же 200px
+     за счёт сжатых полей бейджа и минимальных отступов ряда контактов. */
+  --cabinet-card-height: 200px;
   /* Высоту на desktop задаёт applyDashboardHeight под доступный вьюпорт;
      flex-колонка тянет блок заявок на остаток высоты. overflow:hidden
      обязателен - без него flex-дети могут расти за пределы установленной

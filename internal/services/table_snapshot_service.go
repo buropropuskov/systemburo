@@ -321,6 +321,8 @@ func (s *tableSnapshotService) ListSnapshots(ctx context.Context, tableID int, f
 		return nil, 0, fmt.Errorf("failed to list snapshots for table %d: %w", tableID, err)
 	}
 
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
 	items := make([]SnapshotListItem, len(rows))
 	for i, r := range rows {
 		var counts models.SnapshotCounts
@@ -335,7 +337,7 @@ func (s *tableSnapshotService) ListSnapshots(ctx context.Context, tableID int, f
 			TakenAt:     r.TakenAt,
 			Reason:      r.Reason,
 			ActorUserID: r.ActorUserID,
-			ActorName:   snapshotActorName(r.ActorFirstName, r.ActorLastName, r.ActorUsername),
+			ActorName:   maskName(masks, r.ActorUserID, snapshotActorName(r.ActorFirstName, r.ActorLastName, r.ActorUsername)),
 			Counts:      counts,
 		}
 	}

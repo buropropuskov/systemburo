@@ -4,6 +4,7 @@ import { setActivePinia, createPinia } from 'pinia';
 
 import ApplicationsCenter from '../ApplicationsCenter.vue';
 import { usePermissionsStore } from '@/stores/permissions';
+import { buildApplicationTags, layoutApplicationTags } from '@/utils/applicationTags';
 
 vi.mock('@/api/client', () => ({ apiRequest: vi.fn().mockResolvedValue({ ok: false, json: vi.fn().mockResolvedValue([]) }) }));
 // Список Центра (#1158) идёт через getApplicationsPaginated, не apiRequest напрямую.
@@ -14,7 +15,6 @@ vi.mock('@/utils/notificationSound', () => ({ playPreset: vi.fn(), SOUND_PRESETS
 
 const stubs = {
   teleport: true,
-  OrganizationFilter: true,
   RefreshButton: true,
   ApplicationDetail: true,
   DateFilter: true,
@@ -83,12 +83,18 @@ describe('ApplicationsCenter — маркер вопросов (#973)', () => {
     expect(wrapper.find('[data-testid="center-questions-badge-1"]').exists()).toBe(true);
   });
 
-  it('tagsAreCompact учитывает маркер вопросов', () => {
-    wrapper = mountCenter();
-    // вопросы + важный = 2 тега -> compact
-    expect(wrapper.vm.tagsAreCompact({ has_unseen_questions: true, sender_is_important: true })).toBe(true);
-    // только вопросы = 1 тег -> не compact
-    expect(wrapper.vm.tagsAreCompact({ has_unseen_questions: true })).toBe(false);
+  // Тег, не учтённый в раскладке колонки, не даёт соседям свернуться и вылезает
+  // поверх колонки действий (#1315 S2). Раскладку считает layoutApplicationTags по
+  // реальной ширине колонки, поэтому проверяем участие тега в ней.
+  it('маркер вопросов участвует в раскладке колонки и сворачивается вместе с соседями', () => {
+    const tags = buildApplicationTags({ has_unseen_questions: true, sender_is_important: true });
+    expect(tags.map(t => t.key)).toContain('questions');
+
+    const narrow = layoutApplicationTags(tags, 90);
+    expect(narrow.visible.every(e => e.mode !== 'text')).toBe(true);
+
+    const alone = layoutApplicationTags(buildApplicationTags({ has_unseen_questions: true }), 90);
+    expect(alone.visible[0].mode).toBe('text');
   });
 
   it('deep-link ?open открывает заявку из списка и чистит query', async () => {

@@ -26,6 +26,15 @@ vi.mock('@/stores/permissions', () => ({
   usePermissionsStore: () => ({ banned: false, fetchPermissions, clearPermissions: vi.fn() }),
 }));
 vi.mock('@/stores/onboarding', () => ({ useOnboardingStore: () => ({ reset: vi.fn() }) }));
+// Гейт согласия (#1567) читает свой стор из computed App.vue; спека монтируется
+// без Pinia, поэтому стор мокаем - согласие тут не проверяется.
+vi.mock('@/stores/pdConsent', () => ({
+  usePDConsentStore: () => ({ resolved: false, required: false, refresh: vi.fn(), reset: vi.fn() }),
+}));
+// Гейт смены пароля (#1911) - по той же причине, что и согласие выше.
+vi.mock('@/stores/passwordChange', () => ({
+  usePasswordChangeStore: () => ({ required: false, reset: vi.fn() }),
+}));
 vi.mock('@/stores/theme', () => ({ useThemeStore: () => ({ syncFromServer: vi.fn() }) }));
 vi.mock('@/services/eventStream', () => ({
   default: {
@@ -42,7 +51,7 @@ import eventStream from '@/services/eventStream';
 function mountApp() {
   return shallowMount(App, {
     global: {
-      mocks: { $route: { path: '/news', name: 'News' }, $router: { push: vi.fn() } },
+      mocks: { $route: { path: '/news', name: 'News' }, $router: { push: vi.fn(), replace: vi.fn().mockResolvedValue(undefined) } },
       stubs: { 'router-view': true, RouterView: true, transition: true },
     },
   });

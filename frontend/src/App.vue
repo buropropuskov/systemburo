@@ -13,7 +13,10 @@
         v-if="showChrome"
         class="theheader"
       />
-      <router-view v-slot="{ Component }">
+      <router-view
+        v-if="!consentBlocking && !passwordChangeBlocking"
+        v-slot="{ Component }"
+      >
         <transition
           name="page-fade"
           mode="out-in"
@@ -31,8 +34,26 @@
     <ConfirmDialog />
     <DirtyConfirmModal />
     <DeleteNotifications />
-    <OnboardingTour v-if="isAuthenticated" />
+    <OnboardingTour v-if="isAuthenticated && !consentBlocking && !passwordChangeBlocking" />
+    <GlobalSearchPanel
+      v-if="isAuthenticated"
+      :show="searchOpen"
+      :query="searchQuery"
+      @update:query="searchQuery = $event"
+      @close="closeGlobalSearch"
+    />
+    <ImpersonationBanner v-if="isAuthenticated" />
     <BanOverlay @logout="logout" />
+    <PDConsentOverlay
+      :active="consentBlocking"
+      @logout="logout"
+    />
+    <ChangePasswordModal
+      :show="passwordChangeBlocking"
+      mandatory
+      @changed="onPasswordChanged"
+      @logout="logout"
+    />
   </div>
 </template>
 
@@ -41,16 +62,25 @@ import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionsStore } from '@/stores/permissions'
 import { useOnboardingStore } from '@/stores/onboarding'
+import { usePDConsentStore } from '@/stores/pdConsent'
+import { usePasswordChangeStore } from '@/stores/passwordChange'
 import { useThemeStore } from '@/stores/theme'
+import { isShellHiddenPath } from '@/utils/shellPaths'
 import eventStream from '@/services/eventStream'
+import { unsubscribeWebPush } from '@/api/webPush'
+import { getCurrentSubscription, unsubscribeLocal } from '@/utils/webPushSubscription'
 import NavMenu from './components/NavMenu.vue';
 import TheHeader from './components/TheHeader/TheHeader.vue';
 import ScrollTopButton from './components/ScrollTopButton.vue';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import DirtyConfirmModal from './components/DirtyConfirmModal.vue';
 import DeleteNotifications from './components/DeleteNotifications.vue';
+import GlobalSearchPanel from './components/GlobalSearchPanel.vue';
 import OnboardingTour from './components/onboarding/OnboardingTour.vue';
+import ImpersonationBanner from './components/ImpersonationBanner.vue';
 import BanOverlay from './components/BanOverlay.vue';
+import PDConsentOverlay from './components/PDConsentOverlay.vue';
+import ChangePasswordModal from './components/ChangePasswordModal.vue';
 
 export default {
   name: "App",
@@ -61,8 +91,12 @@ export default {
     ConfirmDialog,
     DirtyConfirmModal,
     DeleteNotifications,
+    GlobalSearchPanel,
     OnboardingTour,
+    ImpersonationBanner,
     BanOverlay,
+    PDConsentOverlay,
+    ChangePasswordModal,
   },
   data() {
     return {
@@ -70,6 +104,13 @@ export default {
       banEventOff: null,
       // userId, на который сейчас стоит подписка бана; держит её синхронной с токеном.
       banSubUserId: null,
+      // Панель поиска: признак открытия и строка запроса. Живут в корне -- панель
+      // открывают кнопкой из шапки, а показывается она поверх всей страницы.
+      searchOpen: false,
+      searchQuery: '',
+      // Панель поиска раскрыл онбординг-тур (reveal), а не пользователь -
+      // только такую тур и закроет за собой.
+      searchOpenedByTour: false,
     }
   },
   computed: {
@@ -87,13 +128,56 @@ export default {
      * setTokens() в LoginComponent до router.push('/news')
      * (задержан на 1.5с из-за success-анимации) шапка и меню моргают
      * поверх формы логина. На /500 chrome тоже скрываем - это full-page view.
+     * Список путей общий с гейтом согласия - utils/shellPaths.
      */
     showChrome() {
-      const hidePaths = ['/', '/500', '/maintenance']
-      return this.isAuthenticated && !hidePaths.includes(this.$route.path);
+      return this.isAuthenticated
+        && !isShellHiddenPath(this.$route.path)
+        && !this.consentBlocking
+        && !this.passwordChangeBlocking;
+    },
+    /**
+     * Согласие на обработку ПД ещё не дано, а без него доступа нет (#1567):
+     * шапка, навигация, страница и онбординг-тур не монтируются, поверх стоит
+     * PDConsentOverlay.
+     *
+     * `resolved` обязателен - без ответа гейта окно на догадке не показываем.
+     * Супер-администратор исключён и здесь, и на сервере: с битой настройкой
+     * согласия систему всё равно надо чинить через интерфейс. Забаненному
+     * показываем блокировку, а не согласие - принять его он всё равно не сможет,
+     * серверный гейт бана стоит раньше.
+     */
+    consentBlocking() {
+      const consent = usePDConsentStore()
+      return this.isAuthenticated
+        && !this.isBuropropuskov
+        && !this.isBanned
+        && consent.resolved
+        && consent.required
+        && !isShellHiddenPath(this.$route.path);
+    },
+    /**
+     * Система обязала задать свой пароль вместо присланного письмом (#1911):
+     * шапка, навигация, страница и тур не монтируются, поверх стоит несъёмное окно
+     * смены пароля. Флаг поднимается маркером отказа из api/client.js - серверный
+     * гейт всё равно отвечает 403 на всё, кроме смены пароля, и без окна человек
+     * видел бы пустой экран.
+     *
+     * Забаненному показываем блокировку, а не смену пароля: менять пароль ему
+     * незачем, и серверная проверка блокировки стоит раньше гейта.
+     */
+    passwordChangeBlocking() {
+      return this.isAuthenticated
+        && !this.isBanned
+        && usePasswordChangeStore().required
+        && !isShellHiddenPath(this.$route.path);
     },
     isBanned() {
       return usePermissionsStore().banned
+    },
+    /** Сигнал раскрытия свёрнутого узла от онбординг-тура - см. watch ниже. */
+    onboardingReveal() {
+      return useOnboardingStore().revealOpen
     },
     /**
      * ID залогиненного пользователя - scope адресного real-time сигнала бана;
@@ -123,6 +207,23 @@ export default {
       if (banned && this.isAuthenticated && this.$route.name !== 'Account') {
         this.$router.push('/personal-cabinet').catch(() => {})
       }
+    },
+    /**
+     * Онбординг просит показать панель сквозного поиска (reveal.open). Закрываем
+     * только то, что открыли сами: панель, открытую пользователем, тур не трогает.
+     */
+    onboardingReveal(target) {
+      if (target === 'search-panel') {
+        // Флаг ставим и когда панель уже открыта: на шаге про поиск ею
+        // распоряжается тур, кто бы её ни открыл. Иначе панель, открытая
+        // человеком по просьбе предыдущего шага, оставалась висеть поверх
+        // следующих шагов.
+        this.searchOpenedByTour = true
+        if (!this.searchOpen) this.openGlobalSearch()
+      } else if (this.searchOpenedByTour) {
+        this.searchOpenedByTour = false
+        this.closeGlobalSearch()
+      }
     }
   },
   created() {
@@ -133,17 +234,43 @@ export default {
       const permissionsStore = usePermissionsStore()
       permissionsStore.fetchPermissions()
       authStore.loadUserTypeCode()
+      usePDConsentStore().refresh()
       // Тему профиля здесь НЕ запрашиваем: её тянет main.js до mount, иначе
       // интерфейс успевал отрисоваться в чужой/светлой теме (#1415).
     }
     // Подписка на бан для восстановленной при старте сессии; дальше её ведёт
     // watch(banScopeUserId) на смену токена.
     this.reconcileBanSubscription()
+    window.addEventListener('keydown', this.onGlobalSearchHotkey)
+    this.$bus?.on?.('global-search:open', this.openGlobalSearch)
   },
   beforeUnmount() {
     this.teardownBanSubscription()
+    window.removeEventListener('keydown', this.onGlobalSearchHotkey)
+    this.$bus?.off?.('global-search:open', this.openGlobalSearch)
   },
   methods: {
+    openGlobalSearch() {
+      if (this.isAuthenticated) this.searchOpen = true
+    },
+    /** Закрытие чистит запрос: следующий поиск начинается с чистого листа. */
+    closeGlobalSearch() {
+      this.searchOpen = false
+      this.searchQuery = ''
+      this.searchOpenedByTour = false
+    },
+    /**
+     * Ctrl+K (Cmd+K на маке) -- общепринятое сочетание для поиска по приложению.
+     * Открывает и закрывает панель поиска; курсор ставится в её поле.
+     * preventDefault обязателен: в Firefox сочетание уводит фокус в адресную строку.
+     */
+    onGlobalSearchHotkey(e) {
+      if (e.key !== 'k' && e.key !== 'K' && e.key !== 'л' && e.key !== 'Л') return
+      if (!e.ctrlKey && !e.metaKey) return
+      if (!this.isAuthenticated) return
+      e.preventDefault()
+      this.searchOpen = !this.searchOpen
+    },
     /**
      * Приводит подписку на адресный real-time сигнал бана (scope user:<id>, #840)
      * в соответствие с текущим залогиненным юзером. Прилетевший
@@ -172,6 +299,14 @@ export default {
       }
       this.banSubUserId = null
     },
+    /**
+     * Пароль задан: окно само чистит сессию и уводит на вход (смена отзывает все
+     * продления). Снимаем требование, иначе оно всплыло бы поверх формы входа.
+     */
+    onPasswordChanged() {
+      usePasswordChangeStore().reset()
+    },
+
     handleSuccessfulLogin(tokenData) {
       const authStore = useAuthStore()
       authStore.setTokens(tokenData.token)
@@ -179,11 +314,28 @@ export default {
       permissionsStore.fetchPermissions()
       authStore.loadUserTypeCode()
       useThemeStore().syncFromServer()
+      // force: в этой вкладке до логина уже мог отвечать гейт другого юзера
+      // (или гостя) - без force свежий resolved закоротил бы запрос в no-op.
+      usePDConsentStore().refresh(true)
       // Подписку на бан для нового токена ставит watch(banScopeUserId).
     },
 
     async logout() {
       const authStore = useAuthStore()
+      // Явный выход снимает push-подписку этого устройства (#974): иначе на
+      // общем компьютере следующий вошедший увидит в системных уведомлениях
+      // заголовки чужих заявок. Протухание токена (не через эту кнопку) push
+      // намеренно НЕ трогает - там подписка обязана пережить сессию.
+      try {
+        const subscription = await getCurrentSubscription()
+        if (subscription) {
+          await unsubscribeWebPush(subscription.endpoint)
+          await unsubscribeLocal(subscription)
+        }
+      } catch {
+        // best-effort: не блокируем выход из-за push - подписка просто
+        // останется висеть до следующей ручной отписки в настройках.
+      }
       try {
         if (authStore.token) {
           await apiRequest("/logout", { method: "POST", body: '{}' });
@@ -198,6 +350,12 @@ export default {
         // Снять онбординг-тур, если он был активен - иначе overlay driver.js
         // останется висеть поверх страницы логина.
         useOnboardingStore().reset()
+        // Иначе окно согласия предыдущего юзера осталось бы висеть поверх формы
+        // входа, а следующий увидел бы чужую редакцию текста.
+        usePDConsentStore().reset()
+        // Иначе требование сменить пароль вышедшего осталось бы висеть окном
+        // поверх формы входа и досталось бы следующему на этом устройстве.
+        usePasswordChangeStore().reset()
         if (this.$route.path !== '/') {
           this.$router.push("/");
         }
