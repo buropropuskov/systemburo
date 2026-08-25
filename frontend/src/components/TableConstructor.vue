@@ -1110,9 +1110,9 @@ export default {
     },
   },
   async mounted() {
-    // Возврат со страницы версий архивной таблицы (?open=<name>): открыть архив
-    // и выбрать ту же таблицу, чтобы юзер вернулся ровно туда, где был.
-    const openName = this.$route?.query?.open;
+    // Один `open` обслуживает два перехода: ИМЯ архивной таблицы со страницы версий
+    // (тогда открываем архив) и числовой id из поиска - тот разбирает примесь.
+    const openName = Number.isNaN(Number(this.$route?.query?.open)) ? this.$route?.query?.open : null;
     if (openName) this.showArchive = true;
     await this.refreshData();
     if (openName) {
