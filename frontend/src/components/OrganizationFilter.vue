@@ -387,18 +387,19 @@ export default {
     position: relative;
 }
 
-/* Стиль как в прошлом варианте: светло-синий фон и темно-синий текст */
+/* Выбранный пункт: подложка и текст от акцента темы - светлые литералы в тёмной
+   теме давали светлое пятно в списке. */
 .dropdown-item--selected {
-    background-color: #f0f2ff !important; /* Светло-синий фон */
+    background-color: var(--accent-tint) !important;
     font-weight: 500;
 }
 
 .dropdown-item--selected .item-text {
-    color: #4F5BDF !important; /* Темно-синий текст */
+    color: var(--accent-text) !important;
 }
 
 .dropdown-item--selected:hover {
-    background-color: #e8ebff !important; /* Чуть темнее при наведении */
+    background-color: color-mix(in srgb, var(--accent) 18%, var(--surface)) !important;
 }
 
 /* Убираем нижнюю границу у последнего элемента, если это не "Ничего не найдено" */
