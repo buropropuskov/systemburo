@@ -21,6 +21,7 @@
       <div
         v-if="show"
         class="notifications"
+        data-testid="ob-notifications-panel"
         :class="{ 'notifications--sheet': isSheet, 'is-dragging': sheetDragging }"
         :style="isSheet && sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
         @click.stop
@@ -58,42 +59,11 @@
                 data-testid="header-notifications-settings"
                 @click="openSettings"
               >
-                <svg
-                  width="19"
-                  height="19"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  aria-hidden="true"
-                >
-                  <g
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                    stroke-linecap="round"
-                  >
-                    <line
-                      x1="4"
-                      y1="8"
-                      x2="20"
-                      y2="8"
-                    />
-                    <line
-                      x1="4"
-                      y1="16"
-                      x2="20"
-                      y2="16"
-                    />
-                    <circle
-                      cx="9"
-                      cy="8"
-                      r="2.2"
-                    />
-                    <circle
-                      cx="15"
-                      cy="16"
-                      r="2.2"
-                    />
-                  </g>
-                </svg>
+                <AppIcon
+                  name="settings"
+                  :size="19"
+                  class="notifications__settings-icon"
+                />
               </button>
             </div>
           </div>
@@ -221,6 +191,7 @@ import { formatTimeAgo } from '@/utils/datetime'
 import { parseNotificationData } from '@/utils/notificationDetails'
 import NotificationDetailModal from '@/components/notifications/NotificationDetailModal.vue'
 import NotificationFilterTabs from '@/components/notifications/NotificationFilterTabs.vue'
+import AppIcon from '@/components/icons/AppIcon.vue'
 
 // Компактная панель (десктоп-дропдаун 360px/350px список, мобильный sheet) - страница
 // поменьше, чем у полноэкранных списков (Центр/реестры берут 30, #1158): карточка ниже
@@ -229,7 +200,7 @@ const NOTIFICATIONS_PER_PAGE = 20
 
 export default {
   name: 'UserNotifications',
-  components: { NotificationDetailModal, NotificationFilterTabs },
+  components: { NotificationDetailModal, NotificationFilterTabs, AppIcon },
   props: {
     show: {
       type: Boolean,
@@ -591,6 +562,11 @@ export default {
   color: var(--accent-text);
 }
 
+.notifications__settings-icon {
+  /* 19px при общей обводке 1.7 даёт волосок в 1.3px - на мелком значке вес задаёт CSS. */
+  stroke-width: 2;
+}
+
 .notifications__settings-btn {
   display: inline-flex;
   align-items: center;
@@ -605,7 +581,8 @@ export default {
 
 .notifications__settings-btn:hover {
   color: var(--color-text);
-  transform: rotate(45deg);
+  /* Меньше углового шага зубцов (45): на самом шаге поворот не виден. */
+  transform: rotate(22.5deg);
 }
 
 .notifications__clear-btn {

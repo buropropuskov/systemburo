@@ -1,12 +1,11 @@
 import { describe, it, expect } from 'vitest';
+import { securityOnboardingSteps, SECURITY_ONBOARDING_VERSION } from '../securityOnboardingSteps';
 import {
-  securityOnboardingSteps,
-  SECURITY_ONBOARDING_VERSION,
   resolveFactTableRoute,
   buildSecurityFactSteps,
   buildSecurityFinalStep,
-} from '../securityOnboardingSteps';
-import { collectSegment } from '../onboardingSteps';
+} from '../securityFactSteps';
+import { collectSegment } from '../stepsFlow';
 import { resolveReveal } from '../reveal';
 import { buildTourSteps, getTour } from '../tours';
 import { routeGate, routeExtraGate } from './routerGates';
@@ -75,6 +74,7 @@ describe('securityOnboardingSteps - сегмент /news', () => {
     expect(seg.map((s) => s.id)).toEqual([
       'sec-start',
       'sec-header-notifications',
+      'sec-header-notifications-panel',
       'sec-header-search',
       'sec-header-search-panel',
       'sec-header-feedback',
@@ -154,6 +154,30 @@ describe('reveal (#1097 S11 - переехавшие на <768 цели)', () =>
     expect(byId('sec-header-notifications').reveal).toBeUndefined();
   });
 
+  /**
+   * Шаг, который зовёт нажать, обязан вести к шагу про открывшееся: список
+   * уведомлений лежит ниже затемнения тура, и без перехода человек, выполнивший
+   * просьбу, получал панель за тёмной пеленой (замечание владельца 20.08).
+   */
+  it('колокольчик ведёт к разбору списка: переход по действию и раскрытие сам', () => {
+    const byId = (id) => securityOnboardingSteps.find((s) => s.id === id);
+    const bell = byId('sec-header-notifications');
+    const panel = byId('sec-header-notifications-panel');
+    expect(bell.advanceWhen).toBe('[data-testid="ob-notifications-panel"]');
+    expect(panel.element).toBe('[data-testid="ob-notifications-panel"]');
+    expect(panel.reveal).toEqual({ open: 'notifications' });
+    // Шаги идут подряд - иначе переход по действию уводил бы не туда.
+    const ids = securityOnboardingSteps.map((s) => s.id);
+    expect(ids.indexOf(panel.id)).toBe(ids.indexOf(bell.id) + 1);
+  });
+
+  it('шаги тура не зовут нажимать там, куда тур не переходит', () => {
+    for (const step of securityOnboardingSteps) {
+      if (!/[Нн]ажм|[Нн]ажат/.test(step.description)) continue;
+      expect(step.advanceWhen, `шаг ${step.id} зовёт нажать без перехода`).toBeTruthy();
+    }
+  });
+
   it('sec-nav-* просят раскрытие drawer (nav)', () => {
     for (const s of securityOnboardingSteps.filter((x) => x.id.startsWith('sec-nav-'))) {
       expect(s.reveal).toEqual({ mobile: 'nav' });
@@ -188,6 +212,9 @@ describe('securityOnboardingSteps - сегмент /accessible-attachments', () 
       'sec-aa-elements',
       'sec-aa-preview',
       'sec-aa-blank',
+      // Переход в таблицу поста анонсирован последним шагом раздела - иначе тур
+      // уходил на другую страницу молча.
+      'sec-nav-tables-open',
     ]);
   });
 
@@ -370,25 +397,25 @@ describe('buildSecurityFactSteps', () => {
 });
 
 describe('buildSecurityFinalStep', () => {
-  it('финальный центр-модал с празднованием на достижимом /accessible-attachments', () => {
+  it('финал с празднованием на «Обзоре», а не на route фактовой таблицы', () => {
     const step = buildSecurityFinalStep();
     expect(step.id).toBe('sec-finish');
-    expect(step.element).toBe(null);
+    // Подсвечиваем кнопку запуска обучения - финал зовёт пройти заново.
+    expect(step.element).toBe('[data-testid="ob-start-button"]');
     expect(step.celebrate).toBe(true);
-    // финал всегда на достижимой странице, НЕ на route фактовой таблицы
-    expect(step.route).toBe('/accessible-attachments');
+    // «Обзор» достижим любому вошедшему, сегмент фактовой таблицы - нет.
+    expect(step.route).toBe('/news');
     expect(typeof step.title).toBe('string');
     expect(step.title.length).toBeGreaterThan(0);
     expect(typeof step.description).toBe('string');
     expect(step.description.length).toBeGreaterThan(0);
   });
 
-  it('CTA ведёт в «Доступные мне», а НЕ на подачу заявки', () => {
+  it('на финале нет кнопки-перехода в раздел и упоминания подачи заявки', () => {
     const step = buildSecurityFinalStep();
-    expect(typeof step.cta).toBe('string');
-    expect(step.cta.length).toBeGreaterThan(0);
-    expect(step.cta).not.toMatch(/Подать заявку/);
-    expect(step.ctaRoute).toBe('/accessible-attachments');
+    expect(step.cta).toBeUndefined();
+    expect(step.ctaRoute).toBeUndefined();
+    // Охранник заявок не подаёт - финал не должен звать его туда даже словом.
     expect(step.description).not.toMatch(/Подать заявку/);
   });
 
@@ -401,8 +428,8 @@ describe('buildSecurityFinalStep', () => {
     expect(steps.some((s) => s.id.startsWith('sec-fact-'))).toBe(false);
     const last = steps[steps.length - 1];
     expect(last.id).toBe('sec-finish');
-    // Финал живёт на «Доступных мне» - странице, достижимой охранником всегда.
-    expect(last.route).toBe('/accessible-attachments');
+    // Финал живёт на «Обзоре» - странице, достижимой любому вошедшему.
+    expect(last.route).toBe('/news');
   });
 });
 

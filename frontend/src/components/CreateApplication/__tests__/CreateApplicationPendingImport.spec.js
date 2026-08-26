@@ -6,6 +6,7 @@ import BlankImportPanel from '../BlankImportPanel.vue';
 import VehiclesList from '../VehiclesList.vue';
 import EmployeesList from '../EmployeesList.vue';
 import { apiRequest } from '@/api/client';
+import { toEmployeePayload } from '@/utils/applicationEntityPayload';
 
 // Эпик blank-import-ux, срез U5: разобранные строки бланка попадают в список СРАЗУ, но
 // предварительными - серыми, с рабочими действиями, в черновике и мимо подачи. Обычными
@@ -232,6 +233,30 @@ describe('U5: «Добавить» переводит предварительн
         });
         expect(w.vm.employeesByAttachment.p1[0].isPending).toBeUndefined();
         expect(w.vm.pendingImportCount).toBe(0);
+    });
+
+    // Сквозной замок отметки согласия: в бланке колонки под неё нет, поэтому сводка
+    // ставит одну отметку на пачку и отдаёт её тем же патчем, что и места. Разорви эту
+    // связь - работники уедут в заявку без согласия, причём молча: серверный гейт по
+    // умолчанию не обязателен, подача пройдёт, а следа в базе не останется.
+    it('отметка согласия из сводки доезжает до строк и до тела заявки', async () => {
+        const w = await mountApp();
+        withPeopleAttachment(w);
+        w.vm.importMode = true;
+        w.vm.stageImportRows({
+            attachmentType: 'people',
+            rows: [{ lastName: 'Иванов', firstName: 'Иван', passportSeriesNumber: '4510 111111' }],
+        });
+
+        w.vm.handleImportRows({
+            attachmentType: 'people',
+            rows: [],
+            places: { ...PEOPLE_PLACES, pdConsent: true },
+        });
+
+        const row = w.vm.employeesByAttachment.p1[0];
+        expect(row.pdConsent).toBe(true);
+        expect(toEmployeePayload([row])[0].pd_consent).toBe(true);
     });
 
     it('исправленные вручную строки приходят вместе с «Добавить» и идут в список обычными', async () => {

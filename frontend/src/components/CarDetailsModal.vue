@@ -105,11 +105,11 @@
                   :disabled="history.length === 0 || isExporting"
                   @click="exportHistory"
                 >
-                  <img
+                  <AppIcon
                     v-if="!isExporting"
-                    src="@/assets/icons/export.png"
+                    name="export"
                     class="export-icon"
-                  >
+                  />
                   <span v-if="!isExporting">Экспорт</span>
                   <div
                     v-else
@@ -397,10 +397,11 @@ import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useDeletionsStore } from '@/stores/deletions';
 import ExcelJS from 'exceljs';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
     name: 'CarDetailsModal',
-    components: { LoaderSpinner, CarHistoryModal },
+    components: { AppIcon, LoaderSpinner, CarHistoryModal },
   props: {
     car: {
       type: Object,
@@ -1030,7 +1031,7 @@ export default {
     },
 
     openApplication() {
-      console.log('Открыть заявку', this.car.applicationId || this.car.application_id);
+      // Переход к заявке не реализован: кнопка сейчас ничего не делает.
     },
 
     close() {

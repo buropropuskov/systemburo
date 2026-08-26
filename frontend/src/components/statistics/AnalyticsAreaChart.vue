@@ -21,10 +21,12 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { formatDuration } from '@/utils/datetime';
+import { crosshairPlugin } from './linePlugins';
 import {
   AXIS_LABEL,
   GRID_COLOR,
   TOOLTIP_STYLE,
+  hoverPointStyle,
   useChartCanvas,
   verticalGradient,
 } from './useChartCanvas';
@@ -162,23 +164,34 @@ const config = computed(() => ({
         // Сглаживание кривой; 0.4 - привычный вид, который был у прежнего движка.
         tension: 0.4,
         pointRadius: 0,
-        pointHoverRadius: 5,
-        pointHoverBorderWidth: 2,
+        ...hoverPointStyle(props.color),
         // Разрыв на null не затягиваем: соединив соседей прямой, график
         // показал бы значение там, где данных нет.
         spanGaps: false,
+        // Запас сверху: ряд, упирающийся в потолок шкалы, рисует точку прямо на
+        // границе области, а Chart.js режет набор данных по этой границе - у
+        // точки срезало верх. layout.padding это не лечит, он двигает саму
+        // область, а не клип.
+        clip: { top: 12, right: 0, bottom: 0, left: 0 },
       },
     ],
   },
+  plugins: [crosshairPlugin],
   options: {
     responsive: true,
     maintainAspectRatio: false,
+    // Точка ряда на самом верху шкалы выходит за область графика и срезается
+    // краем холста - место под её радиус с обводкой.
+    layout: { padding: { top: 10 } },
     animation: { duration: 400, easing: 'easeInOutQuad' },
     interaction: { mode: 'index', intersect: false },
     plugins: {
       legend: { display: false },
       tooltip: {
         ...TOOLTIP_STYLE,
+        // Рядом с точкой, а не по середине ряда: у края области подсказка
+        // разворачивается на другую сторону и точку не закрывает.
+        position: 'nearest',
         callbacks: {
           title: (items) => fullLabels.value[items?.[0]?.dataIndex] ?? '',
           label: (item) => formatTooltipValue(item?.raw),

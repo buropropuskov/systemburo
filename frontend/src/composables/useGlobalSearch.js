@@ -18,6 +18,13 @@ const CACHE_MAX_ENTRIES = 20;
  * разрешается асинхронно, и без него медленный ответ на «Рог» мог бы записаться поверх
  * готового ответа на «Роголев».
  */
+/**
+ * Сколько строк раздела забираем с сервера. Берём его потолок: обрезать выдачу на
+ * полпути незачем - панель показывает первые пять и раскрывает остальные на месте,
+ * так что найденное доступно целиком, а простыни на экране не возникает.
+ */
+const SECTION_LIMIT = 20;
+
 export function useGlobalSearch() {
   const groups = shallowRef([]);
   const degraded = ref([]);
@@ -79,7 +86,7 @@ export function useGlobalSearch() {
     failed.value = false;
 
     try {
-      const data = await globalSearch(query, { signal: controller.signal, limit: 5 });
+      const data = await globalSearch(query, { signal: controller.signal, limit: SECTION_LIMIT });
       if (mySeq !== seq) return; // приехал ответ на устаревший запрос
       groups.value = data.groups ?? [];
       degraded.value = data.degraded ?? [];

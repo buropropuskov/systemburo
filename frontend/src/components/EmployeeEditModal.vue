@@ -547,6 +547,11 @@ export default {
             this.passportSeriesNumber = '';
             this.patentNumber = '';
             this.selectedPermission = 'Не выбрано';
+            // Отметка о согласии снимается вместе с данными: подтверждают конкретного
+            // человека, а не всех, кого заведут дальше. Оставшись стоять, она превращала
+            // осознанное подтверждение в состояние формы - следующего работника можно было
+            // добавить, не глядя на неё (форма подачи, EmployeeForm, снимает её так же).
+            this.pdConsent = false;
             if (!this.editingEmployee) {
                 this.bindToOrganization = false;
                 this.bindToCompany = false;
@@ -711,13 +716,12 @@ export default {
                     this.$emit('saved', savedEmployee);
                 } else {
                     const errorData = await response.json();
+                    // Текст сервера показываем как есть: он различает три случая -
+                    // запись уже у вас, у кого-то в организации или в компании. Прежде
+                    // два последних подменялись на «уже привязан к вашему аккаунту», и
+                    // человек шёл искать сотрудника в «Мои сотрудники», где его нет (#2021).
                     const errorMessage = errorData.message || 'Ошибка при сохранении сотрудника';
-
-                    if (errorMessage.includes('уже существует') || errorMessage.includes('already exists')) {
-                        useDeletionsStore().notify({ bold: 'Сотрудник уже привязан к вашему аккаунту', type: 'error' });
-                    } else {
-                        useDeletionsStore().notify({ bold: errorMessage, type: 'error' });
-                    }
+                    useDeletionsStore().notify({ bold: errorMessage, type: 'error' });
                 }
             } catch (error) {
                 console.error('Ошибка при сохранении сотрудника:', error);
@@ -1031,8 +1035,8 @@ export default {
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    font-size: 13px;
-    line-height: 1.35;
+    font-size: 11px;
+    line-height: 1.3;
     cursor: pointer;
     margin-top: 6px;
 }
@@ -1044,7 +1048,7 @@ export default {
 
 .consent-granted {
     margin: 6px 0 0;
-    font-size: 13px;
+    font-size: 11px;
     color: var(--text-muted);
 }
 

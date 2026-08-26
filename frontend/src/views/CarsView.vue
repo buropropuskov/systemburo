@@ -180,7 +180,7 @@
             <!-- Журнал реестра открыт администратору, см. EmployeeView. -->
             <button
               v-if="canManageAllEntities"
-              class="lk-button lk-button--secondary"
+              class="log-button"
               data-testid="cars-registry-log"
               @click="showRegistryLog = true"
             >
@@ -222,14 +222,14 @@
                 <p :class="{ 'active-sort': sortField === 'id' }">
                   №
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'id',
                     'desc': sortField === 'id' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col car-number-col"
@@ -238,14 +238,14 @@
                 <p :class="{ 'active-sort': sortField === 'number' }">
                   Номер
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'number',
                     'desc': sortField === 'number' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col brand-col"
@@ -254,14 +254,14 @@
                 <p :class="{ 'active-sort': sortField === 'mark' }">
                   Марка
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'mark',
                     'desc': sortField === 'mark' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col format-col"
@@ -270,14 +270,14 @@
                 <p :class="{ 'active-sort': sortField === 'format_name' }">
                   Формат номера
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'format_name',
                     'desc': sortField === 'format_name' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col status-col"
@@ -286,14 +286,14 @@
                 <p :class="{ 'active-sort': sortField === 'status' }">
                   Статус
                 </p>
-                <img
-                  src="@/assets/icons/sort.png"
+                <AppIcon
+                  name="sort"
                   class="sort-icon"
                   :class="{
                     'sorted': sortField === 'status',
                     'desc': sortField === 'status' && sortDirection === 'desc'
                   }"
-                >
+                />
               </div>
               <div
                 v-if="currentFilter === 'organization' || currentFilter === 'all_system'"
@@ -303,14 +303,14 @@
                 <p :class="{ 'active-sort': sortField === 'organization_name' }">
                   Организация
                 </p>
-                <img
-                  src="@/assets/icons/sort.png"
+                <AppIcon
+                  name="sort"
                   class="sort-icon"
                   :class="{
                     'sorted': sortField === 'organization_name',
                     'desc': sortField === 'organization_name' && sortDirection === 'desc'
                   }"
-                >
+                />
               </div>
               <div
                 v-if="currentFilter === 'company' || currentFilter === 'all_system'"
@@ -320,14 +320,14 @@
                 <p :class="{ 'active-sort': sortField === 'company_name' }">
                   Компания
                 </p>
-                <img
-                  src="@/assets/icons/sort.png"
+                <AppIcon
+                  name="sort"
                   class="sort-icon"
                   :class="{
                     'sorted': sortField === 'company_name',
                     'desc': sortField === 'company_name' && sortDirection === 'desc'
                   }"
-                >
+                />
               </div>
               <div class="header-col actions-col">
                 Действия
@@ -419,11 +419,10 @@
                         title="Изменить"
                         @click.stop="editCar(car)"
                       >
-                        <img
-                          src="@/assets/icons/edit.png"
-                          alt=""
+                        <AppIcon
+                          name="edit"
                           class="edit-icon"
-                        >
+                        />
                         <span class="action-btn__label">Изменить</span>
                       </button>
                       <button
@@ -432,11 +431,10 @@
                         title="Удалить"
                         @click.stop="openDeleteCarConfirmation(car)"
                       >
-                        <img
-                          src="@/assets/icons/trashcan.png"
-                          alt=""
+                        <AppIcon
+                          name="trashcan"
                           class="delete-icon"
-                        >
+                        />
                         <span class="action-btn__label">Удалить</span>
                       </button>
                       <span
@@ -863,6 +861,8 @@ import { apiRequest } from '@/api/client'
 import { getViewportZoom } from '@/utils/viewportScale'
 import { getUniqueCarsPaginated } from '@/api/cars'
 import { useInfiniteList } from '@/composables/useInfiniteList'
+import { useApplicationDetailLink } from '@/composables/useApplicationDetailLink'
+import { openItemFromRoute, registryScopeForRoute } from '@/utils/openQueryParam'
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
 import SearchComponent from '@/components/SearchComponent.vue';
@@ -877,6 +877,7 @@ import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsModal.vue';
 import ApplicationDetail from '@/components/ApplicationDetail/ApplicationDetail.vue';
 import BaseModal from '@/components/ui/BaseModal.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 // Размер порции бесшовной подгрузки реестра машин (#1158, срез 2) - аналог
 // APPLICATIONS_PER_PAGE в ApplicationsCenter.
@@ -894,7 +895,8 @@ export default {
         ConfirmationModal,
         VehicleDetailsModal,
         ApplicationDetail,
-        BaseModal
+        BaseModal,
+        AppIcon,
     },
     setup() {
         // Бесшовная подгрузка реестра машин порциями (#1158, срез 2): composable
@@ -908,6 +910,7 @@ export default {
         const { isNarrow } = useNarrowScreen();
         return {
             isNarrow,
+            ...useApplicationDetailLink(),
             carsData: infiniteList.items,
             carsTotal: infiniteList.total,
             carsPage: infiniteList.page,
@@ -940,7 +943,7 @@ export default {
             // seq-guard (#632/#1158): смена фильтра/поиска до резолва предыдущего
             // fetchCars не должна запускать/продолжать устаревший loadAllRemainingCars.
             fetchSeq: 0,
-            currentFilter: 'user',
+            currentFilter: registryScopeForRoute(this.$route, (p) => usePermissionsStore().hasPermission(p)),
             // Мобилка: bottom-sheet с табами области (S3 эпика mobile-filter-collapse).
             showScopeSheet: false,
             ownershipInfo: null,
@@ -951,8 +954,6 @@ export default {
             availableFormats: [],
             showDetailsViewModal: false,
             detailsCar: null,
-            showApplicationDetail: false,
-            selectedApplication: null,
             // Места разгрузки: список для имён + карта active_car_id -> [place ids]
             allUnloadingPlaces: [],
             carUnloadPlacesMap: {},
@@ -1135,6 +1136,8 @@ export default {
         }
     },
     watch: {
+        // Пользователь уже на странице: mounted не перевызовется, а адрес сменился.
+        '$route.query.open'(val) { if (val) this.openFromSearchLink(); },
         // Поиск - на сервере (#1158, срез 2): дебаунс 300мс перед fetchCars (reset на
         // стр.1 + очистка аккумулятора уже даёт loadCarsList({reset:true})). withPlaces:false
         // - места разгрузки от search_query не зависят, тянуть их на каждый ввод не нужно.
@@ -1154,6 +1157,7 @@ export default {
         ]);
         // fetchCars сам подтягивает места разгрузки (allUnloadingPlaces + карта по машинам).
         await this.fetchCars();
+        this.openFromSearchLink();
         
         // Закрытие dropdown при клике вне
         document.addEventListener('click', (e) => {
@@ -1187,6 +1191,11 @@ export default {
         }
     },
     methods: {
+        /** Переход из сквозного поиска: `?q` сузил список, `?open` раскрывает карточку. */
+        openFromSearchLink() {
+            openItemFromRoute({ router: this.$router, route: this.$route, items: this.carsData, open: this.openCarDetails });
+        },
+
         /**
          * Тянет страницу на доступную высоту вьюпорта (под шапкой), чтобы таблица
          * занимала весь экран без скролла страницы. На мобильном (<=768px) сбрасываем.
@@ -1239,16 +1248,7 @@ export default {
             this.showDetailsViewModal = false;
             this.detailsCar = null;
         },
-        handleOpenApplication(applicationId) {
-            if (!applicationId) return;
-            // ApplicationDetail сам догружает детали/вложения/читателей по id через watch.
-            this.selectedApplication = { id: applicationId };
-            this.showApplicationDetail = true;
-        },
-        closeApplicationDetail() {
-            this.showApplicationDetail = false;
-            this.selectedApplication = null;
-        },
+
         /**
          * Можно ли текущему пользователю редактировать/удалять машину.
          * Логика совпадает с backend canEditCar (unique_car_service.go):
@@ -1880,14 +1880,11 @@ export default {
                     }
                 } else {
                     const errorData = await response.json();
+                    // Текст сервера показываем как есть - см. EmployeeEditModal (#2021):
+                    // он различает, где именно нашлась машина, а подмена отправляла
+                    // человека искать её в свой список, где её нет.
                     const errorMessage = errorData.message || "Ошибка при сохранении автомобиля";
-                    
-                    // Специальные сообщения для дубликатов
-                    if (errorMessage.includes("уже существует") || errorMessage.includes("already exists")) {
-                        useDeletionsStore().notify({ bold: 'Автомобиль уже привязан к вашему аккаунту', type: 'error' });
-                    } else {
-                        useDeletionsStore().notify({ bold: errorMessage, type: 'error' });
-                    }
+                    useDeletionsStore().notify({ bold: errorMessage, type: 'error' });
                 }
             } catch (error) {
                 console.error("Ошибка при сохранении автомобиля:", error);
@@ -2022,6 +2019,26 @@ export default {
     align-items: center;
 }
 
+/* Кнопка журнала стоит в шапке между «Добавить» и «Обновить», поэтому повторяет их
+   мерки: высота 25px, радиус 50px, текст 12px. Общий .lk-button здесь выбивался из
+   ряда - он крупнее и с другим радиусом. */
+.log-button {
+    height: 25px;
+    padding: 0 12px;
+    border-radius: 50px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.log-button:hover {
+    background: var(--surface-2);
+}
+
 .add-button {
     background: var(--accent);
     color: var(--accent-contrast);
@@ -2106,17 +2123,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-    filter: var(--icon-ink-filter);
+    color: var(--text);
 }
 
 .sort-icon {
+    color: var(--text-muted);
     width: 12px;
     height: 12px;
     transition: .2s;
 }
 
 .sort-icon.sorted {
-    filter: var(--icon-ink-filter);
+    color: var(--text);
 }
 
 .sort-icon.desc {
@@ -2276,6 +2294,7 @@ export default {
 }
 
 .edit-icon, .delete-icon {
+    color: var(--text);
     width: 16px;
     height: 16px;
     opacity: 0.7;

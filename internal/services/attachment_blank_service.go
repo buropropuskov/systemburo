@@ -46,10 +46,18 @@ type BlankContext struct {
 	CarUnloadPlaces      map[int][]string // car_id → имена мест
 	CarPassageTables     map[int][]string // car_id → имена постов
 	EmployeeTargetTables map[int][]string // employee_id → имена постов
+	// IncludeDocuments - подставлять ли в бланк документы участников (серия и номер
+	// паспорта, номер патента, иное разрешение). false заменяет их прочерком: право
+	// detail.documents.export есть не у каждого, кому доступна сама заявка, а бланк
+	// уносится из системы файлом.
+	IncludeDocuments bool
 	// ApplicationItems - ТМЦ всех «Заявок на ввоз» этой заявки, в порядке вложений.
 	// Списочная секция бланка одна и занята его собственным типом (у заявки на работы -
 	// сотрудниками), поэтому чужие ТМЦ перечисляются одной ячейкой через app_items.*.
 	ApplicationItems []ApplicationItemRow
+	// ApplicationCars - машины «Автозаявок» этой же заявки: в бланке ввоза есть поле
+	// «Марка и гос. номер Т/С», а собственных машин у такого вложения нет.
+	ApplicationCars []ApplicationCarRow
 }
 
 // Approver - согласовавший заявку. Required - согласование было обязательным: такие
@@ -62,6 +70,14 @@ type Approver struct {
 	Required   bool
 }
 
+// ApplicationCarRow - машина из вложения-соседа: номер, марка и название вложения,
+// откуда она приехала.
+type ApplicationCarRow struct {
+	Number     string
+	Mark       string
+	SourceName string
+}
+
 // ApplicationItemRow - позиция ТМЦ из вложения-соседа с названием вложения-источника:
 // при нескольких «Заявках на ввоз» перечень объединяется, и происхождение позиции
 // иначе теряется.
@@ -71,10 +87,20 @@ type ApplicationItemRow struct {
 	SourceName string
 }
 
+// BlankOptions - настройки одной генерации бланка. Параметр обязательный, а не
+// значение по умолчанию: каждый вызывающий обязан решить судьбу документов участников
+// осознанно. Умолчание «как было» означало бы, что новый путь генерации молча уносит
+// паспорта, и заметят это уже в скачанном файле.
+type BlankOptions struct {
+	// IncludeDocuments - подставлять паспорт, патент и иное разрешение как есть.
+	// false ставит в эти ячейки прочерк.
+	IncludeDocuments bool
+}
+
 // AttachmentBlankService - генерация заполненных .xlsx-бланков на основе
 // шаблона UniqueAttachment + данных заявки (#183, часть 2).
 type AttachmentBlankService interface {
-	GenerateBlank(ctx context.Context, applicationID, attachmentID int) (io.Reader, string, error)
+	GenerateBlank(ctx context.Context, applicationID, attachmentID int, opts BlankOptions) (io.Reader, string, error)
 	GenerateEmptyBlank(ctx context.Context, uniqueAttachmentID int) (io.Reader, string, error)
 }
 
@@ -147,7 +173,7 @@ func (s *attachmentBlankService) loadTemplateFile(path string) ([]byte, error) {
 //  3. Открыть .xlsx через excelize, проставить значения в ячейки.
 //  4. Для list-fields - заполнить строки списка с авторасширением.
 //  5. Сохранить в buffer, вернуть.
-func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationID, attachmentID int) (io.Reader, string, error) {
+func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationID, attachmentID int, opts BlankOptions) (io.Reader, string, error) {
 	// 1. Attachment + UniqueAttachment + Template.
 	var att models.Attachment
 	if err := s.db.WithContext(ctx).
@@ -173,6 +199,7 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 	if err != nil {
 		return nil, "", err
 	}
+	bctx.IncludeDocuments = opts.IncludeDocuments
 
 	// 3. Открыть шаблон - байты берутся из кэша, а не с диска на каждый вызов
 	// (массовый прогон бьётся об один и тот же файл сотнями заявок подряд).
@@ -680,6 +707,9 @@ func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, at
 	// самого ввоза это краткая сводка рядом с построчной таблицей.
 	bctx.ApplicationItems = loadApplicationItems(ctx, s.db, appID)
 
+	// Машины соседних вложений заявки: бланк ввоза печатает транспорт из «Автозаявки».
+	bctx.ApplicationCars = loadApplicationCars(ctx, s.db, appID)
+
 	// Custom values для этого attachment.
 	var values []models.AttachmentCustomValue
 	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Find(&values)
@@ -758,6 +788,50 @@ func loadApplicationItems(ctx context.Context, db *gorm.DB, appID int) []Applica
 		out = append(out, ApplicationItemRow{
 			Name:       strings.TrimSpace(derefStr(r.Name)),
 			Count:      r.Count,
+			SourceName: strings.TrimSpace(r.SourceName),
+		})
+	}
+	return out
+}
+
+// loadApplicationCars собирает машины всех вложений заявки типа cars. Ручные вложения
+// (application_id NULL) сюда не попадают - они не принадлежат заявке.
+//
+// Строки непринятых дополнений отсекаются тем же условием, что и собственный состав
+// вложения: бланк несут на пост как документ допуска, и машина из неодобренного
+// дополнения означала бы в нём проход мимо согласования (#1685).
+func loadApplicationCars(ctx context.Context, db *gorm.DB, appID int) []ApplicationCarRow {
+	var rows []struct {
+		Number     *string `gorm:"column:number"`
+		Mark       *string `gorm:"column:mark"`
+		Brand      *string `gorm:"column:brand"`
+		SourceName string  `gorm:"column:source_name"`
+	}
+	err := db.WithContext(ctx).Raw(`
+		SELECT c.car_number AS number,
+		       c.mark_name AS mark,
+		       c.car_brand AS brand,
+		       COALESCE(NULLIF(a.attachment_display_name, ''), NULLIF(a.attachment_name, ''), '') AS source_name
+		FROM cars c
+		JOIN attachments a ON c.attachment_id = a.id
+		WHERE a.application_id = ? AND a.attachment_type = 'cars'
+		  AND `+admittedSupplementCond("c")+`
+		ORDER BY a.id, c.id
+	`, appID).Scan(&rows).Error
+	if err != nil {
+		slog.Error("не удалось загрузить транспорт заявки для бланка", "error", err, "application", appID)
+		return nil
+	}
+	out := make([]ApplicationCarRow, 0, len(rows))
+	for _, r := range rows {
+		// Марку форма пишет в mark_name, у старых заявок она осталась в car_brand.
+		mark := strings.TrimSpace(derefStr(r.Mark))
+		if mark == "" {
+			mark = strings.TrimSpace(derefStr(r.Brand))
+		}
+		out = append(out, ApplicationCarRow{
+			Number:     strings.TrimSpace(derefStr(r.Number)),
+			Mark:       mark,
 			SourceName: strings.TrimSpace(r.SourceName),
 		})
 	}

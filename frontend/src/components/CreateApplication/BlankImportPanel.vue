@@ -43,13 +43,11 @@
         @dragleave.prevent="isDragging = false"
         @drop.prevent="onDrop"
       >
-        <img
-          src="@/assets/icons/xlsx.png"
+        <AppIcon
+          name="xlsx"
+          :size="44"
           class="bip__dropzone-icon"
-          width="44"
-          height="44"
-          alt=""
-        >
+        />
         <p class="bip__dropzone-title">
           Перетащите заполненный бланк сюда
         </p>
@@ -81,12 +79,11 @@
         :disabled="downloading"
         @click="$emit('download-blank')"
       >
-        <img
-          src="@/assets/icons/download.png"
-          width="14"
-          height="14"
-          alt=""
-        >
+        <AppIcon
+          name="download"
+          :size="14"
+          class="bip__download-icon"
+        />
         {{ downloading ? 'Скачиваем...' : 'Скачать пустой бланк' }}
       </button>
 
@@ -108,6 +105,7 @@
 <script>
 import BlankImportResult from './BlankImportResult.vue';
 import { useDeletionsStore } from '@/stores/deletions';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 // Потолок строк одного файла - internal/services/attachment_import_service.go
 // (maxImportListRows). Держим числом рядом с текстом, чтобы подпись не разъезжалась
@@ -122,7 +120,7 @@ const MAX_IMPORT_ROWS = 2000;
  */
 export default {
   name: 'BlankImportPanel',
-  components: { BlankImportResult },
+  components: { AppIcon, BlankImportResult },
   props: {
     attachmentType: {
       type: String,
@@ -278,8 +276,17 @@ export default {
   opacity: 0.7;
 }
 
+.bip__download-icon {
+  /* 14px: общая обводка 1.7 даёт 0.99px - тоньше подписи кнопки рядом. */
+  stroke-width: 2.2;
+}
+
 .bip__dropzone-icon {
   opacity: 0.8;
+  /* Значок книги Excel был зелёным цветом формата - остаётся им. Берём
+     --success-text, а не --success: последний в проекте живёт рамкой и фоном,
+     а на поверхности карточки даёт 2.1 при норме 3.0 для графики. */
+  color: var(--success-text);
 }
 
 .bip__dropzone-title {

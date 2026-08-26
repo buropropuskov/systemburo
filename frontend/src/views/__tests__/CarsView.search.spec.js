@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { setActivePinia, createPinia } from 'pinia';
 
 import CarsView from '../CarsView.vue';
+import { usePermissionsStore } from '@/stores/permissions';
 import { apiRequest } from '@/api/client';
 
 // Реестр машин переведён на серверный поиск/пагинацию (#1158, срез 2): проверяем,
@@ -165,5 +166,95 @@ describe('CarsView - серверный поиск и пагинация (#1158,
 
     expect(wrapper.vm.carsTotal).toBe(42);
     expect(wrapper.vm.footerText).toBe('Показано 1 из 42');
+  });
+});
+
+/**
+ * Переход из сквозного поиска ведёт к самой машине: `?q` сужает реестр, `?open`
+ * раскрывает её карточку. Раньше открывался просто раздел.
+ */
+describe('CarsView - открытие карточки по ссылке из сквозного поиска', () => {
+  const CAR = { id: 7, number: 'А777АА', mark: 'Toyota', status: true };
+
+  function mountWithRoute(query, replace = vi.fn().mockResolvedValue(undefined)) {
+    return mount(CarsView, {
+      global: { stubs, mocks: { $route: { query }, $router: { push: vi.fn(), replace } } },
+    });
+  }
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    getUniqueCarsPaginated.mockReset();
+    getUniqueCarsPaginated.mockResolvedValue({ items: [CAR], meta: { total: 1, page: 1, per_page: 30 } });
+  });
+
+  afterEach(() => {
+    wrapper?.unmount();
+    wrapper = null;
+  });
+
+  it('карточка найденной машины открывается сразу', async () => {
+    wrapper = mountWithRoute({ q: 'а777', open: '7' });
+    await flushPromises();
+
+    expect(wrapper.vm.showDetailsViewModal).toBe(true);
+    expect(wrapper.vm.detailsCar.plateNumber).toBe('А777АА');
+  });
+
+  it('open вычищается из адреса после открытия', async () => {
+    const replace = vi.fn().mockResolvedValue(undefined);
+    wrapper = mountWithRoute({ q: 'а777', open: '7' }, replace);
+    await flushPromises();
+
+    expect(replace).toHaveBeenCalledWith({ query: { q: 'а777' } });
+  });
+
+  it('машины нет среди загруженных - карточка не открывается', async () => {
+    wrapper = mountWithRoute({ q: 'а777', open: '999' });
+    await flushPromises();
+
+    expect(wrapper.vm.showDetailsViewModal).toBe(false);
+  });
+});
+
+/** Та же поправка, что у сотрудников: переход из поиска открывал «Мои машины». */
+describe('CarsView - область реестра при переходе из поиска', () => {
+  function seedPerms(allow) {
+    const perms = usePermissionsStore();
+    perms.mode = 'normal';
+    perms.effective = Object.fromEntries(allow.map((k) => [k, { value: 'allow', source: 'role' }]));
+  }
+
+  function mountWithRoute(query) {
+    return mount(CarsView, {
+      global: { stubs, mocks: { $route: { query }, $router: { push: vi.fn(), replace: vi.fn().mockResolvedValue(undefined) } } },
+    });
+  }
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    getUniqueCarsPaginated.mockReset();
+    getUniqueCarsPaginated.mockResolvedValue({ items: [], meta: { total: 0, page: 1, per_page: 30 } });
+  });
+
+  afterEach(() => {
+    wrapper?.unmount();
+    wrapper = null;
+  });
+
+  it('с open в адресе список запрашивается по всей системе', async () => {
+    seedPerms(['section.registry.all_system']);
+    wrapper = mountWithRoute({ q: 'а777', open: '7' });
+    await flushPromises();
+
+    expect(getUniqueCarsPaginated).toHaveBeenCalledWith(expect.objectContaining({ filter_type: 'all_system' }));
+  });
+
+  it('обычный заход по-прежнему открывает «Мои машины»', async () => {
+    seedPerms(['section.registry.all_system']);
+    wrapper = mountWithRoute({});
+    await flushPromises();
+
+    expect(getUniqueCarsPaginated).toHaveBeenCalledWith(expect.objectContaining({ filter_type: 'user' }));
   });
 });

@@ -171,8 +171,15 @@ func TestFileArchiveDownload_Application(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	})
 
-	t.Run("отправитель скачивает ZIP заявки со слепком и бланком", func(t *testing.T) {
+	// В ZIP лежат сохранённые бланки с документами участников, поэтому он открыт
+	// инициатору заявки и носителю права на выгрузку - как и бланк поштучно.
+	t.Run("отправитель скачивает ZIP своей заявки", func(t *testing.T) {
 		rec := testutil.GET(t, e, url, testutil.AuthHeader(senderToken))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	})
+
+	t.Run("админ скачивает ZIP заявки со слепком и бланком", func(t *testing.T) {
+		rec := testutil.GET(t, e, url, adminH)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 		body := rec.Body.Bytes()
@@ -189,12 +196,7 @@ func TestFileArchiveDownload_Application(t *testing.T) {
 				hasBlank = true
 			}
 		}
-		assert.True(t, hasSnapshot, "участнику заявки виден и машиночитаемый слепок")
+		assert.True(t, hasSnapshot, "в архиве должен быть машиночитаемый слепок заявки")
 		assert.True(t, hasBlank, "в архиве должен быть бланк вложения")
-	})
-
-	t.Run("админ тоже скачивает архив заявки", func(t *testing.T) {
-		rec := testutil.GET(t, e, url, adminH)
-		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	})
 }

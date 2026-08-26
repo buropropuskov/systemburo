@@ -67,10 +67,28 @@ func searchCanSeeAllSystem(ctx context.Context, db *gorm.DB, userID int) bool {
 // вместе со всей сортировкой -- выдача приезжала в порядке физического чтения таблицы,
 // то есть от самых старых записей, и обрезка по лимиту выбрасывала как раз свежие.
 func matchRankExpr(col string) string {
-	return `CASE
-		WHEN LOWER(TRIM(COALESCE(` + col + `, ''))) = LOWER(TRIM(?)) THEN 0
-		WHEN LOWER(COALESCE(` + col + `, '')) LIKE LOWER(?) || '%' THEN 1
-		ELSE 2 END AS match_rank`
+	return matchRankExprAny(col)
+}
+
+// matchRankExprAny -- та же ступень, но по нескольким колонкам сразу: берём лучшую из
+// них. Нужно там, где запись узнают не единственным способом: учётную запись ищут и по
+// фамилии, и по логину, и набравший логин целиком ждёт эту запись первой, а не под
+// однофамильцами.
+//
+// Каждая колонка требует двух аргументов (точное равенство и префикс) в порядке
+// перечисления - вызывающий передаёт запрос столько раз, сколько колонок, дважды.
+func matchRankExprAny(cols ...string) string {
+	parts := make([]string, 0, len(cols))
+	for _, col := range cols {
+		parts = append(parts, `CASE
+		WHEN LOWER(TRIM(COALESCE(`+col+`, ''))) = LOWER(TRIM(?)) THEN 0
+		WHEN LOWER(COALESCE(`+col+`, '')) LIKE LOWER(?) || '%' THEN 1
+		ELSE 2 END`)
+	}
+	if len(parts) == 1 {
+		return parts[0] + " AS match_rank"
+	}
+	return "LEAST(" + strings.Join(parts, ", ") + ") AS match_rank"
 }
 
 // searchMaxWords -- сколько слов запроса учитывать. Каждое слово добавляет свой блок
@@ -217,8 +235,22 @@ func fuzzyWordCondition(cols []string, raw string) (string, []interface{}) {
 // searchCondition -- полное условие поиска по набору колонок: точное вхождение или
 // нечёткое совпадение. Опечатку ловит вторая ветка, точный фрагмент -- первая.
 func searchCondition(cols []string, raw string) (string, []interface{}) {
+	return searchConditionFuzzyIn(cols, cols, raw)
+}
+
+// searchConditionFuzzyIn -- то же, но нечётко сравнивается только часть колонок.
+//
+// Нужно длинным текстовым полям: тело письма к заявке, полный текст новости, текст
+// обращения. Оператор %>> просматривает значение целиком, и на письме в 70 килобайт
+// одно такое сравнение стоит дороже всего остального запроса вместе взятого -- на
+// стенде поиск по заявкам из-за него не укладывался в свой бюджет 800 мс (1123 мс) и
+// стабильно попадал в degraded с "Не удалось опросить: Заявки".
+//
+// Потери смысла нет: в длинном тексте ищут точный фрагмент, а не приблизительный. У
+// коротких полей -- номера, фамилии, названия -- нечёткое сравнение остаётся.
+func searchConditionFuzzyIn(cols, fuzzyCols []string, raw string) (string, []interface{}) {
 	cond, args := multiWordCondition(cols, raw)
-	fuzzyCond, fuzzyArgs := fuzzyWordCondition(cols, raw)
+	fuzzyCond, fuzzyArgs := fuzzyWordCondition(fuzzyCols, raw)
 	if fuzzyCond == "" {
 		return cond, args
 	}

@@ -14,6 +14,12 @@ import {
   Tooltip,
 } from 'chart.js';
 import { watch, onBeforeUnmount } from 'vue';
+import { cssVariable, lighten, watchTheme, withAlpha } from '@/utils/chartColors';
+
+// Помощники по цвету общие с ручными холстами (лента запросов в мониторинге):
+// тамошнему графику Chart.js не нужен, поэтому они живут в utils. Реэкспорт
+// оставлен, чтобы компоненты аналитики брали всё оформление из одного места.
+export { cssVariable, lighten, withAlpha };
 
 // Chart.js собран по частям: незарегистрированный тип падает в разборе с
 // «"bar" is not a registered controller». Регистрируем здесь и только то, чем
@@ -51,8 +57,11 @@ Chart.register(
  */
 export function useChartCanvas(canvas, config) {
   let chart = null;
+  let themeWatcher = null;
 
   function destroy() {
+    themeWatcher?.disconnect();
+    themeWatcher = null;
     if (!chart) return;
     chart.destroy();
     chart = null;
@@ -62,6 +71,7 @@ export function useChartCanvas(canvas, config) {
     destroy();
     if (!canvas.value) return;
     chart = new Chart(canvas.value, config.value);
+    themeWatcher = watchTheme(canvas.value, () => chart?.update('none'));
   }
 
   watch([canvas, config], draw, { immediate: true, flush: 'post' });
@@ -69,50 +79,19 @@ export function useChartCanvas(canvas, config) {
 }
 
 /**
- * Цвет с заданной прозрачностью для градиентной заливки.
+ * Цвет оформления, снятый с темы страницы в момент отрисовки.
  *
- * Принимает шестнадцатеричную запись, которой пользуются вызывающие компоненты
- * (`color: '#4F5BDF'`). Незнакомую запись возвращает как есть: подмешать к ней
- * прозрачность нельзя, но и ронять график из-за оформления незачем.
+ * Chart.js рисует на холсте и переменных CSS не знает: прибитые числом цвета
+ * сетки и подписей верны только для светлой палитры, а на тёмной карточке
+ * сетка светила ярче самих данных. Значение отдаётся вычисляемой настройкой,
+ * поэтому читается на каждой отрисовке и следует за темой.
  *
- * @param {string} color цвет в записи #rgb или #rrggbb
- * @param {number} alpha прозрачность от 0 до 1
- * @returns {string}
+ * @param {string} name имя переменной темы, например '--border'
+ * @param {string} fallback цвет для окружения без темы (юниты, отсутствующий холст)
+ * @returns {(ctx: object) => string}
  */
-export function withAlpha(color, alpha) {
-  const parts = parseHex(color);
-  if (!parts) return String(color ?? '').trim();
-  return `rgba(${parts.join(', ')}, ${alpha})`;
-}
-
-/**
- * Цвет, подмешанный к белому, - подсветка сегмента под курсором.
- *
- * @param {string} color цвет в записи #rgb или #rrggbb
- * @param {number} amount доля белого от 0 до 1
- * @returns {string}
- */
-export function lighten(color, amount) {
-  const parts = parseHex(color);
-  if (!parts) return String(color ?? '').trim();
-  const mixed = parts.map((c) => Math.round(c + (255 - c) * amount));
-  return `rgb(${mixed.join(', ')})`;
-}
-
-/**
- * Составляющие цвета из шестнадцатеричной записи.
- *
- * @param {string} color цвет в записи #rgb или #rrggbb
- * @returns {number[]|null} null для незнакомой записи
- */
-function parseHex(color) {
-  const hex = String(color ?? '').trim();
-  const short = /^#([\da-f])([\da-f])([\da-f])$/i.exec(hex);
-  const full = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex);
-  if (!short && !full) return null;
-  return short
-    ? short.slice(1).map((c) => parseInt(c + c, 16))
-    : full.slice(1).map((c) => parseInt(c, 16));
+export function themeColor(name, fallback) {
+  return (ctx) => cssVariable(ctx?.chart?.canvas, name, fallback);
 }
 
 /**
@@ -139,13 +118,41 @@ export function verticalGradient(color, from = 0.32, to = 0.02) {
 }
 
 /** Оформление осей и подсказки, общее для всех графиков аналитики. */
-export const AXIS_LABEL = { color: '#a2a2a2', font: { size: 11 } };
-export const GRID_COLOR = '#eef0f7';
+export const AXIS_LABEL = { color: themeColor('--text-muted', '#a2a2a2'), font: { size: 11 } };
+export const GRID_COLOR = themeColor('--border', '#eef0f7');
 export const TOOLTIP_STYLE = {
   backgroundColor: 'rgba(30, 30, 40, 0.92)',
   titleColor: '#ffffff',
   bodyColor: '#ffffff',
+  // Рамка отделяет подсказку от тёмной карточки: без неё тёмная плашка на
+  // тёмной теме сливалась с фоном под графиком.
+  borderColor: themeColor('--border', 'rgba(255, 255, 255, 0.14)'),
+  borderWidth: 1,
   padding: 10,
   cornerRadius: 6,
   displayColors: true,
+  // Отступ от точки: вплотную подсказка накрывала её собой, и наведение
+  // показывало число ценой того места, куда смотришь.
+  caretPadding: 12,
 };
+
+/**
+ * Точка ряда под курсором: цвет ряда в белом кольце.
+ *
+ * Без явных цветов Chart.js берёт их у самого ряда - обводку из `borderColor`
+ * линии, заливку из `backgroundColor`, то есть из полупрозрачного градиента
+ * области. Точка выходит того же цвета, что линия под ней, и на графике её не
+ * видно. Белое кольцо отбивает её от линии в любой палитре ряда; так же
+ * рисовал маркер прежний движок.
+ *
+ * @param {string} color цвет ряда
+ * @returns {object} часть описания набора данных Chart.js
+ */
+export function hoverPointStyle(color) {
+  return {
+    pointHoverRadius: 6,
+    pointHoverBorderWidth: 3,
+    pointHoverBackgroundColor: color,
+    pointHoverBorderColor: '#ffffff',
+  };
+}

@@ -69,11 +69,10 @@
           data-testid="cabinet-search-icon"
           @click="toggleMobileSearch"
         >
-          <img
-            src="@/assets/icons/search.png"
+          <AppIcon
+            name="search"
             class="search-icon-btn__img"
-            alt=""
-          >
+          />
         </button>
 
         <!-- Мобилка: поле поиска раскрывается ВЛЕВО оверлеем поверх ряда настроек
@@ -125,14 +124,14 @@
                 <p :class="{ 'active-sort': sortField === 'application_number' }">
                   Номер заявки
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'application_number',
                     'desc': sortField === 'application_number' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col date-col"
@@ -141,14 +140,14 @@
                 <p :class="{ 'active-sort': sortField === 'sending_datetime' }">
                   Дата и время
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'sending_datetime',
                     'desc': sortField === 'sending_datetime' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col sender-col"
@@ -157,14 +156,14 @@
                 <p :class="{ 'active-sort': sortField === 'sender_name' }">
                   Отправитель
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'sender_name',
                     'desc': sortField === 'sender_name' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col confirmation-col"
@@ -173,14 +172,14 @@
                 <p :class="{ 'active-sort': sortField === 'confirmation' }">
                   Подтверждение
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'confirmation',
                     'desc': sortField === 'confirmation' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col status-col"
@@ -189,14 +188,14 @@
                 <p :class="{ 'active-sort': sortField === 'status' }">
                   Статус
                 </p>
-                <img
-                  src="@/assets/icons/sort.png"
+                <AppIcon
+                  name="sort"
                   class="sort-icon"
                   :class="{
                     'sorted': sortField === 'status',
                     'desc': sortField === 'status' && sortDirection === 'desc'
                   }"
-                >
+                />
               </div>
               <div class="header-col tags-col">
                 <p>Теги</p>
@@ -565,6 +564,7 @@ import { apiRequest } from '@/api/client'
 import { getUserApplicationsPaginated, getApplicationById, getUserStatusUpdatesCount } from '@/api/applications'
 import { useAuthStore } from '@/stores/auth'
 import { useDeletionsStore } from '@/stores/deletions'
+import { copyText } from '@/utils/clipboard'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useRevealFirstApplication } from '@/composables/useRevealFirstApplication'
 import RefreshButton from './RefreshButton.vue';
@@ -579,6 +579,8 @@ import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/
 import { pendingApprovalDays, pendingApprovalLabel, pendingApprovalShort } from '@/utils/pendingApproval';
 import { stripHtml } from '@/utils/sanitize';
 import { groupApplicationsByPeriod } from '@/utils/applicationPeriod';
+import { sortApplications } from '@/utils/applicationSort';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 // Размер порции бесшовной подгрузки ЛК (#1158 срез 4) - как в Центре заявок.
 const USER_APPLICATIONS_PER_PAGE = 30;
@@ -592,7 +594,8 @@ export default {
     DownloadBlanksModal,
     LoaderSpinner,
     Badge,
-    BaseDropdown
+    BaseDropdown,
+    AppIcon,
   },
   props: {
     userOrganizationId: {
@@ -669,6 +672,31 @@ export default {
     };
   },
   computed: {
+    /**
+     * Владелец списка ЛК. Пропс userId приходит из /users/me и на первых кадрах пуст,
+     * а маркер доступа несёт тот же идентификатор (claim user_id) синхронно - поэтому
+     * первый же запрос уходит со scope владельца. Без этого запрос уходил без
+     * sender_user_id, бэк отдавал весь скоуп ЛК (свои + заявки организации), и чужие
+     * строки успевали отрисоваться до перезапроса (#2218).
+     *
+     * Маркер важнее пропса: режим "войти как пользователь" подменяет маркер сразу, а
+     * пропс до перечитывания /users/me держит прежнего человека - запрос всё равно
+     * исполняется от личности маркера.
+     */
+    ownerUserId() {
+      return useAuthStore().userId || this.userId || null;
+    },
+
+    /**
+     * Известен ли scope выдачи для текущей вкладки. Пока неизвестен, запрос не уходит:
+     * без sender_user_id/organization_id бэк отдаёт весь скоуп ЛК целиком (#2218).
+     */
+    hasApplicationsScope() {
+      return this.currentFilter === 'organization'
+        ? !!this.userOrganizationId
+        : !!this.ownerUserId;
+    },
+
     // Опции фильтра Мои/Организации для BaseDropdown (заменил 2 таба одним списком).
     filterOptions() {
       const opts = [{ key: 'my', label: 'Мои заявки' }];
@@ -740,57 +768,7 @@ export default {
       return groupApplicationsByPeriod(this.sortedApplications, sortedByDate);
     },
     sortedApplications() {
-      const applications = [...this.filteredApplications];
-
-      if (!this.sortField) {
-        return applications.sort((a, b) => {
-          const dateA = new Date(a.sending_datetime);
-          const dateB = new Date(b.sending_datetime);
-          return dateB - dateA;
-        });
-      }
-
-      return applications.sort((a, b) => {
-        let valueA, valueB;
-        
-        switch (this.sortField) {
-          case 'application_number':
-            valueA = a.application_number;
-            valueB = b.application_number;
-            break;
-            
-          case 'sending_datetime':
-            valueA = new Date(a.sending_datetime);
-            valueB = new Date(b.sending_datetime);
-            break;
-            
-          case 'sender_name':
-            valueA = a.sender_name || a.sender_full_name || '';
-            valueB = b.sender_name || b.sender_full_name || '';
-            break;
-            
-          case 'confirmation':
-            valueA = a.confirmation;
-            valueB = b.confirmation;
-            break;
-            
-          case 'status':
-            valueA = a.status;
-            valueB = b.status;
-            break;
-            
-          default:
-            return 0;
-        }
-        
-        if (valueA < valueB) {
-          return this.sortDirection === 'asc' ? -1 : 1;
-        }
-        if (valueA > valueB) {
-          return this.sortDirection === 'asc' ? 1 : -1;
-        }
-        return 0;
-      });
+      return sortApplications(this.filteredApplications, this.sortField, this.sortDirection);
     }
   },
   watch: {
@@ -802,11 +780,12 @@ export default {
         this.fetchUserApplications();
       }, 300);
     },
-    userId() {
-      // После разрешения userId список перезагружается - тогда же пробуем открыть
-      // заявку из deep-link (на холодной навигации mounted-попытка была с пустым списком).
-      // userId участвует в buildUserApplicationsPage (вкладка "Мои заявки") - без
-      // перезапроса вкладка "Мои" осталась бы без sender_user_id до случайного refresh.
+    ownerUserId() {
+      // Владелец разрешился (или сменился - режим "войти как пользователь" подменяет
+      // маркер): список перезагружается, тогда же пробуем открыть заявку из deep-link
+      // (на холодной навигации mounted-попытка была с пустым списком). Обычно маркер и
+      // /users/me дают один и тот же идентификатор - значение не меняется, лишнего
+      // запроса нет.
       this.fetchUserApplications().then(() => this.openFromDeepLink());
     },
     // Переход из уведомления в кабинет: /personal-cabinet?open=<id> (#973).
@@ -895,8 +874,8 @@ export default {
         params.search_query = this.searchQuery;
       }
 
-      if (this.currentFilter === 'my' && this.userId) {
-        params.sender_user_id = this.userId;
+      if (this.currentFilter === 'my' && this.ownerUserId) {
+        params.sender_user_id = this.ownerUserId;
       } else if (this.currentFilter === 'organization' && this.userOrganizationId) {
         params.organization_id = this.userOrganizationId;
       }
@@ -936,6 +915,15 @@ export default {
       const authStore = useAuthStore();
       if (!authStore.token) {
         console.error("Пользователь не авторизован.");
+        return;
+      }
+
+      // Без scope запрос ушёл бы голым, а бэк на такой запрос отдаёт весь скоуп ЛК
+      // (свои ИЛИ заявки организации, applyUserApplicationsAccessFilter). Раньше эта
+      // выдача отрисовывалась и уезжала, когда резолвился /users/me (#2218): ждём scope
+      // под спиннером, перезапрос сделает watcher ownerUserId.
+      if (!this.hasApplicationsScope) {
+        this.isLoading = true;
         return;
       }
 
@@ -1272,24 +1260,10 @@ export default {
 
     async copyApplicationNumber(number) {
       if (!number) return;
-      try {
-        if (navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(String(number));
-        } else {
-          const textarea = document.createElement('textarea');
-          textarea.value = String(number);
-          textarea.setAttribute('readonly', '');
-          textarea.style.position = 'absolute';
-          textarea.style.left = '-9999px';
-          document.body.appendChild(textarea);
-          textarea.select();
-          document.execCommand('copy');
-          document.body.removeChild(textarea);
-        }
-        useDeletionsStore().notify({ prefix: 'Скопирован номер ', bold: String(number), type: 'success' });
-      } catch {
-        useDeletionsStore().notify({ prefix: 'Не удалось ', bold: 'скопировать номер', type: 'error' });
-      }
+      const copied = await copyText(number);
+      useDeletionsStore().notify(copied
+        ? { prefix: 'Скопирован номер ', bold: String(number), type: 'success' }
+        : { prefix: 'Не удалось ', bold: 'скопировать номер', type: 'error' });
     }
   }
 };
@@ -1459,10 +1433,11 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
@@ -1470,7 +1445,7 @@ export default {
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {
@@ -2380,6 +2355,8 @@ export default {
   .search-icon-btn__img {
     width: 16px;
     height: 16px;
+    color: var(--text);
+    stroke-width: 2.1;
   }
 
   /* Пустая полоса шапки колонок: .rt-head-row скрыт (responsive-tables.css), но

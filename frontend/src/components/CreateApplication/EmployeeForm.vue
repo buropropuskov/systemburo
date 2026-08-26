@@ -95,11 +95,11 @@
           >
             <div class="button__content">
               <span class="button__text">{{ selectedCitizenshipText }}</span>
-              <img
-                src="@/assets/icons/arrow.png"
+              <AppIcon
+                name="arrow"
                 class="button__arrow"
                 :class="{ 'button__arrow--up': citizenshipArrowUp }"
-              >
+              />
             </div>
           </button>
           <transition name="dropdown">
@@ -288,11 +288,11 @@
             >
               <div class="permission__button-content">
                 <span class="permission__button-text">{{ selectedPermission || (effectivePatentRequired ? 'Не выбрано' : 'Не требуется') }}</span>
-                <img
-                  src="@/assets/icons/arrow.png"
+                <AppIcon
+                  name="arrow"
                   class="permission__button-arrow"
                   :class="{ 'permission__button-arrow--up': permissionArrowUp }"
-                >
+                />
               </div>
             </button>
             <transition name="dropdown">
@@ -434,16 +434,19 @@ import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vu
 import { useFormValidation } from '@/composables/useFormValidation'
 import { useNarrowScreen } from '@/composables/useNarrowScreen'
 import { useFieldConfig } from '@/composables/useFieldConfig'
+import { resetEmployeeFormState } from './entryFormReset'
 import { collectActiveWarnings } from '@/utils/warningWindows'
 import { buildScheduleReport } from '@/utils/scheduleCheck'
 import { findDuplicateEmployee, employeeLabel } from '@/utils/applicationDuplicates'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { getCurrentInstance } from 'vue'
 import { getViewportZoom } from '@/utils/viewportScale'
+import AppIcon from '@/components/icons/AppIcon.vue'
 
 export default {
     name: 'EmployeeForm',
     components: {
+        AppIcon,
         ExistingEmployeesModal,
         TargetTablesGrid
     },
@@ -1222,8 +1225,7 @@ export default {
 
         cancelEdit() {
             this.$emit('edit-cancelled');
-            this.editingEmployee = null;
-            this.clearEmployeeForm();
+            resetEmployeeFormState(this);
         },
         
         toggleCitizenshipDropdown() {
@@ -1662,8 +1664,8 @@ export default {
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    font-size: 13px;
-    line-height: 1.35;
+    font-size: 11px;
+    line-height: 1.3;
     cursor: pointer;
 }
 

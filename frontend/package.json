@@ -8,6 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src/",
+    "lint:size": "node build/check-file-sizes.js",
+    "lint:bundle": "node build/check-bundle-size.js",
     "test": "vitest",
     "test:run": "vitest run"
   },

@@ -64,8 +64,14 @@ func TestUnloadPlaces_UploadPhoto_Pipeline(t *testing.T) {
 	photoURL, _ := photos[0].(map[string]interface{})["photo_url"].(string)
 	require.Contains(t, photoURL, "/api/uploads/unload_places/")
 
+	// Без пропуска статика молчит: до #2133 файл забирал любой, кто знает адрес.
+	anon := httptest.NewRecorder()
+	e.ServeHTTP(anon, httptest.NewRequest(http.MethodGet, photoURL, nil))
+	require.Equal(t, http.StatusUnauthorized, anon.Code, "статика /api/uploads не должна отвечать без входа в систему")
+
 	// Статика реально отдаёт загруженный файл (без этого <img> ловит 404).
 	sreq := httptest.NewRequest(http.MethodGet, photoURL, nil)
+	sreq.Header.Set("Authorization", "Bearer "+token)
 	srec := httptest.NewRecorder()
 	e.ServeHTTP(srec, sreq)
 	require.Equal(t, http.StatusOK, srec.Code, "статика /api/uploads должна раздавать файл")
@@ -110,7 +116,12 @@ func TestSystemTables_UploadPhoto_Pipeline(t *testing.T) {
 	photoURL, _ := photos[0].(map[string]interface{})["photo_url"].(string)
 	require.Contains(t, photoURL, "/api/uploads/system_tables/")
 
+	anon := httptest.NewRecorder()
+	e.ServeHTTP(anon, httptest.NewRequest(http.MethodGet, photoURL, nil))
+	require.Equal(t, http.StatusUnauthorized, anon.Code, "статика /api/uploads не должна отвечать без входа в систему")
+
 	sreq := httptest.NewRequest(http.MethodGet, photoURL, nil)
+	sreq.Header.Set("Authorization", "Bearer "+token)
 	srec := httptest.NewRecorder()
 	e.ServeHTTP(srec, sreq)
 	require.Equal(t, http.StatusOK, srec.Code)

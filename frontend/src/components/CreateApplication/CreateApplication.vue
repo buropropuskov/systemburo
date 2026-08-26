@@ -362,7 +362,6 @@
               @item-added="handleItemAdded"
               @items-added="handleItemsAdded"
               @item-updated="handleItemUpdated"
-              @edit-cancelled="handleItemEditCancelled"
               @update:unload-places="onApplicationUnloadPlacesChange"
             />
             <ItemsList
@@ -1104,7 +1103,6 @@ export default {
 
                 if (response.ok) {
                     const tables = await response.json();
-                    console.log('Загруженные таблицы в CreateApplication:', tables);
                     this.allPassageTables = tables;
                 } else {
                     console.error("Ошибка при загрузке системных таблиц");
@@ -2054,7 +2052,6 @@ export default {
         },
 
         handleVehicleEditCancelled() {
-            this.vehicleFormKey += 1;
             this.resumeImportAfterEdit();
         },
 
@@ -2142,7 +2139,6 @@ export default {
         },
 
         handleEmployeeEditCancelled() {
-            this.employeeFormKey += 1;
             this.resumeImportAfterEdit();
         },
 
@@ -2251,10 +2247,6 @@ export default {
                 items.splice(index, 1, updatedItem);
                 this.saveToLocalStorage();
             }
-        },
-
-        handleItemEditCancelled() {
-            this.itemsFormKey += 1;
         },
 
         deleteItem(itemId) {

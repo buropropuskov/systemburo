@@ -6,6 +6,7 @@ import { usePDConsentStore } from '@/stores/pdConsent'
 import { usePasswordChangeStore } from '@/stores/passwordChange'
 import router from '@/router'
 import { buildBugContext, saveBugContext } from '@/composables/useBugReport'
+import { interceptRead } from './readInterceptor'
 
 // API_BASE_URL оставляем настраиваемым для локальной разработки с отдельным backend-портом,
 // но на staging/prod он пуст и префикс /api обеспечивает маршрутизацию через nginx:
@@ -268,6 +269,9 @@ function shouldHandleAsServerError(path, status) {
 }
 
 async function baseRequest(path, options = {}) {
+  // Демонстрационные данные онбординга (см. readInterceptor.js) - только чтение.
+  const demo = interceptRead(path, options)
+  if (demo) return demo
   const authStore = useAuthStore()
   let response = await doFetch(path, options, authStore.token)
 
@@ -293,6 +297,9 @@ async function baseRequest(path, options = {}) {
       route: `${options.method || 'GET'} ${path}`,
       httpStatus: response.status,
       message: response.statusText || `HTTP ${response.status}`,
+      // Страница инцидента предлагает вернуться туда, где всё упало - сама она
+      // адрес узнать уже не может, к её монтированию currentRoute это /500.
+      uiRoute: router.currentRoute.value.fullPath,
     }))
     router.push('/500')
     return response

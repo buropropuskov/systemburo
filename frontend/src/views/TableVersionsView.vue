@@ -109,7 +109,7 @@
             v-else
             class="versions-filter__none"
           >
-            {{ listLoading ? 'Загрузка...' : (dateFilter ? 'нет версий за дату' : 'нет версий') }}
+            {{ listLoading ? 'Загрузка...' : (dateFrom ? 'нет версий за период' : 'нет версий') }}
           </span>
           <button
             v-if="items.length < total"
@@ -126,14 +126,17 @@
         <div class="versions-filter__group">
           <span class="versions-filter__label">Найти по дате</span>
           <!-- Календарь (стандартный DateFilter проекта) - основной способ найти
-               версию: список снимков растёт ~1/день, выбор дня сужает его к дате.
-               Одиночный режим, границы дня считает fetchList через dayBoundsISO. -->
+               версию: список снимков растёт ~1/день. Диапазонный режим покрывает и
+               один день (клик по дню = день-день), и период вроде "Прошлый месяц";
+               границы берём из выбора и шлём в fetchList как from/to. -->
           <DateFilter
-            :mode="'single'"
-            :selected-date="selectedDateObj"
+            :mode="'range'"
+            :date-range-start="rangeStart"
+            :date-range-end="rangeEnd"
             class="versions-filter__date"
             data-testid="tv-date-filter"
-            @update:selected-date="onVersionDatePick"
+            @update:date-range-start="onRangeStart"
+            @update:date-range-end="onRangeEnd"
             @apply="applyVersionDate"
             @clear="clearDate"
           />
@@ -389,13 +392,14 @@ const listError = ref(false);
 const selectedId = ref(null);
 const detail = ref(null);
 
-// Поиск по строкам показанной версии (фильтрует внутри CarsTable/PeopleTable) и
-// фильтр списка версий по дате (YYYY-MM-DD, уходит как from=to в BE-эндпоинт).
+// Поиск по строкам показанной версии (фильтрует внутри CarsTable/PeopleTable).
 const searchQuery = ref('');
-const dateFilter = ref('');
-// Выбранный в календаре день как Date (для DateFilter :selected-date); строковый
-// dateFilter (YYYY-MM-DD) - производная, её и шлём в fetchList.
-const selectedDateObj = ref(null);
+// Применённые границы периода (ISO, уходят в BE как from/to); пустые - фильтра нет.
+const dateFrom = ref('');
+const dateTo = ref('');
+// Выбор в календаре до нажатия "Применить".
+const rangeStart = ref(null);
+const rangeEnd = ref(null);
 
 // Действия: ручной снимок, экспорт выбранной версии, чистка старых.
 const snapshotSaving = ref(false);
@@ -428,17 +432,21 @@ function reasonLabel(reason) {
   return REASON_LABELS[reason] || reason || 'Снимок';
 }
 
-// Границы выбранного дня в ISO (RFC3339) по ЛОКАЛЬНОЙ зоне браузера. BE парсит
+// Границы выбранного периода в ISO (RFC3339) по ЛОКАЛЬНОЙ зоне браузера. BE парсит
 // голую YYYY-MM-DD в UTC, а дропдаун версий рендерит taken_at через formatDateTime
 // в локальной зоне - для снимка, чьё UTC-время попадает в другой календарный день,
 // фильтр по видимой дате разъехался бы на сутки. Локальные границы + офсет в ISO
 // (parseSnapshotBound понимает RFC3339) держат фильтр в тех же сутках, что и лейбл.
-function dayBoundsISO(ymd) {
-  if (!ymd) return { from: '', to: '' };
-  return {
-    from: new Date(`${ymd}T00:00:00`).toISOString(),
-    to: new Date(`${ymd}T23:59:59.999`).toISOString(),
-  };
+function dayStartISO(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+function dayEndISO(date) {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d.toISOString();
 }
 
 function reasonVariant(reason) {
@@ -507,12 +515,11 @@ async function fetchList({ reset = true } = {}) {
   listError.value = false;
   const seq = ++listSeq;
   try {
-    const { from, to } = dayBoundsISO(dateFilter.value);
     const { items: data, total: t } = await listTableSnapshots(tableID.value, {
       page: page.value,
       perPage: PER_PAGE,
-      from,
-      to,
+      from: dateFrom.value,
+      to: dateTo.value,
     });
     if (seq !== listSeq) return;
     items.value = reset ? data : [...items.value, ...data];
@@ -552,8 +559,10 @@ async function saveSnapshotNow() {
     await createTableSnapshot(tableID.value);
     deletions.notify({ prefix: 'Сохранена версия таблицы', bold: displayName.value, type: 'success' });
     // Сбрасываем фильтр даты - свежий снимок сегодняшний, под старым фильтром не виден.
-    dateFilter.value = '';
-    selectedDateObj.value = null;
+    dateFrom.value = '';
+    dateTo.value = '';
+    rangeStart.value = null;
+    rangeEnd.value = null;
     refresh();
   } catch {
     deletions.notify({ prefix: 'Не удалось сохранить версию', type: 'error' });
@@ -619,30 +628,30 @@ function refresh() {
   fetchList({ reset: true });
 }
 
-// Локальная дата в YYYY-MM-DD (dayBoundsISO трактует её как границы локального дня,
-// см. фикс таймзоны r3) - не через toISOString, чтобы день не уехал в UTC.
-function toLocalYMD(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+// Календарь эмитит границы выбора перед apply - запоминаем, применяем по кнопке.
+function onRangeStart(date) {
+  rangeStart.value = date;
 }
 
-// Календарь эмитит выбранный день перед apply - просто запоминаем его.
-function onVersionDatePick(date) {
-  selectedDateObj.value = date;
+function onRangeEnd(date) {
+  rangeEnd.value = date;
 }
 
-// Применение выбора в календаре - сузить список версий к дню и автовыбрать первую.
+// Применение выбора в календаре - сузить список версий к периоду и автовыбрать первую.
 function applyVersionDate() {
-  dateFilter.value = selectedDateObj.value ? toLocalYMD(selectedDateObj.value) : '';
+  const start = rangeStart.value || rangeEnd.value;
+  const end = rangeEnd.value || rangeStart.value;
+  dateFrom.value = start ? dayStartISO(start) : '';
+  dateTo.value = end ? dayEndISO(end) : '';
   refresh();
 }
 
 function clearDate() {
-  selectedDateObj.value = null;
-  if (!dateFilter.value) return;
-  dateFilter.value = '';
+  rangeStart.value = null;
+  rangeEnd.value = null;
+  if (!dateFrom.value && !dateTo.value) return;
+  dateFrom.value = '';
+  dateTo.value = '';
   refresh();
 }
 

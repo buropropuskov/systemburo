@@ -128,69 +128,67 @@
       </Transition>
     </div>
 
-    <!-- ===== ГРУППА: ВЛОЖЕНИЯ ===== -->
-    <div class="dashboard__group">
-      <div class="dashboard__group-head">
-        <h2 class="dashboard__group-title">Вложения</h2>
-        <span class="dashboard__group-chip">по типам за период</span>
-        <span class="dashboard__group-rule" />
-      </div>
+    <!-- ===== ВЛОЖЕНИЯ И PUSH: два блока в одну строку ===== -->
+    <div class="an-pair">
+      <div class="dashboard__group">
+        <div class="dashboard__group-head">
+          <h2 class="dashboard__group-title">Вложения</h2>
+          <span class="dashboard__group-chip">по типам за период</span>
+          <span class="dashboard__group-rule" />
+        </div>
 
-      <div
-        v-if="summaryLoading && !summaryReady"
-        class="dashboard__tiles"
-      >
         <div
-          v-for="n in 6"
-          :key="n"
-          class="dashboard__tile dashboard__tile--skeleton"
-        />
-      </div>
-
-      <div
-        v-else-if="attachmentBreakdown.length === 0"
-        class="dashboard__feed-empty"
-      >
-        В системе нет настроенных типов вложений
-      </div>
-
-      <div
-        v-else
-        class="dashboard__attach"
-      >
-        <Transition name="dashboard__chart-fade">
+          v-if="summaryLoading && !summaryReady"
+          class="dashboard__tiles"
+        >
           <div
-            v-if="attachmentDonutData.length > 0"
-            class="dashboard__attach-chart"
-          >
+            v-for="n in 6"
+            :key="n"
+            class="dashboard__tile dashboard__tile--skeleton"
+          />
+        </div>
+
+        <div
+          v-else-if="attachmentBreakdown.length === 0"
+          class="dashboard__feed-empty"
+        >
+          В системе нет настроенных типов вложений
+        </div>
+
+        <div
+          v-else
+          class="an-panel"
+        >
+          <div class="an-panel__chart">
             <AnalyticsDonutChart
               :data="attachmentDonutData"
-              :height="280"
               total-label="Вложений"
               :unit-forms="['вложение', 'вложения', 'вложений']"
+              empty-ring
+              fill-height
             />
           </div>
-        </Transition>
-        <div class="dashboard__tiles dashboard__attach-tiles">
-          <div
-            v-for="item in attachmentBreakdown"
-            :key="item.label"
-            class="dashboard__tile"
-          >
-            <div class="dashboard__tile-label">{{ item.label }}</div>
-            <div class="dashboard__tile-val">
-              <AnimatedNumber :value="item.count" />
+          <div class="an-panel__tiles">
+            <div
+              v-for="item in attachmentBreakdown"
+              :key="item.label"
+              class="dashboard__tile"
+            >
+              <div class="dashboard__tile-label">{{ item.label }}</div>
+              <div class="dashboard__tile-val">
+                <AnimatedNumber :value="item.count" />
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- ===== PUSH-УВЕДОМЛЕНИЯ (#974) =====
-         Снимок на сейчас, не завязан на выбранный период (from/to) - в отличие
-         от групп выше, поэтому не в watch([props.from, props.to]) и не в
-         summarySeq/summaryLoading, а сам себе загружает и обновляет данные. -->
-    <PushAdoptionSummary ref="pushAdoptionRef" />
+      <!-- ===== PUSH-УВЕДОМЛЕНИЯ (#974) =====
+           Снимок на сейчас, не завязан на выбранный период (from/to) - в отличие
+           от групп выше, поэтому не в watch([props.from, props.to]) и не в
+           summarySeq/summaryLoading, а сам себе загружает и обновляет данные. -->
+      <PushAdoptionSummary ref="pushAdoptionRef" />
+    </div>
 
     <!-- ===== ГРУППА: СИСТЕМА ===== -->
     <div class="dashboard__group">
@@ -679,10 +677,15 @@ const detailUnitForms = {
 };
 
 // ---- вычисляемые из summary ----
+// Порядок плиток - по имени, а не тот, в котором пришёл ответ: там типы идут по
+// убыванию количества, и на другом периоде состав ненулевых меняется. Плитки
+// переезжали местами, а перемещённые вдобавок переигрывали анимацию появления.
 const attachmentBreakdown = computed(() => {
   const list = summary.value.by_attachment_type;
   if (!Array.isArray(list)) return [];
-  return list.map((item) => ({ label: item.name, count: item.count }));
+  return list
+    .map((item) => ({ label: item.name, count: item.count }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'ru'));
 });
 
 // Donut распределения по типам вложений: только ненулевые доли (пустые типы
@@ -1084,44 +1087,6 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
   gap: 12px;
-}
-
-/* Распределение вложений: donut слева, плитки-числа справа; на узких — стопкой. */
-.dashboard__attach {
-  display: grid;
-  grid-template-columns: minmax(280px, 360px) 1fr;
-  gap: 20px;
-  align-items: start;
-}
-
-.dashboard__attach-chart {
-  background: var(--surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
-}
-
-.dashboard__attach-tiles {
-  min-width: 0;
-}
-
-.dashboard__chart-fade-enter-active,
-.dashboard__chart-fade-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.dashboard__chart-fade-enter-from,
-.dashboard__chart-fade-leave-to {
-  opacity: 0;
-  transform: translateY(8px);
-}
-
-@media (max-width: 900px) {
-  .dashboard__attach {
-    /* minmax(0,1fr): иначе трек сайзится по min-content доната (~300px)
-       и на узком экране (<=320) вылезает за контейнер, вместо сжатия графика. */
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 .dashboard__tile {

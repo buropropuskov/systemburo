@@ -357,11 +357,11 @@
                       :disabled="entryExitHistory.length === 0 || isExporting"
                       @click="exportHistory"
                     >
-                      <img
+                      <AppIcon
                         v-if="!isExporting"
-                        src="@/assets/icons/export.png"
+                        name="export"
                         class="export-icon"
-                      >
+                      />
                       <span v-if="!isExporting">Экспорт</span>
                       <div
                         v-else
@@ -537,10 +537,12 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { checkVehicleBlacklist, createVehicleBlacklist } from '@/api/blacklist';
 import { listMarks } from '@/api/marks';
 import ExcelJS from 'exceljs';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
     name: 'VehicleDetailsModal',
     components: {
+        AppIcon,
         UnloadPlaceModal,
         TableInfoModal,
         CarHistoryModal,

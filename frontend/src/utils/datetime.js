@@ -12,6 +12,19 @@ export function formatDateTime(value) {
 }
 
 /**
+ * Название дня недели по дате. Индексация от воскресенья - как у Date.getDay(),
+ * а не как в расписаниях, где неделя начинается с понедельника.
+ * @param {string|Date|null|undefined} value
+ * @returns {string} 'Среда' или '' для пустого/невалидного значения
+ */
+export function weekdayName(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'][d.getDay()];
+}
+
+/**
  * ISO-момент -> значение для `<input type="datetime-local">` (локальное время
  * без зоны). Через части даты, а не toISOString(): срез ISO-строки увёл бы
  * время на UTC и показал бы админу не тот час, который он выбрал.

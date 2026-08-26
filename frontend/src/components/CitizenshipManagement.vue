@@ -97,11 +97,11 @@
               <p :class="{ 'active-sort': sortField === 'id' }">
                 ID
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{ sorted: sortField === 'id', desc: sortField === 'id' && sortDirection === 'desc' }"
-              >
+              />
             </div>
             <div
               class="header-col name-col"
@@ -110,11 +110,11 @@
               <p :class="{ 'active-sort': sortField === 'name' }">
                 Наименование
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{ sorted: sortField === 'name', desc: sortField === 'name' && sortDirection === 'desc' }"
-              >
+              />
             </div>
           </div>
 
@@ -466,10 +466,14 @@ import {
   bulkArchiveCitizenships,
   bulkRestoreCitizenships,
 } from '@/api/citizenships';
+import AppIcon from '@/components/icons/AppIcon.vue';
+import { readSearchFromRoute } from '@/utils/searchQueryParam';
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
   name: 'CitizenshipManagement',
-  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, CitizenshipHistoryModal },
+  mixins: [openFromSearchLink((vm) => vm.items, 'selectCitizenship')],
+  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, CitizenshipHistoryModal, AppIcon },
   setup() {
     // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
     const overlay = { close: () => {} };
@@ -479,7 +483,8 @@ export default {
   data() {
     return {
       items: [],
-      searchQuery: '',
+      // Из адреса: переход из сквозного поиска приносит запрос с собой.
+      searchQuery: readSearchFromRoute(this.$route),
       showArchive: false,
       sortField: null,
       sortDirection: 'asc',
@@ -613,6 +618,7 @@ export default {
     document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
+
     onKeydown(e) {
       if (e.key === 'Escape' && this.showAddModal) this.requestCloseAdd();
     },
@@ -654,6 +660,7 @@ export default {
       try {
         const data = await listCitizenships({ includeArchived: true });
         this.items = Array.isArray(data) ? data : [];
+        this.openFromSearchLink();
         // Подтянуть актуальные поля выбранного гражданства или снять выбор,
         // если оно больше не видно в текущем фильтре.
         if (this.selectedCitizenship) {
@@ -1083,17 +1090,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: 0.2s;
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {

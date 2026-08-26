@@ -3,7 +3,7 @@
     <BlacklistTabBase
       ref="base"
       empty-noun="машины"
-      :entity-icon="carIcon"
+      entity-icon="car"
       :api-list="listVehicleBlacklist"
       :get-primary-text="primaryText"
       :get-detail-rows="detailRows"
@@ -11,6 +11,7 @@
       :bulk-archive-fn="bulkArchiveVehicleBlacklist"
       :bulk-restore-fn="bulkRestoreVehicleBlacklist"
       testid-prefix="vehicle-bl"
+      tab-key="vehicles"
       cascade-noun-plural="машины"
       @count="$emit('count', $event)"
       @create="showCreate = true"
@@ -111,7 +112,6 @@ import {
 import { lookupUniqueCar } from '@/api/cars';
 import { formatDateTime } from '@/utils/datetime';
 import { useDeletionsStore } from '@/stores/deletions';
-import carIcon from '@/assets/icons/car.png';
 
 /**
  * Вкладка "Машины" чёрного списка (#443). Конфигурирует BlacklistTabBase под машины
@@ -126,7 +126,7 @@ export default {
   emits: ['count'],
   data() {
     return {
-      showCreate: false, archiveItem: null, showHistory: false, carIcon, detailsVehicle: null, showDetails: false,
+      showCreate: false, archiveItem: null, showHistory: false, detailsVehicle: null, showDetails: false,
       editItem: null, savingEdit: false, editError: '', purgeItem: null,
       restoreItem: null, restoreSubject: '', restoreImpact: { matches: 0, tables: [], rows: [] },
     };

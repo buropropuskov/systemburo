@@ -76,6 +76,10 @@ export const useAuthStore = defineStore('auth', {
     username() {
       return this.userPayload?.username || null;
     },
+    /** Идентификатор работника из маркера доступа (claim user_id). */
+    userId() {
+      return this.userPayload?.user_id ?? null;
+    },
     isSecurity() {
       return this.userTypeCode === 'security';
     },

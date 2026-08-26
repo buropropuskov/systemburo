@@ -88,6 +88,37 @@ describe('AnalyticsAreaChart', () => {
     ]);
   });
 
+  it('точка под курсором не сливается с линией своего же цвета', async () => {
+    const { config } = await build({ data: DATA, color: '#4F5BDF' });
+    const ds = config.data.datasets[0];
+
+    // Точка появляется только под курсором: в покое линия идёт без узлов.
+    expect(ds.pointRadius).toBe(0);
+    expect(ds.pointHoverRadius).toBeGreaterThan(0);
+    // Белое кольцо отбивает точку от линии: без него Chart.js красит её цветом
+    // ряда и заливкой области, и на собственном графике точку не видно.
+    expect(ds.pointHoverBorderColor).toBe('#ffffff');
+    expect(ds.pointHoverBorderWidth).toBeGreaterThan(0);
+    // Сердцевина в цвете ряда - точка читается как узел своей линии.
+    expect(ds.pointHoverBackgroundColor).toBe('#4F5BDF');
+  });
+
+  it('подсказка встаёт рядом с точкой и не накрывает её', async () => {
+    const { config } = await build({ data: DATA });
+    const { tooltip } = config.options.plugins;
+    // 'nearest' + отступ каретки: по центру ряда и вплотную подсказка ложилась
+    // на саму точку, ради которой наводятся.
+    expect(tooltip.position).toBe('nearest');
+    expect(tooltip.caretPadding).toBeGreaterThanOrEqual(10);
+    // Точка на верхней отметке шкалы иначе срезается краем холста.
+    expect(config.options.layout.padding.top).toBeGreaterThan(0);
+  });
+
+  it('под курсором ведёт вертикаль к оси X', async () => {
+    const { config } = await build({ data: DATA });
+    expect(config.plugins.map((p) => p.id)).toContain('crosshair');
+  });
+
   it('метки оси X — дд.мм без сдвига таймзоны', async () => {
     const { config } = await build({ data: DATA });
     // '2026-06-15' -> '15.06' (день не съезжает на 14.06 из-за UTC-полуночи)

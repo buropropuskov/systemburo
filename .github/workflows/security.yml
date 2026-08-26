@@ -12,6 +12,35 @@ permissions:
   contents: read
 
 jobs:
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      # Полная история: сканируем не только текущее состояние, но и коммиты -
+      # удалённый из дерева ключ остаётся в открытом репозитории навсегда.
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      # Официальный action берёт лицензию с организаций, поэтому контейнер.
+      # Версия прибита: с плавающей меткой набор правил меняется на стороне
+      # разработчика, и сборка краснеет или зеленеет без наших правок.
+      # Разобранные срабатывания перечислены отпечатками в .gitleaksignore,
+      # новое срабатывание роняет сборку намеренно.
+      - name: Run gitleaks
+        run: |
+          set -o pipefail
+          docker run --rm -v "$PWD":/repo -w /repo \
+            zricethezav/gitleaks:v8.30.1 \
+            detect --source /repo --no-banner --redact --exit-code 1 2>&1 | tee gitleaks.log
+          # Прогон, не увидевший ни одного коммита, заканчивается словами
+          # "no leaks found" и нулевым кодом - то есть этап зеленеет, ничего не
+          # проверив. Так было при запуске в git-worktree, где .git это файл-ссылка;
+          # то же даст checkout мелкой глубины. Требуем непустого счётчика.
+          grep -qE "[1-9][0-9]* commits scanned" gitleaks.log || {
+            echo "gitleaks не просканировал ни одного коммита - проверка недействительна"
+            exit 1
+          }
+
   govulncheck:
     name: Go Vulnerability Check
     runs-on: ubuntu-latest

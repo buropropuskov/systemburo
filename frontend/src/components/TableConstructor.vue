@@ -98,14 +98,14 @@
                 <p :class="{ 'active-sort': sortField === 'id' }">
                   ID
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'id',
                     'desc': sortField === 'id' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col name-col"
@@ -114,14 +114,14 @@
                 <p :class="{ 'active-sort': sortField === 'name' }">
                   Наименование
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'name',
                     'desc': sortField === 'name' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col type-col"
@@ -130,14 +130,14 @@
                 <p :class="{ 'active-sort': sortField === 'type' }">
                   Тип
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'type',
                     'desc': sortField === 'type' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div class="header-col status-col">
                 <p>Статус</p>
@@ -367,12 +367,13 @@
                 <button
                   v-if="selectedTable.table.is_active"
                   class="delete-icon-btn"
+                  title="Удалить таблицу"
                   @click="confirmDeleteTable(selectedTable)"
                 >
-                  <img
-                    src="@/assets/icons/delete.png"
+                  <AppIcon
+                    name="delete"
                     class="delete-icon"
-                  >
+                  />
                 </button>
               </div>
             </div>
@@ -398,11 +399,11 @@
                         @click="toggleTableTypeDropdown"
                       >
                         <span class="select-value">{{ getTableTypeLabel(selectedTable.table.table_type) }}</span>
-                        <img
-                          src="@/assets/icons/arrow.png"
+                        <AppIcon
+                          name="arrow"
                           class="select-arrow"
                           :class="{ rotated: tableTypeDropdownOpen }"
-                        >
+                        />
                       </div>
                       <transition name="dropdown-fade">
                         <div
@@ -918,9 +919,12 @@ import SystemTableHistoryModal from './SystemTableHistoryModal.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
   name: 'TableConstructor',
+  mixins: [openFromSearchLink((vm) => vm.tables, 'selectTable', (row) => row?.table?.id, 'searchQuery')],
   components: {
     SearchComponent,
     RefreshButton,
@@ -935,6 +939,7 @@ export default {
     ConfirmationModal,
     BaseDropdown,
     AdminPageShell,
+    AppIcon,
   },
   setup() {
     const permissionsStore = usePermissionsStore();
@@ -942,7 +947,6 @@ export default {
   },
   data() {
     return {
-      searchQuery: '',
       refreshing: false,
       tables: [],
       showAddModal: false,
@@ -1105,9 +1109,9 @@ export default {
     },
   },
   async mounted() {
-    // Возврат со страницы версий архивной таблицы (?open=<name>): открыть архив
-    // и выбрать ту же таблицу, чтобы юзер вернулся ровно туда, где был.
-    const openName = this.$route?.query?.open;
+    // Один `open` обслуживает два перехода: ИМЯ архивной таблицы со страницы версий
+    // (тогда открываем архив) и числовой id из поиска - тот разбирает примесь.
+    const openName = Number.isNaN(Number(this.$route?.query?.open)) ? this.$route?.query?.open : null;
     if (openName) this.showArchive = true;
     await this.refreshData();
     if (openName) {
@@ -1124,6 +1128,7 @@ export default {
     });
   },
   methods: {
+
     /**
      * Переключение вкладки с защитой: если на текущей вкладке есть pending
      * правки - сначала спросить подтверждение. confirmIfAnyDirty опрашивает
@@ -1154,6 +1159,7 @@ export default {
         if (response.ok) {
           const data = await response.json();
           this.tables = data;
+          this.openFromSearchLink();
         }
       } catch (error) {
         console.error("Error fetching system tables:", error);
@@ -1543,28 +1549,6 @@ export default {
       return table.current_status === 'open' ? 'Открыто сейчас' : 'Закрыто сейчас';
     },
     
-    getTableFields(tableType) {
-      if (tableType === 'cars') {
-        return [
-          { name: 'car_number', displayName: 'Номер машины', type: 'Текст' },
-          { name: 'car_brand', displayName: 'Марка', type: 'Текст' },
-          { name: 'organization', displayName: 'Организация', type: 'Текст' },
-          { name: 'unload_place', displayName: 'Место разгрузки', type: 'Текст' },
-          { name: 'valid_until', displayName: 'Действует до', type: 'Дата' },
-          { name: 'time_range', displayName: 'Время', type: 'Текст' },
-          { name: 'status', displayName: 'Статус', type: 'Текст' }
-        ];
-      } else {
-        return [
-          { name: 'organization', displayName: 'Организация', type: 'Текст' },
-          { name: 'last_name', displayName: 'Фамилия', type: 'Текст' },
-          { name: 'first_name', displayName: 'Имя', type: 'Текст' },
-          { name: 'middle_name', displayName: 'Отчество', type: 'Текст' },
-          { name: 'valid_until', displayName: 'Действует до', type: 'Дата' },
-          { name: 'pass_time', displayName: 'Время прохода', type: 'Текст' }
-        ];
-      }
-    },
     
     getDefaultHint(tableType) {
       if (tableType === 'cars') {
@@ -1987,10 +1971,11 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
@@ -1998,7 +1983,7 @@ export default {
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {
@@ -2386,6 +2371,7 @@ export default {
 }
 
 .delete-icon {
+  color: var(--danger);
   width: 20px;
   height: 20px;
 }

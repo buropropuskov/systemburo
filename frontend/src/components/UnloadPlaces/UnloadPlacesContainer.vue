@@ -97,14 +97,14 @@
               <p :class="{ 'active-sort': sortField === 'id' }">
                 ID
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'id',
                   'desc': sortField === 'id' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
             <div
               class="header-col name-col"
@@ -113,14 +113,14 @@
               <p :class="{ 'active-sort': sortField === 'name' }">
                 Наименование
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'name',
                   'desc': sortField === 'name' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
             <div class="header-col status-col">
               <p>Статус</p>
@@ -637,10 +637,10 @@
                     title="Удалить"
                     @click="deletePhoto(photo)"
                   >
-                    <img
-                      src="@/assets/icons/trashcan.png"
+                    <AppIcon
+                      name="trashcan"
                       class="action-icon-small"
-                    >
+                    />
                   </button>
                 </div>
               </div>
@@ -882,8 +882,12 @@ import WorkScheduleTab from '../WorkScheduleTab.vue';
 import WarningWindowsEditor from '../WarningWindowsEditor.vue';
 import UnloadPlaceHistoryModal from './UnloadPlaceHistoryModal.vue';
 import { bulkArchiveUnloadPlaces, bulkRestoreUnloadPlaces, getUnloadPlaceUsage, detachAllUnloadPlace, detachOrganizationFromUnloadPlace, detachCompanyFromUnloadPlace } from '@/api/unload-places';
+import AppIcon from '@/components/icons/AppIcon.vue';
+import { fetchCurrentUserName } from '@/utils/currentUserName';
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
+  mixins: [openFromSearchLink((vm) => vm.unloadPlaces, 'selectPlace')],
   components: {
     SearchComponent,
     RefreshButton,
@@ -891,7 +895,8 @@ export default {
     BaseDropdown,
     WorkScheduleTab,
     WarningWindowsEditor,
-    UnloadPlaceHistoryModal
+    UnloadPlaceHistoryModal,
+    AppIcon,
   },
   setup() {
     // Колбэк закрытия присваивается в created (нужен доступ к this).
@@ -1119,6 +1124,7 @@ export default {
             originalStatusComment: place.status_comment
           }));
           this.pruneSelection();
+          this.openFromSearchLink();
         }
       } catch (error) {
         console.error("Error fetching unload places:", error);
@@ -1434,16 +1440,7 @@ export default {
     },
 
     async fetchCurrentUser() {
-      // Имя нужно для футера Excel-экспорта истории ("Отчёт сформировал").
-      try {
-        const res = await apiRequest('/users/me');
-        if (!res.ok) return;
-        const u = await res.json();
-        const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
-        this.currentUserName = parts.join(' ') || u.username || '';
-      } catch {
-        // Имя - необязательная деталь экспорта, молчим (footer покажет дефолт).
-      }
+      this.currentUserName = await fetchCurrentUserName();
     },
 
     selectPlace(place) {
@@ -1907,17 +1904,18 @@ async uploadPhotoFiles(files) {
 }
 
 .header-col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {
@@ -2682,10 +2680,13 @@ async uploadPhotoFiles(files) {
 }
 
 .photo-delete-btn:hover .action-icon-small {
-  filter: brightness(0) invert(1);
+  color: var(--fill-text);
 }
 
 .action-icon-small {
+  /* Значок мельче 16px: общая обводка 1.7 садится в волосок, здесь плотнее. */
+  stroke-width: 2.2;
+  color: var(--text);
   width: 14px;
   height: 14px;
 }

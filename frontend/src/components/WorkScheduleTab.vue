@@ -85,20 +85,20 @@
                 title="Редактировать"
                 @click="editSlot(slot)"
               >
-                <img
-                  src="@/assets/icons/edit.png"
+                <AppIcon
+                  name="edit"
                   class="icon"
-                >
+                />
               </button>
               <button
                 class="icon-btn"
                 title="Удалить"
                 @click="deleteSlot(slot)"
               >
-                <img
-                  src="@/assets/icons/trashcan.png"
+                <AppIcon
+                  name="trashcan"
                   class="icon"
-                >
+                />
               </button>
             </div>
           </div>
@@ -155,13 +155,13 @@
                 >
                   <div class="select-trigger">
                     <span>{{ getFullDayName(modalDay) }}</span>
-                    <img
-                      src="@/assets/icons/arrow.png"
+                    <AppIcon
+                      name="arrow"
                       class="select-arrow"
                       :class="{ open: dayDropdownOpen }"
                       width="9"
                       height="9"
-                    >
+                    />
                   </div>
                   <transition name="dropdown">
                     <div
@@ -284,13 +284,13 @@
                 >
                   <div class="select-trigger">
                     <span>{{ getFullDayName(copySourceDay) }}</span>
-                    <img
-                      src="@/assets/icons/arrow.png"
+                    <AppIcon
+                      name="arrow"
                       class="select-arrow"
                       :class="{ open: copyDayDropdownOpen }"
                       width="9"
                       height="9"
-                    >
+                    />
                   </div>
                   <transition name="dropdown">
                     <div
@@ -412,10 +412,11 @@
 import { apiRequest } from '@/api/client';
 import { useDeletionsStore } from '@/stores/deletions';
 import ConfirmationModal from './ConfirmationModal.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'WorkScheduleTab',
-  components: { ConfirmationModal },
+  components: { AppIcon, ConfirmationModal },
   props: {
     // Базовый URL ресурса-владельца окон, например '/system-tables/12' или
     // '/unload-places/5'. Компонент достраивает '/time-slots[/{id}]'.
@@ -1231,6 +1232,9 @@ input:checked + .switch-slider:before {
   background-color: var(--border);
 }
 .icon {
+  /* Значок мельче 16px: общая обводка 1.7 садится в волосок, здесь плотнее. */
+  stroke-width: 2.2;
+  color: var(--text);
   width: 12px;
   height: 12px;
   opacity: 0.6;

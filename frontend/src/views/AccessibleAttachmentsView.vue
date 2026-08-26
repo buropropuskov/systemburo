@@ -25,11 +25,10 @@
         data-testid="aa-filters"
       >
         <div class="filters__search">
-          <img
+          <AppIcon
+            name="search"
             class="filters__search-icon"
-            src="@/assets/icons/search.png"
-            alt=""
-          >
+          />
           <input
             v-model="search"
             type="text"
@@ -468,10 +467,12 @@ import XlsxViewer from '@/components/admin/XlsxViewer.vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { getAccessibleAttachments, getAccessibleAttachmentDetail } from '@/api/applications';
 import { previewBlank } from '@/api/attachment-templates';
+import { usePermissionsStore } from '@/stores/permissions';
 import { getOrganizations, getCompanies } from '@/api/organizations';
 import { useDeletionsStore } from '@/stores/deletions';
 import { formatDateRu, formatDateTime } from '@/utils/datetime';
 import eventStream from '@/services/eventStream';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 const PER_PAGE = 30;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -778,7 +779,13 @@ async function openPreview() {
   previewBuffer.value = null;
   previewLoading.value = true;
   try {
-    previewBuffer.value = await previewBlank(att.application_id, att.attachment_id);
+    // Документы участников в предпросмотре подчиняются тому же правилу, что и
+    // скачивание: эндпоинт один, и отдельного «только посмотреть» у него нет.
+    // Без пары прав бланк открывается с прочерками в этих ячейках.
+    const perms = usePermissionsStore();
+    const withDocuments = perms.hasPermission('detail.documents')
+      && perms.hasPermission('detail.documents.export');
+    previewBuffer.value = await previewBlank(att.application_id, att.attachment_id, { withDocuments });
   } catch {
     previewError.value = 'Не удалось загрузить бланк для предпросмотра';
   } finally {
@@ -921,6 +928,8 @@ onBeforeUnmount(() => {
   height: 16px;
   opacity: 0.5;
   pointer-events: none;
+  stroke-width: 2.1;
+  color: var(--text);
 }
 
 .filters__search-input {
@@ -1451,6 +1460,7 @@ onBeforeUnmount(() => {
     left: 11px;
     width: 14px;
     height: 14px;
+    stroke-width: 2.2;
   }
 
   /* Карточки лежат внутри панели, поэтому боковой отступ 8px - иначе их рамка

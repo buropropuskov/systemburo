@@ -3,7 +3,7 @@
     <BlacklistTabBase
       ref="base"
       empty-noun="людей"
-      :entity-icon="userIcon"
+      entity-icon="user"
       :api-list="listPersonBlacklist"
       :get-primary-text="primaryText"
       :get-detail-rows="detailRows"
@@ -11,6 +11,7 @@
       :bulk-archive-fn="bulkArchivePersonBlacklist"
       :bulk-restore-fn="bulkRestorePersonBlacklist"
       testid-prefix="person-bl"
+      tab-key="persons"
       cascade-noun-plural="сотрудники"
       @count="$emit('count', $event)"
       @create="showCreate = true"
@@ -110,7 +111,6 @@ import {
 import { lookupUniqueEmployee } from '@/api/employees';
 import { formatDateTime } from '@/utils/datetime';
 import { useDeletionsStore } from '@/stores/deletions';
-import userIcon from '@/assets/icons/user.png';
 
 /**
  * Вкладка "Люди" чёрного списка (#443). Конфигурирует BlacklistTabBase под людей
@@ -125,7 +125,7 @@ export default {
   emits: ['count'],
   data() {
     return {
-      showCreate: false, archiveItem: null, showHistory: false, userIcon, detailsEmployee: null, showDetails: false,
+      showCreate: false, archiveItem: null, showHistory: false, detailsEmployee: null, showDetails: false,
       editItem: null, savingEdit: false, editError: '', purgeItem: null,
       restoreItem: null, restoreSubject: '', restoreImpact: { matches: 0, tables: [], rows: [] },
     };

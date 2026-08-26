@@ -627,6 +627,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/application-approvers/recipients": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Отдаёт только отображаемые имена: маску, если она задана администратором, иначе ФИО. Доступно любому авторизованному работнику.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "application-approvers"
+                ],
+                "summary": "Принимающие для строки получателей заявки",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.ApplicationRecipient"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/application-approvers/{id}": {
             "delete": {
                 "security": [
@@ -1788,7 +1816,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Доступ - как у скачивания одного бланка (участник заявки либо охрана/носитель page.available по своему вложению).",
+                "description": "Доступ - как у скачивания одного бланка (участник заявки либо охрана/носитель page.available по своему вложению).\nДополнительно требуются права detail.documents и detail.documents.export: в ZIP уезжают сохранённые копии с документами участников, обезличить их при отдаче нечем.",
                 "produces": [
                     "application/zip"
                 ],
@@ -2043,6 +2071,12 @@ const docTemplate = `{
                         "description": "live (по умолчанию) или archive - сохранённый файл",
                         "name": "source",
                         "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Подставить документы участников (паспорт, патент, иное разрешение). Доступно инициатору заявки, а прочим - по правам detail.documents и detail.documents.export; без этого бланк уходит с прочерками независимо от параметра",
+                        "name": "documents",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -2156,6 +2190,83 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/{id}/elements": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Принимающий убирает элемент из заявки: элемент, по которому решение «пропустить» неприемлемо, иначе держал бы всю заявку. Удаление мягкое - строка уходит в корзину, история сохраняется.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Удаление людей или машин из поданной заявки",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID заявки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Тип элементов, идентификаторы и причина",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.RemoveApplicationElementsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "success + число убранных",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -8399,7 +8510,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Возвращает список ответственных пользователей компании",
+                "description": "Возвращает список ответственных пользователей компании. Маршрут открыт любому вошедшему (его же читает форма подачи заявки у своей компании), поэтому required_approval виден только тем, у кого есть право на раздел справочников, и заявителю - для его СОБСТВЕННОЙ компании (#2013). Остальным поле приходит null.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10299,6 +10410,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/handlers.Response"
                         }
                     },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
                     "413": {
                         "description": "Request Entity Too Large",
                         "schema": {
@@ -10369,6 +10486,12 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
                     },
                     "404": {
                         "description": "Not Found",
@@ -11236,17 +11359,6 @@ const docTemplate = `{
                     "auth"
                 ],
                 "summary": "Выход из системы",
-                "parameters": [
-                    {
-                        "description": "Refresh token для отзыва",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.LogoutRequest"
-                        }
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "Logged out successfully",
@@ -13887,7 +13999,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Возвращает список ответственных пользователей организации",
+                "description": "Возвращает список ответственных пользователей организации. Маршрут открыт любому вошедшему (его же читает форма подачи заявки у своей организации), поэтому required_approval виден только тем, у кого есть право на раздел справочников, и заявителю - для его СОБСТВЕННОЙ организации (#2013). Остальным поле приходит null.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14272,6 +14384,72 @@ const docTemplate = `{
                 }
             }
         },
+        "/person-blacklist/impact": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Где человек сейчас фигурирует: сколько активных строк перестанет действовать, из каких таблиц постов они уйдут, в каких заявках есть. Ничего не меняет.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "person-blacklist"
+                ],
+                "summary": "Предпросмотр последствий внесения человека в чёрный список",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Фамилия",
+                        "name": "last_name",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Имя",
+                        "name": "first_name",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Отчество",
+                        "name": "middle_name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "success + данные предпросмотра",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/person-blacklist/{id}": {
             "put": {
                 "security": [
@@ -14496,17 +14674,6 @@ const docTemplate = `{
                     "auth"
                 ],
                 "summary": "Обновление токена",
-                "parameters": [
-                    {
-                        "description": "Refresh token",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.RefreshTokenRequest"
-                        }
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -14557,6 +14724,24 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "integer",
+                        "description": "Нижняя граница кода ответа (400 -- только ошибки)",
+                        "name": "status_min",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Верхняя граница кода ответа",
+                        "name": "status_max",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Только ответы дольше указанного времени, мс",
+                        "name": "min_duration_ms",
+                        "in": "query"
+                    },
+                    {
                         "type": "string",
                         "description": "Дата начала (ISO 8601)",
                         "name": "from_date",
@@ -14572,6 +14757,32 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Поиск по URL и username",
                         "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "created_at",
+                            "method",
+                            "url",
+                            "status",
+                            "username",
+                            "duration"
+                        ],
+                        "type": "string",
+                        "default": "created_at",
+                        "description": "Поле сортировки",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "default": "desc",
+                        "description": "Направление сортировки",
+                        "name": "order",
                         "in": "query"
                     },
                     {
@@ -14618,13 +14829,14 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "Отдаёт текущую выборку журнала файлом: те же фильтры и тот же порядок,\nчто на экране. Значения параметров адреса, кроме служебных, затёрты.\nЧисло выгруженных и отсечённых записей -- в заголовках X-Export-*.",
                 "produces": [
-                    "text/plain"
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 ],
                 "tags": [
                     "request-logs"
                 ],
-                "summary": "Экспорт логов в текстовый формат",
+                "summary": "Выгрузка журнала обращений в .xlsx",
                 "parameters": [
                     {
                         "type": "integer",
@@ -14645,14 +14857,32 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "integer",
+                        "description": "Нижняя граница кода ответа (400 -- только ошибки)",
+                        "name": "status_min",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Верхняя граница кода ответа",
+                        "name": "status_max",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Только ответы дольше указанного времени, мс",
+                        "name": "min_duration_ms",
+                        "in": "query"
+                    },
+                    {
                         "type": "string",
-                        "description": "Дата начала (ISO 8601)",
+                        "description": "Дата начала (ISO 8601 или YYYY-MM-DD)",
                         "name": "from_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Дата окончания (ISO 8601)",
+                        "description": "Дата окончания (ISO 8601 или YYYY-MM-DD)",
                         "name": "to_date",
                         "in": "query"
                     },
@@ -14661,13 +14891,39 @@ const docTemplate = `{
                         "description": "Поиск по URL и username",
                         "name": "search",
                         "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "created_at",
+                            "method",
+                            "url",
+                            "status",
+                            "username",
+                            "duration"
+                        ],
+                        "type": "string",
+                        "default": "created_at",
+                        "description": "Поле сортировки",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "default": "desc",
+                        "description": "Направление сортировки",
+                        "name": "order",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "string"
+                            "type": "file"
                         }
                     },
                     "401": {
@@ -14678,6 +14934,12 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -18287,6 +18549,54 @@ const docTemplate = `{
                 }
             }
         },
+        "/unique-cars/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Все события реестра: создание, правка полей, удаление - с автором и\nвременем. Единственный способ узнать, кем и когда удалена запись: у\nисчезнувшей строки истории по id больше нет. Доступен администратору.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unique-cars"
+                ],
+                "summary": "Журнал реестра машин",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Сколько записей вернуть (по умолчанию и максимум 500)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.UniqueCarHistoryItem"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Не администратор",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/unique-cars/lookup": {
             "get": {
                 "security": [
@@ -18644,6 +18954,54 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/unique-employees/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Все события реестра: создание, правка полей, удаление - с автором и\nвременем. Единственный способ узнать, кем и когда удалена запись: у\nисчезнувшей строки истории по id больше нет. Доступен администратору.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unique-employees"
+                ],
+                "summary": "Журнал реестра сотрудников",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Сколько записей вернуть (по умолчанию и максимум 500)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/services.UniqueEmployeeHistoryItem"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Не администратор",
                         "schema": {
                             "$ref": "#/definitions/models.HTTPError"
                         }
@@ -22740,6 +23098,66 @@ const docTemplate = `{
                 }
             }
         },
+        "/vehicle-blacklist/impact": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Где машина сейчас фигурирует: какие активные строки перестанут действовать, из каких таблиц постов уйдут, в каких заявках есть. Ничего не меняет.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vehicle-blacklist"
+                ],
+                "summary": "Предпросмотр последствий внесения машины в чёрный список",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Номер машины",
+                        "name": "car_number",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID марки",
+                        "name": "mark_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "success + данные предпросмотра",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/vehicle-blacklist/{id}": {
             "put": {
                 "security": [
@@ -23199,6 +23617,20 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "models.ApplicationRecipient": {
+            "type": "object",
+            "properties": {
+                "masked": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
                 }
             }
         },
@@ -24337,6 +24769,39 @@ const docTemplate = `{
                 }
             }
         },
+        "models.HistoryCoverage": {
+            "type": "object",
+            "properties": {
+                "aggregated_through": {
+                    "description": "AggregatedThrough — последний свёрнутый день. Всё, что новее, читается из\nдетальных партиций.",
+                    "type": "string"
+                },
+                "days": {
+                    "type": "integer"
+                },
+                "exact_p95": {
+                    "description": "ExactP95 — перцентиль посчитан по самим записям. У свёрнутых суток\nотдельных длительностей уже нет, и перцентиль периода по ним честно не\nсчитается: показывается наибольшее суточное значение.",
+                    "type": "boolean"
+                },
+                "from": {
+                    "description": "From и To — первый и последний день с данными; пустые, когда данных нет.",
+                    "type": "string"
+                },
+                "requested_from": {
+                    "type": "string"
+                },
+                "requested_to": {
+                    "type": "string"
+                },
+                "source": {
+                    "description": "Source — откуда пришли числа: empty, aggregates, detailed или mixed.",
+                    "type": "string"
+                },
+                "to": {
+                    "type": "string"
+                }
+            }
+        },
         "models.HistoryDailyPoint": {
             "type": "object",
             "properties": {
@@ -24355,7 +24820,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "avg_duration_ms": {
-                    "type": "integer"
+                    "type": "number"
                 },
                 "endpoint": {
                     "type": "string"
@@ -24364,7 +24829,7 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "p95_duration_ms": {
-                    "type": "integer"
+                    "type": "number"
                 },
                 "requests": {
                     "type": "integer"
@@ -24375,7 +24840,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "avg_duration_ms": {
-                    "type": "integer"
+                    "type": "number"
                 },
                 "error_rate": {
                     "type": "number"
@@ -24623,17 +25088,6 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "user_type": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.LogoutRequest": {
-            "type": "object",
-            "properties": {
-                "refreshToken": {
-                    "type": "string"
-                },
-                "refresh_token": {
                     "type": "string"
                 }
             }
@@ -25333,17 +25787,6 @@ const docTemplate = `{
                 }
             }
         },
-        "models.RefreshTokenRequest": {
-            "type": "object",
-            "properties": {
-                "refreshToken": {
-                    "type": "string"
-                },
-                "refresh_token": {
-                    "type": "string"
-                }
-            }
-        },
         "models.RegisterRequest": {
             "type": "object",
             "required": [
@@ -25516,6 +25959,9 @@ const docTemplate = `{
         "models.RequestLogsHistory": {
             "type": "object",
             "properties": {
+                "coverage": {
+                    "$ref": "#/definitions/models.HistoryCoverage"
+                },
                 "daily": {
                     "type": "array",
                     "items": {
@@ -25548,6 +25994,12 @@ const docTemplate = `{
                 "error_rate": {
                     "type": "number"
                 },
+                "median_duration": {
+                    "type": "number"
+                },
+                "p95_duration": {
+                    "type": "number"
+                },
                 "requests_per_minute": {
                     "type": "number"
                 },
@@ -25564,6 +26016,9 @@ const docTemplate = `{
             "properties": {
                 "id": {
                     "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
                 },
                 "username": {
                     "type": "string"
@@ -27418,7 +27873,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "approval_status": {
-                    "description": "Состояние голоса - только у согласующего (approver). У ответственного строка\nв application_responsible_users та же, но голосовать он не может, и её\nдефолтный pending читался бы как «не ответил», хотя его никто не спрашивал.",
+                    "description": "Состояние голоса согласующего - и обязательного, и остальных: голосуют все, у\nкого есть строка в application_responsible_users, просто необязательный голос\nна исход не влияет. Прятать его у необязательного значило бы показывать в\nсписке участников не то, что показывает карточка заявки.",
                     "type": "string"
                 },
                 "company_id": {
@@ -27461,6 +27916,10 @@ const docTemplate = `{
                 },
                 "primary_role": {
                     "type": "string"
+                },
+                "required_approval": {
+                    "description": "RequiredApproval - голос этого согласующего обязателен для исхода заявки.\nКарточка заявки метит таких подписью «Обязательно», список участников - тоже.",
+                    "type": "boolean"
                 },
                 "roles": {
                     "description": "Roles - все роли человека в этой заявке, PrimaryRole - старшая из них.",
@@ -28294,6 +28753,10 @@ const docTemplate = `{
         "services.CarOwnerInfo": {
             "type": "object",
             "properties": {
+                "can_manage_all": {
+                    "description": "CanManageAll -- администратор системы: правит и удаляет любую запись реестра,\nкому бы она ни принадлежала. Уходит на фронт тем же ответом ownership-info,\nкоторый вью и так запрашивает: показ кнопок правки и серверный гейт обязаны\nстоять на одном признаке, иначе получается \"кнопка есть, а в ответ 403\".",
+                    "type": "boolean"
+                },
                 "company_id": {
                     "type": "integer"
                 },
@@ -28382,6 +28845,10 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "is_blacklisted": {
+                    "description": "IsBlacklisted - точное попадание в действующий чёрный список; строка остаётся в\nзаявке, но показывается зачёркнутой.",
+                    "type": "boolean"
                 },
                 "is_pending": {
                     "description": "IsPending - строка ещё не допущена на КПП.",
@@ -29201,6 +29668,10 @@ const docTemplate = `{
                 "patent_number": {
                     "type": "string"
                 },
+                "pd_consent": {
+                    "description": "PDConsent - заявитель подтвердил, что субъект дал согласие на обработку своих\nперсональных данных. Только флаг: дату и автора отметки ставит сервер.",
+                    "type": "boolean"
+                },
                 "position": {
                     "type": "string"
                 },
@@ -29215,6 +29686,10 @@ const docTemplate = `{
         "services.EmployeeOwnerInfo": {
             "type": "object",
             "properties": {
+                "can_manage_all": {
+                    "description": "CanManageAll -- администратор системы: правит и удаляет любую запись реестра\nнезависимо от привязки. Тот же признак фронт берёт для показа кнопок, см.\nCarOwnerInfo.CanManageAll.",
+                    "type": "boolean"
+                },
                 "company_id": {
                     "type": "integer"
                 },
@@ -29283,6 +29758,10 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "is_blacklisted": {
+                    "description": "IsBlacklisted - точное попадание в действующий чёрный список. Из заявки строка\nне исчезает (заявка - документ), но показывается зачёркнутой.",
+                    "type": "boolean"
                 },
                 "is_pending": {
                     "description": "IsPending - строка ещё не допущена на КПП.",
@@ -29837,6 +30316,10 @@ const docTemplate = `{
                 "patent_number": {
                     "type": "string"
                 },
+                "pd_consent": {
+                    "description": "PDConsent - заявитель подтвердил, что субъект дал согласие на обработку своих\nперсональных данных (152-ФЗ). Для новой записи обязателен: в карточке вводят\nпаспорт и патент, то есть данные третьего лица. При правке существующей записи\nфлаг только ДОБАВЛЯЕТ отметку, если её не было, - снять согласие правкой нельзя.",
+                    "type": "boolean"
+                },
                 "position": {
                     "type": "string"
                 },
@@ -30078,6 +30561,35 @@ const docTemplate = `{
             "properties": {
                 "target_id": {
                     "type": "integer"
+                }
+            }
+        },
+        "services.RemoveApplicationElementsRequest": {
+            "type": "object",
+            "required": [
+                "element_ids",
+                "element_type",
+                "reason"
+            ],
+            "properties": {
+                "element_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "element_type": {
+                    "type": "string",
+                    "enum": [
+                        "people",
+                        "cars"
+                    ]
+                },
+                "reason": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "minLength": 1
                 }
             }
         },
@@ -30768,6 +31280,10 @@ const docTemplate = `{
                 "old_value": {
                     "type": "string"
                 },
+                "subject": {
+                    "description": "Subject -- к какой машине относится событие (номер с маркой на момент действия).",
+                    "type": "string"
+                },
                 "unique_car_id": {
                     "type": "integer"
                 },
@@ -30884,6 +31400,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "user_name": {
+                    "description": "UserName -- за кем закреплена запись: ФИО владельца, у не давшего согласия -\nлогин с собачкой. Отдаётся только администратору, см. maskCarOwners.",
                     "type": "string"
                 }
             }
@@ -30910,6 +31427,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "old_value": {
+                    "type": "string"
+                },
+                "subject": {
+                    "description": "Subject -- к кому относится событие (ФИО на момент действия). Пусто у событий,\nзаписанных до введения снимка, если сама запись уже удалена.",
                     "type": "string"
                 },
                 "unique_employee_id": {
@@ -30963,6 +31484,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "patent_number": {
+                    "type": "string"
+                },
+                "pd_consent_at": {
                     "type": "string"
                 },
                 "position": {
@@ -31045,6 +31569,10 @@ const docTemplate = `{
                 "patent_number": {
                     "type": "string"
                 },
+                "pd_consent_at": {
+                    "description": "PDConsentAt -- когда подтверждено согласие субъекта на обработку его данных.\nNULL у записей, заведённых до введения поля: карточка так и пишет, что отметки нет.",
+                    "type": "string"
+                },
                 "position": {
                     "type": "string"
                 },
@@ -31053,6 +31581,10 @@ const docTemplate = `{
                 },
                 "user_id": {
                     "type": "integer"
+                },
+                "user_name": {
+                    "description": "UserName -- за кем закреплена запись: ФИО владельца, а у не давшего согласия на\nобработку своих данных - логин с собачкой (общая маска loadNameMasks). Логин сам\nпо себе человеку ничего не говорит, поэтому показываем имя. Отдаётся только\nадминистратору (см. maskEmployeeOwners): для остальных привязка к чужой учётной\nзаписи - лишние сведения о людях другой организации.",
+                    "type": "string"
                 }
             }
         },
@@ -31433,6 +31965,10 @@ const docTemplate = `{
                     "items": {
                         "type": "integer"
                     }
+                },
+                "pd_consent": {
+                    "description": "PDConsent - см. EmployeeInput.PDConsent. У машин поле шаблона выключено по\nумолчанию, флаг приходит только когда администратор его включил.",
+                    "type": "boolean"
                 },
                 "unload_place": {
                     "type": "string"

@@ -129,12 +129,18 @@ describe('AnalyticsDonutChart', () => {
     // передаёт свой контекст вместо числа - кольцо падало на отрисовке, а мок
     // конструктора этого не показывал. Настройки плагинов идут замыканием.
     const { config } = await build({ data: DATA });
-    // Два места, где функция законна и вызывается как обработчик: подсказка и
-    // подписи делений оси. Понадобится третье (legend.onClick,
-    // animation.onComplete) - дописать путь сюда, а не снимать замок: он стоит
-    // не против функций вообще, а против настроек, которые Chart.js вызовет
-    // вместо того, чтобы прочитать.
-    const allowed = [/^options\.plugins\.tooltip\.callbacks\./, /^options\.scales\.[^.]+\.ticks\.callback$/];
+    // Места, где функция законна: обработчики подсказки и подписей делений оси
+    // плюс цвета оформления - их Chart.js зовёт на каждой отрисовке и берёт
+    // возвращённый цвет, так что тема успевает смениться. Понадобится ещё одно
+    // (legend.onClick, animation.onComplete) - дописать путь сюда, а не снимать
+    // замок: он стоит не против функций вообще, а против настроек, которые
+    // Chart.js вызовет вместо того, чтобы прочитать.
+    const allowed = [
+      /^options\.plugins\.tooltip\.callbacks\./,
+      /^options\.scales\.[^.]+\.ticks\.callback$/,
+      /^options\.plugins\.legend\.labels\.color$/,
+      /^options\.plugins\.tooltip\.borderColor$/,
+    ];
     const functionsIn = (value, path = 'options') => {
       if (allowed.some((re) => re.test(path))) return [];
       if (typeof value === 'function') return [path];
@@ -142,6 +148,38 @@ describe('AnalyticsDonutChart', () => {
       return Object.entries(value).flatMap(([key, inner]) => functionsIn(inner, `${path}.${key}`));
     };
     expect(functionsIn(config.options)).toEqual([]);
+  });
+
+  it('empty-ring: без данных рисует ободок-заглушку с нулём вместо текста', async () => {
+    const { wrapper, config } = await build({ data: [], emptyRing: true });
+
+    // Место графика не пустеет: холст на месте, заглушки текстом нет.
+    expect(wrapper.text()).not.toContain('Нет данных');
+    expect(config).not.toBeNull();
+    const ds = config.data.datasets[0];
+    // Единица - способ получить замкнутую дугу: нулевой сегмент Chart.js не рисует.
+    expect(ds.data).toEqual([1]);
+    // Цвет заглушки - вычисляемый (тема), а не массив: значение внутри массива
+    // Chart.js вычисляемым не считает и красит кольцо чёрным.
+    expect(typeof ds.backgroundColor).toBe('function');
+    expect(ds.backgroundColor({})).toBe('#eef0f7');
+    // Заглушка не притворяется данными: ни доли, ни легенды, ни подсказки.
+    expect(config.options.plugins.sliceLabels.display).toBe(false);
+    expect(config.options.plugins.legend.display).toBe(false);
+    expect(config.options.plugins.tooltip.enabled).toBe(false);
+  });
+
+  it('empty-ring не трогает кольцо с данными', async () => {
+    const { config } = await build({ data: DATA, emptyRing: true });
+    expect(config.data.datasets[0].data).toEqual(DATA.map((d) => d.value));
+    expect(config.options.plugins.legend.display).toBe(true);
+    expect(config.options.plugins.tooltip.enabled).toBe(true);
+  });
+
+  it('без empty-ring пустые данные по-прежнему дают заглушку текстом', async () => {
+    const { wrapper, config } = await build({ data: [] });
+    expect(wrapper.text()).toContain('Нет данных');
+    expect(config).toBeNull();
   });
 
   it('легенда стоит под кольцом', async () => {
