@@ -318,12 +318,12 @@
 | `github.com/jinzhu/now` | v1.1.5 | MIT | Copyright (c) 2013-NOW  Jinzhu <wosmvp@gmail.com> |
 | `github.com/josharian/intern` | v1.0.0 | MIT | Copyright (c) 2019 Josh Bleecher Snyder |
 | `github.com/KyleBanks/depth` | v1.2.1 | MIT | Copyright (c) 2017 Kyle Banks |
-| `github.com/labstack/echo/v4` | v4.15.1 | MIT | Copyright (c) 2021 LabStack |
-| `github.com/labstack/gommon` | v0.4.2 | MIT | Copyright (c) 2018 labstack |
+| `github.com/labstack/echo/v4` | v4.15.4 | MIT | Copyright (c) 2021 LabStack |
+| `github.com/labstack/gommon` | v0.5.0 | MIT | Copyright (c) 2018 labstack |
 | `github.com/leodido/go-urn` | v1.4.0 | MIT | Copyright (c) 2018 Leonardo Di Donato |
 | `github.com/mailru/easyjson` | v0.7.7 | MIT | Copyright (c) 2016 Mail.Ru Group |
-| `github.com/mattn/go-colorable` | v0.1.14 | MIT | Copyright (c) 2016 Yasuhiro Matsumoto |
-| `github.com/mattn/go-isatty` | v0.0.20 | MIT | Copyright (c) Yasuhiro MATSUMOTO <mattn.jp@gmail.com> |
+| `github.com/mattn/go-colorable` | v0.1.15 | MIT | Copyright (c) 2016 Yasuhiro Matsumoto |
+| `github.com/mattn/go-isatty` | v0.0.22 | MIT | Copyright (c) Yasuhiro MATSUMOTO <mattn.jp@gmail.com> |
 | `github.com/pkg/errors` | v0.9.1 | BSD-2-Clause | Copyright (c) 2015, Dave Cheney <dave@cheney.net> |
 | `github.com/richardlehane/mscfb` | v1.0.7 | Apache-2.0 | не указан в поставке пакета |
 | `github.com/richardlehane/msoleps` | v1.0.6 | Apache-2.0 | не указан в поставке пакета |
@@ -347,7 +347,7 @@
 | `golang.org/x/sync` | v0.22.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/sys` | v0.47.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/text` | v0.41.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
-| `golang.org/x/time` | v0.14.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
+| `golang.org/x/time` | v0.15.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `golang.org/x/tools` | v0.49.0 | BSD-3-Clause | Copyright 2009 The Go Authors |
 | `gopkg.in/natefinch/lumberjack.v2` | v2.2.1 | MIT | Copyright (c) 2014 Nate Finch |
 | `gopkg.in/yaml.v2` | v2.4.0 | Apache-2.0 | Copyright {yyyy} {name of copyright owner}; Copyright (c) 2006 Kirill Simonov |
@@ -632,7 +632,7 @@ THE SOFTWARE.
 
 ### 7.4. BSD-3-Clause
 
-Компоненты: `filippo.io/hpke` v0.4.0, `golang.org/x/crypto` v0.55.0, `golang.org/x/image` v0.45.0, `golang.org/x/mod` v0.40.0, `golang.org/x/net` v0.58.0, `golang.org/x/sync` v0.22.0, `golang.org/x/sys` v0.47.0, `golang.org/x/text` v0.41.0, `golang.org/x/time` v0.14.0, `golang.org/x/tools` v0.49.0
+Компоненты: `filippo.io/hpke` v0.4.0, `golang.org/x/crypto` v0.55.0, `golang.org/x/image` v0.45.0, `golang.org/x/mod` v0.40.0, `golang.org/x/net` v0.58.0, `golang.org/x/sync` v0.22.0, `golang.org/x/sys` v0.47.0, `golang.org/x/text` v0.41.0, `golang.org/x/time` v0.15.0, `golang.org/x/tools` v0.49.0
 
 ```text
 Copyright 2009 The Go Authors.
@@ -4788,7 +4788,7 @@ SOFTWARE.
 
 ### 7.92. MIT
 
-Компоненты: `github.com/labstack/echo/v4` v4.15.1
+Компоненты: `github.com/labstack/echo/v4` v4.15.4
 
 ```text
 The MIT License (MIT)
@@ -4816,7 +4816,7 @@ SOFTWARE.
 
 ### 7.93. MIT
 
-Компоненты: `github.com/labstack/gommon` v0.4.2
+Компоненты: `github.com/labstack/gommon` v0.5.0
 
 ```text
 The MIT License (MIT)
@@ -4886,7 +4886,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ### 7.96. MIT
 
-Компоненты: `github.com/mattn/go-colorable` v0.1.14
+Компоненты: `github.com/mattn/go-colorable` v0.1.15
 
 ```text
 The MIT License (MIT)
@@ -4914,7 +4914,7 @@ SOFTWARE.
 
 ### 7.97. MIT
 
-Компоненты: `github.com/mattn/go-isatty` v0.0.20
+Компоненты: `github.com/mattn/go-isatty` v0.0.22
 
 ```text
 Copyright (c) Yasuhiro MATSUMOTO <mattn.jp@gmail.com>
