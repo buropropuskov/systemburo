@@ -33,9 +33,103 @@ services:
       DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:-}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       UPLOAD_PATH: /app/uploads
+      ARCHIVE_PATH: /app/archive
+      # Ключи шифрования архива. Пусто - архив пишется как раньше, без шифрования.
+      ARCHIVE_AGE_RECIPIENT: ${ARCHIVE_AGE_RECIPIENT:-}
+      ARCHIVE_AGE_IDENTITY: ${ARCHIVE_AGE_IDENTITY:-}
+      # Каталог пакетов выгрузки по идентификатору сущности (server entity export).
+      # Как и архив, лежит на каталоге хоста: пакет забирают с сервера руками, и
+      # внутри контейнера он не пережил бы его пересоздания.
+      ENTITY_EXPORT_PATH: /app/entity-export
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+      # Ниже - параметры, которые описаны в приложении Б и в шаблоне файла
+      # параметров, но до этой правки внутрь контейнера не попадали: compose
+      # передаёт бэкенду ЯВНЫЙ список, и всё, чего в нём нет, молча работало на
+      # значениях по умолчанию. Обнаружено при включении доставки уведомлений
+      # вне системы (#974): ключи лежали в файле параметров, а сервер их не видел.
+      REQUIRE_ENCRYPTION: ${REQUIRE_ENCRYPTION:-false}
+      UPLOAD_MAX_FILE_SIZE: ${UPLOAD_MAX_FILE_SIZE:-10485760}
+      UPLOAD_ALLOWED_IMAGE_TYPES: ${UPLOAD_ALLOWED_IMAGE_TYPES:-image/jpeg,image/png,image/webp}
+      UPLOAD_ALLOWED_DOC_TYPES: ${UPLOAD_ALLOWED_DOC_TYPES:-application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-200}
+      RATE_LIMIT_WINDOW_SEC: ${RATE_LIMIT_WINDOW_SEC:-60}
+      PAGINATION_MAX_LIMIT: ${PAGINATION_MAX_LIMIT:-100}
+      # Доставка уведомлений вне системы (#974). Пустые ключи выключают её целиком.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      PUSH_SUBSCRIPTION_RETENTION_DAYS: ${PUSH_SUBSCRIPTION_RETENTION_DAYS:-180}
+      # Почтовая рассылка (#1906, #1936). Тот же класс, что и с ключами доставки
+      # уведомлений выше: параметры лежали в файле параметров и в приложении Б, а
+      # до контейнера не доходили - оператор заполнял SMTP_*, перезапускал систему
+      # и не получал ничего, потому что внутри адрес сервера оставался пустым, а
+      # пустой адрес это штатное "почта не настроена", без единой ошибки в журнале.
+      # Пустой SMTP_HOST по умолчанию сохраняет прежнее поведение: почта выключена.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Бюро пропусков}
+      SMTP_TLS_MODE: ${SMTP_TLS_MODE:-starttls}
+      SMTP_TIMEOUT_SEC: ${SMTP_TIMEOUT_SEC:-15}
+      SMTP_RATE_PER_HOUR: ${SMTP_RATE_PER_HOUR:-400}
+      MAIL_RETRY_ATTEMPTS: ${MAIL_RETRY_ATTEMPTS:-5}
+      MAIL_WORKER_TICK: ${MAIL_WORKER_TICK:-15s}
+      # Пул соединений с базой и таймауты HTTP-сервера (#2027). Тот же класс,
+      # что и параметры выше: описаны в config.go и в файле параметров, но до
+      # контейнера не доходили - администратор менял значение в .env,
+      # перезапускал систему и не видел разницы без единой ошибки в журнале.
+      DB_MAX_OPEN_CONNS: ${DB_MAX_OPEN_CONNS:-50}
+      DB_MAX_IDLE_CONNS: ${DB_MAX_IDLE_CONNS:-25}
+      DB_CONN_MAX_LIFETIME: ${DB_CONN_MAX_LIFETIME:-1h}
+      DB_CONN_MAX_IDLE_TIME: ${DB_CONN_MAX_IDLE_TIME:-10m}
+      HTTP_READ_HEADER_TIMEOUT: ${HTTP_READ_HEADER_TIMEOUT:-10s}
+      HTTP_READ_TIMEOUT: ${HTTP_READ_TIMEOUT:-120s}
+      HTTP_WRITE_TIMEOUT: ${HTTP_WRITE_TIMEOUT:-120s}
+      HTTP_IDLE_TIMEOUT: ${HTTP_IDLE_TIMEOUT:-120s}
+      ARGON2_HASH_CONCURRENCY: ${ARGON2_HASH_CONCURRENCY:-0}
+      # Ниже - параметры, которые scripts/init-env.sh уже писал в файл
+      # параметров, но тем же способом, что и группа выше, до контейнера не
+      # доходили: compose передаёт бэкенду явный список, и их в нём не было.
+      LOG_MAX_SIZE_MB: ${LOG_MAX_SIZE_MB:-100}
+      LOG_MAX_AGE_DAYS: ${LOG_MAX_AGE_DAYS:-30}
+      LOG_MAX_BACKUPS: ${LOG_MAX_BACKUPS:-14}
+      LOG_COMPRESS: ${LOG_COMPRESS:-true}
+      APPLICATION_FILE_MAX_COUNT: ${APPLICATION_FILE_MAX_COUNT:-30}
+      APPLICATION_FILE_MAX_TOTAL_SIZE: ${APPLICATION_FILE_MAX_TOTAL_SIZE:-104857600}
+      APPLICATION_FILE_DRAFT_TTL: ${APPLICATION_FILE_DRAFT_TTL:-24h}
+      APPLICATION_FILE_IMAGE_MAX_SIDE: ${APPLICATION_FILE_IMAGE_MAX_SIDE:-2000}
+      APPLICATION_FILE_JPEG_QUALITY: ${APPLICATION_FILE_JPEG_QUALITY:-82}
+      LOGIN_RATE_LIMIT_MAX: ${LOGIN_RATE_LIMIT_MAX:-10}
+      LOGIN_RATE_LIMIT_WINDOW_SEC: ${LOGIN_RATE_LIMIT_WINDOW_SEC:-60}
+      ARCHIVE_WORKER_TICK: ${ARCHIVE_WORKER_TICK:-15s}
+      ARCHIVE_SWEEP_INTERVAL: ${ARCHIVE_SWEEP_INTERVAL:-5m}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      RESET_TIMEZONE: ${RESET_TIMEZONE:-Europe/Moscow}
+      ANALYTICS_CACHE_REFRESH_SEC: ${ANALYTICS_CACHE_REFRESH_SEC:-60}
+      REQUEST_LOG_DETAIL_DAYS: ${REQUEST_LOG_DETAIL_DAYS:-30}
+      REQUEST_LOG_PARTITION_PRECREATE_DAYS: ${REQUEST_LOG_PARTITION_PRECREATE_DAYS:-7}
+      PD_AUDIT_RETENTION_MONTHS: ${PD_AUDIT_RETENTION_MONTHS:-36}
+      REFRESH_TOKEN_RETENTION_DAYS: ${REFRESH_TOKEN_RETENTION_DAYS:-30}
+      READ_NOTIFICATION_RETENTION_DAYS: ${READ_NOTIFICATION_RETENTION_DAYS:-30}
+      NOTIFICATION_RETENTION_DAYS: ${NOTIFICATION_RETENTION_DAYS:-90}
     volumes:
       - uploads:/app/uploads
+      # Файловый архив бланков (#1615) - каталог хоста, а не именованный том.
+      # Смысл функции в том, что до файлов дотягивается человек снаружи приложения:
+      # предсказуемый путь можно вынести на отдельный раздел, зашифровать, отдать в
+      # сетевую папку только на чтение и включить в резервное копирование. Каталог
+      # создаётся заранее с владельцем uid/gid 1001 - см. docs/DEPLOYMENT.md.
+      - ${ARCHIVE_HOST_PATH:-./archive}:/app/archive
+      # Пакеты выгрузки организаций. Каталог хоста по той же причине, что и у архива:
+      # пакет снимают, чтобы унести с сервера, а внутри контейнера его не забрать и
+      # он исчезнет при первом же пересоздании. В пакете лежат персональные данные
+      # целиком, поэтому каталог держат отдельно от загрузок, которые раздаются
+      # статикой - проверку этого делает config.Validate и отказывает в старте.
+      - ${ENTITY_EXPORT_HOST_PATH:-./entity-export}:/app/entity-export
     depends_on:
       db:
         condition: service_healthy

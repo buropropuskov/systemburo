@@ -251,7 +251,7 @@ func TestGetActiveEmployeesForTable_WithActiveEmployee(t *testing.T) {
 }
 
 // TestEmployeeHistory_ReadEndpoints проверяет что после PUT /territory-status
-// запись в employees_history читается через GET /:id/history и /history/unified
+// запись в audit_log[employee] читается через GET /:id/history и /history/unified
 // без 500. Ранее ломалось из-за обращения к несуществующим полям org.short_name.
 func TestEmployeeHistory_ReadEndpoints(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
@@ -273,9 +273,10 @@ func TestEmployeeHistory_ReadEndpoints(t *testing.T) {
 
 	token := testutil.RegisterAndLogin(t, e, "emphist1", "pass123", 1, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
+	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "emphist1"), "people")
 
-	// Регистрируем entry - должен создать запись в employees_history.
-	putBody := `{"territory_status":1,"user_id":null}`
+	// Регистрируем entry - должен создать запись в audit_log[employee].
+	putBody := fmt.Sprintf(`{"territory_status":1,"user_id":null,"table_id":%d}`, passTbl)
 	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/territory-status", employee.ID), putBody, h)
 	require.Equal(t, http.StatusOK, rec.Code, "PUT territory-status должен пройти")
 
@@ -370,8 +371,9 @@ func TestUpdateEmployeeTerritoryStatus_Entry(t *testing.T) {
 	empID := seedEmployeeDirect(t, db, "Ivanov", "Ivan")
 	token := testutil.RegisterAndLogin(t, e, "territory_u1", "pass123", 1, td.OrgID, td.CompanyID)
 	userID := getUserID(t, db, "territory_u1")
+	passTbl := seedPassTableGrant(t, db, userID, "people")
 
-	body := fmt.Sprintf(`{"territory_status": 1, "user_id": %d}`, userID)
+	body := fmt.Sprintf(`{"territory_status": 1, "user_id": %d, "table_id": %d}`, userID, passTbl)
 	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/territory-status", empID), body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 
@@ -382,9 +384,9 @@ func TestUpdateEmployeeTerritoryStatus_Entry(t *testing.T) {
 	require.NotNil(t, updated.TerritoryEntryTime, "entry_time должен быть установлен при въезде")
 
 	var historyCount int64
-	db.Model(&models.EmployeeHistory{}).
-		Where("employee_id = ? AND action_type = ?", empID, "entry").Count(&historyCount)
-	assert.Equal(t, int64(1), historyCount, "в history должна быть запись action_type=entry")
+	db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityEmployee, empID, "entry").Count(&historyCount)
+	assert.Equal(t, int64(1), historyCount, "в audit_log должна быть запись entry (#870, срез 1.13b)")
 }
 
 func TestUpdateEmployeeTerritoryStatus_Exit(t *testing.T) {
@@ -395,8 +397,9 @@ func TestUpdateEmployeeTerritoryStatus_Exit(t *testing.T) {
 
 	empID := seedEmployeeDirect(t, db, "Petrov", "Petr")
 	token := testutil.RegisterAndLogin(t, e, "territory_u2", "pass123", 1, td.OrgID, td.CompanyID)
+	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "territory_u2"), "people")
 
-	body := `{"territory_status": 2}`
+	body := fmt.Sprintf(`{"territory_status": 2, "table_id": %d}`, passTbl)
 	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/territory-status", empID), body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 
@@ -406,8 +409,8 @@ func TestUpdateEmployeeTerritoryStatus_Exit(t *testing.T) {
 	assert.Equal(t, 2, *updated.TerritoryStatus)
 
 	var historyCount int64
-	db.Model(&models.EmployeeHistory{}).
-		Where("employee_id = ? AND action_type = ?", empID, "exit").Count(&historyCount)
+	db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityEmployee, empID, "exit").Count(&historyCount)
 	assert.Equal(t, int64(1), historyCount)
 }
 
@@ -418,8 +421,9 @@ func TestUpdateEmployeeTerritoryStatus_NotFound(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "territory_u3", "pass123", 1, td.OrgID, td.CompanyID)
+	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "territory_u3"), "people")
 
-	rec := testutil.PUT(t, e, "/employees/999999/territory-status", `{"territory_status": 1}`, testutil.AuthHeader(token))
+	rec := testutil.PUT(t, e, "/employees/999999/territory-status", fmt.Sprintf(`{"territory_status": 1, "table_id": %d}`, passTbl), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 

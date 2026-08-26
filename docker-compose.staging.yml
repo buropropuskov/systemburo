@@ -1,14 +1,22 @@
 services:
+  # Backend и frontend приезжают на стенд собранными в GitHub Actions.
+  # Сборка на VPS занимала около пяти минут (go install swag, go mod download,
+  # компиляция двух бинарей) и держала на диске базовый golang-образ со всеми
+  # промежуточными слоями. На runner'е тот же образ собирается за полторы минуты
+  # с общим кэшем, а серверу остаётся docker pull готового alpine.
+  # BACKEND_IMAGE и FRONTEND_IMAGE подставляет deploy script с SHA коммита.
+  #
+  # build из базового файла при этом сохраняется у обеих служб: руководство по
+  # развёртыванию поднимает стенд командой make staging-build, и она должна
+  # собирать систему из исходников, без доступа к реестру. Деплой из CI сборку
+  # не запускает - он pull'ит образы по тегу и поднимает их.
   backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/buropropuskov/systemburo-backend:dev}
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-debug}
 
-  # Frontend pre-built в GitHub Actions, pull из ghcr.io.
-  # Override от docker-compose.base.yml (build: → image:).
-  # FRONTEND_IMAGE подставляет deploy script с SHA коммита.
   frontend:
     image: ${FRONTEND_IMAGE:-ghcr.io/buropropuskov/systemburo-frontend:dev}
-    build: !reset null
 
   nginx:
     build:
@@ -25,11 +33,21 @@ services:
     depends_on:
       - backend
       - frontend
-      - pgadmin
     restart: always
 
+  # pgAdmin поднимается по требованию: docker compose --profile tools up -d pgadmin.
+  # Образ весит 745 МБ - больше, чем все остальные образы стенда вместе, - а нужен
+  # эпизодически, «зайти посмотреть таблицу». Постоянно занятое место на диске в
+  # девять с половиной гигабайт стоит дороже, чем команда перед редким заходом.
+  #
+  # Из depends_on nginx он убран намеренно: с ним профиль не помогал бы, nginx тянул
+  # бы pgAdmin за собой при каждом подъёме стенда.
   pgadmin:
-    image: dpage/pgadmin4:latest
+    profiles: ["tools"]
+    # Версия прибита намеренно: с плавающей меткой образ подменялся при каждом
+    # обновлении на стороне разработчика pgAdmin, и стенд мог поехать не из-за
+    # наших правок. 9.14 - то, что и так стояло на сервере на 05.08.2026.
+    image: dpage/pgadmin4:9.14
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}

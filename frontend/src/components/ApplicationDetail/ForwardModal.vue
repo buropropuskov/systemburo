@@ -9,6 +9,15 @@
     @close="close"
   >
     <div class="forward-body">
+      <div
+        v-if="readerOnly"
+        class="forward-reader-note"
+        data-testid="forward-modal-reader-note"
+      >
+        Заявка доступна вам только для просмотра - переслать её можно тоже только для
+        просмотра. Назначать согласующих и ответственных вправе отправитель.
+      </div>
+
       <div class="user-search-section">
         <input
           ref="searchInput"
@@ -92,8 +101,13 @@
                   >{{ user.organization }}</span>
                 </div>
 
-                <!-- Настройки доступа -->
-                <div class="forward-selected-user-settings">
+                <!-- Настройки доступа. Читателю не показываем: назначить согласующего
+                     или ответственного он не вправе, сервер такой запрос отбивает. -->
+                <div
+                  v-if="!readerOnly"
+                  class="forward-selected-user-settings"
+                  data-testid="forward-modal-user-settings"
+                >
                   <!-- Тумблер "Требуется согласование" -->
                   <label class="setting-toggle">
                     <input
@@ -151,14 +165,14 @@
           <h4>Вложения для пересылки ({{ selectedAttachmentIds.length }}/{{ attachments.length }})</h4>
           <label class="forward-attachments-all">
             <input
-              ref="selectAllCheckbox"
               type="checkbox"
-              class="forward-attachment-checkbox"
+              class="setting-checkbox"
               :checked="allAttachmentsSelected"
               data-testid="forward-modal-attachments-all"
               @change="toggleAllAttachments($event.target.checked)"
             >
-            <span>Выбрать все</span>
+            <span class="toggle-slider" />
+            <span class="forward-attachments-all-text">Выбрать все</span>
           </label>
         </div>
         <div class="forward-attachments-list">
@@ -171,9 +185,10 @@
             <input
               v-model="selectedAttachmentIds"
               type="checkbox"
-              class="forward-attachment-checkbox"
+              class="setting-checkbox"
               :value="attachment.id"
             >
+            <span class="toggle-slider" />
             <span class="forward-attachment-info">
               <span class="forward-attachment-name">
                 {{ attachment.attachment_display_name || attachment.attachment_name }}
@@ -191,6 +206,36 @@
         >
           Выберите хотя бы одно вложение для пересылки
         </p>
+      </div>
+
+      <FormField
+        label="Сопроводительное сообщение"
+        class="forward-message-field"
+      >
+        <div class="forward-message-wrapper">
+          <textarea
+            v-model="message"
+            class="lk-textarea forward-message-textarea"
+            data-testid="forward-modal-message"
+            :maxlength="messageMaxLength"
+            rows="3"
+            placeholder="Например: Прошу дополнительно согласовать заявку с вами"
+          />
+          <div
+            class="forward-message-counter"
+            :class="{ 'forward-message-counter--warning': messageNearLimit }"
+          >
+            {{ message.length }}/{{ messageMaxLength }}
+          </div>
+        </div>
+      </FormField>
+
+      <div
+        class="forward-message-warning"
+        data-testid="forward-modal-warning"
+      >
+        <span class="forward-message-warning-icon">⚠</span>
+        <span>Ваше сообщение увидят все получатели заявки и бюро пропусков (принимающие), а не только выбранные вами.</span>
       </div>
     </div>
 
@@ -218,10 +263,12 @@
 
 <script>
 import BaseModal from '@/components/ui/BaseModal.vue'
+import FormField from '@/components/ui/FormField.vue'
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 
 export default {
     name: 'ForwardModal',
-    components: { BaseModal },
+    components: { BaseModal, FormField },
     props: {
         show: {
             type: Boolean,
@@ -249,6 +296,15 @@ export default {
             type: Array,
             default: () => []
         },
+        /**
+         * Заявка доступна пересылающему только на просмотр (#1948): выбор роли
+         * получателя закрыт, пересылка идёт только на просмотр. Зеркалит
+         * forwardAuthority.readerOnly - сервер иначе отвечает 403.
+         */
+        readerOnly: {
+            type: Boolean,
+            default: false
+        },
         isSending: {
             type: Boolean,
             default: false
@@ -261,7 +317,9 @@ export default {
             searchResults: [],
             showDropdown: false,
             selectedUsers: [], // Каждый пользователь будет иметь поля: requires_approval, required_approval
-            selectedAttachmentIds: [] // ID вложений для пересылки; по умолчанию выбраны все
+            selectedAttachmentIds: [], // ID вложений для пересылки; по умолчанию выбраны все
+            message: '', // Сопроводительное сообщение при пересылке (#967), необязательное
+            messageMaxLength: 2000
         }
     },
     computed: {
@@ -304,33 +362,27 @@ export default {
             );
 
             // Если есть поисковый запрос, фильтруем по нему
-            if (this.searchQuery.trim()) {
-                const query = this.searchQuery.toLowerCase();
+            const variants = buildSearchVariants(this.searchQuery);
+            if (variants.length) {
                 availableUsers = availableUsers.filter(user => {
-                    const fullName = this.getUserDisplayName(user).toLowerCase();
-                    const username = user.username.toLowerCase();
-                    const position = (user.position || '').toLowerCase();
-                    const organization = (user.organization || '').toLowerCase();
+                    const haystack = [
+                        this.getUserDisplayName(user),
+                        user.username,
+                        user.position || '',
+                        user.organization || '',
+                    ].join(' ');
 
-                    return fullName.includes(query) ||
-                           username.includes(query) ||
-                           position.includes(query) ||
-                           organization.includes(query);
+                    return matchesSearch(haystack, variants);
                 });
             }
 
             return availableUsers.slice(0, 15);
         },
 
-        // Все вложения отмечены (для мастер-чекбокса "Выбрать все")
+        // Все вложения отмечены (мастер-тумблер "Выбрать все" в положении вкл).
         allAttachmentsSelected() {
             return this.attachments.length > 0 &&
                 this.selectedAttachmentIds.length === this.attachments.length;
-        },
-
-        // Выбрана часть вложений - мастер-чекбокс уходит в indeterminate.
-        someAttachmentsSelected() {
-            return this.selectedAttachmentIds.length > 0 && !this.allAttachmentsSelected;
         },
 
         // Отправка возможна: есть получатели и (нет вложений или выбрано хотя бы одно).
@@ -344,6 +396,11 @@ export default {
                 return false;
             }
             return true;
+        },
+
+        // Счётчик подсвечивается у порога длины (последние 100 символов).
+        messageNearLimit() {
+            return this.message.length >= this.messageMaxLength - 100;
         }
     },
     watch: {
@@ -354,17 +411,8 @@ export default {
                 this.reset();
                 this.$nextTick(() => {
                     this.$refs.searchInput?.focus();
-                    this.syncSelectAllIndeterminate();
                 });
             }
-        },
-        // indeterminate - DOM-свойство, его нельзя выставить через :checked,
-        // поэтому синхронизируем вручную после обновления выбора (flush: post - DOM уже готов).
-        selectedAttachmentIds: {
-            handler() {
-                this.syncSelectAllIndeterminate();
-            },
-            flush: 'post'
         }
     },
     methods: {
@@ -419,13 +467,6 @@ export default {
             this.selectedAttachmentIds = checked ? this.attachments.map(a => a.id) : [];
         },
 
-        syncSelectAllIndeterminate() {
-            const el = this.$refs.selectAllCheckbox;
-            if (el) {
-                el.indeterminate = this.someAttachmentsSelected;
-            }
-        },
-
         close() {
             this.$emit('close');
         },
@@ -433,8 +474,10 @@ export default {
         send() {
             // Преобразуем данные для отправки на сервер
             const usersToSend = this.selectedUsers.map(user => {
-                // Если требуется согласование - отправляем как ответственного
-                if (user.requires_approval) {
+                // Если требуется согласование - отправляем как ответственного.
+                // У читателя тумблеров нет вовсе, но флаг мог остаться от выбора,
+                // сделанного до смены роли - тогда сервер ответил бы 403.
+                if (user.requires_approval && !this.readerOnly) {
                     return {
                         user_id: user.id,
                         required_approval: user.required_approval || false,
@@ -453,7 +496,8 @@ export default {
 
             this.$emit('send', {
                 users: usersToSend,
-                attachment_ids: [...this.selectedAttachmentIds]
+                attachment_ids: [...this.selectedAttachmentIds],
+                message: this.message.trim()
             });
         },
 
@@ -461,6 +505,7 @@ export default {
             this.selectedUsers = [];
             this.searchQuery = '';
             this.showDropdown = false;
+            this.message = '';
             // По умолчанию пересылаем все вложения (старое поведение), пользователь сужает.
             this.selectedAttachmentIds = this.attachments.map(a => a.id);
         }
@@ -473,6 +518,17 @@ export default {
     padding: 20px;
 }
 
+.forward-reader-note {
+    margin-bottom: 16px;
+    padding: 10px 12px;
+    background: var(--accent-tint);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--color-text);
+}
+
 .user-search-section {
     position: relative;
     margin-bottom: 20px;
@@ -483,12 +539,12 @@ export default {
     top: 100%;
     left: 0;
     right: 0;
-    background: #fff;
+    background: var(--surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     overflow: hidden;
     z-index: 1000;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px var(--shadow-drop);
     margin-top: 5px;
 }
 
@@ -499,13 +555,13 @@ export default {
 
 .forward-user-item {
     padding: 10px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border);
     cursor: pointer;
     transition: background-color 0.2s ease;
 }
 
 .forward-user-item:hover {
-    background-color: #f0f0f0;
+    background-color: var(--border);
 }
 
 .forward-user-info {
@@ -523,12 +579,12 @@ export default {
 .forward-user-name {
     font-weight: 600;
     font-size: 14px;
-    color: #000;
+    color: var(--text);
 }
 
 .forward-user-username {
     font-size: 12px;
-    color: #6b7280;
+    color: var(--text-muted);
 }
 
 .forward-user-details {
@@ -539,7 +595,7 @@ export default {
 .forward-user-position,
 .forward-user-organization {
     font-size: 12px;
-    color: #6b7280;
+    color: var(--text-muted);
 }
 
 .no-results {
@@ -548,7 +604,7 @@ export default {
 
 .no-results-message {
     text-align: center;
-    color: #6b7280;
+    color: var(--text-muted);
     font-size: 14px;
     padding: 15px;
 }
@@ -589,7 +645,7 @@ export default {
 }
 
 .forward-selected-user:hover {
-    border-color: var(--color-primary);
+    border-color: var(--accent);
     background: var(--color-bg);
 }
 
@@ -609,12 +665,12 @@ export default {
 .forward-selected-user-name {
     font-weight: 600;
     font-size: 15px;
-    color: #000;
+    color: var(--text);
 }
 
 .forward-selected-user-username {
     font-size: 13px;
-    color: #6b7280;
+    color: var(--text-muted);
 }
 
 .forward-selected-user-details {
@@ -626,8 +682,8 @@ export default {
 .forward-selected-user-position,
 .forward-selected-user-organization {
     font-size: 12px;
-    color: #6b7280;
-    background: #e8e8e8;
+    color: var(--text-muted);
+    background: var(--surface-2);
     padding: 2px 8px;
     border-radius: 12px;
     display: inline-block;
@@ -645,7 +701,7 @@ export default {
     align-items: center;
     cursor: pointer;
     font-size: 13px;
-    color: #666;
+    color: var(--text-muted);
     gap: 8px;
     width: fit-content;
 }
@@ -663,7 +719,7 @@ export default {
     position: relative;
     width: 34px;
     height: 18px;
-    background-color: #ccc;
+    background-color: var(--border);
     border-radius: 9px;
     transition: background-color 0.3s;
     display: inline-block;
@@ -675,14 +731,14 @@ export default {
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background-color: white;
+    background-color: var(--surface);
     top: 2px;
     left: 2px;
     transition: transform 0.3s;
 }
 
 .setting-checkbox:checked + .toggle-slider {
-    background-color: var(--color-primary);
+    background-color: var(--accent);
 }
 
 .setting-checkbox:checked + .toggle-slider:before {
@@ -690,7 +746,7 @@ export default {
 }
 
 .setting-checkbox:disabled + .toggle-slider {
-    background-color: #e0e0e0;
+    background-color: var(--border);
     cursor: not-allowed;
 }
 
@@ -702,7 +758,7 @@ export default {
 .remove-forward-user-btn {
     background: none;
     border: none;
-    color: var(--color-danger);
+    color: var(--danger-text);
     font-size: 20px;
     cursor: pointer;
     padding: 6px 10px;
@@ -712,17 +768,17 @@ export default {
 }
 
 .remove-forward-user-btn:hover {
-    background-color: #fee;
+    background-color: var(--danger-bg);
 }
 
 .no-forward-users {
     text-align: center;
     padding: 40px;
-    color: #6b7280;
+    color: var(--text-muted);
     font-size: 15px;
     border: 1px dashed var(--color-border);
     border-radius: 12px;
-    background: #fafafa;
+    background: var(--surface-2);
 }
 
 .forward-attachments {
@@ -749,9 +805,9 @@ export default {
 .forward-attachments-all {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     font-size: 13px;
-    color: #6b7280;
+    color: var(--color-text);
     cursor: pointer;
     user-select: none;
     flex-shrink: 0;
@@ -769,26 +825,15 @@ export default {
 .forward-attachment-item {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    background: var(--color-bg-secondary);
-    border: 1px solid var(--color-border);
+    gap: 12px;
+    padding: 9px 8px;
     border-radius: var(--radius-md);
     cursor: pointer;
-    transition: border-color 0.2s ease, background-color 0.2s ease;
+    transition: background-color 0.2s ease;
 }
 
 .forward-attachment-item:hover {
-    border-color: var(--color-primary);
-    background: var(--color-bg);
-}
-
-.forward-attachment-checkbox {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--color-primary);
-    cursor: pointer;
-    flex-shrink: 0;
+    background: var(--accent-tint);
 }
 
 .forward-attachment-info {
@@ -808,14 +853,19 @@ export default {
 }
 
 .forward-attachment-group {
-    font-size: 12px;
-    color: #6b7280;
+    align-self: flex-start;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--accent-text);
+    background: var(--accent-tint);
+    padding: 1px 8px;
+    border-radius: 8px;
 }
 
 .forward-attachments-hint {
     margin: 8px 0 0;
     font-size: 12px;
-    color: var(--color-danger);
+    color: var(--danger-text);
 }
 
 .forward-user-dropdown-content::-webkit-scrollbar,
@@ -827,34 +877,78 @@ export default {
 .forward-user-dropdown-content::-webkit-scrollbar-track,
 .forward-users-list-container::-webkit-scrollbar-track,
 .forward-attachments-list::-webkit-scrollbar-track {
-    background: #f1f1f1;
+    background: var(--surface-2);
     border-radius: 10px;
 }
 
 .forward-user-dropdown-content::-webkit-scrollbar-thumb,
 .forward-users-list-container::-webkit-scrollbar-thumb,
 .forward-attachments-list::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
+    background: var(--border);
     border-radius: 10px;
 }
 
 .forward-user-dropdown-content::-webkit-scrollbar-thumb:hover,
 .forward-users-list-container::-webkit-scrollbar-thumb:hover,
 .forward-attachments-list::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
+    background: var(--text-muted);
+}
+
+.forward-message-field {
+    margin-top: 20px;
+    margin-bottom: 12px;
+}
+
+.forward-message-wrapper {
+    position: relative;
+}
+
+.forward-message-textarea {
+    min-height: 80px;
+    padding-bottom: 26px;
+}
+
+.forward-message-counter {
+    position: absolute;
+    right: 12px;
+    bottom: 8px;
+    font-size: 12px;
+    color: var(--color-text-muted);
+    pointer-events: none;
+}
+
+.forward-message-counter--warning {
+    color: var(--danger-text);
+}
+
+.forward-message-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--warning-bg);
+    border: 1px solid var(--color-warning);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--color-text);
+}
+
+.forward-message-warning-icon {
+    flex-shrink: 0;
+    font-size: 14px;
+    line-height: 1.4;
 }
 </style>
 
 <!-- не scoped: контент BaseModal телепортится в body и несёт data-v самого BaseModal,
-     поэтому радиус и overflow задаём глобально двойным классом (бьёт scoped .base-modal BaseModal).
-     overflow: visible нужен, чтобы выпадающий список поиска не обрезался скроллом модалки. -->
+     поэтому радиус задаём глобально двойным классом (бьёт scoped .base-modal BaseModal).
+     overflow НЕ переопределяем: бокс сохраняет свой max-height:92vh + overflow-y:auto из
+     BaseModal, поэтому высокий контент (получатели + вложения + сообщение + предупреждение)
+     помещается со скроллом. Раньше здесь стоял overflow:visible ради выпадающего списка
+     поиска - он ломал вмещение и контент вылезал за экран. -->
 <style>
 .base-modal.forward-modal {
     border-radius: 30px;
-    overflow: visible;
-}
-
-.base-modal.forward-modal .base-modal__body {
-    overflow: visible;
 }
 </style>

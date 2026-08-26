@@ -14,7 +14,7 @@ import (
 func TestListEngine_CoversCatalogEntities(t *testing.T) {
 	for _, entity := range reportListEntityOrder {
 		req := models.ReportRequest{Mode: "list", Entity: entity}
-		plan, err := buildListPlan(req)
+		plan, err := buildListPlan(req, false)
 		if err != nil {
 			t.Errorf("сущность %q: движок не собрал план: %v", entity, err)
 			continue
@@ -26,6 +26,10 @@ func TestListEngine_CoversCatalogEntities(t *testing.T) {
 		for i, c := range catCols {
 			if plan.columns[i].Key != c.key {
 				t.Errorf("сущность %q: столбец #%d ключ %q != каталог %q", entity, i, plan.columns[i].Key, c.key)
+			}
+			// Тип форматирования (date/time/datetime) пробрасывается фронту как есть.
+			if plan.columns[i].Type != c.format {
+				t.Errorf("сущность %q: столбец %q тип %q != каталог %q", entity, c.key, plan.columns[i].Type, c.format)
 			}
 			// каждый столбец каталога должен попасть в SELECT под своим алиасом
 			if !strings.Contains(plan.selectStr, " AS "+c.key) {
@@ -75,7 +79,7 @@ func TestListEngine_ExecMatchesCatalog(t *testing.T) {
 
 func TestListPlan_WorkApplicationsBaseFilter(t *testing.T) {
 	req := models.ReportRequest{Mode: "list", Entity: "work_applications"}
-	plan, err := buildListPlan(req)
+	plan, err := buildListPlan(req, false)
 	if err != nil {
 		t.Fatalf("неожиданная ошибка: %v", err)
 	}
@@ -115,7 +119,7 @@ func TestListPlan_FiltersAndDateRange(t *testing.T) {
 			{Key: "organization", Values: []string{"  "}}, // только пустое -> пропустить
 		},
 	}
-	plan, err := buildListPlan(req)
+	plan, err := buildListPlan(req, false)
 	if err != nil {
 		t.Fatalf("неожиданная ошибка: %v", err)
 	}
@@ -159,7 +163,7 @@ func TestListPlan_RejectsInvalid(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := buildListPlan(tc.req)
+			_, err := buildListPlan(tc.req, false)
 			if err == nil {
 				t.Fatalf("ожидалась ошибка валидации")
 			}
@@ -172,11 +176,49 @@ func TestListPlan_RejectsInvalid(t *testing.T) {
 
 func TestListPlan_LimitClamped(t *testing.T) {
 	req := models.ReportRequest{Mode: "list", Entity: "people", Limit: maxReportLimit + 500}
-	plan, err := buildListPlan(req)
+	plan, err := buildListPlan(req, false)
 	if err != nil {
 		t.Fatalf("неожиданная ошибка: %v", err)
 	}
 	if plan.limit != maxReportLimit {
 		t.Errorf("limit не зажат: got %d, want %d", plan.limit, maxReportLimit)
+	}
+}
+
+// Пока персональные данные скрыты до согласия, колонка принимающего не должна
+// отдавать ни ФИО, ни телефон: строку собирает база, и подменить её после выборки
+// нечем - идентификатора работника в выдаче отчёта нет.
+func TestBuildListPlan_MaskedResponsibleColumn(t *testing.T) {
+	req := models.ReportRequest{Mode: "list", Entity: "work_applications"}
+
+	open, err := buildListPlan(req, false)
+	if err != nil {
+		t.Fatalf("план без маскировки не собрался: %v", err)
+	}
+	if !strings.Contains(open.selectStr, "ru.phone") {
+		t.Error("без маскировки телефон принимающего в колонке остаётся")
+	}
+
+	masked, err := buildListPlan(req, true)
+	if err != nil {
+		t.Fatalf("план с маскировкой не собрался: %v", err)
+	}
+	if !strings.Contains(masked.selectStr, "pd_consents") {
+		t.Error("выдача колонки должна сверяться с наличием согласия")
+	}
+	if !strings.Contains(masked.selectStr, "ru.username") {
+		t.Error("вместо ФИО и телефона ожидается логин")
+	}
+	// Мерка обязана совпасть с gatedUsersWhere: кого запрос согласия не касается,
+	// того и в отчёте не обезличиваем, иначе супер-администратор и архивные
+	// работники в отчёте выглядят иначе, чем во всей остальной системе.
+	for _, guard := range []string{"ru.is_super_admin", "NOT ru.is_active", "ru.is_banned"} {
+		if !strings.Contains(masked.selectStr, guard) {
+			t.Errorf("в условии маскировки нет оговорки %q", guard)
+		}
+	}
+	// Телефон остаётся только в ветке «согласие есть»; у остальных - логин.
+	if !strings.Contains(masked.selectStr, "ELSE '@'") {
+		t.Error("у работника без согласия ожидается логин вместо ФИО и телефона")
 	}
 }

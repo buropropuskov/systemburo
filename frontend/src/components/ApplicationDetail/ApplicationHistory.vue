@@ -2,6 +2,7 @@
   <div class="application-history">
     <button
       class="history-toggle"
+      data-testid="ob-detail-history"
       @click="openModal"
     >
       История заявки
@@ -9,223 +10,246 @@
 
     <!-- Модальное окно истории -->
     <Teleport to="body">
-      <div
-        v-if="showModal"
-        class="history-modal-overlay"
-        @click.self="closeModal"
-      >
-        <div class="history-modal">
-          <div class="modal-header">
-            <h3>История заявки {{ applicationNumber }}</h3>
-            <div class="header-actions">
-              <button
-                class="export-btn"
-                :disabled="filteredHistory.length === 0 || isExporting"
-                @click="exportToExcel"
-              >
-                <img
-                  v-if="!isExporting"
-                  src="@/assets/icons/export.png"
-                  class="export-icon"
-                >
-                <span v-if="!isExporting">Экспорт</span>
-                <div
-                  v-else
-                  class="export-loader"
-                />
-              </button>
-              <button
-                class="close-btn"
-                @click="closeModal"
-              >
-                ×
-              </button>
-            </div>
-          </div>
-
-          <!-- Фильтры -->
-          <div class="history-filters">
-            <div class="filter-row">
-              <div class="user-filter">
-                <span class="filter-label">Пользователь:</span>
-                <div
-                  class="custom-select"
-                  @click="toggleUserDropdown"
-                >
-                  <div class="select-trigger">
-                    <span class="selected-value">{{ selectedUserName }}</span>
-                    <img 
-                      src="@/assets/icons/arrow.png" 
-                      class="select-arrow" 
-                      :class="{ 'arrow-open': userDropdownOpen }"
-                    >
-                  </div>
-                  <transition name="fade">
-                    <div
-                      v-if="userDropdownOpen"
-                      class="select-dropdown"
-                    >
-                      <div 
-                        class="select-option"
-                        :class="{ 'selected': selectedUserId === null }"
-                        @click="selectUser(null)"
-                      >
-                        Все пользователи
-                      </div>
-                      <div 
-                        v-for="user in uniqueUsers" 
-                        :key="user.id"
-                        class="select-option"
-                        :class="{ 'selected': selectedUserId === user.id }"
-                        @click="selectUser(user.id)"
-                      >
-                        {{ user.name }}
-                      </div>
-                    </div>
-                  </transition>
-                </div>
-              </div>
-                        
-              <div class="sort-filter">
-                <span class="filter-label">Сортировка:</span>
+      <transition name="modal-fade">
+        <div
+          v-if="showModal"
+          class="history-modal-overlay"
+          @click.self="closeModal"
+        >
+          <div
+            class="history-modal"
+            data-testid="ob-history-modal"
+            :class="{ 'is-dragging': sheetDragging }"
+            :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
+            @touchstart="onSheetTouchStart"
+            @touchmove="onSheetTouchMove"
+            @touchend="onSheetTouchEnd"
+          >
+            <!-- Ползунок bottom-sheet (виден только на мобилке), свайп вниз закрывает -->
+            <div
+              class="sheet-handle"
+              aria-hidden="true"
+            />
+            <div class="modal-header">
+              <h3>История заявки {{ applicationNumber }}</h3>
+              <div class="header-actions">
                 <button
-                  class="sort-btn"
-                  @click="toggleSortOrder"
+                  class="export-btn"
+                  :disabled="filteredHistory.length === 0 || isExporting"
+                  @click="exportToExcel"
                 >
-                  <img
-                    src="@/assets/icons/sort.png"
-                    class="sort-icon"
-                    :class="{ 'sort-asc': sortOrder === 'asc' }"
-                  >
-                  <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
+                  <AppIcon
+                    v-if="!isExporting"
+                    name="export"
+                    class="export-icon"
+                  />
+                  <span
+                    v-if="!isExporting"
+                    class="export-btn-text"
+                  >Экспорт</span>
+                  <div
+                    v-else
+                    class="export-loader"
+                  />
+                </button>
+                <button
+                  class="close-btn"
+                  @click="closeModal"
+                >
+                  ×
                 </button>
               </div>
             </div>
-          </div>
 
-          <div
-            ref="scrollContainer"
-            class="modal-content"
-          >
-            <div
-              v-if="loading"
-              class="history-loading"
-            >
-              <LoaderSpinner label="Загрузка истории…" />
-            </div>
-                    
-            <div
-              v-else-if="filteredHistory.length === 0"
-              class="history-empty"
-            >
-              История пуста
-            </div>
-                    
-            <div
-              v-else
-              class="history-timeline"
-            >
-              <template
-                v-for="group in historyGroupedByDate"
-                :key="group.date"
-              >
-                <div class="history-date-separator">
-                  {{ group.date }}
-                </div>
-                <div
-                  v-for="(item, i) in group.items"
-                  :key="item.id"
-                  class="history-item"
-                >
+            <!-- Фильтры -->
+            <div class="history-filters">
+              <div class="filter-row">
+                <div class="user-filter">
+                  <span class="filter-label">Пользователь:</span>
                   <div
-                    class="timeline-dot"
-                    :class="getActionClass(item.action_type)"
-                  />
-                  <div
-                    v-if="i < group.items.length - 1"
-                    class="timeline-line"
-                  />
-
-                  <div class="history-content">
-                    <div class="history-header">
-                      <!-- Для системных действий показываем "Система" -->
-                      <span
-                        v-if="item.action_type === 'confirmation_change' || item.action_type === 'status_change' || !item.user_id"
-                        class="user-name system-name"
+                    class="custom-select"
+                    @click="toggleUserDropdown"
+                  >
+                    <div class="select-trigger">
+                      <span class="selected-value">{{ selectedUserName }}</span>
+                      <AppIcon
+                        name="arrow"
+                        class="select-arrow"
+                        :class="{ 'arrow-open': userDropdownOpen }"
+                      />
+                    </div>
+                    <transition name="fade">
+                      <div
+                        v-if="userDropdownOpen"
+                        class="select-dropdown"
                       >
-                        Система
-                      </span>
-                      <span
-                        v-else
-                        class="user-name"
-                      >{{ item.user_name }}</span>
-                      <span class="action-time">{{ formatTime(item.created_at) }}</span>
-                    </div>
-
-                    <div class="action-text">
-                      {{ getActionText(item) }}
-                    </div>
-
-                    <!-- Для пересылки показываем дополнительную информацию -->
-                    <div
-                      v-if="item.action_type === 'assigned_responsible' && item.metadata?.forwarded_by"
-                      class="forward-info"
-                    >
-                      Переслано пользователем {{ item.metadata.forwarded_by }}
-                    </div>
-
-                    <!-- Для просмотра показываем дополнительную информацию -->
-                    <div
-                      v-if="item.action_type === 'assigned_viewer' && item.metadata?.forwarded_by"
-                      class="forward-info"
-                    >
-                      Переслано пользователем {{ item.metadata.forwarded_by }}
-                    </div>
-
-                    <!-- Бейдж обязательного согласования -->
-                    <div
-                      v-if="item.metadata?.required_approval"
-                      class="required-badge"
-                    >
-                      Обязательно
-                    </div>
-
-                    <!-- Статус изменения -->
-                    <div
-                      v-if="item.old_value && item.new_value && item.old_value !== item.new_value"
-                      class="status-change"
-                    >
-                      <span class="old-status">{{ item.old_value }}</span>
-                      <span class="arrow">→</span>
-                      <span class="new-status">{{ item.new_value }}</span>
-                    </div>
-
-                    <!-- Комментарий (если есть) -->
-                    <div
-                      v-if="item.comment && item.action_type !== 'revoke_approval'"
-                      class="action-comment"
-                    >
-                      {{ item.comment }}
-                    </div>
+                        <div 
+                          class="select-option"
+                          :class="{ 'selected': selectedUserId === null }"
+                          @click="selectUser(null)"
+                        >
+                          Все пользователи
+                        </div>
+                        <div 
+                          v-for="user in uniqueUsers" 
+                          :key="user.id"
+                          class="select-option"
+                          :class="{ 'selected': selectedUserId === user.id }"
+                          @click="selectUser(user.id)"
+                        >
+                          {{ user.name }}
+                        </div>
+                      </div>
+                    </transition>
                   </div>
                 </div>
-              </template>
+                        
+                <div class="sort-filter">
+                  <span class="filter-label">Сортировка:</span>
+                  <button
+                    class="sort-btn"
+                    @click="toggleSortOrder"
+                  >
+                    <AppIcon
+                      name="sort"
+                      class="sort-icon"
+                      :class="{ 'sort-asc': sortOrder === 'asc' }"
+                    />
+                    <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div
+              ref="scrollContainer"
+              class="modal-content"
+            >
+              <div
+                v-if="loading"
+                class="history-loading"
+              >
+                <LoaderSpinner label="Загрузка истории…" />
+              </div>
+                    
+              <div
+                v-else-if="filteredHistory.length === 0"
+                class="history-empty"
+              >
+                История пуста
+              </div>
+                    
+              <div
+                v-else
+                class="history-timeline"
+              >
+                <template
+                  v-for="group in historyGroupedByDate"
+                  :key="group.date"
+                >
+                  <div class="history-date-separator">
+                    {{ group.date }}
+                  </div>
+                  <div
+                    v-for="(item, i) in group.items"
+                    :key="item.id"
+                    class="history-item"
+                  >
+                    <div
+                      class="timeline-dot"
+                      :class="getActionClass(item.action_type)"
+                    />
+                    <div
+                      v-if="i < group.items.length - 1"
+                      class="timeline-line"
+                    />
+
+                    <div class="history-content">
+                      <div class="history-header">
+                        <!-- Для системных действий показываем "Система" -->
+                        <span
+                          v-if="item.action_type === 'confirmation_change' || item.action_type === 'status_change' || !item.user_id"
+                          class="user-name system-name"
+                        >
+                          Система
+                        </span>
+                        <span
+                          v-else
+                          class="user-name"
+                        >{{ item.user_name }}</span>
+                        <span class="action-time">{{ formatTime(item.created_at) }}</span>
+                      </div>
+
+                      <div class="action-text">
+                        {{ getActionText(item) }}
+                      </div>
+
+                      <!-- Для пересылки показываем дополнительную информацию -->
+                      <div
+                        v-if="item.action_type === 'assigned_responsible' && item.metadata?.forwarded_by"
+                        class="forward-info"
+                      >
+                        Переслано пользователем {{ item.metadata.forwarded_by }}
+                      </div>
+
+                      <!-- Для просмотра показываем дополнительную информацию -->
+                      <div
+                        v-if="item.action_type === 'assigned_viewer' && item.metadata?.forwarded_by"
+                        class="forward-info"
+                      >
+                        Переслано пользователем {{ item.metadata.forwarded_by }}
+                      </div>
+
+                      <!-- Бейдж обязательного согласования -->
+                      <div
+                        v-if="item.metadata?.required_approval"
+                        class="required-badge"
+                      >
+                        Обязательно
+                      </div>
+
+                      <!-- Статус изменения -->
+                      <div
+                        v-if="item.old_value && item.new_value && item.old_value !== item.new_value"
+                        class="status-change"
+                      >
+                        <span class="old-status">{{ item.old_value }}</span>
+                        <span class="arrow">→</span>
+                        <span class="new-status">{{ item.new_value }}</span>
+                      </div>
+
+                      <!-- Комментарий (если есть) -->
+                      <div
+                        v-if="item.comment && item.action_type !== 'revoke_approval'"
+                        class="action-comment"
+                      >
+                        {{ item.comment }}
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </transition>
     </Teleport>
   </div>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useDeletionsStore } from '@/stores/deletions';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 import ExcelJS from 'exceljs';
+import { ref } from 'vue';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+import { useOnboardingStore } from '@/stores/onboarding';
 
 export default {
     name: 'ApplicationHistory',
-    components: { LoaderSpinner },
+    components: { LoaderSpinner, AppIcon },
     props: {
         applicationId: {
             type: Number,
@@ -248,9 +272,31 @@ export default {
             default: ''
         }
     },
+    setup() {
+        // Bottom-sheet на мобилке: свайп вниз за ползунок (или с прокрученного вверх
+        // контента) закрывает окно истории (useSwipeDismiss, как в ApplicationDetail).
+        const scrollContainer = ref(null);
+        const requestClose = ref(null);
+        const swipe = useSwipeDismiss(() => { if (requestClose.value) requestClose.value(); }, {
+            getScrollTop: () => scrollContainer.value?.scrollTop ?? 0,
+            handleSelector: '.sheet-handle',
+        });
+        return {
+            scrollContainer,
+            requestClose,
+            sheetOffset: swipe.offset,
+            sheetDragging: swipe.isDragging,
+            onSheetTouchStart: swipe.onTouchStart,
+            onSheetTouchMove: swipe.onTouchMove,
+            onSheetTouchEnd: swipe.onTouchEnd,
+            onboardingStore: useOnboardingStore(),
+        };
+    },
     data() {
         return {
             showModal: false,
+            // Журнал открыл тур - только такое окно он и закрывает за собой.
+            historyOpenedByTour: false,
             loading: false,
             history: [],
             sortOrder: 'desc', // 'desc' - новые сверху, 'asc' - старые сверху
@@ -388,9 +434,28 @@ export default {
     },
     mounted() {
         document.addEventListener('click', this.handleClickOutside);
+        // Свайп-закрытие зовёт closeModal (метод недоступен из setup напрямую).
+        this.requestClose = () => this.closeModal();
     },
     beforeUnmount() {
         document.removeEventListener('click', this.handleClickOutside);
+    },
+    watch: {
+        /**
+         * Онбординг просит показать журнал: открываем окно по сигналу и закрываем,
+         * когда сигнал гаснет. Окно, открытое человеком, не трогаем.
+         */
+        'onboardingStore.revealOpen'(target) {
+            if (target === 'application-history') {
+                if (this.showModal) return;
+                this.historyOpenedByTour = true;
+                this.openModal();
+                return;
+            }
+            if (!this.historyOpenedByTour) return;
+            this.historyOpenedByTour = false;
+            this.closeModal();
+        },
     },
     methods: {
         openModal() {
@@ -423,7 +488,6 @@ export default {
 
                 if (response.ok) {
                     this.history = await response.json();
-                    console.log("History loaded:", this.history);
                 }
             } catch (error) {
                 console.error("Error loading history:", error);
@@ -627,7 +691,7 @@ export default {
                 
             } catch (error) {
                 console.error('Error exporting to Excel:', error);
-                alert('Ошибка при экспорте в Excel');
+                useDeletionsStore().notify({ prefix: 'Ошибка при экспорте в Excel', type: 'error' });
             } finally {
                 this.isExporting = false;
             }
@@ -643,12 +707,27 @@ export default {
                 'take_to_work': 'dot-success',
                 'revoke_from_work': 'dot-warning',
                 'restore_to_work': 'dot-info',
+                'completed': 'dot-success',
+                'employees_bulk_added': 'dot-create',
+                'supplement_created': 'dot-create',
+                'supplement_cancelled': 'dot-warning',
+                'supplement_approve': 'dot-approve',
+                'supplement_reject': 'dot-reject',
+                'supplement_revoke_approval': 'dot-revoke',
+                'supplement_confirmation_change': 'dot-system',
+                'supplement_accepted': 'dot-success',
+                'supplement_refused': 'dot-reject',
+                'supplement_cancelled_by_author': 'dot-warning',
+                'withdraw': 'dot-reject',
                 'assigned_responsible': 'dot-assign',
                 'assigned_viewer': 'dot-view',
+                'forwarded': 'dot-assign',
                 'confirmation_change': 'dot-system',
                 'status_change': 'dot-system',
                 'blacklist_override': 'dot-success',
-                'blacklist_override_revoke': 'dot-warning'
+                'element_removed': 'dot-reject',
+                'blacklist_override_revoke': 'dot-warning',
+                'question_created': 'dot-info'
             };
             return classes[actionType] || 'dot-default';
         },
@@ -665,10 +744,25 @@ export default {
             
             // Новый тип для просматривающих
             if (item.action_type === 'assigned_viewer') {
-                
+
                 return `Получил(-а) доступ к просмотру заявки`;
             }
-            
+
+            // Сводка пересылки: вся заявка или конкретные вложения (#680)
+            if (item.action_type === 'forwarded') {
+                const names = item.metadata?.attachments;
+                if (item.metadata?.whole || !Array.isArray(names) || !names.length) {
+                    return 'Переслал(-а) всю заявку';
+                }
+                return `Переслал(-а) вложения: ${names.join(', ')}`;
+            }
+
+            // Создание вопроса к заявке (#973): тема вопроса в metadata.subject.
+            if (item.action_type === 'question_created') {
+                const subject = item.metadata?.subject;
+                return subject ? `Задал(-а) вопрос: ${subject}` : 'Задал(-а) вопрос';
+            }
+
             const texts = {
                 'create': 'Создал(-а) заявку',
                 'read': 'Прочитал(-а) заявку',
@@ -677,19 +771,59 @@ export default {
                 'take_to_work': 'Принял(-а) в работу',
                 'revoke_from_work': 'Отозвал(-а) из работы',
                 'restore_to_work': 'Вернул(-а) в работу',
+                'completed': 'Заявка завершена: срок действия истёк',
+                'employees_bulk_added': 'Добавил(-а) сотрудников списком',
+                'supplement_created': 'Подал(-а) дополнение',
+                'supplement_cancelled': 'Дополнение снято: заявка закрыта',
+                'supplement_approve': 'Согласовал(-а) дополнение',
+                'supplement_reject': 'Не согласовал(-а) дополнение',
+                'supplement_revoke_approval': 'Отозвал(-а) согласование дополнения',
+                'supplement_confirmation_change': 'Статус согласования дополнения изменился',
+                'supplement_accepted': 'Принял(-а) дополнение',
+                'supplement_refused': 'Отклонил(-а) дополнение',
+                'supplement_cancelled_by_author': 'Снял(-а) своё дополнение',
+                'withdraw': 'Отозвал(-а) заявку',
                 'assigned_responsible': 'Назначен(-а) ответственным получателем',
                 'assigned_viewer': 'Получил(-а) доступ к просмотру заявки',
                 'confirmation_change': 'Статус согласования изменился',
                 'status_change': 'Статус заявки изменился',
                 'blacklist_override': 'Подтвердил(-а) пропуск (возможный обход ЧС)',
-                'blacklist_override_revoke': 'Отменил(-а) подтверждение пропуска'
+                'blacklist_override_revoke': 'Отменил(-а) подтверждение пропуска',
+                'element_removed': 'Убрал(-а) из заявки'
             };
             
             let text = texts[item.action_type] || item.action_type;
-            
-            
-            
+
+            // Номер раунда рядом с подписью (#1685): по одной заявке дополнений бывает
+            // несколько, и без номера события разных раундов в ленте не различить.
+            // Скобками, а не « №N» в хвосте - часть подписей кончается не словом
+            // «дополнение» («Статус согласования дополнения изменился»).
+            const supplementNumber = this.supplementNumber(item);
+            if (supplementNumber) {
+                text = `${text} (№${supplementNumber})`;
+            }
+
             return text;
+        },
+
+        /**
+         * Номер раунда дополнения из метаданных события (#1685), либо null.
+         *
+         * Бэк кладёт в metadata аудита ключ `number` (supplementAuditMetadata); имя
+         * `supplement_number` он же использует в payload уведомлений, поэтому принимаем
+         * оба - иначе подпись молча останется без номера, если ключи когда-нибудь сведут.
+         *
+         * @param {Object} item запись истории
+         * @returns {?number}
+         */
+        supplementNumber(item) {
+            if (!item || typeof item.action_type !== 'string') return null;
+            if (!item.action_type.startsWith('supplement_')) return null;
+
+            const meta = item.metadata || {};
+            const raw = meta.supplement_number != null ? meta.supplement_number : meta.number;
+            const number = Number(raw);
+            return Number.isFinite(number) && number > 0 ? number : null;
         },
 
         formatTime(dateTimeString) {
@@ -718,11 +852,11 @@ export default {
 <style scoped>
 .history-toggle {
     background: none;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 50px;
     padding: 6px 12px;
     font-size: 13px;
-    color: #666;
+    color: var(--text-muted);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -731,8 +865,8 @@ export default {
 }
 
 .history-toggle:hover {
-    background: #f5f5f5;
-    border-color: #4F5BDF;
+    background: var(--surface-2);
+    border-color: var(--accent);
 }
 
 .history-modal-overlay {
@@ -741,7 +875,7 @@ export default {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -757,15 +891,20 @@ export default {
 }
 
 .history-modal {
-    background: white;
+    background: var(--surface);
     border-radius: 30px;
     width: 580px;
     max-width: 95%;
-    max-height: 80vh;
+    max-height: calc(var(--app-vh, 1vh) * 80);
     display: flex;
     flex-direction: column;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 10px 30px var(--shadow-drop);
     animation: slideUp 0.2s ease-out;
+}
+
+/* Ползунок bottom-sheet - только на мобилке (@768). */
+.sheet-handle {
+    display: none;
 }
 
 @keyframes slideUp {
@@ -784,14 +923,14 @@ export default {
     justify-content: space-between;
     align-items: center;
     padding: 10px 25px;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
     margin: 0;
     font-size: 16px;
     font-weight: 600;
-    color: #333;
+    color: var(--text);
 }
 
 .header-actions {
@@ -804,7 +943,7 @@ export default {
     background: none;
     border: none;
     font-size: 20px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     cursor: pointer;
     width: 24px;
     height: 24px;
@@ -816,8 +955,8 @@ export default {
 }
 
 .close-btn:hover {
-    background: #f5f5f5;
-    border-color: #4F5BDF;
+    background: var(--surface-2);
+    border-color: var(--accent);
 }
 
 /* Кнопка экспорта в шапке */
@@ -827,11 +966,11 @@ export default {
     justify-content: center;
     gap: 8px;
     padding: 4px 12px;
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     font-size: 12px;
-    color: #000;
+    color: var(--text);
     cursor: pointer;
     transition: all 0.2s ease;
     width: 100px;
@@ -839,8 +978,8 @@ export default {
 }
 
 .export-btn:hover:not(:disabled) {
-    background: #f5f5f5;
-    border-color: #4F5BDF;
+    background: var(--surface-2);
+    border-color: var(--accent);
 }
 
 .export-btn:disabled {
@@ -856,8 +995,8 @@ export default {
 .export-loader {
     width: 16px;
     height: 16px;
-    border: 2px solid #e6e6e6;
-    border-top: 2px solid #4F5BDF;
+    border: 2px solid var(--border);
+    border-top: 2px solid var(--accent);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
@@ -865,8 +1004,8 @@ export default {
 /* Фильтры */
 .history-filters {
     padding: 10px 25px;
-    border-bottom: 1px solid #e6e6e6;
-    background-color: #fafafa;
+    border-bottom: 1px solid var(--border);
+    background-color: var(--surface-2);
 }
 
 .filter-row {
@@ -885,7 +1024,7 @@ export default {
 
 .filter-label {
     font-size: 12px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     white-space: nowrap;
 }
 
@@ -901,20 +1040,20 @@ export default {
     align-items: center;
     justify-content: space-between;
     padding: 6px 12px;
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     transition: all 0.2s ease;
 }
 
 .select-trigger:hover {
-    border-color: #4F5BDF;
-    background: #f5f5f5;
+    border-color: var(--accent);
+    background: var(--surface-2);
 }
 
 .selected-value {
     font-size: 12px;
-    color: #000;
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -949,10 +1088,10 @@ export default {
     height: auto;
     max-height: 300px;
     overflow-y: auto;
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 15px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px var(--shadow-drop);
     z-index: 1000;
 }
 
@@ -965,17 +1104,17 @@ export default {
 }
 
 .select-dropdown::-webkit-scrollbar-thumb {
-    background: #D9E2FF;
+    background: color-mix(in srgb, var(--accent) 22%, var(--surface));
     border-radius: 2px;
 }
 
 .select-option {
     padding: 8px 12px;
     font-size: 12px;
-    color: #333;
+    color: var(--text);
     cursor: pointer;
     transition: all 0.2s ease;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border);
 }
 
 .select-option:last-child {
@@ -983,11 +1122,11 @@ export default {
 }
 
 .select-option:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .select-option.selected {
-    background-color: #f0f3ff;
+    background-color: var(--accent-tint);
     font-weight: 500;
 }
 
@@ -996,22 +1135,23 @@ export default {
     align-items: center;
     gap: 6px;
     padding: 6px 12px;
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     font-size: 12px;
-    color: #000;
+    color: var(--text);
     cursor: pointer;
     transition: all 0.2s ease;
     width: 150px;
 }
 
 .sort-btn:hover {
-    background: #f5f5f5;
-    border-color: #4F5BDF;
+    background: var(--surface-2);
+    border-color: var(--accent);
 }
 
 .sort-icon {
+  color: var(--text-muted);
     width: 14px;
     height: 14px;
     transition: transform 0.2s ease;
@@ -1024,8 +1164,11 @@ export default {
 .modal-content {
     padding: 20px 25px;
     overflow-y: auto;
-    height: calc(80vh - 150px);
-    max-height: calc(80vh - 150px);
+    /* Рост по контенту: flex:1 заполняет остаток .history-modal (max-height 80vh) и
+       скроллит при переполнении. Раньше был фиксированный height:calc(80vh-150px) -
+       окно ВСЕГДА тянулось на ~80vh даже при короткой истории ("белая сосиска"). */
+    flex: 1 1 auto;
+    min-height: 0;
     scrollbar-width: none;
     -ms-overflow-style: none;
 }
@@ -1040,14 +1183,14 @@ export default {
     align-items: center;
     justify-content: center;
     padding: 40px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .loader {
     width: 30px;
     height: 30px;
-    border: 2px solid #f3f3f3;
-    border-top: 2px solid #4F5BDF;
+    border: 2px solid var(--surface-2);
+    border-top: 2px solid var(--accent);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
@@ -1064,10 +1207,10 @@ export default {
 .history-date-separator {
     font-size: 11px;
     font-weight: 600;
-    color: #4F5BDF;
+    color: var(--accent-text);
     padding: 8px 0 4px;
     margin-bottom: 8px;
-    border-bottom: 1px solid #e6f0ff;
+    border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
     letter-spacing: 0.02em;
 }
 
@@ -1097,10 +1240,10 @@ export default {
     top: 18px;
     width: 2px;
     height: calc(100% + 2px);
-    background: #e6e6e6;
+    background: var(--border);
 }
 
-.dot-create { background: #4F5BDF; }
+.dot-create { background: var(--accent-text); }
 .dot-read { background: #3b82f6; }
 .dot-approve { background: #059669; }
 .dot-reject { background: #dc2626; }
@@ -1126,37 +1269,37 @@ export default {
 
 .user-name {
     font-weight: 500;
-    color: #333;
+    color: var(--text);
     font-size: 13px;
 }
 
 .system-name {
-    color: #8b5cf6;
+    color: var(--accent-text);
     font-style: italic;
 }
 
 .action-time {
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 11px;
 }
 
 .action-text {
-    color: #666;
+    color: var(--text-muted);
     font-size: 12px;
     margin-bottom: 4px;
 }
 
 .forward-info {
     font-size: 11px;
-    color: #8b5cf6;
+    color: var(--accent-text);
     font-style: italic;
     margin-bottom: 4px;
 }
 
 .required-badge {
     display: inline-block;
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     font-size: 10px;
     padding: 2px 8px;
     border-radius: 12px;
@@ -1168,7 +1311,7 @@ export default {
     align-items: center;
     gap: 6px;
     font-size: 11px;
-    background: #f9f9f9;
+    background: var(--surface-2);
     padding: 3px 8px;
     border-radius: 16px;
     display: inline-flex;
@@ -1176,29 +1319,29 @@ export default {
 }
 
 .old-status {
-    color: #dc2626;
+    color: var(--danger-text);
     text-decoration: line-through;
     font-size: 11px;
 }
 
 .arrow {
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 10px;
 }
 
 .new-status {
-    color: #059669;
+    color: var(--success-text);
     font-weight: 500;
     font-size: 11px;
 }
 
 .action-comment {
     font-size: 11px;
-    color: #666;
+    color: var(--text-muted);
     font-style: italic;
     margin-top: 4px;
     padding-left: 6px;
-    border-left: 2px solid #e6e6e6;
+    border-left: 2px solid var(--border);
 }
 
 @media (max-width: 768px) {
@@ -1207,17 +1350,105 @@ export default {
         align-items: flex-start;
         gap: 10px;
     }
-    
+
     .user-filter, .sort-filter {
         width: 100%;
     }
-    
+
     .custom-select {
         width: 100%;
     }
-    
+
     .sort-btn {
         width: 100%;
     }
+
+    /* Bottom-sheet на мобильном (зеркалит BaseModal - REUSE паттерна, эта модалка
+       кастомная, не сам BaseModal, поэтому паттерн скопирован 1:1). */
+    .history-modal-overlay {
+        padding: 0;
+        align-items: flex-end;
+    }
+
+    .history-modal {
+        width: 100%;
+        max-width: 100%;
+        max-height: 90dvh;
+        border-radius: 16px 16px 0 0;
+        /* Выезд снизу при появлении + snap-back после свайпа (как ApplicationDetail). */
+        animation: historySlideUp 0.3s ease-out;
+        transition: transform 0.3s ease;
+    }
+
+    /* Пока тянем пальцем - без анимации (лист следует за пальцем 1:1). */
+    .history-modal.is-dragging {
+        transition: none;
+    }
+
+    /* Крестик/overlay: лист уезжает ВНИЗ (как свайп), а не просто фейдится. При
+       свайп-закрытии inline transform=offset (innerHeight) перебивает это правило -
+       второго слайда нет (тот же приём, что VehicleDetailsModal). */
+    .modal-fade-leave-active .history-modal {
+        transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .modal-fade-leave-to .history-modal {
+        transform: translateY(100%);
+    }
+    /* Держим оверлей видимым весь слайд листа (0.3s) - иначе Vue снимет узел на базовых
+       0.25s и слайд обрежется. Повышенная специфичность бьёт базовое правило. */
+    .history-modal-overlay.modal-fade-leave-active {
+        transition: opacity 0.3s ease;
+    }
+
+    .sheet-handle {
+        display: block;
+        width: 40px;
+        height: 4px;
+        margin: 10px auto 2px;
+        border-radius: 2px;
+        background: var(--border);
+        flex-shrink: 0;
+    }
+
+    .close-btn {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    /* На мобилке кнопка экспорта - иконка в outline-круге (единый стиль с
+       Скачать/Переслать в шапке детали). Текст скрыт. */
+    .export-btn {
+        width: 30px;
+        height: 30px;
+        min-width: 30px;
+        padding: 0;
+        gap: 0;
+        border-radius: 50%;
+        border: 1px solid var(--text);
+        background: var(--surface);
+    }
+
+    .export-btn:hover:not(:disabled) {
+        background: var(--accent-tint);
+    }
+
+    .export-btn-text {
+        display: none;
+    }
+}
+
+@keyframes historySlideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
 }
 </style>

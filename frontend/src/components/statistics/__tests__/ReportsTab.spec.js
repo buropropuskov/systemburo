@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { nextTick } from 'vue';
@@ -31,7 +33,6 @@ vi.mock('@/stores/ui', () => ({ useUiStore: () => ({ confirm: confirmSpy }) }));
 import ReportsTab from '../ReportsTab.vue';
 import ReportBuilder from '../ReportBuilder.vue';
 import ReportResult from '../ReportResult.vue';
-import ReportStepper from '../ReportStepper.vue';
 
 describe('ReportsTab', () => {
   it('при двух параллельных запусках показывает результат последнего, медленный предыдущий игнорирует', async () => {
@@ -54,34 +55,6 @@ describe('ReportsTab', () => {
     await flushPromises();
 
     expect(wrapper.findComponent(ReportResult).props('result').total).toBe(7);
-  });
-
-  it('снимок мастера с заполненным периодом закрывает шаг «Период» степпера', async () => {
-    const wrapper = mount(ReportsTab, { props: { from: '', to: '' } });
-    await flushPromises();
-
-    const builder = wrapper.findComponent(ReportBuilder);
-    builder.vm.$emit('change', {
-      mode: 'aggregate', metric: 'applications_count', dimension: 'status', entity: '', filterCount: 0, periodFilled: true,
-    });
-    await nextTick();
-
-    const periodStep = wrapper.findComponent(ReportStepper).props('steps')[3];
-    expect(periodStep.label).toContain('Период');
-    expect(periodStep.state).toBe('done');
-  });
-
-  it('в list-режиме без периода шаг «Период» считается пройденным', async () => {
-    const wrapper = mount(ReportsTab, { props: { from: '', to: '' } });
-    await flushPromises();
-
-    const builder = wrapper.findComponent(ReportBuilder);
-    builder.vm.$emit('change', {
-      mode: 'list', metric: '', dimension: '', entity: 'cars', filterCount: 0, periodApplicable: false, periodFilled: false,
-    });
-    await nextTick();
-
-    expect(wrapper.findComponent(ReportStepper).props('steps')[3].state).toBe('done');
   });
 
   it('ошибку экспорта показывает тостом и не подменяет результат отчёта', async () => {
@@ -182,5 +155,41 @@ describe('ReportsTab', () => {
     await wrapper.find('.tpl-del').trigger('click');
     await flushPromises();
     expect(state.deleted).toHaveLength(0);
+  });
+  // Лимит запроса нужен результату, чтобы отличить «данных ровно столько» от
+  // «упёрлись в лимит»: движок признака обрезки не отдаёт.
+  it('лимит построенного запроса доходит до результата, ошибка его сбрасывает', async () => {
+    state.deferred.length = 0;
+    const wrapper = mount(ReportsTab, { props: { from: '2026-06-01', to: '2026-06-07' } });
+    await flushPromises();
+
+    const builder = wrapper.findComponent(ReportBuilder);
+    builder.vm.$emit('run', { mode: 'aggregate', metric: 'applications_count', dimension: 'period', limit: 1000 });
+    await nextTick();
+    state.deferred[0]({ mode: 'aggregate', dimension: 'period', rows: [], total: 0, unit: 'шт' });
+    await flushPromises();
+    expect(wrapper.findComponent(ReportResult).props('limit')).toBe(1000);
+
+    builder.vm.$emit('run', { mode: 'aggregate', metric: 'applications_count', dimension: 'period', limit: 1000 });
+    await nextTick();
+    state.deferred[1](Promise.reject(new Error('бэк упал')));
+    await flushPromises();
+    expect(wrapper.findComponent(ReportResult).props('limit')).toBe(0);
+  });
+});
+
+/*
+ * jsdom не считает медиа-запросы, поэтому мобильный контракт вкладки (#1097 r3d)
+ * сверяем по SFC: на телефоне у карточки-конструктора padding 20px с обеих сторон
+ * съедал ширину полей мастера.
+ */
+describe('ReportsTab — мобильная адаптивность (#1097 r3d)', () => {
+  const src = readFileSync(resolve(__dirname, '../ReportsTab.vue'), 'utf8');
+  const mobile = src.slice(src.indexOf('@media (max-width: 768px)'));
+
+  it('на мобилке карточка-конструктор получает узкий padding', () => {
+    expect(src).toContain('@media (max-width: 768px)');
+    expect(mobile).toContain('.wizard');
+    expect(mobile).toMatch(/padding:\s*16px 14px/);
   });
 });

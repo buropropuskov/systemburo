@@ -2,32 +2,27 @@ package services
 
 import (
 	"context"
-	"fmt"
-	"io"
-	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
 
 	"systemburo/internal/models"
-	"systemburo/internal/upload"
 
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
 
-// UploadPhoto загружает фотографию системной таблицы.
-func (s *systemTableService) UploadPhoto(ctx context.Context, tableID int, username string, file *multipart.FileHeader) (int, error) {
+// UploadPhoto сохраняет метаданные фотографии системной таблицы. Запись файла
+// на диск выполняет upload-конвейер на уровне хендлера (см. internal/upload).
+func (s *systemTableService) UploadPhoto(ctx context.Context, tableID int, username string, photoURL, fileName, mimeType string, fileSize int64) (int, error) {
 	// Получаем ID пользователя
 	var userID int
-	err := s.db.WithContext(ctx).
+	if err := s.db.WithContext(ctx).
 		Table("users").
 		Select("id").
 		Where("username = ?", username).
 		Row().
-		Scan(&userID)
-	if err != nil {
+		Scan(&userID); err != nil {
 		return 0, echo.NewHTTPError(http.StatusUnauthorized, "User not found")
 	}
 
@@ -42,71 +37,19 @@ func (s *systemTableService) UploadPhoto(ctx context.Context, tableID int, usern
 		return 0, echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
 	}
 
-	if file.Size > s.maxFileSize {
-		return 0, echo.NewHTTPError(http.StatusBadRequest, "File too large. Max 10MB")
-	}
-
-	// Создаём директорию
-	uploadDir := filepath.Join(s.uploadDir, "system_tables")
-	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
-		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Failed to create upload directory")
-	}
-
-	src, err := file.Open()
-	if err != nil {
-		return 0, echo.NewHTTPError(http.StatusBadRequest, "Error reading file")
-	}
-	defer src.Close()
-
-	// Валидация типа файла по magic bytes
-	detectedType, err := upload.ValidateFileType(src, allowedImageTypes)
-	if err != nil {
-		return 0, echo.NewHTTPError(http.StatusBadRequest, "Invalid file type. Allowed: JPEG, PNG, GIF, WebP")
-	}
-	// Перематываем файл после чтения заголовка
-	if seeker, ok := src.(io.Seeker); ok {
-		if _, err := seeker.Seek(0, io.SeekStart); err != nil {
-			return 0, echo.NewHTTPError(http.StatusInternalServerError, "Failed to process file")
-		}
-	}
-
-	ext := upload.MimeToExt(detectedType)
-	uniqueName := fmt.Sprintf("%s_%d%s", uuid.New().String(), tableID, ext)
-	savePath := filepath.Join(uploadDir, uniqueName)
-	fileURL := fmt.Sprintf("/uploads/system_tables/%s", uniqueName)
-
-	dst, err := os.Create(savePath)
-	if err != nil {
-		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Failed to write file")
-	}
-	defer dst.Close()
-
-	if _, err := io.Copy(dst, src); err != nil {
-		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Failed to write file")
-	}
-
-	// Определяем MIME
-	mimeType := file.Header.Get("Content-Type")
-	if mimeType == "" {
-		mimeType = "application/octet-stream"
-	}
-
 	// Первая фотография -- главная
 	var photoCount int64
 	s.db.WithContext(ctx).Model(&models.SystemTablePhoto{}).
 		Where("table_id = ?", tableID).
 		Count(&photoCount)
 
-	isMain := photoCount == 0
-	fileSize := file.Size
-
 	photo := models.SystemTablePhoto{
-		TableID:  tableID,
-		PhotoURL: fileURL,
-		FileName: &file.Filename,
-		FileSize: &fileSize,
-		MimeType: &mimeType,
-		IsMain:   isMain,
+		TableID:    tableID,
+		PhotoURL:   photoURL,
+		FileName:   &fileName,
+		FileSize:   &fileSize,
+		MimeType:   &mimeType,
+		IsMain:     photoCount == 0,
 		UploadedBy: &userID,
 	}
 

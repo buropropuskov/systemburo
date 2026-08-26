@@ -1,12 +1,11 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 	"path/filepath"
 	"strconv"
-	"strings"
 
+	"systemburo/internal/download"
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
@@ -229,11 +228,7 @@ func (h *DocumentHandler) Download(c echo.Context) error {
 	}
 
 	filePath := filepath.Join(h.fileSvc.UploadDir(), doc.StoredName)
-	safeName := strings.ReplaceAll(doc.FileName, `"`, `\"`)
-	c.Response().Header().Set("Content-Disposition",
-		fmt.Sprintf(`attachment; filename="%s"`, safeName))
-	c.Response().Header().Set("Content-Type", doc.MimeType)
-	return c.File(filePath)
+	return download.Serve(c, download.File{Path: filePath, Name: doc.FileName, Mime: doc.MimeType})
 }
 
 // bindUploadRequest парсит поля multipart-формы для Upload.

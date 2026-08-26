@@ -149,6 +149,33 @@ func (h *PersonBlacklistHandler) Check(c echo.Context) error {
 	return RespondSuccess(c, res)
 }
 
+// Impact godoc
+// @Summary      Предпросмотр последствий внесения человека в чёрный список
+// @Description  Где человек сейчас фигурирует: сколько активных строк перестанет действовать, из каких таблиц постов они уйдут, в каких заявках есть. Ничего не меняет.
+// @Tags         person-blacklist
+// @Produce      json
+// @Security     BearerAuth
+// @Param        last_name   query string true  "Фамилия"
+// @Param        first_name  query string true  "Имя"
+// @Param        middle_name query string false "Отчество"
+// @Success      200 {object} map[string]interface{} "success + данные предпросмотра"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /person-blacklist/impact [get]
+func (h *PersonBlacklistHandler) Impact(c echo.Context) error {
+	lastName := c.QueryParam("last_name")
+	firstName := c.QueryParam("first_name")
+	if lastName == "" || firstName == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "last_name и first_name обязательны")
+	}
+	impact, err := h.service.Impact(c.Request().Context(), lastName, firstName, c.QueryParam("middle_name"))
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, impact)
+}
+
 // GetHistory godoc
 // @Summary      История записи чёрного списка людей
 // @Tags         person-blacklist
@@ -182,6 +209,60 @@ func (h *PersonBlacklistHandler) GetAllHistory(c echo.Context) error {
 		return err
 	}
 	return RespondSuccess(c, history)
+}
+
+// BulkArchive godoc
+// @Summary      Групповое снятие людей с чёрного списка
+// @Tags         person-blacklist
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkIDsRequest true "Список ID записей"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Router       /person-blacklist/bulk/archive [post]
+func (h *PersonBlacklistHandler) BulkArchive(c echo.Context) error {
+	var req services.BulkIDsRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны записи")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkArchive(c.Request().Context(), req.IDs, userID)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkRestore godoc
+// @Summary      Групповое восстановление людей в чёрный список
+// @Tags         person-blacklist
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkIDsRequest true "Список ID записей"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Router       /person-blacklist/bulk/restore [post]
+func (h *PersonBlacklistHandler) BulkRestore(c echo.Context) error {
+	var req services.BulkIDsRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны записи")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkRestore(c.Request().Context(), req.IDs, userID)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
 }
 
 // Purge godoc

@@ -17,6 +17,10 @@ import (
 // "custom.<id>" для кастомных полей.
 func resolveValue(bctx *BlankContext, path string, rowIdx int) string {
 	switch {
+	case strings.HasPrefix(path, "app_cars."):
+		return resolveApplicationCars(bctx, path)
+	case strings.HasPrefix(path, "app_items."):
+		return resolveApplicationItems(bctx, path)
 	case strings.HasPrefix(path, "application."):
 		return resolveApplication(bctx, path)
 	case strings.HasPrefix(path, "attachment."):
@@ -25,7 +29,7 @@ func resolveValue(bctx *BlankContext, path string, rowIdx int) string {
 		if rowIdx >= len(bctx.Cars) {
 			return ""
 		}
-		return resolveCar(&bctx.Cars[rowIdx], path, rowIdx)
+		return resolveCar(bctx, &bctx.Cars[rowIdx], path, rowIdx)
 	case strings.HasPrefix(path, "employee."):
 		if rowIdx >= len(bctx.Employees) {
 			return ""
@@ -47,6 +51,19 @@ func resolveValue(bctx *BlankContext, path string, rowIdx int) string {
 }
 
 func resolveApplication(bctx *BlankContext, path string) string {
+	// Согласовавшие живут в контексте отдельным списком - они не зависят от того,
+	// удалось ли загрузить саму заявку.
+	switch path {
+	case "application.approver_name":
+		return joinApprovers(approversForSignature(bctx.Approvers), false)
+	case "application.approver_short_name":
+		return joinApprovers(approversForSignature(bctx.Approvers), true)
+	case "application.approvers":
+		return joinApprovers(bctx.Approvers, false)
+	case "application.approvers_short":
+		return joinApprovers(bctx.Approvers, true)
+	}
+
 	app := bctx.Application
 	if app == nil {
 		return ""
@@ -95,7 +112,7 @@ func resolveApplication(bctx *BlankContext, path string) string {
 		}
 	case "application.sender.phone":
 		if bctx.Sender != nil {
-			return derefStr(bctx.Sender.Phone)
+			return formatPhone(derefStr(bctx.Sender.Phone))
 		}
 	case "application.sender.email":
 		if bctx.Sender != nil {
@@ -109,10 +126,203 @@ func resolveApplication(bctx *BlankContext, path string) string {
 		if app.ConfirmationDatetime != nil {
 			return app.ConfirmationDatetime.Format("02.01.2006")
 		}
-	case "application.approver_name":
-		return bctx.ApproverName
+	case "application.initiator_name":
+		// Инициатора указывают в шапке подачи; у заявок до появления поля берём
+		// отправителя - по умолчанию инициатор это он.
+		if name := derefStr(app.InitiatorName); name != "" {
+			return name
+		}
+		if bctx.Sender != nil {
+			return joinFullName(derefStr(bctx.Sender.LastName), derefStr(bctx.Sender.FirstName), derefStr(bctx.Sender.MiddleName))
+		}
+	case "application.contact_phone":
+		if phone := derefStr(app.ContactPhone); phone != "" {
+			return formatPhone(phone)
+		}
+		if bctx.Sender != nil {
+			return formatPhone(derefStr(bctx.Sender.Phone))
+		}
 	case "application.responsible_comment":
 		return derefStr(app.ResponsibleComment)
+	}
+	return ""
+}
+
+// approversForSignature - кого писать под «СОГЛАСОВАНО»: обязательные согласования
+// перечисляются ВСЕ (каждое из них - отдельное требование заявки), а необязательные
+// представляет первый согласовавший.
+func approversForSignature(all []Approver) []Approver {
+	required := make([]Approver, 0, len(all))
+	for _, a := range all {
+		if a.Required {
+			required = append(required, a)
+		}
+	}
+	if len(required) > 0 {
+		return required
+	}
+	if len(all) > 0 {
+		return all[:1]
+	}
+	return nil
+}
+
+// joinApprovers печатает ФИО согласовавших через запятую: полностью или Фамилия И.О.
+func joinApprovers(list []Approver, short bool) string {
+	names := make([]string, 0, len(list))
+	for _, a := range list {
+		var name string
+		if short {
+			name = joinShortName(a.LastName, a.FirstName, a.MiddleName)
+		} else {
+			name = joinFullName(a.LastName, a.FirstName, a.MiddleName)
+		}
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	return strings.Join(names, ", ")
+}
+
+// resolveApplicationCars печатает транспорт «Автозаявок» этой заявки в бланке любого
+// вложения: в бланке ввоза под него отведена одна ячейка «Марка и гос. номер Т/С»,
+// поэтому несколько машин идут в ней по строкам.
+// Заявка без автозаявок оставляет ячейку такой, как её задал шаблон.
+func resolveApplicationCars(bctx *BlankContext, path string) string {
+	rows := bctx.ApplicationCars
+	if len(rows) == 0 {
+		return ""
+	}
+	switch path {
+	case "app_cars.numbers":
+		return joinCarLines(rows, func(c ApplicationCarRow) string { return c.Number })
+	case "app_cars.marks":
+		return joinCarLines(rows, func(c ApplicationCarRow) string { return c.Mark })
+	case "app_cars.marks_numbers":
+		return joinCarLines(rows, func(c ApplicationCarRow) string {
+			// Марка не заполнена - печатаем один номер: «- О 593 УЕ 325» читалось бы
+			// как потерянное значение.
+			if c.Mark == "" {
+				return c.Number
+			}
+			if c.Number == "" {
+				return c.Mark
+			}
+			return c.Mark + " " + c.Number
+		})
+	case "app_cars.count":
+		return strconv.Itoa(len(rows))
+	case "app_cars.sources":
+		seen := make(map[string]struct{}, len(rows))
+		names := make([]string, 0, len(rows))
+		for _, r := range rows {
+			if r.SourceName == "" {
+				continue
+			}
+			if _, dup := seen[r.SourceName]; dup {
+				continue
+			}
+			seen[r.SourceName] = struct{}{}
+			names = append(names, r.SourceName)
+		}
+		return strings.Join(names, ", ")
+	}
+	return ""
+}
+
+// joinCarLines собирает значения машин по строкам, пропуская пустые.
+func joinCarLines(rows []ApplicationCarRow, value func(ApplicationCarRow) string) string {
+	lines := make([]string, 0, len(rows))
+	for _, r := range rows {
+		if v := value(r); v != "" {
+			lines = append(lines, v)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// resolveApplicationItems печатает ТМЦ «Заявок на ввоз» этой заявки в бланке любого
+// вложения. Перечни разделяются переносом строки: строки списка бланк рисует только для
+// собственного типа вложения, поэтому ввозимый товар идёт столбиком в одной ячейке.
+// Заявка без «Заявок на ввоз» оставляет ячейку такой, как её задал шаблон.
+func resolveApplicationItems(bctx *BlankContext, path string) string {
+	rows := bctx.ApplicationItems
+	if len(rows) == 0 {
+		return ""
+	}
+	switch path {
+	case "app_items.names":
+		names := make([]string, 0, len(rows))
+		for _, r := range rows {
+			if r.Name != "" {
+				names = append(names, r.Name)
+			}
+		}
+		return strings.Join(names, "\n")
+	case "app_items.names_with_count":
+		lines := make([]string, 0, len(rows))
+		for _, r := range rows {
+			if r.Name == "" {
+				continue
+			}
+			// Количество не указано - печатаем одно наименование: "Груз - " выглядело бы
+			// как потерянное значение.
+			if r.Count == nil {
+				lines = append(lines, r.Name)
+				continue
+			}
+			lines = append(lines, r.Name+" - "+strconv.Itoa(*r.Count))
+		}
+		return strings.Join(lines, "\n")
+	case "app_items.total_count":
+		total, filled := 0, false
+		for _, r := range rows {
+			if r.Count != nil {
+				total += *r.Count
+				filled = true
+			}
+		}
+		if !filled {
+			return ""
+		}
+		return strconv.Itoa(total)
+	case "app_items.positions_count":
+		return strconv.Itoa(len(rows))
+	case "app_items.sources":
+		seen := make(map[string]struct{}, len(rows))
+		names := make([]string, 0, len(rows))
+		for _, r := range rows {
+			if r.SourceName == "" {
+				continue
+			}
+			if _, dup := seen[r.SourceName]; dup {
+				continue
+			}
+			seen[r.SourceName] = struct{}{}
+			names = append(names, r.SourceName)
+		}
+		return strings.Join(names, ", ")
+	}
+	return ""
+}
+
+// resolveApplicationItemRow печатает строку таблицы ТМЦ заявки теми же путями item.*,
+// какими бланк «Заявки на ввоз» печатает собственное имущество: админ размечает вторую
+// таблицу привычной группой полей, а данные идут из вложений-ввоза этой заявки.
+func resolveApplicationItemRow(rows []ApplicationItemRow, path string, rowIdx int) string {
+	if rowIdx < 0 || rowIdx >= len(rows) {
+		return ""
+	}
+	it := rows[rowIdx]
+	switch path {
+	case "item.row_number":
+		return strconv.Itoa(rowIdx + 1)
+	case "item.name":
+		return it.Name
+	case "item.count":
+		if it.Count != nil {
+			return strconv.Itoa(*it.Count)
+		}
 	}
 	return ""
 }
@@ -122,15 +332,18 @@ func resolveAttachment(bctx *BlankContext, path string) string {
 	if a == nil {
 		return ""
 	}
+	// Одиночные дата и время форматируются так же, как диапазоны ниже (#1454): раньше
+	// они отдавались сырыми из БД, и в одном бланке соседствовали "2026-07-15" и
+	// "15.07.2026 - 17.07.2026", а время приезжало с секундами.
 	switch path {
 	case "attachment.entry_date_from":
-		return derefStr(a.EntryDateFrom)
+		return formatDate(derefStr(a.EntryDateFrom))
 	case "attachment.entry_date_to":
-		return derefStr(a.EntryDateTo)
+		return formatDate(derefStr(a.EntryDateTo))
 	case "attachment.entry_time_from":
-		return derefStr(a.EntryTimeFrom)
+		return formatTime(derefStr(a.EntryTimeFrom))
 	case "attachment.entry_time_to":
-		return derefStr(a.EntryTimeTo)
+		return formatTime(derefStr(a.EntryTimeTo))
 	case "attachment.entry_date_range":
 		from := formatDate(derefStr(a.EntryDateFrom))
 		to := formatDate(derefStr(a.EntryDateTo))
@@ -151,11 +364,31 @@ func resolveAttachment(bctx *BlankContext, path string) string {
 			return from
 		}
 		return to
+	case "attachment.display_name":
+		if name := derefStr(a.AttachmentDisplayName); name != "" {
+			return name
+		}
+		return derefStr(a.AttachmentName)
+	case "attachment.unload_places":
+		return strings.Join(bctx.AttachmentUnloadPlaces, ", ")
+	case "attachment.roof_access":
+		return yesNo(a.RoofAccess)
+	case "attachment.free_parking":
+		return yesNo(a.FreeParking)
 	}
 	return ""
 }
 
-func resolveCar(c *models.Car, path string, rowIdx int) string {
+// yesNo печатает булев признак вложения словом: пустая ячейка в бланке читалась бы
+// как "поле не заполнено", а не как "нет".
+func yesNo(v bool) string {
+	if v {
+		return "Да"
+	}
+	return "Нет"
+}
+
+func resolveCar(bctx *BlankContext, c *models.Car, path string, rowIdx int) string {
 	switch path {
 	case "car.row_number":
 		return strconv.Itoa(rowIdx + 1)
@@ -167,11 +400,17 @@ func resolveCar(c *models.Car, path string, rowIdx int) string {
 		}
 		return derefStr(c.CarBrand)
 	case "car.unload_place":
+		// Строка, собранная формой подачи: при нескольких местах это "Первое и др.".
+		// Полный перечень - в car.unload_places ниже (#1454).
 		return derefStr(c.UnloadPlace)
+	case "car.unload_places":
+		return strings.Join(bctx.CarUnloadPlaces[c.ID], ", ")
+	case "car.passage_tables":
+		return strings.Join(bctx.CarPassageTables[c.ID], ", ")
 	case "car.entry_date_from":
-		return derefStr(c.EntryDateFrom)
+		return formatDate(derefStr(c.EntryDateFrom))
 	case "car.entry_date_to":
-		return derefStr(c.EntryDateTo)
+		return formatDate(derefStr(c.EntryDateTo))
 	case "car.entry_time_from":
 		return formatTime(derefStr(c.EntryTimeFrom))
 	case "car.entry_time_to":
@@ -199,13 +438,33 @@ func resolveEmployee(bctx *BlankContext, e *models.Employee, path string, rowIdx
 			return bctx.Citizenships[*e.CitizenshipID]
 		}
 	case "employee.passport_series_number":
-		return derefStr(e.PassportSeriesNumber)
+		return documentValue(bctx, derefStr(e.PassportSeriesNumber))
 	case "employee.patent_number":
-		return derefStr(e.PatentNumber)
+		return documentValue(bctx, derefStr(e.PatentNumber))
 	case "employee.other_permission":
-		return derefStr(e.OtherPermission)
+		return documentValue(bctx, derefStr(e.OtherPermission))
+	case "employee.target_tables":
+		return strings.Join(bctx.EmployeeTargetTables[e.ID], ", ")
 	}
 	return ""
+}
+
+// documentMask - что стоит в ячейке документа вместо значения, когда выгрузка
+// документов закрыта правом. Прочерк, а не пустота: пустая ячейка читается как
+// «человек не предъявил документ», и охрана на проходной поймёт её именно так.
+// Тире длинное: в печатной форме короткий дефис теряется рядом с цифрами соседних
+// столбцов и читается как случайный символ, а не как «сведений нет».
+const documentMask = "—"
+
+// documentValue отдаёт значение поля из раздела «Документы» карточки либо прочерк,
+// если бланк собирается без документов. Прочерк ставится и там, где поле не
+// заполнено: иначе пустая ячейка рядом с прочерками сама сообщала бы, что паспорта
+// у человека нет, - а это ровно то сведение, которое закрытый режим и прячет.
+func documentValue(bctx *BlankContext, value string) string {
+	if !bctx.IncludeDocuments {
+		return documentMask
+	}
+	return value
 }
 
 func resolveItem(it *models.Item, path string, rowIdx int) string {
@@ -231,6 +490,29 @@ func formatDate(s string) string {
 		return s
 	}
 	return t.Format("02.01.2006")
+}
+
+// formatPhone печатает номер так же, как интерфейс: +7 (XXX) XXX XX-XX.
+// Эталон - frontend/src/composables/usePhoneFormat.js. Номер, не похожий на
+// российский, возвращается без изменений: в бланке исходная строка полезнее пустоты.
+func formatPhone(s string) string {
+	digits := make([]rune, 0, len(s))
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			digits = append(digits, r)
+		}
+	}
+	switch {
+	case len(digits) == 11 && digits[0] == '8':
+		digits[0] = '7'
+	case len(digits) == 10:
+		digits = append([]rune{'7'}, digits...)
+	}
+	if len(digits) != 11 || digits[0] != '7' {
+		return s
+	}
+	d := string(digits)
+	return "+" + d[0:1] + " (" + d[1:4] + ") " + d[4:7] + " " + d[7:9] + "-" + d[9:11]
 }
 
 func formatTime(s string) string {

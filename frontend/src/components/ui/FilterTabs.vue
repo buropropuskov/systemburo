@@ -57,8 +57,8 @@ export default {
   gap: 7px;
   padding: 0 14px;
   height: 30px;
-  border: 1px solid #e6e6e6;
-  background: white;
+  border: 1px solid var(--border);
+  background: var(--surface);
   border-radius: 50px;
   cursor: pointer;
   font-size: 14px;
@@ -67,12 +67,12 @@ export default {
 }
 
 .filter-tab:hover {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
 }
 
 .filter-tab--active {
-  background: #4F5BDF;
-  color: white;
-  border-color: #4F5BDF;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 </style>

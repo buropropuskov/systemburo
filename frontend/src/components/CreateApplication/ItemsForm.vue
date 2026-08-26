@@ -5,8 +5,10 @@
     :inert="disabled ? '' : undefined"
   >
     <div class="completion__header">
-      <h3>Новые ТМЦ</h3>
-      <div class="completion__actions">
+      <div
+        class="completion__actions"
+        @click="revealBlockedHint($event)"
+      >
         <button 
           v-if="editingItem" 
           class="cancel-edit-btn" 
@@ -33,6 +35,11 @@
           </div>
         </div>
       </div>
+      <!-- В DOM заголовок после кнопок: на мобилке шапка разворачивается в поток,
+           на десктопе order возвращает его влево. -->
+      <h3 class="completion__title">
+        Новые ТМЦ
+      </h3>
     </div>
 
     <!-- Форма для добавления новых ТМЦ -->
@@ -127,11 +134,58 @@
         </div>
       </div>
     </div>
+
+    <!-- Места разгрузки (#706): для ТМЦ-без-машин - единственный источник мест.
+         Грид 1:1 повторяет форму авто (completion__unloading). -->
+    <div
+      v-if="showUnloadPlaces"
+      class="completion__unloading"
+    >
+      <label class="input__label">Места разгрузки (выбор) <span class="required">*</span></label>
+      <div
+        v-if="allUnloadingPlaces.length > 0"
+        class="unloading__grid"
+      >
+        <div
+          v-for="place in allUnloadingPlaces"
+          :key="place.id"
+          class="unloading__item"
+          :class="{
+            'unloading__item--active': selectedUnloadPlaces.includes(place.id) && place.status === 'active',
+            'unloading__item--inactive': place.status !== 'active'
+          }"
+          @click="togglePlace(place, $event)"
+          @mouseenter="showInactiveTooltip(place, $event)"
+          @mouseleave="hideInactiveTooltip"
+        >
+          {{ place.name }}
+        </div>
+      </div>
+      <div
+        v-else
+        class="no-places-message"
+      >
+        Нет доступных мест разгрузки
+      </div>
+    </div>
+
+    <!-- Tooltip для неактивных мест -->
+    <div
+      v-if="inactiveTooltip.visible"
+      class="inactive-tooltip"
+      :style="{ top: inactiveTooltip.y + 'px', left: inactiveTooltip.x + 'px' }"
+    >
+      <div class="inactive-tooltip-content">
+        {{ inactiveTooltip.text }}
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
-import { useFieldConfig } from '@/composables/useFieldConfig';
+import { useFieldConfig } from '@/composables/useFieldConfig'
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
+import { getViewportZoom } from '@/utils/viewportScale';
 
 export default {
     name: 'ItemsForm',
@@ -150,11 +204,28 @@ export default {
         disabled: {
             type: Boolean,
             default: false
+        },
+        // Место разгрузки на уровне заявки (#706): для ТМЦ-без-машин это единственный
+        // источник мест. Показываем грид только когда машин в заявке нет.
+        showUnloadPlaces: {
+            type: Boolean,
+            default: false
+        },
+        allUnloadingPlaces: {
+            type: Array,
+            default: () => []
+        },
+        selectedUnloadPlaces: {
+            type: Array,
+            default: () => []
         }
     },
-    emits: ['edit-cancelled', 'item-added', 'item-updated', 'items-added'],
+    emits: ['edit-cancelled', 'item-added', 'item-updated', 'items-added', 'update:unload-places'],
     setup(props) {
-        return useFieldConfig(() => props.fieldConfig);
+        // Причина блокировки кнопки живёт на hover - на телефоне его нет,
+        // поэтому там показываем её сразу под кнопкой.
+        const { isNarrow } = useNarrowScreen();
+        return { ...useFieldConfig(() => props.fieldConfig), isNarrow };
     },
     data() {
         return {
@@ -169,7 +240,13 @@ export default {
             showTooltip: false,
             submitted: false,
             tempItemsBackup: null,
-            isAddingRow: false
+            isAddingRow: false,
+            inactiveTooltip: {
+                visible: false,
+                text: '',
+                x: 0,
+                y: 0
+            }
         }
     },
     computed: {
@@ -214,7 +291,26 @@ export default {
             deep: true
         }
     },
+    beforeUnmount() {
+        if (this.hintTimer) clearTimeout(this.hintTimer);
+        if (this.inactiveTooltipTimer) clearTimeout(this.inactiveTooltipTimer);
+    },
     methods: {
+        /**
+         * Причина блокировки на телефоне показывается по тапу на зону кнопки
+         * (сама кнопка disabled и события не даёт - на мобилке она прозрачна для
+         * тапа через pointer-events) и гаснет сама.
+         */
+        revealBlockedHint(event) {
+            // Тап по «Отменить» в режиме редактирования - не повод объяснять,
+            // почему заблокировано добавление.
+            if (event && event.target.closest('.cancel-edit-btn')) return;
+            if (!this.isNarrow || this.canAddItems) return;
+            this.showTooltip = true;
+            if (this.hintTimer) clearTimeout(this.hintTimer);
+            this.hintTimer = setTimeout(() => { this.showTooltip = false; }, 3000);
+        },
+
         generateKey() {
             return Date.now() + Math.random().toString(36).substr(2, 9);
         },
@@ -342,6 +438,49 @@ export default {
             
             // Эмитируем событие отмены
             this.$emit('edit-cancelled');
+        },
+
+        togglePlace(place, event) {
+            if (place.status !== 'active') {
+                // На телефоне hover не наступает, и причина недоступности была недостижима:
+                // показываем её по тапу и гасим сама через пару секунд.
+                this.showInactiveTooltip(place, event);
+                if (this.inactiveTooltipTimer) clearTimeout(this.inactiveTooltipTimer);
+                this.inactiveTooltipTimer = setTimeout(() => this.hideInactiveTooltip(), 2500);
+                return;
+            }
+            const current = this.selectedUnloadPlaces || [];
+            const next = current.includes(place.id)
+                ? current.filter(id => id !== place.id)
+                : [...current, place.id];
+            this.$emit('update:unload-places', next);
+        },
+
+        showInactiveTooltip(place, event) {
+            if (place.status !== 'active') {
+                this.inactiveTooltip.text = place.status_comment
+                    ? `Недоступно: ${place.status_comment}`
+                    : 'Недоступно';
+                this.inactiveTooltip.visible = true;
+
+                this.$nextTick(() => {
+                    // Тултип position:fixed внутри зазумленного <html>: rect в device-px,
+                    // а inline left/top трактуются как layout-px - делим на zoom, иначе
+                    // подсказка уезжает вправо-вниз. Отступ -10 уже в layout-px.
+                    const z = getViewportZoom();
+                    const rect = event.target.getBoundingClientRect();
+                    this.inactiveTooltip.x = (rect.left + rect.width / 2) / z;
+                    this.inactiveTooltip.y = rect.top / z - 10;
+                });
+            }
+        },
+
+        hideInactiveTooltip() {
+            if (this.inactiveTooltipTimer) {
+                clearTimeout(this.inactiveTooltipTimer);
+                this.inactiveTooltipTimer = null;
+            }
+            this.inactiveTooltip.visible = false;
         }
     }
 }
@@ -351,7 +490,7 @@ export default {
 .data__completion {
     padding: 15px;
     width: 450px;
-    border-right: 1px solid #e6e6e6;
+    border-right: 1px solid var(--border);
 }
 
 .data__completion--locked {
@@ -365,11 +504,15 @@ export default {
     align-items: center;
 }
 
+.completion__title {
+    order: -1;
+}
+
 .completion__header h3 {
     margin: 0;
     font-size: 16px;
     font-weight: 600;
-    color: #333;
+    color: var(--text);
 }
 
 .completion__actions {
@@ -380,9 +523,9 @@ export default {
 }
 
 .cancel-edit-btn {
-    background: #f8f8f8;
-    color: #333;
-    border: 1px solid #e6e6e6;
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
     border-radius: 15px;
     padding: 8px 15px;
     font-size: 12px;
@@ -391,12 +534,12 @@ export default {
 }
 
 .cancel-edit-btn:hover {
-    background: #e8e8e8;
+    background: var(--row-hover);
 }
 
 .add-button {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     border: none;
     border-radius: 15px;
     padding: 8px 15px;
@@ -407,11 +550,11 @@ export default {
 }
 
 .add-button:hover:not(:disabled) {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 .add-button:disabled {
-    background: #a2a2a2;
+    background: var(--text-muted);
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -436,7 +579,7 @@ export default {
     border-bottom: none;
     padding: 0;
     font-weight: normal;
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 13px;
     margin-bottom: 10px;
 }
@@ -475,11 +618,11 @@ export default {
 
 .input__label {
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .required {
-    color: #ff4444;
+    color: var(--danger-text);
 }
 
 .table-body {
@@ -494,16 +637,16 @@ export default {
 }
 
 .table-body::-webkit-scrollbar-track {
-    background: #f1f1f1;
+    background: var(--surface-2);
 }
 
 .table-body::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
+    background: var(--border);
     border-radius: 2px;
 }
 
 .table-body::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
+    background: var(--text-muted);
 }
 
 .table-row {
@@ -577,8 +720,8 @@ export default {
 .item-number {
     font-size: 13px;
     font-weight: 500;
-    color: #666;
-    background: #f8f9fa;
+    color: var(--text-muted);
+    background: var(--surface-2);
     width: 24px;
     height: 24px;
     border-radius: 50%;
@@ -591,21 +734,21 @@ export default {
 .name__input {
     width: 100%;
     height: 40px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
     padding: 0 15px;
     outline: none;
     font-size: 14px;
-    background: #FFF;
+    background: var(--surface);
     transition: all 0.3s ease;
 }
 
 .name__input:focus {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .name__input.input--error {
-    border-color: #ff4444;
+    border-color: var(--danger);
 }
 
 .name__input[type="number"] {
@@ -622,9 +765,9 @@ export default {
 }
 
 .add-row-btn {
-    background: white;
-    color: #4F5BDF;
-    border: 1px solid #4F5BDF;
+    background: var(--surface);
+    color: var(--accent-text);
+    border: 1px solid var(--accent);
     border-radius: 15px;
     padding: 6px 12px;
     font-size: 12px;
@@ -633,19 +776,19 @@ export default {
 }
 
 .add-row-btn:hover {
-    background: #f0f2ff;
+    background: var(--accent-tint);
 }
 
 .total-items {
     font-size: 12px;
-    color: #666;
+    color: var(--text-muted);
     font-weight: 500;
 }
 
 .remove-row-btn {
     background: none;
     border: none;
-    color: #ff4444;
+    color: var(--danger-text);
     cursor: pointer;
     font-size: 18px;
     width: 24px;
@@ -658,11 +801,11 @@ export default {
 }
 
 .remove-row-btn:hover:not(:disabled) {
-    background: #ffebee;
+    background: var(--danger-bg);
 }
 
 .remove-row-btn:disabled {
-    color: #ccc;
+    color: var(--text-muted);
     cursor: not-allowed;
 }
 
@@ -676,14 +819,14 @@ export default {
 }
 
 .tooltip-content {
-    background: #333;
-    color: white;
+    background: var(--hint-bg);
+    color: var(--hint-text);
     padding: 10px 12px;
     border-radius: 8px;
     font-size: 12px;
     max-width: 420px;
     min-width: 420px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 8px var(--shadow-drop);
 }
 
 .tooltip-content::before {
@@ -692,6 +835,239 @@ export default {
     bottom: 100%;
     right: 40px;
     border: 5px solid transparent;
-    border-bottom-color: #333;
+    border-bottom-color: var(--hint-bg);
+}
+
+/* Места разгрузки (#706): грид 1:1 из VehicleForm (completion__unloading). */
+.completion__unloading {
+    margin-top: 15px;
+}
+
+.unloading__grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    row-gap: 5px;
+    max-width: 425px;
+    margin-top: 5px;
+    position: relative;
+}
+
+.unloading__item {
+    height: 30px;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    border-radius: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+    padding: 0 10px;
+    text-align: center;
+    border: 1px solid transparent;
+    position: relative;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.unloading__item:hover:not(.unloading__item--active):not(.unloading__item--inactive) {
+    background: var(--row-hover);
+}
+
+.unloading__item--active {
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
+}
+
+.unloading__item--inactive {
+    background: var(--danger-bg);
+    color: var(--danger-text);
+    border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.no-places-message {
+    font-size: 12px;
+    color: var(--danger-text);
+    text-align: center;
+    padding: 20px;
+    background: var(--danger-bg);
+    border-radius: 8px;
+    margin-top: 10px;
+}
+
+.inactive-tooltip {
+    position: fixed;
+    transform: translateX(-50%) translateY(-100%);
+    z-index: 10000;
+    pointer-events: none;
+}
+
+.inactive-tooltip-content {
+    background: var(--hint-bg);
+    color: var(--hint-text);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    max-width: 300px;
+    box-shadow: 0 2px 8px var(--shadow-drop);
+}
+
+.inactive-tooltip-content::before {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--hint-bg);
+}
+
+/* Форма (450px) + список ТМЦ рядом не влезают на планшете - стекаем в колонку
+   (form__data в CreateApplication.vue делает то же на этом же брейкпоинте). */
+@media (max-width: 1024px) {
+    .data__completion {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+}
+
+@media (max-width: 768px) {
+    /* Подсказка поверх НАД кнопкой: в потоке она двигала форму. Контейнер
+       кнопок - её positioned-родитель. */
+    .tooltip {
+        position: absolute;
+        top: auto;
+        bottom: calc(100% + 10px);
+        right: 0;
+        left: auto;
+        margin: 0;
+        width: min(320px, calc(100vw - 44px));
+        z-index: 1100;
+    }
+
+    .tooltip-content::before {
+        display: none;
+    }
+
+    /* Тап по заблокированной кнопке уходит контейнеру и показывает причину. */
+    .add-button:disabled {
+        pointer-events: none;
+    }
+
+
+    /* Кнопка «Добавить» - внизу формы, куда пользователь приходит, заполнив
+       таблицу; заголовок «Новые ТМЦ» остаётся в потоке сверху. */
+    .data__completion {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .completion__header {
+        display: contents;
+    }
+
+    /* order:-1 нужен только десктопной строке шапки: во флексе всей формы он
+       утаскивал заголовок в самое начало. */
+    .completion__title {
+        order: 0;
+        display: block;
+        margin-bottom: 6px;
+    }
+
+    .completion__actions {
+        order: 999;
+        justify-content: stretch;
+        margin-top: 4px;
+        padding: 4px 0;
+    }
+
+    .completion__actions .add-button {
+        flex: 1;
+        min-height: 44px;
+    }
+
+    .completion__actions .cancel-edit-btn {
+        min-height: 44px;
+    }
+
+    .tooltip-content {
+        max-width: 100%;
+        white-space: pre-line;
+    }
+
+    .tooltip-content {
+        min-width: 0;
+        max-width: calc(100vw - 40px);
+    }
+
+    /* Сетка мест перестраивалась только с 480. */
+    .unloading__grid {
+        grid-template-columns: repeat(2, 1fr);
+        max-width: 100%;
+    }
+
+    /* Названия мест обрезались многоточием - пускаем в две строки. */
+    .unloading__item {
+        height: auto;
+        min-height: 36px;
+        padding: 6px 10px;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        line-height: 1.25;
+    }
+
+    /* Таблица ввода: фиксированные колонки съедали 190px из 320, и поле
+       наименования схлопывалось. Порядковый номер строки убираем - строк
+       единицы, а подписи колонок остаются на месте. */
+    .number-header,
+    .number-cell {
+        display: none;
+    }
+
+    .name-header,
+    .name-cell {
+        margin-right: 8px;
+        min-width: 0;
+    }
+
+    .quantity-header,
+    .quantity-cell {
+        width: 64px;
+        min-width: 64px;
+        max-width: 64px;
+        margin-right: 8px;
+    }
+
+    .actions-header,
+    .actions-cell {
+        width: 36px;
+        min-width: 36px;
+        max-width: 36px;
+    }
+
+    .remove-row-btn {
+        width: 36px;
+        height: 36px;
+    }
+
+    .add-button {
+        min-height: 40px;
+        padding: 8px 18px;
+        font-size: 13px;
+    }
+
+    .completion__button,
+    .add-row-btn {
+        min-height: 36px;
+    }
 }
 </style>

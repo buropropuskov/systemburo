@@ -28,7 +28,7 @@
       <div class="chart-tooltip__count">
         <span
           class="chart-tooltip__dot"
-          :style="{ background: color }"
+          :style="{ background: lineColor }"
         />
         {{ hoverPoint.count }} {{ pluralize(hoverPoint.count) }}
       </div>
@@ -37,6 +37,8 @@
 </template>
 
 <script>
+import { cssVariable, watchTheme, withAlpha } from '@/utils/chartColors';
+
 export default {
   name: 'RealTimeChart',
   props: {
@@ -48,9 +50,11 @@ export default {
       type: Number,
       default: 200
     },
+    // Цвет линии. Пусто - берётся акцент темы: на холсте CSS-переменные не
+    // работают, поэтому цвет читается из стилей и обновляется вместе с темой.
     color: {
       type: String,
-      default: '#4F5BDF'
+      default: ''
     },
     intervalLabel: {
       type: String,
@@ -66,6 +70,9 @@ export default {
   },
   data() {
     return {
+      // Цвет точки в подсказке: шаблону нужен готовый цвет, а холст читает
+      // палитру сам на каждой отрисовке.
+      dotColor: '',
       hoverIndex: null,
       hoverPoint: null,
       geometry: null,
@@ -85,13 +92,33 @@ export default {
     this.draw();
     this.resizeObserver = new ResizeObserver(() => this.draw());
     this.resizeObserver.observe(this.$refs.canvas.parentElement);
+    // Без наблюдателя график остаётся в палитре прошлой темы до следующего ответа.
+    this.themeObserver = watchTheme(this.$refs.canvas, this.draw);
   },
   beforeUnmount() {
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
     }
+    if (this.themeObserver) {
+      this.themeObserver.disconnect();
+    }
   },
   methods: {
+    /**
+     * Цвета оформления читаются на каждой отрисовке: холст переменных CSS не
+     * понимает, а тема меняется под ним.
+     * @returns {{line: string, grid: string, label: string, surface: string}}
+     */
+    palette() {
+      const el = this.$refs.canvas;
+      return {
+        line: this.color || cssVariable(el, '--accent', '#4F5BDF'),
+        grid: cssVariable(el, '--border', '#e6e6e6'),
+        label: cssVariable(el, '--text-muted', '#a2a2a2'),
+        surface: cssVariable(el, '--surface', '#ffffff'),
+      };
+    },
+
     pluralize(n) {
       const [one, few, many] = this.unitForms;
       const mod10 = n % 10;
@@ -118,6 +145,8 @@ export default {
       canvas.style.width = w + 'px';
       canvas.style.height = h + 'px';
 
+      const palette = this.palette();
+      this.dotColor = palette.line;
       const ctx = canvas.getContext('2d');
       ctx.scale(dpr, dpr);
       ctx.clearRect(0, 0, w, h);
@@ -129,10 +158,10 @@ export default {
       const counts = this.data.map(d => d.count || 0);
       const maxVal = Math.max(...counts, 1);
 
-      ctx.strokeStyle = '#e6e6e6';
+      ctx.strokeStyle = palette.grid;
       ctx.lineWidth = 1;
       ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
-      ctx.fillStyle = '#a2a2a2';
+      ctx.fillStyle = palette.label;
       ctx.textAlign = 'right';
 
       const gridLines = 4;
@@ -163,8 +192,8 @@ export default {
       this.geometry = { padding, chartW, chartH, w, h, step, points };
 
       const gradient = ctx.createLinearGradient(0, padding.top, 0, h - padding.bottom);
-      gradient.addColorStop(0, this.color + '30');
-      gradient.addColorStop(1, this.color + '05');
+      gradient.addColorStop(0, withAlpha(palette.line, 0.19));
+      gradient.addColorStop(1, withAlpha(palette.line, 0.02));
 
       ctx.beginPath();
       ctx.moveTo(padding.left, h - padding.bottom);
@@ -194,11 +223,11 @@ export default {
           ctx.bezierCurveTo(cpx, prev.y, cpx, p.y, p.x, p.y);
         }
       }
-      ctx.strokeStyle = this.color;
+      ctx.strokeStyle = palette.line;
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      ctx.fillStyle = '#a2a2a2';
+      ctx.fillStyle = palette.label;
       ctx.textAlign = 'center';
       ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
 
@@ -211,7 +240,7 @@ export default {
       if (this.hoverIndex !== null && points[this.hoverIndex]) {
         const p = points[this.hoverIndex];
         ctx.beginPath();
-        ctx.strokeStyle = 'rgba(79, 91, 223, 0.35)';
+        ctx.strokeStyle = withAlpha(palette.line, 0.35);
         ctx.lineWidth = 1;
         ctx.setLineDash([4, 4]);
         ctx.moveTo(p.x, padding.top);
@@ -221,9 +250,9 @@ export default {
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-        ctx.fillStyle = '#fff';
+        ctx.fillStyle = palette.surface;
         ctx.fill();
-        ctx.strokeStyle = this.color;
+        ctx.strokeStyle = palette.line;
         ctx.lineWidth = 2;
         ctx.stroke();
       }
@@ -302,28 +331,28 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
 .chart-tooltip {
   position: absolute;
   transform: translate(-50%, -100%);
-  background: #1a1a1a;
-  color: #fff;
+  background: var(--hint-bg);
+  color: var(--hint-text);
   padding: 8px 12px;
   border-radius: 8px;
   font-size: 12px;
   line-height: 1.3;
   white-space: nowrap;
   pointer-events: none;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 8px 20px var(--shadow-drop);
   z-index: 10;
 }
 
 .chart-tooltip__time {
   font-weight: 500;
-  color: #d0d0d0;
+  color: var(--border);
   margin-bottom: 2px;
   font-size: 11px;
 }

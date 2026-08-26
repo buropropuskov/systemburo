@@ -13,7 +13,12 @@ import (
 // onlineWindowMinutes — окно "онлайн": пользователь считается онлайн, если его
 // last_seen обновлялся за последние N минут. Должно быть >= троттл-окна записи
 // last_seen в middleware (60с), с запасом на простой между запросами.
-const onlineWindowMinutes = 15
+//
+// То же окно продублировано на фронте (ONLINE_WINDOW_MINUTES в
+// frontend/src/utils/presence.js): таблица пользователей гасит точку присутствия
+// по тикающему таймеру, без запроса к бэку. Меняя число здесь, менять и там -
+// иначе плитка дашборда и колонка «В сети» дадут разные ответы.
+const onlineWindowMinutes = 5
 
 // StatisticsService — интерфейс бизнес-логики статистики дашборда.
 type StatisticsService interface {
@@ -24,6 +29,19 @@ type StatisticsService interface {
 	// GetOnlinePeaks возвращает серию дневных пиков онлайна за период [from, to]
 	// для карточки динамики пользователей. Дни без снимков опускаются.
 	GetOnlinePeaks(ctx context.Context, from, to time.Time) ([]models.OnlinePeakPoint, error)
+	// GetOnlineUsers возвращает список пользователей онлайн (last_seen в окне) по
+	// убыванию свежести активности — для модалки «кто онлайн» на дашборде.
+	GetOnlineUsers(ctx context.Context) ([]models.OnlineUser, error)
+	// GetProcessingSummary возвращает бандл curated-вкладки «Обработка заявок»:
+	// KPI этапов пути заявки со сравнением с прошлым периодом, качество обработки,
+	// топ медленных согласующих и разбивку по организациям (#1240).
+	GetProcessingSummary(ctx context.Context, from, to time.Time) (*models.ProcessingSummary, error)
+	// GetProcessingJournal возвращает страницу сквозной ленты событий обработки
+	// (согласования и принятия в работу) за период [from, to] по времени убыванием:
+	// limit событий начиная с offset и общее число подходящих событий для постраничной
+	// навигации. filter сужает выборку по роли и подстроке номера/актора. Реальное
+	// время: без кэша (#1251 S4, страницы — P5b, фильтры и поиск — P5c).
+	GetProcessingJournal(ctx context.Context, from, to time.Time, filter ProcessingJournalFilter, limit, offset int) ([]models.ProcessingJournalEntry, int64, error)
 	GetTimeline(ctx context.Context, from, to time.Time, metric, granularity string) ([]models.StatsTimelinePoint, error)
 	GetRecentPassages(ctx context.Context, limit int) (*models.RecentPassages, error)
 	GetReportCatalog(ctx context.Context) (*models.ReportCatalog, error)
@@ -36,19 +54,103 @@ type StatisticsService interface {
 	CreateReportTemplate(ctx context.Context, userID int, req models.SaveReportTemplateRequest) (*models.ReportTemplate, error)
 	UpdateReportTemplate(ctx context.Context, userID, id int, req models.SaveReportTemplateRequest) (*models.ReportTemplate, error)
 	DeleteReportTemplate(ctx context.Context, userID, id int) error
+
+	// WarmCache прогревает кэш аналитики из БД (вызывать при старте до приёма трафика).
+	WarmCache(ctx context.Context)
+	// StartCacheRefresh запускает фоновое обновление кэша аналитики до отмены ctx
+	// (блокирует, вызывать в горутине). No-op, если кэш отключён.
+	StartCacheRefresh(ctx context.Context)
 }
 
 type statisticsService struct {
-	db *gorm.DB
+	db              *gorm.DB
+	cacheRefresh    time.Duration
+	summaryCache    *periodCache[*models.StatsSummary]
+	insightsCache   *periodCache[*models.InsightsResponse]
+	processingCache *periodCache[*models.ProcessingSummary]
 }
 
-// NewStatisticsService создаёт реализацию StatisticsService.
-func NewStatisticsService(db *gorm.DB) StatisticsService {
-	return &statisticsService{db: db}
+// NewStatisticsService создаёт реализацию StatisticsService. cacheRefresh > 0
+// включает тёплый кэш дашборда/insights (in-memory + снимок в БД) с обновлением
+// раз в cacheRefresh; 0 - кэш отключён, всё считается на каждый запрос.
+func NewStatisticsService(db *gorm.DB, cacheRefresh time.Duration) StatisticsService {
+	s := &statisticsService{db: db, cacheRefresh: cacheRefresh}
+	if cacheRefresh > 0 {
+		const evict = time.Hour // период, не запрашиваемый дольше часа, выселяется
+		s.summaryCache = newPeriodCache[*models.StatsSummary](db, "summary", evict, s.computeHeavySummary)
+		s.insightsCache = newPeriodCache[*models.InsightsResponse](db, "insights", evict,
+			func(ctx context.Context, from, to time.Time) (*models.InsightsResponse, error) {
+				return s.computeInsights(ctx, from.Format("2006-01-02"), to.Format("2006-01-02"))
+			})
+		s.processingCache = newPeriodCache[*models.ProcessingSummary](db, "processing", evict, s.computeProcessingSummary)
+	}
+	return s
 }
 
-// GetSummary возвращает сводную статистику за период [from, to].
+// WarmCache загружает снимки аналитики из БД в память (прогрев после рестарта).
+func (s *statisticsService) WarmCache(ctx context.Context) {
+	if s.summaryCache != nil {
+		s.summaryCache.warmup(ctx)
+	}
+	if s.insightsCache != nil {
+		s.insightsCache.warmup(ctx)
+	}
+	if s.processingCache != nil {
+		s.processingCache.warmup(ctx)
+	}
+}
+
+// StartCacheRefresh периодически обновляет кэш аналитики до отмены ctx.
+func (s *statisticsService) StartCacheRefresh(ctx context.Context) {
+	if s.cacheRefresh <= 0 {
+		return
+	}
+	ticker := time.NewTicker(s.cacheRefresh)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if s.summaryCache != nil {
+				s.summaryCache.refresh(ctx)
+			}
+			if s.insightsCache != nil {
+				s.insightsCache.refresh(ctx)
+			}
+			if s.processingCache != nil {
+				s.processingCache.refresh(ctx)
+			}
+		}
+	}
+}
+
+// GetSummary возвращает сводную статистику за период [from, to]. Тяжёлые агрегаты
+// берутся из тёплого кэша (если включён), realtime-показатели (онлайн, на
+// территории) всегда считаются на лету и домешиваются к снимку.
 func (s *statisticsService) GetSummary(ctx context.Context, from, to time.Time) (*models.StatsSummary, error) {
+	var heavy *models.StatsSummary
+	var err error
+	if s.summaryCache != nil {
+		heavy, err = s.summaryCache.get(ctx, from, to)
+	} else {
+		heavy, err = s.computeHeavySummary(ctx, from, to)
+	}
+	if err != nil {
+		return nil, err
+	}
+	// Копия, чтобы realtime-поля не мутировали общий кэшированный снимок.
+	out := *heavy
+	if err := s.computeRealtimeSummary(ctx, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// computeHeavySummary считает дорогие агрегаты за период и медленно меняющиеся
+// счётчики - всё, что кэшируется. Realtime-показатели здесь не заполняются, их
+// добавляет computeRealtimeSummary.
+func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to time.Time) (*models.StatsSummary, error) {
 	var summary models.StatsSummary
 
 	// total_applications
@@ -114,18 +216,20 @@ func (s *statisticsService) GetSummary(ctx context.Context, from, to time.Time) 
 		return nil, fmt.Errorf("statistics: in_work: %w", err)
 	}
 
-	// cars_entered
+	// cars_entered: источник carsHistoryUnion (audit_log[car], #870 F.5 read-switch);
+	// до-cutover въезды cars_history перенесены в audit_log backfill'ом.
 	if err := s.db.WithContext(ctx).
-		Table("cars_history").
-		Where("action_type = 'entry' AND created_at BETWEEN ? AND ?", from, to).
+		Table(carsHistoryUnion+" ch").
+		Where("ch.action_type = 'entry' AND ch.created_at BETWEEN ? AND ?", from, to).
 		Count(&summary.CarsEntered).Error; err != nil {
 		return nil, fmt.Errorf("statistics: cars_entered: %w", err)
 	}
 
-	// people_entered
+	// people_entered: источник employeesHistoryUnion (audit_log[employee], #870 F.6
+	// read-switch); до-cutover въезды employees_history перенесены backfill'ом.
 	if err := s.db.WithContext(ctx).
-		Table("employees_history").
-		Where("action_type = 'entry' AND created_at BETWEEN ? AND ?", from, to).
+		Table(employeesHistoryUnion+" eh").
+		Where("eh.action_type = 'entry' AND eh.created_at BETWEEN ? AND ?", from, to).
 		Count(&summary.PeopleEntered).Error; err != nil {
 		return nil, fmt.Errorf("statistics: people_entered: %w", err)
 	}
@@ -149,38 +253,6 @@ func (s *statisticsService) GetSummary(ctx context.Context, from, to time.Time) 
 		return nil, fmt.Errorf("statistics: items_sum: %w", err)
 	}
 	summary.ItemsSum = itemsSum.Sum
-
-	// cars_on_territory (territory_status = 1)
-	if err := s.db.WithContext(ctx).
-		Table("cars").
-		Where("territory_status = 1").
-		Count(&summary.CarsOnTerritory).Error; err != nil {
-		return nil, fmt.Errorf("statistics: cars_on_territory: %w", err)
-	}
-
-	// people_on_territory (territory_status = 1)
-	if err := s.db.WithContext(ctx).
-		Table("employees").
-		Where("territory_status = 1").
-		Count(&summary.PeopleOnTerritory).Error; err != nil {
-		return nil, fmt.Errorf("statistics: people_on_territory: %w", err)
-	}
-
-	// users_online: онлайн = активность (last_seen) за последние onlineWindowMinutes.
-	online, err := s.countOnline(ctx, time.Now().UTC())
-	if err != nil {
-		return nil, fmt.Errorf("statistics: users_online: %w", err)
-	}
-	summary.UsersOnline = online
-
-	// users_online_peak_today: пик одновременного онлайна за сегодня из снимков тикера.
-	if err := s.db.WithContext(ctx).
-		Table("user_online_peaks").
-		Where("date = ?", time.Now().UTC().Format("2006-01-02")).
-		Select("COALESCE(MAX(peak_count), 0)").
-		Scan(&summary.UsersOnlinePeakToday).Error; err != nil {
-		return nil, fmt.Errorf("statistics: users_online_peak_today: %w", err)
-	}
 
 	// active_users
 	if err := s.db.WithContext(ctx).
@@ -247,17 +319,102 @@ func (s *statisticsService) GetSummary(ctx context.Context, from, to time.Time) 
 	return &summary, nil
 }
 
-// countOnline считает пользователей, чей last_seen свежее окна онлайна на момент now.
+// computeRealtimeSummary заполняет показатели текущего состояния: на территории
+// и онлайн. Дёшево (точечные запросы), считается на каждый запрос дашборда.
+func (s *statisticsService) computeRealtimeSummary(ctx context.Context, summary *models.StatsSummary) error {
+	// cars_on_territory (territory_status = 1)
+	if err := s.db.WithContext(ctx).
+		Table("cars").
+		Where("territory_status = 1").
+		Count(&summary.CarsOnTerritory).Error; err != nil {
+		return fmt.Errorf("statistics: cars_on_territory: %w", err)
+	}
+
+	// people_on_territory (territory_status = 1)
+	if err := s.db.WithContext(ctx).
+		Table("employees").
+		Where("territory_status = 1").
+		Count(&summary.PeopleOnTerritory).Error; err != nil {
+		return fmt.Errorf("statistics: people_on_territory: %w", err)
+	}
+
+	// users_online: онлайн = активность (last_seen) за последние onlineWindowMinutes.
+	online, err := s.countOnline(ctx, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("statistics: users_online: %w", err)
+	}
+	summary.UsersOnline = online
+
+	// users_online_peak_today: пик одновременного онлайна за сегодня из снимков тикера.
+	if err := s.db.WithContext(ctx).
+		Table("user_online_peaks").
+		Where("date = ?", time.Now().UTC().Format("2006-01-02")).
+		Select("COALESCE(MAX(peak_count), 0)").
+		Scan(&summary.UsersOnlinePeakToday).Error; err != nil {
+		return fmt.Errorf("statistics: users_online_peak_today: %w", err)
+	}
+
+	return nil
+}
+
+// onlineThreshold — граница окна онлайна на момент now: пользователь онлайн, если
+// last_seen >= этой границы.
+func onlineThreshold(now time.Time) time.Time {
+	return now.Add(-onlineWindowMinutes * time.Minute)
+}
+
+// onlineUserScope — единый предикат «пользователь онлайн»: активный, не забанен и с
+// last_seen в окне на момент now. Колонки не квалифицируем — is_active/is_banned/last_seen
+// есть только в users, поэтому предикат работает и при джойнах. Общий для countOnline
+// (число на плитке) и GetOnlineUsers (список в модалке), чтобы счётчик и длина списка
+// всегда совпадали. Забаненного/архивного отсекаем: BanCheck не даёт ему обновлять
+// last_seen, но свежий last_seen до бана держал бы его «онлайн» ещё до окна.
+func onlineUserScope(now time.Time) func(*gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		return db.Where("is_active = true AND is_banned = false").
+			Where("last_seen >= ?", onlineThreshold(now))
+	}
+}
+
+// countOnline считает пользователей онлайн на момент now.
 func (s *statisticsService) countOnline(ctx context.Context, now time.Time) (int64, error) {
-	threshold := now.Add(-onlineWindowMinutes * time.Minute)
 	var count int64
 	if err := s.db.WithContext(ctx).
 		Table("users").
-		Where("last_seen >= ?", threshold).
+		Scopes(onlineUserScope(now)).
 		Count(&count).Error; err != nil {
 		return 0, fmt.Errorf("statistics: count online: %w", err)
 	}
 	return count, nil
+}
+
+// GetOnlineUsers возвращает пользователей онлайн по убыванию last_seen. Тот же предикат
+// onlineUserScope, что и в countOnline, поэтому длина списка совпадает с users_online.
+// ФИО собирается из частей, роль/тип — имена справочников.
+func (s *statisticsService) GetOnlineUsers(ctx context.Context) ([]models.OnlineUser, error) {
+	users := make([]models.OnlineUser, 0)
+	fullName := "TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name, u.middle_name))"
+	if err := s.db.WithContext(ctx).
+		Table("users u").
+		Joins("LEFT JOIN roles r ON r.id = u.role_id").
+		Joins("LEFT JOIN user_types ut ON ut.id = u.type_id").
+		Scopes(onlineUserScope(time.Now().UTC())).
+		Select("u.id AS id, u.username AS login, " +
+			fullName + " AS full_name, " +
+			"COALESCE(r.name, '') AS role, " +
+			"COALESCE(ut.name, '') AS user_type, " +
+			"u.last_seen AS last_seen").
+		Order("u.last_seen DESC").
+		Scan(&users).Error; err != nil {
+		return nil, fmt.Errorf("statistics: online users: %w", err)
+	}
+	// Логин вместо ФИО у тех, кто не давал согласия на обработку данных.
+	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+		for i := range users {
+			users[i].FullName = maskName(masks, &users[i].ID, users[i].FullName)
+		}
+	}
+	return users, nil
 }
 
 // SnapshotOnlinePeak обновляет дневной пик онлайна за сегодня.
@@ -317,8 +474,8 @@ type timelineSource struct {
 func resolveTimelineSource(metric, granularity string) (src timelineSource, unit string, err error) {
 	metricMap := map[string]timelineSource{
 		"applications":   {table: "applications", tsColumn: "sending_datetime", filter: ""},
-		"car_entries":    {table: "cars_history", tsColumn: "created_at", filter: "action_type='entry'"},
-		"people_entries": {table: "employees_history", tsColumn: "created_at", filter: "action_type='entry'"},
+		"car_entries":    {table: carsHistoryUnion + " ch", tsColumn: "ch.created_at", filter: "ch.action_type='entry'"},
+		"people_entries": {table: employeesHistoryUnion + " eh", tsColumn: "eh.created_at", filter: "eh.action_type='entry'"},
 	}
 	granularityMap := map[string]string{
 		"day":   "day",
@@ -392,7 +549,7 @@ func (s *statisticsService) GetRecentPassages(ctx context.Context, limit int) (*
 	}
 
 	if err := s.db.WithContext(ctx).
-		Table("employees_history eh").
+		Table(employeesHistoryUnion+" eh").
 		Joins("JOIN employees e ON e.id = eh.employee_id").
 		Joins("LEFT JOIN attachments a ON a.id = e.attachment_id").
 		Joins("LEFT JOIN applications app ON app.id = a.application_id").
@@ -412,7 +569,7 @@ func (s *statisticsService) GetRecentPassages(ctx context.Context, limit int) (*
 	}
 
 	if err := s.db.WithContext(ctx).
-		Table("cars_history ch").
+		Table(carsHistoryUnion+" ch").
 		Joins("JOIN cars c ON c.id = ch.car_id").
 		Joins("LEFT JOIN attachments a ON a.id = c.attachment_id").
 		Joins("LEFT JOIN applications app ON app.id = a.application_id").
@@ -530,6 +687,7 @@ func (s *statisticsService) RunReport(ctx context.Context, req models.ReportRequ
 			Key:   m,
 			Label: reportMetricRegistry[m].label,
 			Unit:  plan.unit,
+			Type:  plan.valueType,
 		})
 	}
 
@@ -543,11 +701,17 @@ func (s *statisticsService) RunReport(ctx context.Context, req models.ReportRequ
 		return nil, perr
 	}
 	if pivotOn {
-		pivotCols, cerr := s.collectPivotColumns(ctx, metrics, axis, req, metricRows)
+		pivotCols, pivotTotals, cerr := s.collectPivotColumns(ctx, metrics, axis, req, metricRows)
 		if cerr != nil {
 			return nil, cerr
 		}
 		columns = append(columns, pivotCols...)
+		// Итоги pivot-колонок: mergeMetricRows считает totals только по метрикам, а
+		// cross-tab-колонки добавляются после. Без этого строка «Итого» показывает 0
+		// по колонкам оси (баг: суммы есть в ячейках, но не в итогах).
+		for k, v := range pivotTotals {
+			totals[k] = v
+		}
 	}
 
 	// Метрики-средние (avg_*): целые счётчики бинов делятся на число дней бина в Go
@@ -563,6 +727,37 @@ func (s *statisticsService) RunReport(ctx context.Context, req models.ReportRequ
 			floatTotals = map[string]float64{}
 		}
 		floatTotals[m] = total
+		delete(totals, m)
+	}
+
+	// Производные метрики — длительности и доли (#1240): итог — НЕ сумма значений
+	// строк, которую посчитал mergeMetricRows (сумма средних/перцентилей/долей по
+	// бинам бессмысленна), а тот же агрегат по всему окну отдельным запросом без
+	// разреза.
+	for _, m := range metrics {
+		if !metricTotalNotAdditive(m) || req.Dimension == dimNone {
+			continue // без разреза единственная строка уже и есть итог по окну
+		}
+		total, terr := s.execWindowTotal(ctx, req, m)
+		if terr != nil {
+			return nil, terr
+		}
+		totals[m] = total
+	}
+
+	// Метрики-доли (#1240, B3): SQL отдаёт их домноженными на rateScale (целое —
+	// иначе скан numeric в int64 падает), здесь возвращаем дробь и переносим её в
+	// FloatValues — тот же контракт, по которому фронт рисует avg-метрики.
+	for i, m := range metrics {
+		if !rateMetrics[m] {
+			continue
+		}
+		columns[i].Float = true
+		applyRateScale(metricRows, m)
+		if floatTotals == nil {
+			floatTotals = map[string]float64{}
+		}
+		floatTotals[m] = round1(float64(totals[m]) / rateScale)
 		delete(totals, m)
 	}
 
@@ -591,23 +786,25 @@ func (s *statisticsService) RunReport(ctx context.Context, req models.ReportRequ
 }
 
 // collectPivotColumns исполняет cross-tab запрос по каждой метрике оси и вписывает
-// ячейки в уже упорядоченные строки, возвращая добавочные pivot-колонки. Несколько
-// метрик с одной осью дают один общий набор pivot-колонок (счётчики складываются —
-// все метрики оси считают заявки по тому же выражению).
-func (s *statisticsService) collectPivotColumns(ctx context.Context, metrics []string, axis models.ReportPivotInfo, req models.ReportRequest, metricRows []models.ReportMetricRow) ([]models.ReportMetricColumn, error) {
+// ячейки в уже упорядоченные строки, возвращая добавочные pivot-колонки и их итоги
+// (ключ колонки -> сумма по видимым строкам). Несколько метрик с одной осью дают
+// один общий набор pivot-колонок (счётчики складываются — все метрики оси считают
+// заявки по тому же выражению).
+func (s *statisticsService) collectPivotColumns(ctx context.Context, metrics []string, axis models.ReportPivotInfo, req models.ReportRequest, metricRows []models.ReportMetricRow) ([]models.ReportMetricColumn, map[string]int64, error) {
 	var cells []pivotCell
 	for _, m := range metrics {
 		plan, perr := buildPivotPlan(m, axis.Key, req.Granularity, req.Filters)
 		if perr != nil {
-			return nil, perr
+			return nil, nil, perr
 		}
 		mcells, eerr := s.execPivotPlan(ctx, plan)
 		if eerr != nil {
-			return nil, eerr
+			return nil, nil, eerr
 		}
 		cells = append(cells, mcells...)
 	}
-	return applyPivotCells(metricRows, cells, axis.Label), nil
+	cols, totals := applyPivotCells(metricRows, cells, axis.Label)
+	return cols, totals, nil
 }
 
 // execPivotPlan исполняет cross-tab запрос: GROUP BY (период-бин, ось pivot) ->
@@ -630,6 +827,30 @@ func (s *statisticsService) execPivotPlan(ctx context.Context, plan *pivotPlan) 
 		return nil, fmt.Errorf("statistics: run report pivot: %w", err)
 	}
 	return cells, nil
+}
+
+// execWindowTotal считает итог производной метрики (длительность, доля) по всему
+// окну фильтров отдельным запросом без разреза. Сложить значения бинов нельзя:
+// сумма средних не среднее, перцентили в принципе не складываются, а доля от долей
+// не считается — всё это нужно пересчитать по всей выборке. Лимит строк на итог не
+// влияет: это агрегат по всем заявкам окна, а не по видимым строкам (у счётчиков
+// итог — сумма видимых).
+func (s *statisticsService) execWindowTotal(ctx context.Context, req models.ReportRequest, metric string) (int64, error) {
+	treq := req
+	treq.Metric = metric
+	treq.Dimension = dimNone
+	plan, err := buildAggregatePlan(treq)
+	if err != nil {
+		return 0, err
+	}
+	rows, err := s.execAggregatePlan(ctx, plan)
+	if err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, nil // нет заявок с пройденным этапом за период
+	}
+	return rows[0].Value, nil
 }
 
 // execAggregatePlan исполняет один резолвленный план агрегата и возвращает строки
@@ -663,7 +884,9 @@ func (s *statisticsService) execAggregatePlan(ctx context.Context, plan *aggPlan
 // подставляется только через плейсхолдеры. Невалидный запрос -> ErrInvalidReportRequest
 // (400 в handler). Строки сканируются в []map по алиасам столбцов плана.
 func (s *statisticsService) RunReportList(ctx context.Context, req models.ReportRequest) (*models.ReportListResponse, error) {
-	plan, err := buildListPlan(req)
+	// Персональные данные не давших согласия скрыты и в отчётах: колонка принимающего
+	// собирает ФИО с телефоном одной строкой, и подменить её после выборки нечем.
+	plan, err := buildListPlan(req, pdConsentMaskingActive(ctx, s.db))
 	if err != nil {
 		return nil, err
 	}

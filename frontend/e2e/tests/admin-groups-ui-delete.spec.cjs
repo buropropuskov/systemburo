@@ -14,7 +14,7 @@ test.describe('AdminPermissionGroups - UI delete + tree open', () => {
     await cleanupE2eEntities(request).catch(() => {});
   });
 
-  test('Клик Редактировать открывает PermissionTreeModal с правами группы', async ({ page, request }) => {
+  test('Клик Редактировать открывает редактор прав группы с включённым правом', async ({ page, request }) => {
     const token = await loginAsSuperAdmin(request);
     const name = e2eName('ui_tree');
     await createGroup(request, token, { name, keys: ['page.cars'] });
@@ -25,12 +25,10 @@ test.describe('AdminPermissionGroups - UI delete + tree open', () => {
 
     await groupsPage.clickEditTree(name);
     await expect(groupsPage.treeModal).toBeVisible();
-    // page.cars должен быть выбран (он в группе)
-    const carsKey = groupsPage.treeKey('page.cars');
-    await groupsPage.expandGroup('page');
-    await expect(carsKey).toBeVisible();
-    const checkbox = carsKey.locator('input[type="checkbox"]');
-    await expect(checkbox).toBeChecked();
+    // page.cars в группе -> его тумблер включён (aria-pressed=true).
+    const carsToggle = groupsPage.treeKey('page.cars');
+    await expect(carsToggle).toBeVisible();
+    await expect(carsToggle).toHaveAttribute('aria-pressed', 'true');
 
     await groupsPage.treeCancel.click();
     await expect(groupsPage.treeModal).toBeHidden();
@@ -45,8 +43,9 @@ test.describe('AdminPermissionGroups - UI delete + tree open', () => {
     const groupsPage = new AdminPermissionGroupsPage(page);
     await groupsPage.goto();
 
-    page.once('dialog', dialog => dialog.accept().catch(() => {}));
     await groupsPage.clickDelete(name);
+    // Удаление подтверждаем в ConfirmationModal (эталонная модалка, не нативный confirm).
+    await page.getByTestId('confirmation-confirm').click();
 
     await expect(groupsPage.card(name)).toHaveCount(0, { timeout: 5000 });
 

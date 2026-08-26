@@ -32,10 +32,9 @@ test.describe('Admin / Permission Groups - edit keys via tree', () => {
     const groupsPage = new AdminPermissionGroupsPage(page);
     await groupsPage.goto();
 
-    const card = groupsPage.card(name);
-    await expect(card).toBeVisible();
-    await card.getByRole('button', { name: 'Редактировать' }).click();
-    await groupsPage.treeModal.waitFor({ state: 'visible' });
+    await expect(groupsPage.card(name)).toBeVisible();
+    // В master-detail права редактируются из панели деталей: выбрать строку -> «Редактировать права».
+    await groupsPage.clickEditTree(name);
 
     // Поиск + развернуть категорию + клик по конкретному testid
     await groupsPage.treeSearch.fill('cars');

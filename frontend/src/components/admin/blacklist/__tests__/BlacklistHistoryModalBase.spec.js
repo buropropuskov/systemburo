@@ -48,6 +48,7 @@ const history = [
 function mountModal(overrides = {}) {
   return mount(BlacklistHistoryModalBase, {
     props: {
+      show: true,
       title: 'История машины «A1 BMW»',
       entityLabel: 'A1 BMW',
       loadFn: vi.fn().mockResolvedValue(history),

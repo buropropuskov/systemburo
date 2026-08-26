@@ -6,7 +6,18 @@
         class="modal-overlay"
         @click.self="handleClose"
       >
-        <div class="modal-content">
+        <div
+          class="modal-content"
+          :class="{ 'is-dragging': sheetDragging }"
+          :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
+          @touchstart="onSheetTouchStart"
+          @touchmove="onSheetTouchMove"
+          @touchend="onSheetTouchEnd"
+        >
+          <div
+            class="sheet-handle"
+            aria-hidden="true"
+          />
           <div class="modal-header">
             <button
               class="modal-close"
@@ -28,7 +39,10 @@
             </button>
           </div>
 
-          <div class="modal-body">
+          <div
+            ref="modalBody"
+            class="modal-body"
+          >
             <h2 class="modal-title">
               Заявка успешно оформлена!
             </h2>
@@ -52,9 +66,27 @@
                 viewBox="0 0 24 24"
                 fill="none"
               >
-                <path
-                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
-                  fill="#4F5BDF"
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="8.5"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                />
+                <line
+                  x1="12"
+                  y1="11.2"
+                  x2="12"
+                  y2="16.5"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                />
+                <circle
+                  cx="12"
+                  cy="7.9"
+                  r="1"
+                  fill="currentColor"
                 />
               </svg>
               <span>Скоро мы начнём её обрабатывать</span>
@@ -138,10 +170,38 @@
                           viewBox="0 0 24 24"
                           fill="none"
                         >
-                          <path
-                            d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V9h14v10z"
-                            fill="#a2a2a2"
-                          />
+                          <g
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            stroke-linecap="round"
+                          >
+                            <rect
+                              x="3.5"
+                              y="5.5"
+                              width="17"
+                              height="15"
+                              rx="2.5"
+                            />
+                            <line
+                              x1="3.5"
+                              y1="10.2"
+                              x2="20.5"
+                              y2="10.2"
+                            />
+                            <line
+                              x1="8"
+                              y1="3.4"
+                              x2="8"
+                              y2="7.2"
+                            />
+                            <line
+                              x1="16"
+                              y1="3.4"
+                              x2="16"
+                              y2="7.2"
+                            />
+                          </g>
                         </svg>
                         {{ att.period }}
                       </span>
@@ -155,10 +215,20 @@
                           viewBox="0 0 24 24"
                           fill="none"
                         >
-                          <path
-                            d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"
-                            fill="#a2a2a2"
-                          />
+                          <g
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <circle
+                              cx="12"
+                              cy="12"
+                              r="8.5"
+                            />
+                            <polyline points="12 7 12 12 15.6 14.2" />
+                          </g>
                         </svg>
                         {{ att.time }}
                       </span>
@@ -184,7 +254,11 @@
 </template>
 
 <script>
-import { useToast } from '@/composables/useToast';
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import { ref } from 'vue';
+import { useDeletionsStore } from '@/stores/deletions';
+import { copyText } from '@/utils/clipboard';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 
 export default {
     name: 'ApplicationSuccessModal',
@@ -194,6 +268,22 @@ export default {
         attachmentsData: { type: Array, default: () => [] }
     },
     emits: ['close'],
+    setup(_, { emit }) {
+        // Контракт окна: свайп вниз за ползунок закрывает лист на мобилке.
+        const modalBody = ref(null);
+        const swipe = useSwipeDismiss(() => emit('close'), {
+            handleSelector: '.sheet-handle',
+            getScrollTop: () => modalBody.value?.scrollTop ?? 0,
+        });
+        return {
+            modalBody,
+            sheetOffset: swipe.offset,
+            sheetDragging: swipe.isDragging,
+            onSheetTouchStart: swipe.onTouchStart,
+            onSheetTouchMove: swipe.onTouchMove,
+            onSheetTouchEnd: swipe.onTouchEnd,
+        };
+    },
     data() {
         return {
             steps: ['Оформлена', 'В обработке', 'Согласование', 'В работе', 'Завершена'],
@@ -205,30 +295,33 @@ export default {
             return ((this.currentStep + 1) / this.steps.length) * 100
         }
     },
+    watch: {
+        show(visible) {
+            setBodyScrollLock(this, visible);
+        }
+    },
+    mounted() {
+        document.addEventListener('keydown', this.handleKeydown);
+    },
+    beforeUnmount() {
+        document.removeEventListener('keydown', this.handleKeydown);
+        releaseBodyScrollLock(this);
+    },
     methods: {
+        handleKeydown(e) {
+            if (e.key === 'Escape' && this.show) this.handleClose();
+        },
+
         handleClose() {
             this.$emit('close')
         },
         async copyNumber() {
             const number = this.applicationNumber;
             if (!number) return;
-            try {
-                if (navigator.clipboard?.writeText) {
-                    await navigator.clipboard.writeText(String(number));
-                } else {
-                    const ta = document.createElement('textarea');
-                    ta.value = String(number);
-                    ta.style.position = 'absolute';
-                    ta.style.left = '-9999px';
-                    document.body.appendChild(ta);
-                    ta.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(ta);
-                }
-                useToast().success(`Номер ${number} скопирован`);
-            } catch {
-                useToast().error('Не удалось скопировать номер');
-            }
+            const copied = await copyText(number);
+            useDeletionsStore().notify(copied
+                ? { prefix: 'Номер ', bold: String(number), suffix: ' скопирован', type: 'success' }
+                : { prefix: 'Не удалось ', bold: 'скопировать номер', type: 'error' });
         }
     }
 }
@@ -257,7 +350,7 @@ export default {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -266,12 +359,12 @@ export default {
 }
 
 .modal-content {
-    background: #fff;
+    background: var(--surface);
     border-radius: 50px;
     width: 540px;
     max-width: 90vw;
-    max-height: 91vh;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-height: calc(var(--app-vh, 1vh) * 91);
+    box-shadow: 0 20px 60px var(--shadow-drop);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -298,7 +391,7 @@ export default {
 }
 
 .modal-close:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .modal-body {
@@ -316,30 +409,30 @@ export default {
 .modal-title {
     font-size: 24px;
     font-weight: 700;
-    color: #1a1a1a;
+    color: var(--text);
     text-align: center;
     margin: 0 0 20px 0;
 }
 
 .application-number {
-    background: #f8f9fa;
+    background: var(--surface-2);
     border-radius: 20px;
     padding: 12px 20px;
     text-align: center;
     margin-bottom: 20px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
 }
 
 .application-number .label {
     font-size: 13px;
-    color: #666;
+    color: var(--text-muted);
     margin-right: 8px;
 }
 
 .application-number .number {
     font-size: 18px;
     font-weight: 700;
-    color: #4F5BDF;
+    color: var(--accent-text);
     letter-spacing: 0.5px;
 }
 
@@ -354,7 +447,7 @@ export default {
 }
 
 .application-number .number--copyable:hover {
-    background-color: rgba(79, 91, 223, 0.1);
+    background-color: color-mix(in srgb, var(--accent) 10%, var(--surface));
 }
 
 .application-number .number--copyable:focus-visible {
@@ -367,8 +460,8 @@ export default {
     top: calc(100% + 6px);
     left: 50%;
     transform: translateX(-50%);
-    background: #333;
-    color: #fff;
+    background: var(--hint-bg);
+    color: var(--hint-text);
     padding: 4px 8px;
     border-radius: 6px;
     font-size: 11px;
@@ -378,7 +471,7 @@ export default {
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.15s;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 8px var(--shadow-drop);
 }
 
 .application-number .number--copyable:hover::after {
@@ -390,11 +483,11 @@ export default {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    background: #f0f4ff;
+    background: var(--accent-tint);
     border-radius: 20px;
     padding: 10px 16px;
     margin-bottom: 28px;
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-size: 13px;
 }
 
@@ -445,9 +538,9 @@ export default {
 }
 
 .step-number {
-    background: white;
-    border: 2px solid #e6e6e6;
-    color: #a2a2a2;
+    background: var(--surface);
+    border: 2px solid var(--border);
+    color: var(--text-muted);
     width: 100%;
     height: 100%;
     border-radius: 50%;
@@ -458,8 +551,8 @@ export default {
 }
 
 .check-icon {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     width: 100%;
     height: 100%;
     border-radius: 50%;
@@ -480,7 +573,7 @@ export default {
     width: 100%;
     height: 100%;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(79, 91, 223, 0.3) 0%, rgba(79, 91, 223, 0) 70%);
+    background: radial-gradient(circle, color-mix(in srgb, var(--accent) 30%, var(--surface)) 0%, color-mix(in srgb, var(--accent) 8%, var(--surface)) 70%);
     opacity: 0;
     transition: opacity 0.3s ease;
     pointer-events: none;
@@ -514,16 +607,16 @@ export default {
 }
 
 .progress-step.completed .step-number {
-    border-color: #4F5BDF;
-    background: #4F5BDF;
-    color: white;
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-contrast);
     transform: scale(1.05);
 }
 
 .progress-step.active .step-number {
-    border-color: #4F5BDF;
-    color: #4F5BDF;
-    background: white;
+    border-color: var(--accent);
+    color: var(--accent-text);
+    background: var(--surface);
     animation: pulseBorder 1.5s ease-in-out infinite;
     box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.2);
 }
@@ -542,19 +635,19 @@ export default {
 .step-label {
     font-size: 11px;
     font-weight: 500;
-    color: #a2a2a2;
+    color: var(--text-muted);
     text-align: center;
     transition: all 0.3s ease;
     white-space: nowrap;
 }
 
 .progress-step.completed .step-label {
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-weight: 600;
 }
 
 .progress-step.active .step-label {
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-weight: 600;
 }
 
@@ -564,7 +657,7 @@ export default {
     left: 0;
     right: 0;
     height: 3px;
-    background: #e6e6e6;
+    background: var(--border);
     border-radius: 2px;
     z-index: 1;
 }
@@ -574,7 +667,7 @@ export default {
     left: 0;
     top: 0;
     height: 100%;
-    background: linear-gradient(90deg, #4F5BDF, #8B9AFF);
+    background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 55%, var(--surface)));
     border-radius: 2px;
     transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
@@ -619,16 +712,16 @@ export default {
 .section-title {
     font-size: 14px;
     font-weight: 600;
-    color: #333;
+    color: var(--text);
     margin: 0;
 }
 
 .attachments-count {
-    background: #e6e6e6;
+    background: var(--border);
     padding: 2px 8px;
     border-radius: 20px;
     font-size: 12px;
-    color: #666;
+    color: var(--text-muted);
 }
 
 .attachments-list {
@@ -642,8 +735,8 @@ export default {
 
 .attachment-item {
     padding: 12px 16px;
-    background: #fafafa;
-    border: 1px solid #e6e6e6;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
     border-radius: 20px;
     transition: all 0.2s ease;
 }
@@ -655,7 +748,7 @@ export default {
 .attachment-name {
     font-weight: 600;
     font-size: 14px;
-    color: #333;
+    color: var(--text);
     margin-bottom: 6px;
 }
 
@@ -671,7 +764,7 @@ export default {
     align-items: center;
     gap: 4px;
     font-size: 11px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .attachment-period svg,
@@ -682,20 +775,20 @@ export default {
 .no-attachments {
     text-align: center;
     padding: 40px 20px;
-    background: #fafafa;
+    background: var(--surface-2);
     border-radius: 20px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
 }
 
 .no-attachments p {
     margin: 0;
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .modal-footer {
     padding: 16px 30px 24px;
-    border-top: 1px solid #f0f0f0;
+    border-top: 1px solid var(--border);
     display: flex;
     justify-content: center;
     flex-shrink: 0;
@@ -712,24 +805,20 @@ export default {
 }
 
 .close-btn {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
     min-width: 140px;
 }
 
 .close-btn:hover {
-    background: #3a45c0;
-    border-color: #3a45c0;
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
 }
 
 @media (max-width: 768px) {
-    .modal-content {
-        width: 95vw;
-        margin: 16px;
-        max-height: 85vh;
-        border-radius: 30px;
-    }
+    /* Размеры листа приходят из глобального .modal-content (App.vue) с !important -
+       локальные width/max-height/radius здесь были мёртвыми и вводили в заблуждение. */
 
     .modal-header {
         padding: 16px 20px 0;
@@ -785,6 +874,37 @@ export default {
     .btn {
         width: 100%;
         min-width: auto;
+    }
+}
+
+.sheet-handle {
+    display: none;
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    margin: 10px auto 2px;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    /* Лист выезжает снизу глобальным паттерном .modal-content (App.vue), здесь -
+       ползунок и возврат листа на место после недотянутого свайпа. */
+    .sheet-handle {
+        display: block;
+    }
+
+    .modal-content {
+        transition: transform 0.3s ease;
+    }
+
+    .modal-content.is-dragging {
+        transition: none;
+    }
+
+    .modal-close {
+        min-width: 40px;
+        min-height: 40px;
     }
 }
 </style>

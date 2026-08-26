@@ -45,16 +45,27 @@ const (
 	ReportColumnPivot  ReportColumnKind = "pivot"  // cross-tab колонка (Values)
 )
 
+// ReportValueType — тип значения колонки, по которому фронт выбирает формат
+// (аналог ReportColumnInfo.Type у list-режима: форматируем по ТИПУ КОЛОНКИ, а не
+// по виду значения). Пусто — обычное число.
+type ReportValueType string
+
+// ReportValueDuration — значение колонки это длительность в СЕКУНДАХ (#1240):
+// фронт показывает её как «2 ч 15 мин», хранит и сортирует как число.
+const ReportValueDuration ReportValueType = "duration"
+
 // ReportMetricColumn — колонка мультиметричного/cross-tab отчёта (ключ, подпись, единица).
 // Kind пуст для обычных метрик (обратная совместимость) либо "pivot" для cross-tab
 // колонок. Float=true -> значение колонки лежит в ReportMetricRow.FloatValues
 // (дробные метрики вроде среднего), иначе — в Values (целые счётчики).
+// Type задаёт формат значения (пусто — число, "duration" — секунды).
 type ReportMetricColumn struct {
 	Key   string           `json:"key"`
 	Label string           `json:"label"`
 	Unit  string           `json:"unit,omitempty"`
 	Kind  ReportColumnKind `json:"kind,omitempty"`
 	Float bool             `json:"float,omitempty"`
+	Type  ReportValueType  `json:"type,omitempty"`
 }
 
 // ReportMetricRow — строка мультиметрик: подпись разреза + значение каждой колонки

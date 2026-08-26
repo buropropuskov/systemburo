@@ -5,11 +5,21 @@ import (
 	"net/http"
 	"testing"
 
+	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
+	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// createUserType создаёт несистемный тип через админский endpoint и возвращает его ID.
+func createUserType(t *testing.T, e *echo.Echo, h http.Header, name, code string) int {
+	t.Helper()
+	rec := testutil.POST(t, e, "/user-types-management", fmt.Sprintf(`{"name":%q,"code":%q}`, name, code), h)
+	require.Equal(t, http.StatusOK, rec.Code, "create user type: %s", rec.Body.String())
+	return int(testutil.ParseMap(t, rec)["id"].(float64))
+}
 
 func TestUserTypes_GetAll(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
@@ -395,4 +405,109 @@ func TestUserTypes_GetAll_IncludesUsersCount(t *testing.T) {
 				"buropropuskov should have at least 1 user (the admin)")
 		}
 	}
+}
+
+// TestUserTypes_BlockingUsersAndReassign проверяет полный флоу: список блокеров
+// (включая архивных - Delete считает все type_id), перенос всех в другой тип
+// освобождает исходный (его можно удалить), повторный перенос идемпотентен,
+// аудит смены типа пишется на каждого.
+func TestUserTypes_BlockingUsersAndReassign(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	srcID := createUserType(t, e, h, "Источник", "src_type")
+	tgtID := createUserType(t, e, h, "Цель", "tgt_type")
+
+	// Активный пользователь исходного типа.
+	testutil.RegisterAndLogin(t, e, "typeuser1", "password123", srcID, td.OrgID, td.CompanyID)
+	// Архивный пользователь того же типа - ТОЖЕ блокирует удаление (Delete считает
+	// все type_id, независимо от is_active), в отличие от org/company (active-only).
+	archived := models.User{Username: "typeuserarchived", Password: "x", TypeID: srcID}
+	require.NoError(t, db.Create(&archived).Error)
+	require.NoError(t, db.Model(&models.User{}).Where("id = ?", archived.ID).Update("is_active", false).Error)
+
+	// Список блокеров = все пользователи типа, активный и архивный.
+	blockers := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/user-types-management/%d/blocking-users", srcID), h))
+	active := map[string]bool{}
+	for _, b := range blockers {
+		active[b["username"].(string)] = b["is_active"].(bool)
+	}
+	assert.Len(t, blockers, 2)
+	require.Contains(t, active, "typeuser1")
+	require.Contains(t, active, "typeuserarchived")
+	assert.True(t, active["typeuser1"], "активный помечен is_active")
+	assert.False(t, active["typeuserarchived"], "архивный помечен !is_active")
+
+	// Пока есть пользователи - удаление типа запрещено.
+	assert.Equal(t, http.StatusBadRequest, testutil.DELETE(t, e, fmt.Sprintf("/user-types-management/%d", srcID), h).Code)
+
+	// Перенос всех пользователей в целевой тип.
+	rec := testutil.POST(t, e, fmt.Sprintf("/user-types-management/%d/reassign-users", srcID), fmt.Sprintf(`{"target_type_id":%d}`, tgtID), h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, float64(2), testutil.ParseMap(t, rec)["reassigned"])
+
+	// Исходный тип свободен, оба (включая архивного) теперь в целевом.
+	assert.Empty(t, testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/user-types-management/%d/blocking-users", srcID), h)), "исходный тип без блокеров")
+	assert.Len(t, testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/user-types-management/%d/blocking-users", tgtID), h)), 2)
+
+	// Аудит смены типа записан на каждого перенесённого.
+	var auditCount int64
+	require.NoError(t, db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND action = ?", models.AuditEntityUser, models.UserActionTypeChanged).
+		Count(&auditCount).Error)
+	assert.EqualValues(t, 2, auditCount, "type_changed аудит на каждого перенесённого")
+
+	// Идемпотентность: повторный перенос без пользователей - 200, reassigned:0
+	// (тип ещё существует, поэтому не 404).
+	again := testutil.POST(t, e, fmt.Sprintf("/user-types-management/%d/reassign-users", srcID), fmt.Sprintf(`{"target_type_id":%d}`, tgtID), h)
+	require.Equal(t, http.StatusOK, again.Code, again.Body.String())
+	assert.Equal(t, float64(0), testutil.ParseMap(t, again)["reassigned"])
+
+	// Теперь исходный тип можно удалить.
+	assert.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/user-types-management/%d", srcID), h).Code)
+}
+
+// TestUserTypes_ReassignUsers_Validation проверяет гейт и валидацию цели/источника.
+func TestUserTypes_ReassignUsers_Validation(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	srcID := createUserType(t, e, h, "Источник-В", "src_val")
+	tgtID := createUserType(t, e, h, "Цель-В", "tgt_val")
+	systemID := findTypeIDByCode(t, testutil.ParseSlice(t, testutil.GET(t, e, "/user-types-management", h)), "renter")
+
+	reassign := func(id int, body string) int {
+		return testutil.POST(t, e, fmt.Sprintf("/user-types-management/%d/reassign-users", id), body, h).Code
+	}
+
+	// Не указан / нулевой целевой тип.
+	assert.Equal(t, http.StatusBadRequest, reassign(srcID, `{}`))
+	assert.Equal(t, http.StatusBadRequest, reassign(srcID, `{"target_type_id":0}`))
+	// Цель = источнику.
+	assert.Equal(t, http.StatusBadRequest, reassign(srcID, fmt.Sprintf(`{"target_type_id":%d}`, srcID)))
+	// Несуществующая цель.
+	assert.Equal(t, http.StatusBadRequest, reassign(srcID, `{"target_type_id":999999}`))
+	// Несуществующий источник.
+	assert.Equal(t, http.StatusNotFound, reassign(999999, fmt.Sprintf(`{"target_type_id":%d}`, tgtID)))
+	// Системный тип нельзя освободить как источник.
+	assert.Equal(t, http.StatusBadRequest, reassign(systemID, fmt.Sprintf(`{"target_type_id":%d}`, tgtID)))
+
+	// Перенос В системный тип ДОПУСТИМ (в дефолтный тип переносить можно).
+	testutil.RegisterAndLogin(t, e, "valuser", "password123", srcID, td.OrgID, td.CompanyID)
+	okRec := testutil.POST(t, e, fmt.Sprintf("/user-types-management/%d/reassign-users", srcID), fmt.Sprintf(`{"target_type_id":%d}`, systemID), h)
+	require.Equal(t, http.StatusOK, okRec.Code, okRec.Body.String())
+	assert.Equal(t, float64(1), testutil.ParseMap(t, okRec)["reassigned"])
+
+	// Гейт: не-админ отбивается на обоих endpoint-ах.
+	userToken := testutil.RegisterAndLogin(t, e, "plainuser2", "password123", 1, td.OrgID, td.CompanyID)
+	assert.Equal(t, http.StatusForbidden, testutil.GET(t, e, fmt.Sprintf("/user-types-management/%d/blocking-users", srcID), testutil.AuthHeader(userToken)).Code)
+	assert.Equal(t, http.StatusForbidden, testutil.POST(t, e, fmt.Sprintf("/user-types-management/%d/reassign-users", srcID), fmt.Sprintf(`{"target_type_id":%d}`, tgtID), testutil.AuthHeader(userToken)).Code)
 }

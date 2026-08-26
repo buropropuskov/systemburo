@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -11,12 +12,14 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // CreateUnloadPlaceRequest -- тело запроса на создание места разгрузки.
 type CreateUnloadPlaceRequest struct {
 	Name          string  `json:"name" validate:"required,min=1,max=200"`
 	Description   *string `json:"description"`
+	Warning       *string `json:"warning"`
 	MapLink       *string `json:"map_link"`
 	Status        *string `json:"status"`
 	StatusComment *string `json:"status_comment"`
@@ -26,6 +29,7 @@ type CreateUnloadPlaceRequest struct {
 type UpdateUnloadPlaceRequest struct {
 	Name          *string `json:"name"`
 	Description   *string `json:"description"`
+	Warning       *string `json:"warning"`
 	MapLink       *string `json:"map_link"`
 	Status        *string `json:"status"`
 	StatusComment *string `json:"status_comment"`
@@ -54,15 +58,41 @@ type UnloadPlaceWithDetails struct {
 	ID            int                          `json:"id"`
 	Name          string                       `json:"name"`
 	Description   *string                      `json:"description"`
+	Warning       *string                      `json:"warning"`
 	MapLink       *string                      `json:"map_link"`
 	Status        string                       `json:"status"`
 	StatusComment *string                      `json:"status_comment"`
 	IsActive      bool                         `json:"is_active"`
 	CurrentStatus string                       `json:"current_status"`
 	TimeSlots     []models.UnloadPlaceTimeSlot `json:"time_slots"`
-	Photos        []models.UnloadPlacePhoto    `json:"photos"`
-	CreatedAt     time.Time                    `json:"created_at"`
-	UpdatedAt     time.Time                    `json:"updated_at"`
+	// WarningWindows -- предупреждения по временным окнам (#1183), показываются
+	// заявителю, когда срок заявки пересекается с окном.
+	WarningWindows []models.UnloadPlaceWarningWindow `json:"warning_windows"`
+	Photos         []models.UnloadPlacePhoto         `json:"photos"`
+	CreatedAt      time.Time                         `json:"created_at"`
+	UpdatedAt      time.Time                         `json:"updated_at"`
+}
+
+// UnloadPlaceBinding -- привязанная к месту разгрузки организация/компания.
+// IsActive=false помечает архивную запись (её всё равно показываем: гейт Delete
+// считает по junction без фильтра активности, поэтому она держит место).
+type UnloadPlaceBinding struct {
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	IsActive bool   `json:"is_active"`
+}
+
+// UnloadPlaceUsage -- организации и компании, привязанные к месту разгрузки.
+// Набор совпадает с тем, что блокирует удаление (см. Delete).
+type UnloadPlaceUsage struct {
+	Organizations []UnloadPlaceBinding `json:"organizations"`
+	Companies     []UnloadPlaceBinding `json:"companies"`
+}
+
+// UnloadPlaceDetachResult -- сколько привязок снято операцией «Отвязать всё».
+type UnloadPlaceDetachResult struct {
+	OrganizationsDetached int `json:"organizations_detached"`
+	CompaniesDetached     int `json:"companies_detached"`
 }
 
 // UnloadPlaceService -- интерфейс бизнес-логики мест разгрузки.
@@ -74,6 +104,17 @@ type UnloadPlaceService interface {
 	Update(ctx context.Context, callerUserID, id int, req UpdateUnloadPlaceRequest) error
 	Delete(ctx context.Context, callerUserID, id int) error
 	Restore(ctx context.Context, callerUserID, id int) error
+	BulkArchive(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error)
+	BulkRestore(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error)
+
+	// GetUsage возвращает организации и компании, привязанные к месту разгрузки
+	// (те же, что блокируют Delete). DetachAll снимает все эти привязки разом,
+	// DetachOrganization/DetachCompany - по одной. Все возвращают detached=false
+	// без ошибки, если привязки уже нет (идемпотентно).
+	GetUsage(ctx context.Context, id int) (*UnloadPlaceUsage, error)
+	DetachAll(ctx context.Context, callerUserID, id int) (*UnloadPlaceDetachResult, error)
+	DetachOrganization(ctx context.Context, callerUserID, id, organizationID int) (bool, error)
+	DetachCompany(ctx context.Context, callerUserID, id, companyID int) (bool, error)
 
 	// GetHistory возвращает историю изменений места разгрузки (новые сверху).
 	GetHistory(ctx context.Context, id int) ([]models.UnloadPlaceHistoryItem, error)
@@ -84,6 +125,12 @@ type UnloadPlaceService interface {
 	UpdateTimeSlot(ctx context.Context, placeID, slotID int, req UpdateTimeSlotRequest) error
 	DeleteTimeSlot(ctx context.Context, placeID, slotID int) error
 
+	// Предупреждения по временным окнам (#1183)
+	GetWarningWindows(ctx context.Context, placeID int) ([]models.UnloadPlaceWarningWindow, error)
+	AddWarningWindow(ctx context.Context, placeID int, req models.WarningWindowRequest) (int, error)
+	UpdateWarningWindow(ctx context.Context, placeID, windowID int, req models.WarningWindowRequest) error
+	DeleteWarningWindow(ctx context.Context, placeID, windowID int) error
+
 	// Фотографии
 	UploadPhoto(ctx context.Context, placeID int, username string, photoURL, fileName, mimeType string, fileSize int64) (int, error)
 	DeletePhoto(ctx context.Context, placeID, photoID int) (string, error)
@@ -91,22 +138,30 @@ type UnloadPlaceService interface {
 }
 
 type unloadPlaceService struct {
-	db      *gorm.DB
-	history UnloadPlaceHistoryService
+	db       *gorm.DB
+	recorder AuditRecorder
 }
 
 // NewUnloadPlaceService создаёт реализацию UnloadPlaceService.
 func NewUnloadPlaceService(db *gorm.DB) UnloadPlaceService {
-	return &unloadPlaceService{db: db, history: NewUnloadPlaceHistoryService(db)}
+	return &unloadPlaceService{db: db, recorder: NewAuditRecorder(db)}
 }
 
 // computeUnloadPlaceStatus определяет текущий статус (open/closed) по расписанию.
 func computeUnloadPlaceStatus(status string, slots []models.UnloadPlaceTimeSlot) string {
+	return computeUnloadPlaceStatusAt(time.Now(), status, slots)
+}
+
+// computeUnloadPlaceStatusAt - чистое ядро статуса с инъекцией now (для теста).
+// День недели и время берутся в МСК (как bureau computeWorkModeStatus): сервер
+// крутится в UTC, а слоты заданы в московском дне - без конверсии у границы суток
+// (21:00-24:00 UTC) currentDay уходит на сутки назад и статус врёт.
+func computeUnloadPlaceStatusAt(now time.Time, status string, slots []models.UnloadPlaceTimeSlot) string {
 	if status != "active" {
 		return "closed"
 	}
 
-	now := time.Now()
+	now = now.In(moscowWorkModeLoc)
 	// 0=Пн, 6=Вс (совпадает с Rust: weekday().num_days_from_monday())
 	currentDay := int(now.Weekday()+6) % 7
 	currentTime := now.Format("15:04")
@@ -146,6 +201,12 @@ func (s *unloadPlaceService) buildDetails(ctx context.Context, place models.Unlo
 		Order("day_of_week, open_time").
 		Find(&slots)
 
+	windows := make([]models.UnloadPlaceWarningWindow, 0)
+	s.db.WithContext(ctx).
+		Where("unload_place_id = ?", place.ID).
+		Order("day_of_week NULLS FIRST, time_from NULLS FIRST").
+		Find(&windows)
+
 	photos := make([]models.UnloadPlacePhoto, 0)
 	s.db.WithContext(ctx).
 		Where("unload_place_id = ?", place.ID).
@@ -158,18 +219,20 @@ func (s *unloadPlaceService) buildDetails(ctx context.Context, place models.Unlo
 	}
 
 	return UnloadPlaceWithDetails{
-		ID:            place.ID,
-		Name:          place.Name,
-		Description:   place.Description,
-		MapLink:       place.MapLink,
-		Status:        status,
-		StatusComment: place.StatusComment,
-		IsActive:      place.IsActive,
-		CurrentStatus: computeUnloadPlaceStatus(status, slots),
-		TimeSlots:     slots,
-		Photos:        photos,
-		CreatedAt:     place.CreatedAt,
-		UpdatedAt:     place.UpdatedAt,
+		ID:             place.ID,
+		Name:           place.Name,
+		Description:    place.Description,
+		Warning:        place.Warning,
+		MapLink:        place.MapLink,
+		Status:         status,
+		StatusComment:  place.StatusComment,
+		IsActive:       place.IsActive,
+		CurrentStatus:  computeUnloadPlaceStatus(status, slots),
+		TimeSlots:      slots,
+		WarningWindows: windows,
+		Photos:         photos,
+		CreatedAt:      place.CreatedAt,
+		UpdatedAt:      place.UpdatedAt,
 	}
 }
 
@@ -215,6 +278,7 @@ func (s *unloadPlaceService) Create(ctx context.Context, callerUserID int, req C
 	place := models.UnloadPlace{
 		Name:          req.Name,
 		Description:   req.Description,
+		Warning:       req.Warning,
 		MapLink:       req.MapLink,
 		Status:        status,
 		StatusComment: req.StatusComment,
@@ -227,7 +291,7 @@ func (s *unloadPlaceService) Create(ctx context.Context, callerUserID int, req C
 		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Error creating unload place")
 	}
 	slog.Info("место разгрузки создано", "id", place.ID)
-	s.history.Log(ctx, place.ID, &callerUserID, models.UnloadPlaceActionCreated, map[string]any{"name": place.Name})
+	s.recorder.Log(ctx, nil, models.AuditEntityUnloadPlace, &place.ID, models.UnloadPlaceActionCreated, &callerUserID, map[string]any{"name": place.Name})
 	return place.ID, nil
 }
 
@@ -251,6 +315,9 @@ func (s *unloadPlaceService) Update(ctx context.Context, callerUserID, id int, r
 	if req.Description != nil {
 		updates["description"] = *req.Description
 	}
+	if req.Warning != nil {
+		updates["warning"] = *req.Warning
+	}
 	if req.MapLink != nil {
 		updates["map_link"] = *req.MapLink
 	}
@@ -271,7 +338,7 @@ func (s *unloadPlaceService) Update(ctx context.Context, callerUserID, id int, r
 	}
 	slog.Info("место разгрузки обновлено", "id", id)
 	if req.Name != nil && *req.Name != place.Name {
-		s.history.Log(ctx, id, &callerUserID, models.UnloadPlaceActionRenamed, map[string]any{"name": *req.Name})
+		s.recorder.Log(ctx, nil, models.AuditEntityUnloadPlace, &id, models.UnloadPlaceActionRenamed, &callerUserID, map[string]any{"name": *req.Name})
 	}
 	return nil
 }
@@ -331,7 +398,7 @@ func (s *unloadPlaceService) Delete(ctx context.Context, callerUserID, id int) e
 		return echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
 	}
 	slog.Info("место разгрузки архивировано", "id", id)
-	s.history.Log(ctx, id, &callerUserID, models.UnloadPlaceActionArchived, nil)
+	s.recorder.Log(ctx, nil, models.AuditEntityUnloadPlace, &id, models.UnloadPlaceActionArchived, &callerUserID, nil)
 	return nil
 }
 
@@ -349,11 +416,242 @@ func (s *unloadPlaceService) Restore(ctx context.Context, callerUserID, id int) 
 		return echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
 	}
 	slog.Info("место разгрузки восстановлено", "id", id)
-	s.history.Log(ctx, id, &callerUserID, models.UnloadPlaceActionRestored, nil)
+	s.recorder.Log(ctx, nil, models.AuditEntityUnloadPlace, &id, models.UnloadPlaceActionRestored, &callerUserID, nil)
 	return nil
 }
 
-// GetHistory возвращает историю изменений места разгрузки.
+// GetUsage возвращает организации и компании, привязанные к месту разгрузки.
+// Junction читается БЕЗ фильтра is_active орг/компании: набор обязан совпадать с
+// тем, что считает гейт в Delete, иначе получилось бы «привязок нет», а удалить
+// нельзя. Архивные орг/компании помечаются is_active=false.
+func (s *unloadPlaceService) GetUsage(ctx context.Context, id int) (*UnloadPlaceUsage, error) {
+	if _, ok := s.loadUnloadPlace(ctx, id); !ok {
+		return nil, echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
+	}
+
+	usage := &UnloadPlaceUsage{
+		Organizations: make([]UnloadPlaceBinding, 0),
+		Companies:     make([]UnloadPlaceBinding, 0),
+	}
+	if err := s.db.WithContext(ctx).
+		Table("organization_unload_places oup").
+		Select("o.id, o.name, o.is_active").
+		Joins("JOIN organizations o ON o.id = oup.organization_id").
+		Where("oup.unload_place_id = ?", id).
+		Order("o.name").
+		Scan(&usage.Organizations).Error; err != nil {
+		slog.Error("не удалось прочитать привязки организаций места разгрузки", "id", id, "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching organization bindings")
+	}
+	if err := s.db.WithContext(ctx).
+		Table("companies_unload_places cup").
+		Select("c.id, c.name, c.is_active").
+		Joins("JOIN companies c ON c.id = cup.company_id").
+		Where("cup.unload_place_id = ?", id).
+		Order("c.name").
+		Scan(&usage.Companies).Error; err != nil {
+		slog.Error("не удалось прочитать привязки компаний места разгрузки", "id", id, "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching company bindings")
+	}
+	return usage, nil
+}
+
+// DetachAll снимает привязки места разгрузки ко ВСЕМ организациям и компаниям
+// (обе join-таблицы удаляются в одной транзакции). На каждую затронутую
+// организацию/компанию пишется история «место убрано из набора» - зеркало
+// аудита UpdateOrganizationUnloadPlaces/UpdateUnloadPlaces. После этого место
+// можно архивировать (Delete больше не заблокирует). Идемпотентно: повтор по
+// уже отвязанному месту возвращает нулевые счётчики.
+func (s *unloadPlaceService) DetachAll(ctx context.Context, callerUserID, id int) (*UnloadPlaceDetachResult, error) {
+	place, ok := s.loadUnloadPlace(ctx, id)
+	if !ok {
+		return nil, echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
+	}
+
+	// DELETE ... RETURNING внутри одной транзакции: удаляем привязки и получаем
+	// id ровно затронутых сущностей атомарно. Отдельный SELECT-перед-DELETE дал бы
+	// гонку - конкурентная привязка попала бы под DELETE, но мимо аудита.
+	var orgIDs, companyIDs []int
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var removedOrgs []models.OrganizationUnloadPlace
+		if err := tx.Clauses(clause.Returning{Columns: []clause.Column{{Name: "organization_id"}}}).
+			Where("unload_place_id = ?", id).Delete(&removedOrgs).Error; err != nil {
+			slog.Error("не удалось отвязать организации от места разгрузки", "id", id, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error detaching organizations")
+		}
+		var removedCompanies []models.CompaniesUnloadPlace
+		if err := tx.Clauses(clause.Returning{Columns: []clause.Column{{Name: "company_id"}}}).
+			Where("unload_place_id = ?", id).Delete(&removedCompanies).Error; err != nil {
+			slog.Error("не удалось отвязать компании от места разгрузки", "id", id, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error detaching companies")
+		}
+		for _, r := range removedOrgs {
+			orgIDs = append(orgIDs, r.OrganizationID)
+		}
+		for _, r := range removedCompanies {
+			companyIDs = append(companyIDs, r.CompanyID)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	if len(orgIDs) == 0 && len(companyIDs) == 0 {
+		return &UnloadPlaceDetachResult{}, nil
+	}
+
+	removed := auditNameDiff{Removed: []string{place.Name}}
+	for _, orgID := range orgIDs {
+		oid := orgID
+		s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &oid, models.OrganizationActionUnloadPlacesChanged, &callerUserID, removed)
+	}
+	for _, companyID := range companyIDs {
+		cid := companyID
+		s.recorder.Log(ctx, nil, models.AuditEntityCompany, &cid, models.CompanyActionUnloadPlacesChanged, &callerUserID, removed)
+	}
+
+	slog.Info("место разгрузки отвязано от всех орг/компаний", "id", id, "orgs", len(orgIDs), "companies", len(companyIDs))
+	return &UnloadPlaceDetachResult{
+		OrganizationsDetached: len(orgIDs),
+		CompaniesDetached:     len(companyIDs),
+	}, nil
+}
+
+// DetachOrganization снимает привязку места разгрузки к ОДНОЙ организации.
+// Идемпотентно: если привязки уже нет, возвращает false без ошибки (двойной
+// клик/гонка не должны падать). Аудит на организацию пишем только при реальном
+// удалении строки (RowsAffected>0), removed = имя места.
+func (s *unloadPlaceService) DetachOrganization(ctx context.Context, callerUserID, id, organizationID int) (bool, error) {
+	place, ok := s.loadUnloadPlace(ctx, id)
+	if !ok {
+		return false, echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
+	}
+	res := s.db.WithContext(ctx).
+		Where("unload_place_id = ? AND organization_id = ?", id, organizationID).
+		Delete(&models.OrganizationUnloadPlace{})
+	if res.Error != nil {
+		slog.Error("не удалось отвязать организацию от места разгрузки", "id", id, "organization_id", organizationID, "error", res.Error)
+		return false, echo.NewHTTPError(http.StatusInternalServerError, "Error detaching organization")
+	}
+	if res.RowsAffected == 0 {
+		return false, nil
+	}
+	oid := organizationID
+	s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &oid, models.OrganizationActionUnloadPlacesChanged, &callerUserID, auditNameDiff{Removed: []string{place.Name}})
+	slog.Info("место разгрузки отвязано от организации", "id", id, "organization_id", organizationID)
+	return true, nil
+}
+
+// DetachCompany снимает привязку места разгрузки к ОДНОЙ компании (зеркало
+// DetachOrganization, см. его комментарий).
+func (s *unloadPlaceService) DetachCompany(ctx context.Context, callerUserID, id, companyID int) (bool, error) {
+	place, ok := s.loadUnloadPlace(ctx, id)
+	if !ok {
+		return false, echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
+	}
+	res := s.db.WithContext(ctx).
+		Where("unload_place_id = ? AND company_id = ?", id, companyID).
+		Delete(&models.CompaniesUnloadPlace{})
+	if res.Error != nil {
+		slog.Error("не удалось отвязать компанию от места разгрузки", "id", id, "company_id", companyID, "error", res.Error)
+		return false, echo.NewHTTPError(http.StatusInternalServerError, "Error detaching company")
+	}
+	if res.RowsAffected == 0 {
+		return false, nil
+	}
+	cid := companyID
+	s.recorder.Log(ctx, nil, models.AuditEntityCompany, &cid, models.CompanyActionUnloadPlacesChanged, &callerUserID, auditNameDiff{Removed: []string{place.Name}})
+	slog.Info("место разгрузки отвязано от компании", "id", id, "company_id", companyID)
+	return true, nil
+}
+
+// loadUnloadPlace подгружает место разгрузки без сборки полного набора
+// деталей (слоты/фото) - для bulk-операций нужно только имя в BulkItemError,
+// тяжёлый buildDetails тут ни к чему.
+func (s *unloadPlaceService) loadUnloadPlace(ctx context.Context, id int) (models.UnloadPlace, bool) {
+	var place models.UnloadPlace
+	if err := s.db.WithContext(ctx).First(&place, id).Error; err != nil {
+		return place, false
+	}
+	return place, true
+}
+
+// BulkArchive архивирует набор мест разгрузки через Delete. Места, привязанные
+// к организациям/компаниям, честно попадают в Errors (частичный успех).
+func (s *unloadPlaceService) BulkArchive(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		place, ok := s.loadUnloadPlace(ctx, id)
+		if !ok {
+			res.addError(id, "", "Место разгрузки не найдено")
+			continue
+		}
+		if err := s.Delete(ctx, callerUserID, id); err != nil {
+			res.addError(id, place.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkRestore восстанавливает набор мест разгрузки через Restore.
+func (s *unloadPlaceService) BulkRestore(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		place, ok := s.loadUnloadPlace(ctx, id)
+		if !ok {
+			res.addError(id, "", "Место разгрузки не найдено")
+			continue
+		}
+		if err := s.Restore(ctx, callerUserID, id); err != nil {
+			res.addError(id, place.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// GetHistory возвращает историю изменений места разгрузки (новые сверху).
+// #870, финал F.2: запись и до-cutover строки живут в общем audit_log (старые
+// перенесены backfill'ом BackfillAuditFromLegacy), поэтому чтение идёт только из
+// audit_log. Замороженная unload_place_histories дропнута в дроп-sweep (F.8).
+// Форму стережёт TestUnloadPlaces_History.
 func (s *unloadPlaceService) GetHistory(ctx context.Context, id int) ([]models.UnloadPlaceHistoryItem, error) {
-	return s.history.GetHistory(ctx, id)
+	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+	sql := `
+		SELECT a.id AS id, a.action AS action_type, a.details AS details,
+			a.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, a.created_at AS created_at
+		FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+		WHERE a.entity_type = ? AND a.entity_id = ?
+		ORDER BY a.created_at DESC, a.id DESC`
+
+	type row struct {
+		ID          int             `gorm:"column:id"`
+		ActionType  string          `gorm:"column:action_type"`
+		Details     json.RawMessage `gorm:"column:details"`
+		ActorUserID *int            `gorm:"column:actor_user_id"`
+		ActorName   string          `gorm:"column:actor_name"`
+		CreatedAt   time.Time       `gorm:"column:created_at"`
+	}
+	var rows []row
+	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityUnloadPlace, id).Scan(&rows).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching unload place history")
+	}
+
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
+	items := make([]models.UnloadPlaceHistoryItem, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, models.UnloadPlaceHistoryItem{
+			ID:          r.ID,
+			ActionType:  r.ActionType,
+			Details:     r.Details,
+			ActorUserID: r.ActorUserID,
+			ActorName:   maskName(masks, r.ActorUserID, r.ActorName),
+			CreatedAt:   r.CreatedAt,
+		})
+	}
+	return items, nil
 }

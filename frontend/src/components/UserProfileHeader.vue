@@ -3,6 +3,30 @@
     <div class="user-info">
       <!-- Основная информация -->
       <div class="main-info">
+        <!-- Согласие на обработку данных: единственное место, где работник может
+             его отозвать. Показываем, только когда согласие реально дано - иначе
+             отзывать нечего, а окно согласия он и так видит. -->
+        <div
+          v-if="consentGrantedAt"
+          class="consent-row"
+        >
+          <button
+            type="button"
+            class="detail-badge consent-badge clickable"
+            :disabled="consentRevoking"
+            :title="consentTitle"
+            data-testid="cabinet-consent-badge"
+            @click="revokeOwnConsent"
+          >
+            <span class="badge-content">
+              <NavIcon
+                class="icon"
+                name="data-processing"
+              />
+              <span class="badge-text">{{ consentBadgeLabel }}</span>
+            </span>
+          </button>
+        </div>
         <div class="name-and-type">
           <h2
             class="user-name"
@@ -23,32 +47,73 @@
             v-if="company"
             class="user-company"
           >
+            <!-- Здание компании: жилой корпус с рядами окон и пристройкой. -->
             <svg
               class="icon"
               viewBox="0 0 24 24"
             >
-              <path d="M18,15H16V17H18M18,11H16V13H18M20,19H12V17H14V15H12V13H14V11H12V9H20M10,7H8V5H10M10,11H8V9H10M10,15H8V13H10M10,19H8V17H10M6,7H4V5H6M6,11H4V9H6M6,15H4V13H6M6,19H4V17H6M12,7V3H2V21H22V7H12Z" />
+              <path d="M4 20.5V6.2a1 1 0 0 1 1-1h6.5a1 1 0 0 1 1 1v14.3" />
+              <path d="M12.5 10.5H19a1 1 0 0 1 1 1v9" />
+              <line
+                x1="6.6"
+                y1="9.5"
+                x2="9.9"
+                y2="9.5"
+              />
+              <line
+                x1="6.6"
+                y1="14.5"
+                x2="9.9"
+                y2="14.5"
+              />
+              <line
+                x1="15"
+                y1="15.5"
+                x2="17.6"
+                y2="15.5"
+              />
+              <line
+                x1="2.8"
+                y1="20.5"
+                x2="21.2"
+                y2="20.5"
+              />
             </svg>
             {{ company }}
           </div>
         </div>
       </div>
       
-      <!-- Дополнительные данные -->
-      <div
-        v-if="hasContactDetails"
-        class="user-details-row"
-      >
+      <!-- Контакты и действия. Ряд показывается всегда: в нём живут постоянные
+           элементы - кнопка смены пароля и предупреждение о неуказанной почте, -
+           поэтому прежнее условие «есть хоть один контакт» скрывало бы их у
+           работника с пустой карточкой. -->
+      <div class="user-details-row">
         <div
           v-if="position"
           class="user-detail"
         >
           <span class="detail-badge position-badge">
+            <!-- Должность: рабочий портфель. Прежний глиф - дом с меткой -
+                 к названию должности отношения не имел. -->
             <svg
               class="icon"
               viewBox="0 0 24 24"
             >
-              <path d="M12,3L2,12H5V20H19V12H22L12,3M12,7.7C14.1,7.7 15.8,9.4 15.8,11.5C15.8,14.5 12,18 12,18C12,18 8.2,14.5 8.2,11.5C8.2,9.4 9.9,7.7 12,7.7M12,10A1.5,1.5 0 0,0 10.5,11.5A1.5,1.5 0 0,0 12,13A1.5,1.5 0 0,0 13.5,11.5A1.5,1.5 0 0,0 12,10Z" />
+              <rect
+                x="3.5"
+                y="7.5"
+                width="17"
+                height="12.5"
+                rx="2.2"
+              />
+              <path d="M9 7.5V6.2a1.6 1.6 0 0 1 1.6-1.6h2.8A1.6 1.6 0 0 1 15 6.2v1.3" />
+              <line
+                x1="3.5"
+                y1="12.8"
+                x2="20.5"
+                y2="12.8"
+              />
             </svg>
             {{ position }}
           </span>
@@ -56,6 +121,7 @@
         <div
           v-if="email"
           class="user-detail"
+          :title="emailOwnerHint"
           @click="copyEmail"
         >
           <span
@@ -72,12 +138,10 @@
                 key="original"
                 class="badge-content"
               >
-                <svg
+                <NavIcon
                   class="icon"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M22 6C22 4.9 21.1 4 20 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6M20 6L12 11L4 6H20M20 18H4V8L12 13L20 8V18Z" />
-                </svg>
+                  name="center"
+                />
                 <span class="badge-text">{{ email }}</span>
               </div>
               <div
@@ -109,11 +173,12 @@
                 key="original"
                 class="badge-content"
               >
+                <!-- Телефон: трубка по диагонали, скруглённая под наклоном. -->
                 <svg
                   class="icon"
                   viewBox="0 0 24 24"
                 >
-                  <path d="M6.62,10.79C8.06,13.62 10.38,15.94 13.21,17.38L15.41,15.18C15.69,14.9 16.08,14.82 16.43,14.93C17.55,15.3 18.75,15.5 20,15.5A1,1 0 0,1 21,16.5V20A1,1 0 0,1 20,21A17,17 0 0,1 3,4A1,1 0 0,1 4,3H7.5A1,1 0 0,1 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z" />
+                  <path d="M8.4 3.6 5.9 6.1a1.8 1.8 0 0 0-.4 1.9 19 19 0 0 0 10.5 10.5 1.8 1.8 0 0 0 1.9-.4l2.5-2.5-3.9-2.9-1.8 1.4a14.5 14.5 0 0 1-5.2-5.2l1.4-1.8-3.5-3.5Z" />
                 </svg>
                 <span class="badge-text">{{ formattedPhone }}</span>
               </div>
@@ -127,13 +192,62 @@
             </transition>
           </span>
         </div>
+        <div class="user-detail">
+          <button
+            type="button"
+            class="detail-badge password-badge clickable"
+            title="Сменить пароль"
+            data-testid="cabinet-change-password"
+            @click="passwordModalOpen = true"
+          >
+            <span class="badge-content">
+              <!-- Пароль: замок с дужкой и скважиной. -->
+              <svg
+                class="icon"
+                viewBox="0 0 24 24"
+              >
+                <rect
+                  x="4.5"
+                  y="10"
+                  width="15"
+                  height="10.5"
+                  rx="2.5"
+                />
+                <path d="M8 10V6.9a4 4 0 0 1 8 0V10" />
+                <circle
+                  cx="12"
+                  cy="15.2"
+                  r="1.4"
+                />
+              </svg>
+              <span class="badge-text">Пароль</span>
+            </span>
+          </button>
+        </div>
       </div>
     </div>
+
+    <ChangePasswordModal
+      :show="passwordModalOpen"
+      @close="passwordModalOpen = false"
+    />
   </div>
 </template>
 
 <script>
+import { listMyConsents, revokeMyConsent } from '@/api/pdConsent';
+import { usePDConsentStore } from '@/stores/pdConsent';
+import { useDeletionsStore } from '@/stores/deletions';
+import { useUiStore } from '@/stores/ui';
+import { useContactsStore } from '@/stores/contacts';
+import ChangePasswordModal from './ChangePasswordModal.vue';
+import NavIcon from './icons/NavIcon.vue';
+
+/** Вид согласия, которое спрашивают при первом входе. */
+const PD_PROCESSING = 'pd_processing';
+
 export default {
+  components: { ChangePasswordModal, NavIcon },
   props: {
     organization: { type: String, default: null },
     company: { type: String, default: null },
@@ -148,12 +262,16 @@ export default {
   },
   data() {
     return {
+      passwordModalOpen: false,
       copiedEmail: false,
       copiedPhone: false,
       timeoutEmail: null,
       timeoutPhone: null,
       emailBadgeWidth: null,
-      phoneBadgeWidth: null
+      phoneBadgeWidth: null,
+      // Когда работник дал действующее согласие; null - согласия нет, отзывать нечего.
+      consentGrantedAt: null,
+      consentRevoking: false
     };
   },
   computed: {
@@ -181,9 +299,27 @@ export default {
       }
       return 'П';
     },
-    hasContactDetails() {
-      // Показываем контактные данные, если есть email или телефон
-      return this.email || this.phone;
+    consentBadgeLabel() {
+      return this.consentRevoking ? 'Отзываем...' : 'Согласие на обработку данных';
+    },
+
+    // Адрес почты работник не меняет сам: на него система шлёт новые пароли при
+    // плановой смене, поэтому канал доставки ведёт бюро. Подсказка объясняет,
+    // куда обращаться, и подставляет контакты из системных настроек.
+    bureauContactsSuffix() {
+      const contacts = useContactsStore();
+      const parts = [contacts.phone, contacts.email].filter(Boolean);
+      return parts.length ? ` (${parts.join(', ')})` : '';
+    },
+
+    emailOwnerHint() {
+      return `Адрес меняет бюро пропусков${this.bureauContactsSuffix}`;
+    },
+
+    consentTitle() {
+      const at = this.consentGrantedAt ? new Date(this.consentGrantedAt) : null;
+      const when = at && !Number.isNaN(at.getTime()) ? ` ${at.toLocaleDateString('ru-RU')}` : '';
+      return `Согласие дано${when}. Нажмите, чтобы отозвать`;
     },
     formattedPhone() {
       if (!this.phone) return '';
@@ -215,15 +351,67 @@ export default {
     }
   },
   mounted() {
+    // Контакты бюро нужны подсказке про почту; стор кэширует запрос.
+    useContactsStore().fetch();
     this.$nextTick(() => {
       this.updateBadgeWidths();
     });
+    this.loadOwnConsent();
   },
   beforeUnmount() {
     if (this.timeoutEmail) clearTimeout(this.timeoutEmail);
     if (this.timeoutPhone) clearTimeout(this.timeoutPhone);
   },
   methods: {
+    /**
+     * Читает собственное согласие работника. Молча пропускаем ошибку: бейдж -
+     * дополнение к кабинету, и падать из-за него страница не должна.
+     */
+    async loadOwnConsent() {
+      try {
+        const consents = await listMyConsents();
+        const active = (Array.isArray(consents) ? consents : [])
+          .filter((c) => c.consent_type === PD_PROCESSING && c.granted && !c.revoked_at)
+          .sort((a, b) => String(b.granted_at).localeCompare(String(a.granted_at)))[0];
+        this.consentGrantedAt = active?.granted_at || null;
+      } catch {
+        this.consentGrantedAt = null;
+      }
+    },
+
+    /**
+     * Отзывает собственное согласие. Последствие серьёзное - доступ закрывается до
+     * нового подтверждения, поэтому спрашиваем и говорим об этом прямо.
+     */
+    async revokeOwnConsent() {
+      if (this.consentRevoking) return;
+      const ok = await useUiStore().confirm({
+        title: 'Отзыв согласия',
+        message: 'Отозвать согласие на обработку персональных данных?'
+          + ' Система сразу закроет доступ и покажет окно согласия -'
+          + ' работать получится только после нового подтверждения.',
+        confirmText: 'Отозвать',
+        danger: true,
+      });
+      if (!ok) return;
+      this.consentRevoking = true;
+      try {
+        await revokeMyConsent(PD_PROCESSING);
+        this.consentGrantedAt = null;
+        useDeletionsStore().notify({ prefix: 'Согласие на обработку данных отозвано' });
+        // Окно согласия поднимает стор: без принудительного перечитывания оно
+        // появилось бы только по истечении кэша или после перезагрузки страницы.
+        await usePDConsentStore().refresh(true);
+      } catch (error) {
+        useDeletionsStore().notify({
+          prefix: error?.message || 'Не удалось отозвать согласие',
+          type: 'error',
+        });
+      } finally {
+        this.consentRevoking = false;
+      }
+    },
+
     updateBadgeWidths() {
       if (this.$refs.emailBadge && this.email) {
         const originalBadge = this.$refs.emailBadge;
@@ -306,10 +494,12 @@ export default {
   display: flex;
   align-items: flex-start;
   gap: 20px;
-  padding: 20px 45px;
+  padding: 10px 45px 10px;
   border-radius: 30px;
-  border: 1px solid #e6e6e6;
-  height: 200px;
+  /* Карточка на фоне страницы: без своего фона она темнее соседней карточки уведомлений. */
+  background: var(--surface);
+  border: 1px solid var(--border);
+  height: var(--cabinet-card-height, 200px);
   position: relative;
   overflow: hidden;
   opacity: 0;
@@ -325,7 +515,7 @@ export default {
   left: 0;
   width: 20px;
   height: 100%;
-  background: #4F5BDF;
+  background: var(--accent);
 }
 
 .user-avatar {
@@ -340,15 +530,15 @@ export default {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #4a6fa5 0%, #3a5a80 100%);
-  color: white;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 70%, var(--surface)) 0%, var(--accent) 100%);
+  color: var(--accent-contrast);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.8em;
   font-weight: bold;
   box-shadow: 0 1px 6px rgba(74, 111, 165, 0.3);
-  border: 3px solid white;
+  border: 3px solid var(--surface);
 }
 
 .user-info {
@@ -361,7 +551,9 @@ export default {
 
 .main-info {
   padding-bottom: 12px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  /* Разделитель - цветом рамки, а не тени: --shadow-drop в тёмных темах почти
+     чёрный, и линия под именем читалась чёрной полосой. */
+  border-bottom: 1px solid var(--border);
 }
 
 .name-and-type {
@@ -375,7 +567,7 @@ export default {
 .user-name {
   font-size: 1.6em;
   margin: 0;
-  color: #000000;
+  color: var(--text);
   font-weight: 700;
   line-height: 1.3;
   opacity: 0;
@@ -405,21 +597,27 @@ export default {
 
 .user-organization {
   font-size: 1.2em;
-  color: #333;
+  color: var(--text);
   font-weight: 600;
   animation: fadeInRight 0.4s ease-out 0.35s forwards;
 }
 
 .user-company {
   font-size: 1em;
-  color: #666;
+  color: var(--text-muted);
   animation: fadeInRight 0.4s ease-out 0.4s forwards;
 }
 
 .icon {
   width: 16px;
   height: 16px;
-  fill: currentColor;
+  /* Глифы кабинета рисуются обводкой, как набор навигации (navIcons.js):
+     единый вес линии и цвет от текста вместо заливки силуэтом. */
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   opacity: 0.8;
 }
 
@@ -429,7 +627,10 @@ export default {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding-top: 12px;
+  /* Ряд отодвинут и от разделителя, и от нижней кромки: 8px снизу плюс поле
+     карточки. Место под них взято у верхнего поля - высота остаётся 200px. */
+  padding-top: 8px;
+  padding-bottom: 8px;
   /* П.43: контактные бейджи прижаты к нижней части блока */
   margin-top: auto;
 }
@@ -444,6 +645,38 @@ export default {
 .user-detail:nth-child(2) { animation-delay: 0.45s; }
 .user-detail:nth-child(3) { animation-delay: 0.5s; }
 
+/* Ряд с согласием стоит над именем: бейдж единственный в шапке, по которому
+   работник что-то делает, и в контактной строке внизу его не замечали. */
+.consent-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 10px;
+  opacity: 0;
+  transform: translateY(5px);
+  animation: fadeInUp 0.3s ease-out 0.25s forwards;
+}
+
+/* Бейдж согласия - кнопка, а не span: он единственный в шапке что-то делает.
+   Обнуляем браузерные стили кнопки, чтобы он не выбивался из ряда бейджей. */
+.consent-badge {
+  font-family: inherit;
+  line-height: inherit;
+}
+
+/* Ниже контактных бейджей: над именем он служебный, а высоту карточки делит с
+   ними в пределах 200px. Селектор двойной намеренно: одиночный .consent-badge
+   стоит в файле выше .detail-badge, и её shorthand padding перебивал бы его. */
+.detail-badge.consent-badge {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+.consent-badge:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
 .detail-badge {
   display: inline-flex;
   align-items: center;
@@ -457,8 +690,8 @@ export default {
   min-width: 0;
   cursor: pointer;
   border: 1px solid transparent;
-  background: #f1f3f5;
-  color: #475569;
+  background: var(--accent-tint);
+  color: var(--text-muted);
 }
 
 .badge-content {
@@ -483,23 +716,43 @@ export default {
 }
 
 .position-badge {
-  background: #eef0ff;
-  color: #3a45c0;
-  border-color: #d9deff;
+  background: var(--accent-tint);
+  /* accent-hover на бледной подложке давал ~2.4 - должность не читалась. */
+  color: var(--accent-text);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--surface));
   cursor: default;
   gap: 6px;
 }
 
 .email-badge {
-  background: #dcfce7;
-  color: #166534;
-  border-color: #bbf7d0;
+  background: var(--success-bg);
+  color: var(--success-text);
+  border-color: color-mix(in srgb, var(--success) 30%, var(--surface));
 }
 
 .phone-badge {
-  background: #fef3c7;
-  color: #92400e;
-  border-color: #fde68a;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  border-color: color-mix(in srgb, var(--warning) 30%, var(--surface));
+}
+
+/* Единственный бейдж-действие в ряду контактов, поэтому нейтральная подложка:
+   зелёный и жёлтый рядом уже заняты почтой и телефоном, третий цвет читался бы
+   как ещё один вид контакта. font-family и line-height - как у consent-badge:
+   у button они свои и не наследуются. */
+/* Единственный бейдж-действие в ряду контактов, поэтому нейтральная подложка:
+   зелёный и жёлтый рядом заняты почтой и телефоном, третий цвет читался бы как
+   ещё один вид контакта. font-family и line-height - как у consent-badge:
+   у button они свои и не наследуются. Подпись короткая намеренно: с полной
+   «Сменить пароль» бейдж выдавливал ряд контактов на вторую строку. */
+.password-badge {
+  font-family: inherit;
+  line-height: inherit;
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .detail-badge .icon {
@@ -513,8 +766,8 @@ export default {
 .user-type-badge {
   display: inline-block;
   padding: 5px 12px;
-  background: var(--color-primary, #4F5BDF);
-  color: white;
+  background: var(--color-primary, var(--accent));
+  color: var(--accent-contrast);
   border-radius: 999px;
   font-size: 0.85em;
   font-weight: 500;
@@ -595,7 +848,8 @@ export default {
     margin-bottom: 15px;
   }
   
-  .user-details-row {
+  .user-details-row,
+  .consent-row {
     justify-content: center;
   }
   

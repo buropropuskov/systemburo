@@ -15,48 +15,93 @@ type PermissionHandler struct {
 
 // NewPermissionHandler создаёт новый экземпляр обработчика разрешений.
 // resolver используется для GetMyPermissions (новая система прав #187),
-// service остаётся для legacy /permissions/tree, /user/:id и auto-generate.
+// service остаётся для /catalog, /user/:id и auto-generate.
 func NewPermissionHandler(service services.PermissionService, resolver *services.PermissionResolver) *PermissionHandler {
 	return &PermissionHandler{service: service, resolver: resolver}
 }
 
-// GetMyPermissions возвращает разрешения текущего пользователя в виде
-// массива {key, value:"allow"} - формат сохранён ради backward-compat
-// с usePermissionsStore на фронте. Источник данных - PermissionResolver
-// из #187 (roles + permission_groups + user_groups + overrides), а не
-// старая таблица user_permissions (она устарела и не отражает реальные
-// права после миграции на новую систему).
+// GetMyPermissions возвращает эффективные права текущего пользователя.
+// Формат {mode, permissions[{key,value,source}], denied, banned, ban_reason}:
+//   - mode=super  -> всё разрешено (permissions пуст, фронт включает всё readonly);
+//   - mode=admin  -> всё кроме super-only и denied (личных deny-override);
+//   - mode=normal -> permissions = allow-список с источником (роль/группа/override);
+//   - mode=banned -> прав нет.
+//
+// Источник данных -- PermissionResolver (роли + группы + grants + overrides).
 func (h *PermissionHandler) GetMyPermissions(c echo.Context) error {
-	userID := GetUserID(c)
+	set, err := h.resolver.Resolve(c.Request().Context(), GetUserID(c))
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, buildPermissionsResponse(set))
+}
+
+// GetUserEffectivePermissions возвращает эффективные права указанного пользователя
+// с источником (роль/группа/override) -- для админ-экрана настройки доступа (#187 Фаза 3).
+// Доступ - permission.audit.manage (super + admin), гейтится route-middleware.
+// Формат идентичен GetMyPermissions, но считается для целевого юзера, чтобы в правом
+// столбце модалки прав показать бейдж источника каждого права и унаследованные от
+// роли/групп права (а не только личные override из /user/:id).
+func (h *PermissionHandler) GetUserEffectivePermissions(c echo.Context) error {
+	userID, err := ParseID(c, "id")
+	if err != nil {
+		return err
+	}
 	set, err := h.resolver.Resolve(c.Request().Context(), userID)
 	if err != nil {
 		return err
 	}
-	keys := set.Keys()
-	perms := make([]models.UserPermissionResponse, 0, len(keys))
-	for _, k := range keys {
-		perms = append(perms, models.UserPermissionResponse{
-			Key:   k,
-			Value: "allow",
-		})
-	}
-	return RespondSuccess(c, perms)
+	return RespondSuccess(c, buildPermissionsResponse(set))
 }
 
-// GetUserPermissions возвращает разрешения указанного пользователя (только super-admin).
+// buildPermissionsResponse собирает ответ {mode, permissions[{key,value,source}],
+// denied, banned, ban_reason} из вычисленного набора прав. Общий код для
+// GetMyPermissions (текущий юзер) и GetUserEffectivePermissions (целевой юзер).
+func buildPermissionsResponse(set services.PermissionSet) models.MyPermissionsResponse {
+	keys := set.Keys()
+	perms := make([]models.MyPermissionItem, 0, len(keys))
+	for _, k := range keys {
+		perms = append(perms, models.MyPermissionItem{
+			Key:    k,
+			Value:  "allow",
+			Source: set.Source(k),
+		})
+	}
+	denied := set.Denies()
+	if set.Mode() == "admin" {
+		// PermissionSet.Has режет super-only ключи для всех, кроме супер-админа,
+		// но Denies() отдаёт только личные deny-override (#1997) - фронтовый стор
+		// в admin-режиме считает ключ выданным, если его нет в denied, поэтому
+		// без явного добавления интерфейс показывал бы доступным то, что сервер
+		// на сохранении отклонит.
+		denied = append(append([]string{}, denied...), services.SuperOnlyKeys()...)
+	}
+	return models.MyPermissionsResponse{
+		Mode:        set.Mode(),
+		Permissions: perms,
+		Denied:      denied,
+		Banned:      set.IsBanned(),
+		BanReason:   set.BanReason(),
+	}
+}
+
+// GetUserPermissions возвращает индивидуальные override указанного пользователя.
+// Доступ - permission.audit.manage (super + admin), гейтится route-middleware.
 func (h *PermissionHandler) GetUserPermissions(c echo.Context) error {
 	userID, err := ParseID(c, "id")
 	if err != nil {
 		return err
 	}
-	perms, err := h.service.GetUserPermissions(c.Request().Context(), IsSuperAdmin(c), userID)
+	perms, err := h.service.GetUserPermissions(c.Request().Context(), userID)
 	if err != nil {
 		return err
 	}
 	return RespondSuccess(c, perms)
 }
 
-// UpdateUserPermissions обновляет разрешения указанного пользователя (только super-admin).
+// UpdateUserPermissions обновляет индивидуальные override указанного пользователя.
+// Доступ - permission.audit.manage (super + admin). Флаг isSuperAdmin прокидывается
+// в сервис: не-супер не может выдать override на super-only ключи.
 func (h *PermissionHandler) UpdateUserPermissions(c echo.Context) error {
 	userID, err := ParseID(c, "id")
 	if err != nil {
@@ -69,16 +114,18 @@ func (h *PermissionHandler) UpdateUserPermissions(c echo.Context) error {
 	if err := h.service.UpdateUserPermissions(c.Request().Context(), IsSuperAdmin(c), GetUserID(c), userID, req); err != nil {
 		return err
 	}
+	// Сбрасываем кэш резолвера (TTL 30s), чтобы выданные права применились сразу.
+	h.resolver.Invalidate(userID)
 	return RespondMessage(c, "ok")
 }
 
-// GetPermissionTree возвращает дерево разрешений для админского UI.
-func (h *PermissionHandler) GetPermissionTree(c echo.Context) error {
-	tree, err := h.service.GetPermissionTree(c.Request().Context())
+// GetCatalog возвращает каталог прав (статика + динамические table.*) для UI настройки.
+func (h *PermissionHandler) GetCatalog(c echo.Context) error {
+	catalog, err := h.service.GetCatalog(c.Request().Context())
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, tree)
+	return RespondSuccess(c, catalog)
 }
 
 // AutoGenerate создаёт разрешения для таблицы (только admin).

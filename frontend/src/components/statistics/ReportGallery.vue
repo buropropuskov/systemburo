@@ -71,7 +71,7 @@ const availablePresets = computed(() =>
   gap: 7px;
   padding: 16px 18px;
   text-align: left;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -82,12 +82,12 @@ const availablePresets = computed(() =>
 
 .gallery__card:hover {
   transform: translateY(-2px);
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   box-shadow: 0 6px 18px rgba(79, 91, 223, 0.12);
 }
 
 .gallery__card--active {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--color-primary) inset;
 }
 
@@ -107,7 +107,7 @@ const availablePresets = computed(() =>
   margin-top: auto;
   font-size: 12px;
   font-weight: 600;
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 /* Компактный сайдбар-вариант: один столбец, плотные карточки, без resultHint. */

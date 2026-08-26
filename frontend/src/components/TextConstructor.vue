@@ -3,7 +3,10 @@
     class="text-constructor"
     :class="{ 'is-disabled': disabled }"
   >
-    <div class="editor-toolbar">
+    <div
+      class="editor-toolbar"
+      @mousedown.prevent
+    >
       <div class="toolbar-group">
         <button
           type="button"
@@ -397,6 +400,16 @@
       </div>
     </div>
 
+    <!-- Полоса вложений живёт между панелью и текстом, как в почтовом клиенте:
+         вложения относятся к письму целиком, а не к месту курсора. Пустой слот
+         ничего не рисует, поэтому у прочих мест применения вид не меняется. -->
+    <div
+      v-if="$slots.attachments"
+      class="tc-attachments"
+    >
+      <slot name="attachments" />
+    </div>
+
     <EditorContent
       :editor="editor"
       class="editor-content"
@@ -543,12 +556,16 @@ onBeforeUnmount(() => {
 });
 
 /**
- * Запускает chain-команду на редакторе с фокусом, если редактор активен.
+ * Запускает chain-команду на редакторе. Фокус дёргаем только когда редактор уже
+ * активен: без этого тап по кнопке тулбара на телефоне открывал клавиатуру, хотя
+ * пользователь ещё не собирался печатать. При наборе фокус наоборот сохраняем
+ * (вместе с mousedown.prevent на панели), чтобы клавиатура не схлопывалась.
  * @param {(chain: import('@tiptap/core').ChainedCommands) => import('@tiptap/core').ChainedCommands} build
  */
 function runCommand(build) {
   if (props.disabled || !editor.value) return;
-  build(editor.value.chain().focus()).run();
+  const chain = editor.value.isFocused ? editor.value.chain().focus() : editor.value.chain();
+  build(chain).run();
 }
 
 function applyColor(colorClass) {
@@ -673,12 +690,12 @@ defineExpose({ editor });
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   margin-bottom: 10px;
-  background: #fff;
+  background: var(--surface);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .text-constructor:focus-within {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   box-shadow: var(--shadow-focus);
 }
 
@@ -716,22 +733,26 @@ defineExpose({ editor });
   padding: 0 8px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: #fff;
-  color: #1a1a1a;
+  background: var(--surface);
+  color: var(--text);
   font-size: 14px;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 }
 
-.toolbar-btn:hover:not(:disabled) {
-  background: #f4f5ff;
-  border-color: var(--color-primary);
+/* Только на устройствах с настоящим hover: на таче :hover залипает после тапа,
+   и кнопка выглядит зажатой, а подсказка повисает. */
+@media (hover: hover) {
+  .toolbar-btn:hover:not(:disabled) {
+    background: var(--accent-tint);
+    border-color: var(--accent);
+  }
 }
 
 .toolbar-btn.active {
   background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: #fff;
+  border-color: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .toolbar-btn:disabled {
@@ -754,25 +775,30 @@ defineExpose({ editor });
 .color-btn.green-text { color: #079d1d; }
 .color-btn.blue-text { color: #4f5bdf; }
 
-.color-btn.active,
-.color-btn:hover:not(:disabled) {
+.color-btn.active {
   color: inherit;
 }
 
-.toolbar-btn[data-tooltip]:hover::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 4px 8px;
-  background: #1a1a1a;
-  color: #fff;
-  font-size: 11px;
-  white-space: nowrap;
-  border-radius: 6px;
-  pointer-events: none;
-  z-index: 10;
+@media (hover: hover) {
+  .color-btn:hover:not(:disabled) {
+    color: inherit;
+  }
+
+  .toolbar-btn[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 8px;
+    background: var(--hint-bg);
+    color: var(--hint-text);
+    font-size: 11px;
+    white-space: nowrap;
+    border-radius: 6px;
+    pointer-events: none;
+    z-index: 10;
+  }
 }
 
 .image-input {
@@ -797,21 +823,23 @@ defineExpose({ editor });
   padding: 0 10px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
   font-size: 13px;
   transition: border-color 0.15s ease;
 }
 
-.select-header:hover {
-  border-color: var(--color-primary);
+@media (hover: hover) {
+  .select-header:hover {
+    border-color: var(--accent);
+  }
 }
 
 .select-arrow {
   width: 10px;
   height: 10px;
   flex-shrink: 0;
-  color: #666;
+  color: var(--text-muted);
   transition: transform 0.2s ease;
 }
 
@@ -827,7 +855,7 @@ defineExpose({ editor });
   z-index: 20;
   max-height: 220px;
   overflow-y: auto;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
@@ -854,10 +882,21 @@ defineExpose({ editor });
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-.select-option:hover,
 .select-option.active {
-  background: #f4f5ff;
-  color: var(--color-primary);
+  background: var(--accent-tint);
+  color: var(--accent-text);
+}
+
+@media (hover: hover) {
+  .select-option:hover {
+    background: var(--accent-tint);
+    color: var(--accent-text);
+  }
+}
+
+.tc-attachments {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
 }
 
 .editor-content {
@@ -869,6 +908,8 @@ defineExpose({ editor });
   min-height: inherit;
   line-height: 150%;
   word-break: break-word;
+  /* Дефолтный размер вводимого текста (без выбранного font-size-класса). */
+  font-size: 14px;
 }
 
 /* Чтобы плавающие (float) картинки не вылезали за пределы редактора. */
@@ -882,23 +923,23 @@ defineExpose({ editor });
   content: attr(data-placeholder);
   float: left;
   height: 0;
-  color: #9aa0aa;
+  color: var(--text-muted);
   pointer-events: none;
 }
 
 .constructor-error {
   padding: 6px 14px 10px;
-  color: #d92d20;
+  color: var(--danger-text);
   font-size: 12px;
 }
 
 .preview-modal-content {
   padding: 24px 28px;
-  max-height: 70vh;
+  max-height: calc(var(--app-vh, 1vh) * 70);
   overflow-y: auto;
   font-size: 15px;
   line-height: 1.6;
-  color: #1a1a1a;
+  color: var(--text);
   word-break: break-word;
 }
 
@@ -925,7 +966,7 @@ defineExpose({ editor });
 .editor-content :deep(.green-text),
 .preview-modal-content :deep(.green-text) { color: #079d1d; }
 .editor-content :deep(.blue-text),
-.preview-modal-content :deep(.blue-text) { color: #4f5bdf; }
+.preview-modal-content :deep(.blue-text) { color: var(--accent-text); }
 
 .editor-content :deep(.font-size-10),
 .preview-modal-content :deep(.font-size-10) { font-size: 10px; }

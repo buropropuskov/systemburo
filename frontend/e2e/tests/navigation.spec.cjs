@@ -8,7 +8,9 @@ test.describe('Navigation & Authorization', () => {
 
     await page.goto('/table-constructor');
 
-    await expect(page).not.toHaveURL(/table-constructor/);
+    // permission-guard кидает на /403 (исходный путь - в query from=, поэтому
+    // проверяем посадку на Forbidden, а не отсутствие table-constructor в URL).
+    await expect(page).toHaveURL(/\/403/);
   });
 
   // TODO: после расширения seed - назначить e2e_admin роль с page.admin/page.admin.users.

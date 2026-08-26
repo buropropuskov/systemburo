@@ -59,7 +59,7 @@ func TestRunReportList_WorkApplications(t *testing.T) {
 	require.NoError(t, db.Create(&app).Error)
 
 	dateFrom, dateTo, timeFrom, timeTo := "2026-06-01", "2026-06-05", "09:00", "18:00"
-	att := models.Attachment{ApplicationID: app.ID, AttachmentType: "people", UniqueAttachmentID: &ua.ID,
+	att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "people", UniqueAttachmentID: &ua.ID,
 		EntryDateFrom: &dateFrom, EntryDateTo: &dateTo, EntryTimeFrom: &timeFrom, EntryTimeTo: &timeTo}
 	require.NoError(t, db.Create(&att).Error)
 
@@ -72,7 +72,7 @@ func TestRunReportList_WorkApplications(t *testing.T) {
 		require.NoError(t, db.Create(&models.Employee{AttachmentID: &att.ID, LastName: &name}).Error)
 	}
 
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 	res, err := svc.RunReportList(context.Background(), models.ReportRequest{Mode: "list", Entity: "work_applications"})
 	require.NoError(t, err)
 	require.Equal(t, "list", res.Mode)
@@ -99,7 +99,7 @@ func TestRunReportList_AllEntitiesExecute(t *testing.T) {
 	defer cleanup()
 	testutil.CleanDB(t, db)
 
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 	for _, entity := range []string{"work_applications", "applications", "cars", "people"} {
 		t.Run(entity, func(t *testing.T) {
 			res, err := svc.RunReportList(context.Background(), models.ReportRequest{Mode: "list", Entity: entity})

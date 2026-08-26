@@ -37,7 +37,7 @@ func TestGetInsights_Structure(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&app).Error)
 
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 	res, err := svc.GetInsights(context.Background(), "2026-06-01", "2026-06-30")
 	require.NoError(t, err)
 

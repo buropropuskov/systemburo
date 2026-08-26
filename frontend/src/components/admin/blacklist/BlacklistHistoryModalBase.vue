@@ -1,223 +1,226 @@
 <template>
   <Teleport to="body">
-    <div
-      class="modal-overlay"
-      data-testid="blacklist-history-modal"
-      @mousedown="onOverlayMousedown"
-      @mouseup="onOverlayMouseup"
-    >
+    <transition name="modal-fade">
       <div
-        class="blacklist-history-modal"
-        @mousedown.stop
+        v-if="show"
+        class="modal-overlay"
+        data-testid="blacklist-history-modal"
+        @mousedown="onOverlayMousedown"
+        @mouseup="onOverlayMouseup"
       >
-        <div class="modal-header">
-          <h3>{{ title }}</h3>
-          <div class="header-actions">
-            <button
-              class="export-btn"
-              :disabled="filteredHistory.length === 0 || isExporting"
-              @click="exportToExcel"
-            >
-              <img
-                v-if="!isExporting"
-                src="@/assets/icons/export.png"
-                class="export-icon"
-              >
-              <span v-if="!isExporting">Экспорт</span>
-              <div
-                v-else
-                class="export-loader"
-              />
-            </button>
-            <button
-              class="close-btn"
-              aria-label="Закрыть"
-              @click="close"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-
-        <div class="history-filters">
-          <div class="filter-row">
-            <div class="search-filter">
-              <span class="filter-label">Поиск:</span>
-              <input
-                v-model="searchQuery"
-                type="text"
-                class="search-input"
-                placeholder="Поиск по пользователю, действию..."
-              >
-            </div>
-
-            <div class="user-filter">
-              <span class="filter-label">Пользователь:</span>
-              <div
-                ref="userSelect"
-                class="custom-select"
-                @click="toggleUserDropdown"
-              >
-                <div class="select-trigger">
-                  <span class="selected-value">{{ selectedUserName }}</span>
-                  <img
-                    src="@/assets/icons/arrow.png"
-                    class="select-arrow"
-                    :class="{ 'arrow-open': userDropdownOpen }"
-                  >
-                </div>
-                <transition name="fade">
-                  <div
-                    v-if="userDropdownOpen"
-                    class="select-dropdown"
-                  >
-                    <div
-                      class="select-option"
-                      :class="{ selected: selectedUserId === null }"
-                      @click.stop="selectUser(null)"
-                    >
-                      Все пользователи
-                    </div>
-                    <div
-                      v-for="user in uniqueUsers"
-                      :key="user.id"
-                      class="select-option"
-                      :class="{ selected: selectedUserId === user.id }"
-                      @click.stop="selectUser(user.id)"
-                    >
-                      {{ user.name }}
-                    </div>
-                  </div>
-                </transition>
-              </div>
-            </div>
-
-            <div class="date-filter">
-              <span class="filter-label">Период:</span>
-              <input
-                v-model="dateFrom"
-                type="date"
-                class="date-input"
-              >
-              <span class="date-separator">-</span>
-              <input
-                v-model="dateTo"
-                type="date"
-                class="date-input"
-              >
-            </div>
-
-            <div class="sort-filter">
-              <span class="filter-label">Сортировка:</span>
+        <div
+          class="blacklist-history-modal"
+          @mousedown.stop
+        >
+          <div class="modal-header">
+            <h3>{{ title }}</h3>
+            <div class="header-actions">
               <button
-                class="sort-btn"
-                @click="toggleSortOrder"
+                class="export-btn"
+                :disabled="filteredHistory.length === 0 || isExporting"
+                @click="exportToExcel"
               >
-                <img
-                  src="@/assets/icons/sort.png"
-                  class="sort-icon"
-                  :class="{ 'sort-asc': sortOrder === 'asc' }"
-                >
-                <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
+                <AppIcon
+                  v-if="!isExporting"
+                  name="export"
+                  class="export-icon"
+                />
+                <span v-if="!isExporting">Экспорт</span>
+                <div
+                  v-else
+                  class="export-loader"
+                />
+              </button>
+              <button
+                class="close-btn"
+                aria-label="Закрыть"
+                @click="close"
+              >
+                ×
               </button>
             </div>
           </div>
-        </div>
 
-        <div class="modal-content">
-          <div
-            v-if="loading"
-            class="history-loading"
-          >
-            <LoaderSpinner label="Загрузка истории..." />
-          </div>
-
-          <div
-            v-else-if="filteredHistory.length === 0"
-            class="history-empty"
-          >
-            История пуста
-          </div>
-
-          <div
-            v-else
-            class="history-timeline"
-          >
-            <template
-              v-for="group in historyGroupedByDate"
-              :key="group.date"
-            >
-              <div class="history-date-separator">
-                {{ group.date }}
+          <div class="history-filters">
+            <div class="filter-row">
+              <div class="search-filter">
+                <span class="filter-label">Поиск:</span>
+                <input
+                  v-model="searchQuery"
+                  type="text"
+                  class="search-input"
+                  placeholder="Поиск по пользователю, действию..."
+                >
               </div>
-              <div
-                v-for="(item, i) in group.items"
-                :key="item.id"
-                class="history-item"
-              >
+
+              <div class="user-filter">
+                <span class="filter-label">Пользователь:</span>
                 <div
-                  class="timeline-dot"
-                  :class="getActionClass(item.action_type)"
-                />
-                <div
-                  v-if="i < group.items.length - 1"
-                  class="timeline-line"
-                />
-
-                <div class="history-content">
-                  <div
-                    v-if="getEntityLabel(item)"
-                    class="history-entity"
-                  >
-                    {{ getEntityLabel(item) }}
+                  ref="userSelect"
+                  class="custom-select"
+                  @click="toggleUserDropdown"
+                >
+                  <div class="select-trigger">
+                    <span class="selected-value">{{ selectedUserName }}</span>
+                    <AppIcon
+                      name="arrow"
+                      class="select-arrow"
+                      :class="{ 'arrow-open': userDropdownOpen }"
+                    />
                   </div>
-
-                  <div class="history-header">
-                    <span class="user-name">{{ item.user_name || 'Система' }}</span>
-                    <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
-                  </div>
-
-                  <div class="action-text">
-                    {{ getActionText(item) }}
-                  </div>
-
-                  <div
-                    v-if="getReasonDiff(item)"
-                    class="action-diff"
-                  >
-                    <span class="diff-old">{{ getReasonDiff(item).from }}</span>
-                    <svg
-                      class="diff-arrow"
-                      viewBox="0 0 24 24"
-                      width="16"
-                      height="16"
-                      aria-hidden="true"
+                  <transition name="fade">
+                    <div
+                      v-if="userDropdownOpen"
+                      class="select-dropdown"
                     >
-                      <path
-                        d="M4 12h14M13 6l6 6-6 6"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                    </svg>
-                    <span class="diff-new">{{ getReasonDiff(item).to }}</span>
-                  </div>
-
-                  <div
-                    v-else-if="getActionComment(item)"
-                    class="action-comment"
-                  >
-                    {{ getActionComment(item) }}
-                  </div>
+                      <div
+                        class="select-option"
+                        :class="{ selected: selectedUserId === null }"
+                        @click.stop="selectUser(null)"
+                      >
+                        Все пользователи
+                      </div>
+                      <div
+                        v-for="user in uniqueUsers"
+                        :key="user.id"
+                        class="select-option"
+                        :class="{ selected: selectedUserId === user.id }"
+                        @click.stop="selectUser(user.id)"
+                      >
+                        {{ user.name }}
+                      </div>
+                    </div>
+                  </transition>
                 </div>
               </div>
-            </template>
+
+              <div class="date-filter">
+                <span class="filter-label">Период:</span>
+                <input
+                  v-model="dateFrom"
+                  type="date"
+                  class="date-input"
+                >
+                <span class="date-separator">-</span>
+                <input
+                  v-model="dateTo"
+                  type="date"
+                  class="date-input"
+                >
+              </div>
+
+              <div class="sort-filter">
+                <span class="filter-label">Сортировка:</span>
+                <button
+                  class="sort-btn"
+                  @click="toggleSortOrder"
+                >
+                  <AppIcon
+                    name="sort"
+                    class="sort-icon"
+                    :class="{ 'sort-asc': sortOrder === 'asc' }"
+                  />
+                  <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-content">
+            <div
+              v-if="loading"
+              class="history-loading"
+            >
+              <LoaderSpinner label="Загрузка истории..." />
+            </div>
+
+            <div
+              v-else-if="filteredHistory.length === 0"
+              class="history-empty"
+            >
+              История пуста
+            </div>
+
+            <div
+              v-else
+              class="history-timeline"
+            >
+              <template
+                v-for="group in historyGroupedByDate"
+                :key="group.date"
+              >
+                <div class="history-date-separator">
+                  {{ group.date }}
+                </div>
+                <div
+                  v-for="(item, i) in group.items"
+                  :key="item.id"
+                  class="history-item"
+                >
+                  <div
+                    class="timeline-dot"
+                    :class="getActionClass(item.action_type)"
+                  />
+                  <div
+                    v-if="i < group.items.length - 1"
+                    class="timeline-line"
+                  />
+
+                  <div class="history-content">
+                    <div
+                      v-if="getEntityLabel(item)"
+                      class="history-entity"
+                    >
+                      {{ getEntityLabel(item) }}
+                    </div>
+
+                    <div class="history-header">
+                      <span class="user-name">{{ item.user_name || 'Система' }}</span>
+                      <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
+                    </div>
+
+                    <div class="action-text">
+                      {{ getActionText(item) }}
+                    </div>
+
+                    <div
+                      v-if="getReasonDiff(item)"
+                      class="action-diff"
+                    >
+                      <span class="diff-old">{{ getReasonDiff(item).from }}</span>
+                      <svg
+                        class="diff-arrow"
+                        viewBox="0 0 24 24"
+                        width="16"
+                        height="16"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M4 12h14M13 6l6 6-6 6"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        />
+                      </svg>
+                      <span class="diff-new">{{ getReasonDiff(item).to }}</span>
+                    </div>
+
+                    <div
+                      v-else-if="getActionComment(item)"
+                      class="action-comment"
+                    >
+                      {{ getActionComment(item) }}
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </transition>
   </Teleport>
 </template>
 
@@ -226,6 +229,7 @@ import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useDeletionsStore } from '@/stores/deletions';
 import { formatDateTime } from '@/utils/datetime';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 import ExcelJS from 'exceljs';
 
 const ACTION_DOT_CLASS = {
@@ -244,8 +248,9 @@ const ACTION_DOT_CLASS = {
  */
 export default {
   name: 'BlacklistHistoryModalBase',
-  components: { LoaderSpinner },
+  components: { LoaderSpinner, AppIcon },
   props: {
+    show: { type: Boolean, default: false },
     title: { type: String, required: true },
     /** Имя записи для имени файла экспорта (санируется). */
     entityLabel: { type: String, default: 'zapis' },
@@ -395,8 +400,18 @@ export default {
       });
     },
   },
+  watch: {
+    // Модалка всегда смонтирована (для leave-анимации): историю грузим при
+    // открытии, а не на mount. immediate - чтобы загрузка сработала и когда
+    // модалку сразу монтируют с show=true (guard не грузит при закрытой).
+    show: {
+      immediate: true,
+      handler(visible) {
+        if (visible) this.loadHistory();
+      },
+    },
+  },
   mounted() {
-    this.loadHistory();
     document.addEventListener('click', this.handleClickOutside);
     document.addEventListener('keydown', this.onKeydown);
   },
@@ -407,6 +422,7 @@ export default {
   methods: {
     formatDateTime,
     onKeydown(e) {
+      if (!this.show) return;
       if (e.key === 'Escape') this.close();
     },
     close() {
@@ -627,7 +643,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -643,14 +659,14 @@ export default {
 }
 
 .blacklist-history-modal {
-  background: white;
+  background: var(--surface);
   border-radius: 30px;
   width: 900px;
   max-width: 95%;
-  max-height: 80vh;
+  max-height: calc(var(--app-vh, 1vh) * 80);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
   animation: slideUp 0.2s ease-out;
 }
 
@@ -664,14 +680,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 15px 25px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .header-actions {
@@ -686,19 +702,19 @@ export default {
   justify-content: center;
   gap: 8px;
   padding: 6px 16px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 13px;
-  color: #000;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
   height: 32px;
 }
 
 .export-btn:hover:not(:disabled) {
-  background: #f5f5f5;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .export-btn:disabled {
@@ -714,8 +730,8 @@ export default {
 .export-loader {
   width: 16px;
   height: 16px;
-  border: 2px solid #e6e6e6;
-  border-top: 2px solid #4F5BDF;
+  border: 2px solid var(--border);
+  border-top: 2px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -724,7 +740,7 @@ export default {
   background: none;
   border: none;
   font-size: 24px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   cursor: pointer;
   width: 32px;
   height: 32px;
@@ -736,14 +752,14 @@ export default {
 }
 
 .close-btn:hover {
-  background: #f5f5f5;
-  color: #333;
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .history-filters {
   padding: 15px 25px;
-  border-bottom: 1px solid #e6e6e6;
-  background-color: #fafafa;
+  border-bottom: 1px solid var(--border);
+  background-color: var(--surface-2);
 }
 
 .filter-row {
@@ -764,13 +780,13 @@ export default {
 
 .filter-label {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
 .search-input {
   padding: 6px 12px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 12px;
   width: 200px;
@@ -780,7 +796,7 @@ export default {
 
 .search-input:focus {
   outline: none;
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.1);
 }
 
@@ -795,21 +811,21 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 6px 12px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   transition: all 0.2s ease;
   height: 32px;
 }
 
 .select-trigger:hover {
-  border-color: #4F5BDF;
-  background: #f5f5f5;
+  border-color: var(--accent);
+  background: var(--surface-2);
 }
 
 .selected-value {
   font-size: 12px;
-  color: #000;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -842,33 +858,33 @@ export default {
   right: 0;
   max-height: 300px;
   overflow-y: auto;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 15px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px var(--shadow-drop);
   z-index: 1000;
 }
 
 .select-option {
   padding: 10px 14px;
   font-size: 12px;
-  color: #000;
+  color: var(--text);
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
 
 .select-option:hover {
-  background-color: #f0f3ff;
+  background-color: var(--accent-tint);
 }
 
 .select-option.selected {
-  background-color: #f0f3ff;
+  background-color: var(--accent-tint);
   font-weight: 500;
 }
 
 .date-input {
   padding: 6px 8px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-size: 12px;
   width: 120px;
@@ -876,7 +892,7 @@ export default {
 }
 
 .date-separator {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -885,11 +901,11 @@ export default {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 12px;
-  color: #000;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
   height: 32px;
@@ -897,11 +913,12 @@ export default {
 }
 
 .sort-btn:hover {
-  background: #f5f5f5;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 14px;
   height: 14px;
   transition: transform 0.2s ease;
@@ -914,7 +931,7 @@ export default {
 .modal-content {
   padding: 20px 25px;
   overflow-y: auto;
-  max-height: calc(80vh - 180px);
+  max-height: calc(var(--app-vh, 1vh) * 80 - 180px);
   position: relative;
 }
 
@@ -924,7 +941,7 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 40px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 @keyframes spin {
@@ -941,10 +958,10 @@ export default {
 .history-date-separator {
   font-size: 11px;
   font-weight: 600;
-  color: #4F5BDF;
+  color: var(--accent-text);
   padding: 8px 0 4px;
   margin-bottom: 8px;
-  border-bottom: 1px solid #e6f0ff;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   letter-spacing: 0.02em;
 }
 
@@ -975,10 +992,10 @@ export default {
   top: 18px;
   width: 2px;
   height: calc(100% + 2px);
-  background: #e6e6e6;
+  background: var(--border);
 }
 
-.dot-create { background: #4F5BDF; }
+.dot-create { background: var(--accent-text); }
 .dot-update { background: #f59e0b; }
 .dot-activate { background: #10b981; }
 .dot-deactivate { background: #6b7280; }
@@ -993,7 +1010,7 @@ export default {
 .history-entity {
   font-size: 13px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text);
   margin-bottom: 4px;
   word-break: break-word;
 }
@@ -1007,28 +1024,28 @@ export default {
 
 .user-name {
   font-weight: 500;
-  color: #333;
+  color: var(--text);
   font-size: 13px;
 }
 
 .action-time {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 11px;
 }
 
 .action-text {
-  color: #666;
+  color: var(--text-muted);
   font-size: 12px;
   margin-bottom: 2px;
 }
 
 .action-comment {
   font-size: 11px;
-  color: #666;
+  color: var(--text-muted);
   font-style: italic;
   margin-top: 4px;
   padding-left: 6px;
-  border-left: 2px solid #e6e6e6;
+  border-left: 2px solid var(--border);
   word-break: break-word;
 }
 
@@ -1049,23 +1066,53 @@ export default {
 }
 
 .diff-old {
-  background: #f1f3f5;
-  color: #6b7280;
+  background: var(--accent-tint);
+  color: var(--text-muted);
   text-decoration: line-through;
 }
 
 .diff-new {
-  background: #e7f6ec;
-  color: #15803d;
+  background: var(--success-bg);
+  color: var(--success-text);
   font-weight: 500;
 }
 
 .diff-arrow {
   flex-shrink: 0;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 @media (max-width: 768px) {
+  /* Bottom-sheet: hand-rolled модалка (не BaseModal) - паттерн скопирован 1:1 с
+     BaseModal/App.vue/ApplicationHistory (align-items:flex-end + 90dvh + скруглённый
+     только верх), см. эталон в responsive-tables.css и уроки проекта про Teleport-модалки. */
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .blacklist-history-modal {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 90dvh;
+    border-radius: 16px 16px 0 0;
+    margin: 0;
+  }
+
+  .close-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Фильтры на мобильном стекаются в колонку (4 поля вместо 1 строки) - фиксированный
+     calc(80vh - 180px) desktop-формулы modal-content больше не подходит; отдаём
+     content flex-остаток внутри max-height:90dvh колонки .blacklist-history-modal. */
+  .modal-content {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+  }
+
   .filter-row {
     flex-direction: column;
     align-items: flex-start;
@@ -1085,5 +1132,15 @@ export default {
   .date-input {
     width: calc(50% - 20px);
   }
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
 }
 </style>

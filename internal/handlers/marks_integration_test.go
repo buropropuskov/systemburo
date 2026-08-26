@@ -95,7 +95,6 @@ func TestMarkService_CRUD(t *testing.T) {
 		t.Errorf("expected 4 history entries, got %d", len(hist))
 	}
 
-	db.Where("mark_id = ?", mark.ID).Delete(&models.MarkHistory{})
 	db.Delete(&models.Mark{}, mark.ID)
 }
 
@@ -132,7 +131,6 @@ func TestMarkService_PartialUnique_ArchivedNameReusable(t *testing.T) {
 		t.Errorf("expected 409 conflict on restore with active duplicate, got %v", err)
 	}
 
-	db.Where("mark_id IN (?, ?)", first.ID, second.ID).Delete(&models.MarkHistory{})
 	db.Delete(&models.Mark{}, []int{first.ID, second.ID})
 }
 
@@ -156,6 +154,5 @@ func TestMarkService_UpdateSameNameIsNoop(t *testing.T) {
 		t.Errorf("expected 1 history entry (only created), got %d", len(hist))
 	}
 
-	db.Where("mark_id = ?", mark.ID).Delete(&models.MarkHistory{})
 	db.Delete(&models.Mark{}, mark.ID)
 }

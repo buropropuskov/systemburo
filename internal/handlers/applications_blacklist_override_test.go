@@ -314,9 +314,9 @@ func TestBlacklistOverride_Delete(t *testing.T) {
 		assert.Equal(t, int64(0), overrideCount(), "override-строка удалена")
 
 		var histCnt int64
-		db.Table("application_history").
-			Where("application_id = ? AND action_type = 'blacklist_override_revoke'", appID).Count(&histCnt)
-		assert.Equal(t, int64(1), histCnt, "факт отмены залогирован в историю заявки")
+		db.Table("audit_log").
+			Where("entity_type = ? AND entity_id = ? AND action = 'blacklist_override_revoke'", models.AuditEntityApplication, appID).Count(&histCnt)
+		assert.Equal(t, int64(1), histCnt, "факт отмены залогирован в историю заявки (audit_log, #870 срез 1.14)")
 
 		rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/approve", appID), approveBody, testutil.AuthHeader(apprToken))
 		require.Equal(t, http.StatusConflict, rec.Code, "согласование снова заблокировано: %s", rec.Body.String())
@@ -325,6 +325,24 @@ func TestBlacklistOverride_Delete(t *testing.T) {
 	t.Run("повторная отмена несуществующего - 404", func(t *testing.T) {
 		rec := testutil.DELETE(t, e, deletePath, testutil.AuthHeader(apprToken))
 		require.Equal(t, http.StatusNotFound, rec.Code, "body: %s", rec.Body.String())
+	})
+
+	t.Run("принимающий (не ответственный по заявке) может подтвердить пропуск", func(t *testing.T) {
+		require.Equal(t, int64(0), overrideCount(), "предусловие: подтверждения ещё нет")
+
+		accToken := testutil.RegisterAndLogin(t, e, "bd_acceptor_set", "pass123", 1, td.OrgID, td.CompanyID)
+		accID := getUserID(t, db, "bd_acceptor_set")
+		db.Exec("INSERT INTO application_approvers (user_id, created_at) VALUES (?, NOW()) ON CONFLICT DO NOTHING", accID)
+
+		rec := testutil.POST(t, e, overridePath, fmt.Sprintf(`{"flag_id":%d,"comment":"проверил лично"}`, flag.ID), testutil.AuthHeader(accToken))
+		require.Equal(t, http.StatusOK, rec.Code, "override принимающим: %s", rec.Body.String())
+
+		var ovr models.ApplicationBlacklistOverride
+		require.NoError(t, db.Where("flag_id = ?", flag.ID).First(&ovr).Error)
+		assert.Equal(t, accID, ovr.OverriddenByUserID, "подтверждение записано на принимающего")
+
+		rec = testutil.DELETE(t, e, deletePath, testutil.AuthHeader(accToken))
+		require.Equal(t, http.StatusOK, rec.Code, "уборка подтверждения: %s", rec.Body.String())
 	})
 
 	t.Run("принимающий (не ответственный по заявке) может снять", func(t *testing.T) {
@@ -382,20 +400,20 @@ func TestBlacklistOverride_HistoryAndSuppression(t *testing.T) {
 
 	t.Run("override пишет историю заявки и машины", func(t *testing.T) {
 		var appHist int64
-		db.Table("application_history").
-			Where("application_id = ? AND action_type = 'blacklist_override'", appID).Count(&appHist)
-		assert.Equal(t, int64(1), appHist, "запись в истории заявки")
+		db.Table("audit_log").
+			Where("entity_type = ? AND entity_id = ? AND action = 'blacklist_override'", models.AuditEntityApplication, appID).Count(&appHist)
+		assert.Equal(t, int64(1), appHist, "запись в истории заявки (audit_log, #870 срез 1.14)")
 
 		var carHist int64
-		db.Table("cars_history").
-			Where("car_id = ? AND action_type = 'blacklist_override'", carID).Count(&carHist)
-		assert.Equal(t, int64(1), carHist, "запись в истории машины")
+		db.Table("audit_log").
+			Where("entity_type = ? AND entity_id = ? AND action = 'blacklist_override'", models.AuditEntityCar, carID).Count(&carHist)
+		assert.Equal(t, int64(1), carHist, "запись в истории машины (audit_log, #870 срез 1.12c)")
 
 		// В комментарии видно, КАКУЮ машину пропустили и причину - иначе в истории непонятно.
 		var carComment string
-		db.Table("cars_history").
-			Where("car_id = ? AND action_type = 'blacklist_override'", carID).
-			Select("comment").Scan(&carComment)
+		db.Table("audit_log").
+			Where("entity_type = ? AND entity_id = ? AND action = 'blacklist_override'", models.AuditEntityCar, carID).
+			Select("details->>'comment'").Scan(&carComment)
 		assert.Contains(t, carComment, "H777HH798", "в истории должен быть номер машины")
 		assert.Contains(t, carComment, "проверил лично", "в истории должна быть причина")
 	})

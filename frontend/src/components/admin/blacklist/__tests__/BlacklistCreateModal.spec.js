@@ -90,3 +90,45 @@ describe('BlacklistCreateModal (vehicle)', () => {
     expect(w.emitted('created')[0]).toEqual(['А 123 BMW']);
   });
 });
+
+describe('BlacklistCreateModal — окно последствий перед внесением', () => {
+  function mountForImpact(createFn) {
+    return mount(BlacklistCreateModal, {
+      props: { show: true, type: 'person', createFn },
+      global: { stubs },
+    });
+  }
+
+  it('пока окно последствий открыто, запись не создаётся; подтверждение доводит её до конца', async () => {
+    const createFn = vi.fn().mockResolvedValue({});
+    const wrapper = mountForImpact(createFn);
+    wrapper.vm.lastName = 'Иванов';
+    wrapper.vm.firstName = 'Иван';
+    wrapper.vm.reason = 'причина';
+    wrapper.vm.impact = { matches: 2, tables: ['КПП №4'], rows: [] };
+    wrapper.vm.showImpact = true;
+    await flushPromises();
+
+    expect(createFn).not.toHaveBeenCalled();
+
+    wrapper.vm.confirmImpact();
+    await flushPromises();
+
+    expect(createFn).toHaveBeenCalledTimes(1);
+    expect(wrapper.emitted('created')).toBeTruthy();
+    expect(wrapper.vm.showImpact).toBe(false);
+  });
+
+  it('отказ в окне не вносит запись', async () => {
+    const createFn = vi.fn().mockResolvedValue({});
+    const wrapper = mountForImpact(createFn);
+    wrapper.vm.showImpact = true;
+    await flushPromises();
+
+    wrapper.vm.showImpact = false;
+    await flushPromises();
+
+    expect(createFn).not.toHaveBeenCalled();
+    expect(wrapper.emitted('created')).toBeUndefined();
+  });
+});

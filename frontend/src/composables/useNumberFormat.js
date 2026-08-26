@@ -135,6 +135,71 @@ export function initializeNumberParts(selectedFormat) {
     return []
 }
 
+/**
+ * Раскладывает строку номера на ячейки формата бэктрекингом: для каждой ячейки перебирает
+ * длины от max_length к min_length и проверяет содержимое через validatePartValue (та же
+ * проверка, что и на ручном вводе) - подходит только строка, которая целиком, без остатка,
+ * укладывается в ячейки формата.
+ * @param {string} value - без пробелов, остаток строки для текущей ячейки
+ * @param {object[]} cells
+ * @param {number} index
+ * @returns {string[]|null}
+ */
+function splitByCells(value, cells, index = 0) {
+    if (index === cells.length) {
+        return value.length === 0 ? [] : null
+    }
+    const cell = cells[index]
+    const max = cell.max_length || value.length
+    const min = cell.min_length || max
+    for (let len = Math.min(max, value.length); len >= min; len -= 1) {
+        const candidate = value.slice(0, len)
+        if (validatePartValue(candidate, cell) !== candidate) continue
+        const rest = splitByCells(value.slice(len), cells, index + 1)
+        if (rest) return [candidate, ...rest]
+    }
+    return null
+}
+
+/**
+ * Подбирает формат номера, под ячейки которого раскладывается строка (U3: у машины из
+ * импорта бланка formatId не сохранён - формат неизвестен). Перебирает активные форматы
+ * (дефолтный - первым), для каждого пробует разложить строку по ячейкам splitByCells.
+ * @param {string} rawNumber
+ * @param {{format: object, cells: object[]}[]} formats
+ * @returns {{format: object, parts: string[]}|null}
+ */
+export function matchNumberToFormat(rawNumber, formats) {
+    const compact = (rawNumber || '').toString().toUpperCase().replace(/\s+/g, '')
+    if (!compact || !Array.isArray(formats) || formats.length === 0) return null
+
+    const ordered = [...formats].sort((a, b) => (b.format.is_default ? 1 : 0) - (a.format.is_default ? 1 : 0))
+    for (const fmt of ordered) {
+        if (!fmt.cells || fmt.cells.length === 0) continue
+        const parts = splitByCells(compact, fmt.cells)
+        if (parts) return { format: fmt, parts }
+    }
+    return null
+}
+
+/**
+ * Собирает номер обратно с пробелами по формату - для ВЫВОДА в списках/деталях, а не
+ * для ввода. У машин, заведённых импортом бланка, гос. номер хранится слитно (formatId
+ * не сохраняется), и печатался одним словом ("K321HT777") вместо принятого в системе
+ * вида с пробелами ("В 746 КУ 964"), как его собирает форма ручного ввода
+ * (VehicleForm numberParts.join(' ')).
+ * @param {string} rawNumber - номер как он есть (с пробелами, слитно или в любом регистре)
+ * @param {{format: object, cells: object[]}[]} formats
+ * @returns {string} номер с пробелами по формату; не подошёл ни под один формат -
+ *   исходная строка без изменений (без порчи)
+ */
+export function formatNumberForDisplay(rawNumber, formats) {
+    if (!rawNumber) return rawNumber
+    const matched = matchNumberToFormat(rawNumber, formats)
+    if (!matched) return rawNumber
+    return matched.parts.join(' ')
+}
+
 export function useNumberFormat() {
     return {
         filterCyrillicLetters,
@@ -145,6 +210,8 @@ export function useNumberFormat() {
         filterMixedBoth,
         validatePartValue,
         formatPartValue,
-        initializeNumberParts
+        initializeNumberParts,
+        matchNumberToFormat,
+        formatNumberForDisplay
     }
 }

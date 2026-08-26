@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"systemburo/internal/models"
 	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
@@ -21,11 +22,16 @@ func NewUniqueEmployeeHandler(service services.UniqueEmployeeService) *UniqueEmp
 
 // GetAll godoc
 // @Summary      Получение уникальных сотрудников
-// @Description  Возвращает список уникальных сотрудников с фильтрацией по владельцу
+// @Description  Возвращает список уникальных сотрудников с фильтрацией по владельцу. Без per_page -
+// @Description  полный массив (legacy). С per_page - пагинация + серверный поиск search_query
+// @Description  (#1158, срез 3, для EmployeeView).
 // @Tags         unique-employees
 // @Produce      json
 // @Security     BearerAuth
-// @Param        filter_type query string false "Тип фильтра: user, organization, company, all"
+// @Param        filter_type  query string false "Тип фильтра: user, organization, company, all, all_system"
+// @Param        search_query query string false "Поисковый запрос (ФИО/должность/организация/компания/гражданство)"
+// @Param        page         query int    false "Номер страницы (с per_page)"
+// @Param        per_page     query int    false "Размер страницы (<=100); наличие включает пагинацию"
 // @Success      200 {array} services.UniqueEmployeeWithRelations
 // @Failure      401 {object} models.HTTPError
 // @Router       /unique-employees [get]
@@ -36,11 +42,29 @@ func (h *UniqueEmployeeHandler) GetAll(c echo.Context) error {
 		filterType = "user"
 	}
 
-	employees, err := h.service.GetAll(c.Request().Context(), username, filterType)
+	// Legacy mode: без per_page отдаём полный массив без поиска, как раньше.
+	if c.QueryParam("per_page") == "" {
+		employees, err := h.service.GetAll(c.Request().Context(), username, filterType)
+		if err != nil {
+			return err
+		}
+		return RespondSuccess(c, employees)
+	}
+
+	var params models.PaginationParams
+	if err := c.Bind(&params); err != nil {
+		params = models.PaginationParams{}
+	}
+	params.Normalize()
+
+	searchQuery := c.QueryParam("search_query")
+	employees, total, err := h.service.GetAllPaginated(c.Request().Context(), username, filterType, searchQuery, params.Page, params.PerPage)
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, employees)
+	return RespondPaginated(c, employees, models.PaginationMeta{
+		Total: total, Page: params.Page, PerPage: params.PerPage,
+	})
 }
 
 // Create godoc
@@ -148,6 +172,30 @@ func (h *UniqueEmployeeHandler) GetHistory(c echo.Context) error {
 	}
 
 	items, err := h.service.GetHistory(c.Request().Context(), username, id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, items)
+}
+
+// GetRegistryLog godoc
+// @Summary      Журнал реестра сотрудников
+// @Description  Все события реестра: создание, правка полей, удаление - с автором и
+// @Description  временем. Единственный способ узнать, кем и когда удалена запись: у
+// @Description  исчезнувшей строки истории по id больше нет. Доступен администратору.
+// @Tags         unique-employees
+// @Produce      json
+// @Security     BearerAuth
+// @Param        limit query int false "Сколько записей вернуть (по умолчанию и максимум 500)"
+// @Success      200 {array} services.UniqueEmployeeHistoryItem
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError "Не администратор"
+// @Router       /unique-employees/history [get]
+func (h *UniqueEmployeeHandler) GetRegistryLog(c echo.Context) error {
+	username := c.Get("username").(string)
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+
+	items, err := h.service.GetRegistryLog(c.Request().Context(), username, limit)
 	if err != nil {
 		return err
 	}

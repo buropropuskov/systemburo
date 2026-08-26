@@ -158,13 +158,30 @@
           {{ errors.startDate || errors.endDate || errors.singleDate }}
         </div>
         <Teleport to="body">
+          <!-- Мобилка: затемнение под листом - календарь не сливается с формой за ним. -->
+          <transition name="datepicker-overlay-fade">
+            <div
+              v-if="showStartDatepicker || showEndDatepicker || showSingleDatepicker"
+              class="datepicker-overlay"
+              @click="closeDatepicker"
+            />
+          </transition>
           <transition name="calendar">
             <div
               v-if="showStartDatepicker || showEndDatepicker || showSingleDatepicker"
               class="datepicker"
-              :style="datepickerStyle"
+              :class="{ 'is-dragging': sheetDragging }"
+              :style="sheetOffset ? { ...datepickerStyle, transform: `translateY(${sheetOffset}px)` } : datepickerStyle"
               @click.stop
+              @touchstart="onSheetTouchStart"
+              @touchmove="onSheetTouchMove"
+              @touchend="onSheetTouchEnd"
             >
+              <!-- Ползунок bottom-sheet - виден только на мобилке (тянуть для закрытия). -->
+              <div
+                class="sheet-handle"
+                aria-hidden="true"
+              />
               <div class="datepicker__header">
                 <button
                   class="datepicker__nav"
@@ -179,7 +196,7 @@
                   >
                     <path
                       d="M15 18L9 12L15 6"
-                      stroke="#4F5BDF"
+                      stroke="currentColor"
                       stroke-width="2"
                       stroke-linecap="round"
                       stroke-linejoin="round"
@@ -200,7 +217,7 @@
                   >
                     <path
                       d="M9 18L15 12L9 6"
-                      stroke="#4F5BDF"
+                      stroke="currentColor"
                       stroke-width="2"
                       stroke-linecap="round"
                       stroke-linejoin="round"
@@ -217,7 +234,10 @@
                   {{ day }}
                 </div>
               </div>
-              <div class="datepicker__days">
+              <div
+                ref="sheetBody"
+                class="datepicker__days"
+              >
                 <div
                   v-for="day in calendarDays"
                   :key="day.date"
@@ -302,42 +322,36 @@
     >
       <label class="input__label">Дополнительно</label>
       <div class="additional-options">
-        <label
+        <ToggleSwitch
           v-if="fieldVisible('roof_access')"
-          class="option-toggle"
+          :model-value="roofAccess"
+          @update:model-value="$emit('update:roof-access', $event)"
         >
-          <input
-            type="checkbox"
-            class="option-toggle__input"
-            :checked="roofAccess"
-            @change="$emit('update:roof-access', $event.target.checked)"
-          >
-          <span class="option-toggle__switch" />
-          <span class="option-text">Доступ на крышу</span>
-        </label>
-        <label
+          Доступ на крышу
+        </ToggleSwitch>
+        <ToggleSwitch
           v-if="fieldVisible('free_parking')"
-          class="option-toggle"
+          :model-value="freeParking"
+          @update:model-value="$emit('update:free-parking', $event)"
         >
-          <input
-            type="checkbox"
-            class="option-toggle__input"
-            :checked="freeParking"
-            @change="$emit('update:free-parking', $event.target.checked)"
-          >
-          <span class="option-toggle__switch" />
-          <span class="option-text">Бесплатная парковка</span>
-        </label>
+          Бесплатная парковка
+        </ToggleSwitch>
       </div>
     </div>
   </div>
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import { ref } from 'vue';
 import { useFieldConfig } from '@/composables/useFieldConfig';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+import { getViewportZoom } from '@/utils/viewportScale';
+import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 
 export default {
     name: 'DateRangeSection',
+    components: { ToggleSwitch },
     props: {
         isOneDay: Boolean,
         startDate: { type: String, default: null },
@@ -368,7 +382,27 @@ export default {
     ],
     setup(props) {
         // Геттер, а не props.fieldConfig напрямую - сохраняет реактивность пропса в хелперах (#529).
-        return useFieldConfig(() => props.fieldConfig);
+        const fieldConfig = useFieldConfig(() => props.fieldConfig);
+        // Свайп-вниз-закрытие мобильного листа календаря - общий useSwipeDismiss (как
+        // BaseModal/DateFilter). Композабл в setup, состояние календаря - в data, поэтому
+        // закрытие идёт через счётчик-сигнал, который гасит watch в Options.
+        const sheetBody = ref(null);
+        const closeSignal = ref(0);
+        const swipe = useSwipeDismiss(() => { closeSignal.value += 1; }, {
+            handleSelector: '.sheet-handle',
+            getScrollTop: () => sheetBody.value?.scrollTop ?? 0,
+        });
+        return {
+            ...fieldConfig,
+            sheetBody,
+            closeSignal,
+            sheetOffset: swipe.offset,
+            sheetDragging: swipe.isDragging,
+            resetSheetSwipe: swipe.reset,
+            onSheetTouchStart: swipe.onTouchStart,
+            onSheetTouchMove: swipe.onTouchMove,
+            onSheetTouchEnd: swipe.onTouchEnd,
+        };
     },
     data() {
         const today = new Date();
@@ -470,6 +504,10 @@ export default {
         }
     },
     watch: {
+        // Свайп-вниз по листу календаря (сигнал из setup) - закрываем календарь.
+        closeSignal() {
+            this.closeDatepicker();
+        },
         startDate(newVal) {
             if (this.internalToggle) return;
             if (newVal && this.endDate && newVal === this.endDate && !this.isOneDay) {
@@ -505,11 +543,14 @@ export default {
         });
         // Меню позиционируется fixed от триггера - при скролле отрываться нельзя, закрываем.
         window.addEventListener('scroll', this.closeQuickMenuOnScroll, true);
+        document.addEventListener('keydown', this.handleDatepickerEscape);
         this.validateDateRange();
         this.validateTimeCrossing();
     },
     beforeUnmount() {
         window.removeEventListener('scroll', this.closeQuickMenuOnScroll, true);
+        document.removeEventListener('keydown', this.handleDatepickerEscape);
+        releaseBodyScrollLock(this);
     },
     methods: {
         // "Быстрый выбор": меню телепортится в body (иначе тонет под гейтом/инпутами
@@ -523,15 +564,22 @@ export default {
             this.closeDatepicker();
             const btn = this.$refs.qdTrigger;
             if (!btn) return;
+            // Меню телепортится в body внутри зазумленного <html> - rect (device-px)
+            // приводим к layout-px делением на zoom; отступ от края - константа в
+            // layout-px, её НЕ делим.
+            const z = getViewportZoom();
             const r = btn.getBoundingClientRect();
-            const width = 230;
-            const left = Math.max(8, r.right - width);
+            const gutter = 8;
+            const viewportWidth = window.innerWidth / z;
+            // Крепим меню правым краем к правому краю триггера: ширина у меню по
+            // содержимому (строка длиннее у длинных месяцев), заранее её не знаем.
+            const right = Math.max(gutter, viewportWidth - r.right / z);
             this.qdMenuStyle = {
                 position: 'fixed',
-                top: `${Math.round(r.bottom + 6)}px`,
-                left: `${Math.round(left)}px`,
-                right: 'auto',
-                width: `${width}px`,
+                top: `${Math.round(r.bottom / z + 6)}px`,
+                left: 'auto',
+                right: `${Math.round(right)}px`,
+                maxWidth: `${Math.round(viewportWidth - right - gutter)}px`,
                 zIndex: 12000
             };
             this.showQuickMenu = true;
@@ -956,13 +1004,27 @@ export default {
             const refByType = { start: 'startDateInput', end: 'endDateInput', single: 'singleDateInput' };
             const input = this.$refs[refByType[type]];
             if (input) {
-                const r = input.getBoundingClientRect();
-                this.datepickerStyle = {
-                    position: 'fixed',
-                    top: `${Math.round(r.bottom + 8)}px`,
-                    left: `${Math.round(r.left)}px`,
-                    zIndex: 12000
-                };
+                // Календарь телепортится в body ВНУТРИ зазумленного <html> (масштаб под 1440
+                // на мониторах >1440): inline top/left трактуются в зазумленных CSS-px.
+                // getBoundingClientRect отдаёт device-px - делим на zoom, иначе календарь
+                // домножается на zoom второй раз и улетает в правый нижний угол.
+                // Константы-отступы (+8) уже в layout-px - НЕ делим.
+                // На мобилке календарь - bottom-sheet: координаты задаёт @media, inline
+                // top/left их бы перебили (инлайн сильнее любого правила).
+                if (window.innerWidth <= 768) {
+                    // Под листом-модалкой фон не скроллится, как у прочих окон.
+                    setBodyScrollLock(this, true);
+                    this.datepickerStyle = { zIndex: 12000 };
+                } else {
+                    const z = getViewportZoom();
+                    const r = input.getBoundingClientRect();
+                    this.datepickerStyle = {
+                        position: 'fixed',
+                        top: `${Math.round(r.bottom / z + 8)}px`,
+                        left: `${Math.round(r.left / z)}px`,
+                        zIndex: 12000
+                    };
+                }
             }
 
             if (type === 'start') {
@@ -980,7 +1042,16 @@ export default {
             }
         },
 
+        handleDatepickerEscape(event) {
+            if (event.key !== 'Escape') return;
+            if (this.showStartDatepicker || this.showEndDatepicker || this.showSingleDatepicker) {
+                this.closeDatepicker();
+            }
+        },
+
         closeDatepicker() {
+            this.resetSheetSwipe();
+            releaseBodyScrollLock(this);
             this.showStartDatepicker = false;
             this.showEndDatepicker = false;
             this.showSingleDatepicker = false;
@@ -992,14 +1063,24 @@ export default {
             else if (this.showSingleDatepicker) this.selectSingleDate(day);
         },
 
+        /**
+         * Перевод фокуса на следующее поле после выбора дня. На телефоне не делаем:
+         * лист календаря закрывается и тут же выбрасывает клавиатуру в соседнее поле,
+         * перекрывая пол-экрана.
+         */
+        focusNext(refName) {
+            if (typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+                && window.matchMedia('(max-width: 768px)').matches) return;
+            const el = this.$refs[refName];
+            if (el) el.focus();
+        },
+
         selectStartDate(day) {
             if (!day.isCurrentMonth || this.isPastDate(day.date)) return;
             this.$emit('update:start-date', day.date);
             this.showStartDatepicker = false;
             this.validateDateRange();
-            if (this.$refs.endDateInput) {
-                this.$refs.endDateInput.focus();
-            }
+            this.focusNext('endDateInput');
         },
 
         selectEndDate(day) {
@@ -1007,9 +1088,7 @@ export default {
             this.$emit('update:end-date', day.date);
             this.showEndDatepicker = false;
             this.validateDateRange();
-            if (this.$refs.startTimeInput) {
-                this.$refs.startTimeInput.focus();
-            }
+            this.focusNext('startTimeInput');
         },
 
         selectSingleDate(day) {
@@ -1018,9 +1097,7 @@ export default {
             this.showSingleDatepicker = false;
             this.$emit('validate-field', 'singleDate');
             this.validateTimeCrossing();
-            if (this.$refs.startTimeInput) {
-                this.$refs.startTimeInput.focus();
-            }
+            this.focusNext('startTimeInput');
         },
 
         prevMonth() {
@@ -1081,20 +1158,20 @@ export default {
     height: 24px;
     padding: 0 10px;
     border-radius: 50px;
-    border: 1px solid #cfd4ff;
-    background: #f6f7ff;
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
+    background: var(--accent-tint);
     font-family: inherit;
     font-size: 11px;
     font-weight: 600;
-    color: #4F5BDF;
+    color: var(--accent-text);
     cursor: pointer;
     white-space: nowrap;
     transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .qd-trigger:hover {
-    background: #eef0ff;
-    border-color: #b9c0ff;
+    background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+    border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 
 .qd-caret {
@@ -1110,15 +1187,19 @@ export default {
     top: calc(100% + 6px);
     right: 0;
     z-index: 1001;
-    width: 230px;
+    /* Ширина по содержимому: "На сентябрь 01.09.2026 - 30.09.2026" в фиксированные
+       230px не влезала и вылезала за границу меню. min-width держит форму на
+       коротких месяцах ("На май"), max-width задаётся из JS по месту до края экрана. */
+    width: max-content;
+    min-width: 230px;
     display: flex;
     flex-direction: column;
     gap: 2px;
     padding: 6px;
-    background: #fff;
-    border: 1px solid var(--border, #e6e6e6);
+    background: var(--surface);
+    border: 1px solid var(--border, var(--border));
     border-radius: 14px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 24px var(--shadow-drop);
 }
 
 .qd-item {
@@ -1137,24 +1218,30 @@ export default {
 }
 
 .qd-item:hover {
-    background: #eef0ff;
+    background: var(--accent-tint);
 }
 
+/* Если места до края экрана не хватило - режем многоточием название периода,
+   дату оставляем целой: ради неё пункт и читают. */
 .qd-item__label {
     font-size: 13px;
-    color: #333;
+    color: var(--text);
     white-space: nowrap;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .qd-item__date {
     font-size: 11px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     white-space: nowrap;
+    flex: none;
 }
 
 .qd-sep {
     height: 1px;
-    background: #e2e4ec;
+    background: var(--accent-tint);
     margin: 4px 6px;
 }
 
@@ -1179,9 +1266,9 @@ export default {
 .input__date {
     width: 105px;
     height: 40px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     outline: none;
-    background: #FFF;
+    background: var(--surface);
     border-radius: 15px;
     padding: 5px 10px;
     font-family: inherit;
@@ -1190,11 +1277,11 @@ export default {
 }
 
 .input__date:focus {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .date__text {
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-weight: 600;
     white-space: nowrap;
 }
@@ -1225,74 +1312,33 @@ export default {
     width: 100%;
 }
 
-.option-toggle {
-    display: flex;
-    align-items: center;
-    gap: 11px;
-    cursor: pointer;
-    user-select: none;
-}
-
-.option-toggle__input {
-    position: absolute;
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
-
-.option-toggle__switch {
-    position: relative;
-    width: 42px;
-    height: 24px;
-    border-radius: var(--radius-pill, 999px);
-    background: #d4d7e3;
-    transition: background 0.22s ease;
-    flex-shrink: 0;
-}
-
-.option-toggle__switch::after {
-    content: '';
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-    transition: transform 0.22s cubic-bezier(0.3, 1.3, 0.5, 1);
-}
-
-.option-toggle__input:checked + .option-toggle__switch {
-    background: var(--color-primary, #4F5BDF);
-}
-
-.option-toggle__input:checked + .option-toggle__switch::after {
-    transform: translateX(18px);
-}
-
-.option-toggle__input:focus-visible + .option-toggle__switch {
-    box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.3);
-}
-
-.option-text {
-    color: #333;
-    font-size: 13px;
-    white-space: nowrap;
-}
-
 /* Datepicker styles */
 .datepicker-wrapper {
     position: relative;
     display: inline-block;
 }
 
+/* Затемнение и ползунок - только мобильный лист (см. @media ниже). */
+.datepicker-overlay {
+    display: none;
+}
+
+.sheet-handle {
+    display: none;
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    margin: 0 auto 8px;
+    flex-shrink: 0;
+}
+
 .datepicker {
     /* Позиционирование через datepickerStyle (position:fixed + координаты от инпута). */
-    background: white;
+    background: var(--surface);
     border-radius: 16px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-    border: 1px solid #e6e6e6;
+    box-shadow: 0 8px 24px var(--shadow-drop);
+    border: 1px solid var(--border);
     padding: 16px;
     min-width: 260px;
     z-index: 1000;
@@ -1306,6 +1352,8 @@ export default {
 }
 
 .datepicker__nav {
+    /* Стрелки нарисованы currentColor. */
+    color: var(--accent-text);
     background: none;
     border: none;
     cursor: pointer;
@@ -1319,7 +1367,7 @@ export default {
 }
 
 .datepicker__nav:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .datepicker__nav svg {
@@ -1330,7 +1378,7 @@ export default {
 .datepicker__month {
     font-weight: 600;
     font-size: 14px;
-    color: #1a1a1a;
+    color: var(--text);
 }
 
 .datepicker__weekdays {
@@ -1344,7 +1392,7 @@ export default {
     text-align: center;
     font-size: 12px;
     font-weight: 500;
-    color: #8c8c8c;
+    color: var(--text-muted);
     padding: 6px 0;
 }
 
@@ -1362,21 +1410,21 @@ export default {
     cursor: pointer;
     border-radius: 8px;
     transition: background-color 0.2s ease;
-    color: #333;
+    color: var(--text);
 }
 
 .datepicker__day:hover:not(.datepicker__day--disabled):not(.datepicker__day--selected) {
-    background-color: #e8ebff;
+    background-color: var(--accent-tint);
 }
 
 .datepicker__day--selected {
-    background-color: #4F5BDF;
-    color: white;
+    background-color: var(--accent);
+    color: var(--accent-contrast);
     font-weight: 600;
 }
 
 .datepicker__day--other-month {
-    color: #ccc;
+    color: var(--text-muted);
 }
 
 .datepicker__day--today {
@@ -1392,16 +1440,16 @@ export default {
     transform: translateX(-50%);
     width: 4px;
     height: 4px;
-    background-color: #4F5BDF;
+    background-color: var(--accent);
     border-radius: 50%;
 }
 
 .datepicker__day--today.datepicker__day--selected::after {
-    background-color: white;
+    background-color: var(--surface);
 }
 
 .datepicker__day--disabled {
-    color: #e0e0e0;
+    color: var(--border);
     cursor: not-allowed;
     pointer-events: none;
 }
@@ -1432,19 +1480,19 @@ export default {
 .input__time {
     width: 65px;
     height: 40px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
     padding: 5px 10px;
     font-family: inherit;
     font-size: 13px;
     outline: none;
     transition: border-color 0.2s ease;
-    background: #FFF;
+    background: var(--surface);
     text-align: center;
 }
 
 .input__time:focus {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .time-message {
@@ -1453,12 +1501,12 @@ export default {
 }
 
 .input--error {
-    border-color: #ff4444;
+    border-color: var(--danger);
 }
 
 .error-message {
-    background: rgba(255, 45, 45, 0.4);
-    color: #fff;
+    background: color-mix(in srgb, var(--danger) 40%, var(--surface));
+    color: var(--danger-text);
     padding: 8px 16px;
     border-radius: 24px;
     font-size: 13px;
@@ -1497,12 +1545,140 @@ export default {
     transform: translateY(-8px);
 }
 
+.datepicker-overlay-fade-enter-active,
+.datepicker-overlay-fade-leave-active {
+    transition: opacity 0.25s ease;
+}
+
+.datepicker-overlay-fade-enter-from,
+.datepicker-overlay-fade-leave-to {
+    opacity: 0;
+}
+
+/* Мобильный лист выезжает снизу, а не сползает сверху, как десктопный попап. */
+@media (max-width: 768px) {
+    .calendar-enter-from,
+    .calendar-leave-to {
+        opacity: 1;
+        transform: translateY(100%);
+    }
+}
+
 .input__label {
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .required {
-    color: #ff4444;
+    color: var(--danger-text);
+}
+
+/* Дата (250px) + время + доп.опции в ряд не влезают на узком - стекаем в колонку,
+   инпуты растягиваем на всю доступную ширину. */
+@media (max-width: 768px) {
+    /* Календарь на телефоне - bottom-sheet с затемнением (как DateFilter): раньше
+       висел попапом у поля, сливался с формой и на коротком экране не помещался.
+       Высота ограничена вьюпортом, сетка дней прокручивается внутри. */
+    .datepicker-overlay {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 11999;
+        background: var(--overlay);
+    }
+
+    .datepicker {
+        position: fixed;
+        top: auto;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100vw;
+        min-width: 0;
+        max-height: 92dvh;
+        display: flex;
+        flex-direction: column;
+        padding: 8px 12px 12px;
+        border: none;
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 -8px 30px var(--shadow-drop);
+    }
+
+    /* Лист тянется за пальцем 1:1 - без transition во время жеста. */
+    .datepicker.is-dragging {
+        transition: none;
+    }
+
+    .sheet-handle {
+        display: block;
+    }
+
+    .datepicker__header,
+    .datepicker__weekdays {
+        flex-shrink: 0;
+    }
+
+    .datepicker__days {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 4px;
+    }
+
+    /* Тач-таргет дня не меньше 40px, но без лишней высоты попапа. */
+    .datepicker__day {
+        padding: 10px 0;
+        font-size: 14px;
+    }
+
+    .date-range-section {
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .date__input {
+        width: 100%;
+    }
+
+    .date-container {
+        width: 100%;
+    }
+
+    .date,
+    .single-date {
+        width: 100%;
+    }
+
+    .datepicker-wrapper {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .input__date {
+        width: 100%;
+    }
+
+    .time-section {
+        width: 100%;
+    }
+
+    .time-wrapper {
+        width: 100%;
+    }
+
+    .time-input-group {
+        flex: 1;
+    }
+
+    .input__time {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .additional-options {
+        width: 100%;
+    }
 }
 </style>

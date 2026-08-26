@@ -51,7 +51,7 @@ func (h *PermissionGroupHandler) Create(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusCreated, map[string]any{"success": true, "data": group})
+	return RespondCreated(c, group)
 }
 
 // Update -- PUT /permission-groups/:id.
@@ -93,7 +93,7 @@ func (h *PermissionGroupHandler) Merge(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusCreated, map[string]any{"success": true, "data": group})
+	return RespondCreated(c, group)
 }
 
 // ListForUser -- GET /users/:user_id/permission-groups.
@@ -123,6 +123,24 @@ func (h *PermissionGroupHandler) SetUserRole(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid body: "+err.Error())
 	}
 	if err := h.service.SetUserRole(c.Request().Context(), userID, req.RoleID); err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]any{"updated": true})
+}
+
+// SetUserAdmin -- PUT /users/:id/admin (super-only через middleware action.grant.admin).
+func (h *PermissionGroupHandler) SetUserAdmin(c echo.Context) error {
+	userID, err := ParseID(c, "id")
+	if err != nil {
+		return err
+	}
+	var req struct {
+		IsAdmin bool `json:"is_admin"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid body: "+err.Error())
+	}
+	if err := h.service.SetUserAdmin(c.Request().Context(), userID, req.IsAdmin); err != nil {
 		return err
 	}
 	return RespondSuccess(c, map[string]any{"updated": true})

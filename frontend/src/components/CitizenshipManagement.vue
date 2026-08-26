@@ -1,6 +1,6 @@
 <template>
   <div class="citizenship-container dashboard-card">
-    <div class="management-header">
+    <div class="management-header rt-header-inline">
       <h3 class="management-title">
         Управление гражданствами
       </h3>
@@ -18,11 +18,16 @@
           :title="'Поиск гражданств...'"
         />
         <button
-          class="add-header-button"
+          class="add-header-button rt-btn-compact"
           data-testid="citizenship-add-btn"
+          aria-label="Добавить"
           @click="openAddModal"
         >
-          Добавить
+          <span
+            class="rt-btn-icon"
+            aria-hidden="true"
+          >+</span>
+          <span class="rt-btn-label">Добавить</span>
         </button>
         <RefreshButton
           :loading="isLoading"
@@ -31,13 +36,60 @@
       </div>
     </div>
 
+    <div
+      v-if="selectedIds.length"
+      class="bulk-bar"
+      data-testid="citizenship-bulk-bar"
+    >
+      <span class="bulk-count">Выбрано: {{ selectedIds.length }}</span>
+      <div class="bulk-actions">
+        <button
+          v-if="!showArchive"
+          class="pill pill-danger"
+          data-testid="citizenship-bulk-archive"
+          @click="startBulkOperation('archive')"
+        >
+          В архив
+        </button>
+        <button
+          v-else
+          class="pill pill-restore"
+          data-testid="citizenship-bulk-restore"
+          @click="startBulkOperation('restore')"
+        >
+          Восстановить
+        </button>
+        <button
+          class="pill pill-ghost bulk-clear"
+          data-testid="citizenship-bulk-clear"
+          @click="clearSelection"
+        >
+          Снять выбор
+        </button>
+      </div>
+    </div>
+
     <div class="content-container">
       <div
         class="table-section"
         :class="{ 'with-details': selectedCitizenship }"
       >
-        <div class="table-container">
-          <div class="table-header">
+        <div class="table-container rt-table">
+          <div class="table-header rt-head-row">
+            <div
+              class="header-col check-col"
+              @click.stop
+            >
+              <input
+                type="checkbox"
+                class="bulk-check"
+                :checked="allSelected"
+                :indeterminate.prop="someSelected"
+                aria-label="Выбрать все"
+                data-testid="citizenship-select-all"
+                @change="toggleSelectAll"
+              >
+            </div>
             <div
               class="header-col id-col"
               @click="sortBy('id')"
@@ -45,11 +97,11 @@
               <p :class="{ 'active-sort': sortField === 'id' }">
                 ID
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{ sorted: sortField === 'id', desc: sortField === 'id' && sortDirection === 'desc' }"
-              >
+              />
             </div>
             <div
               class="header-col name-col"
@@ -58,19 +110,19 @@
               <p :class="{ 'active-sort': sortField === 'name' }">
                 Наименование
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{ sorted: sortField === 'name', desc: sortField === 'name' && sortDirection === 'desc' }"
-              >
+              />
             </div>
           </div>
 
           <div class="table-body">
             <div
-              v-for="c in filteredCitizenships"
+              v-for="(c, index) in filteredCitizenships"
               :key="c.id"
-              class="table-row"
+              class="table-row rt-row"
               data-testid="citizenship-row"
               :class="{
                 selected: selectedCitizenship && selectedCitizenship.id === c.id,
@@ -78,10 +130,29 @@
               }"
               @click="selectCitizenship(c)"
             >
-              <div class="table-col id-col">
+              <div
+                class="table-col check-col"
+                @click.stop
+              >
+                <input
+                  type="checkbox"
+                  class="bulk-check"
+                  :checked="isSelected(c.id)"
+                  :aria-label="`Выбрать ${c.name}`"
+                  data-testid="citizenship-row-check"
+                  @click="onRowCheck(c, index, $event)"
+                >
+              </div>
+              <div
+                class="table-col id-col"
+                data-label="ID"
+              >
                 <span class="cell-content id-value">{{ c.id }}</span>
               </div>
-              <div class="table-col name-col">
+              <div
+                class="table-col name-col"
+                data-label="Наименование"
+              >
                 <span
                   class="truncate-text"
                   :title="c.name"
@@ -354,6 +425,17 @@
       @cancel="archiveConfirm = null"
     />
 
+    <ConfirmationModal
+      :show="bulkConfirmVisible"
+      :title="bulkConfirmTitle"
+      :message="bulkConfirmMessage"
+      :confirm-text="bulkConfirmText"
+      cancel-text="Отмена"
+      :confirm-button-style="bulkConfirmButtonStyle"
+      @confirm="applyBulkArchiveRestore"
+      @cancel="cancelBulkConfirm"
+    />
+
     <CitizenshipHistoryModal
       v-if="historyForCitizenship"
       :citizenship="historyForCitizenship"
@@ -365,6 +447,7 @@
 
 <script>
 import SearchComponent from './SearchComponent.vue';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import RefreshButton from './RefreshButton.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
@@ -380,11 +463,17 @@ import {
   updateCitizenship,
   archiveCitizenship,
   restoreCitizenship,
+  bulkArchiveCitizenships,
+  bulkRestoreCitizenships,
 } from '@/api/citizenships';
+import AppIcon from '@/components/icons/AppIcon.vue';
+import { readSearchFromRoute } from '@/utils/searchQueryParam';
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
   name: 'CitizenshipManagement',
-  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, CitizenshipHistoryModal },
+  mixins: [openFromSearchLink((vm) => vm.items, 'selectCitizenship')],
+  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, CitizenshipHistoryModal, AppIcon },
   setup() {
     // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
     const overlay = { close: () => {} };
@@ -394,7 +483,8 @@ export default {
   data() {
     return {
       items: [],
-      searchQuery: '',
+      // Из адреса: переход из сквозного поиска приносит запрос с собой.
+      searchQuery: readSearchFromRoute(this.$route),
       showArchive: false,
       sortField: null,
       sortDirection: 'asc',
@@ -414,14 +504,20 @@ export default {
       ],
       historyForCitizenship: null,
       currentUserName: '',
+      // Групповой выбор (по id). lastSelectedId - якорь shift-диапазона.
+      selectedIds: [],
+      lastSelectedId: null,
+      pendingBulkOp: null,
+      bulkConfirmVisible: false,
+      bulkSubmitting: false,
     };
   },
   computed: {
     filteredCitizenships() {
-      const q = this.searchQuery.trim().toLowerCase();
+      const variants = buildSearchVariants(this.searchQuery);
       let list = this.items.filter(c => (this.showArchive ? !c.is_active : c.is_active));
-      if (q) {
-        list = list.filter(c => c.name.toLowerCase().includes(q) || String(c.id).includes(q));
+      if (variants.length) {
+        list = list.filter(c => matchesSearch(`${c.name} ${c.id}`, variants));
       }
       return this.sortList(list);
     },
@@ -453,6 +549,35 @@ export default {
     archiveBlocked() {
       const s = this.selectedCitizenship;
       return !!s && (s.is_default || this.original.is_default);
+    },
+    allSelected() {
+      return this.filteredCitizenships.length > 0 && this.selectedIds.length === this.filteredCitizenships.length;
+    },
+    someSelected() {
+      return this.selectedIds.length > 0 && !this.allSelected;
+    },
+    bulkConfirmTitle() {
+      return this.pendingBulkOp === 'restore' ? 'Восстановление гражданств' : 'Архивация гражданств';
+    },
+    bulkConfirmMessage() {
+      const n = this.selectedIds.length;
+      return this.pendingBulkOp === 'restore'
+        ? `Восстановить выбранные гражданства (${n})?`
+        : `Архивировать выбранные гражданства (${n})? Их можно будет восстановить из архива.`;
+    },
+    bulkConfirmText() {
+      return this.pendingBulkOp === 'restore' ? 'Восстановить' : 'В архив';
+    },
+    bulkConfirmButtonStyle() {
+      return this.pendingBulkOp === 'restore'
+        ? { background: '#10b981', borderColor: '#10b981' }
+        : { background: '#c62828', borderColor: '#c62828' };
+    },
+  },
+  watch: {
+    // Сужение списка (поиск/смена фильтра) убирает из выбора невидимые строки.
+    filteredCitizenships() {
+      this.pruneSelection();
     },
   },
   created() {
@@ -493,6 +618,7 @@ export default {
     document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
+
     onKeydown(e) {
       if (e.key === 'Escape' && this.showAddModal) this.requestCloseAdd();
     },
@@ -534,6 +660,7 @@ export default {
       try {
         const data = await listCitizenships({ includeArchived: true });
         this.items = Array.isArray(data) ? data : [];
+        this.openFromSearchLink();
         // Подтянуть актуальные поля выбранного гражданства или снять выбор,
         // если оно больше не видно в текущем фильтре.
         if (this.selectedCitizenship) {
@@ -545,6 +672,7 @@ export default {
             this.selectedCitizenship = null;
           }
         }
+        this.pruneSelection();
       } catch {
         useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'гражданства', type: 'error' });
       } finally {
@@ -556,6 +684,7 @@ export default {
       this.showArchive = value === 'archive';
       this.selectedCitizenship = null;
       this.detailError = '';
+      this.clearSelection();
     },
     async selectCitizenship(c) {
       if (this.selectedCitizenship && this.selectedCitizenship.id === c.id) return;
@@ -670,16 +799,212 @@ export default {
         // Имя - необязательная деталь экспорта, молчим (footer покажет дефолт).
       }
     },
+
+    // --- Групповой выбор ---
+    isSelected(id) {
+      return this.selectedIds.includes(id);
+    },
+    toggleSelect(id) {
+      const i = this.selectedIds.indexOf(id);
+      if (i === -1) this.selectedIds.push(id);
+      else this.selectedIds.splice(i, 1);
+    },
+    // onRowCheck: обычный клик - toggle; shift-клик - диапазон от якоря до текущей.
+    onRowCheck(citizenship, index, event) {
+      if (event.shiftKey && window.getSelection) window.getSelection().removeAllRanges();
+      if (event.shiftKey && this.lastSelectedId != null && this.lastSelectedId !== citizenship.id) {
+        const list = this.filteredCitizenships;
+        const anchor = list.findIndex(c => c.id === this.lastSelectedId);
+        if (anchor !== -1) {
+          const [from, to] = anchor < index ? [anchor, index] : [index, anchor];
+          const target = !this.isSelected(citizenship.id);
+          for (let i = from; i <= to; i++) {
+            const id = list[i].id;
+            const sel = this.isSelected(id);
+            if (target && !sel) this.selectedIds.push(id);
+            else if (!target && sel) this.selectedIds.splice(this.selectedIds.indexOf(id), 1);
+          }
+          this.lastSelectedId = citizenship.id;
+          return;
+        }
+      }
+      this.toggleSelect(citizenship.id);
+      this.lastSelectedId = citizenship.id;
+    },
+    toggleSelectAll() {
+      this.selectedIds = this.allSelected ? [] : this.filteredCitizenships.map(c => c.id);
+      this.lastSelectedId = null;
+    },
+    clearSelection() {
+      this.selectedIds = [];
+      this.lastSelectedId = null;
+      this.pendingBulkOp = null;
+    },
+    pruneSelection() {
+      if (!this.selectedIds.length) return;
+      const visible = new Set(this.filteredCitizenships.map(c => c.id));
+      const pruned = this.selectedIds.filter(id => visible.has(id));
+      if (pruned.length !== this.selectedIds.length) this.selectedIds = pruned;
+    },
+    startBulkOperation(operation) {
+      this.pendingBulkOp = operation;
+      this.bulkConfirmVisible = true;
+    },
+    cancelBulkConfirm() {
+      if (this.bulkSubmitting) return;
+      this.bulkConfirmVisible = false;
+      this.pendingBulkOp = null;
+    },
+    async applyBulkArchiveRestore() {
+      const ids = [...this.selectedIds];
+      const op = this.pendingBulkOp;
+      if (this.bulkSubmitting) return;
+      if (!ids.length || (op !== 'archive' && op !== 'restore')) {
+        this.bulkConfirmVisible = false;
+        this.pendingBulkOp = null;
+        return;
+      }
+      this.bulkSubmitting = true;
+      let result;
+      try {
+        result = op === 'archive' ? await bulkArchiveCitizenships(ids) : await bulkRestoreCitizenships(ids);
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось выполнить групповую операцию', type: 'error' });
+        this.bulkSubmitting = false;
+        return;
+      }
+      this.bulkSubmitting = false;
+      if (this.handleBulkResult(op, result, ids.length)) {
+        this.bulkConfirmVisible = false;
+        this.pendingBulkOp = null;
+      }
+    },
+    // Разбор BulkOpResult: полный успех -> notify, частичный -> ui.warning с
+    // перечнем непрошедших. false при ошибке-envelope (держим модалку для повтора).
+    handleBulkResult(op, result, total) {
+      if (!result || typeof result.success_count !== 'number') {
+        useDeletionsStore().notify({ prefix: result?.message || 'Не удалось выполнить групповую операцию', type: 'error' });
+        return false;
+      }
+      const label = op === 'restore' ? 'Восстановлено' : 'Архивировано';
+      if (result.error_count > 0) {
+        const failed = (result.errors || []).map(e => e.name || `#${e.id}`).join(', ');
+        useDeletionsStore().notify({ prefix: 'Выполнено ', bold: `${result.success_count} из ${total}`, suffix: `. Не удалось: ${failed}`, type: 'warning' });
+      } else {
+        useDeletionsStore().notify({ prefix: `${label}: `, bold: String(result.success_count) });
+      }
+      this.clearSelection();
+      this.refresh();
+      return true;
+    },
   },
 };
 </script>
 
 <style scoped>
 .citizenship-container {
-  background: #fff;
+  position: relative; /* контекст для оверлей-панели .bulk-bar поверх шапки */
+  background: var(--surface);
   border-radius: 16px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   overflow: hidden;
+}
+
+/* Панель групповых операций - оверлей поверх .management-header (не reflow,
+   список не прыгает при выборе - урок #510). Высота = высоте шапки (50px). */
+.bulk-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 50px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-tint-solid);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.bulk-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-text);
+  white-space: nowrap;
+}
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+.bulk-actions .pill {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 50px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s;
+}
+.pill-ghost {
+  background: var(--surface);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
+}
+.pill-ghost:hover {
+  background: var(--accent-tint);
+}
+.bulk-clear {
+  color: var(--text-muted);
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
+}
+.bulk-clear:hover {
+  background: var(--surface-2);
+}
+.pill-danger {
+  background: var(--surface);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
+}
+.pill-danger:hover {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+.pill-restore {
+  background: var(--success);
+  color: var(--fill-text);
+}
+.pill-restore:hover {
+  background: color-mix(in srgb, var(--success) 85%, var(--text));
+}
+.check-col {
+  width: 8%;
+  min-width: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  cursor: default;
+}
+.bulk-check {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--accent-text);
+  margin: 0;
 }
 
 .management-header {
@@ -687,7 +1012,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   height: 50px;
   gap: 12px;
 }
@@ -696,7 +1021,7 @@ export default {
   margin: 0;
   font-size: 1.2em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .header-controls {
@@ -721,12 +1046,12 @@ export default {
   width: 40%;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #e6e6e6;
-  background: #fff;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .table-container {
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -736,8 +1061,8 @@ export default {
 .table-header {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #fff;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
   height: 43px;
   align-items: center;
 }
@@ -745,7 +1070,7 @@ export default {
 .header-col {
   padding: 0 8px;
   font-size: 14px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 600;
   text-align: left;
   display: flex;
@@ -761,21 +1086,22 @@ export default {
 }
 
 .header-col:hover {
-  color: #000;
+  color: var(--text);
 }
 
 .header-col:hover .sort-icon {
-  filter: brightness(0);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: 0.2s;
 }
 
 .sort-icon.sorted {
-  filter: brightness(0);
+  color: var(--text);
 }
 
 .sort-icon.desc {
@@ -783,18 +1109,18 @@ export default {
 }
 
 .active-sort {
-  color: #000 !important;
+  color: var(--text) !important;
   font-weight: 600 !important;
 }
 
 .id-col {
-  width: 25%;
-  min-width: 60px;
+  width: 22%;
+  min-width: 56px;
 }
 
 .name-col {
-  width: 75%;
-  min-width: 160px;
+  width: 70%;
+  min-width: 150px;
 }
 
 .table-body {
@@ -806,7 +1132,7 @@ export default {
 .table-row {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   align-items: center;
   transition: background-color 0.2s ease;
   cursor: pointer;
@@ -815,16 +1141,16 @@ export default {
 }
 
 .table-row:hover {
-  background-color: #fafafa;
+  background-color: var(--surface-2);
 }
 
 .table-row.selected {
-  background-color: #f8f9ff;
+  background-color: var(--accent-tint);
 }
 
 .table-row.inactive {
-  background: #fafafa;
-  color: #6b7280;
+  background: var(--surface-2);
+  color: var(--text-muted);
 }
 
 .table-row:last-child {
@@ -842,11 +1168,11 @@ export default {
 
 .id-value {
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .table-row.inactive .id-value {
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .truncate-text {
@@ -859,8 +1185,8 @@ export default {
 
 .default-badge {
   font-size: 0.7em;
-  background: #e0f2fe;
-  color: #0369a1;
+  background: var(--accent-tint);
+  color: var(--accent-text);
   padding: 2px 8px;
   border-radius: 999px;
   margin-left: 6px;
@@ -871,14 +1197,14 @@ export default {
 .inactive-badge {
   margin-left: 6px;
   font-size: 0.75em;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-style: italic;
 }
 
 .no-results {
   text-align: center;
   padding: 40px 20px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   width: 100%;
 }
 
@@ -891,14 +1217,14 @@ export default {
 
 .table-footer {
   padding: 6px 20px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
   text-align: right;
-  background: #f8fafc;
+  background: var(--accent-tint);
 }
 
 .items-count {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -907,7 +1233,7 @@ export default {
   width: 60%;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
 }
 
@@ -915,7 +1241,7 @@ export default {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
-  background: #fff;
+  background: var(--surface);
   line-height: 1.5;
 }
 
@@ -937,7 +1263,7 @@ export default {
 
 .details-title {
   margin: 0;
-  color: #000;
+  color: var(--text);
   font-size: 1.2em;
   font-weight: 600;
   word-break: break-word;
@@ -955,8 +1281,8 @@ export default {
 }
 
 .archive-badge {
-  background: #6b7280;
-  color: #fff;
+  background: var(--text-muted);
+  color: var(--surface);
   padding: 4px 10px;
   border-radius: 50px;
   font-size: 0.75em;
@@ -984,33 +1310,33 @@ export default {
 }
 
 .history-btn {
-  background: #fff;
-  color: #4F5BDF;
-  border: 1px solid #4F5BDF;
+  background: var(--surface);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
 }
 
 .history-btn:hover {
-  background: #eef0ff;
+  background: var(--accent-tint);
 }
 
 .archive-action-btn {
-  background: #fff;
-  color: #dc3545;
-  border: 1px solid #fecaca;
+  background: var(--surface);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .archive-action-btn:hover:not(:disabled) {
-  background: #fff1f2;
-  border-color: #dc3545;
+  background: var(--danger-bg);
+  border-color: var(--danger);
 }
 
 .restore-btn {
-  background: #10b981;
-  color: #fff;
+  background: var(--success);
+  color: var(--fill-text);
 }
 
 .restore-btn:hover {
-  background: #0da271;
+  background: color-mix(in srgb, var(--success) 85%, var(--text));
 }
 
 .details-body {
@@ -1021,7 +1347,7 @@ export default {
 
 .field-label {
   font-size: 0.85em;
-  color: #666;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -1034,9 +1360,9 @@ export default {
   flex-direction: column;
   gap: 6px;
   padding: 10px 14px;
-  background: #f8f9ff;
+  background: var(--accent-tint);
   border-radius: 15px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
 }
 
 .checkbox-label {
@@ -1049,12 +1375,12 @@ export default {
 .checkbox-text {
   font-size: 0.9em;
   font-weight: 500;
-  color: #333;
+  color: var(--text);
 }
 
 .checkbox-hint {
   font-size: 0.8em;
-  color: #666;
+  color: var(--text-muted);
   line-height: 1.4;
 }
 
@@ -1068,11 +1394,11 @@ export default {
   gap: 16px;
   margin-top: 12px;
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .form-error {
-  color: #d73a3a;
+  color: var(--danger-text);
   font-size: 0.85em;
 }
 
@@ -1081,15 +1407,15 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 400;
   font-size: 14px;
 }
 
 .add-header-button {
   padding: 8px 16px;
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
   border: none;
   border-radius: 50px;
   cursor: pointer;
@@ -1102,7 +1428,7 @@ export default {
 }
 
 .add-header-button:hover {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 /* Модалка создания */
@@ -1112,7 +1438,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1125,9 +1451,9 @@ export default {
 .citizenship-modal {
   width: 100%;
   max-width: 440px;
-  background: #fff;
+  background: var(--surface);
   border-radius: 30px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
   overflow: hidden;
 }
 
@@ -1136,14 +1462,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 18px 24px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 1.1em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .modal-close {
@@ -1154,7 +1480,7 @@ export default {
   justify-content: center;
   font-size: 24px;
   line-height: 1;
-  color: #999;
+  color: var(--text-muted);
   background: none;
   border: none;
   cursor: pointer;
@@ -1163,8 +1489,8 @@ export default {
 }
 
 .modal-close:hover {
-  color: #333;
-  background: #f5f5f5;
+  color: var(--text);
+  background: var(--surface-2);
 }
 
 .modal-body {
@@ -1182,7 +1508,7 @@ export default {
 
 .form-label {
   font-size: 0.85em;
-  color: #666;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -1191,7 +1517,7 @@ export default {
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 24px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
 }
 
 /* Анимация открытия/закрытия */
@@ -1207,7 +1533,7 @@ export default {
 
 .modal-fade-enter-from,
 .modal-fade-leave-to {
-  background: rgba(0, 0, 0, 0);
+  background: transparent;
 }
 
 .modal-fade-enter-from .citizenship-modal,
@@ -1216,17 +1542,37 @@ export default {
   transform: translateY(20px);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
+  /* Направление/высоту шапки берёт на себя глобальный .rt-header-inline
+     (responsive-tables.css, !important - перебивает scoped-специфичность). */
   .management-header {
-    flex-direction: column;
-    align-items: flex-start;
-    height: auto;
-    padding: 16px;
+    padding: 10px var(--gutter, 16px);
   }
   .header-controls {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .archive-dropdown {
+    min-width: 92px;
+  }
+  :deep(.search) {
+    width: 110px;
+  }
+  /* rt-header-inline может сделать шапку auto-высоты (перенос controls строкой
+     ниже) - фиксированный оверлей bulk-bar (height:50px) больше не накрывает
+     её целиком, возвращаем панель в обычный поток. */
+  .bulk-bar {
+    position: static;
+    height: auto;
+    padding: 12px 16px;
+    overflow-x: visible;
+  }
+  .bulk-actions {
+    flex-wrap: wrap;
+  }
+  /* Тач-таргет чекбокса выбора строки в card-режиме. */
+  .check-col {
+    min-height: 44px;
   }
   .content-container {
     flex-direction: column;
@@ -1240,10 +1586,24 @@ export default {
   }
   .table-section {
     border-right: none;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
   }
   .table-body {
     max-height: 300px;
+  }
+  /* Card-режим: у ячейки имени есть вертикаль - снимаем усечение
+     .truncate-text, иначе бейдж "По умолчанию"/"(архив)" в конце строки
+     режется (ellipsis прячет всё, что после него). Сам бейдж-пилюля остаётся
+     цельной строкой - переносится на новую строку как единое целое, а не
+     разрывается по словам. #1097 polish */
+  .name-col .truncate-text {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+  .name-col .default-badge,
+  .name-col .inactive-badge {
+    white-space: nowrap;
   }
   .details-body .lk-input {
     max-width: 100%;

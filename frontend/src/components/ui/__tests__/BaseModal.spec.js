@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import BaseModal from '../BaseModal.vue';
 
@@ -75,5 +75,63 @@ describe('BaseModal', () => {
   it('does not render close button when closable=false', () => {
     const wrapper = mountModal({ closable: false, title: 'Test' });
     expect(wrapper.find('.base-modal__close').exists()).toBe(false);
+  });
+
+  // Bottom-sheet теперь дефолт на мобилке (#1097 p2): без флага ползунок ЕСТЬ.
+  it('sheetSwipe по умолчанию включён: ползунок рендерится без флага', () => {
+    const wrapper = mountModal();
+    expect(wrapper.find('.sheet-handle').exists()).toBe(true);
+  });
+
+  // Отключение через :sheet-swipe="false" - ползунка нет и жест не действует.
+  it('sheetSwipe=false (opt-out): ползунок не рендерится, свайп-вниз не эмитит close', async () => {
+    const wrapper = mountModal({ sheetSwipe: false });
+    expect(wrapper.find('.sheet-handle').exists()).toBe(false);
+    const modal = wrapper.find('.base-modal');
+    await modal.trigger('touchstart', { touches: [{ clientY: 100 }] });
+    await modal.trigger('touchmove', { touches: [{ clientY: 300 }] });
+    await modal.trigger('touchend');
+    expect(wrapper.emitted('close')).toBeUndefined();
+  });
+
+  it('sheetSwipe=true: ползунок рендерится, протяжка вниз за порог эмитит close', async () => {
+    vi.useFakeTimers();
+    const wrapper = mountModal({ sheetSwipe: true });
+    expect(wrapper.find('.sheet-handle').exists()).toBe(true);
+    const modal = wrapper.find('.base-modal');
+    // dy = 300-100 = 200 > threshold 90 (useSwipeDismiss)
+    await modal.trigger('touchstart', { touches: [{ clientY: 100 }] });
+    await modal.trigger('touchmove', { touches: [{ clientY: 300 }] });
+    await modal.trigger('touchend');
+    // Закрытие после слайда-вниз (setTimeout ~260мс в useSwipeDismiss).
+    vi.advanceTimersByTime(300);
+    expect(wrapper.emitted('close')).toHaveLength(1);
+    vi.useRealTimers();
+  });
+
+  it('sheetSwipe=true: короткая протяжка ниже порога НЕ эмитит close', async () => {
+    const wrapper = mountModal({ sheetSwipe: true });
+    const modal = wrapper.find('.base-modal');
+    // dy = 40 < threshold 90 - лист вернётся на место, без закрытия
+    await modal.trigger('touchstart', { touches: [{ clientY: 100 }] });
+    await modal.trigger('touchmove', { touches: [{ clientY: 140 }] });
+    await modal.trigger('touchend');
+    expect(wrapper.emitted('close')).toBeUndefined();
+  });
+
+  // Регресс (#1097 p2): контент реально прокручен (активный скроллер scrollTop>0) ->
+  // свайп вниз = обычная прокрутка, НЕ закрытие. На >768px скроллер - само окно
+  // (body.scrollTop всегда 0), поэтому getScrollTop должен брать max, не body ??.
+  it('sheetSwipe: свайп при прокрученном окне (modal.scrollTop>0) НЕ эмитит close', async () => {
+    const wrapper = mountModal();
+    const modalEl = wrapper.find('.base-modal').element;
+    const bodyEl = wrapper.find('.base-modal__body').element;
+    Object.defineProperty(bodyEl, 'scrollTop', { value: 0, configurable: true });
+    Object.defineProperty(modalEl, 'scrollTop', { value: 120, configurable: true });
+    const modal = wrapper.find('.base-modal');
+    await modal.trigger('touchstart', { touches: [{ clientY: 100 }] });
+    await modal.trigger('touchmove', { touches: [{ clientY: 300 }] });
+    await modal.trigger('touchend');
+    expect(wrapper.emitted('close')).toBeUndefined();
   });
 });

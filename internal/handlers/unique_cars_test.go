@@ -1,10 +1,13 @@
 package handlers_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
 
+	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -279,6 +282,99 @@ func TestUniqueCars_FilterTypes(t *testing.T) {
 	}
 }
 
+// TestUniqueCars_Paginated проверяет серверную пагинацию реестра (#1158, срез 2):
+// per_page переключает GetAll на GetAllPaginated, meta.total считает все совпадения,
+// не размер страницы (secMetaEnvelope переиспользован из security_attachments_test.go,
+// тот же пакет handlers_test).
+func TestUniqueCars_Paginated(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	for i, num := range []string{"PGN001", "PGN002", "PGN003"} {
+		body := fmt.Sprintf(`{"number":"%s","mark":"PgMark%d"}`, num, i)
+		require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-cars", body, h).Code)
+	}
+
+	rec := testutil.GET(t, e, "/unique-cars?filter_type=all_system&per_page=1&page=1", h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rows := testutil.ParseResponse[[]services.UniqueCarWithRelations](t, rec)
+	require.Len(t, rows, 1, "страница ограничена per_page")
+
+	var env secMetaEnvelope
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env), rec.Body.String())
+	assert.GreaterOrEqual(t, env.Meta.Total, int64(3), "total считает все совпадения, не размер страницы")
+	assert.Equal(t, 1, env.Meta.Page)
+	assert.Equal(t, 1, env.Meta.PerPage)
+}
+
+// TestUniqueCars_SearchQuery_ExactMatch проверяет серверный поиск по номеру: точное
+// совпадение находит нужную машину среди прочих (не просто 200, реально фильтрует - #46).
+func TestUniqueCars_SearchQuery_ExactMatch(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-cars", `{"number":"SRCH777AA","mark":"Kamaz"}`, h).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-cars", `{"number":"OTHER888BB","mark":"Volvo"}`, h).Code)
+
+	rec := testutil.GET(t, e, "/unique-cars?filter_type=all_system&per_page=20&search_query=SRCH777AA", h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rows := testutil.ParseResponse[[]services.UniqueCarWithRelations](t, rec)
+	require.Len(t, rows, 1, "поиск должен вернуть только совпавшую машину")
+	require.NotNil(t, rows[0].Number)
+	assert.Equal(t, "SRCH777AA", *rows[0].Number)
+}
+
+// TestUniqueCars_SearchQuery_SpaceVariant проверяет вариант поиска номера без пробелов
+// (REPLACE убирает пробелы из номера перед ILIKE, тот же приём, что применяется в
+// поиске заявок application_helpers.go) - номер хранится с пробелом, ищем слитно.
+func TestUniqueCars_SearchQuery_SpaceVariant(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-cars", `{"number":"У 777 УУ 799","mark":"Lada"}`, h).Code)
+
+	rec := testutil.GET(t, e, "/unique-cars?filter_type=all_system&per_page=20&search_query=У777УУ799", h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rows := testutil.ParseResponse[[]services.UniqueCarWithRelations](t, rec)
+	require.Len(t, rows, 1, "поиск слитным номером должен находить машину с пробелами в номере")
+	require.NotNil(t, rows[0].Number)
+	assert.Equal(t, "У 777 УУ 799", *rows[0].Number)
+}
+
+// TestUniqueCars_SearchQuery_NoMatch проверяет, что несуществующий запрос честно
+// отдаёт пустой список, а не 500 (ловит несуществующие колонки/синтаксис - #46).
+func TestUniqueCars_SearchQuery_NoMatch(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-cars", `{"number":"NOMATCH001","mark":"Kia"}`, h).Code)
+
+	rec := testutil.GET(t, e, "/unique-cars?filter_type=all_system&per_page=20&search_query=совершенно-другой-запрос-zzz", h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rows := testutil.ParseResponse[[]services.UniqueCarWithRelations](t, rec)
+	assert.Empty(t, rows)
+}
+
 func TestUniqueCars_Lookup(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -308,4 +404,56 @@ func TestUniqueCars_Lookup(t *testing.T) {
 		rec := testutil.GET(t, e, "/unique-cars/lookup?mark=Lada", h)
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
 	})
+}
+
+// TestUniqueCars_SearchQuery_NoCrossOwnerLeak - регресс-замок против будущего
+// рефакторинга поиска (#1158), зеркало TestUniqueEmployees_SearchQuery_NoCrossOwnerLeak.
+// Изоляция видимости при поиске держится ИСКЛЮЧИТЕЛЬНО на том, что owner-фильтр
+// (uc.user_id = ...) и поисковый OR-блок (ILIKE по uc.number/uc.mark/lpf.name/o.name/c.name
+// + REPLACE(...)ILIKE для номера без пробелов) - два ОТДЕЛЬНЫХ .Where() в buildCarsQuery,
+// а GORM оборачивает каждый в скобки: (owner) AND (search). Если кто-то сольёт их в одну
+// строку `.Where(owner+" AND "+search)`, приоритет AND над OR даст
+// `(owner AND number_ilike) OR mark_ilike OR ...` - и все ветки поиска кроме первой
+// перестанут быть ограничены владельцем -> утечка чужих машин через поиск, тихо и без падения.
+// Тест: владелец A под filter_type=user (видит только своих) ищет номер/марку машины
+// владельца B -> ожидаем 0 (не находит чужую). Контроль: свою находит.
+func TestUniqueCars_SearchQuery_NoCrossOwnerLeak(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	// Владелец A (админ, организация из seed).
+	tokenA := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	hA := testutil.AuthHeader(tokenA)
+
+	// Владелец B - отдельный пользователь ДРУГОЙ организации (иной user_id).
+	orgB := models.Organization{Name: "Isolation Org B Cars"}
+	require.NoError(t, db.Create(&orgB).Error, "seed org B")
+	tokenB := testutil.RegisterManager(t, e, "ownerb_iso_cars", orgB.ID, 0)
+	hB := testutil.AuthHeader(tokenB)
+
+	// Каждый заводит свою машину с УНИКАЛЬНЫМ номером/маркой.
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-cars", `{"number":"А111АА11","mark":"IsolationMarkA"}`, hA).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-cars", `{"number":"В222ВВ22","mark":"IsolationMarkB"}`, hB).Code)
+
+	// A под filter_type=user ищет номер B -> НЕ находит (owner-scope не течёт через OR).
+	rec := testutil.GET(t, e, "/unique-cars?filter_type=user&per_page=50&search_query=В222ВВ22", hA)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rows := testutil.ParseResponse[[]services.UniqueCarWithRelations](t, rec)
+	assert.Empty(t, rows, "владелец A не должен находить машину владельца B через поиск по номеру")
+
+	// A под filter_type=user ищет марку B -> тоже НЕ находит.
+	rec = testutil.GET(t, e, "/unique-cars?filter_type=user&per_page=50&search_query=IsolationMarkB", hA)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rows = testutil.ParseResponse[[]services.UniqueCarWithRelations](t, rec)
+	assert.Empty(t, rows, "владелец A не должен находить машину владельца B через поиск по марке")
+
+	// Контроль: A ищет СВОЙ номер -> находит свою запись (поиск работает, режется только чужое).
+	rec = testutil.GET(t, e, "/unique-cars?filter_type=user&per_page=50&search_query=А111АА11", hA)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rows = testutil.ParseResponse[[]services.UniqueCarWithRelations](t, rec)
+	require.Len(t, rows, 1, "владелец A находит свою запись по своему номеру")
+	require.NotNil(t, rows[0].Number)
+	assert.Equal(t, "А111АА11", *rows[0].Number)
 }

@@ -106,7 +106,7 @@ export default {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: var(--overlay);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -118,12 +118,12 @@ export default {
 }
 
 .session-expired-modal {
-  background: white;
+  background: var(--surface);
   border-radius: 50px;
   padding: 30px;
   max-width: 400px;
   width: 90%;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
 }
 
 .modal-header {
@@ -132,7 +132,7 @@ export default {
 }
 
 .modal-title {
-  color: #000;
+  color: var(--text);
   font-size: 1.0em;
   font-weight: 400;
   margin: 0;
@@ -148,12 +148,12 @@ export default {
   text-align: center;
   font-size: 70px;
   font-weight: bold;
-  color: #000;
+  color: var(--text);
   padding: 10px;
   width: 100%;
-  background: #f3f3f3;
+  background: var(--surface-2);
   border-radius: 50px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   line-height: 1;
   font-variant-numeric: tabular-nums;
 
@@ -167,7 +167,7 @@ export default {
 .countdown-bar {
   width: 100%;
   height: 4px;
-  background-color: #e6e6e6;
+  background-color: var(--border);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -179,7 +179,7 @@ export default {
 }
 
 .modal-message {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 0.9em;
   margin: 15px 0 0 0;
   line-height: 1.4;
@@ -203,22 +203,22 @@ export default {
 }
 
 .btn-primary {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .btn-primary:hover {
-  background: #3a45c8;
+  background: var(--accent-hover);
 }
 
 .btn-secondary {
-  background: #f8f8f8;
-  color: #333;
-  border: 1px solid #e6e6e6;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
 }
 
 .btn-secondary:hover {
-  background: #e8e8e8;
+  background: var(--row-hover);
 }
 
 @media (max-width: 480px) {

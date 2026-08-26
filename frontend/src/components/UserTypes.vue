@@ -1,6 +1,6 @@
 <template>
   <div class="user-types-container dashboard-card">
-    <div class="management-header">
+    <div class="management-header rt-header-inline">
       <h3 class="management-title">
         Типы пользователей
       </h3>
@@ -10,10 +10,15 @@
           :title="'Поиск типов...'"
         />
         <button
-          class="add-header-button"
+          class="add-header-button rt-btn-compact"
+          aria-label="Создать тип"
           @click="showAddModal = true"
         >
-          Создать тип
+          <span
+            class="rt-btn-icon"
+            aria-hidden="true"
+          >+</span>
+          <span class="rt-btn-label">Создать тип</span>
         </button>
         <RefreshButton
           :loading="refreshing"
@@ -28,8 +33,8 @@
         class="types-section"
         :class="{'with-details': selectedType}"
       >
-        <div class="table-container">
-          <div class="table-header">
+        <div class="table-container rt-table">
+          <div class="table-header rt-head-row">
             <div
               class="header-col id-col"
               @click="sortBy('id')"
@@ -37,14 +42,14 @@
               <p :class="{ 'active-sort': sortField === 'id' }">
                 ID
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'id',
                   'desc': sortField === 'id' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
             <div
               class="header-col name-col"
@@ -53,14 +58,14 @@
               <p :class="{ 'active-sort': sortField === 'name' }">
                 Наименование
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'name',
                   'desc': sortField === 'name' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
             <div
               class="header-col users-col"
@@ -69,29 +74,36 @@
               <p :class="{ 'active-sort': sortField === 'users_count' }">
                 Пользователи
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'users_count',
                   'desc': sortField === 'users_count' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
           </div>
 
           <div class="table-body">
-            <div 
-              v-for="type in sortedTypes" 
-              :key="type.id" 
-              class="table-row"
+            <div
+              v-for="type in sortedTypes"
+              :key="type.id"
+              class="table-row rt-row"
               :class="{'selected': selectedType && selectedType.id === type.id}"
+              :data-testid="'utype-row-' + type.id"
               @click="selectType(type)"
             >
-              <div class="table-col id-col">
+              <div
+                class="table-col id-col"
+                data-label="ID"
+              >
                 <span class="cell-content id-value">{{ type.id }}</span>
               </div>
-              <div class="table-col name-col">
+              <div
+                class="table-col name-col"
+                data-label="Наименование"
+              >
                 <span
                   class="truncate-text"
                   :title="type.name"
@@ -103,7 +115,10 @@
                   >системный</span>
                 </span>
               </div>
-              <div class="table-col users-col">
+              <div
+                class="table-col users-col"
+                data-label="Пользователи"
+              >
                 <span class="users-count">{{ type.users_count }}</span>
               </div>
             </div>
@@ -151,12 +166,13 @@
               <button
                 v-else
                 class="delete-icon-btn"
+                title="Удалить тип"
                 @click="confirmDeleteType(selectedType)"
               >
-                <img
-                  src="@/assets/icons/delete.png"
+                <AppIcon
+                  name="delete"
                   class="delete-icon"
-                >
+                />
               </button>
             </div>
           </div>
@@ -178,14 +194,72 @@
                 </div>
                 <div class="form-group compact">
                   <label class="detail-label">Системное имя:</label>
-                  <input 
-                    v-model="selectedType.code" 
+                  <input
+                    v-model="selectedType.code"
                     class="lk-input"
                     disabled
                     placeholder="Системное имя"
                   >
                 </div>
               </div>
+            </div>
+
+            <!-- Пользователи типа: блокеры удаления (#1379) -->
+            <div class="type-users">
+              <div class="type-users__title">
+                Пользователи типа
+                <span class="count-badge">{{ typeUsers.length }}</span>
+              </div>
+              <div
+                v-if="!selectedType.is_system && typeUsers.length"
+                class="blocking-notice"
+                data-testid="utype-blocking-notice"
+              >
+                <span class="blocking-notice__text">
+                  Пока эти пользователи привязаны к типу, его нельзя удалить.
+                </span>
+                <button
+                  v-if="canReassign"
+                  type="button"
+                  class="lk-button lk-button--secondary blocking-notice__btn"
+                  data-testid="utype-reassign-open"
+                  @click="openReassign"
+                >
+                  Перенести всех в другой тип
+                </button>
+              </div>
+              <div
+                v-if="typeUsersLoading"
+                class="type-users__loading"
+              >
+                Загрузка пользователей...
+              </div>
+              <div
+                v-else-if="typeUsers.length"
+                class="type-users__list"
+              >
+                <div
+                  v-for="u in typeUsers"
+                  :key="u.id"
+                  class="type-user"
+                  :class="{ 'type-user--archived': !u.is_active }"
+                >
+                  <div class="type-user__who">
+                    <b>{{ userFullName(u) }}</b>
+                    <small v-if="u.position">{{ u.position }}</small>
+                  </div>
+                  <span
+                    v-if="!u.is_active"
+                    class="archived-badge"
+                  >архив</span>
+                </div>
+              </div>
+              <p
+                v-else
+                class="type-users__empty"
+              >
+                Нет пользователей этого типа
+              </p>
             </div>
           </div>
         </div>
@@ -309,25 +383,90 @@
       :current-user-name="currentUserName"
       @close="historyForType = null"
     />
+
+    <!-- Перенос всех пользователей в другой тип (#1379) -->
+    <BaseModal
+      :show="reassignVisible"
+      title="Перенести всех пользователей"
+      width="460px"
+      radius="30px"
+      @close="closeReassign"
+    >
+      <div
+        class="reassign-body"
+        data-testid="utype-reassign-modal"
+      >
+        <p class="reassign-intro">
+          Пользователи типа «{{ reassignSourceName }}» ({{ typeUsers.length }})
+          будут перенесены в выбранный тип. После этого исходный тип можно будет удалить.
+        </p>
+        <label class="field-label">Целевой тип</label>
+        <BaseDropdown
+          :model-value="reassignTargetId"
+          :options="reassignTargetOptions"
+          label-key="label"
+          value-key="value"
+          :searchable="true"
+          :teleport="true"
+          placeholder="Выберите тип"
+          data-testid="utype-reassign-target"
+          @update:model-value="reassignTargetId = $event"
+        />
+        <p
+          v-if="!reassignTargetOptions.length"
+          class="reassign-empty"
+        >
+          Нет других типов для переноса.
+        </p>
+      </div>
+      <template #actions>
+        <button
+          type="button"
+          class="lk-button lk-button--ghost"
+          data-testid="utype-reassign-cancel"
+          @click="closeReassign"
+        >
+          Отмена
+        </button>
+        <button
+          type="button"
+          class="lk-button lk-button--primary"
+          :disabled="!reassignTargetId || reassignSubmitting"
+          data-testid="utype-reassign-submit"
+          @click="performReassign"
+        >
+          Перенести
+        </button>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client'
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
+import { getUserTypeBlockingUsers, reassignUserTypeUsers } from '@/api/user-types';
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import UserTypeHistoryModal from './UserTypeHistoryModal.vue';
+import BaseModal from './ui/BaseModal.vue';
+import BaseDropdown from './ui/BaseDropdown.vue';
 import { useDeletionsStore } from '@/stores/deletions';
+import { usePermissionsStore } from '@/stores/permissions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { registerDirtyTracker } from '@/utils/dirtyTracker';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   components: {
     SearchComponent,
     RefreshButton,
     ConfirmationModal,
-    UserTypeHistoryModal
+    UserTypeHistoryModal,
+    BaseModal,
+    BaseDropdown,
+    AppIcon,
   },
   setup() {
     // Holder: useOverlayClose требует колбэк в setup, а closeModal - метод
@@ -354,21 +493,43 @@ export default {
       nameError: '',
       isLoading: false,
       historyForType: null,
-      currentUserName: ''
+      currentUserName: '',
+      // Блокеры удаления типа (#1379): ВСЕ пользователи типа, вкл. архивных.
+      typeUsers: [],
+      typeUsersLoading: false,
+      typeUsersSeq: 0,
+      reassignVisible: false,
+      reassignTargetId: null,
+      reassignSubmitting: false,
+      reassignSourceName: ''
     };
   },
   computed: {
+    // Гейт кнопки «Перенести» зеркалит BE: reassign-эндпоинт закрыт тем же
+    // page.admin.directories, что открывает экран (#1982).
+    canReassign() {
+      return usePermissionsStore().hasPermission('page.admin.directories');
+    },
+    // Цели переноса - все типы, кроме источника. Системные НЕ исключаем: перенос
+    // в дефолтный (системный) тип допустим, BE это принимает. Источник-системный
+    // сюда не попадёт: у него блок и кнопка не рисуются (систему не удаляют).
+    reassignTargetOptions() {
+      if (!this.selectedType) return [];
+      const srcId = this.selectedType.id;
+      return this.types
+        .filter(t => t.id !== srcId)
+        .map(t => ({ label: t.name, value: t.id }));
+    },
     emptyText() {
       return this.searchQuery.trim() ? 'Ничего не найдено по запросу' : 'Типов пока нет';
     },
     filteredTypes() {
-      if (!this.searchQuery) return this.types;
-      const query = this.searchQuery.toLowerCase();
-      return this.types.filter(type => 
-        type.name.toLowerCase().includes(query) || 
-        type.code.toLowerCase().includes(query) ||
-        type.id.toString().includes(query)
-      );
+      const variants = buildSearchVariants(this.searchQuery);
+      if (!variants.length) return this.types;
+      return this.types.filter(type => matchesSearch(
+        `${type.name} ${type.code} ${type.id}`,
+        variants,
+      ));
     },
     sortedTypes() {
       const types = [...this.filteredTypes];
@@ -586,6 +747,76 @@ export default {
     },
     selectType(type) {
       this.selectedType = JSON.parse(JSON.stringify(type));
+      this.loadTypeUsers(type.id);
+    },
+    async loadTypeUsers(typeId) {
+      // seq-guard: быстрое переключение типов не даёт устаревшему ответу затереть
+      // актуальный список блокеров (урок #632).
+      const seq = ++this.typeUsersSeq;
+      this.typeUsersLoading = true;
+      this.typeUsers = [];
+      try {
+        const users = await getUserTypeBlockingUsers(typeId);
+        if (seq === this.typeUsersSeq) this.typeUsers = Array.isArray(users) ? users : [];
+      } catch {
+        if (seq === this.typeUsersSeq) {
+          this.typeUsers = [];
+          useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'пользователей типа', type: 'error' });
+        }
+      } finally {
+        if (seq === this.typeUsersSeq) this.typeUsersLoading = false;
+      }
+    },
+    openReassign() {
+      this.reassignTargetId = null;
+      this.reassignSourceName = this.selectedType ? this.selectedType.name : '';
+      this.reassignVisible = true;
+    },
+    closeReassign() {
+      // Пока перенос летит, окно не закрываем: его оверлей блокирует список -
+      // иначе смена типа дала бы гонку loadTypeUsers.
+      if (this.reassignSubmitting) return;
+      this.reassignVisible = false;
+    },
+    async performReassign() {
+      if (!this.reassignTargetId || this.reassignSubmitting || !this.selectedType) return;
+      const source = this.selectedType;
+      const target = this.reassignTargetOptions.find(o => o.value === this.reassignTargetId);
+      this.reassignSubmitting = true;
+      try {
+        const data = await reassignUserTypeUsers(source.id, this.reassignTargetId);
+        const n = data?.reassigned ?? 0;
+        this.reassignVisible = false;
+        // Источник освобождён (все перенесены) - счётчик детали в 0, чтобы шапка не
+        // врала до перечитывания списка.
+        if (this.selectedType && this.selectedType.id === source.id) {
+          this.selectedType.users_count = 0;
+        }
+        useDeletionsStore().notify({
+          prefix: 'Перенесено ',
+          bold: `${n} ${this.usersPlural(n)}`,
+          suffix: ` в «${target ? target.label : ''}»`,
+        });
+        // Перечитываем блокеров источника (пусто -> тип можно удалить) и список
+        // типов (users_count упал у источника, вырос у цели).
+        this.loadTypeUsers(source.id);
+        await this.refreshData();
+      } catch (error) {
+        useDeletionsStore().notify({ prefix: 'Не удалось перенести: ', bold: error.message || 'ошибка', type: 'error' });
+      } finally {
+        this.reassignSubmitting = false;
+      }
+    },
+    usersPlural(n) {
+      const mod10 = n % 10;
+      const mod100 = n % 100;
+      if (mod10 === 1 && mod100 !== 11) return 'пользователь';
+      if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'пользователя';
+      return 'пользователей';
+    },
+    userFullName(u) {
+      const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
+      return parts.join(' ') || u.username || '—';
     },
     sortBy(field) {
       if (this.sortField === field) {
@@ -624,9 +855,9 @@ export default {
 
 <style scoped>
 .user-types-container {
-  background: #fff;
+  background: var(--surface);
   border-radius: 16px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   overflow: hidden;
   width: 100%;
   height: 450px;
@@ -638,7 +869,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   height: 50px;
 }
 
@@ -646,7 +877,7 @@ export default {
   font-size: 1.2em;
   margin: 0;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .header-controls {
@@ -657,8 +888,8 @@ export default {
 
 .add-header-button {
   padding: 8px 16px;
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
   border: none;
   border-radius: 50px;
   cursor: pointer;
@@ -671,7 +902,7 @@ export default {
 }
 
 .add-header-button:hover {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 .content-container {
@@ -684,7 +915,7 @@ export default {
   width: 40%;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #e6e6e6;
+  border-right: 1px solid var(--border);
 }
 
 .types-section.with-details {
@@ -692,7 +923,7 @@ export default {
 }
 
 .table-container {
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -702,8 +933,8 @@ export default {
 .table-header {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #fff;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
   height: 43px;
   align-items: center;
 }
@@ -711,7 +942,7 @@ export default {
 .header-col {
   padding: 0 8px;
   font-size: 14px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 600;
   text-align: left;
   display: flex;
@@ -723,21 +954,22 @@ export default {
 }
 
 .header-col:hover {
-  color: #000;
+  color: var(--text);
 }
 
 .header-col:hover .sort-icon {
-  filter: brightness(0);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
 }
 
 .sort-icon.sorted {
-  filter: brightness(0);
+  color: var(--text);
 }
 
 .sort-icon.desc {
@@ -745,7 +977,7 @@ export default {
 }
 
 .active-sort {
-  color: #000 !important;
+  color: var(--text) !important;
   font-weight: 600 !important;
 }
 
@@ -772,7 +1004,7 @@ export default {
 .table-row {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   align-items: center;
   transition: background-color 0.2s ease;
   cursor: pointer;
@@ -781,11 +1013,11 @@ export default {
 }
 
 .table-row:hover {
-  background-color: #fafafa;
+  background-color: var(--surface-2);
 }
 
 .table-row.selected {
-  background-color: #f8f9ff;
+  background-color: var(--accent-tint);
 }
 
 .table-row:last-child {
@@ -803,7 +1035,7 @@ export default {
 
 .id-value {
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .truncate-text {
@@ -817,20 +1049,20 @@ export default {
 .users-count {
   font-size: 14px;
   font-weight: bold;
-  color: #000;
+  color: var(--text);
 }
 
 .table-footer {
   margin-top: auto;
   padding: 6px 20px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
   text-align: end;
-  background: #f8fafc;
+  background: var(--accent-tint);
 }
 
 .items-count {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -838,7 +1070,7 @@ export default {
   width: 60%;
   padding: 15px;
   overflow-y: auto;
-  background: #fafafa;
+  background: var(--surface-2);
 }
 
 .details-content {
@@ -860,7 +1092,7 @@ export default {
 
 .details-title {
   margin: 0;
-  color: #000;
+  color: var(--text);
   font-size: 1.2em;
   font-weight: 600;
 }
@@ -873,15 +1105,15 @@ export default {
 
 .system-name {
   font-size: 0.85em;
-  color: #666;
-  background: #f5f5f5;
+  color: var(--text-muted);
+  background: var(--surface-2);
   border-radius: 6px;
 }
 
 .users-count-badge {
   font-size: 0.8em;
-  color: #666;
-  background: #f0f4ff;
+  color: var(--text-muted);
+  background: var(--accent-tint);
   padding: 4px 8px;
   border-radius: 999px;
 }
@@ -891,8 +1123,9 @@ export default {
   margin-left: 8px;
   font-size: 11px;
   font-weight: 500;
-  color: #b45309;
-  background: #fef3c7;
+  color: var(--warning-text);
+  background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
   padding: 2px 8px;
   border-radius: 999px;
   vertical-align: middle;
@@ -918,12 +1151,13 @@ export default {
 }
 
 .delete-icon {
+  color: var(--danger);
   width: 20px;
   height: 20px;
 }
 
 .delete-icon-btn:hover {
-  background-color: #e6e6e6;
+  background-color: var(--border);
   cursor:pointer;
 }
 
@@ -953,19 +1187,19 @@ export default {
 
 .detail-label {
   font-size: 0.85em;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight:400;
 }
 
 .form-hint {
   font-size: 0.7em;
-  color: #999;
+  color: var(--text-muted);
   margin-top: 4px;
 }
 
 .form-error {
   font-size: 0.7em;
-  color: #ef4444;
+  color: var(--danger-text);
   margin-top: 4px;
 }
 
@@ -974,7 +1208,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 400;
   font-size: 14px;
 }
@@ -982,8 +1216,137 @@ export default {
 .no-results {
   text-align: center;
   padding: 40px 20px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   width: 100%;
+}
+
+/* Блокеры удаления типа: пользователи + перенос (#1379) */
+.type-users {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.type-users__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.count-badge {
+  font-size: 0.75em;
+  font-weight: 600;
+  color: var(--accent-text);
+  background: var(--accent-tint);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.blocking-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-primary-tint);
+  border-radius: var(--radius-md);
+}
+
+.blocking-notice__text {
+  flex: 1 1 200px;
+  min-width: 0;
+  font-size: 0.82em;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.blocking-notice__btn {
+  flex-shrink: 0;
+}
+
+.type-users__loading,
+.type-users__empty {
+  font-size: 0.85em;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.type-users__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.type-user {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
+  border-radius: var(--radius-md);
+}
+
+.type-user__who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.type-user__who b {
+  font-size: 0.85em;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.type-user__who small {
+  font-size: 0.75em;
+  color: var(--text-muted);
+}
+
+.type-user--archived {
+  opacity: 0.7;
+}
+
+.archived-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+/* Модалка переноса блокеров */
+.reassign-intro {
+  margin: 0 0 14px;
+  font-size: 0.9em;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.85em;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.reassign-empty {
+  margin: 10px 0 0;
+  font-size: 0.85em;
+  color: var(--danger-text);
 }
 
 /* Стили для улучшенного модального окна */
@@ -993,7 +1356,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1005,22 +1368,22 @@ export default {
 
 @keyframes overlayAppear {
   from {
-    background: rgba(0, 0, 0, 0);
+    background: var(--overlay);
     backdrop-filter: blur(0px);
   }
   to {
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     backdrop-filter: blur(0.1px);
   }
 }
 
 .modal-content {
-  background: #fff;
+  background: var(--surface);
   border-radius: 30px;
   padding: 0;
   width: 420px;
   max-width: 90vw;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px var(--shadow-drop);
   animation: modalAppear 0.3s ease-out;
 }
 
@@ -1040,14 +1403,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-title {
   margin: 0;
   font-size: 1.1em;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .modal-close {
@@ -1063,7 +1426,7 @@ export default {
 }
 
 .modal-close:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
   transform: rotate(90deg);
 }
 
@@ -1081,33 +1444,33 @@ export default {
 .input-label {
   font-size: 0.85em;
   font-weight: 500;
-  color: #555;
+  color: var(--text);
   margin-bottom: 2px;
 }
 
 .modal-input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   font-size: 0.9em;
   transition: all 0.2s ease;
-  background: #fff;
+  background: var(--surface);
 }
 
 .modal-input:focus {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   outline: none;
   box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.1);
 }
 
 .modal-input::placeholder {
-  color: #aaa;
+  color: var(--text-muted);
 }
 
 .input-hint {
   font-size: 0.75em;
-  color: #888;
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
@@ -1116,7 +1479,7 @@ export default {
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 24px 20px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border);
 }
 
 
@@ -1143,7 +1506,7 @@ export default {
 
 .modal-fade-enter-from .modal-overlay,
 .modal-fade-leave-to .modal-overlay {
-  background: rgba(0, 0, 0, 0);
+  background: transparent;
   backdrop-filter: blur(0px);
 }
 
@@ -1154,12 +1517,23 @@ export default {
 }
 
 /* Стили для уведомлений */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
+  /* Направление/высоту шапки берёт на себя глобальный .rt-header-inline
+     (responsive-tables.css, !important - перебивает scoped-специфичность). */
+  .header-controls {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  :deep(.search) {
+    width: 150px;
+  }
+
   .content-container {
     flex-direction: column;
     height: auto;
   }
-  
+
   .types-section,
   .details-section,
   .no-selection-message {
@@ -1168,7 +1542,7 @@ export default {
   
   .types-section.with-details {
     border-right: none;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
     height: 255px;
   }
   

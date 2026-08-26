@@ -5,14 +5,27 @@
         v-if="show"
         class="modal-overlay"
         :style="{ zIndex: overlayZIndex }"
-        @click.self="close"
+        @mousedown="onOverlayMousedown"
+        @mouseup="onOverlayMouseup"
       >
+        <!-- Закрытие по клику мимо окна висит на самом затемнении, а не на обёртке:
+             у обёртки pointer-events: none, она целью события не становится вовсе, и
+             прежний @click.self на ней не срабатывал никогда. Через useOverlayClose,
+             чтобы выделение текста внутри окна, отпущенное на фоне, его не закрывало. -->
         <div class="modal-wrapper">
           <!-- Основное модальное окно с деталями сотрудника -->
-          <div 
+          <div
             class="modal-content compact-modal main-modal"
-            :class="{ 'shifted': isMainShifted }"
+            :class="{ 'shifted': isMainShifted, 'is-dragging': sheetDragging }"
+            :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
+            @touchstart="onSheetTouchStart"
+            @touchmove="onSheetTouchMove"
+            @touchend="onSheetTouchEnd"
           >
+            <div
+              class="sheet-handle"
+              aria-hidden="true"
+            />
             <div class="modal-header">
               <h3 class="modal-title">
                 {{ modalTitle }}
@@ -26,14 +39,14 @@
                   <span>Полная история</span>
                 </button>
                 <button
-                  v-if="source !== 'application' && employee?.applicationId"
+                  v-if="!readonly && source !== 'application' && employee?.applicationId"
                   class="application-btn"
                   @click="openApplication"
                 >
                   <span>Открыть заявку</span>
                 </button>
                 <button
-                  v-if="canManageBlacklist && hasPersonIdentity && !isBlacklisted"
+                  v-if="!readonly && canManageBlacklist && hasPersonIdentity && !isBlacklisted"
                   class="blacklist-add-btn"
                   @click="openAddBlacklist"
                 >
@@ -60,7 +73,10 @@
               </button>
             </div>
                     
-            <div class="modal-body">
+            <div
+              ref="sheetBody"
+              class="modal-body"
+            >
               <!-- Секция статуса ЧС -->
               <div
                 v-if="isBlacklisted"
@@ -193,6 +209,24 @@
                         <span class="detail-label">Компания:</span>
                         <span class="detail-value">{{ employee.company || '-' }}</span>
                       </div>
+                      <!-- За кем закреплена запись реестра. Сервер отдаёт логин только
+                           администратору, поэтому строку гейтим по наличию значения, а
+                           не по роли: карточка живёт в заявке, проходной и реестре, и
+                           перечислять контексты пришлось бы заново при каждом новом. -->
+                      <!-- Согласие субъекта на обработку персональных данных: показываем
+                           дату, когда отметка есть. Пустое поле у записей, заведённых до
+                           введения отметки, - строку тогда не рисуем, чтобы не читалось
+                           как «согласия нет». -->
+                      <div
+                        v-if="employee.pd_consent_at"
+                        class="detail-item"
+                      >
+                        <span class="detail-label">Согласие на обработку ПД:</span>
+                        <span
+                          class="detail-value"
+                          data-testid="employee-pd-consent-date"
+                        >получено {{ formatConsentDate(employee.pd_consent_at) }}</span>
+                      </div>
                       <div class="detail-item">
                         <span class="detail-label">Действует до:</span>
                         <span class="detail-value">{{ formatDate(employee.entry_date_to) || '-' }}</span>
@@ -202,11 +236,26 @@
                         <span class="detail-value">{{ employee.pass_time || '-' }}</span>
                       </div>
                     </div>
+                    <!-- За кем закреплена запись реестра. Сведения служебные, для бюро,
+                         поэтому идут подписью под блоком, а не строкой наравне с данными
+                         человека. Сервер отдаёт их только администратору, поэтому строку
+                         гейтим наличием значения: карточка живёт в заявке, проходной,
+                         реестре и на странице чёрного списка. -->
+                    <p
+                      v-if="employee.user_name"
+                      class="owner-note"
+                      data-testid="employee-owner-login"
+                    >
+                      Запись закреплена за: {{ employee.user_name }}
+                    </p>
                   </div>
                 </div>
 
-                <!-- Документы (чувствительные данные) -->
-                <div class="details-section">
+                <!-- Документы (чувствительные данные) - под правом detail.documents -->
+                <div
+                  v-if="allowedActions.documents"
+                  class="details-section"
+                >
                   <div class="section-header">
                     <h4 class="section-title">
                       Документы
@@ -272,17 +321,34 @@
                   </div>
                   <div class="section-body">
                     <div class="places-list">
-                      <div 
-                        v-for="tableId in employee.target_tables" 
-                        :key="tableId"
+                      <!-- selectedTable - обёртка {table, time_slots, photos, current_status},
+                           поэтому сравнение идёт по selectedTable.table.id (#1050): по
+                           selectedTable.id оно давало undefined, и подсветка выбранной
+                           таблицы не работала вовсе. У машин это место написано верно. -->
+                      <div
+                        v-for="t in passageActiveTables"
+                        :key="t.id"
                         class="place-item"
-                        :class="{ 'active': showPlaceModal && selectedTable && selectedTable.id === tableId }"
-                        @click="showTableDetails(tableId)"
+                        :class="{ 'active': showPlaceModal && selectedTable && selectedTable.table && selectedTable.table.id === t.id }"
+                        @click="showTableDetails(t.id)"
                       >
-                        {{ getTableName(tableId) }}
+                        {{ t.name }}
+                        <Badge
+                          v-if="t.source"
+                          :label="t.source === 'manual' ? 'добавлено' : 'из заявки'"
+                          :variant="t.source === 'manual' ? 'neutral' : 'primary'"
+                          size="sm"
+                        />
                       </div>
                       <div
-                        v-if="!employee.target_tables || employee.target_tables.length === 0"
+                        v-for="t in passageRemovedTables"
+                        :key="'removed-' + t.id"
+                        class="place-item place-item--removed"
+                      >
+                        {{ t.name }}
+                      </div>
+                      <div
+                        v-if="passageActiveTables.length === 0 && passageRemovedTables.length === 0"
                         class="no-places"
                       >
                         Места прохода не указаны
@@ -325,11 +391,11 @@
                       :disabled="entryExitHistory.length === 0 || isExporting"
                       @click="exportHistory"
                     >
-                      <img
+                      <AppIcon
                         v-if="!isExporting"
-                        src="@/assets/icons/export.png"
+                        name="export"
                         class="export-icon"
-                      >
+                      />
                       <span v-if="!isExporting">Экспорт</span>
                       <div
                         v-else
@@ -444,20 +510,31 @@
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import { setModalOpen, releaseModal, isTopModal, isEscapeHandled, markEscapeHandled } from '@/utils/modalStack';
+import { ref, getCurrentInstance } from 'vue';
 import { apiRequest } from '@/api/client';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
+import { useOverlayClose } from '@/composables/useOverlayClose';
 import TableInfoModal from './TableInfoModal.vue';
 import EmployeeHistoryModal from './EmployeeHistoryModal.vue';
+import Badge from '@/components/ui/Badge.vue';
 import AddToBlacklistModal from '@/components/admin/blacklist/AddToBlacklistModal.vue';
 import { usePermissionsStore } from '@/stores/permissions';
 import { useDeletionsStore } from '@/stores/deletions';
+import { getModalActionPermission } from '@/constants/detailModalActions';
 import { checkPersonBlacklist, createPersonBlacklist } from '@/api/blacklist';
 import ExcelJS from 'exceljs';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
     name: 'EmployeeDetailsModal',
     components: {
+        AppIcon,
         TableInfoModal,
         EmployeeHistoryModal,
+        Badge,
         AddToBlacklistModal
     },
     props: {
@@ -494,9 +571,39 @@ export default {
         canCancelOverride: {
             type: Boolean,
             default: false
+        },
+        // Режим просмотра (список заявки): прячет кнопки действий (ЧС, открыть заявку).
+        readonly: {
+            type: Boolean,
+            default: false
         }
     },
     emits: ['close', 'open-application', 'override', 'cancel-override'],
+    setup() {
+        // Bottom-sheet свайп-вниз-закрытие на мобилке (#1097 r2). onDismiss зовёт метод
+        // close() компонента (полная очистка таймеров/подмодалок) через proxy, не голый emit.
+        const inst = getCurrentInstance();
+        const sheetBody = ref(null);
+        const swipe = useSwipeDismiss(() => inst?.proxy?.close?.(), {
+            getScrollTop: () => sheetBody.value?.scrollTop ?? 0,
+            handleSelector: '.sheet-handle',
+        });
+        const { isNarrow } = useNarrowScreen();
+        // Закрытие по клику мимо окна. onClose зовёт close() компонента, а не голый
+        // emit: у карточки есть таймеры и подокна, их гасит именно close().
+        const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => inst?.proxy?.close?.());
+        return {
+            isNarrow,
+            onOverlayMousedown,
+            onOverlayMouseup,
+            sheetBody,
+            sheetOffset: swipe.offset,
+            sheetDragging: swipe.isDragging,
+            onSheetTouchStart: swipe.onTouchStart,
+            onSheetTouchMove: swipe.onTouchMove,
+            onSheetTouchEnd: swipe.onTouchEnd,
+        };
+    },
     data() {
         return {
             selectedTable: null,
@@ -535,17 +642,55 @@ export default {
             const application = (this.source !== 'application' && !!this.employee?.applicationId) ? 1 : 0;
             return history + application;
         },
+        // На телефоне в строку шапки помещается только короткое имя: длинный вариант
+        // отжимал крестик и переносился на вторую строку рядом с кнопками действий.
         modalTitle() {
+            if (this.isNarrow) return 'Информация';
             const count = this.visibleActionsCount;
             if (count >= 2) return 'Информация';
             if (count === 1) return 'Детальная информация';
             return 'Детальная информация о сотруднике';
         },
         showHistoryButton() {
-            return this.source !== 'employeeslist';
+            return this.source !== 'employeeslist' && this.canSeeFullHistory;
         },
         entryExitHistory() {
             return this.history.filter(item => item.action_type === 'entry' || item.action_type === 'exit');
+        },
+        // Бейдж источника и зачёркнутые снятые - фича карточки ИЗ ПРОХОДНОЙ (#1227) - зеркало
+        // VehicleDetailsModal. Только в проходной target_tables несут реальный source; в заявке/
+        // списках/корзине - плоские ID БЕЗ source -> без бейджа (иначе каша: тот же элемент в
+        // проходной «добавлено», в заявке дефолтно «из заявки»).
+        hasPassageSource() {
+            return this.passageActiveTables.some(t => t.source);
+        },
+        // Активные привязки «Места прохода» (#1227 P3) - зеркало VehicleDetailsModal. Нормализует
+        // ОБЕ формы target_tables: заявка - плоский массив ID (число, source=null -> без бейджа),
+        // проходной - объекты {id,name,source}. source НЕ фабрикуем (null = не показывать бейдж).
+        passageActiveTables() {
+            const raw = this.employee?.target_tables || [];
+            return raw.map(t => (typeof t === 'number'
+                ? { id: t, name: this.getTableName(t), source: null }
+                : { id: t.id, name: t.name || this.getTableName(t.id), source: t.source || null }));
+        },
+        // Снятые/перенесённые таблицы (unbound_from_table/moved_between_tables из истории) -
+        // зачёркнутыми, кроме тех, что сейчас снова активны. Дедуп по table_id. Только в проходной.
+        passageRemovedTables() {
+            if (!this.hasPassageSource) return [];
+            const activeIds = new Set(this.passageActiveTables.map(t => t.id));
+            const seen = new Set();
+            const removed = [];
+            // history не гейтится правом (в отличие от entryExitHistory) - рендерится
+            // всегда, поэтому защищаемся от неожиданной формы ответа (не массив).
+            const items = Array.isArray(this.history) ? this.history : [];
+            items.forEach(item => {
+                if (item.action_type !== 'unbound_from_table' && item.action_type !== 'moved_between_tables') return;
+                const tableId = item.table_id;
+                if (tableId == null || activeIds.has(tableId) || seen.has(tableId)) return;
+                seen.add(tableId);
+                removed.push({ id: tableId, name: item.table_name || this.getTableName(tableId) });
+            });
+            return removed;
         },
         getStatusClass() {
             const status = this.territoryStatus;
@@ -563,10 +708,39 @@ export default {
             return this.source !== 'employeeslist' && this.source !== 'trash';
         },
         showHistorySection() {
-            return this.source !== 'employeeslist';
+            return this.source !== 'employeeslist' && this.canSeeEntryExit;
         },
         canManageBlacklist() {
             return usePermissionsStore().hasPermission('page.admin.blacklist');
+        },
+        // Право на кнопку «Полная история» / секцию «История проходов»: гейтим ТОЛЬКО
+        // когда карта задаёт ключ права (string); контекстные false/true оставляем на
+        // условия видимости выше (showHistoryButton/showHistorySection) — нулевая
+        // регрессия дефолтной видимости, добавляется лишь возможность отозвать ролью.
+        canSeeFullHistory() {
+            const v = getModalActionPermission('employee', this.source, 'history');
+            return typeof v === 'string' ? usePermissionsStore().hasPermission(v) : true;
+        },
+        canSeeEntryExit() {
+            const v = getModalActionPermission('employee', this.source, 'entryExit');
+            return typeof v === 'string' ? usePermissionsStore().hasPermission(v) : true;
+        },
+        // Доступные действия/разделы модалки по контексту (source) и правам (#187
+        // Фаза 2). Значение из карты: boolean - по контексту; строка - ключ права,
+        // резолвится через hasPermission. Сейчас гейтит раздел «Документы»
+        // (detail.documents есть в базовой роли -> владелец видит документы своих
+        // сотрудников; в корзине/списке/ЧС - скрыты).
+        allowedActions() {
+            const perms = usePermissionsStore();
+            const resolve = (action) => {
+                const v = getModalActionPermission('employee', this.source, action);
+                return typeof v === 'boolean' ? v : perms.hasPermission(v);
+            };
+            return {
+                openApplication: resolve('openApplication'),
+                blacklist: resolve('blacklist'),
+                documents: resolve('documents'),
+            };
         },
         personLast() {
             return (this.employee?.last_name || '').trim();
@@ -588,6 +762,10 @@ export default {
         show: {
         immediate: true,
         handler(val) {
+            // Контракт окна: фон под листом не прокручивается.
+            setBodyScrollLock(this, val);
+            // И место в стопке окон - чтобы Escape закрывал только верхнее.
+            setModalOpen(this, val, this.overlayZIndex);
             if (val) {
                 this.loadHistory();
                 this.loadEmployeeStatus(); // для EmployeeDetailsModal
@@ -609,7 +787,29 @@ export default {
             }
         }
     },
+    mounted() {
+        document.addEventListener('keydown', this.handleEscKey);
+        if (this.show) setModalOpen(this, true, this.overlayZIndex);
+    },
+    beforeUnmount() {
+        document.removeEventListener('keydown', this.handleEscKey);
+        releaseModal(this);
+        releaseBodyScrollLock(this);
+    },
     methods: {
+        /**
+         * Закрытие по Escape (фон закрывается через @click.self на оверлее).
+         *
+         * Через общую стопку окон: карточка, открытая из заявки, лежит поверх её панели,
+         * и без стопки одно нажатие закрывало обе - панель считала себя верхней.
+         */
+        handleEscKey(e) {
+            if (e.key !== 'Escape' || !this.show) return;
+            if (isEscapeHandled(e)) return;
+            if (!isTopModal(this)) return;
+            markEscapeHandled(e);
+            this.close();
+        },
         close() {
     this.$emit('close');
     this.closeTableDetails();
@@ -694,7 +894,7 @@ export default {
         showTableDetails(tableId) {
             const tableData = this.allTables.find(t => (t.table && t.table.id === tableId) || t.id === tableId);
             if (!tableData) {
-                alert('Информация о месте прохода недоступна');
+                useDeletionsStore().notify({ bold: 'Информация о месте прохода недоступна', type: 'error' });
                 return;
             }
             this.selectedTable = {
@@ -718,6 +918,16 @@ export default {
         onPlaceLeave() {
             this.isMainShifted = false;
             this.selectedTable = null;
+        },
+
+        // Отметка согласия хранится полной меткой времени, а formatDate ниже рассчитан
+        // на «ГГГГ-ММ-ДД» из полей срока заявки: разбор по дефисам даёт «Invalid Date».
+        // Человеку нужен день, поэтому печатаем только дату.
+        formatConsentDate(value) {
+            if (!value) return '';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return '';
+            return date.toLocaleDateString('ru-RU');
         },
 
         formatDate(dateString) {
@@ -914,7 +1124,7 @@ export default {
                 a.href = url;
                 a.click();
                 window.URL.revokeObjectURL(url);
-            } catch (e) { console.error(e); alert('Ошибка экспорта'); } finally { this.isExporting = false; }
+            } catch (e) { console.error(e); useDeletionsStore().notify({ bold: 'Ошибка экспорта в Excel', type: 'error' }); } finally { this.isExporting = false; }
         },
 
         openFullHistory() {
@@ -936,7 +1146,7 @@ export default {
 /* Все стили остаются без изменений, как в предыдущей версии */
 .place-name {
     font-size: 10px;
-    color: #4F5BDF;
+    color: var(--accent-text);
     margin-top: 2px;
 }
 
@@ -946,23 +1156,21 @@ export default {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 10001;
-    backdrop-filter: blur(0.1px);
-    -webkit-backdrop-filter: blur(0.1px);
     animation: overlayAppear 0.4s ease-out;
 }
 
 @keyframes overlayAppear {
     from {
-        background: rgba(0, 0, 0, 0);
+        background: var(--overlay);
     
     }
     to {
-        background: rgba(0, 0, 0, 0.5);
+        background: var(--overlay);
        
     }
 }
@@ -978,13 +1186,13 @@ export default {
 }
 
 .modal-content {
-    background: #fff;
+    background: var(--surface);
     border-radius: 50px;
     padding: 0;
     padding-bottom: 15px;
-    width: 520px;
+    width: 550px;
     height: 450px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 20px 60px var(--shadow-drop);
     display: flex;
     flex-direction: column;
     position: absolute;
@@ -1003,13 +1211,13 @@ export default {
 }
 
 .modal-content.main-modal {
-    left: calc(50% - 260px);
+    left: calc(50% - 275px);
     transition: transform 0.5s cubic-bezier(0.25, 0.1, 0.15, 1);
     transform: translateX(0);
 }
 
 .modal-content.main-modal.shifted {
-    transform: translateX(-280px);
+    transform: translateX(-295px);
 }
 
 .place-modal-container {
@@ -1025,7 +1233,7 @@ export default {
     justify-content: space-between;
     align-items: center;
     padding: 20px 30px 16px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
     height: 70px;
     box-sizing: border-box;
@@ -1040,43 +1248,43 @@ export default {
 
 .history-btn, .application-btn {
     padding: 6px 12px;
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     font-size: 12px;
-    color: #333;
+    color: var(--text);
     cursor: pointer;
     transition: all 0.2s ease;
     white-space: nowrap;
 }
 
 .history-btn:hover, .application-btn:hover {
-    background: #f5f5f5;
-    border-color: #4F5BDF;
+    background: var(--surface-2);
+    border-color: var(--accent);
 }
 
 .blacklist-add-btn {
     padding: 6px 12px;
-    background: white;
-    border: 1px solid #fecaca;
+    background: var(--surface);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
     border-radius: 20px;
     font-size: 12px;
-    color: #dc2626;
+    color: var(--danger-text);
     cursor: pointer;
     transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     white-space: nowrap;
 }
 
 .blacklist-add-btn:hover {
-    background: #fee2e2;
-    border-color: #dc2626;
+    background: var(--danger-bg);
+    border-color: var(--danger);
 }
 
 .bl-section {
     margin-bottom: 16px;
     padding: 12px 16px;
-    background: #fdeaea;
-    border: 1px solid #f5b5b5;
+    background: var(--danger-bg);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
     border-radius: 20px;
 }
 
@@ -1086,14 +1294,14 @@ export default {
     gap: 8px;
     font-size: 14px;
     font-weight: 600;
-    color: #b91c1c;
+    color: var(--danger-text);
 }
 
 .bl-section-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #dc2626;
+    background: var(--danger);
     flex-shrink: 0;
 }
 
@@ -1101,7 +1309,7 @@ export default {
     margin-top: 6px;
     font-size: 13px;
     line-height: 1.5;
-    color: #7f1d1d;
+    color: var(--danger-text);
     word-break: break-word;
 }
 
@@ -1113,8 +1321,8 @@ export default {
 .bl-suspicion-section {
     margin-bottom: 16px;
     padding: 12px 16px;
-    background: #fdeaea;
-    border: 1px solid #f5b5b5;
+    background: var(--danger-bg);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
     border-radius: 20px;
 }
 
@@ -1124,14 +1332,14 @@ export default {
     gap: 8px;
     font-size: 14px;
     font-weight: 600;
-    color: #b91c1c;
+    color: var(--danger-text);
 }
 
 .bl-suspicion-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #dc2626;
+    background: var(--danger);
     flex-shrink: 0;
 }
 
@@ -1139,7 +1347,7 @@ export default {
     margin-top: 6px;
     font-size: 13px;
     line-height: 1.5;
-    color: #7f1d1d;
+    color: var(--danger-text);
     word-break: break-word;
 }
 
@@ -1158,13 +1366,13 @@ export default {
 
 .bl-suspicion-blocked {
     font-size: 12px;
-    color: #7f1d1d;
+    color: var(--danger-text);
 }
 
 .bl-suspicion-confirmed {
     font-size: 13px;
     font-weight: 600;
-    color: #047857;
+    color: var(--success-text);
 }
 
 .bl-suspicion-btn {
@@ -1177,49 +1385,49 @@ export default {
 }
 
 .bl-suspicion-btn--allow {
-    background: #fff;
-    border: 1px solid #fecaca;
-    color: #dc2626;
+    background: var(--surface);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
+    color: var(--danger-text);
 }
 
 .bl-suspicion-btn--allow:hover {
-    background: #fee2e2;
-    border-color: #dc2626;
+    background: var(--danger-bg);
+    border-color: var(--danger);
 }
 
 .bl-suspicion-btn--cancel {
-    background: #fff;
-    border: 1px solid #cbd5e1;
-    color: #475569;
+    background: var(--surface);
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
+    color: var(--text-muted);
 }
 
 .bl-suspicion-btn--cancel:hover {
-    background: #f1f5f9;
-    border-color: #94a3b8;
+    background: var(--accent-tint);
+    border-color: var(--text-muted);
 }
 
 .bl-suspicion-section.is-resolved {
-    background: #ecfdf5;
-    border-color: #a7f3d0;
+    background: var(--success-bg);
+    border-color: color-mix(in srgb, var(--success) 30%, var(--surface));
 }
 
 .bl-suspicion-section.is-resolved .bl-suspicion-head {
-    color: #047857;
+    color: var(--success-text);
 }
 
 .bl-suspicion-section.is-resolved .bl-suspicion-dot {
-    background: #10b981;
+    background: var(--success);
 }
 
 .bl-suspicion-section.is-resolved .bl-suspicion-row {
-    color: #065f46;
+    color: var(--success-text);
 }
 
 .modal-title {
     margin: 0;
     font-size: 16px;
     font-weight: 600;
-    color: #1a1a1a;
+    color: var(--text);
 }
 
 .modal-close {
@@ -1235,7 +1443,7 @@ export default {
 }
 
 .modal-close:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .modal-body {
@@ -1251,15 +1459,15 @@ export default {
 }
 
 .details-section {
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 20px;
-    background: #fafafa;
+    background: var(--surface-2);
     overflow: hidden;
 }
 
 .section-header {
     padding: 12px 20px;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1269,7 +1477,7 @@ export default {
     margin: 0;
     font-size: 14px;
     font-weight: 600;
-    color: #333;
+    color: var(--text);
 }
 
 .section-body {
@@ -1292,16 +1500,23 @@ export default {
     grid-column: 1 / -1;
 }
 
+.owner-note {
+    margin: 10px 0 0;
+    font-size: 11px;
+    color: var(--text-muted);
+    opacity: 0.75;
+}
+
 .detail-label {
     font-size: 11px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-weight: 400;
     letter-spacing: 0.3px;
 }
 
 .detail-value {
     font-size: 14px;
-    color: #333;
+    color: var(--text);
     font-weight: 500;
     word-break: break-word;
 }
@@ -1314,7 +1529,7 @@ export default {
 
 .data-text {
     font-size: 13px;
-    color: #333;
+    color: var(--text);
     font-weight: 500;
     letter-spacing: 0.5px;
     transition: all 0.3s ease;
@@ -1327,9 +1542,9 @@ export default {
 }
 
 .show-more-btn {
-    background: #f8f9fa;
-    border: 1px solid #e0e0e0;
-    color: #4F5BDF;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--accent-text);
     font-size: 11px;
     cursor: pointer;
     padding: 4px 8px;
@@ -1342,9 +1557,9 @@ export default {
 }
 
 .show-more-btn:hover {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
 }
 
 .places-list {
@@ -1354,30 +1569,46 @@ export default {
 }
 
 .place-item {
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 50px;
     padding: 6px 12px;
     font-size: 12px;
-    color: #333;
+    color: var(--text);
     transition: all 0.2s ease;
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     cursor: pointer;
 }
 
 .place-item:hover {
-    background: #f0f0f0;
-    border-color: #4F5BDF;
+    background: var(--border);
+    border-color: var(--accent);
 }
 
 .place-item.active {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
+}
+
+/* Снятая/перенесённая таблица (#1227 P3): не кликабельна, зачёркнута как .old-status
+   в ApplicationHistory.vue - "проход был, но сейчас не действует". */
+.place-item--removed {
+    cursor: default;
+    color: var(--danger-text);
+    text-decoration: line-through;
+    border-style: dashed;
+}
+
+.place-item--removed:hover {
+    background: transparent;
+    border-color: var(--border);
 }
 
 .no-places {
     text-align: center;
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 13px;
     font-style: italic;
     padding: 10px;
@@ -1392,21 +1623,21 @@ export default {
 }
 
 .status-on-territory {
-    background: rgba(79, 91, 223, 0.1);
-    color: #4F5BDF;
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+    color: var(--accent-text);
     border: 1px solid rgba(79, 91, 223, 0.3);
 }
 
 .status-exited {
-    background: rgba(220, 38, 38, 0.1);
-    color: #dc2626;
+    background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+    color: var(--danger-text);
     border: 1px solid rgba(220, 38, 38, 0.3);
 }
 
 .status-not-entered {
-    background: #f5f5f5;
-    color: #9ca3af;
-    border: 1px solid #e6e6e6;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
 }
 
 .export-btn {
@@ -1414,19 +1645,19 @@ export default {
     align-items: center;
     gap: 6px;
     padding: 4px 12px;
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     font-size: 12px;
-    color: #333;
+    color: var(--text);
     cursor: pointer;
     transition: all 0.2s ease;
     height: 28px;
 }
 
 .export-btn:hover:not(:disabled) {
-    background: #f5f5f5;
-    border-color: #4F5BDF;
+    background: var(--surface-2);
+    border-color: var(--accent);
 }
 
 .export-btn:disabled {
@@ -1442,8 +1673,8 @@ export default {
 .export-loader {
     width: 14px;
     height: 14px;
-    border: 2px solid #e6e6e6;
-    border-top: 2px solid #4F5BDF;
+    border: 2px solid var(--border);
+    border-top: 2px solid var(--accent);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
@@ -1485,7 +1716,7 @@ export default {
     top: 16px;
     width: 2px;
     height: calc(100% + 2px);
-    background: #e6e6e6;
+    background: var(--border);
 }
 
 .dot-system { background: #8b5cf6; }
@@ -1506,28 +1737,28 @@ export default {
 
 .user-name {
     font-weight: 500;
-    color: #333;
+    color: var(--text);
     font-size: 12px;
 }
 
 .action-time {
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 10px;
 }
 
 .action-text {
-    color: #666;
+    color: var(--text-muted);
     font-size: 11px;
     margin-bottom: 2px;
 }
 
 .action-comment {
     font-size: 10px;
-    color: #666;
+    color: var(--text-muted);
     font-style: italic;
     margin-top: 2px;
     padding-left: 6px;
-    border-left: 2px solid #e6e6e6;
+    border-left: 2px solid var(--border);
 }
 
 .loading-container {
@@ -1537,28 +1768,43 @@ export default {
     justify-content: center;
     padding: 20px;
     gap: 10px;
+    /* Резерв под контент истории: без него spinner крошечный, а при загрузке списка
+       секция резко растёт - модалка прыгает (#1097 R3-6). Держим высоту стабильной. */
+    min-height: 120px;
 }
 
 .loader {
     width: 30px;
     height: 30px;
-    border: 3px solid #f3f3f3;
-    border-top: 3px solid #4F5BDF;
+    border: 3px solid var(--surface-2);
+    border-top: 3px solid var(--accent);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
 
 .no-history {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     text-align: center;
-    color: #a2a2a2;
+    color: var(--text-muted);
     padding: 20px;
     font-size: 13px;
     font-style: italic;
+    /* Та же высота, что у загрузки/короткого списка - пустое состояние не прыгает. */
+    min-height: 120px;
 }
 
-.modal-fade-enter-active,
+/* Появление и скрытие - как у остальных окон (BaseModal): затемнение гаснет
+   прозрачностью, само окно приезжает масштабом. Прежние правила задавали переход
+   корню перехода (.modal-overlay), а не окну внутри него, поэтому затемнение
+   плавно гасло, а окно прыгало. */
+.modal-fade-enter-active {
+    transition: opacity 0.3s ease;
+}
+
 .modal-fade-leave-active {
-    transition: all 0.4s ease;
+    transition: opacity 0.2s ease;
 }
 
 .modal-fade-enter-from,
@@ -1566,26 +1812,22 @@ export default {
     opacity: 0;
 }
 
-.modal-fade-enter-active .modal-overlay,
-.modal-fade-leave-active .modal-overlay {
-    transition: all 0.4s ease;
+.modal-fade-enter-active .modal-content {
+    animation: details-modal-in 0.3s ease;
 }
 
-.modal-fade-enter-active .modal-content,
 .modal-fade-leave-active .modal-content {
-    transition: all 0.4s ease;
+    animation: details-modal-out 0.2s ease;
 }
 
-.modal-fade-enter-from .modal-overlay,
-.modal-fade-leave-to .modal-overlay {
-    background: rgba(0, 0, 0, 0);
- 
+@keyframes details-modal-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
 }
 
-.modal-fade-enter-from .modal-content,
-.modal-fade-leave-to .modal-content {
-    opacity: 0;
-    transform: scale(0.9) translateY(-20px);
+@keyframes details-modal-out {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.95); }
 }
 
 .place-slide-enter-active,
@@ -1609,18 +1851,52 @@ export default {
     opacity: 0;
 }
 
+/* Ползунок скрыт по умолчанию (десктоп), показывается только в bottom-sheet @768. */
+.sheet-handle {
+    display: none;
+}
+
 @media (max-width: 768px) {
+    /* Bottom-sheet: wrapper центрировал контент (align-items:center + height:100%) и
+       побеждал flex-end оверлея из App.vue - выравниваем к низу, модалка выезжает
+       снизу (detail 4). Ширина/скругление приходят из App.vue (.modal-content). */
+    .modal-wrapper {
+        align-items: flex-end;
+    }
     .modal-content {
         width: 90%;
-        left: 5% !important;
-        transform: none !important;
+        left: 0 !important;
         height: auto;
-        max-height: 80vh;
+        max-height: 80dvh;
+        /* transition для свайп-спринга/слайда; НЕ transform:none!important - блокировал бы
+           inline-transform свайпа (#1097 r2). */
+        transition: transform 0.3s ease;
+    }
+
+    .modal-content.is-dragging {
+        transition: none;
+    }
+
+    .sheet-handle {
+        display: block;
+        width: 40px;
+        height: 4px;
+        border-radius: 2px;
+        background: var(--border);
+        margin: 8px auto 0;
+        flex-shrink: 0;
+    }
+
+    /* Enter/leave = слайд снизу (перебивает базовый scale-поп). */
+    .modal-fade-enter-from .modal-content,
+    .modal-fade-leave-to .modal-content {
+        transform: translateY(100%);
+        opacity: 1;
     }
     
     .modal-content .modal-body {
         height: auto;
-        max-height: calc(80vh - 70px);
+        max-height: calc(80dvh - 70px);
     }
     
     .modal-content.main-modal.shifted {
@@ -1631,7 +1907,7 @@ export default {
         width: 90%;
         left: 5%;
         height: auto;
-        max-height: 80vh;
+        max-height: 80dvh;
     }
     
     .modal-header {

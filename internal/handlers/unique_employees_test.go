@@ -1,10 +1,13 @@
 package handlers_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
 
+	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -37,7 +40,7 @@ func TestUniqueEmployees_ActiveApplicationIDForActiveApplication(t *testing.T) {
 
 	// Паспорт совпадает с сотрудником из seed-заявки ("1234 567890") - так подзапрос
 	// активной заявки сматчится по passport_series_number_hmac.
-	active := fmt.Sprintf(`{"last_name":"RegActive","first_name":"A","passport_series_number":"1234 567890","organization_id":%d,"company_id":%d}`, td.OrgID, td.CompanyID)
+	active := fmt.Sprintf(`{"pd_consent":true,"last_name":"RegActive","first_name":"A","passport_series_number":"1234 567890","organization_id":%d,"company_id":%d}`, td.OrgID, td.CompanyID)
 	testutil.POST(t, e, "/unique-employees", active, h)
 
 	rec := testutil.GET(t, e, "/unique-employees?filter_type=all_system", h)
@@ -59,7 +62,7 @@ func TestUniqueEmployees_ActiveApplicationIDForActiveApplication(t *testing.T) {
 	assert.Equal(t, float64(appID), found["active_application_id"], "active_application_id = id активной заявки")
 
 	// Сотрудник без активной заявки: active_* пустые (фронт прячет кнопку "Открыть заявку").
-	idle := fmt.Sprintf(`{"last_name":"RegIdle","first_name":"B","passport_series_number":"0000 000111","organization_id":%d,"company_id":%d}`, td.OrgID, td.CompanyID)
+	idle := fmt.Sprintf(`{"pd_consent":true,"last_name":"RegIdle","first_name":"B","passport_series_number":"0000 000111","organization_id":%d,"company_id":%d}`, td.OrgID, td.CompanyID)
 	testutil.POST(t, e, "/unique-employees", idle, h)
 	rec = testutil.GET(t, e, "/unique-employees?filter_type=all_system", h)
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -87,6 +90,7 @@ func TestUniqueEmployees_CRUD(t *testing.T) {
 
 	// Create
 	body := fmt.Sprintf(`{
+		"pd_consent":true,
 		"last_name":"Ivanov",
 		"first_name":"Ivan",
 		"middle_name":"Ivanovich",
@@ -143,7 +147,7 @@ func TestUniqueEmployees_DuplicatePassport(t *testing.T) {
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
 
-	body := `{"last_name":"Dup","first_name":"Test","passport_series_number":"DUP 123456"}`
+	body := `{"pd_consent":true,"last_name":"Dup","first_name":"Test","passport_series_number":"DUP 123456"}`
 	rec := testutil.POST(t, e, "/unique-employees", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
@@ -192,7 +196,7 @@ func TestUniqueEmployees_FilterTypes(t *testing.T) {
 	h := testutil.AuthHeader(token)
 
 	// Create an employee
-	body := fmt.Sprintf(`{"last_name":"Filter","first_name":"Test","organization_id":%d}`, td.OrgID)
+	body := fmt.Sprintf(`{"pd_consent":true,"last_name":"Filter","first_name":"Test","organization_id":%d}`, td.OrgID)
 	rec := testutil.POST(t, e, "/unique-employees", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
@@ -212,7 +216,7 @@ func TestUniqueEmployees_CreateWithoutPassport(t *testing.T) {
 	h := testutil.AuthHeader(token)
 
 	// Should work without passport (no uniqueness check triggered)
-	body := `{"last_name":"NoPassport","first_name":"Worker"}`
+	body := `{"pd_consent":true,"last_name":"NoPassport","first_name":"Worker"}`
 	rec := testutil.POST(t, e, "/unique-employees", body, h)
 	assert.Equal(t, http.StatusOK, rec.Code)
 }
@@ -225,7 +229,7 @@ func TestUniqueEmployees_Update_NotFound(t *testing.T) {
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
 
-	rec := testutil.PUT(t, e, "/unique-employees/99999", `{"last_name":"X"}`, h)
+	rec := testutil.PUT(t, e, "/unique-employees/99999", `{"pd_consent":true,"last_name":"X"}`, h)
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 
@@ -237,7 +241,7 @@ func TestUniqueEmployees_Lookup(t *testing.T) {
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
 
-	body := fmt.Sprintf(`{"last_name":"Сидоров","first_name":"Семён","middle_name":"Семёнович","passport_series_number":"9999 888777","organization_id":%d}`, td.OrgID)
+	body := fmt.Sprintf(`{"pd_consent":true,"last_name":"Сидоров","first_name":"Семён","middle_name":"Семёнович","passport_series_number":"9999 888777","organization_id":%d}`, td.OrgID)
 	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", body, h).Code)
 
 	t.Run("находит по ФИО без учёта регистра/пробелов", func(t *testing.T) {
@@ -262,4 +266,164 @@ func TestUniqueEmployees_Lookup(t *testing.T) {
 		rec := testutil.GET(t, e, "/unique-employees/lookup?first_name=Семён", h)
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
 	})
+}
+
+// TestUniqueEmployees_Paginated проверяет серверную пагинацию реестра (#1158, срез 3):
+// per_page переключает GetAll на GetAllPaginated, meta.total считает все совпадения,
+// не размер страницы (secMetaEnvelope переиспользован из security_attachments_test.go,
+// тот же пакет handlers_test).
+func TestUniqueEmployees_Paginated(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	for i, ln := range []string{"Pgn1", "Pgn2", "Pgn3"} {
+		body := fmt.Sprintf(`{"pd_consent":true,"last_name":"%s","first_name":"F%d"}`, ln, i)
+		require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", body, h).Code)
+	}
+
+	rec := testutil.GET(t, e, "/unique-employees?filter_type=all_system&per_page=1&page=1", h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rows := testutil.ParseResponse[[]services.UniqueEmployeeWithRelations](t, rec)
+	require.Len(t, rows, 1, "страница ограничена per_page")
+
+	var env secMetaEnvelope
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env), rec.Body.String())
+	assert.GreaterOrEqual(t, env.Meta.Total, int64(3), "total считает все совпадения, не размер страницы")
+	assert.Equal(t, 1, env.Meta.Page)
+	assert.Equal(t, 1, env.Meta.PerPage)
+}
+
+// TestUniqueEmployees_SearchQuery_ExactMatch проверяет серверный поиск по фамилии:
+// точное совпадение находит нужного сотрудника среди прочих (не просто 200 - #46).
+func TestUniqueEmployees_SearchQuery_ExactMatch(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Срхтестовый","first_name":"Иван"}`, h).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Другойчел","first_name":"Пётр"}`, h).Code)
+
+	rec := testutil.GET(t, e, "/unique-employees?filter_type=all_system&per_page=20&search_query=Срхтестовый", h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rows := testutil.ParseResponse[[]services.UniqueEmployeeWithRelations](t, rec)
+	require.Len(t, rows, 1, "поиск должен вернуть только совпавшего сотрудника")
+	require.NotNil(t, rows[0].LastName)
+	assert.Equal(t, "Срхтестовый", *rows[0].LastName)
+}
+
+// TestUniqueEmployees_SearchQuery_TypoVariant проверяет нечёткий поиск ФИО через
+// strict_word_similarity (тот же приём, что использует Центр заявок для поиска
+// сотрудников по опечаткам в фамилии) - опечатка в одну букву всё равно находит запись.
+func TestUniqueEmployees_SearchQuery_TypoVariant(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Карбышев","first_name":"Дмитрий"}`, h).Code)
+
+	rec := testutil.GET(t, e, "/unique-employees?filter_type=all_system&per_page=20&search_query=Карбышоф", h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rows := testutil.ParseResponse[[]services.UniqueEmployeeWithRelations](t, rec)
+	require.Len(t, rows, 1, "опечатка в фамилии должна находить сотрудника через strict_word_similarity")
+	require.NotNil(t, rows[0].LastName)
+	assert.Equal(t, "Карбышев", *rows[0].LastName)
+}
+
+// TestUniqueEmployees_SearchQuery_NoMatch проверяет, что несуществующий запрос честно
+// отдаёт пустой список, а не 500 (ловит несуществующие колонки/синтаксис - #46).
+func TestUniqueEmployees_SearchQuery_NoMatch(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Уникум","first_name":"Иван"}`, h).Code)
+
+	rec := testutil.GET(t, e, "/unique-employees?filter_type=all_system&per_page=20&search_query=совершенно-другой-запрос-zzz", h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rows := testutil.ParseResponse[[]services.UniqueEmployeeWithRelations](t, rec)
+	assert.Empty(t, rows)
+}
+
+// TestUniqueEmployees_SearchQuery_PassportNotSearchable документирует известное
+// ограничение (#1158, срез 3): паспорт/патент зашифрованы (HMAC), ILIKE по ним не
+// работает - поиск по номеру паспорта не находит сотрудника ни по какому полю, кроме
+// точного совпадения полей, входящих в поиск (ФИО/должность/организация/компания/
+// гражданство). Тест фиксирует текущее поведение, а не 500.
+func TestUniqueEmployees_SearchQuery_PassportNotSearchable(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Паспортов","first_name":"Олег","passport_series_number":"7777 654321"}`, h).Code)
+
+	rec := testutil.GET(t, e, "/unique-employees?filter_type=all_system&per_page=20&search_query=7777654321", h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rows := testutil.ParseResponse[[]services.UniqueEmployeeWithRelations](t, rec)
+	assert.Empty(t, rows, "поиск по номеру паспорта не находит сотрудника - паспорт зашифрован")
+}
+
+// TestUniqueEmployees_SearchQuery_NoCrossOwnerLeak - регресс-замок против будущего
+// рефакторинга поиска (#1158, срез 3). Изоляция видимости при поиске держится
+// ИСКЛЮЧИТЕЛЬНО на том, что owner-фильтр (ue.user_id = ...) и поисковый OR-блок
+// (ILIKE ... OR strict_word_similarity ...) - два ОТДЕЛЬНЫХ .Where() в
+// buildEmployeesQuery, а GORM оборачивает каждый в скобки: (owner) AND (search).
+// Если кто-то сольёт их в одну строку `.Where(owner+" AND "+search)`, приоритет
+// AND над OR даст `(owner AND ilike) OR strict_sim` - и strict_sim-ветка перестанет
+// быть ограничена владельцем -> утечка чужих записей через поиск, тихо и без падения.
+// Тест: владелец A под filter_type=user (видит только своих) ищет фамилию сотрудника
+// владельца B -> ожидаем 0 (не находит чужого). Контроль: свою фамилию находит.
+func TestUniqueEmployees_SearchQuery_NoCrossOwnerLeak(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	// Владелец A (админ, организация из seed).
+	tokenA := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	hA := testutil.AuthHeader(tokenA)
+
+	// Владелец B - отдельный пользователь ДРУГОЙ организации (иной user_id).
+	orgB := models.Organization{Name: "Isolation Org B"}
+	require.NoError(t, db.Create(&orgB).Error, "seed org B")
+	tokenB := testutil.RegisterManager(t, e, "ownerb_iso", orgB.ID, 0)
+	hB := testutil.AuthHeader(tokenB)
+
+	// Каждый заводит своего сотрудника с УНИКАЛЬНОЙ фамилией.
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Иванцевич","first_name":"А"}`, hA).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"pd_consent":true,"last_name":"Богуславский","first_name":"Б"}`, hB).Code)
+
+	// A под filter_type=user ищет фамилию B -> НЕ находит (owner-scope не течёт через OR).
+	rec := testutil.GET(t, e, "/unique-employees?filter_type=user&per_page=50&search_query=Богуславский", hA)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rows := testutil.ParseResponse[[]services.UniqueEmployeeWithRelations](t, rec)
+	assert.Empty(t, rows, "владелец A не должен находить сотрудника владельца B через поиск")
+
+	// Контроль: A ищет СВОЮ фамилию -> находит свою запись (поиск работает, режется только чужое).
+	rec = testutil.GET(t, e, "/unique-employees?filter_type=user&per_page=50&search_query=Иванцевич", hA)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rows = testutil.ParseResponse[[]services.UniqueEmployeeWithRelations](t, rec)
+	require.Len(t, rows, 1, "владелец A находит свою запись по своей фамилии")
+	require.NotNil(t, rows[0].LastName)
+	assert.Equal(t, "Иванцевич", *rows[0].LastName)
 }

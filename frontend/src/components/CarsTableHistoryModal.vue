@@ -15,18 +15,20 @@
           @mousedown.stop
         >
           <div class="modal-header">
-            <h3>История въездов и выездов всех автомобилей</h3>
+            <h3>
+              История въездов и выездов<template v-if="tableTitle"> - {{ tableTitle }}</template>
+            </h3>
             <div class="header-actions">
               <button
                 class="export-btn"
                 :disabled="filteredHistory.length === 0 || isExporting"
                 @click="exportToExcel"
               >
-                <img
+                <AppIcon
                   v-if="!isExporting"
-                  src="@/assets/icons/export.png"
+                  name="export"
                   class="export-icon"
-                >
+                />
                 <span v-if="!isExporting">Экспорт</span>
                 <div
                   v-else
@@ -63,11 +65,11 @@
                 >
                   <div class="select-trigger">
                     <span class="selected-value">{{ selectedUserName }}</span>
-                    <img 
-                      src="@/assets/icons/arrow.png" 
-                      class="select-arrow" 
+                    <AppIcon
+                      name="arrow"
+                      class="select-arrow"
                       :class="{ 'arrow-open': userDropdownOpen }"
-                    >
+                    />
                   </div>
                   <transition name="fade">
                     <div
@@ -104,11 +106,11 @@
                 >
                   <div class="select-trigger">
                     <span class="selected-value">{{ selectedCarName }}</span>
-                    <img 
-                      src="@/assets/icons/arrow.png" 
-                      class="select-arrow" 
+                    <AppIcon
+                      name="arrow"
+                      class="select-arrow"
                       :class="{ 'arrow-open': carDropdownOpen }"
-                    >
+                    />
                   </div>
                   <transition name="fade">
                     <div
@@ -159,11 +161,11 @@
                   class="sort-btn"
                   @click="toggleSortOrder"
                 >
-                  <img
-                    src="@/assets/icons/sort.png"
+                  <AppIcon
+                    name="sort"
                     class="sort-icon"
                     :class="{ 'sort-asc': sortOrder === 'asc' }"
-                  >
+                  />
                   <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
                 </button>
               </div>
@@ -259,16 +261,29 @@
 import { ref } from 'vue';
 import { apiRequest } from '@/api/client'
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { useDeletionsStore } from '@/stores/deletions';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 import ExcelJS from 'exceljs';
 
 export default {
   name: 'CarsTableHistoryModal',
-  components: { LoaderSpinner },
+  components: { LoaderSpinner, AppIcon },
   props: {
     cars: {
       type: Array,
       required: true
+    },
+    // Таблица проходной, из которой открыли историю. Без неё модалка показывает
+    // историю всех таблиц - так она используется вне конкретной таблицы.
+    tableId: {
+      type: Number,
+      default: null
+    },
+    // Отображаемое имя таблицы для заголовка.
+    tableTitle: {
+      type: String,
+      default: ''
     },
     currentUserId: {
       type: Number,
@@ -472,6 +487,9 @@ export default {
     },
 
     getActionText(item) {
+      // GetCarsHistoryByTable (/cars/history/table/:id) не фильтрует action_type (урок
+      // #1085), поэтому словарь обязан покрывать все действия машины, иначе deactivate/
+      // create/прочие текут в журнал сырым английским кодом.
       if (item.action_type === 'entry') {
         return 'Отметил о прибытии';
       } else if (item.action_type === 'exit') {
@@ -482,6 +500,28 @@ export default {
         return 'Восстановление в таблице';
       } else if (item.action_type === 'purge') {
         return 'Безвозвратное удаление';
+      } else if (item.action_type === 'added_to_table') {
+        return 'Добавлен в таблицу проходной';
+      } else if (item.action_type === 'moved_between_tables') {
+        return 'Перенесён между таблицами';
+      } else if (item.action_type === 'unbound_from_table') {
+        return 'Снят с таблицы';
+      } else if (item.action_type === 'create') {
+        return 'Подана заявка на автомобиль';
+      } else if (item.action_type === 'activate') {
+        return 'Автомобиль введён в работу';
+      } else if (item.action_type === 'deactivate') {
+        return 'Автомобиль выведен из работы';
+      } else if (item.action_type === 'blacklisted') {
+        return 'Добавлен в чёрный список';
+      } else if (item.action_type === 'unblacklisted') {
+        return 'Снят с чёрного списка';
+      } else if (item.action_type === 'blacklist_override') {
+        return 'Пропущен несмотря на подозрение в обходе ЧС';
+      } else if (item.action_type === 'blacklist_override_revoke') {
+        return 'Отменено подтверждение пропуска (обход ЧС)';
+      } else if (item.action_type === 'update') {
+        return item.field_name ? `Изменено поле "${item.field_name}"` : 'Данные обновлены';
       }
       return item.action_type;
     },
@@ -498,7 +538,10 @@ export default {
     async loadHistory() {
       this.loading = true;
       try {
-        const response = await apiRequest(`/cars/history/all`, {});
+        const url = this.tableId
+          ? `/cars/history/table/${this.tableId}`
+          : '/cars/history/all';
+        const response = await apiRequest(url, {});
 
         if (response.ok) {
           const data = await response.json();
@@ -512,7 +555,10 @@ export default {
     },
 
     getActionClass(actionType) {
-      if (actionType === 'entry' || actionType === 'restore') return 'dot-entry';
+      // Зелёная точка - машина появляется/остаётся в таблице (прибытие, восстановление,
+      // добавление/перенос, ввод в работу, снятие с ЧС). Остальное (уехала, удаление,
+      // вывод из работы по истечении срока, добавление в ЧС) - красная по умолчанию.
+      if (['entry', 'restore', 'added_to_table', 'moved_between_tables', 'activate', 'create', 'unblacklisted', 'blacklist_override'].includes(actionType)) return 'dot-entry';
       return 'dot-exit';
     },
 
@@ -701,7 +747,7 @@ export default {
         
       } catch (error) {
         console.error('Error exporting to Excel:', error);
-        alert('Ошибка при экспорте в Excel');
+        useDeletionsStore().notify({ bold: 'Ошибка при экспорте в Excel', type: 'error' });
       } finally {
         this.isExporting = false;
       }
@@ -718,16 +764,16 @@ export default {
 .history-date-separator {
   font-size: 11px;
   font-weight: 600;
-  color: #4F5BDF;
+  color: var(--accent-text);
   padding: 8px 0 4px;
   margin-bottom: 8px;
-  border-bottom: 1px solid #e6f0ff;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   letter-spacing: 0.02em;
 }
 
 .place-name {
   font-size: 11px;
-  color: #4F5BDF;
+  color: var(--accent-text);
   margin-top: 2px;
   font-weight: 500;
   font-style: italic;
@@ -739,7 +785,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -781,14 +827,14 @@ export default {
 }
 
 .cars-history-modal {
-  background: white;
+  background: var(--surface);
   border-radius: 30px;
   width: 900px;
   max-width: 95%;
-  max-height: 80vh;
+  max-height: calc(var(--app-vh, 1vh) * 80);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
 }
 
 .modal-header {
@@ -796,14 +842,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 15px 25px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .header-actions {
@@ -818,19 +864,19 @@ export default {
   justify-content: center;
   gap: 8px;
   padding: 6px 16px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 13px;
-  color: #000;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
   height: 32px;
 }
 
 .export-btn:hover:not(:disabled) {
-  background: #f5f5f5;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .export-btn:disabled {
@@ -846,8 +892,8 @@ export default {
 .export-loader {
   width: 16px;
   height: 16px;
-  border: 2px solid #e6e6e6;
-  border-top: 2px solid #4F5BDF;
+  border: 2px solid var(--border);
+  border-top: 2px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -856,7 +902,7 @@ export default {
   background: none;
   border: none;
   font-size: 24px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   cursor: pointer;
   width: 32px;
   height: 32px;
@@ -868,14 +914,14 @@ export default {
 }
 
 .close-btn:hover {
-  background: #f5f5f5;
-  color: #333;
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .history-filters {
   padding: 15px 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background-color: #fafafa;
+  border-bottom: 1px solid var(--border);
+  background-color: var(--surface-2);
   flex-shrink: 0;
 }
 
@@ -898,13 +944,13 @@ export default {
 
 .filter-label {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
 .search-input {
   padding: 6px 12px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 12px;
   width: 200px;
@@ -914,7 +960,7 @@ export default {
 
 .search-input:focus {
   outline: none;
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.1);
 }
 
@@ -929,21 +975,21 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 6px 12px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   transition: all 0.2s ease;
   height: 32px;
 }
 
 .select-trigger:hover {
-  border-color: #4F5BDF;
-  background: #f5f5f5;
+  border-color: var(--accent);
+  background: var(--surface-2);
 }
 
 .selected-value {
   font-size: 12px;
-  color: #000;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -976,10 +1022,10 @@ export default {
   right: 0;
   max-height: 300px;
   overflow-y: auto;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 15px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px var(--shadow-drop);
   z-index: 1000;
 }
 
@@ -990,10 +1036,10 @@ export default {
 .select-option {
   padding: 8px 12px;
   font-size: 12px;
-  color: #333;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
 }
 
 .select-option:last-child {
@@ -1001,17 +1047,17 @@ export default {
 }
 
 .select-option:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .select-option.selected {
-  background-color: #f0f3ff;
+  background-color: var(--accent-tint);
   font-weight: 500;
 }
 
 .date-input {
   padding: 6px 8px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-size: 12px;
   width: 120px;
@@ -1019,7 +1065,7 @@ export default {
 }
 
 .date-separator {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -1028,11 +1074,11 @@ export default {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 12px;
-  color: #000;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
   height: 32px;
@@ -1040,11 +1086,12 @@ export default {
 }
 
 .sort-btn:hover {
-  background: #f5f5f5;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 14px;
   height: 14px;
   transition: transform 0.2s ease;
@@ -1066,14 +1113,14 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 40px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .loader {
   width: 30px;
   height: 30px;
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #4F5BDF;
+  border: 3px solid var(--surface-2);
+  border-top: 3px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -1114,7 +1161,7 @@ export default {
   top: 18px;
   width: 2px;
   height: calc(100% + 2px);
-  background: #e6e6e6;
+  background: var(--border);
 }
 
 .dot-entry { background: #059669; }
@@ -1135,34 +1182,34 @@ export default {
 
 .car-info {
   font-weight: 600;
-  color: #4F5BDF;
+  color: var(--accent-text);
   font-size: 13px;
 }
 
 .user-name {
   font-weight: 500;
-  color: #333;
+  color: var(--text);
   font-size: 13px;
 }
 
 .action-time {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 11px;
 }
 
 .action-text {
-  color: #666;
+  color: var(--text-muted);
   font-size: 12px;
   margin-bottom: 2px;
 }
 
 .action-comment {
   font-size: 11px;
-  color: #666;
+  color: var(--text-muted);
   font-style: italic;
   margin-top: 4px;
   padding-left: 6px;
-  border-left: 2px solid #e6e6e6;
+  border-left: 2px solid var(--border);
 }
 
 @media (max-width: 768px) {

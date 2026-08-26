@@ -2,35 +2,41 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
-	"mime/multipart"
 	"net/http"
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/realtime"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
-
-// allowedImageTypes -- допустимые MIME-типы для загрузки фотографий.
-var allowedImageTypes = []string{
-	"image/jpeg",
-	"image/png",
-	"image/gif",
-	"image/webp",
-}
 
 // SystemTableService -- интерфейс бизнес-логики системных таблиц.
 type SystemTableService interface {
 	GetAll(ctx context.Context, includeArchived bool) ([]models.SystemTableWithDetails, error)
 	GetByID(ctx context.Context, id int) (*models.SystemTableWithDetails, error)
-	GetByName(ctx context.Context, name string) (*models.SystemTableWithDetails, error)
+	GetByName(ctx context.Context, name string, allowArchived bool) (*models.SystemTableWithDetails, error)
 	Create(ctx context.Context, req models.CreateSystemTableRequest) (int, error)
 	Update(ctx context.Context, id int, req models.UpdateSystemTableRequest) error
 	Delete(ctx context.Context, id int) error
 	Restore(ctx context.Context, id int) error
+	// Групповая архивация/восстановление (по образцу марок/мест разгрузки).
+	BulkArchive(ctx context.Context, ids []int) (*BulkOpResult, error)
+	BulkRestore(ctx context.Context, ids []int) (*BulkOpResult, error)
+
+	// GetUsage возвращает организации и компании, привязанные к таблице (те же,
+	// что блокируют Delete). DetachAll снимает все эти привязки разом,
+	// DetachOrganization/DetachCompany - по одной. Все возвращают detached=false
+	// без ошибки, если привязки уже нет (идемпотентно).
+	GetUsage(ctx context.Context, id int) (*SystemTableUsage, error)
+	DetachAll(ctx context.Context, callerUserID, id int) (*SystemTableDetachResult, error)
+	DetachOrganization(ctx context.Context, callerUserID, id, organizationID int) (bool, error)
+	DetachCompany(ctx context.Context, callerUserID, id, companyID int) (bool, error)
 
 	// Временные слоты
 	GetTimeSlots(ctx context.Context, tableID int) ([]models.SystemTableTimeSlot, error)
@@ -38,8 +44,14 @@ type SystemTableService interface {
 	UpdateTimeSlot(ctx context.Context, tableID, slotID int, req models.UpdateTimeSlotRequest) error
 	DeleteTimeSlot(ctx context.Context, tableID, slotID int) error
 
+	// Предупреждения по временным окнам (#1183)
+	GetWarningWindows(ctx context.Context, tableID int) ([]models.SystemTableWarningWindow, error)
+	AddWarningWindow(ctx context.Context, tableID int, req models.WarningWindowRequest) (int, error)
+	UpdateWarningWindow(ctx context.Context, tableID, windowID int, req models.WarningWindowRequest) error
+	DeleteWarningWindow(ctx context.Context, tableID, windowID int) error
+
 	// Фотографии
-	UploadPhoto(ctx context.Context, tableID int, username string, file *multipart.FileHeader) (int, error)
+	UploadPhoto(ctx context.Context, tableID int, username string, photoURL, fileName, mimeType string, fileSize int64) (int, error)
 	DeletePhoto(ctx context.Context, tableID, photoID int) error
 	SetMainPhoto(ctx context.Context, tableID, photoID int) error
 
@@ -51,32 +63,101 @@ type SystemTableService interface {
 	// SeedMissingFields добавляет default-поля, которых ещё нет у существующих таблиц.
 	// Вызывается один раз при старте сервиса для миграции старых таблиц.
 	SeedMissingFields(ctx context.Context) error
+
+	// GetHistory возвращает историю изменений системной таблицы (новые сверху).
+	// Переходный период #870: чтение объединяет legacy system_table_histories и audit_log.
+	GetHistory(ctx context.Context, tableID int) ([]models.SystemTableHistoryItem, error)
 }
 
 type systemTableService struct {
-	db          *gorm.DB
-	uploadDir   string
-	maxFileSize int64
-	permSvc     PermissionService
+	db                *gorm.DB
+	uploadDir         string
+	maxFileSize       int64
+	permSvc           PermissionService
+	realtimePublisher realtime.Publisher
+	recorder          AuditRecorder
+}
+
+// SystemTableBinding -- привязанная к таблице организация/компания.
+// IsActive=false помечает архивную запись (её всё равно показываем: гейт Delete
+// считает по junction без фильтра активности, поэтому она держит таблицу).
+type SystemTableBinding struct {
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	IsActive bool   `json:"is_active"`
+}
+
+// SystemTableUsage -- организации и компании, привязанные к таблице.
+// Набор совпадает с тем, что блокирует удаление (см. Delete).
+type SystemTableUsage struct {
+	Organizations []SystemTableBinding `json:"organizations"`
+	Companies     []SystemTableBinding `json:"companies"`
+}
+
+// SystemTableDetachResult -- сколько привязок снято операцией «Отвязать всё».
+type SystemTableDetachResult struct {
+	OrganizationsDetached int `json:"organizations_detached"`
+	CompaniesDetached     int `json:"companies_detached"`
+}
+
+// SystemTableServiceOption конфигурирует systemTableService при создании.
+type SystemTableServiceOption func(*systemTableService)
+
+// WithSystemTableRealtimePublisher включает real-time сигнал system-tables.refresh
+// при изменении набора таблиц (#840): список таблиц в нав-меню у всех обновляется
+// мгновенно, не дожидаясь 60с-опроса. Опционально.
+func WithSystemTableRealtimePublisher(p realtime.Publisher) SystemTableServiceOption {
+	return func(s *systemTableService) { s.realtimePublisher = p }
 }
 
 // NewSystemTableService создаёт реализацию SystemTableService.
-func NewSystemTableService(db *gorm.DB, uploadDir string, maxFileSize int64, permSvc PermissionService) SystemTableService {
-	return &systemTableService{
+func NewSystemTableService(db *gorm.DB, uploadDir string, maxFileSize int64, permSvc PermissionService, opts ...SystemTableServiceOption) SystemTableService {
+	s := &systemTableService{
 		db:          db,
 		uploadDir:   uploadDir,
 		maxFileSize: maxFileSize,
 		permSvc:     permSvc,
+		recorder:    NewAuditRecorder(db),
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
+// notifyTablesChanged шлёт system-tables.refresh всем активным юзерам (список
+// таблиц виден в нав-меню каждому, клиент сам фильтрует по правам). Best-effort,
+// nil-safe.
+func (s *systemTableService) notifyTablesChanged(ctx context.Context) {
+	if s.realtimePublisher == nil {
+		return
+	}
+	ids, err := activeUserIDs(ctx, s.db)
+	if err != nil {
+		slog.Warn("system-tables.refresh: load active users failed", "err", err)
+		return
+	}
+	if len(ids) == 0 {
+		return
+	}
+	s.realtimePublisher.PublishMany(ids, realtime.Event{Type: "system-tables.refresh", Scope: "system-tables"})
 }
 
 // computeCurrentStatus вычисляет текущий статус (open/closed) на основании расписания и статуса таблицы.
 func computeCurrentStatus(tableStatus string, slots []models.SystemTableTimeSlot) string {
+	return computeCurrentStatusAt(time.Now(), tableStatus, slots)
+}
+
+// computeCurrentStatusAt - чистое ядро статуса с инъекцией now (для теста).
+// День недели и время берутся в МСК (как bureau computeWorkModeStatus): сервер в
+// UTC, слоты заданы в московском дне - без конверсии у границы суток (21:00-24:00
+// UTC) currentDay уходит на сутки назад и статус системной таблицы врёт.
+func computeCurrentStatusAt(now time.Time, tableStatus string, slots []models.SystemTableTimeSlot) string {
 	if tableStatus != "active" {
 		return "closed"
 	}
 
-	now := time.Now()
+	now = now.In(moscowWorkModeLoc)
 	// 0=Пн, 6=Вс (Go Weekday: 0=Вс, 1=Пн ... 6=Сб)
 	goDay := int(now.Weekday())
 	currentDay := (goDay + 6) % 7
@@ -121,6 +202,9 @@ func (s *systemTableService) loadTableWithPreload(_ context.Context, query *gorm
 		Preload("TimeSlots", func(db *gorm.DB) *gorm.DB {
 			return db.Order("day_of_week, open_time")
 		}).
+		Preload("WarningWindows", func(db *gorm.DB) *gorm.DB {
+			return db.Order("day_of_week NULLS FIRST, time_from NULLS FIRST")
+		}).
 		Preload("Photos", func(db *gorm.DB) *gorm.DB {
 			return db.Order("is_main DESC, uploaded_at DESC")
 		}).
@@ -138,6 +222,9 @@ func (s *systemTableService) loadTableWithPreload(_ context.Context, query *gorm
 	if table.TimeSlots == nil {
 		table.TimeSlots = []models.SystemTableTimeSlot{}
 	}
+	if table.WarningWindows == nil {
+		table.WarningWindows = []models.SystemTableWarningWindow{}
+	}
 	if table.Photos == nil {
 		table.Photos = []models.SystemTablePhoto{}
 	}
@@ -148,12 +235,13 @@ func (s *systemTableService) loadTableWithPreload(_ context.Context, query *gorm
 	}
 
 	return &models.SystemTableWithDetails{
-		Table:         table,
-		Fields:        table.Fields,
-		FactFields:    table.FactFields,
-		TimeSlots:     table.TimeSlots,
-		Photos:        table.Photos,
-		CurrentStatus: computeCurrentStatus(status, table.TimeSlots),
+		Table:          table,
+		Fields:         table.Fields,
+		FactFields:     table.FactFields,
+		TimeSlots:      table.TimeSlots,
+		WarningWindows: table.WarningWindows,
+		Photos:         table.Photos,
+		CurrentStatus:  computeCurrentStatus(status, table.TimeSlots),
 	}, nil
 }
 
@@ -170,6 +258,9 @@ func (s *systemTableService) GetAll(ctx context.Context, includeArchived bool) (
 		}).
 		Preload("TimeSlots", func(db *gorm.DB) *gorm.DB {
 			return db.Order("day_of_week, open_time")
+		}).
+		Preload("WarningWindows", func(db *gorm.DB) *gorm.DB {
+			return db.Order("day_of_week NULLS FIRST, time_from NULLS FIRST")
 		}).
 		Preload("Photos", func(db *gorm.DB) *gorm.DB {
 			return db.Order("is_main DESC, uploaded_at DESC")
@@ -198,6 +289,10 @@ func (s *systemTableService) GetAll(ctx context.Context, includeArchived bool) (
 		if slots == nil {
 			slots = []models.SystemTableTimeSlot{}
 		}
+		windows := t.WarningWindows
+		if windows == nil {
+			windows = []models.SystemTableWarningWindow{}
+		}
 		photos := t.Photos
 		if photos == nil {
 			photos = []models.SystemTablePhoto{}
@@ -209,12 +304,13 @@ func (s *systemTableService) GetAll(ctx context.Context, includeArchived bool) (
 		}
 
 		result = append(result, models.SystemTableWithDetails{
-			Table:         t,
-			Fields:        fields,
-			FactFields:    factFields,
-			TimeSlots:     slots,
-			Photos:        photos,
-			CurrentStatus: computeCurrentStatus(status, slots),
+			Table:          t,
+			Fields:         fields,
+			FactFields:     factFields,
+			TimeSlots:      slots,
+			WarningWindows: windows,
+			Photos:         photos,
+			CurrentStatus:  computeCurrentStatus(status, slots),
 		})
 	}
 
@@ -234,9 +330,21 @@ func (s *systemTableService) GetByID(ctx context.Context, id int) (*models.Syste
 	return result, nil
 }
 
-// GetByName возвращает системную таблицу по имени с деталями.
-func (s *systemTableService) GetByName(ctx context.Context, name string) (*models.SystemTableWithDetails, error) {
-	query := s.db.WithContext(ctx).Where("name = ? AND is_active = ?", name, true)
+// GetByName возвращает системную таблицу по имени с деталями. При allowArchived
+// фильтр is_active снимается: в выборку попадают и архивные (is_active=false)
+// таблицы - нужно для страницы версий архивной таблицы (кнопка "Версии" из архива).
+// Параметр АДДИТИВНЫЙ (активные + архивные), в отличие от include_archived у GetAll,
+// который переключает выборку на ТОЛЬКО архивные - потому и имя другое.
+// Create проверяет уникальность имени по всем строкам без учёта is_active, так что
+// активная и архивная с одним именем штатно не сосуществуют; Order("is_active ASC")
+// - защита от гонки создания/легаси-данных, чтобы при таком дубле выбралась архивная.
+func (s *systemTableService) GetByName(ctx context.Context, name string, allowArchived bool) (*models.SystemTableWithDetails, error) {
+	query := s.db.WithContext(ctx).Where("name = ?", name)
+	if allowArchived {
+		query = query.Order("is_active ASC")
+	} else {
+		query = query.Where("is_active = ?", true)
+	}
 	result, err := s.loadTableWithPreload(ctx, query)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -371,6 +479,7 @@ func (s *systemTableService) Create(ctx context.Context, req models.CreateSystem
 		Status:              status,
 		StatusComment:       req.StatusComment,
 		LocationDescription: req.LocationDescription,
+		Warning:             req.Warning,
 		IsActive:            true,
 	}
 
@@ -451,6 +560,7 @@ func (s *systemTableService) Create(ctx context.Context, req models.CreateSystem
 	}
 
 	slog.Info("системная таблица создана", "id", table.ID, "name", req.Name)
+	s.notifyTablesChanged(ctx)
 	return table.ID, nil
 }
 
@@ -496,6 +606,9 @@ func (s *systemTableService) Update(ctx context.Context, id int, req models.Upda
 	}
 	if req.LocationDescription != nil {
 		updates["location_description"] = *req.LocationDescription
+	}
+	if req.Warning != nil {
+		updates["warning"] = *req.Warning
 	}
 	if req.FontSize != nil {
 		if *req.FontSize < 10 || *req.FontSize > 24 {
@@ -553,6 +666,7 @@ func (s *systemTableService) Update(ctx context.Context, id int, req models.Upda
 	}
 
 	slog.Info("системная таблица обновлена", "id", id)
+	s.notifyTablesChanged(ctx)
 	return nil
 }
 
@@ -605,7 +719,167 @@ func (s *systemTableService) Delete(ctx context.Context, id int) error {
 	}
 
 	slog.Info("системная таблица удалена (мягко)", "id", id)
+	s.notifyTablesChanged(ctx)
 	return nil
+}
+
+// loadTableNameForBinding возвращает человекочитаемое имя таблицы (display_name
+// с фолбэком на name - то же, что пишет в аудит набора UpdateOrganizationTables)
+// и признак существования. Активность таблицы не проверяется: гейт Delete тоже
+// её не смотрит, привязки держат таблицу независимо от архивности.
+func (s *systemTableService) loadTableNameForBinding(ctx context.Context, id int) (string, bool) {
+	var t models.SystemTable
+	if err := s.db.WithContext(ctx).Select("display_name", "name").Where("id = ?", id).First(&t).Error; err != nil {
+		return "", false
+	}
+	if t.DisplayName != nil && *t.DisplayName != "" {
+		return *t.DisplayName, true
+	}
+	return t.Name, true
+}
+
+// GetUsage возвращает организации и компании, привязанные к таблице. Junction
+// читается БЕЗ фильтра is_active орг/компании: набор обязан совпадать с тем, что
+// считает гейт в Delete, иначе получилось бы «привязок нет», а удалить нельзя.
+// Архивные орг/компании помечаются is_active=false.
+func (s *systemTableService) GetUsage(ctx context.Context, id int) (*SystemTableUsage, error) {
+	if _, ok := s.loadTableNameForBinding(ctx, id); !ok {
+		return nil, echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
+	}
+
+	usage := &SystemTableUsage{
+		Organizations: make([]SystemTableBinding, 0),
+		Companies:     make([]SystemTableBinding, 0),
+	}
+	if err := s.db.WithContext(ctx).
+		Table("organization_tables ot").
+		Select("o.id, o.name, o.is_active").
+		Joins("JOIN organizations o ON o.id = ot.organization_id").
+		Where("ot.table_id = ?", id).
+		Order("o.name").
+		Scan(&usage.Organizations).Error; err != nil {
+		slog.Error("не удалось прочитать привязки организаций таблицы", "id", id, "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching organization bindings")
+	}
+	if err := s.db.WithContext(ctx).
+		Table("companies_tables ct").
+		Select("c.id, c.name, c.is_active").
+		Joins("JOIN companies c ON c.id = ct.company_id").
+		Where("ct.table_id = ?", id).
+		Order("c.name").
+		Scan(&usage.Companies).Error; err != nil {
+		slog.Error("не удалось прочитать привязки компаний таблицы", "id", id, "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching company bindings")
+	}
+	return usage, nil
+}
+
+// DetachAll снимает привязки таблицы ко ВСЕМ организациям и компаниям (обе
+// join-таблицы удаляются в одной транзакции). На каждую затронутую
+// организацию/компанию пишется история «таблица убрана из набора» - зеркало
+// аудита UpdateOrganizationTables/UpdateTables. После этого таблицу можно
+// архивировать (Delete больше не заблокирует). Идемпотентно: повтор по уже
+// отвязанной таблице возвращает нулевые счётчики.
+func (s *systemTableService) DetachAll(ctx context.Context, callerUserID, id int) (*SystemTableDetachResult, error) {
+	name, ok := s.loadTableNameForBinding(ctx, id)
+	if !ok {
+		return nil, echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
+	}
+
+	// DELETE ... RETURNING внутри одной транзакции: удаляем привязки и получаем
+	// id ровно затронутых сущностей атомарно. Отдельный SELECT-перед-DELETE дал бы
+	// гонку - конкурентная привязка попала бы под DELETE, но мимо аудита.
+	var orgIDs, companyIDs []int
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var removedOrgs []models.OrganizationTable
+		if err := tx.Clauses(clause.Returning{Columns: []clause.Column{{Name: "organization_id"}}}).
+			Where("table_id = ?", id).Delete(&removedOrgs).Error; err != nil {
+			slog.Error("не удалось отвязать организации от таблицы", "id", id, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error detaching organizations")
+		}
+		var removedCompanies []models.CompaniesTable
+		if err := tx.Clauses(clause.Returning{Columns: []clause.Column{{Name: "company_id"}}}).
+			Where("table_id = ?", id).Delete(&removedCompanies).Error; err != nil {
+			slog.Error("не удалось отвязать компании от таблицы", "id", id, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error detaching companies")
+		}
+		for _, r := range removedOrgs {
+			orgIDs = append(orgIDs, r.OrganizationID)
+		}
+		for _, r := range removedCompanies {
+			companyIDs = append(companyIDs, r.CompanyID)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	if len(orgIDs) == 0 && len(companyIDs) == 0 {
+		return &SystemTableDetachResult{}, nil
+	}
+
+	removed := auditNameDiff{Removed: []string{name}}
+	for _, orgID := range orgIDs {
+		oid := orgID
+		s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &oid, models.OrganizationActionTablesChanged, &callerUserID, removed)
+	}
+	for _, companyID := range companyIDs {
+		cid := companyID
+		s.recorder.Log(ctx, nil, models.AuditEntityCompany, &cid, models.CompanyActionTablesChanged, &callerUserID, removed)
+	}
+
+	slog.Info("таблица отвязана от всех орг/компаний", "id", id, "orgs", len(orgIDs), "companies", len(companyIDs))
+	return &SystemTableDetachResult{
+		OrganizationsDetached: len(orgIDs),
+		CompaniesDetached:     len(companyIDs),
+	}, nil
+}
+
+// DetachOrganization снимает привязку таблицы к ОДНОЙ организации. Идемпотентно:
+// если привязки уже нет, возвращает false без ошибки. Аудит на организацию
+// пишем только при реальном удалении строки, removed = имя таблицы.
+func (s *systemTableService) DetachOrganization(ctx context.Context, callerUserID, id, organizationID int) (bool, error) {
+	name, ok := s.loadTableNameForBinding(ctx, id)
+	if !ok {
+		return false, echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
+	}
+	res := s.db.WithContext(ctx).
+		Where("table_id = ? AND organization_id = ?", id, organizationID).
+		Delete(&models.OrganizationTable{})
+	if res.Error != nil {
+		slog.Error("не удалось отвязать организацию от таблицы", "id", id, "organization_id", organizationID, "error", res.Error)
+		return false, echo.NewHTTPError(http.StatusInternalServerError, "Error detaching organization")
+	}
+	if res.RowsAffected == 0 {
+		return false, nil
+	}
+	oid := organizationID
+	s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &oid, models.OrganizationActionTablesChanged, &callerUserID, auditNameDiff{Removed: []string{name}})
+	slog.Info("таблица отвязана от организации", "id", id, "organization_id", organizationID)
+	return true, nil
+}
+
+// DetachCompany снимает привязку таблицы к ОДНОЙ компании (зеркало
+// DetachOrganization, см. его комментарий).
+func (s *systemTableService) DetachCompany(ctx context.Context, callerUserID, id, companyID int) (bool, error) {
+	name, ok := s.loadTableNameForBinding(ctx, id)
+	if !ok {
+		return false, echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
+	}
+	res := s.db.WithContext(ctx).
+		Where("table_id = ? AND company_id = ?", id, companyID).
+		Delete(&models.CompaniesTable{})
+	if res.Error != nil {
+		slog.Error("не удалось отвязать компанию от таблицы", "id", id, "company_id", companyID, "error", res.Error)
+		return false, echo.NewHTTPError(http.StatusInternalServerError, "Error detaching company")
+	}
+	if res.RowsAffected == 0 {
+		return false, nil
+	}
+	cid := companyID
+	s.recorder.Log(ctx, nil, models.AuditEntityCompany, &cid, models.CompanyActionTablesChanged, &callerUserID, auditNameDiff{Removed: []string{name}})
+	slog.Info("таблица отвязана от компании", "id", id, "company_id", companyID)
+	return true, nil
 }
 
 // Restore восстанавливает мягко удалённую системную таблицу (is_active=false -> true).
@@ -630,10 +904,56 @@ func (s *systemTableService) Restore(ctx context.Context, id int) error {
 	}
 
 	slog.Info("системная таблица восстановлена из архива", "id", id)
+	s.notifyTablesChanged(ctx)
 	return nil
 }
 
+// findTableName достаёт человекочитаемое имя таблицы по id для BulkItemError,
+// НЕ фильтруя по is_active. GetByID для этого не годится: он матчит только
+// активные таблицы (Where("is_active = true")), а BulkRestore как раз работает
+// над архивными - через GetByID имя архивной таблицы никогда бы не нашлось, и
+// частичный успех восстановления сообщал бы "не найдена" по каждой строке.
+// Пустая строка (таблица не существует вовсе) - FE отображает id-фолбэком.
+func (s *systemTableService) findTableName(ctx context.Context, id int) string {
+	var t models.SystemTable
+	if err := s.db.WithContext(ctx).Select("display_name", "name").Where("id = ?", id).First(&t).Error; err != nil {
+		return ""
+	}
+	if t.DisplayName != nil && *t.DisplayName != "" {
+		return *t.DisplayName
+	}
+	return t.Name
+}
 
+// BulkArchive архивирует набор системных таблиц через Delete (мягкое удаление).
+// Несуществующие/непривязываемые (org/company) -> в Errors (частичный успех 207),
+// не валят операцию. Дубли id дедуплицируются.
+func (s *systemTableService) BulkArchive(ctx context.Context, ids []int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		name := s.findTableName(ctx, id)
+		if err := s.Delete(ctx, id); err != nil {
+			res.addError(id, name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkRestore восстанавливает набор системных таблиц через Restore.
+func (s *systemTableService) BulkRestore(ctx context.Context, ids []int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		name := s.findTableName(ctx, id)
+		if err := s.Restore(ctx, id); err != nil {
+			res.addError(id, name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
 
 // UpdateFields bulk-обновляет видимость и (опционально) порядок столбцов таблицы.
 // Поля, отсутствующие в БД, игнорируются. DisplayOrder применяется только если задан.
@@ -1010,4 +1330,49 @@ func (s *systemTableService) fixFactVisibilityFromCatalog(ctx context.Context, t
 		slog.Info("исправил факт-видимость до каталога (#345)", "fixed", fixed)
 	}
 	return nil
+}
+
+// GetHistory возвращает историю изменений системной таблицы (новые сверху).
+// Переходный период #870: запись идёт в audit_log, старые строки — в замороженной
+// system_table_histories. Union объединяет обе таблицы в идентичную форму ответа.
+func (s *systemTableService) GetHistory(ctx context.Context, tableID int) ([]models.SystemTableHistoryItem, error) {
+	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+	// Read-switch #870 (F.3): до-cutover строки system_table_histories подняты в
+	// audit_log разовым backfill'ом (details уже jsonb, verbatim), читаем только
+	// audit_log. Старая таблица system_table_histories дропнута в дроп-sweep (F.8).
+	sql := `
+		SELECT a.id, a.action AS action_type, a.details, a.actor_user_id AS user_id,
+			` + actorName + ` AS user_name,
+			a.created_at
+		FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+		WHERE a.entity_type = ? AND a.entity_id = ?
+		ORDER BY a.created_at DESC, a.id DESC`
+
+	type row struct {
+		ID         int             `gorm:"column:id"`
+		ActionType string          `gorm:"column:action_type"`
+		Details    json.RawMessage `gorm:"column:details"`
+		UserID     *int            `gorm:"column:user_id"`
+		UserName   string          `gorm:"column:user_name"`
+		CreatedAt  time.Time       `gorm:"column:created_at"`
+	}
+	var rows []row
+	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntitySystemTable, tableID).Scan(&rows).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching system table history")
+	}
+
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
+	items := make([]models.SystemTableHistoryItem, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, models.SystemTableHistoryItem{
+			ID:         r.ID,
+			ActionType: r.ActionType,
+			Details:    r.Details,
+			UserID:     r.UserID,
+			UserName:   maskName(masks, r.UserID, r.UserName),
+			CreatedAt:  r.CreatedAt,
+		})
+	}
+	return items, nil
 }

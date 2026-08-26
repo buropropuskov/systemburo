@@ -33,6 +33,7 @@ func TestTrash_CarFlowListScopingRestoreHistory(t *testing.T) {
 	t2 := models.SystemTable{Name: "trash_cars_t2", DisplayName: &dn2, TableType: "cars", IsActive: true}
 	require.NoError(t, db.Create(&t1).Error)
 	require.NoError(t, db.Create(&t2).Error)
+	testutil.GrantTableVerb(t, u.ID, t1.Name, "trash")
 
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
@@ -98,6 +99,7 @@ func TestTrash_RestoreBlockedWithoutApprovedApplication(t *testing.T) {
 	dn := "Корзина КПП"
 	tbl := models.SystemTable{Name: "trash_cars_blocked", DisplayName: &dn, TableType: "cars", IsActive: true}
 	require.NoError(t, db.Create(&tbl).Error)
+	testutil.GrantTableVerb(t, u.ID, tbl.Name, "trash")
 
 	// Машина без согласованной заявки (не активируем).
 	_, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
@@ -129,6 +131,7 @@ func TestTrash_PurgeOneRemovesFromTrash(t *testing.T) {
 	dn := "Корзина КПП"
 	tbl := models.SystemTable{Name: "trash_cars_purge", DisplayName: &dn, TableType: "cars", IsActive: true}
 	require.NoError(t, db.Create(&tbl).Error)
+	testutil.GrantTableVerb(t, u.ID, tbl.Name, "trash")
 
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
@@ -149,7 +152,7 @@ func TestTrash_PurgeOneRemovesFromTrash(t *testing.T) {
 	assert.True(t, car.IsPurged)
 
 	var purgeCount int64
-	db.Model(&models.CarHistory{}).Where("car_id = ? AND action_type = 'purge'", carID).Count(&purgeCount)
+	db.Model(&models.AuditLog{}).Where("entity_type = ? AND entity_id = ? AND action = 'purge'", models.AuditEntityCar, carID).Count(&purgeCount)
 	assert.Equal(t, int64(1), purgeCount)
 }
 
@@ -166,6 +169,7 @@ func TestTrash_ClearAllCars_PurgesAndLogsDetails(t *testing.T) {
 	dn := "Корзина Очистка"
 	tbl := models.SystemTable{Name: "trash_cars_clear", DisplayName: &dn, TableType: "cars", IsActive: true}
 	require.NoError(t, db.Create(&tbl).Error)
+	testutil.GrantTableVerb(t, u.ID, tbl.Name, "trash")
 
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
@@ -217,6 +221,7 @@ func TestTrash_EmployeeFlow_ScopingRestoreHistoryDetails(t *testing.T) {
 	t2 := models.SystemTable{Name: "trash_emp_t2", DisplayName: &dn2, TableType: "people", IsActive: true}
 	require.NoError(t, db.Create(&t1).Error)
 	require.NoError(t, db.Create(&t2).Error)
+	testutil.GrantTableVerb(t, u.ID, t1.Name, "trash")
 
 	appID, _, empID := seedEmployeeViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td) // согласовать + в работу: нужно для restore

@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"net/http"
-
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
@@ -38,7 +36,7 @@ func (h *RoleHandler) Create(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusCreated, map[string]any{"success": true, "data": role})
+	return RespondCreated(c, role)
 }
 
 // Update -- PUT /roles/:id.
@@ -80,6 +78,22 @@ func (h *RoleHandler) SetDefaultGroups(c echo.Context) error {
 		return err
 	}
 	if err := h.service.SetDefaultGroups(c.Request().Context(), id, req.GroupIDs); err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]any{"updated": true})
+}
+
+// SetPermissions -- PUT /roles/:id/permissions. Полная замена прямых грантов роли.
+func (h *RoleHandler) SetPermissions(c echo.Context) error {
+	id, err := ParseID(c, "id")
+	if err != nil {
+		return err
+	}
+	var req models.SetRolePermissionsRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if err := h.service.SetPermissions(c.Request().Context(), id, req.Keys); err != nil {
 		return err
 	}
 	return RespondSuccess(c, map[string]any{"updated": true})

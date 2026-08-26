@@ -1,5 +1,6 @@
 <template>
   <BlacklistHistoryModalBase
+    :show="show"
     title="История чёрного списка людей"
     entity-label="lyudi"
     :load-fn="loadFn"
@@ -44,6 +45,7 @@ export default {
   name: 'PersonBlacklistHistoryModal',
   components: { BlacklistHistoryModalBase },
   props: {
+    show: { type: Boolean, default: false },
     currentUserName: { type: String, default: '' },
   },
   emits: ['close'],

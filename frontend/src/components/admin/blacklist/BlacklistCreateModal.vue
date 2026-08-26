@@ -3,7 +3,7 @@
     :show="show"
     :title="title"
     width="520px"
-    content-class="bl-create-modal"
+    radius="30px"
     @close="close"
   >
     <div class="bl-create">
@@ -19,11 +19,11 @@
             >
               <div class="button__content">
                 <span class="button__text">{{ selectedFormatText }}</span>
-                <img
-                  src="@/assets/icons/arrow.png"
+                <AppIcon
+                  name="arrow"
                   class="button__arrow"
                   :class="{ 'button__arrow--open': isFormatDropdownOpen }"
-                >
+                />
               </div>
             </button>
             <transition name="dropdown">
@@ -91,11 +91,11 @@
                 >
                   <div class="mark__button-content">
                     <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
-                    <img
-                      src="@/assets/icons/arrow.png"
+                    <AppIcon
+                      name="arrow"
                       class="mark__button-arrow"
                       :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }"
-                    >
+                    />
                   </div>
                 </button>
                 <transition name="dropdown">
@@ -201,14 +201,26 @@
       </button>
     </template>
   </BaseModal>
+
+  <BlacklistImpactModal
+    :show="showImpact"
+    :subject="impactSubject"
+    :impact="impact"
+    :submitting="saving"
+    @confirm="confirmImpact"
+    @close="showImpact = false"
+  />
 </template>
 
 <script>
 import BaseModal from '@/components/ui/BaseModal.vue';
 import FormField from '@/components/ui/FormField.vue';
 import { apiRequest } from '@/api/client';
+import { personBlacklistImpact, vehicleBlacklistImpact } from '@/api/blacklist';
+import BlacklistImpactModal from './BlacklistImpactModal.vue';
 import { listMarks } from '@/api/marks';
 import { validatePartValue, formatPartValue, initializeNumberParts } from '@/composables/useNumberFormat';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 /**
  * Модалка добавления записи в чёрный список (#443). Тип определяет форму: 'vehicle' -
@@ -218,7 +230,7 @@ import { validatePartValue, formatPartValue, initializeNumberParts } from '@/com
  */
 export default {
   name: 'BlacklistCreateModal',
-  components: { BaseModal, FormField },
+  components: { AppIcon, BaseModal, FormField, BlacklistImpactModal },
   props: {
     show: { type: Boolean, default: false },
     type: { type: String, required: true, validator: (v) => ['vehicle', 'person'].includes(v) },
@@ -242,6 +254,9 @@ export default {
       reason: '',
       saving: false,
       formError: '',
+      showImpact: false,
+      impactSubject: '',
+      impact: { matches: 0, tables: [], rows: [] },
     };
   },
   computed: {
@@ -362,34 +377,82 @@ export default {
       if (this.saving) return;
       this.$emit('close');
     },
+    /** Собирает тело запроса и подпись записи - одинаково для предпросмотра и записи. */
+    buildPayload() {
+      if (this.type === 'vehicle') {
+        const carNumber = this.numberParts.join(' ').trim();
+        const markName = (this.marks.find((m) => m.id === this.markId) || {}).name || this.selectedMark || '';
+        return {
+          payload: { car_number: carNumber, mark_id: this.markId, reason: this.reason.trim() },
+          displayName: [carNumber, markName].filter(Boolean).join(' '),
+        };
+      }
+      const payload = {
+        last_name: this.lastName.trim(),
+        first_name: this.firstName.trim(),
+        middle_name: this.middleName.trim(),
+        reason: this.reason.trim(),
+      };
+      return {
+        payload,
+        displayName: [payload.last_name, payload.first_name, payload.middle_name].filter(Boolean).join(' '),
+      };
+    },
+
+    /**
+     * Перед записью показываем, где эта машина или человек сейчас фигурирует: внесение
+     * деактивирует строки и уводит их с постов, и администратор должен видеть это до
+     * подтверждения, а не потом в истории. Когда действующих строк нет, окно не нужно -
+     * вносим сразу. Сбой предпросмотра тоже не должен мешать внесению: он вспомогательный.
+     */
     async submit() {
       if (!this.canSubmit || this.saving) return;
+      this.formError = '';
+      const { payload, displayName } = this.buildPayload();
+
+      this.saving = true;
+      try {
+        const impact = this.type === 'vehicle'
+          ? await vehicleBlacklistImpact({ carNumber: payload.car_number, markId: payload.mark_id })
+          : await personBlacklistImpact({
+              lastName: payload.last_name,
+              firstName: payload.first_name,
+              middleName: payload.middle_name,
+          });
+        if (impact && impact.matches > 0) {
+          this.impact = impact;
+          this.impactSubject = displayName;
+          this.showImpact = true;
+          this.saving = false;
+          return;
+        }
+      } catch (e) {
+        console.warn('Предпросмотр последствий не удался, продолжаем внесение', e);
+      }
+
+      await this.persist(payload, displayName);
+    },
+
+    /** Запись в чёрный список - общий путь для случая с окном и без него. */
+    async persist(payload, displayName) {
       this.saving = true;
       this.formError = '';
       try {
-        let payload;
-        let displayName;
-        if (this.type === 'vehicle') {
-          const carNumber = this.numberParts.join(' ').trim();
-          const markName = (this.marks.find((m) => m.id === this.markId) || {}).name || this.selectedMark || '';
-          payload = { car_number: carNumber, mark_id: this.markId, reason: this.reason.trim() };
-          displayName = [carNumber, markName].filter(Boolean).join(' ');
-        } else {
-          payload = {
-            last_name: this.lastName.trim(),
-            first_name: this.firstName.trim(),
-            middle_name: this.middleName.trim(),
-            reason: this.reason.trim(),
-          };
-          displayName = [payload.last_name, payload.first_name, payload.middle_name].filter(Boolean).join(' ');
-        }
         await this.createFn(payload);
+        this.showImpact = false;
         this.$emit('created', displayName);
       } catch (e) {
+        this.showImpact = false;
         this.formError = e?.message || 'Не удалось добавить запись';
       } finally {
         this.saving = false;
       }
+    },
+
+    /** Подтверждение из окна последствий. */
+    confirmImpact() {
+      const { payload, displayName } = this.buildPayload();
+      this.persist(payload, displayName);
     },
   },
 };
@@ -405,11 +468,11 @@ export default {
 /* Формат номера + номер + марка - визуально идентично VehicleForm */
 .input__label {
   font-size: 13px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .required {
-  color: #ff4444;
+  color: var(--danger-text);
 }
 
 .completion__format {
@@ -428,7 +491,7 @@ export default {
 
 .format__label {
   font-size: 13px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .format__dropdown {
@@ -438,8 +501,8 @@ export default {
 .dropdown__button {
   width: 100%;
   height: 40px;
-  border: 1px solid #e6e6e6;
-  background-color: #fff;
+  border: 1px solid var(--border);
+  background-color: var(--surface);
   border-radius: 15px;
   outline: none;
   cursor: pointer;
@@ -448,7 +511,7 @@ export default {
 }
 
 .dropdown__button:hover {
-  border-color: #4f5bdf;
+  border-color: var(--accent);
 }
 
 .button__content {
@@ -461,7 +524,7 @@ export default {
 
 .button__text {
   font-size: 14px;
-  color: #000;
+  color: var(--text);
   font-weight: 500;
   display: block;
 }
@@ -483,11 +546,11 @@ export default {
   top: 100%;
   left: 0;
   width: 100%;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   margin-top: 5px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 3px 10px var(--shadow-drop);
   z-index: 1000;
   max-height: 300px;
   overflow-y: auto;
@@ -503,7 +566,7 @@ export default {
 }
 
 .dropdown__item:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .dropdown__item:first-child {
@@ -516,7 +579,7 @@ export default {
 
 .item__text {
   font-size: 13px;
-  color: #333;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -547,10 +610,10 @@ export default {
   min-width: 202px;
   height: 40px;
   display: flex;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   overflow: hidden;
-  background: #fff;
+  background: var(--surface);
 }
 
 .number__input {
@@ -566,27 +629,27 @@ export default {
 }
 
 .number__input:not(:last-child) {
-  border-right: 1px solid #e6e6e6;
+  border-right: 1px solid var(--border);
 }
 
 .number__input::placeholder {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 12px;
   text-transform: none;
 }
 
 .number__input:focus {
-  background-color: #f8f8f8;
+  background-color: var(--surface-2);
 }
 
 .no-format-message {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   text-align: center;
   padding: 10px;
-  background: #f8f8f8;
+  background: var(--surface-2);
   border-radius: 10px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
 }
 
 .mark__field {
@@ -603,8 +666,8 @@ export default {
 .mark__dropdown-button {
   width: 100%;
   height: 100%;
-  border: 1px solid #e6e6e6;
-  background-color: #fff;
+  border: 1px solid var(--border);
+  background-color: var(--surface);
   border-radius: 15px;
   outline: none;
   cursor: pointer;
@@ -613,7 +676,7 @@ export default {
 }
 
 .mark__dropdown-button:hover {
-  border-color: #4f5bdf;
+  border-color: var(--accent);
 }
 
 .mark__button-content {
@@ -626,7 +689,7 @@ export default {
 
 .mark__button-text {
   font-size: 14px;
-  color: #000;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -651,11 +714,11 @@ export default {
   top: 100%;
   left: 0;
   width: 100%;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   margin-top: 5px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 3px 10px var(--shadow-drop);
   z-index: 1000;
   max-height: 220px;
   overflow: hidden;
@@ -663,12 +726,12 @@ export default {
 
 .mark__search {
   padding: 10px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .mark__search-input {
   width: 100%;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   padding: 5px 10px;
   outline: none;
@@ -684,11 +747,11 @@ export default {
   padding: 8px 15px;
   cursor: pointer;
   transition: background-color 0.2s;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--surface-2);
 }
 
 .mark__dropdown-item:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .mark__dropdown-item:last-child {
@@ -697,7 +760,7 @@ export default {
 
 .mark__item-text {
   font-size: 14px;
-  color: #333;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -706,12 +769,12 @@ export default {
 .mark__dropdown-empty {
   padding: 10px 15px;
   font-size: 13px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   text-align: center;
 }
 
 .bl-form-error {
-  color: var(--color-danger, #dc3545);
+  color: var(--color-danger, var(--danger-text));
   font-size: 13px;
   margin-top: 4px;
 }
@@ -726,12 +789,13 @@ export default {
   opacity: 0;
   transform: translateY(-10px);
 }
-</style>
 
-<!-- не scoped: контент BaseModal телепортится в body с его data-v, поэтому радиус задаём
-     глобально двойным классом (бьёт scoped .base-modal). Эталон модалок - 30px. -->
-<style>
-.base-modal.bl-create-modal {
-  border-radius: 30px;
+/* Номер (202px фикс.) и марка бок о бок переполняют модалку на узких телефонах
+   (320-375px) - тот же фикс, что уже стоит в VehicleForm.vue (эталон разметки,
+   #481: этот блок - её 1:1 копия) для идентичной .completion__fields. */
+@media (max-width: 480px) {
+  .completion__fields {
+    flex-direction: column;
+  }
 }
 </style>

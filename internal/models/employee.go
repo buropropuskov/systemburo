@@ -9,15 +9,19 @@ import (
 )
 
 type Employee struct {
-	ID                   int          `json:"id"`
-	AttachmentID         *int         `gorm:"index" json:"attachment_id"`
-	Attachment           *Attachment  `gorm:"constraint:OnDelete:CASCADE" json:"-"`
-	LastName             *string      `gorm:"size:100" json:"last_name"`
-	FirstName            *string      `gorm:"size:100" json:"first_name"`
-	MiddleName           *string      `gorm:"size:100" json:"middle_name"`
-	CitizenshipID        *int         `gorm:"index" json:"citizenship_id"`
-	Citizenship          *Citizenship `json:"-"`
-	Position             *string      `gorm:"size:100;column:position" json:"position"`
+	ID           int         `json:"id"`
+	AttachmentID *int        `gorm:"index" json:"attachment_id"`
+	Attachment   *Attachment `gorm:"constraint:OnDelete:CASCADE" json:"-"`
+	// SupplementID - каким дополнением заявки добавлен сотрудник (#1685). NULL - пришёл с
+	// исходной подачей. По нему принятие дополнения активирует только его строки, а
+	// интерфейс выделяет новых. Без FK: дополнения не удаляются, отмена у них - статус.
+	SupplementID             *int         `gorm:"index" json:"supplement_id"`
+	LastName                 *string      `gorm:"size:100" json:"last_name"`
+	FirstName                *string      `gorm:"size:100" json:"first_name"`
+	MiddleName               *string      `gorm:"size:100" json:"middle_name"`
+	CitizenshipID            *int         `gorm:"index" json:"citizenship_id"`
+	Citizenship              *Citizenship `json:"-"`
+	Position                 *string      `gorm:"size:100;column:position" json:"position"`
 	PassportSeriesNumber     *string      `gorm:"type:text" json:"passport_series_number"`
 	PatentNumber             *string      `gorm:"type:text" json:"patent_number"`
 	PassportSeriesNumberHMAC *string      `gorm:"size:64;index" json:"-"`
@@ -28,13 +32,20 @@ type Employee struct {
 	Status                   *int         `gorm:"index" json:"status"`
 	DateCreated              *time.Time   `json:"date_created"`
 	DateDeleted              *time.Time   `json:"date_deleted"`
+	// PDConsentAt - когда заявитель подтвердил, что субъект дал согласие на обработку
+	// своих персональных данных (152-ФЗ), PDConsentByUserID - кто подтвердил. Время и
+	// автор ставит СЕРВЕР: в запросе только флаг, иначе дату согласия можно было бы
+	// прислать любую. NULL - отметки нет (запись заведена до введения поля или
+	// администратор снял обязательность в шаблоне вложения).
+	PDConsentAt       *time.Time `json:"pd_consent_at"`
+	PDConsentByUserID *int       `json:"pd_consent_by_user_id"`
 	// IsPurged - финальное удаление из корзины (#186). Запись остаётся в БД для
 	// аудита, но скрывается даже из корзины. Восстановление невозможно.
-	IsPurged                 bool         `gorm:"default:false;index" json:"is_purged"`
-	PurgedAt                 *time.Time   `json:"purged_at,omitempty"`
-	PurgedByUserID           *int         `json:"purged_by_user_id,omitempty"`
-	CreatedAt                time.Time    `json:"created_at"`
-	UpdatedAt                time.Time    `json:"updated_at"`
+	IsPurged       bool       `gorm:"default:false;index" json:"is_purged"`
+	PurgedAt       *time.Time `json:"purged_at,omitempty"`
+	PurgedByUserID *int       `json:"purged_by_user_id,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 func (e *Employee) BeforeSave(tx *gorm.DB) error {
@@ -63,32 +74,14 @@ func (e *Employee) AfterFind(tx *gorm.DB) error {
 	return nil
 }
 
-type EmployeeHistory struct {
-	ID         int       `json:"id"`
-	EmployeeID int       `gorm:"index" json:"employee_id"`
-	Employee   Employee  `gorm:"constraint:OnDelete:CASCADE" json:"-"`
-	UserID     *int      `gorm:"index" json:"user_id"`
-	User       *User     `json:"-"`
-	ActionType string    `gorm:"size:50" json:"action_type"`
-	FieldName  *string   `gorm:"size:100" json:"field_name"`
-	OldValue   *string   `gorm:"type:text" json:"old_value"`
-	NewValue   *string   `gorm:"type:text" json:"new_value"`
-	Comment    *string   `gorm:"type:text" json:"comment"`
-	Metadata   *string   `gorm:"type:jsonb" json:"metadata"`
-	CreatedAt  time.Time `json:"created_at"`
-	TableID    *int      `json:"table_id"`
-}
-
-func (EmployeeHistory) TableName() string { return "employees_history" }
-
 type UniqueEmployee struct {
-	ID                   int           `json:"id"`
-	LastName             *string       `gorm:"size:100" json:"last_name"`
-	FirstName            *string       `gorm:"size:100" json:"first_name"`
-	MiddleName           *string       `gorm:"size:100" json:"middle_name"`
-	CitizenshipID        *int          `gorm:"index" json:"citizenship_id"`
-	Citizenship          *Citizenship  `json:"-"`
-	Position             *string       `gorm:"size:100;column:position" json:"position"`
+	ID                       int           `json:"id"`
+	LastName                 *string       `gorm:"size:100" json:"last_name"`
+	FirstName                *string       `gorm:"size:100" json:"first_name"`
+	MiddleName               *string       `gorm:"size:100" json:"middle_name"`
+	CitizenshipID            *int          `gorm:"index" json:"citizenship_id"`
+	Citizenship              *Citizenship  `json:"-"`
+	Position                 *string       `gorm:"size:100;column:position" json:"position"`
 	PassportSeriesNumber     *string       `gorm:"type:text" json:"passport_series_number"`
 	PatentNumber             *string       `gorm:"type:text" json:"patent_number"`
 	PassportSeriesNumberHMAC *string       `gorm:"size:64;index" json:"-"`
@@ -100,9 +93,14 @@ type UniqueEmployee struct {
 	Company                  *Company      `json:"-"`
 	UserID                   *int          `gorm:"index" json:"user_id"`
 	User                     *User         `json:"-"`
-	Status                   *bool         `gorm:"default:false" json:"status"`
-	CreatedAt                time.Time     `json:"created_at"`
-	UpdatedAt                time.Time     `json:"updated_at"`
+	// Согласие субъекта на обработку персональных данных: см. Employee.PDConsentAt.
+	// На записи реестра отметка живёт своей жизнью - реестр и строки заявок не связаны,
+	// подача заявки в реестр не пишет.
+	PDConsentAt       *time.Time `json:"pd_consent_at"`
+	PDConsentByUserID *int       `json:"pd_consent_by_user_id"`
+	Status            *bool      `gorm:"default:false" json:"status"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
 }
 
 func (e *UniqueEmployee) BeforeSave(tx *gorm.DB) error {
@@ -131,36 +129,15 @@ func (e *UniqueEmployee) AfterFind(tx *gorm.DB) error {
 	return nil
 }
 
-// UniqueEmployeeHistory хранит аудит изменений мастер-записи сотрудника
-// (unique_employees). Используется отдельная таблица, потому что
-// employees_history.employee_id ссылается на employees (заявочная сущность),
-// а здесь нужна ссылка на unique_employees (мастер).
-type UniqueEmployeeHistory struct {
-	ID               int            `json:"id"`
-	UniqueEmployeeID int            `gorm:"index" json:"unique_employee_id"`
-	UniqueEmployee   UniqueEmployee `gorm:"constraint:OnDelete:CASCADE" json:"-"`
-	UserID           *int           `gorm:"index" json:"user_id"`
-	User             *User          `json:"-"`
-	ActionType       string         `gorm:"size:50" json:"action_type"`
-	FieldName        *string        `gorm:"size:100" json:"field_name"`
-	OldValue         *string        `gorm:"type:text" json:"old_value"`
-	NewValue         *string        `gorm:"type:text" json:"new_value"`
-	Comment          *string        `gorm:"type:text" json:"comment"`
-	Metadata         *string        `gorm:"type:jsonb" json:"metadata"`
-	CreatedAt        time.Time      `json:"created_at"`
-}
-
-func (UniqueEmployeeHistory) TableName() string { return "unique_employees_history" }
-
 type ApplicationEmployee struct {
-	ID                   int        `json:"id"`
-	AttachmentID         int        `gorm:"index" json:"attachment_id"`
-	Attachment           Attachment `gorm:"constraint:OnDelete:CASCADE" json:"-"`
-	LastName             *string    `gorm:"size:100" json:"last_name"`
-	FirstName            *string    `gorm:"size:100" json:"first_name"`
-	MiddleName           *string    `gorm:"size:100" json:"middle_name"`
-	Position             *string    `gorm:"size:100;column:position" json:"position"`
-	CitizenshipID        *int       `json:"citizenship_id"`
+	ID                       int        `json:"id"`
+	AttachmentID             int        `gorm:"index" json:"attachment_id"`
+	Attachment               Attachment `gorm:"constraint:OnDelete:CASCADE" json:"-"`
+	LastName                 *string    `gorm:"size:100" json:"last_name"`
+	FirstName                *string    `gorm:"size:100" json:"first_name"`
+	MiddleName               *string    `gorm:"size:100" json:"middle_name"`
+	Position                 *string    `gorm:"size:100;column:position" json:"position"`
+	CitizenshipID            *int       `json:"citizenship_id"`
 	PassportSeriesNumber     *string    `gorm:"type:text" json:"passport_series_number"`
 	PatentNumber             *string    `gorm:"type:text" json:"patent_number"`
 	PassportSeriesNumberHMAC *string    `gorm:"size:64;index" json:"-"`
@@ -206,9 +183,14 @@ type EmployeeFile struct {
 	UploadedAt time.Time `json:"uploaded_at"`
 }
 
+// EmployeeTargetTable -- привязка сотрудника к таблице проходной. Source различает
+// откуда взялась привязка (#1227): application - из поданной заявки (submit пишет
+// строку сырым SQL, дефолт колонки application подставится автоматически), manual -
+// ручное добавление/перенос/групповая операция. Зеркало CarTargetTable.
 type EmployeeTargetTable struct {
-	ID         int  `json:"id"`
-	EmployeeID int  `gorm:"index" json:"employee_id"`
-	TableID    int  `gorm:"index" json:"table_id"`
-	OrderIndex *int `json:"order_index"`
+	ID         int    `json:"id"`
+	EmployeeID int    `gorm:"index" json:"employee_id"`
+	TableID    int    `gorm:"index" json:"table_id"`
+	OrderIndex *int   `json:"order_index"`
+	Source     string `gorm:"type:varchar(20);not null;default:application" json:"source"`
 }

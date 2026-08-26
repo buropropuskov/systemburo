@@ -40,7 +40,7 @@ func TestRunReport_CrossTabAttachmentType(t *testing.T) {
 			SenderUserID: user.ID, Status: &s, SendingDatetime: &sent}
 		require.NoError(t, db.Create(&app).Error)
 		dn := display
-		att := models.Attachment{ApplicationID: app.ID, AttachmentType: "cars", AttachmentDisplayName: &dn}
+		att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars", AttachmentDisplayName: &dn}
 		require.NoError(t, db.Create(&att).Error)
 	}
 
@@ -50,7 +50,7 @@ func TestRunReport_CrossTabAttachmentType(t *testing.T) {
 	mk("CT/3", week1, "Люди")
 	mk("CT/4", week2, "Машины")
 
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 	res, err := svc.RunReport(context.Background(), models.ReportRequest{
 		Mode:        "aggregate",
 		Metrics:     []string{"applications_count"},
@@ -115,9 +115,9 @@ func TestRunReport_NoPivotUnchanged(t *testing.T) {
 		SenderUserID: user.ID, Status: &status, SendingDatetime: &sent}
 	require.NoError(t, db.Create(&app).Error)
 	dn := "Машины"
-	require.NoError(t, db.Create(&models.Attachment{ApplicationID: app.ID, AttachmentType: "cars", AttachmentDisplayName: &dn}).Error)
+	require.NoError(t, db.Create(&models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars", AttachmentDisplayName: &dn}).Error)
 
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 	res, err := svc.RunReport(context.Background(), models.ReportRequest{
 		Mode:        "aggregate",
 		Metrics:     []string{"applications_count"},
@@ -149,7 +149,7 @@ func TestRunReport_AvgCarsPerDayWeekly(t *testing.T) {
 	defer cleanup()
 	testutil.CleanDB(t, db)
 
-	// Машина с вложением (cars_history.car_id -> cars).
+	// Машина с вложением.
 	org := models.Organization{Name: "Орг-Avg", IsActive: true}
 	require.NoError(t, db.Create(&org).Error)
 	user := models.User{Username: "avg_sender", TypeID: 1, IsActive: true}
@@ -160,7 +160,7 @@ func TestRunReport_AvgCarsPerDayWeekly(t *testing.T) {
 	app := models.Application{ApplicationNumber: &n, OrganizationID: org.ID,
 		SenderUserID: user.ID, Status: &status, SendingDatetime: &sent}
 	require.NoError(t, db.Create(&app).Error)
-	att := models.Attachment{ApplicationID: app.ID, AttachmentType: "cars"}
+	att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars"}
 	require.NoError(t, db.Create(&att).Error)
 	num := "А001АА"
 	car := models.Car{AttachmentID: att.ID, CarNumber: &num}
@@ -171,13 +171,14 @@ func TestRunReport_AvgCarsPerDayWeekly(t *testing.T) {
 	week1Days := []int{8, 9, 10, 11, 12, 13, 14}
 	for _, d := range week1Days {
 		for i := 0; i < 2; i++ { // по 2 въезда в день -> 14 за неделю
-			h := models.CarHistory{CarID: car.ID, ActionType: "entry",
-				CreatedAt: time.Date(2026, 6, d, 10+i, 0, 0, 0, time.UTC)}
-			require.NoError(t, db.Create(&h).Error)
+			require.NoError(t, db.Create(&models.AuditLog{
+				EntityType: models.AuditEntityCar, EntityID: &car.ID, Action: "entry",
+				CreatedAt: time.Date(2026, 6, d, 10+i, 0, 0, 0, time.UTC),
+			}).Error)
 		}
 	}
 
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 	res, err := svc.RunReport(context.Background(), models.ReportRequest{
 		Mode:        "aggregate",
 		Metrics:     []string{"avg_cars_per_day"},
@@ -222,7 +223,7 @@ func TestRunReport_AvgCarsPartialBin(t *testing.T) {
 	app := models.Application{ApplicationNumber: &n, OrganizationID: org.ID,
 		SenderUserID: user.ID, Status: &status, SendingDatetime: &sent}
 	require.NoError(t, db.Create(&app).Error)
-	att := models.Attachment{ApplicationID: app.ID, AttachmentType: "cars"}
+	att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars"}
 	require.NoError(t, db.Create(&att).Error)
 	num := "В002ВВ"
 	car := models.Car{AttachmentID: att.ID, CarNumber: &num}
@@ -232,13 +233,14 @@ func TestRunReport_AvgCarsPartialBin(t *testing.T) {
 	// 06-08..06-14, пересечение 06-10..06-14 = 5 дней. 10 въездов -> 10/5 = 2.0.
 	for _, d := range []int{10, 11, 12, 13, 14} {
 		for i := 0; i < 2; i++ {
-			h := models.CarHistory{CarID: car.ID, ActionType: "entry",
-				CreatedAt: time.Date(2026, 6, d, 10+i, 0, 0, 0, time.UTC)}
-			require.NoError(t, db.Create(&h).Error)
+			require.NoError(t, db.Create(&models.AuditLog{
+				EntityType: models.AuditEntityCar, EntityID: &car.ID, Action: "entry",
+				CreatedAt: time.Date(2026, 6, d, 10+i, 0, 0, 0, time.UTC),
+			}).Error)
 		}
 	}
 
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 	res, err := svc.RunReport(context.Background(), models.ReportRequest{
 		Mode:        "aggregate",
 		Metrics:     []string{"avg_cars_per_day"},

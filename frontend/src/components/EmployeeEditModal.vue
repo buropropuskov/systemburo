@@ -1,294 +1,315 @@
 <template>
-  <Teleport to="body">
-    <Transition name="modal-fade">
-      <div
-        v-if="visible"
-        class="modal-overlay"
-        @click="$emit('close')"
-      >
-        <div
-          class="modal-content"
-          @click.stop
-        >
-          <div class="modal-header">
-            <div class="modal-header__top">
-              <h3>{{ editingEmployee ? 'Редактирование' : 'Добавление сотрудника' }}</h3>
-              <div
-                v-if="notification.show"
-                class="notification-badge"
-                :class="notification.type"
-              >
-                {{ notification.message }}
-              </div>
-            </div>
+  <BaseModal
+    :show="visible"
+    :title="editingEmployee ? 'Редактирование' : 'Добавление сотрудника'"
+    width="600px"
+    radius="30px"
+    @close="$emit('close')"
+  >
+    <div class="data__completion">
+      <div class="completion__citizenship">
+        <div class="citizenship__header">
+          <label class="citizenship__label">Гражданство <span class="required">*</span></label>
+          <span
+            class="hint-anchor hint-anchor--below hint-anchor--right"
+            :data-hint="saveEmployeeHint"
+          >
             <button
-              class="modal-close"
-              @click="$emit('close')"
+              class="add-button"
+              :disabled="!canSaveEmployee"
+              @click="saveEmployee"
             >
-              ×
+              {{ editingEmployee ? 'Сохранить' : 'Добавить' }}
             </button>
-          </div>
-          <div class="modal-body">
-            <div class="data__completion">
-              <div class="completion__citizenship">
-                <div class="citizenship__header">
-                  <label class="citizenship__label">Гражданство <span class="required">*</span></label>
-                  <button
-                    class="add-button"
-                    :disabled="!canSaveEmployee"
-                    @click="saveEmployee"
-                  >
-                    {{ editingEmployee ? 'Сохранить' : 'Добавить' }}
-                  </button>
-                </div>
-                <div class="citizenship__dropdown">
-                  <button
-                    class="dropdown__button"
-                    @click="toggleCitizenshipDropdown"
-                  >
-                    <div class="button__content">
-                      <span class="button__text">{{ selectedCitizenshipText }}</span>
-                      <img
-                        src="@/assets/icons/arrow.png"
-                        class="button__arrow"
-                        :class="{ 'button__arrow--open': isCitizenshipDropdownOpen }"
-                      >
-                    </div>
-                  </button>
-                  <transition name="dropdown">
-                    <div
-                      v-if="isCitizenshipDropdownOpen"
-                      class="dropdown__menu"
-                    >
-                      <div
-                        v-for="citizenship in citizenships"
-                        :key="citizenship.id"
-                        class="dropdown__item"
-                        @click="selectCitizenship(citizenship)"
-                      >
-                        <span class="item__text">{{ citizenship.name }}</span>
-                        <span
-                          v-if="citizenship.patent_required"
-                          class="patent-required-badge"
-                        >Требуется патент</span>
-                      </div>
-                    </div>
-                  </transition>
-                </div>
-              </div>
-
-              <div class="completion__fields">
-                <!-- Первая строка: Фамилия и Имя -->
-                <div class="completion__name-row">
-                  <div class="completion__last-name">
-                    <div class="completion__last-name-header">
-                      <label class="input__label">Фамилия <span class="required">*</span></label>
-                    </div>
-                    <input
-                      v-model="lastName"
-                      class="name__input"
-                      placeholder="Введите фамилию"
-                    >
-                  </div>
-                  <div class="completion__first-name">
-                    <div class="completion__first-name-header">
-                      <label class="input__label">Имя <span class="required">*</span></label>
-                    </div>
-                    <input
-                      v-model="firstName"
-                      class="name__input"
-                      placeholder="Введите имя"
-                    >
-                  </div>
-                </div>
-
-                <!-- Вторая строка: Отчество и Должность -->
-                <div class="completion__name-row">
-                  <div class="completion__middle-name">
-                    <div class="completion__middle-name-header">
-                      <label class="input__label">Отчество</label>
-                    </div>
-                    <input
-                      v-model="middleName"
-                      class="name__input"
-                      placeholder="Введите отчество"
-                    >
-                  </div>
-                  <div class="completion__position">
-                    <div class="completion__position-header">
-                      <label class="input__label">Должность <span class="required">*</span></label>
-                    </div>
-                    <input
-                      v-model="position"
-                      class="name__input"
-                      placeholder="Введите должность"
-                    >
-                  </div>
-                </div>
-
-                <!-- Третья строка: Паспорт и Номер патента -->
-                <div class="completion__name-row">
-                  <div class="completion__passport">
-                    <div class="completion__passport-header">
-                      <label class="input__label">Серия и номер паспорта <span class="required">*</span></label>
-                    </div>
-                    <input
-                      v-model="passportSeriesNumber"
-                      class="name__input"
-                      placeholder="XXXX XXXXXX"
-                      @input="formatPassport"
-                    >
-                  </div>
-                  <div
-                    class="completion__patent"
-                    :class="{ 'disabled-field': !isPatentRequired }"
-                  >
-                    <div class="completion__patent-header">
-                      <label class="input__label">Номер патента</label>
-                    </div>
-                    <input
-                      v-model="patentNumber"
-                      class="name__input"
-                      placeholder="Введите номер патента"
-                      :disabled="!isPatentRequired || selectedPermission !== 'Не выбрано'"
-                      @input="handlePatentInput"
-                    >
-                  </div>
-                </div>
-
-                <!-- Четвертая строка: Иное разрешение -->
-                <div
-                  class="completion__permission"
-                  :class="{ 'disabled-field': !isPatentRequired }"
-                >
-                  <div class="completion__permission-header">
-                    <label class="input__label">Иное разрешение на работы</label>
-                  </div>
-                  <div class="permission__dropdown">
-                    <button
-                      class="permission__dropdown-button"
-                      :disabled="!isPatentRequired || patentNumber.trim() !== ''"
-                      @click="togglePermissionDropdown"
-                    >
-                      <div class="permission__button-content">
-                        <span class="permission__button-text">{{ selectedPermission || 'Не выбрано' }}</span>
-                        <img
-                          src="@/assets/icons/arrow.png"
-                          class="permission__button-arrow"
-                          :class="{ 'permission__button-arrow--open': isPermissionDropdownOpen }"
-                        >
-                      </div>
-                    </button>
-                    <transition name="dropdown">
-                      <div
-                        v-if="isPermissionDropdownOpen"
-                        class="permission__dropdown-menu"
-                      >
-                        <div
-                          v-for="permission in availablePermissions"
-                          :key="permission"
-                          class="permission__dropdown-item"
-                          @click="selectPermission(permission)"
-                        >
-                          <span class="permission__item-text">{{ permission }}</span>
-                        </div>
-                      </div>
-                    </transition>
-                  </div>
-                </div>
-
-                <!-- Загрузка файлов -->
-                <div
-                  v-if="isPatentRequired"
-                  class="completion__files"
-                >
-                  <div class="completion__files-header">
-                    <label class="input__label">Фото, скан документа(-ов), подтверждающее иное разрешение на работы</label>
-                  </div>
-                  <div class="files__upload">
-                    <input
-                      ref="fileInput"
-                      type="file"
-                      multiple
-                      accept="image/*,.pdf,.doc,.docx"
-                      class="file-input"
-                      @change="handleFileUpload"
-                    >
-                    <button
-                      class="upload-button"
-                      @click="triggerFileInput"
-                    >
-                      Загрузить
-                    </button>
-                  </div>
-                  <div
-                    v-if="uploadedFiles.length > 0"
-                    class="uploaded-files"
-                  >
-                    <div
-                      v-for="(file, index) in uploadedFiles"
-                      :key="index"
-                      class="uploaded-file"
-                    >
-                      <span class="file-name">{{ truncateText(file.name, 30) }}</span>
-                      <button
-                        class="remove-file-btn"
-                        @click="removeFile(index)"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Привязка -->
-              <div class="completion__binding">
-                <label class="input__label">Привязка</label>
-                <div class="binding-info">
-                  <p class="binding-note">
-                    <strong>Добавляемый сотрудник автоматически привязывается к аккаунту пользователя.</strong>
-                    Сотрудника можно привязать к организации или компании, для использования <strong>другими сотрудниками</strong>:
-                  </p>
-                </div>
-                <div class="binding-options">
-                  <label
-                    v-if="ownershipInfo && ownershipInfo.has_organization"
-                    class="binding-option"
-                  >
-                    <input
-                      v-model="bindToOrganization"
-                      type="checkbox"
-                    >
-                    <span>Привязать к организации<template v-if="ownershipInfo.organization_name"> «{{ ownershipInfo.organization_name }}»</template></span>
-                  </label>
-                  <label
-                    v-if="ownershipInfo && ownershipInfo.has_company"
-                    class="binding-option"
-                  >
-                    <input
-                      v-model="bindToCompany"
-                      type="checkbox"
-                    >
-                    <span>Привязать к компании<template v-if="ownershipInfo.company_name"> «{{ ownershipInfo.company_name }}»</template></span>
-                  </label>
-                  <div class="user-binding">
-                    <span class="user-binding-text"><strong class="red">Внимание!</strong> При привязке сотрудника к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании. </span>
-                  </div>
-                </div>
+          </span>
+        </div>
+        <div class="citizenship__dropdown">
+          <button
+            class="dropdown__button"
+            @click="toggleCitizenshipDropdown"
+          >
+            <div class="button__content">
+              <span class="button__text">{{ selectedCitizenshipText }}</span>
+              <svg
+                class="button__arrow"
+                :class="{ 'button__arrow--open': isCitizenshipDropdownOpen }"
+                viewBox="0 0 10 6"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M1 1L5 5L9 1"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </div>
+          </button>
+          <transition name="dropdown">
+            <div
+              v-if="isCitizenshipDropdownOpen"
+              class="dropdown__menu"
+            >
+              <div
+                v-for="citizenship in citizenships"
+                :key="citizenship.id"
+                class="dropdown__item"
+                @click="selectCitizenship(citizenship)"
+              >
+                <span class="item__text">{{ citizenship.name }}</span>
+                <span
+                  v-if="citizenship.patent_required"
+                  class="patent-required-badge"
+                >Требуется патент</span>
               </div>
             </div>
+          </transition>
+        </div>
+      </div>
+
+      <div class="completion__fields">
+        <!-- Первая строка: Фамилия и Имя -->
+        <div class="completion__name-row">
+          <div class="completion__last-name">
+            <div class="completion__last-name-header">
+              <label class="input__label">Фамилия <span class="required">*</span></label>
+            </div>
+            <input
+              v-model="lastName"
+              class="name__input"
+              placeholder="Введите фамилию"
+            >
+          </div>
+          <div class="completion__first-name">
+            <div class="completion__first-name-header">
+              <label class="input__label">Имя <span class="required">*</span></label>
+            </div>
+            <input
+              v-model="firstName"
+              class="name__input"
+              placeholder="Введите имя"
+            >
+          </div>
+        </div>
+
+        <!-- Вторая строка: Отчество и Должность -->
+        <div class="completion__name-row">
+          <div class="completion__middle-name">
+            <div class="completion__middle-name-header">
+              <label class="input__label">Отчество</label>
+            </div>
+            <input
+              v-model="middleName"
+              class="name__input"
+              placeholder="Введите отчество"
+            >
+          </div>
+          <div class="completion__position">
+            <div class="completion__position-header">
+              <label class="input__label">Должность <span class="required">*</span></label>
+            </div>
+            <input
+              v-model="position"
+              class="name__input"
+              placeholder="Введите должность"
+            >
+          </div>
+        </div>
+
+        <!-- Третья строка: Паспорт и Номер патента -->
+        <div class="completion__name-row">
+          <div class="completion__passport">
+            <div class="completion__passport-header">
+              <label class="input__label">Серия и номер паспорта <span class="required">*</span></label>
+            </div>
+            <input
+              v-model="passportSeriesNumber"
+              class="name__input"
+              placeholder="Введите серию и номер паспорта"
+              maxlength="100"
+            >
+          </div>
+          <div
+            class="completion__patent"
+            :class="{ 'disabled-field': !isPatentRequired }"
+          >
+            <div class="completion__patent-header">
+              <label class="input__label">Номер патента</label>
+            </div>
+            <input
+              v-model="patentNumber"
+              class="name__input"
+              placeholder="Введите номер патента"
+              :disabled="!isPatentRequired || selectedPermission !== 'Не выбрано'"
+              @input="handlePatentInput"
+            >
+          </div>
+        </div>
+
+        <!-- Четвертая строка: Иное разрешение -->
+        <div
+          class="completion__permission"
+          :class="{ 'disabled-field': !isPatentRequired }"
+        >
+          <div class="completion__permission-header">
+            <label class="input__label">Иное разрешение на работы</label>
+          </div>
+          <div class="permission__dropdown">
+            <button
+              class="permission__dropdown-button"
+              :disabled="!isPatentRequired || patentNumber.trim() !== ''"
+              @click="togglePermissionDropdown"
+            >
+              <div class="permission__button-content">
+                <span class="permission__button-text">{{ selectedPermission || 'Не выбрано' }}</span>
+                <svg
+                  class="permission__button-arrow"
+                  :class="{ 'permission__button-arrow--open': isPermissionDropdownOpen }"
+                  viewBox="0 0 10 6"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M1 1L5 5L9 1"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </div>
+            </button>
+            <transition name="dropdown">
+              <div
+                v-if="isPermissionDropdownOpen"
+                class="permission__dropdown-menu"
+              >
+                <div
+                  v-for="permission in availablePermissions"
+                  :key="permission"
+                  class="permission__dropdown-item"
+                  @click="selectPermission(permission)"
+                >
+                  <span class="permission__item-text">{{ permission }}</span>
+                </div>
+              </div>
+            </transition>
           </div>
         </div>
       </div>
-    </Transition>
-  </Teleport>
+
+      <!-- Согласие субъекта на обработку персональных данных (152-ФЗ). У записи, где
+           согласие уже получено, показываем дату - подтверждать второй раз нечего. -->
+      <div class="completion__consent">
+        <label class="input__label">Согласие на обработку персональных данных</label>
+        <p
+          v-if="consentAlreadyGranted"
+          class="consent-granted"
+          data-testid="employee-consent-granted"
+        >
+          Получено {{ formatConsentDate(editingEmployee.pd_consent_at) }}
+        </p>
+        <label
+          v-else
+          class="consent-option"
+        >
+          <input
+            v-model="pdConsent"
+            type="checkbox"
+            data-testid="employee-registry-pd-consent"
+          >
+          <span>
+            Работник дал <a
+              href="/data-processing"
+              target="_blank"
+              rel="noopener"
+              class="blue"
+              @click.stop
+            >согласие</a> на обработку своих персональных данных<span class="required">*</span>
+          </span>
+        </label>
+      </div>
+
+      <!-- Привязка чужой записи: администратор её не переносит на себя, поэтому
+           вместо переключателей «привязать к моей организации» показываем, за кем
+           запись закреплена. -->
+      <div
+        v-if="foreignRecord"
+        class="completion__binding"
+      >
+        <label class="input__label">Привязка</label>
+        <div class="binding-info">
+          <p
+            class="binding-note"
+            data-testid="employee-foreign-binding-note"
+          >
+            Запись закреплена за
+            <strong v-if="editingEmployee && editingEmployee.user_name">пользователем «{{ editingEmployee.user_name }}»</strong>
+            <strong v-else>другим пользователем</strong>
+            <template v-if="editingEmployee && editingEmployee.organization_name">
+              , организация «{{ editingEmployee.organization_name }}»
+            </template>
+            <template v-if="editingEmployee && editingEmployee.company_name">
+              , компания «{{ editingEmployee.company_name }}»
+            </template>.
+            Правка данных привязку не меняет.
+          </p>
+        </div>
+      </div>
+
+      <!-- Привязка -->
+      <div
+        v-else
+        class="completion__binding"
+      >
+        <label class="input__label">Привязка</label>
+        <div class="binding-info">
+          <p class="binding-note">
+            <strong>Добавляемый сотрудник автоматически привязывается к аккаунту пользователя.</strong>
+            Сотрудника можно привязать к организации или компании, для использования <strong>другими сотрудниками</strong>:
+          </p>
+        </div>
+        <div class="binding-options">
+          <label
+            v-if="ownershipInfo && ownershipInfo.has_organization"
+            class="binding-option"
+          >
+            <input
+              v-model="bindToOrganization"
+              type="checkbox"
+            >
+            <span>Привязать к организации<template v-if="ownershipInfo.organization_name"> «{{ ownershipInfo.organization_name }}»</template></span>
+          </label>
+          <label
+            v-if="ownershipInfo && ownershipInfo.has_company"
+            class="binding-option"
+          >
+            <input
+              v-model="bindToCompany"
+              type="checkbox"
+            >
+            <span>Привязать к компании<template v-if="ownershipInfo.company_name"> «{{ ownershipInfo.company_name }}»</template></span>
+          </label>
+          <div class="user-binding">
+            <span class="user-binding-text"><strong class="red">Внимание!</strong> При привязке сотрудника к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании. </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </BaseModal>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useDeletionsStore } from '@/stores/deletions'
+import BaseModal from '@/components/ui/BaseModal.vue'
 
 export default {
+    components: {
+        BaseModal
+    },
     props: {
         visible: {
             type: Boolean,
@@ -305,6 +326,13 @@ export default {
         ownershipInfo: {
             type: Object,
             default: null
+        },
+        // Правим запись, которая не относится ни к пользователю, ни к его организации
+        // или компании - так бывает только у администратора. Принадлежность считает
+        // вью (employeeBelongsToUser), чтобы правило жило в одном месте.
+        foreignRecord: {
+            type: Boolean,
+            default: false
         }
     },
     emits: ['saved', 'close'],
@@ -335,18 +363,14 @@ export default {
             ],
 
             // Файлы
-            uploadedFiles: [],
 
             // Привязка
             bindToOrganization: false,
             bindToCompany: false,
 
-            // Уведомления
-            notification: {
-                show: false,
-                message: '',
-                type: 'success'
-            },
+            // Отметка о согласии субъекта. Для новой записи обязательна (сервер без неё
+            // не создаёт запись), у существующей заполняется только если согласия ещё нет.
+            pdConsent: false,
 
             // Для проверки изменений при редактировании
             originalEmployeeData: null
@@ -379,7 +403,44 @@ export default {
                     return false;
                 }
             }
+            if (!this.consentAlreadyGranted && !this.pdConsent) {
+                return false;
+            }
             return true;
+        },
+
+        // Согласие у записи уже зафиксировано - повторно его не спрашиваем и снять
+        // галочкой не даём: отметка живёт в базе с датой и автором.
+        consentAlreadyGranted() {
+            return !!(this.editingEmployee && this.editingEmployee.pd_consent_at);
+        },
+
+        /**
+         * Подсказка на заблокированной кнопке сохранения: чего не хватает.
+         * Пустая строка - форма заполнена (селектор подсказки пустое
+         * значение не берёт).
+         */
+        saveEmployeeHint() {
+            if (this.canSaveEmployee) return '';
+
+            const missing = [];
+            if (!this.selectedCitizenship) missing.push('гражданство');
+            if (!this.lastName.trim()) missing.push('фамилию');
+            if (!this.firstName.trim()) missing.push('имя');
+            if (!this.position.trim()) missing.push('должность');
+            if (!this.passportSeriesNumber.trim()) missing.push('серию и номер паспорта');
+
+            const reasons = [];
+            if (missing.length) reasons.push(`Заполните: ${missing.join(', ')}`);
+            if (this.isPatentRequired
+                && !this.patentNumber.trim()
+                && (this.selectedPermission === 'Не выбрано' || !this.selectedPermission)) {
+                reasons.push('Для этого гражданства нужен номер патента или иное разрешение на работы');
+            }
+            if (!this.consentAlreadyGranted && !this.pdConsent) {
+                reasons.push('Отметьте согласие работника на обработку персональных данных');
+            }
+            return reasons.join('. ');
         }
     },
     watch: {
@@ -393,7 +454,6 @@ export default {
             if (!newVal) {
                 this.patentNumber = '';
                 this.selectedPermission = 'Не выбрано';
-                this.uploadedFiles = [];
             }
         },
 
@@ -425,7 +485,6 @@ export default {
     },
     methods: {
         initForm() {
-            this.hideNotification();
             if (this.editingEmployee) {
                 this.originalEmployeeData = {
                     last_name: this.editingEmployee.last_name,
@@ -457,6 +516,9 @@ export default {
 
                 this.bindToOrganization = !!this.editingEmployee.organization_id;
                 this.bindToCompany = !!this.editingEmployee.company_id;
+                // У записи без отметки согласие подтверждают заново: галочку начинаем
+                // снятой, иначе правка «поставила» бы согласие сама собой.
+                this.pdConsent = false;
             } else {
                 this.resetForm();
             }
@@ -471,9 +533,9 @@ export default {
             this.passportSeriesNumber = '';
             this.patentNumber = '';
             this.selectedPermission = 'Не выбрано';
-            this.uploadedFiles = [];
             this.bindToOrganization = false;
             this.bindToCompany = false;
+            this.pdConsent = false;
             this.originalEmployeeData = null;
         },
 
@@ -485,7 +547,11 @@ export default {
             this.passportSeriesNumber = '';
             this.patentNumber = '';
             this.selectedPermission = 'Не выбрано';
-            this.uploadedFiles = [];
+            // Отметка о согласии снимается вместе с данными: подтверждают конкретного
+            // человека, а не всех, кого заведут дальше. Оставшись стоять, она превращала
+            // осознанное подтверждение в состояние формы - следующего работника можно было
+            // добавить, не глядя на неё (форма подачи, EmployeeForm, снимает её так же).
+            this.pdConsent = false;
             if (!this.editingEmployee) {
                 this.bindToOrganization = false;
                 this.bindToCompany = false;
@@ -511,6 +577,13 @@ export default {
                 return true;
             }
 
+            // У чужой записи привязку карточка не показывает и не отправляет, поэтому и
+            // сравнивать нечего: организация администратора не совпала бы с организацией
+            // записи, и «изменения» находились бы всегда.
+            if (this.foreignRecord) {
+                return false;
+            }
+
             const currentOrgId = this.bindToOrganization ? this.ownershipInfo.organization_id : null;
             if (currentOrgId !== this.originalEmployeeData.organization_id) {
                 return true;
@@ -524,31 +597,18 @@ export default {
             return false;
         },
 
-        showNotification(message, type = 'success') {
-            this.notification = { show: true, message, type };
-            setTimeout(() => { this.hideNotification(); }, 3000);
-        },
-
-        hideNotification() {
-            this.notification.show = false;
+        // Дата получения согласия: человеку нужен день, не отметка времени.
+        formatConsentDate(value) {
+            if (!value) return '';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return '';
+            return date.toLocaleDateString('ru-RU');
         },
 
         truncateText(text, maxLength) {
             if (!text) return '';
             if (text.length <= maxLength) return text;
             return text.substring(0, maxLength) + '...';
-        },
-
-        formatPassport(event) {
-            let value = event.target.value.replace(/\D/g, '');
-            if (value.length > 10) {
-                value = value.slice(0, 10);
-            }
-            if (value.length > 4) {
-                value = value.slice(0, 4) + ' ' + value.slice(4);
-            }
-            this.passportSeriesNumber = value;
-            event.target.value = value;
         },
 
         handlePatentInput() {
@@ -567,7 +627,6 @@ export default {
             if (!citizenship.patent_required) {
                 this.patentNumber = '';
                 this.selectedPermission = 'Не выбрано';
-                this.uploadedFiles = [];
             }
         },
 
@@ -583,41 +642,14 @@ export default {
             }
         },
 
-        triggerFileInput() {
-            this.$refs.fileInput.click();
-        },
-
-        handleFileUpload(event) {
-            const files = Array.from(event.target.files);
-            files.forEach(file => {
-                this.uploadedFiles.push({
-                    name: file.name,
-                    file: file,
-                    type: this.getFileType(file)
-                });
-            });
-            event.target.value = '';
-        },
-
-        getFileType(file) {
-            if (file.type.startsWith('image/')) return 'photo';
-            if (file.name.toLowerCase().includes('patent')) return 'patent';
-            if (file.type === 'application/pdf') return 'document';
-            return 'other';
-        },
-
-        removeFile(index) {
-            this.uploadedFiles.splice(index, 1);
-        },
-
         async saveEmployee() {
             if (!this.canSaveEmployee) {
-                this.showNotification('Заполните все обязательные поля правильно', 'error');
+                useDeletionsStore().notify({ bold: 'Заполните обязательные поля', type: 'error' });
                 return;
             }
 
             if (this.editingEmployee && !this.hasChanges()) {
-                this.showNotification('Изменений не обнаружено', 'info');
+                useDeletionsStore().notify({ bold: 'Изменений не обнаружено', type: 'info' });
                 return;
             }
 
@@ -631,10 +663,20 @@ export default {
                     passport_series_number: this.passportSeriesNumber.trim(),
                     patent_number: this.isPatentRequired && this.patentNumber.trim() ? this.patentNumber.trim() : null,
                     other_permission: this.isPatentRequired && this.selectedPermission !== 'Не выбрано' ? this.selectedPermission : null,
-                    user_id: this.ownershipInfo.user_id,
-                    organization_id: this.bindToOrganization ? this.ownershipInfo.organization_id : null,
-                    company_id: this.bindToCompany ? this.ownershipInfo.company_id : null
+                    pd_consent: this.pdConsent || this.consentAlreadyGranted
                 };
+                if (this.foreignRecord) {
+                    // Администратор правит запись чужой организации: привязку переносим
+                    // как есть. Прежде поля брались из ownership-info правящего, то есть
+                    // сотрудник контрагента переехал бы к бюро вместе с исправлением ФИО.
+                    // user_id не отправляем совсем - сервер сохранит прежнего владельца.
+                    employeeData.organization_id = this.editingEmployee?.organization_id ?? null;
+                    employeeData.company_id = this.editingEmployee?.company_id ?? null;
+                } else {
+                    employeeData.user_id = this.ownershipInfo.user_id;
+                    employeeData.organization_id = this.bindToOrganization ? this.ownershipInfo.organization_id : null;
+                    employeeData.company_id = this.bindToCompany ? this.ownershipInfo.company_id : null;
+                }
 
                 let response;
                 if (this.editingEmployee) {
@@ -651,12 +693,8 @@ export default {
 
                 if (response.ok) {
                     const savedEmployee = await response.json();
-                    const action = this.editingEmployee ? 'обновлен' : 'добавлен';
-                    this.showNotification(`Сотрудник успешно ${action}!`, 'success');
-
-                    if (this.uploadedFiles.length > 0 && savedEmployee.id) {
-                        await this.uploadEmployeeFiles(savedEmployee.id);
-                    }
+                    const action = this.editingEmployee ? 'обновлён' : 'добавлен';
+                    useDeletionsStore().notify({ prefix: 'Сотрудник ', bold: `${this.lastName} ${this.firstName}`.trim() || 'запись', suffix: ` ${action}`, type: 'success' });
 
                     if (!this.editingEmployee) {
                         this.clearFormFields();
@@ -678,169 +716,40 @@ export default {
                     this.$emit('saved', savedEmployee);
                 } else {
                     const errorData = await response.json();
+                    // Текст сервера показываем как есть: он различает три случая -
+                    // запись уже у вас, у кого-то в организации или в компании. Прежде
+                    // два последних подменялись на «уже привязан к вашему аккаунту», и
+                    // человек шёл искать сотрудника в «Мои сотрудники», где его нет (#2021).
                     const errorMessage = errorData.message || 'Ошибка при сохранении сотрудника';
-
-                    if (errorMessage.includes('уже существует') || errorMessage.includes('already exists')) {
-                        this.showNotification('Сотрудник уже привязан к вашему аккаунту', 'error');
-                    } else {
-                        this.showNotification(errorMessage, 'error');
-                    }
+                    useDeletionsStore().notify({ bold: errorMessage, type: 'error' });
                 }
             } catch (error) {
                 console.error('Ошибка при сохранении сотрудника:', error);
-                this.showNotification('Ошибка при сохранении сотрудника', 'error');
+                useDeletionsStore().notify({ prefix: 'Не удалось сохранить ', bold: 'сотрудника', type: 'error' });
             }
         },
-
-        async uploadEmployeeFiles(employeeId) {
-            try {
-                const formData = new FormData();
-                this.uploadedFiles.forEach(file => {
-                    formData.append('files', file.file);
-                    formData.append('file_types', file.type);
-                });
-                const response = await apiRequest(`/unique-employees/${employeeId}/files`, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {}
-                });
-                if (!response.ok) {
-                    console.error('Ошибка при загрузке файлов');
-                }
-            } catch (error) {
-                console.error('Ошибка при загрузке файлов:', error);
-            }
-        }
     }
 }
 </script>
 
 <style scoped>
-/* Модальное окно */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    backdrop-filter: blur(0.1px);
-    -webkit-backdrop-filter: blur(0.1px);
-}
-
-.modal-content {
-    background: white;
-    border-radius: 20px;
-    padding: 0;
-    width: 600px;
-    max-width: 90vw;
-    max-height: 90vh;
-    overflow: hidden;
-}
-
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    padding: 20px;
-    border-bottom: 1px solid #e6e6e6;
-}
-
-.modal-header__top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex: 1;
-    height: 25px;
-}
-
-.modal-header h3 {
-    margin: 0;
-    color: #333;
-    font-size: 18px;
-}
-
-.modal-close {
-    background: none;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-    color: #a2a2a2;
-    padding: 0;
-    width: 30px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-left: 10px;
-}
-
-.modal-close:hover {
-    color: #333;
-}
-
-.modal-body {
-    padding: 20px;
-    max-height: 70vh;
-    overflow-y: auto;
-}
-
-/* Бейдж уведомления */
-.notification-badge {
-    padding: 6px 12px;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 500;
-    display: inline-block;
-    max-width: fit-content;
-    animation: slideIn 0.3s ease-out;
-}
-
-.notification-badge.success {
-    background-color: #f0f9ff;
-    color: #0369a1;
-    border: 1px solid #bae6fd;
-}
-
-.notification-badge.info {
-    background-color: #fffbeb;
-    color: #b45309;
-    border: 1px solid #fcd34d;
-}
-
-.notification-badge.error {
-    background-color: #fef2f2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
-}
-
-@keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Стили формы */
+/* Модальное окно теперь на BaseModal (шапка/крестик/overlay/Escape/bottom-sheet -
+   его контракт). base-modal__body у BaseModal идёт БЕЗ padding (отступы несёт
+   содержимое) - без них поля упирались в края окна и на телефоне читались еле-еле
+   ("отступов нет по бокам"). Значение - как у соседних окон на BaseModal
+   (ChangePasswordModal/AttachmentMappingCopyModal): 20px по бокам вровень с
+   заголовком шапки. */
 .data__completion {
-    padding: 0;
+    padding: 14px 20px 18px;
 }
 
 .input__label {
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .required {
-    color: #ff4444;
+    color: var(--danger-text);
 }
 
 .completion__citizenship {
@@ -859,7 +768,7 @@ export default {
 
 .citizenship__label {
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .citizenship__dropdown {
@@ -869,8 +778,8 @@ export default {
 .dropdown__button {
     width: 100%;
     height: 30px;
-    border: 1px solid #e6e6e6;
-    background-color: #FFF;
+    border: 1px solid var(--border);
+    background-color: var(--surface);
     border-radius: 50px;
     outline: none;
     cursor: pointer;
@@ -879,7 +788,7 @@ export default {
 }
 
 .dropdown__button:hover {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .button__content {
@@ -892,19 +801,20 @@ export default {
 
 .button__text {
     font-size: 14px;
-    color: #000;
+    color: var(--text);
     font-weight: 500;
 }
 
 .button__arrow {
     width: 10px;
-    height: 10px;
+    height: 6px;
+    flex-shrink: 0;
+    color: var(--text-muted);
     transition: transform 0.2s;
-    transform: rotate(90deg);
 }
 
 .button__arrow--open {
-    transform: rotate(-90deg);
+    transform: rotate(180deg);
 }
 
 .dropdown__menu {
@@ -912,11 +822,11 @@ export default {
     top: 100%;
     left: 0;
     width: 100%;
-    background: #FFF;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     margin-top: 5px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 3px 10px var(--shadow-drop);
     z-index: 1000;
     max-height: 300px;
     overflow-y: auto;
@@ -933,7 +843,7 @@ export default {
 }
 
 .dropdown__item:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .dropdown__item:first-child {
@@ -946,12 +856,12 @@ export default {
 
 .item__text {
     font-size: 13px;
-    color: #333;
+    color: var(--text);
 }
 
 .patent-required-badge {
-    background: #ffebee;
-    color: #c62828;
+    background: var(--danger-bg);
+    color: var(--danger-text);
     padding: 2px 6px;
     border-radius: 8px;
     font-size: 10px;
@@ -979,37 +889,39 @@ export default {
     flex: 1;
 }
 
+/*
+ * Заголовки полей - только подпись над контролом. Раньше они стояли в одной
+ * группе селекторов с .name__input (список кончался запятой, а следом шла
+ * пустая строка), поэтому получали высоту 40px, рамку и скругление: над каждым
+ * полем рисовался пустой прямоугольник, и форма выглядела задвоенной.
+ */
 .completion__last-name-header,
 .completion__first-name-header,
 .completion__middle-name-header,
 .completion__position-header,
 .completion__passport-header,
 .completion__patent-header,
-.completion__permission-header,
-.completion__files-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-bottom: 5px;
+.completion__permission-header {
+    margin-bottom: 5px;
 }
 
 .name__input {
     width: 100%;
     height: 40px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
     padding: 0 15px;
     outline: none;
     font-size: 14px;
-    background: #FFF;
+    background: var(--surface);
 }
 
 .name__input:focus {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .name__input:disabled {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
     cursor: not-allowed;
 }
 
@@ -1019,7 +931,7 @@ export default {
 
 .disabled-field .name__input,
 .disabled-field .permission__dropdown-button {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
     cursor: not-allowed;
 }
 
@@ -1036,8 +948,8 @@ export default {
 .permission__dropdown-button {
     width: 100%;
     height: 100%;
-    border: 1px solid #e6e6e6;
-    background-color: #FFF;
+    border: 1px solid var(--border);
+    background-color: var(--surface);
     border-radius: 15px;
     outline: none;
     cursor: pointer;
@@ -1046,11 +958,11 @@ export default {
 }
 
 .permission__dropdown-button:hover:not(:disabled) {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .permission__dropdown-button:disabled {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -1065,18 +977,19 @@ export default {
 
 .permission__button-text {
     font-size: 14px;
-    color: #000;
+    color: var(--text);
 }
 
 .permission__button-arrow {
     width: 10px;
-    height: 10px;
+    height: 6px;
+    flex-shrink: 0;
+    color: var(--text-muted);
     transition: transform 0.2s;
-    transform: rotate(90deg);
 }
 
 .permission__button-arrow--open {
-    transform: rotate(-90deg);
+    transform: rotate(180deg);
 }
 
 .permission__dropdown-menu {
@@ -1084,11 +997,11 @@ export default {
     top: 100%;
     left: 0;
     width: 100%;
-    background: #FFF;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     margin-top: 5px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 3px 10px var(--shadow-drop);
     z-index: 1000;
     max-height: 220px;
     overflow: hidden;
@@ -1098,11 +1011,11 @@ export default {
     padding: 8px 15px;
     cursor: pointer;
     transition: background-color 0.2s;
-    border-bottom: 1px solid #f5f5f5;
+    border-bottom: 1px solid var(--surface-2);
 }
 
 .permission__dropdown-item:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .permission__dropdown-item:last-child {
@@ -1111,87 +1024,38 @@ export default {
 
 .permission__item-text {
     font-size: 14px;
-    color: #333;
+    color: var(--text);
 }
 
-.completion__files {
-    margin-top: 10px;
+.completion__consent {
+    margin-top: 14px;
 }
 
-.files__upload {
+.consent-option {
     display: flex;
-    gap: 10px;
-    align-items: center;
-}
-
-.file-input {
-    display: none;
-}
-
-.upload-button {
-    background: #4F5BDF;
-    color: white;
-    border: none;
-    border-radius: 15px;
-    padding: 8px 15px;
-    font-size: 12px;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 11px;
+    line-height: 1.3;
     cursor: pointer;
-    transition: background-color 0.2s;
+    margin-top: 6px;
 }
 
-.upload-button:hover {
-    background: #3a45c0;
+.consent-option input[type="checkbox"] {
+    margin-top: 2px;
+    flex-shrink: 0;
 }
 
-.uploaded-files {
-    margin-top: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.uploaded-file {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 5px 10px;
-    background: #f8f9fa;
-    border-radius: 8px;
-    border: 1px solid #e6e6e6;
-}
-
-.file-name {
-    font-size: 12px;
-    color: #333;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 85%;
-}
-
-.remove-file-btn {
-    background: none;
-    border: none;
-    color: #ff4444;
-    cursor: pointer;
-    font-size: 16px;
-    padding: 0;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.remove-file-btn:hover {
-    background: #ffebee;
-    border-radius: 50%;
+.consent-granted {
+    margin: 6px 0 0;
+    font-size: 11px;
+    color: var(--text-muted);
 }
 
 .completion__binding {
     margin-top: 15px;
     padding-top: 15px;
-    border-top: 1px solid #e6e6e6;
+    border-top: 1px solid var(--border);
 }
 
 .binding-info {
@@ -1201,7 +1065,7 @@ export default {
 
 .binding-note {
     font-size: 12px;
-    color: #666;
+    color: var(--text-muted);
     line-height: 1.4;
     margin: 0 0 10px 0;
 }
@@ -1235,17 +1099,17 @@ export default {
 
 .user-binding-text {
     font-size: 10px;
-    color: #000;
+    color: var(--text);
     font-weight: 400;
 }
 
 .red {
-    color: #ff4444;
+    color: var(--danger-text);
 }
 
 .add-button {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     border: none;
     border-radius: 15px;
     padding: 6px 12px;
@@ -1255,11 +1119,11 @@ export default {
 }
 
 .add-button:hover:not(:disabled) {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 .add-button:disabled {
-    background: #a2a2a2;
+    background: var(--text-muted);
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -1277,32 +1141,28 @@ export default {
 }
 
 @media (max-width: 768px) {
-    .modal-content {
-        width: 95vw;
-        margin: 10px;
-    }
-
     .completion__name-row {
         flex-direction: column;
     }
-}
 
-/* Анимация открытия/закрытия */
-.modal-fade-enter-active {
-    transition: opacity 0.18s ease;
-}
-.modal-fade-leave-active {
-    transition: opacity 0.18s ease;
-}
-.modal-fade-enter-from,
-.modal-fade-leave-to {
-    opacity: 0;
-}
-.modal-fade-enter-active .modal-content {
-    animation: modal-scale-in 0.18s ease;
-}
-@keyframes modal-scale-in {
-    from { transform: scale(0.96); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
+    /* Подписи чекбоксов привязки («Привязать к организации/компании») на телефоне
+       было еле видно - +2px к шрифту и увеличенный чекбокс (12px -> 18px, тот же приём,
+       что у выбора машин/сотрудников в ExistingCarsModal/ExistingEmployeesModal: видимый
+       квадрат остаётся некрупным, а тач-таргет строки дотягивает до нормы проекта 36px
+       через min-height, а не раздутый чекбокс). */
+    .binding-option {
+        min-height: 36px;
+        font-size: 14px;
+    }
+
+    .binding-option input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+    }
+
+    .user-binding-text {
+        font-size: 12px;
+    }
 }
 </style>

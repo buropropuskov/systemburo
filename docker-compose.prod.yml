@@ -1,4 +1,53 @@
 services:
+  # На выделенном prod-сервере (6 vCPU / 32 GB, только prod) снимаем лимиты памяти
+  # из base.yml: они заданы под слабые машины. !reset убирает ключ из base-оверлея.
+  db:
+    mem_limit: !reset null
+    memswap_limit: !reset null
+    # Без явного тюнинга Postgres сидит на дефолтных shared_buffers=128MB независимо
+    # от объёма контейнера - снятие лимита тогда косметическое. Значения под 32 GB хоста,
+    # где БД делит память с backend.
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=8GB"
+      - "-c"
+      - "effective_cache_size=20GB"
+      - "-c"
+      - "work_mem=32MB"
+      - "-c"
+      - "maintenance_work_mem=1GB"
+      - "-c"
+      - "max_connections=150"
+      - "-c"
+      - "max_wal_size=4GB"
+      - "-c"
+      - "min_wal_size=1GB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+
+  backend:
+    mem_limit: !reset null
+    memswap_limit: !reset null
+    environment:
+      # Go в контейнере без CPU-лимита неверно определяет число ядер - фиксируем под 6 vCPU.
+      GOMAXPROCS: "6"
+      # Soft-лимит GC: сглаживает пики выделения после снятия mem_limit, не давая
+      # процессу разрастаться неконтролируемо.
+      GOMEMLIMIT: "6GiB"
+      # Логи приложения (slog + Echo) пишутся в stdout И в ротируемый файл (месяц).
+      LOG_FILE_PATH: /app/logs/app.log
+    volumes:
+      - logs:/app/logs
+
+  frontend:
+    mem_limit: !reset null
+    memswap_limit: !reset null
+
   nginx:
     image: nginx:1.25-alpine
     ports:
@@ -6,7 +55,15 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Сертификат и ключ готовит scripts/init-tls.sh до первого старта: без файлов
+      # по этим путям nginx с ssl_certificate не поднимется вообще.
+      - ./nginx/certs:/etc/nginx/certs:ro
+      # Webroot для ACME HTTP-01: certbot пишет challenge с хоста, nginx только отдаёт.
+      - ./nginx/acme-webroot:/var/www/certbot:ro
     depends_on:
       - backend
       - frontend
     restart: always
+
+volumes:
+  logs:

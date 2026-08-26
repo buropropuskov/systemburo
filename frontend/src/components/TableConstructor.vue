@@ -1,7 +1,7 @@
 <template>
   <AdminPageShell>
     <div class="table-constructor-container dashboard-card">
-      <div class="management-header">
+      <div class="management-header rt-header-inline">
         <h3 class="management-title">
           Таблицы системы
         </h3>
@@ -19,15 +19,53 @@
             :title="'Поиск таблиц...'"
           />
           <button
-            class="add-header-button"
+            class="add-header-button rt-btn-compact"
+            aria-label="Создать таблицу"
             @click="showAddModal = true"
           >
-            Создать таблицу
+            <span
+              class="rt-btn-icon"
+              aria-hidden="true"
+            >+</span>
+            <span class="rt-btn-label">Создать таблицу</span>
           </button>
           <RefreshButton
             :loading="refreshing"
             @refresh="refreshData"
           />
+        </div>
+      </div>
+
+      <div
+        v-if="selectedIds.length"
+        class="bulk-bar"
+        data-testid="systemtables-bulk-bar"
+      >
+        <span class="bulk-count">Выбрано: {{ selectedIds.length }}</span>
+        <div class="bulk-actions">
+          <button
+            v-if="!showArchive"
+            class="pill pill-danger"
+            data-testid="systemtables-bulk-archive"
+            @click="startBulkOperation('archive')"
+          >
+            В архив
+          </button>
+          <button
+            v-else
+            class="pill pill-restore"
+            data-testid="systemtables-bulk-restore"
+            @click="startBulkOperation('restore')"
+          >
+            Восстановить
+          </button>
+          <button
+            class="pill pill-ghost bulk-clear"
+            data-testid="systemtables-bulk-clear"
+            @click="clearSelection"
+          >
+            Снять выбор
+          </button>
         </div>
       </div>
 
@@ -37,8 +75,22 @@
           class="table-section"
           :class="{'with-details': selectedTable}"
         >
-          <div class="table-container">
-            <div class="table-header">
+          <div class="table-container rt-table">
+            <div class="table-header rt-head-row">
+              <div
+                class="header-col check-col"
+                @click.stop
+              >
+                <input
+                  type="checkbox"
+                  class="bulk-check"
+                  :checked="allSelected"
+                  :indeterminate.prop="someSelected"
+                  aria-label="Выбрать все"
+                  data-testid="systemtables-select-all"
+                  @change="toggleSelectAll"
+                >
+              </div>
               <div
                 class="header-col id-col"
                 @click="sortBy('id')"
@@ -46,14 +98,14 @@
                 <p :class="{ 'active-sort': sortField === 'id' }">
                   ID
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'id',
                     'desc': sortField === 'id' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col name-col"
@@ -62,14 +114,14 @@
                 <p :class="{ 'active-sort': sortField === 'name' }">
                   Наименование
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'name',
                     'desc': sortField === 'name' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col type-col"
@@ -78,14 +130,14 @@
                 <p :class="{ 'active-sort': sortField === 'type' }">
                   Тип
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'type',
                     'desc': sortField === 'type' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div class="header-col status-col">
                 <p>Статус</p>
@@ -94,19 +146,38 @@
 
             <div class="table-body">
               <div
-                v-for="table in sortedTables"
+                v-for="(table, index) in sortedTables"
                 :key="table.table.id"
-                class="table-row"
+                class="table-row rt-row"
                 :class="{
                   'selected': selectedTable && selectedTable.table.id === table.table.id,
                   'inactive': !table.table.is_active,
                 }"
                 @click="selectTable(table)"
               >
-                <div class="table-col id-col">
+                <div
+                  class="table-col check-col"
+                  @click.stop
+                >
+                  <input
+                    type="checkbox"
+                    class="bulk-check"
+                    :checked="isSelected(table.table.id)"
+                    :aria-label="`Выбрать ${table.table.display_name}`"
+                    data-testid="systemtables-row-check"
+                    @click="onRowCheck(table.table, index, $event)"
+                  >
+                </div>
+                <div
+                  class="table-col id-col"
+                  data-label="ID"
+                >
                   <span class="cell-content id-value">{{ table.table.id }}</span>
                 </div>
-                <div class="table-col name-col">
+                <div
+                  class="table-col name-col"
+                  data-label="Наименование"
+                >
                   <span
                     class="truncate-text"
                     :title="table.table.display_name"
@@ -118,7 +189,10 @@
                     >(архив)</span>
                   </span>
                 </div>
-                <div class="table-col type-col">
+                <div
+                  class="table-col type-col"
+                  data-label="Тип"
+                >
                   <span
                     class="type-badge"
                     :class="table.table.table_type"
@@ -126,7 +200,10 @@
                     {{ getTableTypeLabel(table.table.table_type) }}
                   </span>
                 </div>
-                <div class="table-col status-col">
+                <div
+                  class="table-col status-col"
+                  data-label="Статус"
+                >
                   <span
                     class="status-badge"
                     :class="getTableStatusClass(table)"
@@ -174,6 +251,13 @@
                 @click="switchTab('schedule')"
               >
                 Расписание
+              </button>
+              <button
+                class="tab-btn"
+                :class="{ 'active': activeTab === 'warnings' }"
+                @click="switchTab('warnings')"
+              >
+                Предупреждения
               </button>
               <button
                 class="tab-btn"
@@ -259,6 +343,14 @@
                   История
                 </button>
                 <button
+                  v-if="!selectedTable.table.is_active && can(`table.${selectedTable.table.name}.versions`)"
+                  class="action-btn versions-btn"
+                  data-testid="table-versions-btn"
+                  @click="openVersions"
+                >
+                  Версии
+                </button>
+                <button
                   v-if="selectedTable.table.is_active"
                   class="action-btn view-btn"
                   @click="openTable"
@@ -275,12 +367,13 @@
                 <button
                   v-if="selectedTable.table.is_active"
                   class="delete-icon-btn"
+                  title="Удалить таблицу"
                   @click="confirmDeleteTable(selectedTable)"
                 >
-                  <img
-                    src="@/assets/icons/delete.png"
+                  <AppIcon
+                    name="delete"
                     class="delete-icon"
-                  >
+                  />
                 </button>
               </div>
             </div>
@@ -306,11 +399,11 @@
                         @click="toggleTableTypeDropdown"
                       >
                         <span class="select-value">{{ getTableTypeLabel(selectedTable.table.table_type) }}</span>
-                        <img
-                          src="@/assets/icons/arrow.png"
+                        <AppIcon
+                          name="arrow"
                           class="select-arrow"
                           :class="{ rotated: tableTypeDropdownOpen }"
-                        >
+                        />
                       </div>
                       <transition name="dropdown-fade">
                         <div
@@ -469,6 +562,117 @@
                     rows="4"
                   />
                 </div>
+
+                <!-- Привязки к организациям/компаниям + «Отвязать всё» (#1379) -->
+                <div class="usage-section usage-section--inline">
+                  <div class="usage-header">
+                    <div class="usage-header__text">
+                      <h4 class="section-title">
+                        Привязано к организациям и компаниям
+                      </h4>
+                      <p class="field-hint">
+                        Пока таблица привязана хотя бы к одной организации или компании,
+                        её нельзя удалить. Отвяжите все, чтобы освободить таблицу.
+                      </p>
+                    </div>
+                    <button
+                      v-if="canDetachTable && !usageLoading && !usageError && usageHasBindings"
+                      class="action-btn detach-all-btn"
+                      :disabled="detaching || detachingOne"
+                      @click="confirmDetachAll"
+                    >
+                      {{ detaching ? 'Отвязываем...' : 'Отвязать всё' }}
+                    </button>
+                  </div>
+
+                  <div
+                    v-if="usageLoading"
+                    class="usage-state"
+                  >
+                    Загрузка привязок...
+                  </div>
+                  <div
+                    v-else-if="usageError"
+                    class="usage-state usage-state--error"
+                  >
+                    {{ usageError }}
+                  </div>
+                  <template v-else>
+                    <div class="usage-group">
+                      <div class="usage-group__title">
+                        Организации: {{ usage.organizations.length }}
+                      </div>
+                      <ul
+                        v-if="usage.organizations.length"
+                        class="usage-list"
+                      >
+                        <li
+                          v-for="org in usage.organizations"
+                          :key="'org-' + org.id"
+                          class="usage-item"
+                        >
+                          <span class="usage-item__name">{{ org.name }}</span>
+                          <span
+                            v-if="!org.is_active"
+                            class="usage-item__archived"
+                          >(архив)</span>
+                          <button
+                            v-if="canDetachTable"
+                            class="usage-item__detach"
+                            data-hint="Отвязать"
+                            :disabled="detaching || detachingOne"
+                            @click="confirmDetachOne('organization', org)"
+                          >
+                            &times;
+                          </button>
+                        </li>
+                      </ul>
+                      <p
+                        v-else
+                        class="usage-empty"
+                      >
+                        Нет привязанных организаций
+                      </p>
+                    </div>
+
+                    <div class="usage-group">
+                      <div class="usage-group__title">
+                        Компании: {{ usage.companies.length }}
+                      </div>
+                      <ul
+                        v-if="usage.companies.length"
+                        class="usage-list"
+                      >
+                        <li
+                          v-for="comp in usage.companies"
+                          :key="'comp-' + comp.id"
+                          class="usage-item"
+                        >
+                          <span class="usage-item__name">{{ comp.name }}</span>
+                          <span
+                            v-if="!comp.is_active"
+                            class="usage-item__archived"
+                          >(архив)</span>
+                          <button
+                            v-if="canDetachTable"
+                            class="usage-item__detach"
+                            data-hint="Отвязать"
+                            :disabled="detaching || detachingOne"
+                            @click="confirmDetachOne('company', comp)"
+                          >
+                            &times;
+                          </button>
+                        </li>
+                      </ul>
+                      <p
+                        v-else
+                        class="usage-empty"
+                      >
+                        Нет привязанных компаний
+                      </p>
+                    </div>
+                  </template>
+                </div>
               </div>
             </div>
           </div>
@@ -483,6 +687,37 @@
               :time-slots="selectedTable.time_slots"
               @update="refreshSelectedTable"
             />
+          </div>
+
+          <!-- Вкладка Предупреждения -->
+          <div
+            v-if="activeTab === 'warnings'"
+            class="tab-content"
+          >
+            <div class="warnings-section">
+              <h4 class="section-title">
+                Свободное предупреждение
+              </h4>
+              <p class="field-hint">
+                Показывается заявителю всегда при добавлении машины/человека
+                в эту таблицу проходной.
+              </p>
+              <textarea
+                v-model="selectedTable.table.warning"
+                class="form-textarea"
+                placeholder="Например: проход только по предварительной записи"
+                rows="2"
+                @change="updateTableField('warning')"
+              />
+            </div>
+
+            <div class="warnings-section">
+              <WarningWindowsEditor
+                :resource-url="'/system-tables/' + selectedTable.table.id"
+                :windows="selectedTable.warning_windows || []"
+                @update="refreshSelectedTable"
+              />
+            </div>
           </div>
 
           <!-- Вкладка Местоположение -->
@@ -624,18 +859,58 @@
         @confirm="performDeleteTable"
         @cancel="deleteConfirmTable = null"
       />
+
+      <!-- Подтверждение групповой архивации/восстановления -->
+      <ConfirmationModal
+        :show="bulkConfirmVisible"
+        :title="bulkConfirmTitle"
+        :message="bulkConfirmMessage"
+        :confirm-text="bulkConfirmText"
+        cancel-text="Отмена"
+        :confirm-button-style="bulkConfirmButtonStyle"
+        @confirm="applyBulkArchiveRestore"
+        @cancel="cancelBulkConfirm"
+      />
+
+      <!-- Подтверждение отвязки от всех организаций и компаний -->
+      <ConfirmationModal
+        :show="detachConfirmVisible"
+        title="Отвязать все организации и компании"
+        :message="detachConfirmMessage"
+        confirm-text="Отвязать всё"
+        cancel-text="Отмена"
+        :confirm-button-style="{ background: '#c62828', borderColor: '#c62828' }"
+        @confirm="performDetachAll"
+        @cancel="detachConfirmVisible = false"
+      />
+
+      <!-- Подтверждение отвязки одной организации/компании -->
+      <ConfirmationModal
+        :show="!!detachOneTarget"
+        title="Отвязать привязку"
+        :message="detachOneConfirmMessage"
+        confirm-text="Отвязать"
+        cancel-text="Отмена"
+        :confirm-button-style="{ background: '#c62828', borderColor: '#c62828' }"
+        @confirm="performDetachOne"
+        @cancel="detachOneTarget = null"
+      />
     </div>
   </AdminPageShell>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client'
+import { bulkArchiveSystemTables, bulkRestoreSystemTables, getSystemTableUsage, detachAllSystemTable, detachOrganizationFromSystemTable, detachCompanyFromSystemTable } from '@/api/system-tables'
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useDeletionsStore } from '@/stores/deletions';
+import { usePermissionsStore } from '@/stores/permissions';
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import TextConstructor from './TextConstructor.vue';
 import WorkScheduleTab from './WorkScheduleTab.vue';
+import WarningWindowsEditor from './WarningWindowsEditor.vue';
 import SystemTableColumnsTab from './SystemTableColumnsTab.vue';
 import SystemTableAppearanceTab from './SystemTableAppearanceTab.vue';
 import TableConstructorCreateModal from './TableConstructorCreateModal.vue';
@@ -644,14 +919,18 @@ import SystemTableHistoryModal from './SystemTableHistoryModal.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
   name: 'TableConstructor',
+  mixins: [openFromSearchLink((vm) => vm.tables, 'selectTable', (row) => row?.table?.id, 'searchQuery')],
   components: {
     SearchComponent,
     RefreshButton,
     TextConstructor,
     WorkScheduleTab,
+    WarningWindowsEditor,
     SystemTableColumnsTab,
     SystemTableAppearanceTab,
     TableConstructorCreateModal,
@@ -660,10 +939,14 @@ export default {
     ConfirmationModal,
     BaseDropdown,
     AdminPageShell,
+    AppIcon,
+  },
+  setup() {
+    const permissionsStore = usePermissionsStore();
+    return { permissionsStore };
   },
   data() {
     return {
-      searchQuery: '',
       refreshing: false,
       tables: [],
       showAddModal: false,
@@ -681,6 +964,22 @@ export default {
         { label: 'Активные', value: 'active' },
         { label: 'Архив', value: 'archive' },
       ],
+      // Групповой выбор (по id). lastSelectedId - якорь shift-диапазона.
+      selectedIds: [],
+      lastSelectedId: null,
+      pendingBulkOp: null,
+      bulkConfirmVisible: false,
+      bulkSubmitting: false,
+      // Привязки (блок на вкладке «Основное»): организации/компании, держащие таблицу.
+      usage: { organizations: [], companies: [] },
+      usageLoading: false,
+      usageError: '',
+      usageSeq: 0,
+      detaching: false,
+      detachConfirmVisible: false,
+      // Точечная отвязка: { kind: 'organization'|'company', id, name } | null.
+      detachOneTarget: null,
+      detachingOne: false,
     };
   },
   computed: {
@@ -689,13 +988,12 @@ export default {
       return this.showArchive ? 'В архиве пусто' : 'Таблиц пока нет';
     },
     filteredTables() {
-      if (!this.searchQuery) return this.tables;
-      const query = this.searchQuery.toLowerCase();
-      return this.tables.filter(table => 
-        table.table.display_name.toLowerCase().includes(query) || 
-        table.table.name.toLowerCase().includes(query) ||
-        table.table.id.toString().includes(query)
-      );
+      const variants = buildSearchVariants(this.searchQuery);
+      if (!variants.length) return this.tables;
+      return this.tables.filter(table => matchesSearch(
+        `${table.table.display_name} ${table.table.name} ${table.table.id}`,
+        variants,
+      ));
     },
     sortedTables() {
       const tables = [...this.filteredTables];
@@ -738,7 +1036,49 @@ export default {
     },
     instructionHasChanges() {
       return this.selectedTable && this.selectedTable.table.instruction !== this.originalInstruction;
-    }
+    },
+    allSelected() {
+      return this.sortedTables.length > 0 && this.selectedIds.length === this.sortedTables.length;
+    },
+    someSelected() {
+      return this.selectedIds.length > 0 && !this.allSelected;
+    },
+    bulkConfirmTitle() {
+      return this.pendingBulkOp === 'restore' ? 'Восстановление таблиц' : 'Архивация таблиц';
+    },
+    bulkConfirmMessage() {
+      const n = this.selectedIds.length;
+      return this.pendingBulkOp === 'restore'
+        ? `Восстановить выбранные таблицы (${n})?`
+        : `Архивировать выбранные таблицы (${n})? Их можно будет восстановить из архива.`;
+    },
+    bulkConfirmText() {
+      return this.pendingBulkOp === 'restore' ? 'Восстановить' : 'В архив';
+    },
+    bulkConfirmButtonStyle() {
+      return this.pendingBulkOp === 'restore'
+        ? { background: '#10b981', borderColor: '#10b981' }
+        : { background: '#c62828', borderColor: '#c62828' };
+    },
+    usageHasBindings() {
+      return this.usage.organizations.length > 0 || this.usage.companies.length > 0;
+    },
+    // Зеркалит BE-гейт detach-all (requireAdmin = RequirePermissionV2 page.admin):
+    // права page.admin.tables_constructor (открывающего экран) недостаточно.
+    canDetachTable() {
+      return this.can('page.admin');
+    },
+    detachConfirmMessage() {
+      if (!this.selectedTable) return '';
+      const o = this.usage.organizations.length;
+      const c = this.usage.companies.length;
+      return `Отвязать таблицу «${this.selectedTable.table.display_name}» от всех организаций (${o}) и компаний (${c})? Это освободит таблицу, чтобы её можно было удалить.`;
+    },
+    detachOneConfirmMessage() {
+      if (!this.detachOneTarget || !this.selectedTable) return '';
+      const kind = this.detachOneTarget.kind === 'organization' ? 'организацию' : 'компанию';
+      return `Отвязать ${kind} «${this.detachOneTarget.name}» от таблицы «${this.selectedTable.table.display_name}»?`;
+    },
   },
   watch: {
     // Если активна вкладка фактовой таблицы, а пользователь снял галочку
@@ -757,9 +1097,28 @@ export default {
         }
       }
     },
+    // Смена фильтра/поиска/режима меняет видимый список - убираем из выбора
+    // строки, которых больше не видно (реактивно, не только после refresh).
+    sortedTables() {
+      this.pruneSelection();
+    },
+    // Привязки показываются на вкладке «Основное» - грузим при смене таблицы
+    // (id меняется), а не по правке полей той же таблицы (id тот же).
+    'selectedTable.table.id'(id) {
+      if (id) this.loadUsage();
+    },
   },
-  mounted() {
-    this.refreshData();
+  async mounted() {
+    // Один `open` обслуживает два перехода: ИМЯ архивной таблицы со страницы версий
+    // (тогда открываем архив) и числовой id из поиска - тот разбирает примесь.
+    const openName = Number.isNaN(Number(this.$route?.query?.open)) ? this.$route?.query?.open : null;
+    if (openName) this.showArchive = true;
+    await this.refreshData();
+    if (openName) {
+      const target = this.tables.find((t) => t.table.name === openName);
+      if (target) this.selectTable(target);
+      this.$router.replace({ query: {} });
+    }
 
     // Закрываем dropdown при клике вне них
     document.addEventListener('click', (e) => {
@@ -769,6 +1128,7 @@ export default {
     });
   },
   methods: {
+
     /**
      * Переключение вкладки с защитой: если на текущей вкладке есть pending
      * правки - сначала спросить подтверждение. confirmIfAnyDirty опрашивает
@@ -799,6 +1159,7 @@ export default {
         if (response.ok) {
           const data = await response.json();
           this.tables = data;
+          this.openFromSearchLink();
         }
       } catch (error) {
         console.error("Error fetching system tables:", error);
@@ -813,7 +1174,25 @@ export default {
       this.showArchive = wantArchive;
       this.selectedTable = null;
       this.activeTab = 'main';
+      this.clearSelection();
       await this.refreshData();
+    },
+
+    /**
+     * Достаёт человекочитаемое сообщение об ошибке из ответа apiRequest.
+     * wrapJsonUnwrap на !success кладёт текст ошибки бэка в поле message (в самом
+     * envelope ключ - error), поэтому читаем response.json().message, а не сырое
+     * тело: иначе в уведомление попадает JSON целиком (скобки, имена полей).
+     * @param {Response} response
+     * @returns {Promise<string>}
+     */
+    async requestErrorMessage(response) {
+      try {
+        const body = await response.json();
+        return (body && body.message) || 'неизвестная ошибка';
+      } catch {
+        return 'неизвестная ошибка';
+      }
     },
 
     async restoreTable(tableObj) {
@@ -822,11 +1201,7 @@ export default {
           method: 'POST',
         });
         if (!response.ok) {
-          const errorText = await response.text();
-          let message = errorText;
-          try {
-            message = JSON.parse(errorText).message || errorText;
-          } catch { /* not JSON */ }
+          const message = await this.requestErrorMessage(response);
           useDeletionsStore().notify({ prefix: 'Ошибка восстановления: ', bold: message, type: 'error' });
           return;
         }
@@ -924,6 +1299,9 @@ export default {
         case 'location_description':
           updateData.location_description = this.selectedTable.table.location_description;
           break;
+        case 'warning':
+          updateData.warning = this.selectedTable.table.warning;
+          break;
       }
       
       try {
@@ -948,13 +1326,14 @@ export default {
             status: { bold: 'Статус', suffix: ' изменён' },
             status_comment: { bold: 'Комментарий статуса', suffix: ' изменён' },
             location_description: { bold: 'Описание местоположения', suffix: ' изменено' },
+            warning: { bold: 'Предупреждение', suffix: ' изменено' },
           };
           const phrase = fieldPhrases[field] || { bold: 'Изменения', suffix: ' сохранены' };
           useDeletionsStore().notify(phrase);
           await this.refreshSelectedTable();
         } else {
-          const errorText = await response.text();
-          useDeletionsStore().notify({ prefix: 'Не удалось обновить: ', bold: errorText || 'неизвестная ошибка', type: 'error' });
+          const message = await this.requestErrorMessage(response);
+          useDeletionsStore().notify({ prefix: 'Не удалось обновить: ', bold: message, type: 'error' });
         }
       } catch (error) {
         console.error("Error updating table:", error);
@@ -995,15 +1374,7 @@ export default {
           await this.refreshData();
           useDeletionsStore().notify({ prefix: 'Таблица ', bold: archivedName, suffix: ' архивирована' });
         } else {
-          const errorText = await response.text();
-          console.error('Error response text:', errorText);
-          let message = errorText;
-          try {
-            const errorJson = JSON.parse(errorText);
-            message = errorJson.message || errorText;
-          } catch {
-            // оставляем сырой текст
-          }
+          const message = await this.requestErrorMessage(response);
           useDeletionsStore().notify({ prefix: 'Не удалось архивировать: ', bold: message, type: 'error' });
         }
       } catch (error) {
@@ -1028,7 +1399,114 @@ export default {
         this.$router.push(`/table/${this.selectedTable.table.name}`);
       }
     },
-    
+
+    // Гейтинг кнопки «Версии» тем же ключом, что роут /table/:name/versions и
+    // кнопка входа на странице таблицы (#980) - иначе кнопка видна, а роут отбивает.
+    can(key) {
+      return this.permissionsStore.hasPermission(key);
+    },
+
+    // seq-guard: быстрое переключение таблиц не даст устаревшему ответу затереть
+    // актуальные привязки (last-resolve-wins иначе показал бы чужую таблицу).
+    async loadUsage() {
+      if (!this.selectedTable) return;
+      const seq = ++this.usageSeq;
+      this.usageLoading = true;
+      this.usageError = '';
+      // Гасим привязки предыдущей таблицы сразу: пока грузятся новые, кнопка
+      // «Отвязать всё» и текст подтверждения не должны показывать чужие цифры.
+      this.usage = { organizations: [], companies: [] };
+      try {
+        const data = await getSystemTableUsage(this.selectedTable.table.id);
+        if (seq !== this.usageSeq) return;
+        this.usage = {
+          organizations: data?.organizations || [],
+          companies: data?.companies || [],
+        };
+      } catch (err) {
+        if (seq !== this.usageSeq) return;
+        this.usage = { organizations: [], companies: [] };
+        this.usageError = err instanceof TypeError
+          ? 'Не удалось загрузить привязки (ошибка сети)'
+          : (err.message || 'Не удалось загрузить привязки');
+      } finally {
+        if (seq === this.usageSeq) this.usageLoading = false;
+      }
+    },
+
+    confirmDetachAll() {
+      this.detachConfirmVisible = true;
+    },
+
+    async performDetachAll() {
+      this.detachConfirmVisible = false;
+      const table = this.selectedTable;
+      if (!table) return;
+      this.detaching = true;
+      try {
+        const res = await detachAllSystemTable(table.table.id);
+        const orgN = res?.organizations_detached || 0;
+        const compN = res?.companies_detached || 0;
+        // Перезагружаем привязки только если пользователь не ушёл на другую таблицу,
+        // пока летел запрос (иначе затрём usage чужой таблицы).
+        if (this.selectedTable && this.selectedTable.table.id === table.table.id) {
+          await this.loadUsage();
+        }
+        useDeletionsStore().notify({
+          prefix: 'Таблица ',
+          bold: table.table.display_name,
+          suffix: ` отвязана от организаций (${orgN}) и компаний (${compN})`,
+        });
+      } catch (err) {
+        const msg = err instanceof TypeError ? 'ошибка сети' : (err.message || 'ошибка');
+        useDeletionsStore().notify({ prefix: 'Не удалось отвязать: ', bold: msg, type: 'error' });
+      } finally {
+        this.detaching = false;
+      }
+    },
+
+    confirmDetachOne(kind, item) {
+      this.detachOneTarget = { kind, id: item.id, name: item.name };
+    },
+
+    async performDetachOne() {
+      const target = this.detachOneTarget;
+      const table = this.selectedTable;
+      this.detachOneTarget = null;
+      if (!target || !table) return;
+      this.detachingOne = true;
+      try {
+        if (target.kind === 'organization') {
+          await detachOrganizationFromSystemTable(table.table.id, target.id);
+        } else {
+          await detachCompanyFromSystemTable(table.table.id, target.id);
+        }
+        // Перезагружаем привязки, только если не ушли на другую таблицу.
+        if (this.selectedTable && this.selectedTable.table.id === table.table.id) {
+          await this.loadUsage();
+        }
+        useDeletionsStore().notify({
+          prefix: target.kind === 'organization' ? 'Организация ' : 'Компания ',
+          bold: target.name,
+          suffix: ' отвязана от таблицы',
+        });
+      } catch (err) {
+        const msg = err instanceof TypeError ? 'ошибка сети' : (err.message || 'ошибка');
+        useDeletionsStore().notify({ prefix: 'Не удалось отвязать: ', bold: msg, type: 'error' });
+      } finally {
+        this.detachingOne = false;
+      }
+    },
+
+    openVersions() {
+      if (this.selectedTable) {
+        // from=admin: страница версий откроется для архивной таблицы, и "Назад"
+        // должно вернуть в конструктор (сюда), а не на публичную /table/:name,
+        // которой для архивной таблицы нет.
+        this.$router.push(`/table/${this.selectedTable.table.name}/versions?from=admin`);
+      }
+    },
+
     sortBy(field) {
       if (this.sortField === field) {
         this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -1071,28 +1549,6 @@ export default {
       return table.current_status === 'open' ? 'Открыто сейчас' : 'Закрыто сейчас';
     },
     
-    getTableFields(tableType) {
-      if (tableType === 'cars') {
-        return [
-          { name: 'car_number', displayName: 'Номер машины', type: 'Текст' },
-          { name: 'car_brand', displayName: 'Марка', type: 'Текст' },
-          { name: 'organization', displayName: 'Организация', type: 'Текст' },
-          { name: 'unload_place', displayName: 'Место разгрузки', type: 'Текст' },
-          { name: 'valid_until', displayName: 'Действует до', type: 'Дата' },
-          { name: 'time_range', displayName: 'Время', type: 'Текст' },
-          { name: 'status', displayName: 'Статус', type: 'Текст' }
-        ];
-      } else {
-        return [
-          { name: 'organization', displayName: 'Организация', type: 'Текст' },
-          { name: 'last_name', displayName: 'Фамилия', type: 'Текст' },
-          { name: 'first_name', displayName: 'Имя', type: 'Текст' },
-          { name: 'middle_name', displayName: 'Отчество', type: 'Текст' },
-          { name: 'valid_until', displayName: 'Действует до', type: 'Дата' },
-          { name: 'pass_time', displayName: 'Время прохода', type: 'Текст' }
-        ];
-      }
-    },
     
     getDefaultHint(tableType) {
       if (tableType === 'cars') {
@@ -1133,15 +1589,123 @@ export default {
         this.updateTable('table_type');
       }
     },
+
+    // --- Групповой выбор ---
+    isSelected(id) {
+      return this.selectedIds.includes(id);
+    },
+    toggleSelect(id) {
+      const i = this.selectedIds.indexOf(id);
+      if (i === -1) this.selectedIds.push(id);
+      else this.selectedIds.splice(i, 1);
+    },
+    // onRowCheck: обычный клик - toggle; shift-клик - диапазон от якоря до текущей.
+    onRowCheck(table, index, event) {
+      if (event.shiftKey && window.getSelection) window.getSelection().removeAllRanges();
+      if (event.shiftKey && this.lastSelectedId != null && this.lastSelectedId !== table.id) {
+        const list = this.sortedTables.map(item => item.table);
+        const anchor = list.findIndex(t => t.id === this.lastSelectedId);
+        if (anchor !== -1) {
+          const [from, to] = anchor < index ? [anchor, index] : [index, anchor];
+          const target = !this.isSelected(table.id);
+          for (let i = from; i <= to; i++) {
+            const id = list[i].id;
+            const sel = this.isSelected(id);
+            if (target && !sel) this.selectedIds.push(id);
+            else if (!target && sel) this.selectedIds.splice(this.selectedIds.indexOf(id), 1);
+          }
+          this.lastSelectedId = table.id;
+          return;
+        }
+      }
+      this.toggleSelect(table.id);
+      this.lastSelectedId = table.id;
+    },
+    toggleSelectAll() {
+      this.selectedIds = this.allSelected ? [] : this.sortedTables.map(item => item.table.id);
+      this.lastSelectedId = null;
+    },
+    clearSelection() {
+      this.selectedIds = [];
+      this.lastSelectedId = null;
+      this.pendingBulkOp = null;
+    },
+    pruneSelection() {
+      if (!this.selectedIds.length) return;
+      const visible = new Set(this.sortedTables.map(item => item.table.id));
+      const pruned = this.selectedIds.filter(id => visible.has(id));
+      if (pruned.length !== this.selectedIds.length) this.selectedIds = pruned;
+    },
+    startBulkOperation(operation) {
+      this.pendingBulkOp = operation;
+      this.bulkConfirmVisible = true;
+    },
+    cancelBulkConfirm() {
+      if (this.bulkSubmitting) return;
+      this.bulkConfirmVisible = false;
+      this.pendingBulkOp = null;
+    },
+    async applyBulkArchiveRestore() {
+      const ids = [...this.selectedIds];
+      const op = this.pendingBulkOp;
+      if (this.bulkSubmitting) return;
+      if (!ids.length || (op !== 'archive' && op !== 'restore')) {
+        this.bulkConfirmVisible = false;
+        this.pendingBulkOp = null;
+        return;
+      }
+      this.bulkSubmitting = true;
+      let result;
+      try {
+        result = op === 'archive' ? await bulkArchiveSystemTables(ids) : await bulkRestoreSystemTables(ids);
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось выполнить групповую операцию', type: 'error' });
+        this.bulkSubmitting = false;
+        return;
+      }
+      this.bulkSubmitting = false;
+      if (this.handleBulkResult(op, result, ids)) {
+        this.bulkConfirmVisible = false;
+        this.pendingBulkOp = null;
+      }
+    },
+    // Разбор BulkOpResult: полный успех -> notify, частичный -> ui.warning с
+    // перечнем непрошедших. false при ошибке-envelope (держим модалку для повтора).
+    handleBulkResult(op, result, ids) {
+      if (!result || typeof result.success_count !== 'number') {
+        useDeletionsStore().notify({ prefix: result?.message || 'Не удалось выполнить групповую операцию', type: 'error' });
+        return false;
+      }
+      const label = op === 'restore' ? 'Восстановлено' : 'Архивировано';
+      if (result.error_count > 0) {
+        const failed = (result.errors || []).map(e => e.name || `#${e.id}`).join(', ');
+        useDeletionsStore().notify({ prefix: 'Выполнено ', bold: `${result.success_count} из ${ids.length}`, suffix: `. Не удалось: ${failed}`, type: 'warning' });
+      } else {
+        useDeletionsStore().notify({ prefix: `${label}: `, bold: String(result.success_count) });
+      }
+      // Успешно обработанная строка уходит из текущего вида (архив <-> активные) -
+      // как и в одиночном performDeleteTable/restoreTable, сбрасываем открытую
+      // деталь, если она была среди реально обработанных (не среди failed).
+      if (this.selectedTable) {
+        const failedIds = new Set((result.errors || []).map(e => e.id));
+        if (ids.includes(this.selectedTable.table.id) && !failedIds.has(this.selectedTable.table.id)) {
+          this.selectedTable = null;
+          this.activeTab = 'main';
+        }
+      }
+      this.clearSelection();
+      this.refreshData();
+      return true;
+    },
   },
 }
 </script>
 
 <style scoped>
 .table-constructor-container {
-  background: #fff;
+  background: var(--surface);
   border-radius: 16px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   overflow: hidden;
   width: 100%;
   height: 550px;
@@ -1153,7 +1717,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   height: 50px;
 }
 
@@ -1161,7 +1725,7 @@ export default {
   font-size: 1.2em;
   margin: 0;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .header-controls {
@@ -1172,8 +1736,8 @@ export default {
 
 .add-header-button {
   padding: 8px 16px;
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
   border: none;
   border-radius: 50px;
   cursor: pointer;
@@ -1186,28 +1750,122 @@ export default {
 }
 
 .add-header-button:hover {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 .archive-dropdown {
   min-width: 130px;
 }
 
+/* Панель групповых операций - оверлей поверх .management-header (не reflow,
+   список не прыгает при выборе - урок #510). Высота = высоте шапки (50px).
+   .table-constructor-container - контекст позиционирования (position:relative). */
+.bulk-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 50px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-tint-solid);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.bulk-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-text);
+  white-space: nowrap;
+}
+
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+
+.bulk-actions .pill {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 50px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.pill-ghost {
+  background: var(--surface);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
+}
+
+.pill-ghost:hover {
+  background: var(--accent-tint);
+}
+
+.bulk-clear {
+  color: var(--text-muted);
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
+}
+
+.bulk-clear:hover {
+  background: var(--surface-2);
+}
+
+.pill-danger {
+  background: var(--surface);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
+}
+
+.pill-danger:hover {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+
+.pill-restore {
+  background: var(--success);
+  color: var(--fill-text);
+}
+
+.pill-restore:hover {
+  background: color-mix(in srgb, var(--success) 85%, var(--text));
+}
+
 .table-row.inactive {
-  background: #fafafa;
-  color: #6b7280;
+  background: var(--surface-2);
+  color: var(--text-muted);
 }
 
 .inactive-badge {
   margin-left: 6px;
   font-size: 0.75em;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-style: italic;
 }
 
 .archive-badge {
-  background: #6b7280;
-  color: #fff;
+  background: var(--text-muted);
+  color: var(--surface);
   padding: 4px 10px;
   border-radius: 50px;
   font-size: 0.75em;
@@ -1217,8 +1875,8 @@ export default {
 
 .restore-btn {
   padding: 8px 16px;
-  background: #10b981;
-  color: #fff;
+  background: var(--success);
+  color: var(--fill-text);
   border: none;
   border-radius: 10px;
   font-size: 0.85em;
@@ -1228,14 +1886,15 @@ export default {
 }
 
 .restore-btn:hover {
-  background: #0da271;
+  background: color-mix(in srgb, var(--success) 85%, var(--text));
 }
 
-.history-btn {
+.history-btn,
+.versions-btn {
   padding: 8px 16px;
-  background: #fff;
-  color: #4F5BDF;
-  border: 1px solid #4F5BDF;
+  background: var(--surface);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
   border-radius: 10px;
   font-size: 0.85em;
   font-weight: 500;
@@ -1243,8 +1902,9 @@ export default {
   transition: background 0.2s ease;
 }
 
-.history-btn:hover {
-  background: #eef0ff;
+.history-btn:hover,
+.versions-btn:hover {
+  background: var(--accent-tint);
 }
 
 .content-container {
@@ -1257,8 +1917,8 @@ export default {
   width: 40%;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #e6e6e6;
-  background: #fff;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .table-section.with-details {
@@ -1266,7 +1926,7 @@ export default {
 }
 
 .table-container {
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1276,8 +1936,8 @@ export default {
 .table-header {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #fff;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
   height: 43px;
   align-items: center;
 }
@@ -1285,7 +1945,7 @@ export default {
 .header-col {
   padding: 0 8px;
   font-size: 14px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 600;
   text-align: left;
   display: flex;
@@ -1307,14 +1967,15 @@ export default {
 }
 
 .header-col:hover {
-  color: #000;
+  color: var(--text);
 }
 
 .header-col:hover .sort-icon {
-  filter: brightness(0);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
@@ -1322,7 +1983,7 @@ export default {
 }
 
 .sort-icon.sorted {
-  filter: brightness(0);
+  color: var(--text);
 }
 
 .sort-icon.desc {
@@ -1330,31 +1991,51 @@ export default {
 }
 
 .active-sort {
-  color: #000 !important;
+  color: var(--text) !important;
   font-weight: 600 !important;
 }
 
+/* Групповой выбор (#345-bulk): чекбокс-колонка отъедает 8% у остальных
+   (пропорционально урезаны ниже), их сумма с check-col снова даёт 100%. */
+.check-col {
+  width: 8%;
+  min-width: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  cursor: default;
+}
+
+.bulk-check {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--accent-text);
+  margin: 0;
+}
+
 .id-col {
-  width: 12%;
+  width: 11%;
   min-width: 50px;
 }
 
 /* Наименование сжимается первым (текст обрезается через .truncate-text),
    отдавая место колонкам Тип/Статус с бейджами фиксированной ширины. */
 .name-col {
-  width: 32%;
+  width: 29%;
   min-width: 84px;
 }
 
 .type-col {
-  width: 26%;
+  width: 24%;
   min-width: 76px;
 }
 
 /* Под самый широкий бейдж статуса ("На обслуживании", nowrap ~108px), иначе
    он вылезает за колонку и прижимается к правому краю секции. */
 .status-col {
-  width: 30%;
+  width: 28%;
   min-width: 108px;
 }
 
@@ -1367,7 +2048,7 @@ export default {
 .table-row {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   align-items: center;
   transition: background-color 0.2s ease;
   cursor: pointer;
@@ -1376,11 +2057,11 @@ export default {
 }
 
 .table-row:hover {
-  background-color: #fafafa;
+  background-color: var(--surface-2);
 }
 
 .table-row.selected {
-  background-color: #f8f9ff;
+  background-color: var(--accent-tint);
 }
 
 .table-row:last-child {
@@ -1398,7 +2079,7 @@ export default {
 
 .id-value {
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .truncate-text {
@@ -1420,15 +2101,15 @@ export default {
 }
 
 .type-badge.cars {
-  background-color: #e6f7e6;
-  color: #2e7d32;
-  border: 1px solid #a5d6a7;
+  background-color: var(--success-bg);
+  color: var(--success-text);
+  border: 1px solid var(--success);
 }
 
 .type-badge.people {
-  background-color: #e3f2fd;
-  color: #1976d2;
-  border: 1px solid #bbdefb;
+  background-color: var(--info-bg);
+  color: var(--accent-text);
+  border: 1px solid color-mix(in srgb, var(--info) 30%, var(--surface));
 }
 
 .status-badge {
@@ -1442,33 +2123,33 @@ export default {
 }
 
 .status-open {
-  background-color: #e6f7e6;
-  color: #2e7d32;
-  border: 1px solid #a5d6a7;
+  background-color: var(--success-bg);
+  color: var(--success-text);
+  border: 1px solid var(--success);
 }
 
 .status-closed {
-  background-color: #fff3e0;
-  color: #ef6c00;
-  border: 1px solid #ffcc80;
+  background-color: var(--warning-bg);
+  color: var(--warning-text);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
 }
 
 .status-inactive {
-  background-color: #ffebee;
-  color: #c62828;
-  border: 1px solid #ef9a9a;
+  background-color: var(--danger-bg);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .table-footer {
   padding: 6px 20px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
   text-align: right;
-  background: #f8fafc;
+  background: var(--accent-tint);
 }
 
 .items-count {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -1476,7 +2157,7 @@ export default {
   width: 60%;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
 }
 
@@ -1484,8 +2165,8 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #f8f9fa;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
   padding: 10px 16px;
 }
 
@@ -1504,13 +2185,13 @@ export default {
 
 .details-tabs__row--fact {
   padding: 6px 0 10px;
-  border-top: 1px dashed #e0e0e0;
+  border-top: 1px dashed var(--border);
   margin-top: 2px;
 }
 
 .details-tabs__group-label {
   font-size: 11px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 500;
   letter-spacing: 0.3px;
   padding-right: 4px;
@@ -1518,12 +2199,12 @@ export default {
 
 .tab-btn {
   padding: 8px 18px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid transparent;
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--text-muted);
   transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
   border-radius: 50px;
   white-space: nowrap;
@@ -1531,14 +2212,14 @@ export default {
 }
 
 .tab-btn:hover {
-  color: #4F5BDF;
-  background: #eef0ff;
+  color: var(--accent-text);
+  background: var(--accent-tint);
 }
 
 .tab-btn.active {
-  color: #4F5BDF;
-  border-color: #4F5BDF;
-  background: #fff;
+  color: var(--accent-text);
+  border-color: var(--accent);
+  background: var(--surface);
 }
 
 @media (max-width: 1100px) {
@@ -1552,7 +2233,7 @@ export default {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
-  background: #fff;
+  background: var(--surface);
   line-height: 1.5;
 }
 
@@ -1582,7 +2263,7 @@ export default {
 
 .details-title {
   margin: 0;
-  color: #000;
+  color: var(--text);
   font-size: 1.2em;
   font-weight: 600;
 }
@@ -1596,15 +2277,15 @@ export default {
 }
 
 .table-type-badge.cars {
-  background-color: #e6f7e6;
-  color: #2e7d32;
-  border: 1px solid #a5d6a7;
+  background-color: var(--success-bg);
+  color: var(--success-text);
+  border: 1px solid var(--success);
 }
 
 .table-type-badge.people {
-  background-color: #e3f2fd;
-  color: #1976d2;
-  border: 1px solid #bbdefb;
+  background-color: var(--info-bg);
+  color: var(--accent-text);
+  border: 1px solid color-mix(in srgb, var(--info) 30%, var(--surface));
 }
 
 .table-info-row {
@@ -1615,10 +2296,10 @@ export default {
 
 .system-name {
   font-size: 12px;
-  color: #666;
+  color: var(--text-muted);
   background: transparent;
   padding: 4px 12px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 50px;
 }
 
@@ -1631,21 +2312,21 @@ export default {
 }
 
 .status-open-badge {
-  background-color: #e6f7e6;
-  color: #2e7d32;
-  border: 1px solid #a5d6a7;
+  background-color: var(--success-bg);
+  color: var(--success-text);
+  border: 1px solid var(--success);
 }
 
 .status-closed-badge {
-  background-color: #fff3e0;
-  color: #ef6c00;
-  border: 1px solid #ffcc80;
+  background-color: var(--warning-bg);
+  color: var(--warning-text);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
 }
 
 .status-inactive-badge {
-  background-color: #ffebee;
-  color: #c62828;
-  border: 1px solid #ef9a9a;
+  background-color: var(--danger-bg);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .details-header-actions {
@@ -1668,12 +2349,12 @@ export default {
 }
 
 .view-btn {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .view-btn:hover {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 .delete-icon-btn {
@@ -1690,12 +2371,13 @@ export default {
 }
 
 .delete-icon {
+  color: var(--danger);
   width: 20px;
   height: 20px;
 }
 
 .delete-icon-btn:hover {
-  background-color: #e6e6e6;
+  background-color: var(--border);
   cursor:pointer;
 }
 
@@ -1728,7 +2410,7 @@ export default {
 
 .detail-label {
   font-size: 12px;
-  color: #666;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -1736,24 +2418,24 @@ export default {
 .field-hint {
   margin: 4px 0 0;
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   line-height: 1.5;
 }
 
 .form-textarea {
   padding: 8px 12px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-size: 13px;
   width: 100%;
   transition: border-color 0.2s;
-  background: #fff;
+  background: var(--surface);
   resize: vertical;
   font-family: inherit;
 }
 
 .form-textarea:focus {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   outline: none;
 }
 
@@ -1767,9 +2449,9 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
-  background: white;
+  background: var(--surface);
   cursor: pointer;
   font-size: 13px;
   height: 35px;
@@ -1777,12 +2459,12 @@ export default {
 }
 
 .select-header:hover {
-  border-color: #ccc;
-  background: #f8f9fa;
+  border-color: var(--border);
+  background: var(--surface-2);
 }
 
 .select-value {
-  color: #000;
+  color: var(--text);
 }
 
 .select-arrow {
@@ -1801,10 +2483,10 @@ export default {
   top: 100%;
   left: 0;
   right: 0;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 15px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 12px var(--shadow-drop);
   z-index: 10;
   margin-top: 4px;
   overflow: hidden;
@@ -1815,7 +2497,7 @@ export default {
   font-size: 13px;
   cursor: pointer;
   transition: background 0.2s;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
 }
 
 .select-option:last-child {
@@ -1823,13 +2505,13 @@ export default {
 }
 
 .select-option:hover {
-  background: #f5f7ff;
-  color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
 }
 
 .select-option.active {
-  background: #f0f3ff;
-  color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
   font-weight: 500;
 }
 
@@ -1852,24 +2534,24 @@ export default {
 
 .status-btn {
   padding: 6px 16px;
-  border: 1px solid #e6e6e6;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--surface);
   border-radius: 30px;
   font-size: 13px;
   cursor: pointer;
   transition: all 0.2s;
-  color: #666;
+  color: var(--text-muted);
 }
 
 .status-btn:hover {
-  border-color: #4F5BDF;
-  color: #4F5BDF;
+  border-color: var(--accent);
+  color: var(--accent-text);
 }
 
 .status-btn.active {
-  background: #4F5BDF;
-  border-color: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .settings-section {
@@ -1881,15 +2563,15 @@ export default {
 .section-label {
   font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
   margin: 0;
 }
 
 .checkbox-group {
   padding: 12px;
-  background: #f8f9ff;
+  background: var(--accent-tint);
   border-radius: 20px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
 }
 
 .checkbox-label {
@@ -1903,13 +2585,13 @@ export default {
   width: 16px;
   height: 16px;
   cursor: pointer;
-  accent-color: #4F5BDF;
+  accent-color: var(--accent-text);
 }
 
 .checkbox-text {
   font-size: 13px;
   font-weight: 500;
-  color: #333;
+  color: var(--text);
 }
 
 .hint-section {
@@ -1920,10 +2602,10 @@ export default {
 }
 
 .instruction-section {
-  background: #f8f9ff;
+  background: var(--accent-tint);
   border-radius: 10px;
   padding: 12px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   margin-bottom: 10px;
 }
 
@@ -1950,24 +2632,28 @@ export default {
 }
 
 .save-btn {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .save-btn:hover {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 .cancel-btn {
-  background: #6b7280;
-  color: white;
+  background: var(--text-muted);
+  color: var(--surface);
 }
 
 .cancel-btn:hover {
-  background: #4b5563;
+  background: color-mix(in srgb, var(--text-muted) 78%, var(--text));
 }
 
 .location-section {
+  margin-bottom: 24px;
+}
+
+.warnings-section {
   margin-bottom: 24px;
 }
 
@@ -1975,7 +2661,7 @@ export default {
   margin: 0 0 12px 0;
   font-size: 16px;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .map-link-group {
@@ -1997,39 +2683,39 @@ export default {
 .map-link-group .form-input {
   flex: 1;
   padding: 0 14px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-size: 13px;
-  background: #fff;
+  background: var(--surface);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   outline: none;
 }
 
 .map-link-group .form-input:focus {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.12);
 }
 
 .map-link-group .form-input::placeholder {
-  color: #c0c0c0;
+  color: var(--text-muted);
 }
 
 .map-link-btn {
   padding: 0 18px;
-  background: #f0f3ff;
-  color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
   text-decoration: none;
   border-radius: 30px;
   font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
   transition: background-color 0.2s ease;
-  border: 1px solid #4F5BDF;
+  border: 1px solid var(--accent);
 }
 
 .map-link-btn:hover {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .no-selection-message {
@@ -2037,7 +2723,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 400;
   font-size: 14px;
 }
@@ -2045,7 +2731,7 @@ export default {
 .no-results {
   text-align: center;
   padding: 40px 20px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   width: 100%;
 }
 
@@ -2056,7 +2742,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2068,22 +2754,22 @@ export default {
 
 @keyframes overlayAppear {
   from {
-    background: rgba(0, 0, 0, 0);
+    background: var(--overlay);
     backdrop-filter: blur(0px);
   }
   to {
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     backdrop-filter: blur(0.1px);
   }
 }
 
 .modal-content {
-  background: #fff;
+  background: var(--surface);
   border-radius: 12px;
   padding: 0;
   width: 420px;
   max-width: 90vw;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px var(--shadow-drop);
   animation: modalAppear 0.3s ease-out;
 }
 
@@ -2103,14 +2789,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .modal-close {
@@ -2126,7 +2812,7 @@ export default {
 }
 
 .modal-close:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .modal-footer {
@@ -2134,7 +2820,7 @@ export default {
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 20px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border);
 }
 
 .modal-btn {
@@ -2149,26 +2835,26 @@ export default {
 }
 
 .modal-btn--cancel {
-  background: #f8f9fa;
-  color: #666;
-  border: 1px solid #e0e0e0;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
 }
 
 .modal-btn--cancel:hover {
-  background: #e9ecef;
+  background: var(--accent-tint);
 }
 
 .modal-btn--confirm {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .modal-btn--confirm:hover:not(:disabled) {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 .modal-btn--disabled {
-  background: #ccc;
+  background: var(--border);
   cursor: not-allowed;
 }
 
@@ -2195,7 +2881,7 @@ export default {
 
 .modal-fade-enter-from .modal-overlay,
 .modal-fade-leave-to .modal-overlay {
-  background: rgba(0, 0, 0, 0);
+  background: transparent;
   backdrop-filter: blur(0px);
 }
 
@@ -2211,20 +2897,20 @@ export default {
 }
 
 .table-body::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--surface-2);
   border-radius: 3px;
 }
 
 .table-body::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--border);
   border-radius: 3px;
 }
 
 .table-body::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--text-muted);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .form-row {
     flex-direction: column;
   }
@@ -2245,6 +2931,70 @@ export default {
     min-width: auto;
   }
 
+  /* Референс инлайн-кнопок шапки (responsive-tables.css .rt-header-inline)
+     сжимает Обновить/Создать до иконок, но дропдаун архива и поиск остаются
+     полноразмерными - на узких экранах сужаем и их, иначе строка контролов
+     не помещается рядом с заголовком и переносится некрасиво. */
+  .management-header {
+    padding: 10px var(--gutter, 16px);
+  }
+
+  .archive-dropdown {
+    min-width: 92px;
+  }
+
+  :deep(.search) {
+    width: 120px;
+  }
+
+  /* .rt-header-inline форсирует height:auto!important и перенос controls на
+     мобилке (responsive-tables.css) - фиксированная высота шапки (50px), под
+     которую подогнан .bulk-bar{position:absolute}, здесь уже не гарантирована.
+     Возвращаем панель в поток (урок NumberFormat/#345-bulk), иначе оверлей
+     перекрывает перенесённые controls или обрезается. */
+  .bulk-bar {
+    position: static;
+    height: auto;
+    padding: 12px var(--gutter, 16px);
+    overflow-x: visible;
+  }
+
+  .bulk-actions {
+    flex-wrap: wrap;
+  }
+
+  .check-col {
+    min-height: 44px;
+  }
+
+  /* Master-detail стек на мобилке (эталон CitizenshipManagement/#1097 S9):
+     список и панель деталей ужимались бок о бок (40%/60%) в 390px - заголовок
+     ID/Наименование обрезался, поля деталей нечитаемы. Складываем в колонку:
+     список карточками сверху (rt-* конверсия из responsive-tables.css скрывает
+     desktop-шапку и рендерит строки карточками), панель деталей полной ширины
+     снизу при выборе. */
+  .content-container {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .table-section,
+  .table-section.with-details,
+  .details-section,
+  .no-selection-message {
+    width: 100%;
+  }
+
+  .table-section {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Список не занимает весь экран - панель деталей достижима скроллом ниже. */
+  .table-body {
+    max-height: 300px;
+  }
+
   @keyframes slideDown {
     from {
       transform: translateY(-100%);
@@ -2253,5 +3003,165 @@ export default {
       transform: translateY(0);
     }
   }
+}
+
+/* Блок привязок на вкладке «Основное». */
+.usage-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Отделяем блок привязок от секции инструкции сверху. */
+.usage-section--inline {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.usage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.usage-header__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.usage-header .section-title {
+  margin: 0 0 4px 0;
+}
+
+.usage-header .field-hint {
+  margin: 0;
+}
+
+.detach-all-btn {
+  background: var(--surface);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
+  white-space: nowrap;
+}
+
+.detach-all-btn:hover:not(:disabled) {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+
+.detach-all-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.usage-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.usage-group__title {
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.usage-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.usage-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--accent-tint);
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  font-size: 14px;
+}
+
+.usage-item__name {
+  color: var(--text);
+}
+
+.usage-item__archived {
+  color: var(--text-muted);
+  font-size: 0.8em;
+  font-weight: 500;
+}
+
+/* Крестик «Отвязать» на строке привязки (виден админу). */
+.usage-item__detach {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 20px;
+  line-height: 1;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  position: relative;
+}
+
+.usage-item__detach:hover:not(:disabled) {
+  color: var(--danger-text);
+  background: var(--danger-bg);
+}
+
+.usage-item__detach:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Всплывающая подсказка #333 как у прочих hint проекта (не native title). */
+.usage-item__detach::after {
+  content: attr(data-hint);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  background: var(--hint-bg);
+  color: var(--hint-text);
+  font-size: 12px;
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 1;
+}
+
+.usage-item__detach:hover:not(:disabled)::after {
+  opacity: 1;
+}
+
+.usage-empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.usage-state {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.usage-state--error {
+  color: var(--danger-text);
 }
 </style>

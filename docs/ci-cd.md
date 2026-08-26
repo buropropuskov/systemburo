@@ -39,7 +39,7 @@ Feature-ветки (`issue/N`, `fix/...`) — без защиты, автома�
 ## Как выкатить фикс в prod
 
 1. PR в `dev` → merge после зелёного `ci-summary` → auto deploy staging.
-2. Ручная проверка на `https://stagingburo.washka17.site`.
+2. Ручная проверка на `https://stagingburo.washka17.ru`.
 3. PR `dev → prod` → merge после зелёного CI + 1 approve.
 4. GitHub отправит event `push:prod`, `deploy-production.yml` запустится, environment `production` попросит approve → deploy.
 

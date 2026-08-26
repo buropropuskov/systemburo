@@ -5,6 +5,8 @@ import (
 	"log"
 	"time"
 
+	"systemburo/internal/normalize"
+
 	"gorm.io/gorm"
 )
 
@@ -46,7 +48,16 @@ func seedExtendedDictionaries(db *gorm.DB, defaultOrgID, defaultCompID int) ([]i
 		var id int
 		db.Raw(`SELECT id FROM organizations WHERE name = ? LIMIT 1`, name).Scan(&id)
 		if id == 0 {
-			db.Raw(`INSERT INTO organizations (name) VALUES (?) RETURNING id`, name).Scan(&id)
+			// name_normalized пишем сразу: INSERT в обход gorm-модели хук BeforeSave не
+			// зовёт, а без ключа запись не участвует в дедупликации наименований (#1437)
+			// до следующего запуска сервера с бэкфиллом.
+			if err := db.Raw(`INSERT INTO organizations (name, name_normalized) VALUES (?, ?) RETURNING id`,
+				name, normalize.OrgName(name)).Scan(&id).Error; err != nil {
+				// Наименование, схлопнувшееся по ключу с существующим, отобьёт уникальный
+				// индекс - молча пропускать такую организацию нельзя, дальше на неё
+				// ссылаются демо-заявки.
+				log.Printf("demo seed: организация %q не создана: %v", name, err)
+			}
 		}
 		if id != 0 {
 			orgIDs = append(orgIDs, id)
@@ -59,7 +70,10 @@ func seedExtendedDictionaries(db *gorm.DB, defaultOrgID, defaultCompID int) ([]i
 		var id int
 		db.Raw(`SELECT id FROM companies WHERE name = ? LIMIT 1`, name).Scan(&id)
 		if id == 0 {
-			db.Raw(`INSERT INTO companies (name) VALUES (?) RETURNING id`, name).Scan(&id)
+			if err := db.Raw(`INSERT INTO companies (name, name_normalized) VALUES (?, ?) RETURNING id`,
+				name, normalize.OrgName(name)).Scan(&id).Error; err != nil {
+				log.Printf("demo seed: компания %q не создана: %v", name, err)
+			}
 		}
 		if id != 0 {
 			compIDs = append(compIDs, id)
@@ -308,7 +322,7 @@ func seedOneApp(db *gorm.DB, spec appSpec, orgID, compID, userID int, uaIDs uniq
 	`, appID, userID)
 }
 
-// seedAttachmentCars создаёт вложение cars с 2 машинами и cars_history.
+// seedAttachmentCars создаёт вложение cars с 2 машинами и их историей в audit_log.
 func seedAttachmentCars(db *gorm.DB, appID, uaCarsID int, fromStr, toStr string, userID int, placeNames []string) {
 	var attachmentID int
 	db.Raw(`
@@ -368,10 +382,12 @@ func seedAttachmentCars(db *gorm.DB, appID, uaCarsID int, fromStr, toStr string,
 		{"exit", "Убытие с территории", -1 * time.Hour},
 	}
 	for _, h := range history {
+		// Демо-история машины пишется в общий audit_log (#870): cars_history дропнута,
+		// читатели истории на audit_log-only. Форма details - {comment} как у recorder.
 		db.Exec(`
-			INSERT INTO cars_history (car_id, user_id, action_type, comment, created_at)
-			VALUES (?, ?, ?, ?, ?)
-		`, firstCarID, userID, h.action, h.comment, now.Add(h.offset))
+			INSERT INTO audit_log (entity_type, entity_id, action, actor_user_id, details, created_at)
+			VALUES ('car', ?, ?, ?, jsonb_build_object('comment', ?::text), ?)
+		`, firstCarID, h.action, userID, h.comment, now.Add(h.offset))
 	}
 }
 

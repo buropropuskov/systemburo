@@ -2,13 +2,19 @@ package models
 
 import "time"
 
+// Значения SystemTable.TableType.
+const (
+	TableTypeCars   = "cars"
+	TableTypePeople = "people"
+)
+
 type SystemTable struct {
 	ID                  int       `json:"id"`
 	Name                string    `gorm:"size:100" json:"name"`
 	DisplayName         *string   `gorm:"size:200" json:"display_name"`
 	TableType           string    `gorm:"size:20;default:'cars'" json:"table_type"` // cars, people
 	ShowFactTable       bool      `gorm:"default:false" json:"show_fact_table"`
-	FactTableHint       *string   `gorm:"size:255" json:"fact_table_hint"`
+	FactTableHint       *string   `gorm:"type:text" json:"fact_table_hint"` // форматированный HTML из TextConstructor - длина не лезет в varchar(255)
 	IsActive            bool      `gorm:"default:true;index" json:"is_active"`
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
@@ -17,6 +23,9 @@ type SystemTable struct {
 	Status              string    `gorm:"size:20;default:'active'" json:"status"` // active, inactive, maintenance
 	StatusComment       *string   `gorm:"type:text" json:"status_comment"`
 	LocationDescription *string   `gorm:"type:text" json:"location_description"`
+	// Warning - свободное предупреждение, показывается заявителю всегда при
+	// добавлении машины/человека с этим местом (#1183).
+	Warning *string `gorm:"type:text" json:"warning"`
 
 	// Оформление таблицы (#345). FontSize - размер шрифта строк (px, 10-24).
 	// RowDensity - плотность строк: compact|normal|spacious.
@@ -26,10 +35,11 @@ type SystemTable struct {
 	FontSizeFact   int    `gorm:"default:14" json:"font_size_fact"`
 	RowDensityFact string `gorm:"size:20;default:'normal'" json:"row_density_fact"`
 
-	Fields     []TableField          `gorm:"foreignKey:TableID" json:"fields,omitempty"`
-	FactFields []TableFieldFact      `gorm:"foreignKey:TableID" json:"fact_fields,omitempty"`
-	TimeSlots  []SystemTableTimeSlot `gorm:"foreignKey:TableID" json:"time_slots,omitempty"`
-	Photos     []SystemTablePhoto    `gorm:"foreignKey:TableID" json:"photos,omitempty"`
+	Fields         []TableField               `gorm:"foreignKey:TableID" json:"fields,omitempty"`
+	FactFields     []TableFieldFact           `gorm:"foreignKey:TableID" json:"fact_fields,omitempty"`
+	TimeSlots      []SystemTableTimeSlot      `gorm:"foreignKey:TableID" json:"time_slots,omitempty"`
+	WarningWindows []SystemTableWarningWindow `gorm:"foreignKey:TableID" json:"warning_windows,omitempty"`
+	Photos         []SystemTablePhoto         `gorm:"foreignKey:TableID" json:"photos,omitempty"`
 }
 
 type SystemTablePhoto struct {
@@ -60,6 +70,27 @@ type SystemTableTimeSlot struct {
 
 // GetID возвращает идентификатор слота (контракт timeSlotModel для общего стора).
 func (s SystemTableTimeSlot) GetID() int { return s.ID }
+
+// SystemTableWarningWindow -- предупреждение по временному окну у системной таблицы
+// (проезда/прохода). Зеркало SystemTableTimeSlot с текстом: показывается заявителю,
+// когда срок заявки пересекается с окном (кейс "с 12:00 до 13:00 только малогабарит",
+// #1183). DayOfWeek nil = окно на каждый день; TimeFrom/TimeTo nil = весь день.
+type SystemTableWarningWindow struct {
+	ID        int         `json:"id"`
+	TableID   int         `gorm:"index" json:"table_id"`
+	Table     SystemTable `gorm:"foreignKey:TableID;constraint:OnDelete:CASCADE" json:"-"`
+	DayOfWeek *int        `json:"day_of_week"`              // nil = каждый день, иначе 0-6
+	TimeFrom  *string     `gorm:"size:10" json:"time_from"` // nil = весь день
+	TimeTo    *string     `gorm:"size:10" json:"time_to"`
+	IsNextDay bool        `gorm:"default:false" json:"is_next_day"`
+	Message   string      `gorm:"type:text" json:"message"`
+	IsActive  bool        `gorm:"default:true" json:"is_active"`
+	CreatedAt time.Time   `json:"created_at"`
+	UpdatedAt time.Time   `json:"updated_at"`
+}
+
+// GetID возвращает идентификатор окна (контракт warningWindowModel для общего стора).
+func (w SystemTableWarningWindow) GetID() int { return w.ID }
 
 type OrganizationTable struct {
 	ID             int          `json:"id"`
@@ -121,12 +152,15 @@ type TableFieldFact struct {
 
 // SystemTableWithDetails -- таблица с полями, слотами, фото и текущим статусом (открыто/закрыто).
 type SystemTableWithDetails struct {
-	Table         SystemTable           `json:"table"`
-	Fields        []TableField          `json:"fields"`
-	FactFields    []TableFieldFact      `json:"fact_fields"`
-	TimeSlots     []SystemTableTimeSlot `json:"time_slots"`
-	Photos        []SystemTablePhoto    `json:"photos"`
-	CurrentStatus string                `json:"current_status"`
+	Table      SystemTable           `json:"table"`
+	Fields     []TableField          `json:"fields"`
+	FactFields []TableFieldFact      `json:"fact_fields"`
+	TimeSlots  []SystemTableTimeSlot `json:"time_slots"`
+	// WarningWindows -- предупреждения по временным окнам (#1183), показываются
+	// заявителю, когда срок заявки пересекается с окном.
+	WarningWindows []SystemTableWarningWindow `json:"warning_windows"`
+	Photos         []SystemTablePhoto         `json:"photos"`
+	CurrentStatus  string                     `json:"current_status"`
 }
 
 // CreateSystemTableRequest -- запрос на создание системной таблицы.
@@ -141,6 +175,7 @@ type CreateSystemTableRequest struct {
 	Status              *string `json:"status"`
 	StatusComment       *string `json:"status_comment"`
 	LocationDescription *string `json:"location_description"`
+	Warning             *string `json:"warning"`
 }
 
 // UpdateSystemTableRequest -- запрос на обновление системной таблицы (все поля опциональные).
@@ -154,6 +189,7 @@ type UpdateSystemTableRequest struct {
 	Status              *string `json:"status"`
 	StatusComment       *string `json:"status_comment"`
 	LocationDescription *string `json:"location_description"`
+	Warning             *string `json:"warning"`
 	// Оформление таблицы (#345). Валидируется в сервисе: FontSize 10-24,
 	// RowDensity in {compact, normal, spacious}.
 	FontSize       *int    `json:"font_size"`

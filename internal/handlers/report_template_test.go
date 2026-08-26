@@ -33,7 +33,7 @@ func TestReportTemplates_Scoping(t *testing.T) {
 	testutil.CleanDB(t, db)
 	require.NoError(t, database.SeedReportTemplates(db)) // CleanDB чистит report_templates -> пересеваем системные
 
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 	ctx := context.Background()
 	cfg := json.RawMessage(`{"mode":"list","entity":"cars"}`)
 
@@ -93,7 +93,7 @@ func TestReportTemplates_Protection(t *testing.T) {
 	testutil.CleanDB(t, db)
 	require.NoError(t, database.SeedReportTemplates(db)) // CleanDB чистит report_templates -> пересеваем системные
 
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 	ctx := context.Background()
 	cfg := json.RawMessage(`{"mode":"list","entity":"cars"}`)
 

@@ -35,6 +35,7 @@ func NewTrashHandler(s services.TrashService, dbRef DBRef) *TrashHandler {
 // @Param        id path int true "ID SystemTable"
 // @Param        search query string false "Поиск по номеру/ФИО"
 // @Param        organization_id query int false "Фильтр по организации"
+// @Param        organization_ids query string false "ID организаций через запятую (мультивыбор)"
 // @Param        date_from query string false "Дата удаления с (YYYY-MM-DD)"
 // @Param        date_to query string false "Дата удаления по (YYYY-MM-DD)"
 // @Success      200 {array} models.TrashItem
@@ -49,9 +50,10 @@ func (h *TrashHandler) List(c echo.Context) error {
 		return err
 	}
 	filter := models.TrashFilter{
-		Search:         c.QueryParam("search"),
-		DateFrom:       c.QueryParam("date_from"),
-		DateTo:         c.QueryParam("date_to"),
+		Search:          c.QueryParam("search"),
+		OrganizationIDs: c.QueryParam("organization_ids"),
+		DateFrom:        c.QueryParam("date_from"),
+		DateTo:          c.QueryParam("date_to"),
 	}
 	if oid, _ := strconv.Atoi(c.QueryParam("organization_id")); oid > 0 {
 		filter.OrganizationID = oid
@@ -108,7 +110,7 @@ func (h *TrashHandler) Restore(c echo.Context) error {
 		return err
 	}
 	return RespondSuccess(c, map[string]any{
-		"restored": restored,
+		"restored":  restored,
 		"requested": len(req.IDs),
 	})
 }

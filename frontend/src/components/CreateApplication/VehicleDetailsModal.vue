@@ -5,40 +5,54 @@
         v-if="show"
         class="modal-overlay"
         :style="{ zIndex: overlayZIndex }"
-        @mousedown="onOverlayMousedown"
-        @mouseup="onOverlayMouseup"
       >
-        <div class="modal-wrapper">
+        <!-- Обёртка занимает всю площадь затемнения, поэтому закрытие по клику мимо
+             окна висит на ней, а не на самом затемнении: до него событие не доходит.
+             Держать обработчики на обоих нельзя - состояние «клик начался на фоне»
+             у них общее, и всплывшее с обёртки событие его сбрасывало. -->
+        <div
+          class="modal-wrapper"
+          @mousedown="onOverlayMousedown"
+          @mouseup="onOverlayMouseup"
+        >
           <!-- Основное модальное окно с деталями ТС -->
           <div
             class="modal-content compact-modal main-modal"
-            :class="{ 'shifted': isMainShifted }"
+            :class="{ 'shifted': isMainShifted, 'is-dragging': sheetDragging }"
+            :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
             @mousedown.stop
+            @touchstart="onSheetTouchStart"
+            @touchmove="onSheetTouchMove"
+            @touchend="onSheetTouchEnd"
           >
+            <div
+              class="sheet-handle"
+              aria-hidden="true"
+            />
             <div class="modal-header">
               <h3 class="modal-title">
                 {{ modalTitle }}
               </h3>
               <div
-                v-if="showCarFeatures || (canManageBlacklist && hasVehicleIdentity)"
+                v-if="showCarFeatures || (!readonly && canManageBlacklist && hasVehicleIdentity)"
                 class="header-actions"
               >
                 <button
-                  v-if="showCarFeatures"
+                  v-if="showCarFeatures && canSeeFullHistory"
                   class="history-btn"
                   @click="openCarHistory"
                 >
                   <span>Полная история</span>
                 </button>
                 <button
-                  v-if="canOpenApplication"
+                  v-if="!readonly && canOpenApplication"
                   class="application-btn"
                   @click="openApplication"
                 >
                   <span>Открыть заявку</span>
                 </button>
                 <button
-                  v-if="canManageBlacklist && hasVehicleIdentity && !isBlacklisted"
+                  v-if="!readonly && canManageBlacklist && hasVehicleIdentity && !isBlacklisted"
                   class="blacklist-add-btn"
                   @click="openAddBlacklist"
                 >
@@ -65,7 +79,10 @@
               </button>
             </div>
                     
-            <div class="modal-body">
+            <div
+              ref="sheetBody"
+              class="modal-body"
+            >
               <!-- Секция статуса ЧС -->
               <div
                 v-if="isBlacklisted"
@@ -147,7 +164,7 @@
                     </p>
                     <p class="warning-details">
                       Действует до: {{ formatDate(activeInfo.entry_date_to) }} {{ formatTime(activeInfo.entry_time_to) }}<br>
-                      Заявка №{{ activeInfo.application_number }}<br>
+                      Заявка {{ activeInfo.application_number }}<br>
                       Организация: {{ activeInfo.organization_name || 'Не указана' }}<br>
                       Компания: {{ activeInfo.company_name || 'Не указана' }}
                     </p>
@@ -224,6 +241,16 @@
                         <span class="detail-value">{{ formatTimeRange(vehicle.entry_time_from, vehicle.entry_time_to) || '-' }}</span>
                       </div>
                     </div>
+                    <!-- За кем закреплена запись реестра: служебная пометка бюро, поэтому
+                         подписью под блоком, а не строкой наравне с данными машины.
+                         Сервер отдаёт её только администратору, см. EmployeeDetailsModal. -->
+                    <p
+                      v-if="vehicle.user_name"
+                      class="owner-note"
+                      data-testid="vehicle-owner-login"
+                    >
+                      Запись закреплена за: {{ vehicle.user_name }}
+                    </p>
                   </div>
                 </div>
 
@@ -255,6 +282,47 @@
                   </div>
                 </div>
 
+                <!-- Секция Проезд (таблицы) -->
+                <div class="details-section">
+                  <div class="section-header">
+                    <h4 class="section-title">
+                      Проезд
+                    </h4>
+                  </div>
+                  <div class="section-body">
+                    <div class="places-list">
+                      <div
+                        v-for="t in passageActiveTables"
+                        :key="t.id"
+                        class="place-item"
+                        :class="{ 'active': showTableModal && selectedTable && selectedTable.table && selectedTable.table.id === t.id }"
+                        @click="showTableDetails(t.id)"
+                      >
+                        {{ t.name }}
+                        <Badge
+                          v-if="t.source"
+                          :label="t.source === 'manual' ? 'добавлено' : 'из заявки'"
+                          :variant="t.source === 'manual' ? 'neutral' : 'primary'"
+                          size="sm"
+                        />
+                      </div>
+                      <div
+                        v-for="t in passageRemovedTables"
+                        :key="'removed-' + t.id"
+                        class="place-item place-item--removed"
+                      >
+                        {{ t.name }}
+                      </div>
+                      <div
+                        v-if="passageActiveTables.length === 0 && passageRemovedTables.length === 0"
+                        class="no-places"
+                      >
+                        Проезд не указан
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- Секция Статус (только для автомобилей; в корзине не показываем) -->
                 <div
                   v-if="showStatusSection"
@@ -277,7 +345,7 @@
 
                 <!-- Секция История въездов и выездов (только entry/exit) -->
                 <div
-                  v-if="showCarFeatures"
+                  v-if="showCarFeatures && canSeeEntryExit"
                   class="details-section"
                 >
                   <div class="section-header">
@@ -289,11 +357,11 @@
                       :disabled="entryExitHistory.length === 0 || isExporting"
                       @click="exportHistory"
                     >
-                      <img
+                      <AppIcon
                         v-if="!isExporting"
-                        src="@/assets/icons/export.png"
+                        name="export"
                         class="export-icon"
-                      >
+                      />
                       <span v-if="!isExporting">Экспорт</span>
                       <div
                         v-else
@@ -343,7 +411,29 @@
                           <div class="action-text">
                             {{ getActionText(item) }}
                           </div>
-                                                
+
+                          <!-- Данные, введённые охранником при пропуске "по факту" (#1132) -->
+                          <div
+                            v-if="passInfo(item)"
+                            class="pass-data"
+                          >
+                            <div class="pass-data__row">
+                              <span class="pass-data__key">Номер:</span> {{ passInfo(item).number }}
+                            </div>
+                            <div
+                              v-if="passInfo(item).mark_name"
+                              class="pass-data__row"
+                            >
+                              <span class="pass-data__key">Марка:</span> {{ passInfo(item).mark_name }}
+                            </div>
+                            <div
+                              v-if="passInfo(item).format_name"
+                              class="pass-data__row"
+                            >
+                              <span class="pass-data__key">Формат:</span> {{ passInfo(item).format_name }}
+                            </div>
+                          </div>
+
                           <div class="action-comment">
                             {{ getActionComment(item) }}
                           </div>
@@ -375,6 +465,23 @@
                 :place="selectedUnloadPlace"
                 :all-unloading-places="allUnloadingPlaces"
                 @close="closeUnloadPlaceDetails"
+              />
+            </div>
+          </transition>
+
+          <!-- Дополнительное модальное окно с деталями таблицы «Проезд» (#1036) -->
+          <transition
+            name="place-slide"
+            @after-leave="onTableLeave"
+          >
+            <div
+              v-if="showTableModal"
+              class="place-modal-container"
+            >
+              <TableInfoModal
+                :table="selectedTable"
+                :all-tables="allTables"
+                @close="closeTableDetails"
               />
             </div>
           </transition>
@@ -411,24 +518,36 @@
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import { ref } from 'vue';
 import { apiRequest } from '@/api/client'
 import UnloadPlaceModal from './UnloadPlaceModal.vue';
+import TableInfoModal from './TableInfoModal.vue';
 import CarHistoryModal from '../CarHistoryModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
+import Badge from '@/components/ui/Badge.vue';
 import AddToBlacklistModal from '@/components/admin/blacklist/AddToBlacklistModal.vue';
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { useEscapeClose } from '@/composables/useEscapeClose';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { usePermissionsStore } from '@/stores/permissions';
+import { getModalActionPermission } from '@/constants/detailModalActions';
 import { useDeletionsStore } from '@/stores/deletions';
-import { listVehicleBlacklist, createVehicleBlacklist } from '@/api/blacklist';
+import { checkVehicleBlacklist, createVehicleBlacklist } from '@/api/blacklist';
 import { listMarks } from '@/api/marks';
 import ExcelJS from 'exceljs';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
     name: 'VehicleDetailsModal',
     components: {
+        AppIcon,
         UnloadPlaceModal,
+        TableInfoModal,
         CarHistoryModal,
         LoaderSpinner,
+        Badge,
         AddToBlacklistModal
     },
     props: {
@@ -441,6 +560,10 @@ export default {
             default: null
         },
         allUnloadingPlaces: {
+            type: Array,
+            default: () => []
+        },
+        allTables: {
             type: Array,
             default: () => []
         },
@@ -477,12 +600,37 @@ export default {
         canCancelOverride: {
             type: Boolean,
             default: false
+        },
+        // Режим просмотра (список заявки): прячет кнопки действий (ЧС, открыть заявку).
+        readonly: {
+            type: Boolean,
+            default: false
         }
     },
     emits: ['close', 'open-application', 'override', 'cancel-override'],
-    setup(_, { emit }) {
+    setup(props, { emit }) {
         const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
-        return { onOverlayMousedown, onOverlayMouseup };
+        // Слой карточки: из заявки она лежит поверх её панели (10003), иначе 10001 -
+// то же значение, что у оверлея, чтобы Escape закрывал именно верхнее окно.
+useEscapeClose(() => emit('close'), () => props.show, props.source === 'application' ? 10003 : 10001);
+        // Bottom-sheet свайп-вниз-закрытие на мобилке (#1097 r2). getScrollTop от тела:
+        // свайп из контента закрывает, только когда прокручено вверх; с ползунка - всегда.
+        const sheetBody = ref(null);
+        const swipe = useSwipeDismiss(() => emit('close'), {
+            getScrollTop: () => sheetBody.value?.scrollTop ?? 0,
+            handleSelector: '.sheet-handle',
+        });
+        const { isNarrow } = useNarrowScreen();
+        return {
+            onOverlayMousedown, onOverlayMouseup,
+            isNarrow,
+            sheetBody,
+            sheetOffset: swipe.offset,
+            sheetDragging: swipe.isDragging,
+            onSheetTouchStart: swipe.onTouchStart,
+            onSheetTouchMove: swipe.onTouchMove,
+            onSheetTouchEnd: swipe.onTouchEnd,
+        };
     },
     data() {
         return {
@@ -490,6 +638,12 @@ export default {
             showPlaceModal: false,
             isMainShifted: false,
             shiftTimer: null,
+            // Drill-down таблиц «Проезд» (#1036): отдельный набор состояний от места
+            // разгрузки - общий слот place-modal-container один, поэтому подмодалки
+            // взаимоисключаются (открытие одной закрывает другую).
+            selectedTable: null,
+            showTableModal: false,
+            tableShiftTimer: null,
             history: [],          // полная история (все действия)
             loadingHistory: false,
             isExporting: false,
@@ -511,19 +665,38 @@ export default {
             return this.source === 'application' ? 10003 : 10001;
         },
         // Намеренно НЕ зависит от showCarFeatures: на вкладке Автомобили features выкл,
-        // но переход в заявку нужен. Гейт - наличие заявки (как у EmployeeDetailsModal).
+        // но переход в заявку нужен. Гейт: право detail.open_application по контексту
+        // (карта detailModalActions, как у EmployeeDetailsModal) И наличие заявки.
         canOpenApplication() {
-            return this.source !== 'application' && this.source !== 'blacklist'
-                && !!(this.vehicle?.applicationId || this.vehicle?.application_id);
+            const perm = getModalActionPermission('vehicle', this.source, 'openApplication');
+            const allowed = typeof perm === 'boolean'
+                ? perm
+                : usePermissionsStore().hasPermission(perm);
+            return allowed && !!(this.vehicle?.applicationId || this.vehicle?.application_id);
         },
-        // Кнопки в шапке: "Полная история" видна при showCarFeatures,
+        // Право на кнопку «Полная история» / секцию «История въездов и выездов»:
+        // гейтим ТОЛЬКО когда карта задаёт ключ права (string); контекстные false/true
+        // оставляем на showCarFeatures — нулевая регрессия дефолтной видимости,
+        // добавляется лишь возможность отозвать ролью.
+        canSeeFullHistory() {
+            const v = getModalActionPermission('vehicle', this.source, 'history');
+            return typeof v === 'string' ? usePermissionsStore().hasPermission(v) : true;
+        },
+        canSeeEntryExit() {
+            const v = getModalActionPermission('vehicle', this.source, 'entryExit');
+            return typeof v === 'string' ? usePermissionsStore().hasPermission(v) : true;
+        },
+        // Кнопки в шапке: "Полная история" видна при showCarFeatures + право,
         // "Открыть заявку" - при canOpenApplication.
         visibleActionsCount() {
-            const history = this.showCarFeatures ? 1 : 0;
+            const history = (this.showCarFeatures && this.canSeeFullHistory) ? 1 : 0;
             const application = this.canOpenApplication ? 1 : 0;
             return history + application;
         },
+        // На телефоне в строку шапки помещается только короткое имя: длинный вариант
+        // отжимал крестик и переносился на вторую строку рядом с кнопками действий.
         modalTitle() {
+            if (this.isNarrow) return 'Информация';
             const count = this.visibleActionsCount;
             if (count >= 2) return 'Информация';
             if (count === 1) return 'Детальная информация';
@@ -547,6 +720,45 @@ export default {
         // Только события въезда/выезда
         entryExitHistory() {
             return this.history.filter(item => item.action_type === 'entry' || item.action_type === 'exit');
+        },
+        // Бейдж источника и зачёркнутые снятые - фича карточки ИЗ ПРОХОДНОЙ (#1227): только там
+        // target_tables несут реальный source (объекты {id,name,source} от P1/P2) и история привязок
+        // осмысленна. В заявке (source='application') / списках / корзине target_tables - плоские ID
+        // БЕЗ source -> бейджа нет (иначе один элемент в проходной «добавлено», а в заявке дефолтно
+        // «из заявки» - каша). Признак проходной = у активных есть реальный source.
+        hasPassageSource() {
+            return this.passageActiveTables.some(t => t.source);
+        },
+        // Активные привязки «Проезд» (#1227 P3). Нормализует ОБЕ формы target_tables: контекст
+        // заявки - плоский массив ID (число, source=null -> без бейджа), проходной - объекты
+        // {id,name,source}. source НЕ фабрикуем - null значит «источник неизвестен, не показывать».
+        passageActiveTables() {
+            const raw = this.vehicle?.target_tables || [];
+            return raw.map(t => (typeof t === 'number'
+                ? { id: t, name: this.getTableName(t), source: null }
+                : { id: t.id, name: t.name || this.getTableName(t.id), source: t.source || null }));
+        },
+        // Снятые/перенесённые таблицы (unbound_from_table/moved_between_tables из истории) -
+        // показываем зачёркнутыми, кроме тех, что сейчас снова активны (активная привязка
+        // перекрывает снятую). Дедуп по table_id - несколько снятий одной таблицы не дублируем.
+        passageRemovedTables() {
+            // Зачёркнутые снятые - только когда карточка показывает реальные привязки проходной
+            // (hasPassageSource); в заявке/списках/корзине история привязок машины не показывается.
+            if (!this.hasPassageSource) return [];
+            const activeIds = new Set(this.passageActiveTables.map(t => t.id));
+            const seen = new Set();
+            const removed = [];
+            // history не гейтится правом (в отличие от entryExitHistory) - рендерится
+            // всегда, поэтому защищаемся от неожиданной формы ответа (не массив).
+            const items = Array.isArray(this.history) ? this.history : [];
+            items.forEach(item => {
+                if (item.action_type !== 'unbound_from_table' && item.action_type !== 'moved_between_tables') return;
+                const tableId = item.table_id;
+                if (tableId == null || activeIds.has(tableId) || seen.has(tableId)) return;
+                seen.add(tableId);
+                removed.push({ id: tableId, name: item.table_name || this.getTableName(tableId) });
+            });
+            return removed;
         },
         canManageBlacklist() {
             return usePermissionsStore().hasPermission('page.admin.blacklist');
@@ -575,6 +787,8 @@ export default {
         show: {
             immediate: true,
             handler(newVal) {
+                // Контракт окна: фон под листом не прокручивается.
+                setBodyScrollLock(this, newVal);
                 if (newVal) {
                     this.loadCarStatus();
                     this.checkBlacklist();
@@ -583,12 +797,14 @@ export default {
                     }
                 } else {
                     this.closeUnloadPlaceDetails();
+                    this.closeTableDetails();
                     if (this.shiftTimer) {
                         clearTimeout(this.shiftTimer);
                         this.shiftTimer = null;
                     }
                     this.isMainShifted = false;
                     this.selectedUnloadPlace = null;
+                    this.selectedTable = null;
                 }
             }
         },
@@ -606,37 +822,44 @@ export default {
         }
     },
     beforeUnmount() {
+        releaseBodyScrollLock(this);
         if (this.shiftTimer) {
             clearTimeout(this.shiftTimer);
+        }
+        if (this.tableShiftTimer) {
+            clearTimeout(this.tableShiftTimer);
         }
     },
     methods: {
         close() {
             this.$emit('close');
             this.closeUnloadPlaceDetails();
+            this.closeTableDetails();
             if (this.shiftTimer) {
                 clearTimeout(this.shiftTimer);
                 this.shiftTimer = null;
             }
             this.isMainShifted = false;
             this.selectedUnloadPlace = null;
+            this.selectedTable = null;
             this.showAddBlacklist = false;
         },
 
-        // Статус ЧС: матч активного списка по номеру+марке (зеркалит серверный CheckByName).
+        // Статус ЧС: точечная серверная проверка по номеру+марке (весь список ЧС в
+        // браузер больше не грузим). mark_id резолвим через открытый справочник марок.
         async checkBlacklist() {
             this.isBlacklisted = false;
             this.blacklistReason = '';
             if (!this.hasVehicleIdentity) return;
             try {
-                const list = await listVehicleBlacklist();
-                const arr = Array.isArray(list) ? list : [];
-                const key = (n, m) => `${(n || '').trim().toLowerCase()}|${(m || '').trim().toLowerCase()}`;
-                const want = key(this.vehicleNumber, this.vehicleMark);
-                const hit = arr.find((e) => key(e.car_number, e.mark_name) === want);
-                if (hit) {
+                const marks = await listMarks({ includeArchived: true });
+                const arr = Array.isArray(marks) ? marks : [];
+                const mark = arr.find((m) => (m.name || '').trim().toLowerCase() === this.vehicleMark.trim().toLowerCase());
+                if (!mark) return; // марки нет в справочнике - точного совпадения по ЧС не будет
+                const res = await checkVehicleBlacklist({ car_number: this.vehicleNumber, mark_id: mark.id });
+                if (res && res.is_blacklisted) {
                     this.isBlacklisted = true;
-                    this.blacklistReason = hit.reason || '';
+                    this.blacklistReason = res.reason || '';
                 }
             } catch {
                 // Молча: статус ЧС - вспомогательная плашка, не критична для карточки.
@@ -683,6 +906,15 @@ export default {
             const place = this.allUnloadingPlaces.find(p => p.id === placeId);
             if (!place) return;
 
+            // Взаимоисключение с drill-down таблицы: слот place-modal-container один,
+            // поэтому гасим подмодалку таблицы, если открыта.
+            if (this.tableShiftTimer) {
+                clearTimeout(this.tableShiftTimer);
+                this.tableShiftTimer = null;
+            }
+            this.showTableModal = false;
+            this.selectedTable = null;
+
             this.selectedUnloadPlace = place;
 
             if (this.shiftTimer) {
@@ -711,12 +943,69 @@ export default {
             this.selectedUnloadPlace = null;
         },
 
+        showTableDetails(tableId) {
+            const tableData = this.allTables.find(t => (t.table && t.table.id === tableId) || t.id === tableId);
+            if (!tableData) {
+                useDeletionsStore().notify({ bold: 'Информация о месте проезда недоступна', type: 'error' });
+                return;
+            }
+
+            // Взаимоисключение с drill-down места разгрузки (общий слот).
+            if (this.shiftTimer) {
+                clearTimeout(this.shiftTimer);
+                this.shiftTimer = null;
+            }
+            this.showPlaceModal = false;
+            this.selectedUnloadPlace = null;
+
+            this.selectedTable = {
+                table: tableData.table || tableData,
+                time_slots: tableData.time_slots || [],
+                photos: tableData.photos || [],
+                current_status: tableData.current_status || 'closed'
+            };
+
+            if (this.tableShiftTimer) {
+                clearTimeout(this.tableShiftTimer);
+                this.tableShiftTimer = null;
+            }
+
+            this.isMainShifted = true;
+
+            this.tableShiftTimer = setTimeout(() => {
+                this.showTableModal = true;
+                this.tableShiftTimer = null;
+            }, 300);
+        },
+
+        closeTableDetails() {
+            if (this.tableShiftTimer) {
+                clearTimeout(this.tableShiftTimer);
+                this.tableShiftTimer = null;
+            }
+            this.showTableModal = false;
+        },
+
+        onTableLeave() {
+            this.isMainShifted = false;
+            this.selectedTable = null;
+        },
+
         getPlaceName(placeId) {
             if (!this.allUnloadingPlaces || this.allUnloadingPlaces.length === 0) {
                 return `ID: ${placeId}`;
             }
             const place = this.allUnloadingPlaces.find(p => p.id === placeId);
             return place ? place.name : `ID: ${placeId}`;
+        },
+
+        getTableName(tableId) {
+            let found = this.allTables.find(t => (t.table && t.table.id === tableId) || t.id === tableId);
+            if (found) {
+                let tbl = found.table || found;
+                return tbl.display_name || tbl.name || `ID: ${tableId}`;
+            }
+            return `Неизвестное место (ID: ${tableId})`;
         },
 
         getFormatName(formatId) {
@@ -814,11 +1103,30 @@ export default {
             return item.comment || '';
         },
 
+        // Данные пропуска "по факту" (#1132): охранник вводит их при въезде, бэкенд
+        // кладёт в details.metadata записи entry. Возвращаем объект {number, mark_name,
+        // format_name} или null, если это обычная запись без данных пропуска.
+        passInfo(item) {
+            const m = item && item.metadata;
+            if (m && typeof m === 'object' && m.number) return m;
+            return null;
+        },
+
         async loadCarHistory() {
             if (!this.vehicle?.id || !this.showCarFeatures) return;
             
             this.loadingHistory = true;
             try {
+                // Фактовая таблица (#1132): у машин "по факту" car_number - плейсхолдер,
+                // и unified (по номеру+марке) склеил бы истории всех таких машин. Берём
+                // историю ОДНОЙ машины, чтобы данные пропуска (metadata) относились к ней.
+                if (this.source === 'facttable') {
+                    const response = await apiRequest(`/cars/${this.vehicle.id}/history`, {});
+                    if (response.ok) {
+                        this.history = await response.json();
+                    }
+                    return;
+                }
                 // Используем unified endpoint, как в CarHistoryModal.
                 // Собираем query-строку руками — apiRequest ожидает строку-путь,
                 // а не URL object (после /api префикса URL object ломается при конкатенации).
@@ -1002,7 +1310,7 @@ export default {
                 
             } catch (error) {
                 console.error('Error exporting to Excel:', error);
-                alert('Ошибка при экспорте в Excel');
+                useDeletionsStore().notify({ bold: 'Ошибка при экспорте в Excel', type: 'error' });
             } finally {
                 this.isExporting = false;
             }
@@ -1034,7 +1342,7 @@ export default {
 
 .place-name {
     font-size: 10px;
-    color: #4F5BDF;
+    color: var(--accent-text);
     margin-top: 2px;
     font-style: italic;
 }
@@ -1046,23 +1354,21 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10001;
-  backdrop-filter: blur(0.1px);
-  -webkit-backdrop-filter: blur(0.1px);
   animation: overlayAppear 0.4s ease-out;
 }
 
 @keyframes overlayAppear {
   from {
-    background: rgba(0, 0, 0, 0);
+    background: var(--overlay);
     backdrop-filter: blur(0px);
   }
   to {
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     backdrop-filter: blur(0.1px);
   }
 }
@@ -1077,13 +1383,13 @@ export default {
 }
 
 .modal-content {
-  background: #fff;
+  background: var(--surface);
   border-radius: 50px;
   padding: 0;
   padding-bottom: 15px;
-  width: 520px;
+  width: 550px;
   height: 450px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px var(--shadow-drop);
   display: flex;
   flex-direction: column;
   position: absolute;
@@ -1101,13 +1407,13 @@ export default {
 }
 
 .modal-content.main-modal {
-  left: calc(50% - 260px);
+  left: calc(50% - 275px);
   transition: transform 0.5s cubic-bezier(0.25, 0.1, 0.15, 1);
   transform: translateX(0);
 }
 
 .modal-content.main-modal.shifted {
-  transform: translateX(-280px);
+  transform: translateX(-295px);
 }
 
 .place-modal-container {
@@ -1123,7 +1429,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 20px 30px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   height: 70px;
   box-sizing: border-box;
@@ -1138,43 +1444,43 @@ export default {
 
 .history-btn, .application-btn {
   padding: 6px 12px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 12px;
-  color: #333;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
 }
 
 .history-btn:hover, .application-btn:hover {
-  background: #f5f5f5;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .blacklist-add-btn {
   padding: 6px 12px;
-  background: white;
-  border: 1px solid #fecaca;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
   border-radius: 20px;
   font-size: 12px;
-  color: #dc2626;
+  color: var(--danger-text);
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   white-space: nowrap;
 }
 
 .blacklist-add-btn:hover {
-  background: #fee2e2;
-  border-color: #dc2626;
+  background: var(--danger-bg);
+  border-color: var(--danger);
 }
 
 .bl-section {
   margin-bottom: 16px;
   padding: 12px 16px;
-  background: #fdeaea;
-  border: 1px solid #f5b5b5;
+  background: var(--danger-bg);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
   border-radius: 20px;
 }
 
@@ -1184,14 +1490,14 @@ export default {
   gap: 8px;
   font-size: 14px;
   font-weight: 600;
-  color: #b91c1c;
+  color: var(--danger-text);
 }
 
 .bl-section-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #dc2626;
+  background: var(--danger);
   flex-shrink: 0;
 }
 
@@ -1199,7 +1505,7 @@ export default {
   margin-top: 6px;
   font-size: 13px;
   line-height: 1.5;
-  color: #7f1d1d;
+  color: var(--danger-text);
   word-break: break-word;
 }
 
@@ -1212,8 +1518,8 @@ export default {
 .bl-suspicion-section {
   margin-bottom: 16px;
   padding: 12px 16px;
-  background: #fdeaea;
-  border: 1px solid #f5b5b5;
+  background: var(--danger-bg);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
   border-radius: 20px;
 }
 
@@ -1223,14 +1529,14 @@ export default {
   gap: 8px;
   font-size: 14px;
   font-weight: 600;
-  color: #b91c1c;
+  color: var(--danger-text);
 }
 
 .bl-suspicion-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #dc2626;
+  background: var(--danger);
   flex-shrink: 0;
 }
 
@@ -1238,7 +1544,7 @@ export default {
   margin-top: 6px;
   font-size: 13px;
   line-height: 1.5;
-  color: #7f1d1d;
+  color: var(--danger-text);
   word-break: break-word;
 }
 
@@ -1257,13 +1563,13 @@ export default {
 
 .bl-suspicion-blocked {
   font-size: 12px;
-  color: #7f1d1d;
+  color: var(--danger-text);
 }
 
 .bl-suspicion-confirmed {
   font-size: 13px;
   font-weight: 600;
-  color: #047857;
+  color: var(--success-text);
 }
 
 .bl-suspicion-btn {
@@ -1276,49 +1582,49 @@ export default {
 }
 
 .bl-suspicion-btn--allow {
-  background: #fff;
-  border: 1px solid #fecaca;
-  color: #dc2626;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
+  color: var(--danger-text);
 }
 
 .bl-suspicion-btn--allow:hover {
-  background: #fee2e2;
-  border-color: #dc2626;
+  background: var(--danger-bg);
+  border-color: var(--danger);
 }
 
 .bl-suspicion-btn--cancel {
-  background: #fff;
-  border: 1px solid #cbd5e1;
-  color: #475569;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
+  color: var(--text-muted);
 }
 
 .bl-suspicion-btn--cancel:hover {
-  background: #f1f5f9;
-  border-color: #94a3b8;
+  background: var(--accent-tint);
+  border-color: var(--text-muted);
 }
 
 .bl-suspicion-section.is-resolved {
-  background: #ecfdf5;
-  border-color: #a7f3d0;
+  background: var(--success-bg);
+  border-color: color-mix(in srgb, var(--success) 30%, var(--surface));
 }
 
 .bl-suspicion-section.is-resolved .bl-suspicion-head {
-  color: #047857;
+  color: var(--success-text);
 }
 
 .bl-suspicion-section.is-resolved .bl-suspicion-dot {
-  background: #10b981;
+  background: var(--success);
 }
 
 .bl-suspicion-section.is-resolved .bl-suspicion-row {
-  color: #065f46;
+  color: var(--success-text);
 }
 
 .modal-title {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .modal-close {
@@ -1334,7 +1640,7 @@ export default {
 }
 
 .modal-close:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .modal-body {   
@@ -1346,8 +1652,8 @@ export default {
 .active-warning-section {
   margin-bottom: 15px;
   padding: 15px;
-  background: #fff3cd;
-  border: 1px solid #ffeeba;
+  background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
   border-radius: 20px;
 }
 
@@ -1363,13 +1669,13 @@ export default {
 
 .warning-title {
   font-weight: 600;
-  color: #856404;
+  color: var(--warning-text);
   margin: 0 0 5px 0;
   font-size: 14px;
 }
 
 .warning-details {
-  color: #856404;
+  color: var(--warning-text);
   margin: 0;
   font-size: 12px;
   line-height: 1.5;
@@ -1382,15 +1688,15 @@ export default {
 }
 
 .details-section {
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 20px;
-  background: #fafafa;
+  background: var(--surface-2);
   overflow: hidden;
 }
 
 .section-header {
   padding: 12px 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1400,7 +1706,7 @@ export default {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .section-body {
@@ -1423,16 +1729,23 @@ export default {
   grid-column: 1 / -1;
 }
 
+.owner-note {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+
 .detail-label {
   font-size: 11px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 400;
   letter-spacing: 0.3px;
 }
 
 .detail-value {
   font-size: 14px;
-  color: #333;
+  color: var(--text);
   font-weight: 500;
   word-break: break-word;
 }
@@ -1444,30 +1757,46 @@ export default {
 }
 
 .place-item {
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 50px;
   padding: 6px 12px;
   font-size: 12px;
-  color: #333;
+  color: var(--text);
   transition: all 0.2s ease;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   cursor: pointer;
 }
 
 .place-item:hover {
-  background: #f0f0f0;
-  border-color: #4F5BDF;
+  background: var(--border);
+  border-color: var(--accent);
 }
 
 .place-item.active {
-  background: #4F5BDF;
-  color: white;
-  border-color: #4F5BDF;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+}
+
+/* Снятая/перенесённая таблица (#1227 P3): не кликабельна, зачёркнута как .old-status
+   в ApplicationHistory.vue - "проезд был, но сейчас не действует". */
+.place-item--removed {
+  cursor: default;
+  color: var(--danger-text);
+  text-decoration: line-through;
+  border-style: dashed;
+}
+
+.place-item--removed:hover {
+  background: transparent;
+  border-color: var(--border);
 }
 
 .no-places {
   text-align: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 13px;
   font-style: italic;
   padding: 10px;
@@ -1482,21 +1811,21 @@ export default {
 }
 
 .status-on-territory {
-  background: rgba(79, 91, 223, 0.1);
-  color: #4F5BDF;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--accent-text);
   border: 1px solid rgba(79, 91, 223, 0.3);
 }
 
 .status-exited {
-  background: rgba(220, 38, 38, 0.1);
-  color: #dc2626;
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  color: var(--danger-text);
   border: 1px solid rgba(220, 38, 38, 0.3);
 }
 
 .status-not-entered {
-  background: #f5f5f5;
-  color: #9ca3af;
-  border: 1px solid #e6e6e6;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
 }
 
 .export-btn {
@@ -1504,19 +1833,19 @@ export default {
   align-items: center;
   gap: 6px;
   padding: 4px 12px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 12px;
-  color: #333;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
   height: 28px;
 }
 
 .export-btn:hover:not(:disabled) {
-  background: #f5f5f5;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .export-btn:disabled {
@@ -1532,8 +1861,8 @@ export default {
 .export-loader {
   width: 14px;
   height: 14px;
-  border: 2px solid #e6e6e6;
-  border-top: 2px solid #4F5BDF;
+  border: 2px solid var(--border);
+  border-top: 2px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -1570,7 +1899,7 @@ export default {
   top: 16px;
   width: 2px;
   height: calc(100% + 2px);
-  background: #e6e6e6;
+  background: var(--border);
 }
 
 .history-content {
@@ -1586,28 +1915,49 @@ export default {
 
 .user-name {
   font-weight: 500;
-  color: #333;
+  color: var(--text);
   font-size: 12px;
 }
 
 .action-time {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 10px;
 }
 
 .action-text {
-  color: #666;
+  color: var(--text-muted);
   font-size: 11px;
   margin-bottom: 2px;
 }
 
 .action-comment {
   font-size: 10px;
-  color: #666;
+  color: var(--text-muted);
   font-style: italic;
   margin-top: 2px;
   padding-left: 6px;
-  border-left: 2px solid #e6e6e6;
+  border-left: 2px solid var(--border);
+}
+
+/* Данные пропуска "по факту" (#1132) под записью въезда */
+.pass-data {
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: var(--accent-tint);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pass-data__row {
+  font-size: 11px;
+  color: var(--text);
+}
+
+.pass-data__key {
+  font-weight: 600;
+  color: var(--text);
 }
 
 .loading-container {
@@ -1617,13 +1967,16 @@ export default {
   justify-content: center;
   padding: 20px;
   gap: 10px;
+  /* Резерв под контент истории: без него spinner крошечный, а при загрузке списка
+     секция резко растёт - модалка прыгает (#1097 R3-6). Держим высоту стабильной. */
+  min-height: 120px;
 }
 
 .loader {
   width: 30px;
   height: 30px;
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #4F5BDF;
+  border: 3px solid var(--surface-2);
+  border-top: 3px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -1634,16 +1987,28 @@ export default {
 }
 
 .no-history {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   padding: 20px;
   font-size: 13px;
   font-style: italic;
+  /* Та же высота, что у загрузки/короткого списка - пустое состояние не прыгает. */
+  min-height: 120px;
 }
 
-.modal-fade-enter-active,
+/* Появление и скрытие - как у остальных окон (BaseModal): затемнение гаснет
+   прозрачностью, само окно приезжает масштабом. Прежние правила задавали переход
+   корню перехода (.modal-overlay), а не окну внутри него, поэтому затемнение
+   плавно гасло, а окно прыгало. */
+.modal-fade-enter-active {
+  transition: opacity 0.3s ease;
+}
+
 .modal-fade-leave-active {
-  transition: all 0.4s ease;
+  transition: opacity 0.2s ease;
 }
 
 .modal-fade-enter-from,
@@ -1651,26 +2016,34 @@ export default {
   opacity: 0;
 }
 
-.modal-fade-enter-active .modal-overlay,
-.modal-fade-leave-active .modal-overlay {
-  transition: all 0.4s ease;
+.modal-fade-enter-active .modal-content {
+  animation: details-modal-in 0.3s ease;
 }
 
-.modal-fade-enter-active .modal-content,
 .modal-fade-leave-active .modal-content {
-  transition: all 0.4s ease;
+  animation: details-modal-out 0.2s ease;
 }
 
-.modal-fade-enter-from .modal-overlay,
-.modal-fade-leave-to .modal-overlay {
-  background: rgba(0, 0, 0, 0);
-  backdrop-filter: blur(0px);
+@keyframes details-modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
-.modal-fade-enter-from .modal-content,
-.modal-fade-leave-to .modal-content {
-  opacity: 0;
-  transform: scale(0.9) translateY(-20px);
+@keyframes details-modal-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
 }
 
 .place-slide-enter-active,
@@ -1694,29 +2067,70 @@ export default {
   opacity: 0;
 }
 
+/* Ползунок скрыт по умолчанию (десктоп), показывается только в bottom-sheet @768. */
+.sheet-handle {
+  display: none;
+}
+
 @media (max-width: 768px) {
+  /* Bottom-sheet: wrapper центрировал контент (align-items:center + height:100%) и
+     побеждал flex-end оверлея из App.vue - выравниваем к низу, модалка выезжает
+     снизу (detail 4). Ширина/скругление приходят из App.vue (.modal-content). */
+  .modal-wrapper {
+    align-items: flex-end;
+  }
   .modal-content {
     width: 90%;
-    left: 5% !important;
-    transform: none !important;
+    left: 0 !important;
     height: auto;
-    max-height: 80vh;
+    max-height: 80dvh;
+    /* transition для свайп-спринга и слайда; НЕ transform:none!important - иначе
+       блокировался бы inline-transform свайпа (#1097 r2). */
+    transition: transform 0.3s ease;
+  }
+
+  .modal-content.is-dragging {
+    transition: none;
+  }
+
+  /* Ползунок bottom-sheet (тянуть вниз для закрытия). */
+  .sheet-handle {
+    display: block;
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    margin: 8px auto 0;
+    flex-shrink: 0;
+  }
+
+  /* Enter/leave = слайд снизу (перебивает базовый scale(.9)translateY(-20px) -
+     раньше модалка "спавнилась" поп-ом из центра, а не выезжала снизу). */
+  .modal-fade-enter-from .modal-content,
+  .modal-fade-leave-to .modal-content {
+    transform: translateY(100%);
+    opacity: 1;
   }
   
   .modal-content .modal-body {
     height: auto;
-    max-height: calc(80vh - 70px);
+    max-height: calc(80dvh - 70px);
   }
   
   .modal-content.main-modal.shifted {
     transform: none !important;
   }
   
+  /* Bottom-sheet: инфо места прохода/разгрузки выезжает снизу во всю ширину поверх
+     детали Т/С (place-slide уже слайдит с translateY(100vh), #1097 R4-10). */
   .place-modal-container {
-    width: 90%;
-    left: 5%;
+    left: 0;
+    right: 0;
+    width: 100%;
+    bottom: 0;
+    top: auto;
     height: auto;
-    max-height: 80vh;
+    max-height: 90dvh;
   }
   
   .modal-header {

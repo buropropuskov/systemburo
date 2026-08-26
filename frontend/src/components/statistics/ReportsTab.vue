@@ -121,26 +121,26 @@
 
         <!-- Мастер -->
         <section class="wizard">
-          <ReportStepper :steps="steps" />
-          <div class="wizard-body">
-            <ReportBuilder
-              :catalog="catalog"
-              :period="period"
-              :loading="running"
-              :preset="presetPayload"
-              @run="onRun"
-              @change="onBuilderChange"
-            />
-          </div>
+          <ReportBuilder
+            :catalog="catalog"
+            :period="period"
+            :loading="running"
+            :preset="presetPayload"
+            @run="onRun"
+            @change="onBuilderChange"
+          />
         </section>
       </div>
 
-      <!-- Результат (полная ширина под мастером) -->
+      <!-- Результат (полная ширина под мастером). До первого построения не
+           рендерим — пустой блок создавал бы лишнюю пустоту во вкладке. -->
       <ReportResult
+        v-if="result || running || runError"
         :result="result"
         :loading="running"
         :error="runError"
         :meta="exportMeta"
+        :limit="resultLimit"
         @export-error="onExportError"
       />
     </template>
@@ -152,7 +152,6 @@ import { ref, computed, onMounted } from 'vue';
 import ReportBuilder from './ReportBuilder.vue';
 import ReportResult from './ReportResult.vue';
 import ReportGallery from './ReportGallery.vue';
-import ReportStepper from './ReportStepper.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import {
   getReportCatalog, runReport,
@@ -177,14 +176,18 @@ const running = ref(false);
 const runError = ref('');
 // Подпись для выгрузки в Excel: период берём из последнего построенного запроса.
 const exportMeta = ref({});
+// Лимит последнего запроса — по нему результат понимает, что упёрся в потолок.
+const resultLimit = ref(0);
 
 // Пресет из галереи: новый объект на каждый клик (даже по той же карточке),
 // чтобы watch в ReportBuilder сработал повторно и перезаполнил конструктор.
 const presetPayload = ref(null);
 const activePresetId = ref('');
 
-// Снимок состояния мастера для индикатора шагов.
-const builderState = ref({ mode: 'aggregate', metric: '', dimension: '', entity: '', filterCount: 0, periodApplicable: true, periodFilled: false, config: null });
+// Снимок состояния мастера: нужен для гейта «можно сохранить шаблон» и самого
+// сохранения (берём config). Остальные поля снапшота от ReportBuilder храним как
+// есть, но здесь читаем только mode/metric/entity/config.
+const builderState = ref({ mode: 'aggregate', metric: '', entity: '', config: null });
 
 // Личные шаблоны пользователя (G2). Системные пресеты остаются в галерее «Готовые
 // наборы» (reportPresets), здесь — только сохранённые наборы пользователя.
@@ -257,28 +260,6 @@ async function removeTemplate(tpl) {
   }
 }
 
-const STEP_LABELS = ['1 · Что считаем', '2 · По чему разбиваем', '3 · Фильтры', '4 · Период'];
-
-// Состояние шагов по заполненности формы: done — данные есть, current — первый
-// незаполненный, upcoming — дальше. В list-режиме разрез не применим -> шаг 2
-// считается выполненным по выбранной сущности. Период, неприменимый к срезу
-// (машины/люди без date_range), считается пройденным — заполнять нечего.
-const steps = computed(() => {
-  const s = builderState.value;
-  const isList = s.mode === 'list';
-  const done = [
-    isList ? Boolean(s.entity) : Boolean(s.metric),
-    isList ? Boolean(s.entity) : Boolean(s.dimension),
-    s.filterCount > 0,
-    s.periodApplicable === false ? true : Boolean(s.periodFilled),
-  ];
-  const currentIdx = done.indexOf(false);
-  return STEP_LABELS.map((label, i) => ({
-    label,
-    state: done[i] ? 'done' : i === currentIdx ? 'current' : 'upcoming',
-  }));
-});
-
 function onBuilderChange(snapshot) {
   builderState.value = snapshot;
 }
@@ -317,12 +298,14 @@ async function onRun(request) {
     const r = await runReport(request);
     if (seq !== runSeq) return;
     result.value = r;
+    resultLimit.value = Number(request.limit) || 0;
     const dr = (request.filters || []).find((f) => f.key === 'date_range');
     const { from = '', to = '' } = dr || {};
     exportMeta.value = dr ? { period: { from, to } } : {};
   } catch (e) {
     if (seq !== runSeq) return;
     result.value = null;
+    resultLimit.value = 0;
     runError.value = e?.message || 'Не удалось построить отчёт. Проверьте параметры.';
   } finally {
     if (seq === runSeq) running.value = false;
@@ -334,7 +317,7 @@ async function onRun(request) {
 .reports {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .reports__state {
@@ -348,13 +331,13 @@ async function onRun(request) {
 }
 
 .reports__state--error {
-  color: #c0392b;
+  color: var(--danger-text);
 }
 
 .reports-layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: 20px;
+  grid-template-columns: 260px 1fr;
+  gap: 16px;
   align-items: start;
 }
 
@@ -430,7 +413,7 @@ async function onRun(request) {
 }
 
 .tpl-item:hover {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
 }
 
 .tpl-apply {
@@ -478,19 +461,15 @@ async function onRun(request) {
 
 .tpl-del:hover {
   background: var(--color-danger);
-  color: #fff;
+  color: var(--fill-text);
 }
 
 .wizard {
   min-width: 0;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  overflow: hidden;
-}
-
-.wizard-body {
-  padding: 24px;
+  padding: 20px;
 }
 
 @media (max-width: 1180px) {
@@ -502,6 +481,19 @@ async function onRun(request) {
 @media (max-width: 880px) {
   .reports-layout {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Мобилка (#1097): плотнее по вертикали, у карточки-конструктора padding под
+   узкий экран — 20px с обеих сторон съедали ширину полей мастера. */
+@media (max-width: 768px) {
+  .reports,
+  .reports-layout {
+    gap: 12px;
+  }
+
+  .wizard {
+    padding: 16px 14px;
   }
 }
 </style>

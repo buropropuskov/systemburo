@@ -7,18 +7,16 @@
           class="news-container"
           data-testid="ob-news"
         >
-          <div class="news-header">
+          <div
+            class="news-header"
+            data-testid="ob-news-head"
+          >
             <h2 class="news-title">
-              Последние новости
+              <span class="news-title__full">Последние новости</span>
+              <span class="news-title__short">Новости</span>
             </h2>
             <div class="header-actions">
-              <OnboardingButton />
-              <button
-                class="manage-btn"
-                @click="openManageModal"
-              >
-                Управление
-              </button>
+              <OnboardingMenu />
               <RefreshButton @refresh="fetchAllData" />
             </div>
           </div>
@@ -85,35 +83,17 @@
                   <svg
                     width="35"
                     height="35"
-                    viewBox="0 0 35 35"
+                    viewBox="0 0 24 24"
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
                   >
-                    <rect
-                      width="35"
-                      height="35"
-                      fill="url(#pattern0)"
+                    <path
+                      d="M12 6.5C10.4 5 7.8 4.5 4 4.5V18.5C7.8 18.5 10.4 19 12 20.5C13.6 19 16.2 18.5 20 18.5V4.5C16.2 4.5 13.6 5 12 6.5ZM12 6.5V20.5"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
                     />
-                    <defs>
-                      <pattern
-                        id="pattern0"
-                        patternContentUnits="objectBoundingBox"
-                        width="1"
-                        height="1"
-                      >
-                        <use
-                          xlink:href="#image0"
-                          transform="scale(0.015625)"
-                        />
-                      </pattern>
-                      <image
-                        id="image0"
-                        width="64"
-                        height="64"
-                        preserveAspectRatio="none"
-                        xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAAHYAAAB2AH6XKZyAAAAGXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAAAwxJREFUeJzt209oHkUcxvGPMQlqBAk9WCoBJZdoDuLJQyMtlBZSKv4Be6m3QpRcKmoN9RQPpVCCUA+e9FRPCqWlHixeVGwPUpFCrNhi0ItQJH+MQpU2TQ+7L+8SeHl3N7OZTbJfWN7Z3fnNPPMw876zs/PSsL15oGRcP17AM3gknJyg/IwvQxfajynMY3UTHM+HbPwgvqtBo4ocr3drVG/OxvfiC0m3bzGHS1jOWcZaxrA7TV/G94FiDmG0pKaOvKHt6grexYPrLHM6U+Z0wJizKugBxzPpDzCTM6729OTI8zSG0/QiTlcnZ+PJY8BwJn0F/1WkJQp5DHgsk16qSkgs8hiQnSytViUkFnkM2NI0BsQWEJvGgNgCOjCDf2zAhKuOBkzhHTyafr5XZWV1M+AgTq65dgovV1VhnQx4Dp9rP2TdTT978Fl6Pzh1MWAnLmAgPf8dz+K39HxAsrrzROiK62LABIbS9DJexHVJ12+tN+zC0dAV18WA1nR7RfIMP5uez+Kw9nAou4bZkboY0OJtXFxz7ZJkAaYS6mTAp/iow70z+LiKSmMakH20/hpvdsl/LM3XYjGEiLxLYlXwCZ5EH97XHueduIvXJPOC/9P4dRPTgH/xVsGYvzEZUkSdvgOi0BgQW0BsGgNiC4hNY0BsAbFpDIgtIDaNAbEFxKYxILaA2DQGxBYQm8aA2AJis+0NKLskNoZXJRsSd4STE4SnimQuasAQvsGegnGxWOmWoagBm6XhJMvuV7plKjsE/pK8qLiMhZJlVM2cHO8OyhjwE8Zxq0Rs7Sj6K3Abr9gijad4DziHP9L0wziBkaCKwnAPV/Fhml4XR7S3n2f360yq5k8OIY8D3RqXZwhkX2I+lEn/mSM2JityDNU8Gw5G8Eua/hZ7M/d2S3Zu1JEbuBaqsJva3Wo8VKGbiQltA5bwUlw54ci756YXX2Ff5tqPkn+RLeBOYF0h+BXnQxY4KHkOiP3NXuQY69aoIhOhReyX/BTOF4irNWW3nfVJ3B3F4+l5nbiHHwQeAg1bkfsR5B+/y7yHCAAAAABJRU5ErkJggg=="
-                      />
-                    </defs>
                   </svg>
                 </div>
                 <div class="guide-title-text">
@@ -155,362 +135,59 @@
           </button>
         </div>
         <DocumentsBlock />
+
+        <button
+          type="button"
+          class="modes-trigger"
+          data-testid="ob-work-modes"
+          @click="openModes"
+        >
+          <span class="modes-trigger__icon">
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="9"
+                stroke="currentColor"
+                stroke-width="1.7"
+              />
+              <path
+                d="M12 7v5l3.5 2"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </span>
+          <span class="modes-trigger__text">
+            <span class="modes-trigger__title">Режимы работы</span>
+            <span class="modes-trigger__sub">Время работы Бюро, мест разгрузки и мест прохода</span>
+          </span>
+          <svg
+            class="modes-trigger__chev"
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+          >
+            <path
+              d="M6 4l4 4-4 4"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
       </div>
     </div>
-
-    <!-- Модальное окно управления -->
-    <Teleport to="body">
-      <transition name="modal-fade">
-        <div
-          v-if="showManageModal"
-          class="modal-overlay"
-          @click.self="closeManageModal"
-        >
-          <div class="modal-content manage-modal">
-            <div class="modal-header">
-              <h3 class="modal-title">
-                Управление контентом
-              </h3>
-              <button
-                class="modal-close"
-                @click="closeManageModal"
-              >
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 14 14"
-                  fill="none"
-                ><path
-                  d="M13 1L1 13M1 1L13 13"
-                  stroke="#666"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                /></svg>
-              </button>
-            </div>
-
-            <div class="modal-body">
-              <div class="manage-tabs">
-                <button
-                  class="tab-btn"
-                  :class="{ active: activeTab === 'news' }"
-                  @click="activeTab = 'news'"
-                >
-                  Новости
-                </button>
-                <button
-                  class="tab-btn"
-                  :class="{ active: activeTab === 'announcements' }"
-                  @click="activeTab = 'announcements'"
-                >
-                  Объявления
-                </button>
-              </div>
-
-              <!-- Новости -->
-              <div
-                v-if="activeTab === 'news'"
-                class="manage-section"
-              >
-                <div class="section-header">
-                  <div class="section-title">
-                    Список новостей
-                  </div>
-                  <button
-                    class="add-btn"
-                    @click="openCreateNewsModal"
-                  >
-                    + Добавить новость
-                  </button>
-                </div>
-                <div class="items-list">
-                  <div
-                    v-for="item in allNewsItems"
-                    :key="item.id"
-                    class="manage-item"
-                  >
-                    <div class="item-main">
-                      <div class="item-title">
-                        {{ item.title }}
-                      </div>
-                      <div class="item-meta">
-                        <span>{{ formatDate(item.created_at) }}</span>
-                        <span>{{ item.created_by_name || 'Система' }}</span>
-                        <span class="status-text">{{ item.is_active ? 'Активна' : 'Скрыта' }}</span>
-                      </div>
-                    </div>
-                    <div class="item-actions">
-                      <button
-                        class="action-btn edit-btn"
-                        @click="editNewsItem(item)"
-                      >
-                        Редактировать
-                      </button>
-                      <button
-                        class="action-btn toggle-btn"
-                        @click="toggleNewsActive(item)"
-                      >
-                        {{ item.is_active ? 'Скрыть' : 'Показать' }}
-                      </button>
-                      <button
-                        class="action-btn delete-btn"
-                        @click="deleteNewsItem(item.id)"
-                      >
-                        Удалить
-                      </button>
-                    </div>
-                  </div>
-                  <div
-                    v-if="allNewsItems.length === 0"
-                    class="empty-manage"
-                  >
-                    Нет новостей
-                  </div>
-                </div>
-              </div>
-
-              <!-- Объявления -->
-              <div
-                v-if="activeTab === 'announcements'"
-                class="manage-section"
-              >
-                <div class="section-header">
-                  <div class="section-title">
-                    Список объявлений
-                  </div>
-                  <button
-                    class="add-btn"
-                    @click="openCreateAnnouncementModal"
-                  >
-                    + Добавить объявление
-                  </button>
-                </div>
-                <div class="info-message">
-                  <span>Активно может быть только одно объявление</span>
-                </div>
-                <div class="items-list">
-                  <div
-                    v-for="item in allAnnouncements"
-                    :key="item.id"
-                    class="manage-item"
-                  >
-                    <div class="item-main">
-                      <div class="item-title">
-                        {{ item.title }}
-                        <span
-                          v-if="item.is_important"
-                          class="important-badge"
-                        >Важное</span>
-                        <span
-                          v-if="item.is_active"
-                          class="active-badge"
-                        >Активно</span>
-                      </div>
-                      <div class="item-meta">
-                        <span>{{ formatDate(item.created_at) }}</span>
-                        <span>Создал: {{ item.created_by_name || 'Система' }}</span>
-                        <span v-if="item.activated_by_name">Активировал: {{ item.activated_by_name }}</span>
-                      </div>
-                    </div>
-                    <div class="item-actions">
-                      <button
-                        class="action-btn edit-btn"
-                        @click="editAnnouncement(item)"
-                      >
-                        Редактировать
-                      </button>
-                      <button
-                        v-if="!item.is_active"
-                        class="action-btn activate-btn"
-                        @click="setActiveAnnouncement(item.id)"
-                      >
-                        Показать
-                      </button>
-                      <button
-                        v-if="item.is_active"
-                        class="action-btn deactivate-btn"
-                        @click="deactivateAnnouncement(item.id)"
-                      >
-                        Скрыть
-                      </button>
-                      <button
-                        class="action-btn delete-btn"
-                        @click="deleteAnnouncement(item.id)"
-                      >
-                        Удалить
-                      </button>
-                    </div>
-                  </div>
-                  <div
-                    v-if="allAnnouncements.length === 0"
-                    class="empty-manage"
-                  >
-                    Нет объявлений
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="modal-footer">
-              <button
-                class="btn close-btn"
-                @click="closeManageModal"
-              >
-                Закрыть
-              </button>
-            </div>
-          </div>
-        </div>
-      </transition>
-    </Teleport>
-
-    <!-- Модальное окно создания/редактирования новости -->
-    <Teleport to="body">
-      <transition name="modal-fade">
-        <div
-          v-if="showNewsModal"
-          class="modal-overlay"
-          @click.self="closeNewsModal"
-        >
-          <div class="modal-content">
-            <div class="modal-header">
-              <h3 class="modal-title">
-                {{ editingNews ? 'Редактировать новость' : 'Создать новость' }}
-              </h3>
-              <button
-                class="modal-close"
-                @click="closeNewsModal"
-              >
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 14 14"
-                  fill="none"
-                ><path
-                  d="M13 1L1 13M1 1L13 13"
-                  stroke="#666"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                /></svg>
-              </button>
-            </div>
-            <div class="modal-body">
-              <div class="form-group">
-                <label class="form-label">Заголовок</label><input
-                  v-model="newsForm.title"
-                  type="text"
-                  class="form-input"
-                  placeholder="Введите заголовок"
-                >
-              </div>
-              <div class="form-group">
-                <label class="form-label">Краткое описание</label><textarea
-                  v-model="newsForm.description"
-                  class="form-textarea"
-                  placeholder="Введите краткое описание"
-                  rows="3"
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Полный текст</label>
-                <TextConstructor v-model="newsForm.fullText" />
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button
-                class="btn cancel-btn"
-                @click="closeNewsModal"
-              >
-                Отмена
-              </button>
-              <button
-                class="btn save-btn"
-                @click="submitNews"
-              >
-                Сохранить
-              </button>
-            </div>
-          </div>
-        </div>
-      </transition>
-    </Teleport>
-
-    <!-- Модальное окно создания/редактирования объявления -->
-    <Teleport to="body">
-      <transition name="modal-fade">
-        <div
-          v-if="showAnnouncementModal"
-          class="modal-overlay"
-          @click.self="closeAnnouncementModal"
-        >
-          <div class="modal-content">
-            <div class="modal-header">
-              <h3 class="modal-title">
-                {{ editingAnnouncement ? 'Редактировать объявление' : 'Создать объявление' }}
-              </h3>
-              <button
-                class="modal-close"
-                @click="closeAnnouncementModal"
-              >
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 14 14"
-                  fill="none"
-                ><path
-                  d="M13 1L1 13M1 1L13 13"
-                  stroke="#666"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                /></svg>
-              </button>
-            </div>
-            <div class="modal-body">
-              <div class="form-group">
-                <label class="form-label">Заголовок</label><input
-                  v-model="announcementForm.title"
-                  type="text"
-                  class="form-input"
-                  placeholder="Введите заголовок"
-                >
-              </div>
-              <div class="form-group">
-                <label class="form-label">Краткое описание</label><textarea
-                  v-model="announcementForm.description"
-                  class="form-textarea"
-                  placeholder="Введите краткое описание"
-                  rows="3"
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Полный текст</label>
-                <TextConstructor v-model="announcementForm.fullText" />
-              </div>
-              <div class="form-group">
-                <label class="checkbox-label"><input
-                  v-model="announcementForm.isImportant"
-                  type="checkbox"
-                ><span>Важное объявление</span></label>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button
-                class="btn cancel-btn"
-                @click="closeAnnouncementModal"
-              >
-                Отмена
-              </button>
-              <button
-                class="btn save-btn"
-                @click="submitAnnouncement"
-              >
-                Сохранить
-              </button>
-            </div>
-          </div>
-        </div>
-      </transition>
-    </Teleport>
 
     <!-- Модальное окно просмотра новости -->
     <Teleport to="body">
@@ -520,8 +197,23 @@
           class="modal-overlay"
           @click.self="closeNewsDetailsModal"
         >
-          <div class="modal-content">
-            <div class="modal-body">
+          <div
+            class="modal-content"
+            :class="{ 'is-dragging': sheetDragging }"
+            :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
+            @touchstart="onSheetTouchStart"
+            @touchmove="onSheetTouchMove"
+            @touchend="onSheetTouchEnd"
+          >
+            <!-- Ползунок bottom-sheet (виден только на мобилке), свайп вниз закрывает -->
+            <div
+              class="sheet-handle"
+              aria-hidden="true"
+            />
+            <div
+              ref="sheetBody"
+              class="modal-body"
+            >
               <div class="modal-info">
                 <time class="modal-date">{{ formatDate(selectedNews?.created_at) }}</time><span class="modal-type">Новость</span>
               </div>
@@ -558,88 +250,151 @@
     />
 
     <UserGuideModal
-      v-if="showGuide"
-      :title="guideTitle"
+      :show="showGuide"
       :sections="guideSections"
+      :loading="guideLoading"
       @close="closeGuide"
+    />
+
+    <WorkModesModal
+      :show="showModes"
+      @close="closeModes"
     />
   </section>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client'
+import eventStream from '@/services/eventStream'
 import RefreshButton from '../components/RefreshButton.vue'
 import AnnouncementModal from '../components/AnnouncementModal.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import UserGuideModal from '../components/news/UserGuideModal.vue'
-import TextConstructor from '@/components/TextConstructor.vue'
-import { USER_GUIDE_SECTIONS } from '../components/news/userGuideSections.js'
-import { ADMIN_GUIDE_SECTIONS } from '../components/news/adminGuideSections.js'
-import { useAuthStore } from '@/stores/auth'
+import { listGuideSections } from '@/api/guide'
+import { useDeletionsStore } from '@/stores/deletions'
 import { sanitizeHtml } from '@/utils/sanitize.js'
 import DocumentsBlock from '../components/news/DocumentsBlock.vue'
-import OnboardingButton from '../components/onboarding/OnboardingButton.vue'
+import WorkModesModal from '../components/news/WorkModesModal.vue'
+import OnboardingMenu from '../components/onboarding/OnboardingMenu.vue'
+import { ref } from 'vue'
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
+import { useOnboardingStore } from '@/stores/onboarding'
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 
 export default {
   name: 'LatestNews',
+  mixins: [openFromSearchLink((vm) => vm.newsItems, 'openNewsModal')],
   components: {
     RefreshButton,
     AnnouncementModal,
     LoaderSpinner,
     UserGuideModal,
-    TextConstructor,
     DocumentsBlock,
-    OnboardingButton,
+    WorkModesModal,
+    OnboardingMenu,
+  },
+  setup() {
+    // Читалка новости на мобилке - bottom-sheet со свайп-вниз-закрытием (W3.4).
+    // Состояние держим в setup, чтобы onDismiss свайпа мог закрыть модалку.
+    const showNewsDetailsModal = ref(false)
+    const selectedNews = ref(null)
+    const sheetBody = ref(null)
+    const openNewsModal = (item) => {
+      selectedNews.value = item
+      showNewsDetailsModal.value = true
+    }
+    const closeNewsDetailsModal = () => {
+      showNewsDetailsModal.value = false
+      selectedNews.value = null
+    }
+    const swipe = useSwipeDismiss(closeNewsDetailsModal, {
+      getScrollTop: () => sheetBody.value?.scrollTop ?? 0,
+      handleSelector: '.sheet-handle',
+    })
+    return {
+      showNewsDetailsModal,
+      selectedNews,
+      sheetBody,
+      openNewsModal,
+      closeNewsDetailsModal,
+      sheetOffset: swipe.offset,
+      sheetDragging: swipe.isDragging,
+      onSheetTouchStart: swipe.onTouchStart,
+      onSheetTouchMove: swipe.onTouchMove,
+      onSheetTouchEnd: swipe.onTouchEnd,
+      onboardingStore: useOnboardingStore(),
+    }
   },
   data() {
     return {
       loadingNews: false,
-      showManageModal: false,
-      showNewsDetailsModal: false,
-      showNewsModal: false,
-      showAnnouncementModal: false,
       showViewAnnouncementModal: false,
       showGuide: false,
-      activeTab: 'news',
-      selectedNews: null,
+      showModes: false,
+      // Расписание открыл тур - только такое окно он и закрывает за собой.
+      modesOpenedByTour: false,
       viewingAnnouncement: null,
-      editingNews: null,
-      editingAnnouncement: null,
-      newsForm: { title: '', description: '', fullText: '' },
-      announcementForm: { title: '', description: '', fullText: '', isImportant: false },
       newsItems: [],
-      allNewsItems: [],
       activeAnnouncement: null,
-      allAnnouncements: []
-    }
-  },
-  computed: {
-    isAdminUser() {
-      return useAuthStore().isSuperAdmin;
-    },
-    guideSections() {
-      return this.isAdminUser ? ADMIN_GUIDE_SECTIONS : USER_GUIDE_SECTIONS;
-    },
-    guideTitle() {
-      return this.isAdminUser ? 'Руководство администратора' : 'Руководство пользователя';
+      guideSections: [],
+      guideLoading: false,
+      guideLoaded: false,
+      eventStreamOff: null,
     }
   },
   mounted() {
     this.fetchAllData()
+    window.addEventListener('keydown', this.handleEscKey)
+
+    // Real-time доставка (#840 news.refresh): по сигналу сервера мгновенно
+    // перезапрашиваем новости и активное объявление вместо ожидания F5.
+    eventStream.connect()
+    this.eventStreamOff = eventStream.subscribe('news', () => {
+      this.fetchAllData()
+    })
+  },
+  beforeUnmount() {
+    window.removeEventListener('keydown', this.handleEscKey)
+    if (this.eventStreamOff) {
+      this.eventStreamOff()
+      this.eventStreamOff = null
+    }
+    eventStream.disconnect()
+  },
+  watch: {
+    /**
+     * Онбординг просит показать расписание: открываем окно режимов работы по
+     * сигналу и закрываем, когда сигнал гаснет. Чужое окно не трогаем.
+     */
+    'onboardingStore.revealOpen'(target) {
+      if (target === 'work-modes') {
+        if (this.showModes) return
+        this.modesOpenedByTour = true
+        this.showModes = true
+        return
+      }
+      if (!this.modesOpenedByTour) return
+      this.modesOpenedByTour = false
+      this.showModes = false
+    },
   },
   methods: {
+
     sanitizeHtml,
+    handleEscKey(e) {
+      if (e.key === 'Escape' && this.showNewsDetailsModal) this.closeNewsDetailsModal()
+    },
     formatDate(dateString) {
       if (!dateString) return ''
       const date = new Date(dateString)
       // Добавляем 3 часа для UTC+3 (Москва)
       const mskDate = new Date(date.getTime() + 3 * 60 * 60 * 1000)
-      return mskDate.toLocaleDateString('ru-RU', { 
-        day: '2-digit', 
-        month: '2-digit', 
-        year: 'numeric', 
-        hour: '2-digit', 
-        minute: '2-digit' 
+      return mskDate.toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
       }).replace(',', '')
     },
 
@@ -648,14 +403,9 @@ export default {
       try {
         const response = await apiRequest('/news')
         if (response.ok) this.newsItems = await response.json()
+        this.openFromSearchLink()
       } catch (error) { console.error('Ошибка загрузки новостей:', error) }
       finally { this.loadingNews = false }
-    },
-    async fetchAllNews() {
-      try {
-        const response = await apiRequest('/news/all')
-        if (response.ok) this.allNewsItems = await response.json()
-      } catch (error) { console.error('Ошибка загрузки всех новостей:', error) }
     },
     async fetchActiveAnnouncement() {
       try {
@@ -667,175 +417,51 @@ export default {
         }
       } catch (error) { console.error('Ошибка загрузки активного объявления:', error) }
     },
-    async fetchAllAnnouncements() {
-      try {
-        const response = await apiRequest('/announcements/all')
-        if (response.ok) this.allAnnouncements = await response.json()
-      } catch (error) { console.error('Ошибка загрузки всех объявлений:', error) }
-    },
     async fetchAllData() {
       await Promise.all([this.fetchNews(), this.fetchActiveAnnouncement()])
     },
-
-    buildNewsPayload() {
-      return {
-        title: this.newsForm.title,
-        description: this.newsForm.description,
-        full_text: this.newsForm.fullText,
+    // Разделы руководства гейтятся правами на бэке (GET /guide/sections отдаёт
+    // только доступные роли), фронт рисует ровно пришедшее. Грузим лениво на
+    // первом открытии модалки.
+    async loadGuideSections() {
+      this.guideLoading = true
+      try {
+        const data = await listGuideSections()
+        this.guideSections = Array.isArray(data) ? data : []
+        this.guideLoaded = true
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Ошибка загрузки руководства', type: 'error' })
+      } finally {
+        this.guideLoading = false
       }
     },
-    async createNews() {
-      try {
-        const response = await apiRequest('/news', {
-          method: 'POST',
-          body: JSON.stringify(this.buildNewsPayload())
-        })
-        if (response.ok) {
-          await this.fetchAllNews()
-          await this.fetchNews()
-          this.closeNewsModal()
-        } else alert('Ошибка создания новости')
-      } catch (error) { console.error('Ошибка создания новости:', error) }
-    },
-    async updateNews() {
-      try {
-        const response = await apiRequest(`/news/${this.editingNews.id}`, {
-          method: 'PUT',
-          body: JSON.stringify(this.buildNewsPayload())
-        })
-        if (response.ok) {
-          await this.fetchAllNews()
-          await this.fetchNews()
-          this.closeNewsModal()
-        } else alert('Ошибка обновления новости')
-      } catch (error) { console.error('Ошибка обновления новости:', error) }
-    },
-    async toggleNewsActive(item) {
-      try {
-        const response = await apiRequest(`/news/${item.id}`, {
-          method: 'PUT',
-          body: JSON.stringify({ is_active: !item.is_active })
-        })
-        if (response.ok) {
-          await this.fetchAllNews()
-          await this.fetchNews()
-        } else alert('Ошибка изменения статуса')
-      } catch (error) { console.error('Ошибка изменения статуса:', error) }
-    },
-    async deleteNewsItem(id) {
-      if (!confirm('Удалить новость?')) return
-      try {
-        const response = await apiRequest(`/news/${id}`, { method: 'DELETE' })
-        if (response.ok) {
-          await this.fetchAllNews()
-          await this.fetchNews()
-        } else alert('Ошибка удаления новости')
-      } catch (error) { console.error('Ошибка удаления новости:', error) }
-    },
 
-    buildAnnouncementPayload() {
-      return {
-        title: this.announcementForm.title,
-        description: this.announcementForm.description,
-        full_text: this.announcementForm.fullText,
-        is_important: this.announcementForm.isImportant,
-      }
+    openAnnouncementModal(announcement) {
+      this.viewingAnnouncement = announcement;
+      this.showViewAnnouncementModal = true;
     },
-    async createAnnouncement() {
-      try {
-        const response = await apiRequest('/announcements', {
-          method: 'POST',
-          body: JSON.stringify(this.buildAnnouncementPayload())
-        })
-        if (response.ok) {
-          await this.fetchAllAnnouncements()
-          await this.fetchActiveAnnouncement()
-          this.closeAnnouncementModal()
-        } else alert('Ошибка создания объявления')
-      } catch (error) { console.error('Ошибка создания объявления:', error) }
+    closeViewAnnouncementModal() {
+      this.showViewAnnouncementModal = false;
+      this.viewingAnnouncement = null;
     },
-    async updateAnnouncement() {
-      try {
-        const response = await apiRequest(`/announcements/${this.editingAnnouncement.id}`, {
-          method: 'PUT',
-          body: JSON.stringify(this.buildAnnouncementPayload())
-        })
-        if (response.ok) {
-          await this.fetchAllAnnouncements()
-          await this.fetchActiveAnnouncement()
-          this.closeAnnouncementModal()
-        } else alert('Ошибка обновления объявления')
-      } catch (error) { console.error('Ошибка обновления объявления:', error) }
+    openGuide() {
+      this.showGuide = true;
+      // guideLoading в условии — защита от параллельной загрузки при быстром
+      // открыл/закрыл/открыл, пока первый запрос ещё в полёте.
+      if (!this.guideLoaded && !this.guideLoading) this.loadGuideSections();
     },
-    async setActiveAnnouncement(id) {
-      if (!confirm('Активировать это объявление?')) return
-      try {
-        const response = await apiRequest('/announcements/set-active', {
-          method: 'POST',
-          body: JSON.stringify({ announcement_id: id })
-        })
-        if (response.ok) {
-          await this.fetchAllAnnouncements()
-          await this.fetchActiveAnnouncement()
-        } else alert('Ошибка активации объявления')
-      } catch (error) { console.error('Ошибка активации объявления:', error) }
-    },
-    async deactivateAnnouncement(id) {
-      if (!confirm('Скрыть объявление?')) return
-      try {
-        const response = await apiRequest(`/announcements/${id}/hide`, {
-          method: 'POST'
-        })
-        if (response.ok) {
-          await this.fetchAllAnnouncements()
-          await this.fetchActiveAnnouncement()
-        } else alert('Ошибка скрытия объявления')
-      } catch (error) { console.error('Ошибка скрытия объявления:', error) }
-    },
-    async deleteAnnouncement(id) {
-      if (!confirm('Удалить объявление?')) return
-      try {
-        const response = await apiRequest(`/announcements/${id}`, { method: 'DELETE' })
-        if (response.ok) {
-          await this.fetchAllAnnouncements()
-          await this.fetchActiveAnnouncement()
-        } else alert('Ошибка удаления объявления')
-      } catch (error) { console.error('Ошибка удаления объявления:', error) }
-    },
-
-    openManageModal() { this.fetchAllNews(); this.fetchAllAnnouncements(); this.showManageModal = true },
-    closeManageModal() { this.showManageModal = false },
-    openNewsModal(item) { this.selectedNews = item; this.showNewsDetailsModal = true },
-    closeNewsDetailsModal() { this.showNewsDetailsModal = false; this.selectedNews = null },
-    openAnnouncementModal(announcement) { 
-      this.viewingAnnouncement = announcement; 
-      this.showViewAnnouncementModal = true; 
-    },
-    closeViewAnnouncementModal() { 
-      this.showViewAnnouncementModal = false; 
-      this.viewingAnnouncement = null; 
-    },
-    openCreateNewsModal() { this.editingNews = null; this.newsForm = { title: '', description: '', fullText: '' }; this.showNewsModal = true },
-    editNewsItem(item) { this.editingNews = item; this.newsForm = { title: item.title, description: item.description, fullText: item.full_text || '' }; this.showNewsModal = true },
-    closeNewsModal() { this.showNewsModal = false; this.editingNews = null },
-    submitNews() { if (!this.newsForm.title || !this.newsForm.description) { alert('Заполните заголовок и описание'); return } this.editingNews ? this.updateNews() : this.createNews() },
-    openCreateAnnouncementModal() { this.editingAnnouncement = null; this.announcementForm = { title: '', description: '', fullText: '', isImportant: false }; this.showAnnouncementModal = true },
-    editAnnouncement(item) { this.editingAnnouncement = item; this.announcementForm = { title: item.title, description: item.description, fullText: item.full_text || '', isImportant: item.is_important }; this.showAnnouncementModal = true },
-    closeAnnouncementModal() { this.showAnnouncementModal = false; this.editingAnnouncement = null },
-    submitAnnouncement() { if (!this.announcementForm.title || !this.announcementForm.description) { alert('Заполните заголовок и описание'); return } this.editingAnnouncement ? this.updateAnnouncement() : this.createAnnouncement() },
-    openGuide() { this.showGuide = true; },
-    closeGuide() { this.showGuide = false; }
+    closeGuide() { this.showGuide = false; },
+    openModes() { this.showModes = true; },
+    closeModes() { this.showModes = false; }
   }
 }
 </script>
 
 <style scoped>
-/* ... все существующие стили ... */
-
 /* Добавляем стили для лоадера */
 .loading-message {
   text-align: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   padding: 40px 20px;
   margin: 0;
   font-size: 14px;
@@ -850,8 +476,8 @@ export default {
 .loader {
   width: 30px;
   height: 30px;
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #4F5BDF;
+  border: 3px solid var(--surface-2);
+  border-top: 3px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -861,10 +487,11 @@ export default {
   100% { transform: rotate(360deg); }
 }
 
+/* Фон не задаём: это страница, её фон - --bg от body. Своя заливка в --surface делала
+   «Обзор и новости» единственным экраном с карточным цветом во всю площадь. */
 .news {
     padding: 20px;
     font-family: 'Montserrat', sans-serif;
-    background: linear-gradient(135deg, #f8f9ff 0%, #ffffff 100%);
 }
 
 .content-wrapper {
@@ -878,12 +505,16 @@ export default {
 }
 
 .news-container {
-    background: #FFFFFF;
-    border: 1px solid #E6E6E6;
-    box-shadow: 0px 3px 10px rgba(0, 0, 0, 0.05);
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 30px;
     overflow: hidden;
-    min-height: 84vh;
+    /* var(--app-vh) = зумленная высота вьюпорта (viewportScale.js); чистый vh
+       под корневым zoom считается от незумленной высоты и завышает карточку. */
+    min-height: calc(var(--app-vh, 1vh) * 84);
+    /* B.3 (#1097): svh стабилизирует высоту на мобилке (ретракт адрес-бара браузера не
+       дёргает layout); min() держит zoom-корректность на десктопе; фолбэк на calc выше. */
+    min-height: min(calc(var(--app-vh, 1vh) * 84), 84svh);
 }
 
 .news-header {
@@ -899,7 +530,7 @@ export default {
     font-weight: 700;
     font-size: 18px;
     line-height: 22px;
-    color: #1a1a1a;
+    color: var(--text);
 }
 
 .header-actions {
@@ -907,28 +538,9 @@ export default {
     gap: 8px;
 }
 
-.manage-btn {
-    width: 115px;
-    height: 25px;
-    background: white;
-    border: 1px solid #e6e6e6;
-    border-radius: 30px;
-    font-family: 'Montserrat', sans-serif;
-    font-weight: 500;
-    font-size: 13px;
-    color: #000000;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.manage-btn:hover {
-    background: #f5f5f5;
-    border-color: #4F5BDF;
-}
-
 .divider {
     height: 1px;
-    background: #E6E6E6;
+    background: var(--border);
     margin: 0;
 }
 
@@ -944,7 +556,7 @@ export default {
     opacity: 0;
     transform: translateY(20px);
     animation: slideInUp 0.5s ease forwards;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
 }
 
 @keyframes slideInUp {
@@ -963,17 +575,17 @@ export default {
 }
 
 .news-list::-webkit-scrollbar-thumb {
-    background: #D9E2FF;
+    background: color-mix(in srgb, var(--accent) 22%, var(--surface));
     border-radius: 4px;
 }
 
 .news-list::-webkit-scrollbar-thumb:hover {
-    background: #4F5BDF;
+    background: var(--accent);
 }
 
 .news-list {
     scrollbar-width: thin;
-    scrollbar-color: #D9E2FF transparent;
+    scrollbar-color: color-mix(in srgb, var(--accent) 22%, var(--surface)) transparent;
 }
 
 .item-header {
@@ -987,7 +599,7 @@ export default {
     font-weight: 500;
     font-size: 12px;
     line-height: 15px;
-    color: #A2A2A2;
+    color: var(--text-muted);
 }
 
 .item-type {
@@ -995,8 +607,8 @@ export default {
     font-weight: 500;
     padding: 2px 8px;
     border-radius: 20px;
-    background: #f0f4ff;
-    color: #4F5BDF;
+    background: var(--accent-tint);
+    color: var(--accent-text);
 }
 
 .news-item-title {
@@ -1004,7 +616,7 @@ export default {
     font-weight: 700;
     font-size: 16px;
     line-height: 20px;
-    color: #1a1a1a;
+    color: var(--text);
 }
 
 .news-item-description {
@@ -1012,7 +624,7 @@ export default {
     font-weight: 400;
     font-size: 14px;
     line-height: 17px;
-    color: #666;
+    color: var(--text-muted);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -1021,7 +633,7 @@ export default {
 
 .news-details-button {
     height: 25px;
-    background: #4F5BDF;
+    background: var(--accent);
     border: none;
     border-radius: 30px;
     cursor: pointer;
@@ -1030,18 +642,18 @@ export default {
     font-weight: 500;
     font-size: 12px;
     line-height: 25px;
-    color: #FFFFFF;
+    color: var(--accent-contrast);
     transition: background-color 0.2s ease;
 }
 
 .news-details-button:hover {
-    background: #3a45c5;
+    background: var(--accent-hover);
 }
 
 .empty-state {
     text-align: center;
     padding: 48px 20px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .empty-state p {
@@ -1058,8 +670,8 @@ export default {
 }
 
 .news-card {
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 24px;
     padding: 20px;
     cursor: pointer;
@@ -1071,8 +683,8 @@ export default {
 
 .news-card:hover {
     transform: translateY(-3px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    border-color: #4F5BDF;
+    box-shadow: 0 4px 12px var(--shadow-drop);
+    border-color: var(--accent);
 }
 
 .card-header {
@@ -1087,18 +699,19 @@ export default {
     font-weight: 500;
     padding: 2px 8px;
     border-radius: 20px;
-    background: #fff3cd;
-    color: #856404;
+    background: var(--warning-bg);
+    border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
+    color: var(--warning-text);
 }
 
 .card-type.important {
-    background: #ffb3b3;
-    color: #c62828;
+    background: var(--danger-bg);
+    color: var(--danger-text);
 }
 
 .card-date {
     font-size: 11px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .card-title {
@@ -1106,7 +719,7 @@ export default {
     font-weight: 700;
     font-size: 16px;
     line-height: 20px;
-    color: #1a1a1a;
+    color: var(--text);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -1117,7 +730,7 @@ export default {
     margin: 0 0 16px 0;
     font-size: 13px;
     line-height: 1.4;
-    color: #666;
+    color: var(--text-muted);
     display: -webkit-box;
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
@@ -1131,7 +744,7 @@ export default {
     font-family: 'Montserrat', sans-serif;
     font-size: 12px;
     font-weight: 500;
-    color: #4F5BDF;
+    color: var(--accent-text);
     cursor: pointer;
     transition: transform 0.2s ease;
 }
@@ -1141,8 +754,8 @@ export default {
 }
 
 .guide-card {
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 24px;
     padding: 20px;
     width: 450px;
@@ -1157,8 +770,70 @@ export default {
 
 .guide-card:hover {
     transform: translateY(-3px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    border: 1px solid #4F5BDF;
+    box-shadow: 0 4px 12px var(--shadow-drop);
+    border: 1px solid var(--accent);
+}
+
+.modes-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px solid var(--color-border);
+    border-radius: 22px;
+    font-family: 'Montserrat', sans-serif;
+    text-align: left;
+    cursor: pointer;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.modes-trigger:hover {
+    border-color: var(--accent);
+}
+
+.modes-trigger__icon {
+    width: 42px;
+    height: 42px;
+    flex-shrink: 0;
+    border-radius: 12px;
+    background: var(--accent-tint);
+    color: var(--accent-text);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modes-trigger__text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.modes-trigger__title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.modes-trigger__sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.modes-trigger__chev {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.modes-trigger:hover .modes-trigger__chev {
+    color: var(--accent-text);
+    transform: translateX(3px);
 }
 
 .guide-content {
@@ -1169,6 +844,8 @@ export default {
 
 .guide-icon {
     flex-shrink: 0;
+    /* Иконка нарисована currentColor - цвет берётся отсюда и следует за темой. */
+    color: var(--accent-text);
 }
 
 .guide-text {
@@ -1180,229 +857,27 @@ export default {
     font-weight: 700;
     font-size: 20px;
     line-height: 1.2;
-    color: #1a1a1a;
+    color: var(--text);
     display: flex;
     gap: 10px;
     align-items: center;
 }
 
 .guide-title-blue {
-    color: #4F5BDF;
+    color: var(--accent-text);
 }
 
 .guide-description {
     margin: 0;
     font-size: 12px;
     line-height: 1.4;
-    color: #a2a2a2;
+    color: var(--text-muted);
     width: 320px;
 }
 
 .guide-description strong {
     font-weight: 700;
-    color: #a2a2a2;
-}
-
-.manage-modal .modal-content {
-    width: 680px;
-}
-
-.manage-tabs {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 24px;
-    border-bottom: 1px solid #e6e6e6;
-    padding-bottom: 12px;
-}
-
-.tab-btn {
-    background: none;
-    border: none;
-    padding: 8px 20px;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 14px;
-    font-weight: 500;
-    color: #a2a2a2;
-    cursor: pointer;
-    border-radius: 20px;
-    transition: all 0.2s ease;
-}
-
-.tab-btn:hover {
-    color: #4F5BDF;
-    background: #f8f9ff;
-}
-
-.tab-btn.active {
-    color: #4F5BDF;
-    background: #f0f4ff;
-}
-
-.manage-section {
-    margin-top: 8px;
-}
-
-.section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-}
-
-.section-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: #333;
-}
-
-.add-btn {
-    background: #4F5BDF;
-    border: none;
-    border-radius: 20px;
-    padding: 6px 16px;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 12px;
-    font-weight: 500;
-    color: white;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.add-btn:hover {
-    background: #3a45c0;
-}
-
-.info-message {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: #f0f4ff;
-    padding: 10px 14px;
-    border-radius: 12px;
-    margin-bottom: 16px;
-    font-size: 12px;
-    color: #4F5BDF;
-}
-
-.items-list {
-    max-height: 420px;
-    overflow-y: auto;
-}
-
-.manage-item {
-    display: flex;
-    justify-content: space-between;
-    flex-direction: column;
-
-    padding: 14px;
-    border-bottom: 1px solid #f0f0f0;
-    transition: background 0.2s ease;
-    border: 1px solid #e6e6e6;
-    border-radius: 20px;
-    margin-bottom: 10px;
-}
-
-.manage-item:hover {
-    background: #fafafa;
-}
-
-.item-main {
-    flex: 1;
-}
-
-.item-title {
-    font-weight: 500;
-    font-size: 14px;
-    color: #333;
-    margin-bottom: 6px;
-}
-
-.item-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    font-size: 11px;
-    color: #a2a2a2;
-}
-
-.status-text {
-    color: #666;
-}
-
-.active-badge {
-    margin-left: 8px;
-    padding: 2px 8px;
-    background: #4F5BDF;
-    color: white;
-    border-radius: 12px;
-    font-size: 10px;
-    font-weight: 500;
-}
-
-.important-badge {
-    margin-left: 8px;
-    padding: 2px 8px;
-    background: #ff9800;
-    color: white;
-    border-radius: 12px;
-    font-size: 10px;
-    font-weight: 500;
-}
-
-.item-actions {
-    display: flex;
-    gap: 8px;
-    padding-top: 10px;
-}
-
-.action-btn {
-    background: none;
-    border: none;
-    padding: 3px 12px;
-    border-radius: 20px;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    color: #666;
-    border: 1px solid #e6e6e6;
-}
-
-.action-btn:hover {
-    background: #f0f0f0;
-}
-
-.edit-btn:hover {
-    color: #4F5BDF;
-    background: #f0f4ff;
-}
-
-.delete-btn:hover {
-    color: #dc2626;
-    background: #ffebee;
-}
-
-.toggle-btn:hover {
-    color: #4F5BDF;
-    background: #f0f4ff;
-}
-
-.activate-btn:hover {
-    color: #4F5BDF;
-    background: #f0f4ff;
-}
-
-.deactivate-btn:hover {
-    color: #dc2626;
-    background: #ffebee;
-}
-
-.empty-manage {
-    text-align: center;
-    padding: 48px;
-    color: #a2a2a2;
-    font-size: 13px;
+    color: var(--text-muted);
 }
 
 .modal-overlay {
@@ -1411,7 +886,7 @@ export default {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1437,12 +912,12 @@ export default {
 }
 
 .modal-content {
-    background: #fff;
+    background: var(--surface);
     border-radius: 50px;
     width: 540px;
     max-width: 90vw;
-    max-height: 80vh;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-height: calc(var(--app-vh, 1vh) * 80);
+    box-shadow: 0 20px 60px var(--shadow-drop);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1458,25 +933,10 @@ export default {
 
 .modal-title {
     margin: 0;
+    padding-bottom: 8px;
     font-size: 18px;
     font-weight: 600;
-    color: #1a1a1a;
-}
-
-.modal-close {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 6px;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background-color 0.2s ease;
-}
-
-.modal-close:hover {
-    background-color: #f5f5f5;
+    color: var(--text);
 }
 
 .modal-body {
@@ -1494,7 +954,7 @@ export default {
 
 .modal-date {
     font-size: 12px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .modal-type {
@@ -1502,34 +962,29 @@ export default {
     font-weight: 500;
     padding: 2px 8px;
     border-radius: 20px;
-    background: #f0f4ff;
-    color: #4F5BDF;
-}
-
-.modal-type.announcement {
-    background: #fff3cd;
-    color: #856404;
+    background: var(--accent-tint);
+    color: var(--accent-text);
 }
 
 .modal-description {
     font-size: 14px;
     line-height: 1.5;
-    color: #333;
+    color: var(--text);
     margin: 0 0 20px 0;
 }
 
 .modal-full-text {
     font-size: 14px;
     line-height: 1.6;
-    color: #666;
+    color: var(--text-muted);
     padding-top: 16px;
-    border-top: 1px solid #f0f0f0;
+    border-top: 1px solid var(--border);
     margin-top: 8px;
 }
 
 .modal-footer {
     padding: 16px 30px 24px;
-    border-top: 1px solid #f0f0f0;
+    border-top: 1px solid var(--border);
     display: flex;
     justify-content: flex-end;
     gap: 12px;
@@ -1547,79 +1002,22 @@ export default {
 }
 
 .close-btn {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
 }
 
 .close-btn:hover {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
-.cancel-btn {
-    background: white;
-    color: #666;
-    border-color: #e6e6e6;
+/* Ползунок bottom-sheet и короткий заголовок - только на мобилке (@media768). */
+.sheet-handle {
+    display: none;
 }
 
-.cancel-btn:hover {
-    background: #f5f5f5;
-}
-
-.save-btn {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
-}
-
-.save-btn:hover {
-    background: #3a45c0;
-}
-
-.form-group {
-    margin-bottom: 20px;
-}
-
-.form-label {
-    display: block;
-    font-size: 13px;
-    font-weight: 500;
-    color: #333;
-    margin-bottom: 8px;
-}
-
-.form-input,
-.form-textarea {
-    width: 100%;
-    padding: 10px 14px;
-    border: 1px solid #e6e6e6;
-    border-radius: var(--radius-md);
-    font-family: 'Montserrat', sans-serif;
-    font-size: 13px;
-    transition: all 0.2s ease;
-    resize: vertical;
-}
-
-.form-input:focus,
-.form-textarea:focus {
-    outline: none;
-    border-color: #4F5BDF;
-}
-
-.checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    font-size: 13px;
-    color: #333;
-}
-
-.checkbox-label input {
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-    accent-color: #4F5BDF;
+.news-title__short {
+    display: none;
 }
 
 @media (max-width: 820px) {
@@ -1636,33 +1034,113 @@ export default {
         width: 100%;
     }
 
-    .modal-content,
-    .manage-modal .modal-content {
+    .modal-content {
         width: 95vw;
     }
 }
 
 @media (max-width: 768px) {
+    /* Боковой отступ страницы на телефоне ужимаем. */
+    .news {
+        padding: 15px;
+    }
+
+    /* Заголовок в строку с кнопками: короткий текст «Новости» помещается
+       рядом с «Обучение» и «Обновить». На очень узких (<=320) кнопки уходят
+       на вторую строку (flex-wrap) - лучше, чем горизонтальный скролл страницы. */
     .news-header {
-        flex-direction: column;
-        align-items: stretch;
+        flex-direction: row;
+        align-items: center;
+        flex-wrap: wrap;
         height: auto;
-        gap: 10px;
+        gap: 8px;
         padding: 12px 14px;
     }
 
     .news-title {
         font-size: 16px;
+        white-space: nowrap;
+    }
+
+    .news-title__full {
+        display: none;
+    }
+
+    .news-title__short {
+        display: inline;
     }
 
     .header-actions {
-        width: 100%;
-        justify-content: flex-start;
-        flex-wrap: wrap;
+        width: auto;
+        margin-left: auto;
+        justify-content: flex-end;
+        flex-wrap: nowrap;
+        gap: 6px;
     }
 
-    .manage-btn {
+    /* "Обновить" на мобилке - только иконка; высота как у кнопки "Обучение" (25px).
+       Ширина ФИКСИРОВАНА под самое широкое состояние (3 точки перезарядки = 45px),
+       иначе кнопка дёргается на 5px при переходе иконка<->точки (обзор 1 R3-7). */
+    .header-actions :deep(.refresh-btn) {
+        height: 25px;
+        width: 45px;
+        box-sizing: border-box;
+        padding: 0 8px;
+        justify-content: center;
+        border-radius: 50px;
+    }
+    .header-actions :deep(.refresh-btn__text) {
+        display: none;
+    }
+
+    /* Блок "Руководство" (обзор 2): фикс width:450px/height:130px и description
+       width:320px ломали карточку на узком экране (текст вылезал за блок). Высота
+       по контенту, описание на всю ширину, иконку в строке заголовка убираем -
+       заголовок больше не "кривой". */
+    .guide-card {
+        height: auto;
+    }
+    .guide-icon {
+        display: none;
+    }
+    .guide-description {
+        width: 100%;
+    }
+
+    /* Читалка новости - bottom-sheet: оверлей прижимает лист к низу,
+       лист во всю ширину выезжает снизу; свайп вниз за ползунок закрывает. */
+    .modal-overlay {
+        align-items: flex-end;
+    }
+
+    .modal-content {
+        width: 100%;
+        max-width: 100%;
+        max-height: 88vh;
+        border-radius: 16px 16px 0 0;
+        transition: transform 0.3s ease;
+    }
+
+    /* Пока тянем пальцем - без анимации (лист следует за пальцем 1:1). */
+    .modal-content.is-dragging {
+        transition: none;
+    }
+
+    .sheet-handle {
+        display: block;
+        width: 40px;
+        height: 4px;
+        margin: 10px auto 2px;
+        border-radius: 2px;
+        background: var(--border);
         flex-shrink: 0;
+    }
+
+    /* Вход/выход - выезд снизу вместо десктопного scale (переопределяем .modal-fade). */
+    .modal-fade-enter-from .modal-content,
+    .modal-fade-leave-to .modal-content {
+        opacity: 1;
+        transform: translateY(100%);
     }
 }
 

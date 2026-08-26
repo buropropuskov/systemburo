@@ -1,6 +1,6 @@
 <template>
   <div class="attachments-management-container dashboard-card">
-    <div class="management-header">
+    <div class="management-header rt-header-inline">
       <h3 class="management-title">
         Вложения заявок
       </h3>
@@ -18,11 +18,16 @@
           :title="'Поиск вложений...'"
         />
         <button
-          class="add-header-button"
+          class="add-header-button rt-btn-compact"
+          aria-label="Создать вложение"
           data-testid="attachment-add-btn"
           @click="openAddModal"
         >
-          Создать вложение
+          <span
+            class="rt-btn-icon"
+            aria-hidden="true"
+          >+</span>
+          <span class="rt-btn-label">Создать вложение</span>
         </button>
         <RefreshButton
           :loading="isLoading"
@@ -36,8 +41,8 @@
         class="table-section"
         :class="{ 'with-details': selectedAttachment }"
       >
-        <div class="table-container">
-          <div class="table-header">
+        <div class="table-container rt-table">
+          <div class="table-header rt-head-row">
             <div
               class="header-col id-col"
               @click="sortBy('id')"
@@ -45,11 +50,11 @@
               <p :class="{ 'active-sort': sortField === 'id' }">
                 ID
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{ sorted: sortField === 'id', desc: sortField === 'id' && sortDirection === 'desc' }"
-              >
+              />
             </div>
             <div
               class="header-col name-col"
@@ -58,11 +63,11 @@
               <p :class="{ 'active-sort': sortField === 'display_name' }">
                 Наименование
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{ sorted: sortField === 'display_name', desc: sortField === 'display_name' && sortDirection === 'desc' }"
-              >
+              />
             </div>
           </div>
 
@@ -70,7 +75,7 @@
             <div
               v-for="a in filteredAttachments"
               :key="a.id"
-              class="table-row"
+              class="table-row rt-row"
               data-testid="attachment-row"
               :class="{
                 selected: selectedAttachment && selectedAttachment.id === a.id,
@@ -78,15 +83,21 @@
               }"
               @click="selectAttachment(a)"
             >
-              <div class="table-col id-col">
+              <div
+                class="table-col id-col"
+                data-label="ID"
+              >
                 <span class="cell-content id-value">{{ a.id }}</span>
               </div>
-              <div class="table-col name-col">
-                <span
-                  class="truncate-text"
-                  :title="a.display_name"
-                >
-                  {{ a.display_name }}
+              <div
+                class="table-col name-col"
+                data-label="Наименование"
+              >
+                <div class="name-with-badges">
+                  <span
+                    class="truncate-text"
+                    :title="a.display_name"
+                  >{{ a.display_name }}</span>
                   <span
                     class="type-badge"
                     :class="a.attachment_type"
@@ -95,7 +106,7 @@
                     v-if="!a.is_active"
                     class="inactive-badge"
                   >(архив)</span>
-                </span>
+                </div>
               </div>
             </div>
 
@@ -149,11 +160,10 @@
                   title="Переименовать"
                   @click="startNameEdit"
                 >
-                  <img
-                    src="@/assets/icons/edit.png"
+                  <AppIcon
+                    name="edit"
                     class="name-edit-icon"
-                    alt=""
-                  >
+                  />
                 </button>
               </template>
               <span
@@ -269,6 +279,26 @@
               </div>
             </div>
 
+            <div class="form-row">
+              <div class="form-group">
+                <label class="field-label">Автосохранение в файловый архив</label>
+                <span
+                  class="hint-anchor"
+                  :data-hint="autoExportHint"
+                  data-testid="attachment-auto-export-hint"
+                >
+                  <ToggleSwitch
+                    v-model="form.auto_export"
+                    :disabled="!selectedAttachment.is_active || isSaving || autoExportDisabled"
+                    data-testid="attachment-auto-export"
+                  >
+                    {{ form.auto_export ? 'Включено' : 'Выключено' }}
+                  </ToggleSwitch>
+                </span>
+                <span class="field-hint">Писать ли бланки этого типа в файловый архив бюро</span>
+              </div>
+            </div>
+
             <div class="form-group">
               <label class="field-label">Инструкция к вложению</label>
               <TextConstructor
@@ -305,7 +335,8 @@
                 :key="`te-${selectedAttachment.id}`"
                 :show="showTemplateEditor"
                 :unique-attachment-id="selectedAttachment.id"
-                @close="showTemplateEditor = false"
+                :attachment-type="selectedAttachment.attachment_type"
+                @close="onTemplateEditorClose"
               />
             </template>
 
@@ -483,11 +514,13 @@
 
 <script>
 import SearchComponent from './SearchComponent.vue';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import RefreshButton from './RefreshButton.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import TextConstructor from './TextConstructor.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
+import ToggleSwitch from './ui/ToggleSwitch.vue';
 import AttachmentFieldsModal from './admin/AttachmentFieldsModal.vue';
 import AttachmentTemplateEditor from './admin/AttachmentTemplateEditor.vue';
 import UniqueAttachmentHistoryModal from './UniqueAttachmentHistoryModal.vue';
@@ -502,11 +535,16 @@ import {
   archiveAttachment,
   restoreAttachment,
 } from '@/api/attachments';
+import { getTemplate } from '@/api/attachment-templates';
+import { getArchiveSettings } from '@/api/fileArchive';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 const SYSTEM_NAME_RE = /^[a-z0-9_]*$/;
 
 function emptyForm() {
-  return { display_name: '', name: '', title: '', attachment_type: 'cars', instruction: '' };
+  return {
+    display_name: '', name: '', title: '', attachment_type: 'cars', instruction: '', auto_export: true,
+  };
 }
 
 export default {
@@ -518,9 +556,11 @@ export default {
     TextConstructor,
     BaseDropdown,
     LoaderSpinner,
+    ToggleSwitch,
     AttachmentFieldsModal,
     AttachmentTemplateEditor,
     UniqueAttachmentHistoryModal,
+    AppIcon,
   },
   setup() {
     // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
@@ -553,6 +593,10 @@ export default {
       editingName: false,
       editingNameValue: '',
       currentUserName: '',
+      // Тумблер архива (#1615): глобальный рубильник грузится один раз, а признак
+      // активного бланка - на каждый выбор строки (у своего вложения он свой).
+      archiveEnabled: false,
+      hasActiveTemplate: false,
       archiveOptions: [
         { label: 'Активные', value: 'active' },
         { label: 'Архив', value: 'archive' },
@@ -566,14 +610,13 @@ export default {
   },
   computed: {
     filteredAttachments() {
-      const q = this.searchQuery.trim().toLowerCase();
+      const variants = buildSearchVariants(this.searchQuery);
       let list = this.items.filter(a => (this.showArchive ? !a.is_active : a.is_active));
-      if (q) {
-        list = list.filter(a =>
-          (a.display_name || '').toLowerCase().includes(q)
-          || (a.name || '').toLowerCase().includes(q)
-          || (a.title || '').toLowerCase().includes(q)
-          || String(a.id).includes(q));
+      if (variants.length) {
+        list = list.filter(a => matchesSearch(
+          `${a.display_name || ''} ${a.name || ''} ${a.title || ''} ${a.id}`,
+          variants,
+        ));
       }
       return this.sortList(list);
     },
@@ -614,18 +657,34 @@ export default {
       return f.display_name.trim() !== o.display_name
         || f.title.trim() !== o.title
         || f.attachment_type !== o.attachment_type
-        || (f.instruction || '') !== (o.instruction || '');
+        || (f.instruction || '') !== (o.instruction || '')
+        || !!f.auto_export !== !!o.auto_export;
     },
     isDirty() {
       return this.isAddDirty || this.isDetailsDirty;
     },
+    // Тумблер архива заблокирован в двух случаях (#1615): глобальный рубильник
+    // выключен на сервере, либо у ЭТОГО типа вложения нет активного
+    // Excel-бланка - без него генерировать нечего.
+    autoExportDisabled() {
+      return !this.archiveEnabled || !this.hasActiveTemplate;
+    },
+    autoExportHint() {
+      // Раздел «Файловый архив» рубильник только показывает: включает его команда
+      // server archive on на сервере, и подсказка не должна звать туда, где кнопки нет.
+      if (!this.archiveEnabled) return 'Файловый архив выключен - включается на сервере командой server archive on';
+      if (!this.hasActiveTemplate) return 'У вложения нет активного Excel-бланка - настройте его во вкладке «Excel-бланк»';
+      return '';
+    },
   },
   created() {
     this.overlay.close = () => { this.requestCloseAdd(); };
+    this._templateStatusSeq = 0;
   },
   mounted() {
     this.refresh();
     this.fetchCurrentUser();
+    this.loadArchiveEnabled();
     this._stopGuard = registerDirtyTracker({
       isDirty: () => this.isDirty,
       getChanges: () => {
@@ -645,6 +704,9 @@ export default {
           }
           if ((f.instruction || '') !== (o.instruction || '')) {
             ch.push({ label: 'Инструкция', from: '', to: 'изменена' });
+          }
+          if (!!f.auto_export !== !!o.auto_export) {
+            ch.push({ label: 'Автосохранение в архив', from: o.auto_export ? 'включено' : 'выключено', to: f.auto_export ? 'включено' : 'выключено' });
           }
           return ch;
         }
@@ -702,10 +764,43 @@ export default {
         title: fresh.title ?? '',
         attachment_type: fresh.attachment_type ?? 'cars',
         instruction: fresh.instruction ?? '',
+        auto_export: !!fresh.auto_export,
       };
       this.form = { ...vals };
       this.original = { ...vals };
       this.showTemplateEditor = false;
+      this.loadTemplateStatus(fresh.id);
+    },
+    // Признак «есть активный Excel-бланк» нужен только для гейта тумблера архива -
+    // 404 «Шаблон не настроен» здесь штатный случай, а не сетевая ошибка (getTemplate
+    // не проверяет res.ok, так же читает его AttachmentTemplateEditor.loadTemplate).
+    async loadTemplateStatus(id) {
+      const seq = (this._templateStatusSeq += 1);
+      this.hasActiveTemplate = false;
+      try {
+        const data = await getTemplate(id);
+        if (seq !== this._templateStatusSeq) return;
+        this.hasActiveTemplate = !!(data && data.file_path);
+      } catch {
+        if (seq !== this._templateStatusSeq) return;
+        this.hasActiveTemplate = false;
+      }
+    },
+    // Настройка бланка могла появиться/исчезнуть в редакторе - перепроверяем гейт
+    // тумблера архива при закрытии, иначе он останется disabled ещё один цикл.
+    onTemplateEditorClose() {
+      this.showTemplateEditor = false;
+      if (this.selectedAttachment) this.loadTemplateStatus(this.selectedAttachment.id);
+    },
+    async loadArchiveEnabled() {
+      try {
+        const settings = await getArchiveSettings();
+        this.archiveEnabled = !!(settings && settings.enabled);
+      } catch {
+        // Раздел архива недоступен/не настроен - тумблер остаётся заблокированным,
+        // это безопасное значение по умолчанию, а не повод падать формой вложений.
+        this.archiveEnabled = false;
+      }
     },
     async refresh() {
       this.isLoading = true;
@@ -756,6 +851,7 @@ export default {
           displayName,
           title,
           instruction: this.form.instruction || null,
+          autoExport: this.form.auto_export,
         });
         this.deletions.notify({ prefix: 'Изменения сохранены в ', bold: displayName });
         this.form.display_name = displayName;
@@ -903,9 +999,9 @@ export default {
 
 <style scoped>
 .attachments-management-container {
-  background: #fff;
+  background: var(--surface);
   border-radius: 16px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   overflow: hidden;
 }
 
@@ -914,7 +1010,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   height: 50px;
   gap: 12px;
 }
@@ -923,7 +1019,7 @@ export default {
   margin: 0;
   font-size: 1.2em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .header-controls {
@@ -948,12 +1044,12 @@ export default {
   width: 40%;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #e6e6e6;
-  background: #fff;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .table-container {
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -963,8 +1059,8 @@ export default {
 .table-header {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #fff;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
   height: 43px;
   align-items: center;
 }
@@ -972,7 +1068,7 @@ export default {
 .header-col {
   padding: 0 8px;
   font-size: 14px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 600;
   text-align: left;
   display: flex;
@@ -988,21 +1084,22 @@ export default {
 }
 
 .header-col:hover {
-  color: #000;
+  color: var(--text);
 }
 
 .header-col:hover .sort-icon {
-  filter: brightness(0);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: 0.2s;
 }
 
 .sort-icon.sorted {
-  filter: brightness(0);
+  color: var(--text);
 }
 
 .sort-icon.desc {
@@ -1010,7 +1107,7 @@ export default {
 }
 
 .active-sort {
-  color: #000 !important;
+  color: var(--text) !important;
   font-weight: 600 !important;
 }
 
@@ -1033,7 +1130,7 @@ export default {
 .table-row {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   align-items: center;
   transition: background-color 0.2s ease;
   cursor: pointer;
@@ -1042,16 +1139,16 @@ export default {
 }
 
 .table-row:hover {
-  background-color: #fafafa;
+  background-color: var(--surface-2);
 }
 
 .table-row.selected {
-  background-color: #f8f9ff;
+  background-color: var(--accent-tint);
 }
 
 .table-row.inactive {
-  background: #fafafa;
-  color: #6b7280;
+  background: var(--surface-2);
+  color: var(--text-muted);
 }
 
 .table-row:last-child {
@@ -1069,11 +1166,11 @@ export default {
 
 .id-value {
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .table-row.inactive .id-value {
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .truncate-text {
@@ -1085,42 +1182,65 @@ export default {
 }
 
 /* Бейдж типа вложения (tonal pill) */
+/* Имя и бейджи стоят в одной строке: обрезается только имя, бейджи целиком */
+.name-with-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.name-with-badges .truncate-text {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.name-with-badges .type-badge,
+.name-with-badges .inactive-badge {
+  flex: 0 0 auto;
+  margin-left: 0;
+}
+
 .type-badge {
+  display: inline-flex;
+  align-items: center;
   font-size: 0.7em;
-  padding: 2px 8px;
+  line-height: 1;
+  padding: 4px 8px;
   border-radius: 999px;
   margin-left: 6px;
   font-weight: 500;
-  vertical-align: middle;
   white-space: nowrap;
 }
 
 .type-badge.cars {
-  background: #e0f2fe;
-  color: #0369a1;
+  background: var(--accent-tint);
+  color: var(--accent-text);
 }
 
 .type-badge.people {
-  background: #dcfce7;
-  color: #15803d;
+  background: var(--success-bg);
+  color: var(--success-text);
 }
 
+/* Все три бейджа одной формы: заливка плюс цвет текста, без рамки. Рамка была только
+   у ТМЦ и делала его на два пиксела выше остальных в той же строке. */
 .type-badge.items {
-  background: #fef3c7;
-  color: #b45309;
+  background: var(--warning-bg);
+  color: var(--warning-text);
 }
 
 .inactive-badge {
   margin-left: 6px;
   font-size: 0.75em;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-style: italic;
 }
 
 .no-results {
   text-align: center;
   padding: 40px 20px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   width: 100%;
 }
 
@@ -1133,14 +1253,14 @@ export default {
 
 .table-footer {
   padding: 6px 20px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
   text-align: right;
-  background: #f8fafc;
+  background: var(--accent-tint);
 }
 
 .items-count {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -1149,7 +1269,7 @@ export default {
   width: 60%;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
 }
 
@@ -1157,7 +1277,7 @@ export default {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
-  background: #fff;
+  background: var(--surface);
   line-height: 1.5;
 }
 
@@ -1179,7 +1299,7 @@ export default {
 
 .details-title {
   margin: 0;
-  color: #000;
+  color: var(--text);
   font-size: 1.2em;
   font-weight: 600;
   word-break: break-word;
@@ -1198,8 +1318,8 @@ export default {
 }
 
 .archive-badge {
-  background: #6b7280;
-  color: #fff;
+  background: var(--text-muted);
+  color: var(--surface);
   padding: 4px 10px;
   border-radius: 50px;
   font-size: 0.75em;
@@ -1227,45 +1347,45 @@ export default {
 }
 
 .history-btn {
-  background: #fff;
-  color: #4F5BDF;
-  border: 1px solid #4F5BDF;
+  background: var(--surface);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
 }
 
 .history-btn:hover {
-  background: #eef0ff;
+  background: var(--accent-tint);
 }
 
 .archive-action-btn {
-  background: #fff;
-  color: #dc3545;
-  border: 1px solid #fecaca;
+  background: var(--surface);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .archive-action-btn:hover:not(:disabled) {
-  background: #fff1f2;
-  border-color: #dc3545;
+  background: var(--danger-bg);
+  border-color: var(--danger);
 }
 
 .restore-btn {
-  background: #10b981;
-  color: #fff;
+  background: var(--success);
+  color: var(--fill-text);
 }
 
 .restore-btn:hover {
-  background: #0da271;
+  background: color-mix(in srgb, var(--success) 85%, var(--text));
 }
 
 .template-btn {
-  background: #fff;
-  color: #333;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
 }
 
 .template-btn:hover:not(:disabled) {
-  border-color: #4F5BDF;
-  color: #4F5BDF;
-  background: #f7f8ff;
+  border-color: var(--accent);
+  color: var(--accent-text);
+  background: var(--accent-tint);
 }
 
 .details-body {
@@ -1276,14 +1396,14 @@ export default {
 
 .field-label {
   font-size: 0.85em;
-  color: #666;
+  color: var(--text-muted);
   font-weight: 500;
   margin-top: 6px;
 }
 
 .field-hint {
   font-size: 0.78em;
-  color: #a2a2a2;
+  color: var(--text-muted);
   line-height: 1.4;
 }
 
@@ -1318,16 +1438,16 @@ export default {
   gap: 16px;
   margin-top: 16px;
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .form-error {
-  color: #d73a3a;
+  color: var(--danger-text);
   font-size: 0.85em;
 }
 
 .input-error {
-  border-color: #d73a3a !important;
+  border-color: var(--danger) !important;
 }
 
 .no-selection-message {
@@ -1335,15 +1455,15 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 400;
   font-size: 14px;
 }
 
 .add-header-button {
   padding: 8px 16px;
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
   border: none;
   border-radius: 50px;
   cursor: pointer;
@@ -1356,7 +1476,7 @@ export default {
 }
 
 .add-header-button:hover {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 /* Модалка создания */
@@ -1366,7 +1486,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1379,9 +1499,9 @@ export default {
 .attachment-modal {
   width: 100%;
   max-width: 480px;
-  background: #fff;
+  background: var(--surface);
   border-radius: 30px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
   overflow: hidden;
 }
 
@@ -1390,14 +1510,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 18px 24px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 1.1em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .modal-close {
@@ -1408,7 +1528,7 @@ export default {
   justify-content: center;
   font-size: 24px;
   line-height: 1;
-  color: #999;
+  color: var(--text-muted);
   background: none;
   border: none;
   cursor: pointer;
@@ -1417,8 +1537,8 @@ export default {
 }
 
 .modal-close:hover {
-  color: #333;
-  background: #f5f5f5;
+  color: var(--text);
+  background: var(--surface-2);
 }
 
 .modal-body {
@@ -1426,7 +1546,7 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-height: 70vh;
+  max-height: calc(var(--app-vh, 1vh) * 70);
   overflow-y: auto;
 }
 
@@ -1438,7 +1558,7 @@ export default {
 
 .form-label {
   font-size: 0.85em;
-  color: #666;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -1447,11 +1567,11 @@ export default {
   flex-direction: column;
   gap: 10px;
   padding: 12px 14px;
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
+  background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
   border-radius: 15px;
   font-size: 0.85em;
-  color: #9a3412;
+  color: var(--danger-text);
 }
 
 .modal-footer {
@@ -1459,7 +1579,7 @@ export default {
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 24px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
 }
 
 /* Анимация открытия/закрытия */
@@ -1475,7 +1595,7 @@ export default {
 
 .modal-fade-enter-from,
 .modal-fade-leave-to {
-  background: rgba(0, 0, 0, 0);
+  background: transparent;
 }
 
 .modal-fade-enter-from .attachment-modal,
@@ -1484,17 +1604,10 @@ export default {
   transform: translateY(20px);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .management-header {
-    flex-direction: column;
-    align-items: flex-start;
     height: auto;
     padding: 16px;
-  }
-  .header-controls {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
   }
   .content-container {
     flex-direction: column;
@@ -1508,7 +1621,7 @@ export default {
   }
   .table-section {
     border-right: none;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
   }
   .table-body {
     max-height: 300px;
@@ -1520,6 +1633,25 @@ export default {
   .details-body .lk-input,
   .type-dropdown {
     max-width: 100%;
+  }
+
+  /* Список -> карточки (rt-table): дропдаун архива и поиск ужимаем, иначе
+     строка контролов (дропдаун+поиск+компактные Создать/Обновить) не
+     помещается на 375-390px (см. TableConstructor.vue - тот же паттерн). */
+  .archive-dropdown {
+    min-width: 92px;
+  }
+
+  :deep(.search) {
+    width: 120px;
+  }
+
+  /* В карточке больше горизонтального места, чем в узкой табличной колонке -
+     наименование не обрезаем многоточием. */
+  .rt-row .truncate-text {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
   }
 }
 
@@ -1539,10 +1671,11 @@ export default {
 
 .name-edit-btn:hover {
   opacity: 1;
-  background: #f0f0f0;
+  background: var(--border);
 }
 
 .name-edit-icon {
+  color: var(--text);
   width: 16px;
   height: 16px;
   display: block;

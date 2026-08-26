@@ -94,9 +94,10 @@ func RegisterManager(t *testing.T, e *echo.Echo, username string, orgID, company
 func registerUserViaDB(t *testing.T, e *echo.Echo, username string, typeID, orgID, companyID int) string {
 	t.Helper()
 
-	// type_id=6 -- buropropuskov код. После #231 super-admin определяется
-	// флагом is_super_admin, а не type_id. Сохраняем оба для тестов
-	// которые могут проверять как старое, так и новое поведение.
+	// Админство определяется флагами, а не type_id (Ф5): buropropuskov (6) ->
+	// is_super_admin, manager (5) -> is_admin. Это зеркалит бэкфилл миграции
+	// (migrate.go переносит manager-тип на is_admin), чтобы такие пользователи
+	// не теряли доступ после снятия type-проверок.
 	user := models.User{
 		Username:       username,
 		Password:       hashTestPassword(adminPassword),
@@ -104,10 +105,54 @@ func registerUserViaDB(t *testing.T, e *echo.Echo, username string, typeID, orgI
 		CompanyID:      intPtrOrZero(companyID),
 		TypeID:         typeID,
 		IsSuperAdmin:   typeID == 6,
+		IsAdmin:        typeID == 5,
 	}
 	err := cachedDB.Create(&user).Error
 	require.NoError(t, err, "failed to seed user %s", username)
 
 	token, _ := LoginUser(t, e, username, adminPassword)
 	return token
+}
+
+// GrantTableVerb выдаёт юзеру персональное право table.<name>.<verb> (override allow).
+// Нужен тестам, где табличные операции (снимки версий, корзина) раньше были открыты
+// всем, а теперь гейтятся per-table правом RequireTableVerb. Вызывать ДО первого
+// защищённого запроса юзера - resolver закэширует права при первом резолве.
+func GrantTableVerb(t *testing.T, userID int, tableName, verb string) {
+	t.Helper()
+	GrantPermission(t, userID, fmt.Sprintf("table.%s.%s", tableName, verb))
+}
+
+// GrantPermission выдаёт юзеру персональный override (allow) на произвольный ключ
+// каталога прав - для тестов, где нужно право вне таблиц (например page.admin.feedback).
+// Вызывать ДО первого защищённого запроса юзера - resolver закэширует права при
+// первом резолве.
+func GrantPermission(t *testing.T, userID int, key string) {
+	t.Helper()
+	err := cachedDB.Create(&models.UserPermissionOverride{
+		UserID:        userID,
+		PermissionKey: key,
+		Value:         "allow",
+	}).Error
+	require.NoError(t, err, "failed to grant %s to user %d", key, userID)
+	// Сбрасываем кэш прав юзера - grant мог быть сделан после первого резолва.
+	if cachedResolver != nil {
+		cachedResolver.Invalidate(userID)
+	}
+}
+
+// DenyPermission ставит юзеру персональный override (deny) на ключ каталога прав.
+// Для администратора (is_admin) это единственный способ закрыть раздел: adminAll
+// пропускает всё, кроме super-only и личных deny.
+func DenyPermission(t *testing.T, userID int, key string) {
+	t.Helper()
+	err := cachedDB.Create(&models.UserPermissionOverride{
+		UserID:        userID,
+		PermissionKey: key,
+		Value:         "deny",
+	}).Error
+	require.NoError(t, err, "failed to deny %s for user %d", key, userID)
+	if cachedResolver != nil {
+		cachedResolver.Invalidate(userID)
+	}
 }

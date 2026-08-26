@@ -1,9 +1,12 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import ReportBuilder from '../ReportBuilder.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
+import DateFilter from '@/components/DateFilter.vue';
 
 const CATALOG = {
   metrics: [
@@ -31,6 +34,9 @@ const CATALOG = {
     { key: 'cars', label: 'Машины', columns: [{ key: 'car_number', label: 'Номер' }], filters: ['organization'] },
   ],
   granularities: [{ value: 'day', label: 'По дням' }, { value: 'week', label: 'По неделям' }],
+  pivots: [
+    { key: 'attachment_type', label: 'Тип вложения', metrics: ['applications_count'] },
+  ],
 };
 
 const PERIOD = { from: '2026-06-01', to: '2026-06-07' };
@@ -56,6 +62,21 @@ function metricInputs(wrapper) {
 /** Радио-разрез по его подписи. */
 function dimRadioByLabel(wrapper, label) {
   return wrapper.findAll('.rb__dim').find((d) => d.text().includes(label)).find('.rb__dim-input');
+}
+
+/** Кнопки оси разворота (cross-tab) внутри блока периода. [] если блока нет. */
+function pivotPills(wrapper) {
+  const gran = wrapper.find('.rb__gran');
+  return gran.exists() ? gran.findAll('.rb__pill') : [];
+}
+
+/** Выбрать только метрику «Количество заявок» и разрез «Период (дата)». */
+async function setupAppsPeriod(wrapper) {
+  await metricInputs(wrapper)[1].trigger('change'); // + applications_count
+  await metricInputs(wrapper)[0].trigger('change'); // - car_entries_count
+  await nextTick();
+  await dimRadioByLabel(wrapper, 'Период (дата)').setValue();
+  await nextTick();
 }
 
 describe('ReportBuilder', () => {
@@ -278,5 +299,184 @@ describe('ReportBuilder', () => {
     await wrapper.setProps({ preset: { mode: 'aggregate', metric: 'applications_count', dimension: 'status' } });
     await flushPromises();
     expect(wrapper.emitted('run').length).toBe(firstCount + 1);
+  });
+
+  it('ось разворота доступна при период+метрике из каталога и уходит в запрос как pivot', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+    await setupAppsPeriod(wrapper);
+
+    const pills = pivotPills(wrapper);
+    expect(pills.map((p) => p.text())).toEqual(['Без разворота', 'Тип вложения']);
+
+    await pills.find((p) => p.text() === 'Тип вложения').trigger('click');
+    await clickBuild(wrapper);
+
+    const req = lastRun(wrapper);
+    expect(req.metrics).toEqual(['applications_count']);
+    expect(req.dimension).toBe('period');
+    expect(req.pivot).toBe('attachment_type');
+  });
+
+  it('смена разреза с period сбрасывает ось разворота (не уходит в запрос)', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+    await setupAppsPeriod(wrapper);
+    await pivotPills(wrapper).find((p) => p.text() === 'Тип вложения').trigger('click');
+
+    // Уходим с period -> ось неприменима, блок исчезает, pivot сбрасывается.
+    await dimRadioByLabel(wrapper, 'Статус заявки').setValue();
+    await nextTick();
+    expect(pivotPills(wrapper)).toEqual([]);
+
+    await clickBuild(wrapper);
+    expect(lastRun(wrapper).pivot).toBeUndefined();
+  });
+
+  it('добавление метрики, не поддерживающей ось, сбрасывает разворот', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+    await setupAppsPeriod(wrapper);
+    await pivotPills(wrapper).find((p) => p.text() === 'Тип вложения').trigger('click');
+
+    // Возвращаем car_entries_count: ось attachment_type его не поддерживает.
+    await metricInputs(wrapper)[0].trigger('change');
+    await nextTick();
+    expect(pivotPills(wrapper)).toEqual([]);
+
+    await clickBuild(wrapper);
+    const req = lastRun(wrapper);
+    expect(req.metrics).toEqual(['applications_count', 'car_entries_count']);
+    expect(req.pivot).toBeUndefined();
+  });
+
+  it('скелет «Что построим» отражает разрез, метрику и колонку разворота', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+    await setupAppsPeriod(wrapper);
+    await pivotPills(wrapper).find((p) => p.text() === 'Тип вложения').trigger('click');
+    await nextTick();
+
+    const cols = wrapper.findAll('.rb__skel-col');
+    expect(cols.length).toBe(3); // разрез + метрика + ось разворота
+    expect(wrapper.find('.rb__skel-col--metric').text()).toContain('Количество заявок');
+    const pivotCol = wrapper.find('.rb__skel-col--pivot');
+    expect(pivotCol.exists()).toBe(true);
+    expect(pivotCol.text()).toContain('Тип вложения');
+  });
+
+  it('применяет шаблон с осью разворота и шлёт pivot', async () => {
+    const wrapper = mount(ReportBuilder, { props: { catalog: CATALOG, period: PERIOD, preset: null } });
+    await nextTick();
+
+    await wrapper.setProps({
+      preset: {
+        mode: 'aggregate', metrics: ['applications_count'], dimension: 'period',
+        granularity: 'week', pivot: 'attachment_type',
+      },
+    });
+    await flushPromises();
+
+    const req = lastRun(wrapper);
+    expect(req.metrics).toEqual(['applications_count']);
+    expect(req.dimension).toBe('period');
+    expect(req.pivot).toBe('attachment_type');
+  });
+
+  it('период в описании показан как дд.мм.гггг', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+    const summary = wrapper.find('.rb__summary').text();
+    expect(summary).toContain('01.06.2026 — 07.06.2026');
+    expect(summary).not.toContain('2026-06-01');
+  });
+
+  it('начальный период из шапки прокинут в календарь DateFilter как Date-диапазон', () => {
+    const wrapper = mountBuilder();
+    const cal = wrapper.findComponent(DateFilter);
+    expect(cal.exists()).toBe(true);
+    expect(cal.props('mode')).toBe('range');
+
+    const start = cal.props('dateRangeStart');
+    const end = cal.props('dateRangeEnd');
+    expect(start.getFullYear()).toBe(2026);
+    expect(start.getMonth()).toBe(5); // июнь (0-based)
+    expect(start.getDate()).toBe(1);
+    expect(end.getMonth()).toBe(5);
+    expect(end.getDate()).toBe(7);
+  });
+
+  it('выбор диапазона в DateFilter обновляет период запроса (ISO) и снимает пресет', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+
+    const cal = wrapper.findComponent(DateFilter);
+    cal.vm.$emit('update:dateRangeStart', new Date(2026, 2, 5)); // 5 марта 2026
+    cal.vm.$emit('update:dateRangeEnd', new Date(2026, 2, 20)); // 20 марта 2026
+    cal.vm.$emit('apply');
+    await nextTick();
+
+    await clickBuild(wrapper);
+    const dr = lastRun(wrapper).filters.find((f) => f.key === 'date_range');
+    expect(dr).toEqual({ key: 'date_range', from: '2026-03-05', to: '2026-03-20' });
+
+    // Ручной выбор уводит период из-под пресета — ни одна кнопка не подсвечена.
+    expect(wrapper.find('.rb__period-presets').findAll('.rb__pill--on').length).toBe(0);
+  });
+
+  it('«Применить» в календаре без смены дат не сбивает активный пресет', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 5, 18)); // 18 июня 2026
+    const wrapper = mountBuilder();
+    await nextTick();
+
+    const yearBtn = wrapper.find('.rb__period-presets').findAll('.rb__pill').find((b) => b.text() === 'Этот год');
+    await yearBtn.trigger('click');
+    await nextTick();
+    expect(yearBtn.classes()).toContain('rb__pill--on');
+
+    // DateFilter всегда эмитит update:* + apply, даже когда даты пресета не менялись.
+    const cal = wrapper.findComponent(DateFilter);
+    cal.vm.$emit('update:dateRangeStart', new Date(2026, 0, 1));
+    cal.vm.$emit('update:dateRangeEnd', new Date(2026, 5, 18));
+    cal.vm.$emit('apply');
+    await nextTick();
+
+    // Пресет «Этот год» остаётся активным — границы те же, в custom не ушло.
+    expect(yearBtn.classes()).toContain('rb__pill--on');
+  });
+});
+
+/*
+ * jsdom не считает медиа-запросы и layout, поэтому контракт мобильной раскладки
+ * (#1097 r3d) сверяем по объявлениям в SFC. Замок против «уборки» медиа-блоков,
+ * которая тихо вернула бы отступы под номер шага и зажатую кнопку на телефоне.
+ */
+describe('ReportBuilder — мобильная адаптивность (#1097 r3d)', () => {
+  const src = readFileSync(resolve(__dirname, '../ReportBuilder.vue'), 'utf8');
+  const mobile = src.slice(src.indexOf('@media (max-width: 768px)'));
+  const marginReset = mobile.slice(0, mobile.indexOf('@media (max-width: 480px)'));
+
+  it('канонический брейкпоинт мобилки 768 (эталон #1097), прежний 620 убран', () => {
+    expect(src).toContain('@media (max-width: 768px)');
+    expect(src).not.toContain('max-width: 620px');
+  });
+
+  it('на мобилке снят левый отступ под номер шага у всех сеток и блоков', () => {
+    for (const sel of ['.rb__metrics', '.rb__dims', '.rb__group-title', '.rb__gran', '.rb__filters', '.rb__period']) {
+      expect(marginReset).toContain(sel);
+    }
+    expect(marginReset).toMatch(/margin-left:\s*0/);
+  });
+
+  it('кнопка построения тянется на всю ширину под полем «Строк»', () => {
+    expect(mobile).toContain('.rb__footer .lk-button--primary');
+    expect(mobile).toMatch(/flex:\s*1 1 100%/);
+  });
+
+  it('на очень узких экранах (<=480) метрики в один столбец', () => {
+    const narrow = src.slice(src.indexOf('@media (max-width: 480px)'));
+    expect(narrow).toContain('.rb__metrics');
+    expect(narrow).toMatch(/grid-template-columns:\s*1fr/);
   });
 });

@@ -43,7 +43,7 @@ export default {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  color: #666;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
@@ -53,8 +53,8 @@ export default {
 
 .loader-spinner__circle {
   border-style: solid;
-  border-color: #e6e6e6;
-  border-top-color: var(--color-primary);
+  border-color: var(--border);
+  border-top-color: var(--accent-text);
   border-radius: 50%;
   animation: loader-spinner-spin 1s linear infinite;
   flex-shrink: 0;

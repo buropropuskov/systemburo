@@ -59,6 +59,28 @@ describe('BlacklistTabBase', () => {
     expect(wrapper.text()).toContain('Запись 2');
   });
 
+  it('поиск матчит по варианту раскладки - EN-ввод находит кириллицу (#1157)', async () => {
+    // "ghbxbyf2" на EN-раскладке физически совпадает с "причина2" на RU.
+    const wrapper = mountBase();
+    await flushPromises();
+    wrapper.vm.searchQuery = 'ghbxbyf2';
+    await flushPromises();
+    expect(wrapper.findAll('.bl-row')).toHaveLength(1);
+    expect(wrapper.text()).toContain('Запись 2');
+  });
+
+  it('пустой поисковый запрос снова показывает все активные записи (#1157)', async () => {
+    const wrapper = mountBase();
+    await flushPromises();
+    wrapper.vm.searchQuery = 'причина2';
+    await flushPromises();
+    expect(wrapper.findAll('.bl-row')).toHaveLength(1);
+
+    wrapper.vm.searchQuery = '';
+    await flushPromises();
+    expect(wrapper.findAll('.bl-row')).toHaveLength(2);
+  });
+
   it('клик по строке открывает панель деталей', async () => {
     const wrapper = mountBase();
     await flushPromises();
@@ -99,17 +121,20 @@ describe('BlacklistTabBase', () => {
   });
 
   it('иконка сущности рендерится при entity-icon', async () => {
-    const wrapper = mountBase({ entityIcon: '/icons/car.png' });
+    // Проп несёт имя глифа реестра, а не путь к файлу: значок красится цветом текста.
+    const wrapper = mountBase({ entityIcon: 'car' });
     await flushPromises();
     await wrapper.findAll('.bl-row')[0].trigger('click');
     expect(wrapper.find('.bl-details-icon').exists()).toBe(true);
-    expect(wrapper.find('.bl-details-icon-img').attributes('src')).toBe('/icons/car.png');
+    expect(wrapper.find('.bl-details-icon-img').element.tagName.toLowerCase()).toBe('svg');
+    expect(wrapper.find('.bl-details-icon-img').html()).toContain('<circle');
   });
 
   it('кнопка "Создать запись" эмитит create', async () => {
     const wrapper = mountBase();
     await flushPromises();
-    const btn = wrapper.findAll('button').find((b) => b.text() === 'Создать запись');
+    // rt-btn-compact оборачивает текст в .rt-btn-label рядом с иконкой .rt-btn-icon (#1097 S9)
+    const btn = wrapper.findAll('button').find((b) => b.text().includes('Создать запись'));
     await btn.trigger('click');
     expect(wrapper.emitted('create')).toBeTruthy();
   });
@@ -237,5 +262,73 @@ describe('BlacklistTabBase', () => {
     await flushPromises();
     expect(wrapper.vm.cardEntity).toEqual({ id: 2, plateNumber: 'B2' });
     expect(wrapper.vm.cardLoading).toBe(false);
+  });
+});
+
+/**
+ * Переход из сквозного поиска: найденная запись чёрного списка должна раскрыться
+ * сама. Вкладки «Машины» и «Люди» смонтированы одновременно, а идентификаторы у них
+ * независимые - без указания вкладки в адресе открылась бы чужая запись с тем же id.
+ */
+describe('BlacklistTabBase - открытие записи по ссылке из сквозного поиска', () => {
+  const ITEMS = [{ id: 5, is_active: true, reason: 'угон' }, { id: 9, is_active: true, reason: 'долг' }];
+
+  function mountWithRoute(query, tabKey = 'vehicles', replace = vi.fn().mockResolvedValue(undefined)) {
+    return mount(BlacklistTabBase, {
+      props: {
+        apiList: vi.fn().mockResolvedValue(ITEMS),
+        getPrimaryText: (i) => `Запись ${i.id}`,
+        getDetailRows: () => [],
+        tabKey,
+      },
+      global: {
+        stubs: { BaseDropdown: true, SearchComponent: true, RefreshButton: true, LoaderSpinner: true },
+        mocks: { $route: { query }, $router: { replace } },
+      },
+    });
+  }
+
+  it('запись своей вкладки открывается сразу', async () => {
+    const wrapper = mountWithRoute({ tab: 'vehicles', open: '5', q: 'угон' });
+    await flushPromises();
+
+    expect(wrapper.vm.selected?.id).toBe(5);
+  });
+
+  it('строка поиска из адреса подставляется в фильтр', async () => {
+    const wrapper = mountWithRoute({ tab: 'vehicles', open: '5', q: 'угон' });
+    await flushPromises();
+
+    expect(wrapper.vm.searchQuery).toBe('угон');
+  });
+
+  it('чужая вкладка ничего не открывает - id у вкладок независимые', async () => {
+    const wrapper = mountWithRoute({ tab: 'persons', open: '5' }, 'vehicles');
+    await flushPromises();
+
+    expect(wrapper.vm.selected).toBeNull();
+  });
+
+  it('после открытия open вычищается из адреса', async () => {
+    const replace = vi.fn().mockResolvedValue(undefined);
+    mountWithRoute({ tab: 'vehicles', open: '5', q: 'угон' }, 'vehicles', replace);
+    await flushPromises();
+
+    expect(replace).toHaveBeenCalledWith({ query: { tab: 'vehicles', q: 'угон' } });
+  });
+
+  it('без роутера (монтаж в тестах и в кабинете) вкладка работает как раньше', async () => {
+    const bare = mount(BlacklistTabBase, {
+      props: {
+        apiList: vi.fn().mockResolvedValue(ITEMS),
+        getPrimaryText: (i) => `Запись ${i.id}`,
+        getDetailRows: () => [],
+      },
+      global: { stubs: { BaseDropdown: true, SearchComponent: true, RefreshButton: true, LoaderSpinner: true } },
+    });
+    await flushPromises();
+
+    expect(bare.vm.selected).toBeNull();
+    expect(bare.vm.searchQuery).toBe('');
   });
 });

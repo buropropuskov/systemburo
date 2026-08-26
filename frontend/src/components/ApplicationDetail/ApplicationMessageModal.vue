@@ -1,44 +1,32 @@
 <template>
-  <Teleport to="body">
-    <transition
-      name="modal-fade"
-      @after-leave="onAfterLeave"
-    >
-      <div
-        v-if="visible"
-        class="modal-overlay"
-        @mousedown="onOverlayMousedown"
-        @mouseup="onOverlayMouseup"
-      >
-        <div
-          class="message-modal"
-          @mousedown.stop
-        >
-          <div class="modal-header">
-            <h3>Сообщение к заявке {{ applicationNumber }}</h3>
-            <button
-              class="modal-close"
-              @click="requestClose"
-            >
-              ×
-            </button>
-          </div>
-          <div class="modal-content">
-            <div
-              class="text-constructor-content"
-              v-html="sanitizedMessage"
-            />
-          </div>
-        </div>
+  <BaseModal
+    :show="show"
+    :title="`Сообщение к заявке ${applicationNumber}`"
+    width="760px"
+    :z-index="12000"
+    radius="30px"
+    @close="$emit('close')"
+  >
+    <template #header>
+      <div class="msg-modal-title">
+        <span class="msg-modal-title__main">Сообщение к заявке</span>
+        <span
+          v-if="applicationNumber"
+          class="msg-modal-title__num"
+        >{{ applicationNumber }}</span>
       </div>
-    </transition>
-  </Teleport>
+    </template>
+    <div
+      class="text-constructor-content"
+      v-html="sanitizedMessage"
+    />
+  </BaseModal>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { computed } from 'vue';
 import { sanitizeHtml } from '@/utils/sanitize';
-import { useOverlayClose } from '@/composables/useOverlayClose';
+import BaseModal from '@/components/ui/BaseModal.vue';
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -46,132 +34,51 @@ const props = defineProps({
   applicationNumber: { type: [String, Number], default: '' },
 });
 
-const emit = defineEmits(['close']);
-
-const visible = ref(false);
-const requestClose = () => { visible.value = false; };
-const onAfterLeave = () => { emit('close'); };
-
-const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(requestClose);
+defineEmits(['close']);
 
 const sanitizedMessage = computed(() => sanitizeHtml(props.message));
-
-const onKeydown = (e) => {
-  if (e.key === 'Escape' && visible.value) requestClose();
-};
-
-watch(() => props.show, (val) => { visible.value = val; }, { immediate: true });
-watch(visible, (val) => { document.body.style.overflow = val ? 'hidden' : ''; });
-
-onMounted(() => document.addEventListener('keydown', onKeydown));
-onBeforeUnmount(() => {
-  document.removeEventListener('keydown', onKeydown);
-  document.body.style.overflow = '';
-});
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+/* На широком экране заголовок идёт одной строкой, номер - следом за названием.
+   На узком возвращается перенос в две строки: "Сообщение к заявке 20260712/001"
+   в строку не помещалось (#1097 R3-10). */
+.msg-modal-title {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
-  z-index: 12000;
-  backdrop-filter: blur(0.1px);
-  -webkit-backdrop-filter: blur(0.1px);
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
 }
 
-.modal-fade-enter-active {
-  transition: opacity 0.25s ease;
+@media (max-width: 767.98px) {
+  .msg-modal-title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
 }
 
-.modal-fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.modal-fade-enter-from,
-.modal-fade-leave-to {
-  opacity: 0;
-}
-
-.modal-fade-enter-active .message-modal {
-  animation: modal-scale-in 0.25s ease;
-}
-
-.modal-fade-leave-active .message-modal {
-  animation: modal-scale-out 0.2s ease;
-}
-
-@keyframes modal-scale-in {
-  from { transform: scale(0.95); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-
-@keyframes modal-scale-out {
-  from { transform: scale(1); opacity: 1; }
-  to { transform: scale(0.95); opacity: 0; }
-}
-
-.message-modal {
-  background: #fff;
-  border-radius: 30px;
-  width: 760px;
-  max-width: 95%;
-  max-height: 85vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px 25px;
-  border-bottom: 1px solid #e6e6e6;
-}
-
-.modal-header h3 {
-  margin: 0;
+.msg-modal-title__main {
   font-size: 18px;
   font-weight: 600;
-  color: #000;
+  line-height: 1.2;
+  color: var(--color-text, var(--text));
 }
 
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 22px;
-  line-height: 1;
-  cursor: pointer;
-  color: #999;
-  padding: 0;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.2s ease;
-}
-
-.modal-close:hover {
-  color: #000;
-}
-
-.modal-content {
-  padding: 25px;
-  overflow-y: auto;
-  flex: 1;
+.msg-modal-title__num {
+  font-size: 15px;
+  white-space: nowrap;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--text-muted);
 }
 
 /* Безопасный рендер форматированного сообщения (render-safety) */
 .text-constructor-content {
+  padding: 25px;
   font-size: 15px;
   line-height: 1.5;
-  color: #000;
+  color: var(--text);
   word-break: break-word;
 }
 
@@ -224,7 +131,7 @@ onBeforeUnmount(() => {
 .text-constructor-content :deep(.black-text) { color: #000 !important; }
 .text-constructor-content :deep(.red-text) { color: #FF0000 !important; }
 .text-constructor-content :deep(.green-text) { color: #079D1D !important; }
-.text-constructor-content :deep(.blue-text) { color: #4F5BDF !important; }
+.text-constructor-content :deep(.blue-text) { color: var(--accent-text) !important; }
 
 .text-constructor-content :deep(.font-size-10) { font-size: 10px !important; }
 .text-constructor-content :deep(.font-size-12) { font-size: 12px !important; }

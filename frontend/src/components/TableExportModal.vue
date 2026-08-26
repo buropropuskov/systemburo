@@ -99,7 +99,7 @@ export default {
 .export-modal__label {
   margin: 0 0 12px;
   font-size: 14px;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary, var(--text-muted));
 }
 
 .export-modal__options {
@@ -113,10 +113,10 @@ export default {
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  border: 1.5px solid var(--color-border, #e5e7eb);
+  border: 1.5px solid var(--color-border, var(--border));
   border-radius: var(--radius-md, 15px);
-  background: #fff;
-  color: var(--color-text, #222);
+  background: var(--surface);
+  color: var(--color-text, var(--text));
   font-size: 14px;
   font-family: inherit;
   cursor: pointer;
@@ -125,13 +125,13 @@ export default {
 }
 
 .export-option:hover {
-  border-color: #4f5bdf;
-  background: #f5f6ff;
+  border-color: var(--accent);
+  background: var(--accent-tint);
 }
 
 .export-option--active {
-  border-color: #4f5bdf;
-  background: #f0f2ff;
+  border-color: var(--accent);
+  background: var(--accent-tint);
   font-weight: 500;
 }
 
@@ -139,13 +139,13 @@ export default {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  border: 2px solid var(--color-border, #d1d5db);
+  border: 2px solid var(--color-border, var(--border));
   flex-shrink: 0;
   transition: border-color 0.15s, background 0.15s;
 }
 
 .export-option--active .export-option__dot {
-  border-color: #4f5bdf;
-  background: #4f5bdf;
+  border-color: var(--accent);
+  background: var(--accent);
 }
 </style>

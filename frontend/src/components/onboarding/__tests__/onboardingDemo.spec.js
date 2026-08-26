@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { getDemo } from '../onboardingDemo';
-import { onboardingSteps } from '../onboardingSteps';
+import { allTourSteps } from '../tours';
 
 describe('onboardingDemo', () => {
   it('getDemo возвращает {src, alt} для известного ключа', () => {
@@ -15,9 +15,11 @@ describe('onboardingDemo', () => {
     expect(getDemo('nope')).toBeNull();
   });
 
-  it('каждый step.demo в конфиге резолвится в существующий скриншот', () => {
-    for (const step of onboardingSteps.filter((s) => s.demo)) {
-      expect(getDemo(step.demo)).toBeTruthy();
+  it('каждый step.demo во ВСЕХ турах резолвится в существующий скриншот', () => {
+    // Скриншотом закрывают шаг, у которого на пустой системе нет цели, - опечатка
+    // в ключе означала бы поповер без картинки ровно там, где показывать нечего.
+    for (const step of allTourSteps().filter((s) => s.demo)) {
+      expect(getDemo(step.demo), step.id).toBeTruthy();
     }
   });
 });

@@ -1,111 +1,62 @@
 <template>
-  <div class="responsible-users-section">
-    <div class="detail-group">
-      <div class="responsible-users__header">
-        <div class="header-content">
-          <div class="title-with-count">
-            <label class="detail-label">Ответственные:</label>
-            <span
-              v-if="selectedUsers.length > 0"
-              class="count-badge"
-            >{{ selectedUsers.length }}</span>
-          </div>
-          <div
-            v-if="hasSelectedUsers"
-            class="users-actions"
-          >
-            <button 
-              class="save-users-btn" 
-              :disabled="isSavingUsers"
-              @click="saveResponsibleUsers"
-            >
-              {{ isSavingUsers ? 'Сохранение...' : 'Сохранить' }}
-            </button>
-            <button 
-              class="cancel-users-btn" 
-              :disabled="isSavingUsers"
-              @click="cancelResponsibleUsersChanges"
-            >
-              Отмена
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      <div class="responsible-users-container">
-        <!-- Поисковая строка для добавления пользователей -->
-        <div class="user-search-container">
-          <input
-            v-model="userSearchQuery"
-            class="user-search-input"
-            placeholder="Добавить ответственного"
-            type="text"
-            @focus="showUserDropdown = true"
-            @blur="onUserSearchBlur"
-            @input="handleSearchInput"
-          >
-          <div
-            v-if="showUserDropdown && sortedAvailableUsers.length > 0"
-            class="user-dropdown"
-          >
-            <div class="user-dropdown-content">
-              <div 
-                v-for="user in sortedAvailableUsers" 
-                :key="user.username"
-                class="user-dropdown-item"
-                @mousedown="addResponsibleUser(user)"
-              >
-                <div class="user-dropdown-info">
-                  <div class="user-main-info">
-                    <span class="user-name">{{ getUserDisplayName(user) }}</span>
-                    <span class="user-username">@{{ user.username }}</span>
-                  </div>
-                  <div class="user-details">
-                    <span
-                      v-if="user.position"
-                      class="user-tag position-tag"
-                    >{{ user.position }}</span>
-                    <span
-                      v-if="user.organization"
-                      class="user-tag org-tag"
-                    >{{ user.organization }}</span>
-                    <span
-                      v-if="user.company"
-                      class="user-tag company-tag"
-                    >{{ user.company }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div
-            v-if="showUserDropdown && userSearchQuery && sortedAvailableUsers.length === 0"
-            class="user-dropdown"
-          >
-            <div class="no-users-dropdown">
-              Пользователи не найдены
-            </div>
-          </div>
-        </div>
-
-        <!-- Список ответственных -->
-        <div
-          v-if="selectedUsers.length > 0"
-          class="users-list-section"
+  <div class="responsible-users-section card">
+    <div class="sec-title">
+      Ответственные
+      <span
+        v-if="selectedUsers.length > 0"
+        class="count-badge"
+      >{{ selectedUsers.length }}</span>
+      <span
+        v-if="hasSelectedUsers && !selectionMode"
+        class="sec-actions"
+      >
+        <span class="save-hint"><span class="dot" />несохранённые</span>
+        <button
+          class="btn-mini primary"
+          :disabled="isSavingUsers"
+          @click="saveResponsibleUsers"
         >
-          <div class="selected-users-list">
-            <div 
-              v-for="user in sortedUsers" 
+          {{ isSavingUsers ? 'Сохранение...' : 'Сохранить' }}
+        </button>
+        <button
+          class="btn-mini"
+          :disabled="isSavingUsers"
+          @click="cancelResponsibleUsersChanges"
+        >
+          Отмена
+        </button>
+      </span>
+    </div>
+
+    <div class="stack">
+      <!-- Поиск-добавление ответственного -->
+      <div class="user-search-container">
+        <input
+          v-model="userSearchQuery"
+          class="add-input"
+          placeholder="＋ Добавить ответственного"
+          type="text"
+          @focus="showUserDropdown = true"
+          @blur="onUserSearchBlur"
+          @input="handleSearchInput"
+        >
+        <div
+          v-if="showUserDropdown && sortedAvailableUsers.length > 0"
+          class="user-dropdown"
+        >
+          <div class="user-dropdown-content">
+            <div
+              v-for="user in sortedAvailableUsers"
               :key="user.username"
-              class="selected-user-item"
-              :class="{ 'is-primary': user.is_primary }"
+              class="user-dropdown-item"
+              @mousedown="addResponsibleUser(user)"
             >
-              <div class="selected-user-info">
-                <div class="selected-user-main">
-                  <span class="selected-user-name">{{ getUserDisplayName(user) }}</span>
-                  <span class="selected-user-username">@{{ user.username }}</span>
+              <div class="user-dropdown-info">
+                <div class="user-main-info">
+                  <span class="user-name">{{ getUserDisplayName(user) }}</span>
+                  <span class="user-username">@{{ user.username }}</span>
                 </div>
-                <div class="selected-user-details">
+                <div class="user-details">
                   <span
                     v-if="user.position"
                     class="user-tag position-tag"
@@ -119,53 +70,104 @@
                     class="user-tag company-tag"
                   >{{ user.company }}</span>
                 </div>
-                <div class="user-settings">
-                  <label class="toggle-switch">
-                    <input 
-                      v-model="user.required_approval" 
-                      type="checkbox"
-                      @change="updateUserRequiredApproval(user)"
-                    >
-                    <span class="toggle-slider" />
-                  </label>
-                  <span class="toggle-label-text">Обязательное согласование</span>
-                </div>
-              </div>
-              <div class="selected-user-actions">
-                <button 
-                  v-if="!user.is_primary"
-                  class="primary-btn"
-                  title="Сделать главным"
-                  @click="setAsPrimary(user)"
-                >
-                  ↑
-                </button>
-                <button 
-                  v-if="user.is_primary"
-                  class="unprimary-btn"
-                  title="Убрать главного"
-                  @click="removePrimaryUser(user)"
-                >
-                  ↓
-                </button>
-                <button 
-                  class="remove-btn"
-                  title="Удалить"
-                  @click="removeResponsibleUser(user)"
-                >
-                  ×
-                </button>
               </div>
             </div>
           </div>
         </div>
-
         <div
-          v-if="selectedUsers.length === 0"
-          class="no-selected-users"
+          v-if="showUserDropdown && userSearchQuery && sortedAvailableUsers.length === 0"
+          class="user-dropdown"
         >
-          <p>Нет ответственных</p>
+          <div class="no-users-dropdown">
+            Пользователи не найдены
+          </div>
         </div>
+      </div>
+
+      <!-- Список ответственных -->
+      <div
+        v-for="user in sortedUsers"
+        :key="user.username"
+        class="resp-item"
+        :class="{ primary: user.is_primary }"
+      >
+        <div class="avatar">
+          {{ getInitials(user) }}
+        </div>
+        <div class="resp-body">
+          <div class="resp-name-row">
+            <span class="resp-name">{{ getUserDisplayName(user) }}</span>
+            <span class="resp-user">@{{ user.username }}</span>
+          </div>
+          <div
+            v-if="user.position || user.organization || user.company || user.is_primary"
+            class="resp-tags"
+          >
+            <span
+              v-if="user.position"
+              class="tag tag-pos"
+            >{{ user.position }}</span>
+            <span
+              v-if="user.organization"
+              class="tag tag-neutral"
+            >{{ user.organization }}</span>
+            <span
+              v-if="user.company"
+              class="tag tag-neutral"
+            >{{ user.company }}</span>
+            <span
+              v-if="user.is_primary"
+              class="tag tag-main"
+            >главный</span>
+          </div>
+          <div class="toggle-row">
+            <label class="switch">
+              <!-- Подпись лежит соседним span, поэтому имя контрола задаём явно:
+                   иначе тумблер, вернувшийся в порядок обхода, объявляется безымянным
+                   и в списке из нескольких ответственных неразличим. -->
+              <input
+                v-model="user.required_approval"
+                type="checkbox"
+                :aria-label="`Обязательное согласование: ${getUserDisplayName(user)}`"
+                @change="updateUserRequiredApproval(user)"
+              >
+              <span class="slider" />
+            </label>
+            <span class="toggle-txt">Обязательное согласование</span>
+          </div>
+        </div>
+        <div class="resp-acts">
+          <button
+            v-if="!selectionMode && !user.is_primary"
+            class="icon-btn up"
+            title="Сделать главным"
+            @click="setAsPrimary(user)"
+          >
+            ↑
+          </button>
+          <button
+            v-else-if="!selectionMode"
+            class="icon-btn up"
+            title="Убрать главного"
+            @click="removePrimaryUser(user)"
+          >
+            ↓
+          </button>
+          <button
+            class="icon-btn danger"
+            title="Удалить"
+            @click="removeResponsibleUser(user)"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+
+      <div
+        v-if="selectedUsers.length === 0"
+        class="no-selected-users"
+      >
+        <p>Нет ответственных</p>
       </div>
     </div>
   </div>
@@ -173,20 +175,32 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useDeletionsStore } from '@/stores/deletions'
 export default {
   name: 'ResponsibleUsersSection',
   props: {
     entity: {
       type: Object,
-      required: true
+      default: null
     },
     entityType: {
       type: String,
       required: true,
       validator: value => ['organization', 'company'].includes(value)
+    },
+    // Режим «только выбор» (групповые операции): без fetch/save сущности и без
+    // назначения главного; обязательное согласование - per-user (тумблер на каждой
+    // карточке). Выбор через v-model = массив {username, required_approval}.
+    selectionMode: {
+      type: Boolean,
+      default: false
+    },
+    modelValue: {
+      type: Array,
+      default: () => []
     }
   },
-  emits: ['users-updated'],
+  emits: ['users-updated', 'dirty-change', 'count-change', 'update:modelValue'],
   data() {
     return {
       allUsers: [],
@@ -204,28 +218,28 @@ export default {
         username: u.username,
         is_primary: u.is_primary,
         required_approval: u.required_approval
-      })).sort()) !== 
+      })).sort()) !==
              JSON.stringify(this.originalSelectedUsers.map(u => ({
                username: u.username,
                is_primary: u.is_primary,
                required_approval: u.required_approval
              })).sort());
     },
-    
+
     sortedUsers() {
       return [...this.selectedUsers].sort((a, b) => {
         if (a.is_primary && !b.is_primary) return -1;
         if (!a.is_primary && b.is_primary) return 1;
-        
+
         const lastNameA = (a.last_name || '').toLowerCase();
         const lastNameB = (b.last_name || '').toLowerCase();
         return lastNameA.localeCompare(lastNameB);
       });
     },
-    
+
     filteredUsers() {
       if (!this.userSearchQuery) return this.allUsers;
-      
+
       const query = this.userSearchQuery.toLowerCase();
       return this.allUsers.filter(user => {
         const fullName = this.getUserDisplayName(user).toLowerCase();
@@ -233,7 +247,7 @@ export default {
         const position = (user.position || '').toLowerCase();
         const organization = (user.organization || '').toLowerCase();
         const company = (user.company || '').toLowerCase();
-        
+
         return fullName.includes(query) ||
                username.includes(query) ||
                position.includes(query) ||
@@ -241,13 +255,13 @@ export default {
                company.includes(query);
       });
     },
-    
+
     filteredAvailableUsers() {
-      return this.filteredUsers.filter(user => 
+      return this.filteredUsers.filter(user =>
         !this.selectedUsers.some(selected => selected.username === user.username)
       );
     },
-    
+
     sortedAvailableUsers() {
       return [...this.filteredAvailableUsers].sort((a, b) => {
         const lastNameA = (a.last_name || '').toLowerCase();
@@ -260,15 +274,44 @@ export default {
     entity: {
       immediate: true,
       handler(newEntity) {
+        if (this.selectionMode) return;
         if (newEntity && newEntity.id) {
           this.fetchEntityUsers(newEntity.id);
         }
+      }
+    },
+    // Синк выбора из v-model (групповой режим): сброс/смена набора снаружи.
+    modelValue: {
+      immediate: true,
+      handler(usernames) {
+        if (!this.selectionMode) return;
+        this.syncSelectedFromModel(usernames);
+      }
+    },
+    // fix 5: поднимаем dirty-состояние в dirtyTracker родителя (предупреждение
+    // о несохранённых ответственных при уходе с вкладки/смене сущности).
+    hasSelectedUsers: {
+      immediate: true,
+      handler(dirty) {
+        if (this.selectionMode) return;
+        this.$emit('dirty-change', dirty);
+      }
+    },
+    // Счётчик для метаинформации в шапке деталей родителя.
+    'selectedUsers.length': {
+      immediate: true,
+      handler(count) {
+        this.$emit('count-change', count);
       }
     }
   },
   async mounted() {
     await this.fetchAllUsers();
-    
+
+    if (this.selectionMode) {
+      this.syncSelectedFromModel(this.modelValue);
+      return;
+    }
     if (this.entity && this.entity.id) {
       await this.fetchEntityUsers(this.entity.id);
     }
@@ -284,13 +327,13 @@ export default {
         }
       } catch (error) {
         console.error("Error fetching users:", error);
-        this.showNotification("Ошибка при загрузке пользователей", "error");
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'список пользователей', type: 'error' });
       }
     },
 
     async fetchEntityUsers(entityId) {
       if (this.isLoading) return;
-      
+
       this.isLoading = true;
       try {
         if (this.allUsers.length === 0) {
@@ -299,15 +342,15 @@ export default {
         const endpoint = this.entityType === 'organization'
           ? `/organizations/${entityId}/users`
           : `/companies/${entityId}/users`;
-        
+
         const response = await apiRequest(endpoint, {
         });
         if (response.ok) {
           const users = await response.json();
-          
+
           this.selectedUsers = users.map(entityUser => {
             const fullUserData = this.allUsers.find(u => u.username === entityUser.username);
-            
+
             if (fullUserData) {
               return {
                 ...entityUser,
@@ -333,7 +376,7 @@ export default {
               };
             }
           });
-          
+
           this.originalSelectedUsers = JSON.parse(JSON.stringify(this.selectedUsers));
         } else {
           this.selectedUsers = [];
@@ -350,47 +393,38 @@ export default {
 
     async saveResponsibleUsers() {
       if (!this.entity) return;
-      
+
       this.isSavingUsers = true;
       try {
         const endpoint = this.entityType === 'organization'
           ? `/organizations/${this.entity.id}/users`
           : `/companies/${this.entity.id}/users`;
-        
+
         const usersData = this.selectedUsers.map(user => ({
           username: user.username,
           is_primary: user.is_primary || false,
           required_approval: user.required_approval || false
         }));
-        
+
         const response = await apiRequest(endpoint, {
           method: "PUT",
           body: JSON.stringify({
             users: usersData
           }),
         });
-        
+
         if (response.ok) {
           this.originalSelectedUsers = JSON.parse(JSON.stringify(this.selectedUsers));
-          this.showNotification("Ответственные лица успешно обновлены", "success");
+          useDeletionsStore().notify({ prefix: 'Ответственные сохранены для ', bold: this.entity.name, type: 'success' });
           this.$emit('users-updated');
         } else {
-          const errorText = await response.text();
-          let errorMessage = "Ошибка при обновлении ответственных лиц";
-          
-          try {
-            const errorJson = JSON.parse(errorText);
-            errorMessage = errorJson.message || errorMessage;
-          } catch {
-            errorMessage = errorText || errorMessage;
-          }
-          
-          this.showNotification(errorMessage, "error");
+          const error = await response.json();
+          useDeletionsStore().notify({ prefix: 'Не удалось сохранить ответственных: ', bold: error.message || 'ошибка сервера', type: 'error' });
           await this.fetchEntityUsers(this.entity.id);
-        } 
+        }
       } catch (error) {
         console.error("Error updating responsible users:", error);
-        this.showNotification("Ошибка сети", "error");
+        useDeletionsStore().notify({ prefix: 'Не удалось сохранить ответственных: ', bold: 'ошибка сети', type: 'error' });
         await this.fetchEntityUsers(this.entity.id);
       } finally {
         this.isSavingUsers = false;
@@ -413,6 +447,7 @@ export default {
           company: user.company || ''
         };
         this.selectedUsers.push(userWithDetails);
+        if (this.selectionMode) this.emitSelection();
       }
       this.userSearchQuery = '';
       this.showUserDropdown = false;
@@ -420,25 +455,53 @@ export default {
 
     removeResponsibleUser(user) {
       this.selectedUsers = this.selectedUsers.filter(u => u.username !== user.username);
+      if (this.selectionMode) this.emitSelection();
     },
-    
+
+    syncSelectedFromModel(items) {
+      // modelValue групповой операции - массив {username, required_approval}
+      const norm = (Array.isArray(items) ? items : []).map(x => ({
+        username: x.username,
+        required_approval: !!x.required_approval,
+      }));
+      const current = this.selectedUsers.map(u => ({
+        username: u.username,
+        required_approval: !!u.required_approval,
+      }));
+      if (JSON.stringify(current) === JSON.stringify(norm)) return;
+      this.selectedUsers = norm.map(({ username, required_approval }) => {
+        const full = this.allUsers.find(u => u.username === username);
+        return full
+          ? { ...full, is_primary: false, required_approval }
+          : { username, is_primary: false, required_approval };
+      });
+    },
+
+    emitSelection() {
+      this.$emit('update:modelValue', this.selectedUsers.map(u => ({
+        username: u.username,
+        required_approval: !!u.required_approval,
+      })));
+    },
+
     setAsPrimary(user) {
       this.selectedUsers.forEach(u => {
         u.is_primary = false;
       });
-      
+
       user.is_primary = true;
     },
 
     removePrimaryUser(user) {
       user.is_primary = false;
     },
-    
+
     updateUserRequiredApproval(user) {
       const selectedUser = this.selectedUsers.find(u => u.username === user.username);
       if (selectedUser) {
         selectedUser.required_approval = user.required_approval;
       }
+      if (this.selectionMode) this.emitSelection();
     },
 
     handleSearchInput() {
@@ -460,31 +523,12 @@ export default {
       return names.length > 0 ? names.join(' ') : user.username;
     },
 
-    showNotification(message, type = 'info') {
-      const notification = document.createElement('div');
-      notification.className = `notification ${type}`;
-      notification.textContent = message;
-      notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 12px 20px;
-        border-radius: 8px;
-        color: white;
-        font-weight: 500;
-        z-index: 1000;
-      `;
-      
-      if (type === 'success') notification.style.backgroundColor = '#10b981';
-      if (type === 'error') notification.style.backgroundColor = '#ef4444';
-      if (type === 'warning') notification.style.backgroundColor = '#f59e0b';
-      if (type === 'info') notification.style.backgroundColor = '#3b82f6';
-      
-      document.body.appendChild(notification);
-      
-      setTimeout(() => {
-        notification.remove();
-      }, 3000);
+    getInitials(user) {
+      const first = (user.last_name || user.first_name || user.username || '').trim();
+      const second = (user.last_name ? user.first_name : '') || '';
+      const a = first.charAt(0);
+      const b = (second || '').charAt(0);
+      return (a + b).toUpperCase() || '?';
     }
   },
 };
@@ -492,106 +536,150 @@ export default {
 
 <style scoped>
 .responsible-users-section {
-  width: 250px;
-  max-width: 250px;
-  min-width: 250px;
   box-sizing: border-box;
 }
 
-.responsible-users__header {
-  margin-bottom: 6px;
+/* карточка-секция (эталон мокапа .card) */
+.card {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  background: var(--surface-sunken);
 }
 
-.header-content {
+.sec-title {
+  font-size: 0.82em;
+  font-weight: 700;
+  color: var(--accent-text);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin: 0 0 12px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  height: 22px;
-}
-
-.title-with-count {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.detail-label {
-  font-size: 0.7rem;
-  color: #94a3b8;
-  font-weight: 400;
+  /* резерв под появляющиеся счётчик/Сохранить/Отмена (btn-mini 28px) - чтобы
+     их появление не двигало список ответственных ниже */
+  min-height: 28px;
+  gap: 8px;
 }
 
 .count-badge {
-  font-size: 0.6rem;
-  font-weight: 600;
-  color: #fff;
-  background: #4F5BDF;
-  padding: 1px 5px;
-  border-radius: 8px;
-  min-width: 16px;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 50px;
+  background: var(--surface);
+  color: var(--accent-text);
+  font-size: 11px;
+  font-weight: 700;
 }
 
-.selected-user-main {
+.sec-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: none;
+}
+
+.save-hint {
+  font-size: 11px;
+  color: var(--warning-text);
+  background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
+  border-radius: 8px;
+  padding: 3px 9px;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-weight: 600;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warning);
+  display: inline-block;
+}
+
+.btn-mini {
+  height: 28px;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.btn-mini.primary {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+}
+
+.btn-mini:hover:not(:disabled) {
+  filter: brightness(0.97);
+}
+
+.btn-mini:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.stack {
   display: flex;
   flex-direction: column;
+  gap: 8px;
 }
 
-.users-actions {
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.responsible-users-container {
-  width: 250px;
-  background: #FFF;
-  border-radius: 8px;
-  padding: 4px 0;
-  max-height: 800px;
-  box-sizing: border-box;
-}
-
-/* Поиск */
+/* поиск-добавление */
 .user-search-container {
   position: relative;
-  margin-bottom: 12px;
-  padding: 0 6px;
 }
 
-.user-search-input {
+.add-input {
   width: 100%;
-  padding: 6px 8px;
-  border: 1px solid #e2e8f0;
-  border-radius: var(--radius-md);
-  font-size: 0.7rem;
-  transition: all 0.2s ease;
-  background: #fff;
-  box-sizing: border-box;
-}
-
-.user-search-input:focus {
-  border-color: #4F5BDF;
+  height: 36px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 25%, var(--surface));
+  border-radius: 12px;
+  padding: 0 14px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface);
   outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease;
 }
 
-.user-search-input::placeholder {
-  color: #94a3b8;
-  font-size: 0.65rem;
+.add-input::placeholder {
+  color: var(--text-muted);
+}
+
+.add-input:focus {
+  border-style: solid;
+  border-color: var(--accent);
 }
 
 .user-dropdown {
   position: absolute;
   top: calc(100% + 6px);
-  left: 6px;
-  right: 6px;
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
   max-height: 300px;
   overflow-y: auto;
   z-index: 1000;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 24px rgba(20, 25, 40, 0.14);
 }
 
 .user-dropdown-content {
@@ -600,14 +688,17 @@ export default {
 }
 
 .user-dropdown-item {
-  padding: 6px 8px;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 8px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   cursor: pointer;
   transition: background-color 0.2s ease;
 }
 
+/* Подсветка строки списка - тот же токен, что у пунктов BaseDropdown. Раньше здесь
+   стоял --surface-2, то есть ровно фон чипов внутри строки, и при наведении чипы
+   должности с организацией пропадали (#1894). */
 .user-dropdown-item:hover {
-  background-color: #f8fafc;
+  background-color: var(--row-hover);
 }
 
 .user-dropdown-item:last-child {
@@ -617,363 +708,251 @@ export default {
 .user-dropdown-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .user-main-info {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  align-items: baseline;
+  gap: 6px;
 }
 
 .user-name {
   font-weight: 600;
-  font-size: 0.7rem;
-  color: #1e293b;
+  font-size: 0.78rem;
+  color: var(--accent-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 200px;
 }
 
 .user-username {
-  font-size: 0.6rem;
-  color: #64748b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 200px;
+  font-size: 0.68rem;
+  color: var(--text-muted);
 }
 
 .user-details {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px;
+  gap: 4px;
 }
 
-/* Убираем подсветку тегов в дропдауне */
-.user-dropdown .user-tag {
-  opacity: 0.9;
-  background: #f1f5f9;
-  color: #475569;
-}
-
-.user-dropdown .position-tag {
-  background: #f1f5f9;
-  color: #475569;
-}
-
-.user-dropdown .org-tag {
-  background: #f1f5f9;
-  color: #475569;
-}
-
-.user-dropdown .company-tag {
-  background: #f1f5f9;
-  color: #475569;
+/* Чип на полупрозрачном акценте, а не на непрозрачном слое: строка под ним меняет
+   цвет при наведении, и только примесь к подложке даёт одинаковый отрыв в обоих
+   состояниях и в обеих палитрах. Текст --text, а не --text-muted: на тонированном
+   чипе поверх подсвеченной строки приглушённый давал 4.2 в тёмной теме. */
+.user-tag {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--accent-tint);
+  color: var(--text);
+  white-space: nowrap;
 }
 
 .no-users-dropdown {
   padding: 12px;
   text-align: center;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-style: italic;
-  font-size: 0.7rem;
+  font-size: 0.72rem;
 }
 
-/* Список пользователей */
-.users-list-section {
-  padding: 0 6px;
-}
-
-.selected-users-list {
+/* карточка ответственного (эталон мокапа .resp-item) */
+.resp-item {
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--surface);
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 350px;
-  overflow-y: auto;
-  padding-right: 2px;
-  padding-bottom: 15px;
-}
-
-.selected-user-item {
-  display: flex;
-  justify-content: space-between;
+  gap: 10px;
   align-items: flex-start;
-  padding: 8px;
-  border-radius: 15px;
-  border: 1px solid #e2e8f0;
-  background: #fff;
-  transition: all 0.2s ease;
-  width: 100%;
-  box-sizing: border-box;
 }
 
-.selected-user-item.is-primary {
-  background: linear-gradient(135deg, #fef9e7, #fff3d6);
-  border: 1px solid #fcd34d;
+.resp-item.primary {
+  border-color: color-mix(in srgb, var(--success) 30%, var(--surface));
+  background: var(--success-bg);
 }
 
-.selected-user-item:hover:not(.is-primary) {
-  border-color: #4F5BDF;
-}
-
-.selected-user-info {
-  flex: 1;
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--accent-text);
+  font-weight: 700;
+  font-size: 12px;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.resp-body {
+  flex: 1;
   min-width: 0;
 }
 
-.selected-user-name {
+.resp-name-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.resp-name {
+  font-size: 13px;
   font-weight: 600;
-  font-size: 0.75rem;
-  color: #1e293b;
-  max-width: 160px;
+  color: var(--accent-text);
 }
 
-.selected-user-username {
-  font-size: 0.6rem;
-  color: #64748b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.resp-user {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
-.primary-badge {
-  font-size: 0.55rem;
-  font-weight: 600;
-  color: #b45309;
-  background: #fff3cd;
-  padding: 1px 4px;
-  border-radius: 4px;
-  border: 1px solid #fcd34d;
-  white-space: nowrap;
-}
-
-.selected-user-details {
+.resp-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
+  margin: 5px 0;
 }
 
-.user-tag {
-  font-size: 0.65rem;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 500;
+.tag {
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 2px 7px;
   white-space: nowrap;
-  display: inline-block;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.position-tag {
-  background: #e0f2fe;
-  color: #0369a1;
+.tag-pos {
+  background: var(--surface-2);
+  color: var(--text);
 }
 
-.org-tag {
-  background: #dcfce7;
-  color: #166534;
+.tag-neutral {
+  background: var(--surface-2);
+  color: var(--text-muted);
 }
 
-.company-tag {
-  background: #f1f5f9;
-  color: #475569;
+.tag-main {
+  background: var(--success-bg);
+  color: var(--success-text);
 }
 
-.user-settings {
+.toggle-row {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-top: 2px;
+  gap: 8px;
+  margin-top: 4px;
 }
 
-.toggle-switch {
+.switch {
   position: relative;
-  display: inline-block;
-  width: 28px;
-  height: 16px;
+  width: 34px;
+  height: 19px;
   flex-shrink: 0;
 }
 
-.toggle-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
+/* Инпут прячем визуально, но оставляем в порядке обхода: display:none выбрасывал
+   тумблер из tab-order, и переключить его с клавиатуры было нельзя (эталоны
+   SwitchToggle/ToggleSwitch прячут так же). */
+.switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
 }
 
-.toggle-slider {
+/* Кольцо фокуса рисует дорожка - у скрытого инпута его не видно. */
+.switch input:focus-visible + .slider {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.slider {
   position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #cbd5e1;
+  inset: 0;
+  background: var(--border);
+  border-radius: 20px;
   transition: 0.2s;
-  border-radius: 16px;
+  cursor: pointer;
 }
 
-.toggle-slider:before {
-  position: absolute;
+.slider::before {
   content: "";
-  height: 12px;
-  width: 12px;
+  position: absolute;
+  width: 15px;
+  height: 15px;
   left: 2px;
-  bottom: 2px;
-  background-color: white;
-  transition: 0.2s;
+  top: 2px;
+  background: var(--surface);
   border-radius: 50%;
+  transition: 0.2s;
 }
 
-input:checked + .toggle-slider {
-  background-color: #4F5BDF;
+.switch input:checked + .slider {
+  background: var(--accent);
 }
 
-input:checked + .toggle-slider:before {
-  transform: translateX(12px);
+.switch input:checked + .slider::before {
+  transform: translateX(15px);
 }
 
-.toggle-label-text {
-  font-size: 0.6rem;
-  color: #475569;
-  white-space: nowrap;
+.toggle-txt {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
-.selected-user-actions {
+.resp-acts {
   display: flex;
-  gap: 2px;
-  align-items: center;
-  margin-left: 4px;
+  flex-direction: column;
+  gap: 5px;
   flex-shrink: 0;
 }
 
-.primary-btn {
-  background: #fef9e7;
-  border: 1px solid #fcd34d;
-  color: #b45309;
-  font-size: 0.8rem;
-  font-weight: bold;
+.icon-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
   cursor: pointer;
-  width: 22px;
-  height: 22px;
-  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
-  flex-shrink: 0;
 }
 
-.primary-btn:hover {
-  background: #fcd34d;
-  color: #1e293b;
+.icon-btn.danger:hover {
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
+  color: var(--danger-text);
 }
 
-.unprimary-btn {
-  background: #fff3cd;
-  border: 1px solid #fcd34d;
-  color: #b45309;
-  font-size: 0.8rem;
-  font-weight: bold;
-  cursor: pointer;
-  width: 22px;
-  height: 22px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-}
-
-.unprimary-btn:hover {
-  background: #fcd34d;
-  color: #1e293b;
-}
-
-.remove-btn {
-  background: none;
-  border: none;
-  color: #94a3b8;
-  font-size: 1rem;
-  cursor: pointer;
-  width: 22px;
-  height: 22px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-}
-
-.remove-btn:hover {
-  background: #fee2e2;
-  color: #ef4444;
+.icon-btn.up:hover {
+  border-color: var(--accent);
+  color: var(--accent-text);
 }
 
 .no-selected-users {
   text-align: center;
   padding: 16px 8px;
-  color: #94a3b8;
-  font-size: 0.7rem;
-  border: 1px dashed #e2e8f0;
-  border-radius: 6px;
-  background: #f8fafc;
-  margin: 8px 6px;
-}
-
-.save-users-btn,
-.cancel-users-btn {
-  padding: 2px 8px;
-  border: none;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  border: 1px dashed var(--border);
   border-radius: 12px;
-  font-size: 0.6rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  height: 20px;
-  white-space: nowrap;
+  background: var(--surface);
 }
 
-.save-users-btn {
-  background: #4F5BDF;
-  color: white;
-}
-
-.save-users-btn:hover:not(:disabled) {
-  background: #3a45b2;
-}
-
-.cancel-users-btn {
-  background: #e2e8f0;
-  color: #475569;
-}
-
-.cancel-users-btn:hover:not(:disabled) {
-  background: #cbd5e1;
-}
-
-.save-users-btn:disabled,
-.cancel-users-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-@media (max-width: 768px) {
-  .responsible-users-section {
-    width: 100%;
-    max-width: 100%;
-    min-width: auto;
-  }
-  
-  .responsible-users-container {
-    width: 100%;
-  }
+.no-selected-users p {
+  margin: 0;
 }
 </style>

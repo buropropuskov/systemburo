@@ -30,20 +30,22 @@
       v-else
       class="refresh-btn__content"
     >
-      <img
-        src="@/assets/icons/refresh.png"
+      <AppIcon
+        name="refresh"
         class="refresh-btn__icon"
-        alt=""
-      >
+      />
       <span class="refresh-btn__text">Обновить</span>
     </span>
   </button>
 </template>
 <script>
+import AppIcon from '@/components/icons/AppIcon.vue';
+
 const CHARGE_STEP_MS = 400;
 const CHARGE_MS = CHARGE_STEP_MS * 3;
 
 export default {
+  components: { AppIcon },
   props: {
     loading: { type: Boolean, default: false },
   },
@@ -85,9 +87,9 @@ export default {
         width: 100px;
         height: 25px;
         border-radius: 50px;
-        border: 1px solid #e6e6e6;
+        border: 1px solid var(--border);
         outline: none;
-        background-color: #FFF;
+        background-color: var(--surface);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -97,7 +99,7 @@ export default {
     }
 
     .refresh-btn:hover {
-        background-color: #f2f2f2;
+        background-color: var(--surface-2);
     }
 
     /* Во время перезарядки: без курсора-лоадера, фон не меняется */
@@ -106,7 +108,7 @@ export default {
     }
 
     .refresh-btn--charging:hover {
-        background-color: #FFF;
+        background-color: var(--surface);
     }
 
     .refresh-btn__content {
@@ -124,10 +126,13 @@ export default {
     .refresh-btn__icon {
         width: 15px;
         height: 15px;
+        /* Значок обновления был фирменного синего - в тон подписи кнопки. */
+        color: var(--accent-text);
+        stroke-width: 2.2;
     }
 
     .refresh-btn__text {
-        color: #4F5BDF;
+        color: var(--accent-text);
         font-size: 12px;
         font-weight: 500;
     }
@@ -142,11 +147,44 @@ export default {
         width: 5px;
         height: 5px;
         border-radius: 50%;
-        background-color: #d9deff;
+        background-color: var(--accent-tint);
         transition: background-color 0.2s ease;
     }
 
     .refresh-btn__dot.is-lit {
-        background-color: #4F5BDF;
+        background-color: var(--accent);
+    }
+
+    /* Мобилка: «Обновить» сворачивается в круглую иконку. Текст прячем в clip (не
+       display:none) - у кнопки остаётся доступное имя для скринридера. Размер 36px -
+       как у прочих мобильных icon-кнопок проекта (rt-btn-compact / rt-header-inline),
+       иконка 16px. Порог 767.98px - как во
+       всём проекте: per-page оверрайды (pill в шапке Центра) и rt-header-inline
+       завязаны на него, ровно на 768px иначе разъехались бы стили. */
+    @media (max-width: 767.98px) {
+        .refresh-btn {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            gap: 0;
+        }
+
+        .refresh-btn__text {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        .refresh-btn__icon {
+            width: 16px;
+            height: 16px;
+            stroke-width: 2.1;
+        }
     }
 </style>

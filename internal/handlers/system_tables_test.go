@@ -1,10 +1,13 @@
 package handlers_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
+	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -146,6 +149,160 @@ func TestSystemTables_ArchiveAndRestore(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 
+// TestSystemTables_UsageAndDetachAll: usage показывает привязки, они блокируют
+// удаление, «Отвязать всё» их снимает (с аудитом на каждую орг/компанию) и после
+// этого таблица архивируется. Повтор detach-all по пустому - идемпотентен.
+func TestSystemTables_UsageAndDetachAll(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	body := `{"name":"otvyaz_table","display_name":"Отвяз-Таблица","table_type":"cars"}`
+	tableID := int(testutil.ParseMap(t, testutil.POST(t, e, "/system-tables", body, h))["id"].(float64))
+	require.NoError(t, db.Create(&models.OrganizationTable{OrganizationID: td.OrgID, TableID: tableID}).Error)
+	require.NoError(t, db.Create(&models.CompaniesTable{CompanyID: td.CompanyID, TableID: tableID}).Error)
+
+	// usage перечисляет обе привязки
+	usage := testutil.ParseMap(t, testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/usage", tableID), h))
+	orgs := usage["organizations"].([]interface{})
+	comps := usage["companies"].([]interface{})
+	require.Len(t, orgs, 1)
+	require.Len(t, comps, 1)
+	assert.Equal(t, float64(td.OrgID), orgs[0].(map[string]interface{})["id"])
+	assert.Equal(t, true, orgs[0].(map[string]interface{})["is_active"])
+	assert.NotEmpty(t, orgs[0].(map[string]interface{})["name"])
+
+	// пока привязано - удаление заблокировано (400)
+	assert.Equal(t, http.StatusBadRequest, testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d", tableID), h).Code)
+
+	// detach-all снимает обе привязки
+	detach := testutil.ParseMap(t, testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/detach-all", tableID), "", h))
+	assert.Equal(t, float64(1), detach["organizations_detached"])
+	assert.Equal(t, float64(1), detach["companies_detached"])
+
+	// аудит «таблица убрана» записан на организацию и компанию (removed = display_name)
+	assert.Contains(t, auditDetails(t, db, models.AuditEntityOrganization, td.OrgID, models.OrganizationActionTablesChanged), "Отвяз-Таблица")
+	assert.Contains(t, auditDetails(t, db, models.AuditEntityCompany, td.CompanyID, models.CompanyActionTablesChanged), "Отвяз-Таблица")
+
+	// usage теперь пуст
+	usage = testutil.ParseMap(t, testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/usage", tableID), h))
+	assert.Empty(t, usage["organizations"].([]interface{}))
+	assert.Empty(t, usage["companies"].([]interface{}))
+
+	// теперь таблица архивируется
+	assert.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d", tableID), h).Code)
+
+	// повторный detach-all идемпотентен (нулевые счётчики, 200)
+	detach = testutil.ParseMap(t, testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/detach-all", tableID), "", h))
+	assert.Equal(t, float64(0), detach["organizations_detached"])
+	assert.Equal(t, float64(0), detach["companies_detached"])
+}
+
+// TestSystemTables_Usage_ArchivedBindingVisible: архивная (is_active=false)
+// организация всё равно попадает в usage - она держит таблицу (гейт Delete
+// считает по junction без фильтра активности), поэтому оператор обязан её видеть.
+func TestSystemTables_Usage_ArchivedBindingVisible(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	body := `{"name":"arch_bind_table","display_name":"Арх-Таблица","table_type":"cars"}`
+	tableID := int(testutil.ParseMap(t, testutil.POST(t, e, "/system-tables", body, h))["id"].(float64))
+	require.NoError(t, db.Create(&models.OrganizationTable{OrganizationID: td.OrgID, TableID: tableID}).Error)
+	require.NoError(t, db.Table("organizations").Where("id = ?", td.OrgID).Update("is_active", false).Error)
+
+	usage := testutil.ParseMap(t, testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/usage", tableID), h))
+	orgs := usage["organizations"].([]interface{})
+	require.Len(t, orgs, 1)
+	assert.Equal(t, false, orgs[0].(map[string]interface{})["is_active"], "архивная организация должна быть видна в usage")
+}
+
+func TestSystemTables_Usage_NotFound(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	h := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+
+	assert.Equal(t, http.StatusNotFound, testutil.GET(t, e, "/system-tables/99999/usage", h).Code)
+	assert.Equal(t, http.StatusNotFound, testutil.POST(t, e, "/system-tables/99999/detach-all", "", h).Code)
+}
+
+// TestSystemTables_DetachAll_Forbidden: detach-all под admin-гейтом (меняет
+// привязки орг/компаний), обычному пользователю - 403.
+func TestSystemTables_DetachAll_Forbidden(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	body := `{"name":"gate_table","display_name":"Гейт-Таблица","table_type":"cars"}`
+	tableID := int(testutil.ParseMap(t, testutil.POST(t, e, "/system-tables", body, testutil.AuthHeader(adminToken)))["id"].(float64))
+
+	userToken := testutil.RegisterAndLogin(t, e, "tabledetachuser", "pass123", 1, td.OrgID, td.CompanyID)
+	rec := testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/detach-all", tableID), "", testutil.AuthHeader(userToken))
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+}
+
+// TestSystemTables_DetachOneOrgAndCompany: точечная отвязка снимает ОДНУ
+// конкретную привязку, остальные остаются; аудит на затронутую сущность; повтор
+// по уже снятой идемпотентен (detached:false, 200).
+func TestSystemTables_DetachOneOrgAndCompany(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	h := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+
+	body := `{"name":"tochtable","display_name":"Точ-Таблица","table_type":"cars"}`
+	tableID := int(testutil.ParseMap(t, testutil.POST(t, e, "/system-tables", body, h))["id"].(float64))
+	require.NoError(t, db.Create(&models.OrganizationTable{OrganizationID: td.OrgID, TableID: tableID}).Error)
+	require.NoError(t, db.Create(&models.CompaniesTable{CompanyID: td.CompanyID, TableID: tableID}).Error)
+
+	// Отвязываем ТОЛЬКО организацию - компания остаётся.
+	detach := testutil.ParseMap(t, testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d/organizations/%d", tableID, td.OrgID), h))
+	assert.Equal(t, true, detach["detached"])
+	assert.Contains(t, auditDetails(t, db, models.AuditEntityOrganization, td.OrgID, models.OrganizationActionTablesChanged), "Точ-Таблица")
+
+	usage := testutil.ParseMap(t, testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/usage", tableID), h))
+	assert.Empty(t, usage["organizations"].([]interface{}), "организация снята")
+	require.Len(t, usage["companies"].([]interface{}), 1, "компания осталась")
+
+	// Повтор по уже снятой организации идемпотентен.
+	detach = testutil.ParseMap(t, testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d/organizations/%d", tableID, td.OrgID), h))
+	assert.Equal(t, false, detach["detached"])
+
+	// Отвязываем компанию - таблица свободна, архивируется.
+	detach = testutil.ParseMap(t, testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d/companies/%d", tableID, td.CompanyID), h))
+	assert.Equal(t, true, detach["detached"])
+	assert.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d", tableID), h).Code)
+}
+
+// TestSystemTables_DetachOne_ForbiddenAndNotFound: точечная отвязка под admin-
+// гейтом (403 обычному), несуществующая таблица -> 404.
+func TestSystemTables_DetachOne_ForbiddenAndNotFound(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	adminH := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+	body := `{"name":"gatetochtable","display_name":"Гейт-Точ-Табл","table_type":"cars"}`
+	tableID := int(testutil.ParseMap(t, testutil.POST(t, e, "/system-tables", body, adminH))["id"].(float64))
+	require.NoError(t, db.Create(&models.OrganizationTable{OrganizationID: td.OrgID, TableID: tableID}).Error)
+
+	userH := testutil.AuthHeader(testutil.RegisterAndLogin(t, e, "tabledetachoneuser", "pass123", 1, td.OrgID, td.CompanyID))
+	assert.Equal(t, http.StatusForbidden, testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d/organizations/%d", tableID, td.OrgID), userH).Code)
+
+	assert.Equal(t, http.StatusNotFound, testutil.DELETE(t, e, fmt.Sprintf("/system-tables/99999/organizations/%d", td.OrgID), adminH).Code)
+	assert.Equal(t, http.StatusNotFound, testutil.DELETE(t, e, fmt.Sprintf("/system-tables/99999/companies/%d", td.CompanyID), adminH).Code)
+}
+
 func TestSystemTables_History(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -214,6 +371,38 @@ func TestSystemTables_GetByName_NotFound(t *testing.T) {
 
 	rec := testutil.GET(t, e, "/system-tables/name/nonexistent", h)
 	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+// Просмотр версий открывается для архивной таблицы: резолвер по имени должен
+// находить её только с allow_archived, иначе кнопка "Версии" из архива ведёт
+// в "Таблица не найдена".
+func TestSystemTables_GetByName_AllowArchived(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"arch_cars","display_name":"Архивная","table_type":"cars"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// Мягко удаляем (is_active=false) - таблица уходит в архив.
+	rec = testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Без флага архивная не резолвится - как основная страница таблицы.
+	rec = testutil.GET(t, e, "/system-tables/name/arch_cars", h)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+
+	// С флагом - находится, is_active=false (нужно для страницы версий).
+	rec = testutil.GET(t, e, "/system-tables/name/arch_cars?allow_archived=1", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tbl := testutil.ParseMap(t, rec)["table"].(map[string]interface{})
+	assert.Equal(t, "arch_cars", tbl["name"])
+	assert.Equal(t, false, tbl["is_active"])
 }
 
 func TestSystemTables_PeopleType_DefaultFields(t *testing.T) {
@@ -732,4 +921,201 @@ func TestSystemTables_FactFields_DefaultVisibilityFromCatalog(t *testing.T) {
 	assert.False(t, visByName["status"], "status скрыт (каталог)")
 	assert.False(t, visByName["company"], "company скрыт (каталог)")
 	assert.False(t, visByName["application_id"], "application_id скрыт (каталог)")
+}
+
+// fact_table_hint редактируется тем же rich-text TextConstructor, что и instruction:
+// HTML-обёртки форматирования легко переваливают за старый лимит varchar(255), и запись
+// падала с "value too long" (юзер ловил это на "привет -" - длина пересекала границу).
+// После перевода колонки в text длинная форматированная подсказка должна сохраняться.
+func TestSystemTables_FactTableHint_LongFormattedHTML(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"fact_hint_long","display_name":"FH","table_type":"cars","show_fact_table":true}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	hint := `<span class="font-size-16">` + strings.Repeat("привет - ", 50) + `</span>`
+	require.Greater(t, len(hint), 255, "подсказка должна быть длиннее старого лимита")
+	body, err := json.Marshal(map[string]string{"fact_table_hint": hint})
+	require.NoError(t, err)
+
+	rec = testutil.PUT(t, e, fmt.Sprintf("/system-tables/%d", tableID), string(body), h)
+	require.Equal(t, http.StatusOK, rec.Code, "длинная форматированная подсказка должна сохраняться")
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	table := testutil.ParseMap(t, rec)["table"].(map[string]interface{})
+	assert.Equal(t, hint, table["fact_table_hint"], "подсказка round-trip без обрезки")
+}
+
+// TestSystemTables_Warning_RoundTrip проверяет, что свободное предупреждение
+// (#1183) сохраняется при создании и обновлении, возвращается в DTO таблицы
+// и попадает в history-детали (buildUpdateDetails).
+func TestSystemTables_Warning_RoundTrip(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	// Create с warning
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"warn_table","display_name":"Warn Table","table_type":"cars","warning":"Проезд закрыт 12:00-13:00"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// GET отдаёт warning
+	table := testutil.ParseMap(t, testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h))["table"].(map[string]interface{})
+	assert.Equal(t, "Проезд закрыт 12:00-13:00", table["warning"])
+
+	// Update меняет warning
+	rec = testutil.PUT(t, e, fmt.Sprintf("/system-tables/%d", tableID), `{"warning":"Новое предупреждение"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	table = testutil.ParseMap(t, testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h))["table"].(map[string]interface{})
+	assert.Equal(t, "Новое предупреждение", table["warning"])
+
+	// warning из update попал в history-детали (buildUpdateDetails)
+	items := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/history", tableID), h))
+	require.GreaterOrEqual(t, len(items), 1)
+	assert.Equal(t, "updated", items[0]["action_type"])
+	assert.Equal(t, "Новое предупреждение", items[0]["details"].(map[string]interface{})["warning"])
+}
+
+func TestSystemTables_WarningWindows_CRUD(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	// Create table first
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"warn_win_table","display_name":"Warn Win","table_type":"cars"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// Add a windowed warning (Пн 12:00-13:00 малогабарит)
+	body := `{"day_of_week":1,"time_from":"12:00","time_to":"13:00","message":"Только малогабарит"}`
+	rec = testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/warning-windows", tableID), body, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	windowID := int(testutil.ParseMap(t, rec)["id"].(float64))
+	assert.Greater(t, windowID, 0)
+
+	// Get warning windows
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/warning-windows", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	windows := testutil.ParseSlice(t, rec)
+	require.Len(t, windows, 1)
+	assert.Equal(t, float64(1), windows[0]["day_of_week"])
+	assert.Equal(t, "12:00", windows[0]["time_from"])
+	assert.Equal(t, "13:00", windows[0]["time_to"])
+	assert.Equal(t, "Только малогабарит", windows[0]["message"])
+	assert.Equal(t, true, windows[0]["is_active"])
+
+	// Warning windows are embedded in the table detail DTO
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	detail := testutil.ParseMap(t, rec)
+	embedded, ok := detail["warning_windows"].([]interface{})
+	require.True(t, ok, "warning_windows должно присутствовать в DTO таблицы")
+	assert.Len(t, embedded, 1)
+
+	// Update to a general warning (каждый день / весь день) -- nullable поля -> NULL
+	updateBody := `{"day_of_week":null,"time_from":null,"time_to":null,"message":"Пропуск оформляется заранее"}`
+	rec = testutil.PUT(t, e, fmt.Sprintf("/system-tables/%d/warning-windows/%d", tableID, windowID), updateBody, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Verify NULL round-trip: сброс дня/времени в NULL реально доезжает до БД
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/warning-windows", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	windows = testutil.ParseSlice(t, rec)
+	require.Len(t, windows, 1)
+	assert.Nil(t, windows[0]["day_of_week"], "day_of_week должен сброситься в NULL (каждый день)")
+	assert.Nil(t, windows[0]["time_from"], "time_from должен сброситься в NULL (весь день)")
+	assert.Nil(t, windows[0]["time_to"])
+	assert.Equal(t, "Пропуск оформляется заранее", windows[0]["message"])
+
+	// Delete
+	rec = testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d/warning-windows/%d", tableID, windowID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/warning-windows", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	windows = testutil.ParseSlice(t, rec)
+	assert.Len(t, windows, 0)
+}
+
+func TestSystemTables_WarningWindows_Validation(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"warn_win_valid","display_name":"Warn Valid","table_type":"cars"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// Пустой message -> 400
+	rec = testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/warning-windows", tableID),
+		`{"message":""}`, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// Неверный формат времени -> 400
+	rec = testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/warning-windows", tableID),
+		`{"time_from":"invalid","message":"текст"}`, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// Неверный день недели -> 400
+	rec = testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/warning-windows", tableID),
+		`{"day_of_week":7,"message":"текст"}`, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestSystemTables_WarningWindows_TableNotFound(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables/99999/warning-windows",
+		`{"message":"текст"}`, h)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+// Окно можно добавить только к активной таблице (checkParent требует is_active=true,
+// в отличие от мест разгрузки). Архивированная таблица -> 404.
+func TestSystemTables_WarningWindows_ArchivedTable(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"warn_win_archived","display_name":"Warn Archived","table_type":"cars"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// Архивируем таблицу (soft delete -> is_active=false)
+	rec = testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Добавление окна к архивной таблице отбивается 404
+	rec = testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/warning-windows", tableID),
+		`{"message":"текст"}`, h)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
 }

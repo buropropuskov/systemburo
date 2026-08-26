@@ -27,6 +27,12 @@ func PUT(t *testing.T, e *echo.Echo, path, body string, headers http.Header) *ht
 	return doRequest(t, e, http.MethodPut, path, body, headers)
 }
 
+// PATCH makes a PATCH request through the Echo app and returns the recorder.
+func PATCH(t *testing.T, e *echo.Echo, path, body string, headers http.Header) *httptest.ResponseRecorder {
+	t.Helper()
+	return doRequest(t, e, http.MethodPatch, path, body, headers)
+}
+
 // DELETE makes a DELETE request through the Echo app and returns the recorder.
 func DELETE(t *testing.T, e *echo.Echo, path string, headers http.Header) *httptest.ResponseRecorder {
 	t.Helper()

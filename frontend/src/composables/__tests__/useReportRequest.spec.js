@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { buildReportRequest } from '../useReportRequest';
+import {
+  buildReportRequest, defaultReportLimit, DEFAULT_REPORT_LIMIT, MAX_REPORT_LIMIT,
+} from '../useReportRequest';
 
 const PERIOD = { from: '2026-06-01', to: '2026-06-07' };
 
@@ -66,6 +68,29 @@ describe('buildReportRequest', () => {
       );
       expect(req.filters).toEqual([]);
     });
+
+    it('шлёт pivot (cross-tab ось) только при разрезе period', () => {
+      const period = buildReportRequest(
+        { mode: 'aggregate', metrics: ['applications_count'], dimension: 'period', granularity: 'week', pivot: 'attachment_type' },
+        PERIOD, ['date_range'],
+      );
+      expect(period.pivot).toBe('attachment_type');
+
+      // Вне period ось не имеет смысла -> бэк её не примет, фронт не шлёт.
+      const status = buildReportRequest(
+        { mode: 'aggregate', metrics: ['applications_count'], dimension: 'status', pivot: 'attachment_type' },
+        PERIOD, ['date_range'],
+      );
+      expect(status.pivot).toBeUndefined();
+    });
+
+    it('опускает pivot, когда ось не выбрана', () => {
+      const req = buildReportRequest(
+        { mode: 'aggregate', metrics: ['applications_count'], dimension: 'period', granularity: 'day' },
+        PERIOD, ['date_range'],
+      );
+      expect(req.pivot).toBeUndefined();
+    });
   });
 
   describe('list', () => {
@@ -110,12 +135,50 @@ describe('buildReportRequest', () => {
   });
 
   describe('limit', () => {
-    it('нормализует лимит: пусто -> 0, дробь -> floor, потолок 1000', () => {
-      expect(buildReportRequest({ mode: 'list', entity: 'cars', limit: null }, {}, []).limit).toBe(0);
-      expect(buildReportRequest({ mode: 'list', entity: 'cars', limit: '' }, {}, []).limit).toBe(0);
+    it('нормализует лимит: пусто -> дефолт 100, дробь -> floor, потолок 1000', () => {
+      expect(buildReportRequest({ mode: 'list', entity: 'cars', limit: null }, {}, []).limit).toBe(100);
+      expect(buildReportRequest({ mode: 'list', entity: 'cars', limit: '' }, {}, []).limit).toBe(100);
       expect(buildReportRequest({ mode: 'list', entity: 'cars', limit: '50.9' }, {}, []).limit).toBe(50);
       expect(buildReportRequest({ mode: 'list', entity: 'cars', limit: 5000 }, {}, []).limit).toBe(1000);
-      expect(buildReportRequest({ mode: 'list', entity: 'cars', limit: -3 }, {}, []).limit).toBe(0);
+      expect(buildReportRequest({ mode: 'list', entity: 'cars', limit: -3 }, {}, []).limit).toBe(100);
+    });
+
+    // Разрез «период» движок сортирует хронологически ДО обрезки: дефолтные 100
+    // отрезали бы хвост периода (год по дням заканчивался бы в начале апреля).
+    it('пустой лимит на разрезе «период» -> потолок 1000, а не дефолт', () => {
+      const req = buildReportRequest(
+        { mode: 'aggregate', metrics: ['applications_count'], dimension: 'period', granularity: 'day', limit: '' },
+        { from: '2026-01-01', to: '2026-12-31' },
+        ['date_range'],
+      );
+      expect(req.limit).toBe(1000);
+    });
+
+    it('явный лимит на разрезе «период» уважается', () => {
+      const req = buildReportRequest(
+        { mode: 'aggregate', metrics: ['applications_count'], dimension: 'period', limit: 30 },
+        {},
+        [],
+      );
+      expect(req.limit).toBe(30);
+    });
+
+    it('прочие разрезы остаются на дефолте 100', () => {
+      const req = buildReportRequest(
+        { mode: 'aggregate', metrics: ['applications_count'], dimension: 'organization', limit: '' },
+        {},
+        [],
+      );
+      expect(req.limit).toBe(100);
+    });
+  });
+
+  describe('defaultReportLimit', () => {
+    it('период -> потолок, остальное -> дефолт', () => {
+      expect(defaultReportLimit({ mode: 'aggregate', dimension: 'period' })).toBe(MAX_REPORT_LIMIT);
+      expect(defaultReportLimit({ mode: 'aggregate', dimension: 'status' })).toBe(DEFAULT_REPORT_LIMIT);
+      // list разреза не имеет — выгрузка строк живёт на дефолте.
+      expect(defaultReportLimit({ mode: 'list', entity: 'cars' })).toBe(DEFAULT_REPORT_LIMIT);
     });
   });
 });

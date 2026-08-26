@@ -10,11 +10,11 @@
         <template #skeleton>
           <div style="display: flex; gap: 20px; width: 100%;">
             <SkeletonBlock
-              height="200px"
+              height="var(--cabinet-card-height)"
               style="flex: 1;"
             />
             <SkeletonBlock
-              height="200px"
+              height="var(--cabinet-card-height)"
               style="flex: 1;"
             />
           </div>
@@ -62,6 +62,8 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
+import { useDeletionsStore } from '@/stores/deletions';
+import { getViewportZoom } from '@/utils/viewportScale';
 import UserApplications from './UserApplications.vue';
 import UserProfileHeader from './UserProfileHeader.vue';
 import UserNotificationsInline from './UserNotificationsInline.vue';
@@ -134,11 +136,13 @@ export default {
         this.lastDashboardHeight = -1;
         return;
       }
+      // rect.top под корневым zoom - device-px, innerHeight - НЕзумленный:
+      // делим доступную device-высоту на zoom -> CSS-высота (иначе дашборд
+      // в zoom раз выше экрана). BOTTOM_GAP уже в CSS-px, вычитаем после деления.
       const top = el.getBoundingClientRect().top;
       // 15px - отступ снизу чтобы блок заявок не прилипал к краю экрана.
-      // Padding 15px сверху уже входит в el, поэтому вычитаем только снизу.
       const BOTTOM_GAP = 15;
-      const height = Math.max(0, Math.round(window.innerHeight - top - BOTTOM_GAP));
+      const height = Math.max(0, Math.round((window.innerHeight - top) / getViewportZoom() - BOTTOM_GAP));
       // Защита от ResizeObserver-петли: пишем стиль только при реальном изменении.
       if (height === this.lastDashboardHeight) return;
       this.lastDashboardHeight = height;
@@ -148,7 +152,7 @@ export default {
       try {
         const authStore = useAuthStore();
         if (!authStore.token) {
-          alert("Пользователь не авторизован.");
+          useDeletionsStore().notify({ prefix: 'Пользователь не авторизован', type: 'error' });
           return;
         }
 
@@ -160,7 +164,7 @@ export default {
           const userData = await response.json();
           this.updateUserData(userData);
         } else {
-          alert("Ошибка при загрузке данных пользователя.");
+          useDeletionsStore().notify({ prefix: 'Ошибка при загрузке данных пользователя', type: 'error' });
         }
       } catch (error) {
         console.error("Ошибка сети при загрузке данных пользователя:", error);
@@ -195,6 +199,10 @@ export default {
   width: 100%;
   padding: 15px;
   position: relative;
+  /* Высота карточек шапки кабинета - одна на профиль и уведомления, иначе их
+     нижние края расходятся. Ряд согласия над именем помещается в те же 200px
+     за счёт сжатых полей бейджа и минимальных отступов ряда контактов. */
+  --cabinet-card-height: 200px;
   /* Высоту на desktop задаёт applyDashboardHeight под доступный вьюпорт;
      flex-колонка тянет блок заявок на остаток высоты. overflow:hidden
      обязателен - без него flex-дети могут расти за пределы установленной
@@ -276,6 +284,30 @@ export default {
 
   .first-row :deep(.notifications) {
     max-width: 100%;
+  }
+}
+
+/* Мобилка: блок заявок идёт от края до края (карточки-письма edge-to-edge, зеркало
+   Центра). Гасим боковой padding дашборда, возвращая отступ только шапке кабинета
+   (профиль/уведомления), чтобы full-bleed получил лишь список заявок. */
+@media (max-width: 767.98px) {
+  /* overflow:visible - на мобилке высота дашборда естественная (applyDashboardHeight
+     не действует), клипать нечего, а sticky-шапка списка заявок должна прилипать к
+     вьюпорту: любой overflow:hidden предок сделал бы её containing block и sticky
+     не сработал бы против страницы. */
+  .account-dashboard {
+    padding-left: 0;
+    padding-right: 0;
+    overflow: visible;
+  }
+
+  .dashboard-row {
+    overflow: visible;
+  }
+
+  .first-row {
+    padding-left: 15px;
+    padding-right: 15px;
   }
 }
 </style>

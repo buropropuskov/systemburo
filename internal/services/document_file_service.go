@@ -26,8 +26,8 @@ var allowedDocExtensions = map[string]bool{
 
 // magic-bytes сигнатуры для семейств форматов
 var (
-	magicPDF   = []byte{0x25, 0x50, 0x44, 0x46}             // %PDF
-	magicOOXML = []byte{0x50, 0x4B, 0x03, 0x04}             // PK..
+	magicPDF   = []byte{0x25, 0x50, 0x44, 0x46} // %PDF
+	magicOOXML = []byte{0x50, 0x4B, 0x03, 0x04} // PK..
 	magicOLE2  = []byte{0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1}
 )
 
@@ -63,10 +63,18 @@ type documentFileService struct {
 	uploadDir string
 }
 
-// NewDocumentFileService создаёт DocumentFileService. uploadPath -- корневая папка uploads.
+// NewDocumentFileService создаёт DocumentFileService для документов (uploads/documents).
+// uploadPath -- корневая папка uploads.
 func NewDocumentFileService(uploadPath string) DocumentFileService {
+	return NewDocumentFileServiceIn(uploadPath, "documents")
+}
+
+// NewDocumentFileServiceIn создаёт DocumentFileService с произвольным подкаталогом
+// внутри uploads (напр. "guide" для PDF разделов руководства). Валидация и magic-bytes
+// те же, что у документов; ограничение по типу (только PDF и т.п.) накладывает вызывающий хендлер.
+func NewDocumentFileServiceIn(uploadPath, subdir string) DocumentFileService {
 	return &documentFileService{
-		uploadDir: filepath.Join(uploadPath, "documents"),
+		uploadDir: filepath.Join(uploadPath, subdir),
 	}
 }
 

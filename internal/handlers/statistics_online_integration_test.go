@@ -27,8 +27,8 @@ func TestUsersOnline_CountsByLastSeenWindow(t *testing.T) {
 
 	now := time.Now().UTC()
 	recent := now.Add(-2 * time.Minute) // в окне
-	stale := now.Add(-30 * time.Minute) // вне окна (15 мин)
-	edge := now.Add(-14 * time.Minute)  // на границе - в окне
+	stale := now.Add(-30 * time.Minute) // вне окна (5 мин)
+	edge := now.Add(-4 * time.Minute)   // на границе - в окне
 
 	mk := func(username string, ls *time.Time) {
 		u := models.User{Username: username, TypeID: 1, IsActive: true}
@@ -44,7 +44,7 @@ func TestUsersOnline_CountsByLastSeenWindow(t *testing.T) {
 	mk("offline_stale", &stale)
 	mk("never_seen", nil)
 
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 	summary, err := svc.GetSummary(context.Background(), now.Add(-24*time.Hour), now)
 	require.NoError(t, err)
 
@@ -59,7 +59,7 @@ func TestSnapshotOnlinePeak_MaxAndUpsert(t *testing.T) {
 	testutil.CleanDB(t, db)
 
 	now := time.Now().UTC()
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 
 	// Снимок 1: 3 пользователя онлайн.
 	for _, name := range []string{"p1", "p2", "p3"} {
@@ -110,6 +110,104 @@ func TestSnapshotOnlinePeak_MaxAndUpsert(t *testing.T) {
 	assert.Equal(t, int64(5), summary.UsersOnlinePeakToday)
 }
 
+// TestGetOnlineUsers_WindowSortAndFields проверяет список «кто онлайн»: только в окне,
+// по убыванию last_seen, ФИО собрано из частей, роль/тип подтянуты из справочников.
+func TestGetOnlineUsers_WindowSortAndFields(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	now := time.Now().UTC()
+	recent := now.Add(-1 * time.Minute) // в окне, свежее
+	edge := now.Add(-4 * time.Minute)   // в окне, граница
+	stale := now.Add(-30 * time.Minute) // вне окна (5 мин)
+
+	role := models.Role{Code: "role_test_g7", Name: "РольТест"}
+	require.NoError(t, db.Create(&role).Error)
+	utype := models.UserType{Code: "type_test_g7", Name: "ТипТест"}
+	require.NoError(t, db.Create(&utype).Error)
+
+	str := func(s string) *string { return &s }
+	mk := func(username string, last, first, middle *string, roleID *int, ls *time.Time) {
+		u := models.User{Username: username, TypeID: utype.ID, IsActive: true,
+			LastName: last, FirstName: first, MiddleName: middle, RoleID: roleID}
+		require.NoError(t, db.Create(&u).Error)
+		if ls != nil {
+			require.NoError(t, db.Model(&models.User{}).Where("id = ?", u.ID).
+				Update("last_seen", *ls).Error)
+		}
+	}
+
+	mk("ivanov", str("Иванов"), str("Иван"), str("Иванович"), &role.ID, &recent)
+	mk("petr", nil, str("Пётр"), nil, nil, &edge)
+	mk("stale_user", str("Старый"), nil, nil, nil, &stale)
+	mk("never_user", str("Никогда"), nil, nil, nil, nil)
+
+	// Забаненный и архивный со свежим last_seen НЕ должны попадать ни в список, ни в счётчик.
+	banned := models.User{Username: "banned_fresh", TypeID: utype.ID, IsActive: true, IsBanned: true}
+	require.NoError(t, db.Create(&banned).Error)
+	require.NoError(t, db.Model(&models.User{}).Where("id = ?", banned.ID).
+		Update("last_seen", recent).Error)
+	// is_active=false выставляем через Updates(map), иначе gorm с default:true опустит zero-value.
+	inactive := models.User{Username: "inactive_fresh", TypeID: utype.ID}
+	require.NoError(t, db.Create(&inactive).Error)
+	require.NoError(t, db.Model(&models.User{}).Where("id = ?", inactive.ID).
+		Updates(map[string]any{"is_active": false, "last_seen": recent}).Error)
+
+	svc := services.NewStatisticsService(db, 0)
+	users, err := svc.GetOnlineUsers(context.Background())
+	require.NoError(t, err)
+
+	require.Len(t, users, 2, "только активные не забаненные в окне онлайна")
+	// По убыванию last_seen: recent (ivanov) раньше edge (petr).
+	assert.Equal(t, "ivanov", users[0].Login)
+	assert.Equal(t, "Иванов Иван Иванович", users[0].FullName)
+	assert.Equal(t, "РольТест", users[0].Role)
+	assert.Equal(t, "ТипТест", users[0].UserType)
+	assert.False(t, users[0].LastSeen.IsZero())
+
+	assert.Equal(t, "petr", users[1].Login)
+	assert.Equal(t, "Пётр", users[1].FullName, "ФИО из доступных частей")
+	assert.Empty(t, users[1].Role, "без роли -> пусто")
+
+	// Счётчик плитки (users_online) использует тот же предикат -> совпадает с длиной списка.
+	summary, err := svc.GetSummary(context.Background(), now.Add(-24*time.Hour), now)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), summary.UsersOnline, "счётчик исключает забаненных/архивных, как и список")
+}
+
+// TestGetOnlineUsersHandler_HTTP проверяет, что эндпоинт проводит список через сервис
+// и отдаёт его в envelope.
+func TestGetOnlineUsersHandler_HTTP(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	now := time.Now().UTC()
+	u := models.User{Username: "online_one", TypeID: 1, IsActive: true}
+	require.NoError(t, db.Create(&u).Error)
+	require.NoError(t, db.Model(&models.User{}).Where("id = ?", u.ID).
+		Update("last_seen", now.Add(-1*time.Minute)).Error)
+
+	h := handlers.NewStatisticsHandler(services.NewStatisticsService(db, 0))
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/statistics/online-users", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	require.NoError(t, h.GetOnlineUsers(c))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp struct {
+		Success bool                `json:"success"`
+		Data    []models.OnlineUser `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.True(t, resp.Success)
+	require.Len(t, resp.Data, 1)
+	assert.Equal(t, "online_one", resp.Data[0].Login)
+}
+
 // TestGetOnlinePeaks_Series проверяет серию пиков за период: фильтр по датам и порядок.
 func TestGetOnlinePeaks_Series(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
@@ -134,7 +232,7 @@ func TestGetOnlinePeaks_Series(t *testing.T) {
 	mkPeak(d2, 3)
 	mkPeak(d1, 5)
 
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 	points, err := svc.GetOnlinePeaks(context.Background(), now.Add(-3*24*time.Hour), now)
 	require.NoError(t, err)
 
@@ -165,7 +263,7 @@ func TestGetOnlinePeaksHandler_HTTP(t *testing.T) {
 	mkPeak(d1, 4)
 	mkPeak(now, 9)
 
-	h := handlers.NewStatisticsHandler(services.NewStatisticsService(db))
+	h := handlers.NewStatisticsHandler(services.NewStatisticsService(db, 0))
 
 	e := echo.New()
 	from := now.Add(-72 * time.Hour).Format("2006-01-02")
@@ -195,7 +293,7 @@ func TestGetOnlinePeaksHandler_InvalidRange(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 
-	h := handlers.NewStatisticsHandler(services.NewStatisticsService(db))
+	h := handlers.NewStatisticsHandler(services.NewStatisticsService(db, 0))
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/statistics/online-peaks?from=2026-06-10&to=2026-06-01", nil)
 	rec := httptest.NewRecorder()

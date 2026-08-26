@@ -1,138 +1,145 @@
 <template>
   <teleport to="body">
-    <transition
-      name="modal-overlay"
-      @after-leave="handleAfterLeave"
+    <!-- Оверлей смонтирован пока show=true; при закрытии сперва проигрывается slide-down
+         листа (showContent=false, оверлей на месте), а update:show=false эмитится только
+         в @after-leave (onSheetLeft) - иначе inner-лист снимался вместе с оверлеем и slide
+         не проигрывался. Затемнение подложки - классом is-visible (по showContent),
+         transition background-color, чтобы фейд подложки шёл СИНХРОННО со слайдом и НЕ
+         каскадил opacity на лист. -->
+    <div
+      v-if="show"
+      class="modal-overlay"
+      :class="{ 'is-visible': showContent }"
+      @mousedown="onOverlayMousedown"
+      @mouseup="onOverlayMouseup"
     >
-      <div
-        v-if="show"
-        class="modal-overlay"
-        @mousedown="onOverlayMousedown"
-        @mouseup="onOverlayMouseup"
+      <transition
+        name="modal"
+        @after-leave="onSheetLeft"
       >
-        <transition
-          name="modal"
-          @after-leave="emitClose"
+        <div
+          v-if="showContent"
+          class="modal"
+          :class="{ 'is-dragging': sheetDragging }"
+          :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
+          @mousedown.stop
+          @touchstart="onSheetTouchStart"
+          @touchmove="onSheetTouchMove"
+          @touchend="onSheetTouchEnd"
         >
           <div
-            v-if="showContent"
-            class="modal"
-            @mousedown.stop
+            class="sheet-handle"
+            aria-hidden="true"
+          />
+          <div class="modal__header">
+            <h3 class="modal__title">
+              Сообщить о проблеме
+            </h3>
+            <button
+              class="modal__close"
+              aria-label="Закрыть"
+              @click="handleCloseClick"
+            >
+              <span class="close-icon">&times;</span>
+            </button>
+          </div>
+          <div
+            ref="modalScroll"
+            class="modal__body"
           >
-            <div class="modal__header">
-              <h3 class="modal__title">
-                Сообщить о проблеме
-              </h3>
-              <button
-                class="modal__close"
-                aria-label="Закрыть"
-                @click="handleCloseClick"
+            <div class="modal__content">
+              <label
+                for="feedback-textarea"
+                class="textarea-label"
               >
-                <span class="close-icon">&times;</span>
-              </button>
-            </div>
-            <div class="modal__body">
-              <div class="modal__content">
-                <label
-                  for="feedback-textarea"
-                  class="textarea-label"
+                Ниже вы можете дать обратную связь по работе системы. Расскажите о вашей проблеме, что не работает, с чем вам нужна помощь. Вы можете оставить предложение по улучшению работы системы.
+              </label>
+              <div class="textarea-wrapper">
+                <textarea 
+                  id="feedback-textarea" 
+                  ref="textareaRef"
+                  v-model="message"
+                  placeholder="Например: не работает кнопка отправки формы на странице..."
+                  class="feedback-textarea"
+                  :class="{ 'feedback-textarea--error': hasError }"
+                  rows="6"
+                  :disabled="isSubmitting"
+                  @keydown.enter.prevent="handleEnterKey"
+                  @input="handleInput"
+                />
+                <div 
+                  class="textarea-counter-wrapper"
+                  :class="{ 
+                    'textarea-counter-wrapper--error': isOverLimit,
+                    'textarea-counter-wrapper--warning': isNearLimit 
+                  }"
                 >
-                  Ниже вы можете дать обратную связь по работе системы. Расскажите о вашей проблеме, что не работает, с чем вам нужна помощь. Вы можете оставить предложение по улучшению работы системы.
-                </label>
-                <div class="textarea-wrapper">
-                  <textarea 
-                    id="feedback-textarea" 
-                    ref="textareaRef"
-                    v-model="message"
-                    placeholder="Например: не работает кнопка отправки формы на странице..."
-                    class="feedback-textarea"
-                    :class="{ 'feedback-textarea--error': hasError }"
-                    rows="6"
-                    :disabled="isSubmitting"
-                    @keydown.enter.prevent="handleEnterKey"
-                    @input="handleInput"
-                  />
-                  <div 
-                    class="textarea-counter-wrapper"
-                    :class="{ 
-                      'textarea-counter-wrapper--error': isOverLimit,
-                      'textarea-counter-wrapper--warning': isNearLimit 
-                    }"
-                  >
-                    {{ message.length }}/{{ maxLength }}
-                  </div>
-                </div>
-                <div
-                  v-if="error"
-                  class="error-message"
-                  role="alert"
-                >
-                  <span class="error-icon">⚠</span>
-                  {{ error }}
+                  {{ message.length }}/{{ maxLength }}
                 </div>
               </div>
-            </div>
-            <div class="modal__footer">
-              <button 
-                class="modal-btn modal-btn--cancel" 
-                :disabled="isSubmitting"
-                @click="handleCancelClick"
+              <div
+                v-if="error"
+                class="error-message"
+                role="alert"
               >
-                Отмена
-              </button>
-              <button 
-                class="modal-btn modal-btn--submit" 
-                :disabled="isSubmitDisabled" 
-                :class="{ 
-                  'modal-btn--disabled': isSubmitDisabled,
-                  'modal-btn--loading': isSubmitting 
-                }"
-                @click="submitFeedback"
-              >
-                <span
-                  v-if="isSubmitting"
-                  class="submit-spinner"
-                />
-                <span
-                  v-else
-                  class="submit-text"
-                >
-                  {{ submitButtonText }}
-                </span>
-              </button>
+                <span class="error-icon">⚠</span>
+                {{ error }}
+              </div>
             </div>
           </div>
-        </transition>
-      </div>
-    </transition>
-  </teleport>
-
-  <teleport to="body">
-    <transition name="notification">
-      <div
-        v-if="notification.show"
-        class="notification"
-        :class="notification.type"
-        @click="hideNotification"
-      >
-        {{ notification.message }}
-      </div>
-    </transition>
+          <div class="modal__footer">
+            <button 
+              class="modal-btn modal-btn--cancel" 
+              :disabled="isSubmitting"
+              @click="handleCancelClick"
+            >
+              Отмена
+            </button>
+            <button 
+              class="modal-btn modal-btn--submit" 
+              :disabled="isSubmitDisabled" 
+              :class="{ 
+                'modal-btn--disabled': isSubmitDisabled,
+                'modal-btn--loading': isSubmitting 
+              }"
+              @click="submitFeedback"
+            >
+              <span
+                v-if="isSubmitting"
+                class="submit-spinner"
+              />
+              <span
+                v-else
+                class="submit-text"
+              >
+                {{ submitButtonText }}
+              </span>
+            </button>
+          </div>
+        </div>
+      </transition>
+    </div>
   </teleport>
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import { ref, getCurrentInstance } from 'vue'
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
+import { useDeletionsStore } from '@/stores/deletions'
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 export default {
   name: 'FeedbackModal',
-  
+
   props: {
     show: {
       type: Boolean,
       required: true
     },
     autoFocus: {
+      // Десктоп фокусирует textarea сразу (default true). Мобильный вызов из drawer'а
+      // передаёт false: на bottom-sheet автофокус поднимает клавиатуру поверх листа.
       type: Boolean,
       default: true
     },
@@ -143,7 +150,25 @@ export default {
   },
   
   emits: ['close', 'submitted', 'update:show'],
-  
+
+  setup() {
+    const inst = getCurrentInstance();
+    const modalScroll = ref(null);
+    // Свайп-вниз закрывает так же, как крестик/overlay - с сохранением текста.
+    const swipe = useSwipeDismiss(() => inst.proxy.handleCloseClick(), {
+      getScrollTop: () => modalScroll.value?.scrollTop ?? 0,
+      handleSelector: '.sheet-handle',
+    });
+    return {
+      modalScroll,
+      sheetOffset: swipe.offset,
+      sheetDragging: swipe.isDragging,
+      onSheetTouchStart: swipe.onTouchStart,
+      onSheetTouchMove: swipe.onTouchMove,
+      onSheetTouchEnd: swipe.onTouchEnd,
+    };
+  },
+
   data() {
     return {
       message: '',
@@ -156,13 +181,7 @@ export default {
       escListener: null,
       savedMessage: '',
       shouldSaveOnClose: true,
-      overlayMousedown: false,
-      notification: {
-        show: false,
-        message: '',
-        type: 'success'
-      },
-      notificationTimer: null
+      overlayMousedown: false
     };
   },
   
@@ -202,17 +221,29 @@ export default {
     show(newVal) {
       if (newVal) {
         this.resetErrors();
-        this.showContent = true;
         this.shouldSaveOnClose = true;
         this.setupEscListener();
+        // showContent на nextTick: overlay (v-if=show) монтируется первым, и только затем
+        // внутренняя <transition name="modal"> играет РЕАЛЬНЫЙ enter (слайд снизу). Если
+        // ставить showContent синхронно с show, модалка появляется внутри только что
+        // вставленного родителя - Vue считает это "appear" и без appear-пропа НЕ анимирует
+        // (окно просто возникало, не выезжало снизу, #1097 R4-4).
         this.$nextTick(() => {
-          if (this.autoFocus) {
-            this.$refs.textareaRef?.focus();
-          }
+          this.showContent = true;
+          this.$nextTick(() => {
+            if (this.autoFocus) {
+              this.$refs.textareaRef?.focus();
+            }
+          });
         });
       } else {
+        // Штатное закрытие идёт через closeModal->slide->onSheetLeft (тот эмитит
+        // update:show=false). Эта ветка - safety на форс-закрытие родителем напрямую
+        // (show=false в обход round-trip): слайда не будет (оверлей v-if=show снимется
+        // разом), но обязательно снимаем scroll-lock, иначе body.overflow залипнет.
         this.showContent = false;
         this.removeEscListener();
+        releaseBodyScrollLock(this);
       }
     },
     
@@ -231,7 +262,7 @@ export default {
       () => this.show,
       (newVal) => {
         if (newVal) {
-          document.body.style.overflow = 'hidden';
+          setBodyScrollLock(this, true);
         }
       },
       { immediate: true }
@@ -240,31 +271,10 @@ export default {
   
   beforeUnmount() {
     this.removeEscListener();
-    document.body.style.overflow = '';
-    if (this.notificationTimer) clearTimeout(this.notificationTimer);
+    releaseBodyScrollLock(this);
   },
   
   methods: {
-    showNotification(message, type = 'success', duration = 5000) {
-      this.notification.message = message;
-      this.notification.type = type;
-      this.notification.show = true;
-
-      if (this.notificationTimer) clearTimeout(this.notificationTimer);
-      this.notificationTimer = setTimeout(() => {
-        this.notification.show = false;
-        this.notificationTimer = null;
-      }, duration);
-    },
-
-    hideNotification() {
-      if (this.notificationTimer) {
-        clearTimeout(this.notificationTimer);
-        this.notificationTimer = null;
-      }
-      this.notification.show = false;
-    },
-
     resetErrors() {
       this.error = '';
       this.isSubmitting = false;
@@ -292,15 +302,20 @@ export default {
     },
     
     closeModal() {
+      // Инициируем закрытие: гасим лист (showContent=false -> slide-down + фейд подложки
+      // через is-visible). update:show=false эмитим только когда лист доиграл leave
+      // (onSheetLeft), иначе оверлей (v-if=show) снимал бы лист ДО слайда. Гвард от
+      // повторного вызова во время анимации.
+      if (!this.showContent) return;
+      this.showContent = false;
+    },
+
+    onSheetLeft() {
+      // Лист доехал вниз и размонтирован: размонтируем оверлей (родитель через v-model),
+      // сообщаем о закрытии, снимаем scroll-lock.
+      releaseBodyScrollLock(this);
       this.$emit('update:show', false);
-    },
-    
-    emitClose() {
       this.$emit('close');
-    },
-    
-    handleAfterLeave() {
-      document.body.style.overflow = '';
     },
     
     onOverlayMousedown(e) {
@@ -366,11 +381,7 @@ export default {
           const data = await response.json();
           const feedbackId = data.id;
 
-          this.showNotification(
-            `Обращение #${feedbackId} отправлено! Мы рассмотрим вашу проблему в ближайшее время.`,
-            'success',
-            5000
-          );
+          useDeletionsStore().notify({ prefix: 'Обращение ', bold: `#${feedbackId}`, suffix: ' отправлено', type: 'success' });
 
           this.shouldSaveOnClose = false;
 
@@ -390,14 +401,14 @@ export default {
           }
           
           this.error = errorMessage;
-          this.showNotification(errorMessage, 'error', 5000);
+          useDeletionsStore().notify({ bold: errorMessage, type: 'error' });
           this.isSubmitting = false;
         }
       } catch (error) {
         console.error("Ошибка при отправке обратной связи:", error);
         const errorMsg = "Ошибка сети. Пожалуйста, проверьте подключение к интернету и попробуйте позже.";
         this.error = errorMsg;
-        this.showNotification(errorMsg, 'error', 5000);
+        useDeletionsStore().notify({ prefix: 'Не удалось отправить: ', bold: 'ошибка сети', type: 'error' });
         this.isSubmitting = false;
       }
     },
@@ -423,17 +434,6 @@ export default {
 </script>
 
 <style scoped>
-/* Анимации оверлея */
-.modal-overlay-enter-active,
-.modal-overlay-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.modal-overlay-enter-from,
-.modal-overlay-leave-to {
-  opacity: 0;
-}
-
 /* Анимации модального окна */
 .modal-enter-active,
 .modal-leave-active {
@@ -452,27 +452,33 @@ export default {
   transform: translateY(0) scale(1);
 }
 
-/* Для мобильных устройств */
+/* Для мобильных устройств: лист - bottom-sheet, ТОЛЬКО выезд снизу без фейда.
+   Транзишн на transform (не all), opacity держим 1 во всех фазах (перебиваем базовое
+   opacity:0 у enter-from/leave-to) - иначе лист гаснет вместе со слайдом. */
 @media (max-width: 768px) {
   .modal-enter-active,
   .modal-leave-active {
-    transition: all 0.3s ease-out;
+    transition: transform 0.3s ease-out;
   }
-  
+
   .modal-enter-from {
     transform: translateY(100%);
+    opacity: 1;
   }
-  
+
   .modal-enter-to {
     transform: translateY(0);
+    opacity: 1;
   }
-  
+
   .modal-leave-from {
     transform: translateY(0);
+    opacity: 1;
   }
-  
+
   .modal-leave-to {
     transform: translateY(100%);
+    opacity: 1;
   }
 }
 
@@ -482,27 +488,46 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  /* Затемнение через класс is-visible (по showContent), transition background-color -
+     фейд подложки идёт синхронно со слайдом листа и НЕ каскадит opacity на лист
+     (opacity на оверлее гасила бы и лист -> slide не виден). */
+  background-color: var(--overlay);
+  transition: background-color 0.3s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9999;
   padding: 20px;
-  backdrop-filter: blur(0.1px);
-  -webkit-backdrop-filter: blur(0.1px);
+  /* backdrop-filter НЕ используем: даже blur(0.1px) форсит compositing-слой и
+     репэйнты, роняющие кадры при слайде листа на 120Hz (#1097 R3-4, как BaseModal). */
+}
+
+.modal-overlay.is-visible {
+  background-color: var(--overlay);
 }
 
 .modal {
-  background: #ffffff;
+  background: var(--surface);
   border-radius: 25px;
   width: 100%;
   max-width: 500px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px var(--shadow-drop);
   overflow: hidden;
   position: relative;
-  max-height: 90vh;
+  max-height: calc(var(--app-vh, 1vh) * 90);
   display: flex;
   flex-direction: column;
+}
+
+/* Ползунок bottom-sheet - виден только на мобилке (тянуть для закрытия). */
+.sheet-handle {
+  display: none;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  margin: 10px auto 0;
+  flex-shrink: 0;
 }
 
 .modal__header {
@@ -510,8 +535,8 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 15px 20px;
-  border-bottom: 1px solid #f0f0f0;
-  background: #fff;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
   flex-shrink: 0;
 }
 
@@ -519,7 +544,7 @@ export default {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text);
   line-height: 1.3;
 }
 
@@ -536,12 +561,12 @@ export default {
   justify-content: center;
   width: 40px;
   height: 40px;
-  color: #666;
+  color: var(--text-muted);
 }
 
 .modal__close:hover:not(:disabled) {
-  background-color: #f5f5f5;
-  color: #333;
+  background-color: var(--surface-2);
+  color: var(--text);
 }
 
 .modal__close:disabled {
@@ -568,7 +593,7 @@ export default {
 .textarea-label {
   display: block;
   font-size: 13px;
-  color: #666;
+  color: var(--text-muted);
   padding-bottom: 20px;
   font-weight: 500;
 }
@@ -581,7 +606,7 @@ export default {
 .feedback-textarea {
   width: 100%;
   padding: 16px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-size: 15px;
   font-family: inherit;
@@ -592,38 +617,38 @@ export default {
   transition: all 0.2s ease;
   box-sizing: border-box;
   outline: none;
-  background: #fff;
-  color: #1a1a1a;
+  background: var(--surface);
+  color: var(--text);
   display: block;
   padding-bottom: 30px; /* Добавляем отступ снизу для счетчика */
 }
 
 .feedback-textarea:focus {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.1);
 }
 
 .feedback-textarea:hover:not(:disabled) {
-  border-color: #b0b0b0;
+  border-color: var(--border);
 }
 
 .feedback-textarea:disabled {
-  background-color: #f9f9f9;
+  background-color: var(--surface-2);
   cursor: not-allowed;
   opacity: 0.7;
 }
 
 .feedback-textarea::placeholder {
-  color: #999;
+  color: var(--text-muted);
 }
 
 .feedback-textarea--error {
-  border-color: #dc3545;
-  background-color: #fffafa;
+  border-color: var(--danger);
+  background-color: var(--danger-bg);
 }
 
 .feedback-textarea--error:focus {
-  border-color: #dc3545;
+  border-color: var(--danger);
   box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
 }
 
@@ -632,8 +657,8 @@ export default {
   bottom: 8px;
   right: 12px;
   font-size: 12px;
-  color: #999;
-  background-color: rgba(255, 255, 255, 0.8);
+  color: var(--text-muted);
+  background-color: color-mix(in srgb, var(--surface) 80%, transparent);
   padding: 2px 6px;
   border-radius: 8px;
   pointer-events: none;
@@ -644,24 +669,24 @@ export default {
 }
 
 .textarea-counter-wrapper--warning {
-  color: #ff9800;
-  background-color: rgba(255, 248, 225, 0.9);
+  color: var(--warning-text);
+  background-color: color-mix(in srgb, var(--warning) 60%, var(--surface));
 }
 
 .textarea-counter-wrapper--error {
-  color: #dc3545;
+  color: var(--danger-text);
   background-color: rgba(255, 245, 245, 0.9);
   font-weight: 600;
 }
 
 .error-message {
-  color: #dc3545;
+  color: var(--danger-text);
   font-size: 14px;
   margin-top: 12px;
   padding: 10px 12px;
-  background-color: #fff5f5;
+  background-color: var(--danger-bg);
   border-radius: 6px;
-  border-left: 3px solid #dc3545;
+  border-left: 3px solid var(--danger);
   animation: error-shake 0.4s ease;
   display: flex;
   align-items: flex-start;
@@ -678,8 +703,8 @@ export default {
   justify-content: flex-end;
   gap: 12px;
   padding: 15px 20px;
-  border-top: 1px solid #f0f0f0;
-  background: #fff;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
   flex-shrink: 0;
 }
 
@@ -701,14 +726,14 @@ export default {
 }
 
 .modal-btn--cancel {
-  background-color: #f5f5f5;
-  color: #666;
-  border: 1px solid #e0e0e0;
+  background-color: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
 }
 
 .modal-btn--cancel:hover:not(:disabled) {
-  background-color: #e8e8e8;
-  color: #333;
+  background: var(--row-hover);
+  color: var(--text);
 }
 
 .modal-btn--cancel:disabled {
@@ -717,15 +742,15 @@ export default {
 }
 
 .modal-btn--submit {
-  background-color: #4F5BDF;
-  color: white;
-  border: 1px solid #4F5BDF;
+  background-color: var(--accent);
+  color: var(--accent-contrast);
+  border: 1px solid var(--accent);
   width: 240px;
 }
 
 .modal-btn--submit:hover:not(.modal-btn--disabled):not(:disabled) {
-  background-color: #3a45c5;
-  border-color: #3a45c5;
+  background: var(--accent-hover);
+  border-color: var(--accent);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(79, 91, 223, 0.3);
 }
@@ -736,8 +761,8 @@ export default {
 }
 
 .modal-btn--disabled {
-  background-color: #a0a5e8 !important;
-  border-color: #a0a5e8 !important;
+  background-color: var(--accent) !important;
+  border-color: var(--accent) !important;
   color: rgba(255, 255, 255, 0.7) !important;
   cursor: not-allowed !important;
   transform: none !important;
@@ -754,7 +779,7 @@ export default {
   height: 18px;
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
-  border-top-color: white;
+  border-top-color: var(--surface);
   animation: spinner-rotate 0.8s linear infinite;
   position: absolute;
 }
@@ -784,79 +809,33 @@ export default {
   }
 }
 
-.notification-enter-active,
-.notification-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.notification-enter-from {
-  opacity: 0;
-  transform: translate(-50%, -100%);
-}
-
-.notification-enter-to {
-  opacity: 1;
-  transform: translate(-50%, 0);
-}
-
-.notification-leave-from {
-  opacity: 1;
-  transform: translate(-50%, 0);
-}
-
-.notification-leave-to {
-  opacity: 0;
-  transform: translate(-50%, -100%);
-}
-
-.notification {
-  position: fixed;
-  top: 25px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 6px 24px;
-  border-radius: 50px;
-  z-index: 29000;
-  min-width: 300px;
-  max-width: 550px;
-  width: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 15px;
-  font-weight: 500;
-  line-height: 1.4;
-  text-align: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  white-space: normal;
-  word-wrap: break-word;
-  cursor: pointer;
-}
-
-.notification.success {
-  background: #4CAF50;
-  color: white;
-  border: 1px solid #45a049;
-}
-
-.notification.error {
-  background: #f44336;
-  color: white;
-  border: 1px solid #d32f2f;
-}
-
 @media (max-width: 768px) {
   .modal {
     max-width: 100%;
     border-radius: 16px 16px 0 0;
     margin-top: auto;
     margin-bottom: 0;
+    /* Выше (директива юзера): лист занимает заметную часть экрана, а не жмётся. */
+    min-height: 62dvh;
+    max-height: 92dvh;
+    transition: transform 0.3s ease;
+    will-change: transform;
   }
-  
+
+  /* Во время свайпа лист следует за пальцем 1:1. */
+  .modal.is-dragging {
+    transition: none;
+  }
+
+  .sheet-handle {
+    display: block;
+  }
+
   .modal-overlay {
     align-items: flex-end;
     padding: 0;
-    backdrop-filter: blur(2px);
+    /* backdrop-filter НЕ используем на мобилке: blur над оверлеем роняет кадры при
+       слайде листа на 120Hz (#1097 R3-4). */
   }
   
   .modal__header {
@@ -872,14 +851,14 @@ export default {
   }
   
   .modal__footer {
-    padding: 20px;
+    padding: 12px 16px;
     flex-direction: column-reverse;
-    gap: 10px;
+    gap: 8px;
   }
-  
+
   .modal-btn {
     width: 100%;
-    padding: 14px;
+    padding: 11px;
   }
   
   .modal-btn--submit {
@@ -895,14 +874,6 @@ export default {
     bottom: 6px;
     right: 10px;
     font-size: 11px;
-  }
-
-  .notification {
-    top: 20px;
-    min-width: 280px;
-    max-width: 90%;
-    padding: 10px 16px;
-    font-size: 14px;
   }
 }
 

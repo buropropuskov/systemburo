@@ -23,11 +23,11 @@
                 :disabled="filteredHistory.length === 0 || isExporting"
                 @click="exportToExcel"
               >
-                <img
+                <AppIcon
                   v-if="!isExporting"
-                  src="@/assets/icons/export.png"
+                  name="export"
                   class="export-icon"
-                >
+                />
                 <span v-if="!isExporting">Экспорт</span>
                 <div
                   v-else
@@ -64,11 +64,11 @@
                 >
                   <div class="select-trigger">
                     <span class="selected-value">{{ selectedUserName }}</span>
-                    <img
-                      src="@/assets/icons/arrow.png"
+                    <AppIcon
+                      name="arrow"
                       class="select-arrow"
                       :class="{ 'arrow-open': userDropdownOpen }"
-                    >
+                    />
                   </div>
                   <transition name="fade">
                     <div
@@ -117,11 +117,11 @@
                   class="sort-btn"
                   @click="toggleSortOrder"
                 >
-                  <img
-                    src="@/assets/icons/sort.png"
+                  <AppIcon
+                    name="sort"
                     class="sort-icon"
                     :class="{ 'sort-asc': sortOrder === 'asc' }"
-                  >
+                  />
                   <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
                 </button>
               </div>
@@ -200,26 +200,43 @@ import { ref } from 'vue';
 import { apiRequest } from '@/api/client';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useDeletionsStore } from '@/stores/deletions';
+import { ORG_TYPE_UNSPECIFIED_LABEL } from '@/constants/orgTypes';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 import ExcelJS from 'exceljs';
 
 const ACTION_TEXTS = {
   created: 'Компания создана',
   renamed: 'Компания переименована',
+  retyped: 'Тип компании изменён',
+  updated: 'Компания изменена',
   archived: 'Компания архивирована',
   restored: 'Компания восстановлена из архива',
+  responsibles_changed: 'Ответственные изменены',
+  unload_places_changed: 'Места разгрузки изменены',
+  tables_changed: 'Таблицы изменены',
+  // Разбор записи, заведённой из заявки (#1437).
+  moderation_approved: 'Компания подтверждена при разборе',
+  moderation_merged: 'Компании переданы записи дубля',
 };
 
 const ACTION_DOT_CLASS = {
   created: 'dot-create',
   renamed: 'dot-update',
+  retyped: 'dot-update',
+  updated: 'dot-update',
   archived: 'dot-deactivate',
   restored: 'dot-activate',
+  responsibles_changed: 'dot-update',
+  unload_places_changed: 'dot-update',
+  tables_changed: 'dot-update',
+  moderation_approved: 'dot-activate',
+  moderation_merged: 'dot-update',
 };
 
 export default {
   name: 'CompanyHistoryModal',
-  components: { LoaderSpinner },
+  components: { LoaderSpinner, AppIcon },
   props: {
     company: { type: Object, required: true },
     currentUserName: { type: String, default: '' },
@@ -408,14 +425,80 @@ export default {
       const d = item.details;
       if (!d || typeof d !== 'object') return '';
 
+      const typeLabel = (t) => t || ORG_TYPE_UNSPECIFIED_LABEL;
+      // from добавлен вместе с детальной историей - у старых записей его нет,
+      // тогда показываем только текущее значение (fallback). Ключ type появился
+      // с типом компании (#1046); явный null типа = «не указан».
+      const from = d.from && typeof d.from === 'object' ? d.from : null;
+      const typePart = 'type' in d ? `Тип: ${typeLabel(d.type)}` : '';
+
       switch (item.action_type) {
         case 'created':
-          return d.name ? `Наименование: ${d.name}` : '';
+        case 'updated': {
+          const parts = [];
+          if (d.name) {
+            if (from && from.name && from.name !== d.name) {
+              parts.push(`Наименование: ${from.name} → ${d.name}`);
+            } else {
+              const label = item.action_type === 'updated' ? 'Новое наименование' : 'Наименование';
+              parts.push(`${label}: ${d.name}`);
+            }
+          }
+          if ('type' in d) {
+            parts.push(from && 'type' in from ? `Тип: ${typeLabel(from.type)} → ${typeLabel(d.type)}` : typePart);
+          }
+          return parts.join(' · ');
+        }
+        case 'moderation_merged':
+          // merged_name - наименование черновика, чьи заявки и привязки переехали сюда.
+          return d.merged_name ? `Присоединено наименование: ${d.merged_name}` : '';
         case 'renamed':
-          return d.name ? `Новое наименование: ${d.name}` : '';
+          if (!d.name) return '';
+          return from && from.name ? `Наименование: ${from.name} → ${d.name}` : `Новое наименование: ${d.name}`;
+        case 'retyped':
+          if (!('type' in d)) return '';
+          return from && 'type' in from ? `Тип: ${typeLabel(from.type)} → ${typeLabel(d.type)}` : typePart;
+        case 'unload_places_changed':
+        case 'tables_changed':
+          return this.formatNameDiff(d);
+        case 'responsibles_changed':
+          return this.formatUsersDiff(d);
         default:
           return '';
       }
+    },
+
+    // formatNameDiff разворачивает details.{added,removed} (имена мест/таблиц).
+    formatNameDiff(d) {
+      const parts = [];
+      if (Array.isArray(d.added) && d.added.length) parts.push(`Добавлены: ${d.added.join(', ')}`);
+      if (Array.isArray(d.removed) && d.removed.length) parts.push(`Убраны: ${d.removed.join(', ')}`);
+      return parts.join(' · ');
+    },
+
+    // formatUsersDiff разворачивает историю ответственных: кто добавлен (с флагом
+    // согласования), кто убран, у кого сменилось обязательное согласование.
+    formatUsersDiff(d) {
+      const nameOf = (u) => u.name || u.username || '';
+      const parts = [];
+      if (Array.isArray(d.added) && d.added.length) {
+        const list = d.added.map((u) => (u.required_approval ? `${nameOf(u)} (согласование)` : nameOf(u)));
+        parts.push(`Добавлены: ${list.join(', ')}`);
+      }
+      if (Array.isArray(d.removed) && d.removed.length) {
+        parts.push(`Убраны: ${d.removed.map(nameOf).join(', ')}`);
+      }
+      if (Array.isArray(d.approval_changed) && d.approval_changed.length) {
+        const yn = (v) => (v ? 'да' : 'нет');
+        const list = d.approval_changed.map((u) => `${nameOf(u)} (согласование: ${yn(u.from)} → ${yn(u.to)})`);
+        parts.push(`Согласование изменено: ${list.join(', ')}`);
+      }
+      if (d.primary_changed && typeof d.primary_changed === 'object') {
+        const from = d.primary_changed.from ? nameOf(d.primary_changed.from) : 'не был назначен';
+        const to = d.primary_changed.to ? nameOf(d.primary_changed.to) : 'снят';
+        parts.push(`Главный ответственный: ${from} → ${to}`);
+      }
+      return parts.join(' · ');
     },
 
     formatDateTime(s) {
@@ -553,10 +636,10 @@ export default {
 .history-date-separator {
   font-size: 11px;
   font-weight: 600;
-  color: #4F5BDF;
+  color: var(--accent-text);
   padding: 8px 0 4px;
   margin-bottom: 8px;
-  border-bottom: 1px solid #e6f0ff;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   letter-spacing: 0.02em;
 }
 
@@ -566,7 +649,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -608,14 +691,14 @@ export default {
 }
 
 .company-history-modal {
-  background: white;
+  background: var(--surface);
   border-radius: 30px;
   width: 900px;
   max-width: 95%;
-  max-height: 80vh;
+  max-height: calc(var(--app-vh, 1vh) * 80);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
 }
 
 .modal-header {
@@ -623,14 +706,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 15px 25px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .header-actions {
@@ -645,19 +728,19 @@ export default {
   justify-content: center;
   gap: 8px;
   padding: 6px 16px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 13px;
-  color: #000;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
   height: 32px;
 }
 
 .export-btn:hover:not(:disabled) {
-  background: #f5f5f5;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .export-btn:disabled {
@@ -673,8 +756,8 @@ export default {
 .export-loader {
   width: 16px;
   height: 16px;
-  border: 2px solid #e6e6e6;
-  border-top: 2px solid #4F5BDF;
+  border: 2px solid var(--border);
+  border-top: 2px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -683,7 +766,7 @@ export default {
   background: none;
   border: none;
   font-size: 24px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   cursor: pointer;
   width: 32px;
   height: 32px;
@@ -695,14 +778,14 @@ export default {
 }
 
 .close-btn:hover {
-  background: #f5f5f5;
-  color: #333;
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .history-filters {
   padding: 15px 25px;
-  border-bottom: 1px solid #e6e6e6;
-  background-color: #fafafa;
+  border-bottom: 1px solid var(--border);
+  background-color: var(--surface-2);
 }
 
 .filter-row {
@@ -723,13 +806,13 @@ export default {
 
 .filter-label {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
 .search-input {
   padding: 6px 12px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 12px;
   width: 200px;
@@ -739,7 +822,7 @@ export default {
 
 .search-input:focus {
   outline: none;
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.1);
 }
 
@@ -754,21 +837,21 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 6px 12px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   transition: all 0.2s ease;
   height: 32px;
 }
 
 .select-trigger:hover {
-  border-color: #4F5BDF;
-  background: #f5f5f5;
+  border-color: var(--accent);
+  background: var(--surface-2);
 }
 
 .selected-value {
   font-size: 12px;
-  color: #000;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -801,33 +884,33 @@ export default {
   right: 0;
   max-height: 300px;
   overflow-y: auto;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 15px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px var(--shadow-drop);
   z-index: 1000;
 }
 
 .select-option {
   padding: 10px 14px;
   font-size: 12px;
-  color: #000;
+  color: var(--text);
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
 
 .select-option:hover {
-  background-color: #f0f3ff;
+  background-color: var(--accent-tint);
 }
 
 .select-option.selected {
-  background-color: #f0f3ff;
+  background-color: var(--accent-tint);
   font-weight: 500;
 }
 
 .date-input {
   padding: 6px 8px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-size: 12px;
   width: 120px;
@@ -835,7 +918,7 @@ export default {
 }
 
 .date-separator {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -844,11 +927,11 @@ export default {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 12px;
-  color: #000;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
   height: 32px;
@@ -856,11 +939,12 @@ export default {
 }
 
 .sort-btn:hover {
-  background: #f5f5f5;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 14px;
   height: 14px;
   transition: transform 0.2s ease;
@@ -873,7 +957,7 @@ export default {
 .modal-content {
   padding: 20px 25px;
   overflow-y: auto;
-  max-height: calc(80vh - 180px);
+  max-height: calc(var(--app-vh, 1vh) * 80 - 180px);
   position: relative;
 }
 
@@ -883,7 +967,7 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 40px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 @keyframes spin {
@@ -924,10 +1008,10 @@ export default {
   top: 18px;
   width: 2px;
   height: calc(100% + 2px);
-  background: #e6e6e6;
+  background: var(--border);
 }
 
-.dot-create { background: #4F5BDF; }
+.dot-create { background: var(--accent-text); }
 .dot-update { background: #f59e0b; }
 .dot-activate { background: #10b981; }
 .dot-deactivate { background: #6b7280; }
@@ -947,28 +1031,28 @@ export default {
 
 .user-name {
   font-weight: 500;
-  color: #333;
+  color: var(--text);
   font-size: 13px;
 }
 
 .action-time {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 11px;
 }
 
 .action-text {
-  color: #666;
+  color: var(--text-muted);
   font-size: 12px;
   margin-bottom: 2px;
 }
 
 .action-comment {
   font-size: 11px;
-  color: #666;
+  color: var(--text-muted);
   font-style: italic;
   margin-top: 4px;
   padding-left: 6px;
-  border-left: 2px solid #e6e6e6;
+  border-left: 2px solid var(--border);
   word-break: break-word;
 }
 

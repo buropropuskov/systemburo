@@ -27,7 +27,9 @@
       </button>
     </div>
 
+    <!-- Десктоп: форма фильтров инлайн (как было). -->
     <form
+      v-if="!isNarrow"
       class="filters"
       @submit.prevent="applyFilters"
     >
@@ -43,20 +45,14 @@
         type="text"
         placeholder="Ресурс (substring)"
       >
-      <select
+      <BaseDropdown
         v-model="filters.reason"
-        class="lk-select filter-input"
-      >
-        <option value="">
-          Причина — все
-        </option>
-        <option value="permission_denied">
-          Нет прав
-        </option>
-        <option value="account_banned">
-          Заблокирован
-        </option>
-      </select>
+        class="filter-input"
+        :options="reasonOptions"
+        value-key="value"
+        label-key="label"
+        placeholder="Причина — все"
+      />
       <input
         v-model="filters.from"
         class="lk-input filter-input"
@@ -82,6 +78,98 @@
       </button>
     </form>
 
+    <!-- Мобилка: форма фильтров свёрнута в кнопку «Фильтр» (переключатель
+         Активные/Архив и bulk-действия остаются снаружи - это не фильтры). -->
+    <div
+      v-else
+      class="filters-mobile"
+    >
+      <FilterButton
+        :active="hasActiveFilters"
+        data-testid="denials-filter-btn"
+        @click="openFilterSheet"
+      />
+    </div>
+
+    <!-- Мобилка: фильтры в bottom-sheet. Черновик формы откатывается при закрытии
+         без «Применить», чтобы пагинация/bulk не подхватили неприменённые значения. -->
+    <FilterSheet
+      v-if="isNarrow"
+      :show="showFilterSheet"
+      @close="closeFilterSheet"
+    >
+      <div class="filter-section">
+        <span class="filter-label">ID пользователя</span>
+        <input
+          v-model="filters.user_id"
+          class="lk-input"
+          type="number"
+          placeholder="ID пользователя"
+          data-testid="denials-sheet-user-id"
+        >
+      </div>
+      <div class="filter-section">
+        <span class="filter-label">Ресурс</span>
+        <input
+          v-model="filters.resource"
+          class="lk-input"
+          type="text"
+          placeholder="Ресурс (substring)"
+          data-testid="denials-sheet-resource"
+        >
+      </div>
+      <div class="filter-section">
+        <span class="filter-label">Причина</span>
+        <BaseDropdown
+          v-model="filters.reason"
+          :options="reasonOptions"
+          value-key="value"
+          label-key="label"
+          placeholder="Причина — все"
+          teleport
+          data-testid="denials-sheet-reason"
+        />
+      </div>
+      <div class="filter-section">
+        <span class="filter-label">С даты</span>
+        <input
+          v-model="filters.from"
+          class="lk-input"
+          type="datetime-local"
+          data-testid="denials-sheet-from"
+        >
+      </div>
+      <div class="filter-section">
+        <span class="filter-label">По дату</span>
+        <input
+          v-model="filters.to"
+          class="lk-input"
+          type="datetime-local"
+          data-testid="denials-sheet-to"
+        >
+      </div>
+
+      <template #actions>
+        <button
+          type="button"
+          class="lk-button lk-button--ghost"
+          :disabled="!hasActiveFilters"
+          data-testid="denials-sheet-reset"
+          @click="resetFromSheet"
+        >
+          Сбросить
+        </button>
+        <button
+          type="button"
+          class="lk-button lk-button--primary"
+          data-testid="denials-sheet-apply"
+          @click="applyFromSheet"
+        >
+          Применить
+        </button>
+      </template>
+    </FilterSheet>
+
     <div
       v-if="mode === 'active'"
       class="actions-row"
@@ -102,8 +190,8 @@
     </div>
 
     <div class="table-wrap">
-      <table class="data-table">
-        <thead>
+      <table class="data-table rt-table">
+        <thead class="rt-head-row">
           <tr>
             <th>ID</th>
             <th>Дата</th>
@@ -118,27 +206,35 @@
           <tr
             v-for="item in items"
             :key="item.id"
+            class="rt-row"
           >
-            <td>{{ item.id }}</td>
-            <td class="muted">
+            <td data-label="ID">
+              {{ item.id }}
+            </td>
+            <td
+              class="muted"
+              data-label="Дата"
+            >
               {{ formatDateTime(item.created_at) }}
             </td>
-            <td>
+            <td data-label="Пользователь">
               <span v-if="item.user_name">{{ item.user_name }}</span>
               <span
                 v-else
                 class="muted"
               >ID {{ item.user_id || '-' }}</span>
             </td>
-            <td><code>{{ item.resource }}</code></td>
-            <td>
+            <td data-label="Ресурс">
+              <code>{{ item.resource }}</code>
+            </td>
+            <td data-label="Право">
               <code v-if="item.permission_key">{{ item.permission_key }}</code>
               <span
                 v-else
                 class="muted"
               >—</span>
             </td>
-            <td>
+            <td data-label="Причина">
               <span
                 class="badge"
                 :class="reasonClass(item.reason)"
@@ -146,7 +242,10 @@
                 {{ reasonLabel(item.reason) }}
               </span>
             </td>
-            <td class="muted">
+            <td
+              class="muted"
+              data-label="IP"
+            >
               {{ item.ip_address || '—' }}
             </td>
           </tr>
@@ -162,24 +261,15 @@
       </table>
     </div>
 
-    <footer class="pagination">
-      <span class="muted">Всего: {{ total }}</span>
-      <button
-        class="lk-button lk-button--ghost"
-        :disabled="page <= 1"
-        @click="page = page - 1; fetch()"
-      >
-        Назад
-      </button>
-      <span>Стр. {{ page }} / {{ totalPages }}</span>
-      <button
-        class="lk-button lk-button--ghost"
-        :disabled="page >= totalPages"
-        @click="page = page + 1; fetch()"
-      >
-        Вперёд
-      </button>
-    </footer>
+    <Pager
+      class="pagination"
+      :page="page"
+      :total-pages="totalPages"
+      :total="total"
+      :loading="loading"
+      page-prefix="Стр. "
+      @update:page="goToPage"
+    />
   </section>
 </template>
 
@@ -191,10 +281,27 @@ import {
   archiveAccessDenials,
 } from '@/api/permissions';
 import RefreshButton from '@/components/RefreshButton.vue';
+import BaseDropdown from '@/components/ui/BaseDropdown.vue';
+import FilterButton from '@/components/ui/FilterButton.vue';
+import FilterSheet from '@/components/ui/FilterSheet.vue';
+import Pager from '@/components/ui/Pager.vue';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
+import { useDeletionsStore } from '@/stores/deletions';
+import { useUiStore } from '@/stores/ui';
+
+const EMPTY_FILTERS = {
+  user_id: '', resource: '', reason: '', from: '', to: '',
+};
 
 export default {
   name: 'AccessDenialsLog',
-  components: { RefreshButton },
+  components: {
+    RefreshButton, BaseDropdown, FilterButton, FilterSheet, Pager,
+  },
+  setup() {
+    const { isNarrow } = useNarrowScreen();
+    return { isNarrow };
+  },
   data() {
     return {
       mode: 'active',
@@ -203,7 +310,16 @@ export default {
       page: 1,
       limit: 50,
       loading: false,
-      filters: { user_id: '', resource: '', reason: '', from: '', to: '' },
+      filters: { ...EMPTY_FILTERS },
+      // Мобилка: фильтры свёрнуты в bottom-sheet; backup хранит применённое
+      // состояние для отката черновика при закрытии без «Применить».
+      showFilterSheet: false,
+      filtersBackup: { ...EMPTY_FILTERS },
+      reasonOptions: [
+        { value: '', label: 'Причина — все' },
+        { value: 'permission_denied', label: 'Нет прав' },
+        { value: 'account_banned', label: 'Заблокирован' },
+      ],
     };
   },
   computed: {
@@ -228,8 +344,31 @@ export default {
       this.fetch();
     },
     resetFilters() {
-      this.filters = { user_id: '', resource: '', reason: '', from: '', to: '' };
+      this.filters = { ...EMPTY_FILTERS };
       this.page = 1;
+      this.fetch();
+    },
+    openFilterSheet() {
+      this.filtersBackup = { ...this.filters };
+      this.showFilterSheet = true;
+    },
+    // Крестик/overlay/Escape/свайп: откатываем неприменённый черновик, чтобы вне
+    // sheet filters всегда равнялись применённому (пагинация и bulk шлют filters).
+    closeFilterSheet() {
+      this.filters = { ...this.filtersBackup };
+      this.showFilterSheet = false;
+    },
+    applyFromSheet() {
+      this.showFilterSheet = false;
+      this.applyFilters();
+    },
+    resetFromSheet() {
+      this.showFilterSheet = false;
+      this.resetFilters();
+    },
+    goToPage(next) {
+      if (next < 1 || next > this.totalPages) return;
+      this.page = next;
       this.fetch();
     },
     async fetch() {
@@ -251,25 +390,43 @@ export default {
       }
     },
     async confirmDeleteFiltered() {
-      if (!confirm('Удалить записи активной таблицы по выбранным фильтрам? Архив не затрагивается.')) return;
+      const ok = await useUiStore().confirm({
+        title: 'Очистить записи?',
+        message: 'Записи активной таблицы по выбранным фильтрам будут удалены. Архив не затрагивается.',
+        confirmText: 'Удалить',
+        cancelText: 'Отмена',
+        danger: true,
+      });
+      if (!ok) return;
       try {
         await deleteAccessDenials(this.filters);
         await this.fetch();
+        useDeletionsStore().notify({ bold: 'Записи удалены', suffix: ' по выбранным фильтрам' });
       } catch (e) {
         console.error('Ошибка удаления:', e);
+        useDeletionsStore().notify({ prefix: 'Не удалось удалить ', bold: 'записи журнала', type: 'error' });
       }
     },
     async confirmArchiveAll() {
       const cutoff = this.filters.to || null;
       const msg = cutoff
-        ? `Перенести в архив все записи до ${cutoff}?`
-        : 'Перенести в архив все записи старше 3 месяцев?';
-      if (!confirm(msg)) return;
+        ? `Все записи до ${cutoff} будут перенесены в архив.`
+        : 'Все записи старше 3 месяцев будут перенесены в архив.';
+      const ok = await useUiStore().confirm({
+        title: 'Архивировать записи?',
+        message: msg,
+        confirmText: 'Архивировать',
+        cancelText: 'Отмена',
+        danger: false,
+      });
+      if (!ok) return;
       try {
         await archiveAccessDenials(cutoff);
         await this.fetch();
+        useDeletionsStore().notify({ bold: 'Записи архивированы' });
       } catch (e) {
         console.error('Ошибка архивации:', e);
+        useDeletionsStore().notify({ prefix: 'Не удалось ', bold: 'архивировать записи', type: 'error' });
       }
     },
     formatDateTime(s) {
@@ -322,13 +479,17 @@ export default {
   align-items: center;
 }
 
+.filters-mobile {
+  display: flex;
+}
+
 .filter-input {
   flex: 1 1 160px;
   max-width: 220px;
 }
 
 .table-wrap {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   overflow: auto;
@@ -356,8 +517,12 @@ export default {
   color: var(--color-text-muted);
 }
 
-.data-table tbody tr:last-child td {
-  border-bottom: none;
+/* Только десктоп: на мобилке таблица становится карточками (rt-*), и
+   card-разделители полей последней карточки не должны гаситься этим правилом. */
+@media (min-width: 768px) {
+  .data-table tbody tr:last-child td {
+    border-bottom: none;
+  }
 }
 
 .muted {
@@ -378,13 +543,14 @@ code {
 }
 
 .badge--warning {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
+  color: var(--warning-text);
 }
 
 .badge--danger {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--danger-bg);
+  color: var(--danger-text);
 }
 
 .empty-cell {
@@ -394,10 +560,89 @@ code {
 }
 
 .pagination {
-  display: flex;
-  align-items: center;
-  gap: 12px;
   justify-content: flex-end;
-  font-size: 13px;
+}
+
+.pagination :deep(.pager__total) {
+  color: var(--color-text-muted);
+}
+
+/* Журнал - не master-detail-справочник (#1097 S9c), а section+фильтры+
+   плоская <table>: rt-table/rt-head-row/rt-row (responsive-tables.css)
+   конвертируют саму <table> в карточки (thead скрывается, tr -> flex-card
+   с data-label подписями), а тулбар/фильтры/пагинация стекаются вручную -
+   под них общей инфры нет (это не .management-header с "Создать"). */
+@media (max-width: 767.98px) {
+  .denials {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .page-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* table-layout:auto (дефолт) считает ширину <table> по САМОМУ ДЛИННОМУ
+     неразрывному "слову" среди потомков - когда tr/td card-режима перестают
+     быть table-row/table-cell (rt-row/[data-label] -> flex), это правило
+     всё равно тянет ширину таблицы по контенту (путь API без пробелов),
+     и карточка растягивается шире вьюпорта вместо переноса. fixed игнорит
+     контент-ширину, держит 100% контейнера (проверено Playwright-харнессом:
+     без fixed строка 560px при вьюпорте 390px, с fixed - 386px). */
+  .data-table {
+    table-layout: fixed;
+  }
+
+  /* Длинные ресурсы/ключи прав (`/api/organizations/.../employees`,
+     `cars.manual.create`) не содержат внутри самого длинного сегмента точек
+     разрыва - overflow-wrap переносит их внутри карточки вместо горизонтального
+     оверфлоу (уходит в скрытый auto-скролл .table-wrap, невидимый без свайпа). */
+  .rt-table .rt-row > [data-label] {
+    overflow-wrap: anywhere;
+  }
+
+  .toggle-row,
+  .actions-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toggle-row .lk-button,
+  .actions-row .lk-button {
+    min-height: 44px;
+  }
+
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-input {
+    max-width: 100%;
+    min-height: 44px;
+    /* при column базовый flex:1 1 160px делает flex-basis ВЫСОТОЙ - раздувает
+       каждый фильтр до 160px; сбрасываем в auto (высота по контенту + min 44px). */
+    flex: 0 0 auto;
+  }
+
+  /* min-height на обёртке .filter-input не растягивает кнопку BaseDropdown
+     (у неё свой min-height:30px) - тач-таргет даём самой кнопке. */
+  .filter-input :deep(.base-dropdown__button) {
+    min-height: 44px;
+  }
+
+  .filters > button.lk-button {
+    min-height: 44px;
+  }
+
+  .pagination {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .pagination :deep(.lk-button) {
+    min-height: 44px;
+  }
 }
 </style>

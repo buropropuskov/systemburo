@@ -30,20 +30,6 @@ type VehicleBlacklist struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
-// VehicleBlacklistHistory - аудит действий над записью чёрного списка машин.
-//
-// EntityID намеренно без FK constraint на vehicle_blacklists: аудит должен пережить
-// удаление родителя (как SystemTableHistory). UserID ссылается на users для join-а имени.
-type VehicleBlacklistHistory struct {
-	ID         int             `json:"id"`
-	EntityID   int             `gorm:"index" json:"entity_id"`
-	ActionType string          `gorm:"size:30;index" json:"action_type"`
-	Details    json.RawMessage `gorm:"type:jsonb" json:"details,omitempty"`
-	UserID     *int            `gorm:"index" json:"user_id,omitempty"`
-	User       *User           `gorm:"foreignKey:UserID" json:"-"`
-	CreatedAt  time.Time       `json:"created_at"`
-}
-
 // Action-types для истории чёрного списка (машины и люди используют одни и те же).
 const (
 	BlacklistActionCreated  = "created"
@@ -127,18 +113,6 @@ type PersonBlacklist struct {
 	CreatedByUserID *int      `json:"created_by_user_id,omitempty"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
-}
-
-// PersonBlacklistHistory - аудит действий над записью чёрного списка людей.
-// EntityID без FK (аудит переживает удаление родителя), как VehicleBlacklistHistory.
-type PersonBlacklistHistory struct {
-	ID         int             `json:"id"`
-	EntityID   int             `gorm:"index" json:"entity_id"`
-	ActionType string          `gorm:"size:30;index" json:"action_type"`
-	Details    json.RawMessage `gorm:"type:jsonb" json:"details,omitempty"`
-	UserID     *int            `gorm:"index" json:"user_id,omitempty"`
-	User       *User           `gorm:"foreignKey:UserID" json:"-"`
-	CreatedAt  time.Time       `json:"created_at"`
 }
 
 // CreatePersonBlacklistRequest - тело POST /person-blacklist. Отчество опционально.

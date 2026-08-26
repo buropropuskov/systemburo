@@ -45,8 +45,7 @@ func (h *NewsHandler) GetActiveNews(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /news/all [get]
 func (h *NewsHandler) GetAllNews(c echo.Context) error {
-	typeID := GetTypeID(c)
-	news, err := h.service.GetAllNews(c.Request().Context(), typeID)
+	news, err := h.service.GetAllNews(c.Request().Context())
 	if err != nil {
 		return err
 	}
@@ -66,13 +65,12 @@ func (h *NewsHandler) GetAllNews(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /news [post]
 func (h *NewsHandler) CreateNews(c echo.Context) error {
-	typeID := GetTypeID(c)
 	userID := GetUserID(c)
 	var req models.CreateNewsRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	news, err := h.service.CreateNews(c.Request().Context(), typeID, userID, req)
+	news, err := h.service.CreateNews(c.Request().Context(), userID, req)
 	if err != nil {
 		return err
 	}
@@ -94,7 +92,6 @@ func (h *NewsHandler) CreateNews(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Router       /news/{id} [put]
 func (h *NewsHandler) UpdateNews(c echo.Context) error {
-	typeID := GetTypeID(c)
 	userID := GetUserID(c)
 	id, err := ParseID(c, "id")
 	if err != nil {
@@ -104,7 +101,7 @@ func (h *NewsHandler) UpdateNews(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	news, err := h.service.UpdateNews(c.Request().Context(), typeID, userID, id, req)
+	news, err := h.service.UpdateNews(c.Request().Context(), userID, id, req)
 	if err != nil {
 		return err
 	}
@@ -123,12 +120,11 @@ func (h *NewsHandler) UpdateNews(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Router       /news/{id} [delete]
 func (h *NewsHandler) DeleteNews(c echo.Context) error {
-	typeID := GetTypeID(c)
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err
 	}
-	if err := h.service.DeleteNews(c.Request().Context(), typeID, id); err != nil {
+	if err := h.service.DeleteNews(c.Request().Context(), id); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Новость удалена")
@@ -162,8 +158,7 @@ func (h *NewsHandler) GetActiveAnnouncement(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /announcements/all [get]
 func (h *NewsHandler) GetAllAnnouncements(c echo.Context) error {
-	typeID := GetTypeID(c)
-	announcements, err := h.service.GetAllAnnouncements(c.Request().Context(), typeID)
+	announcements, err := h.service.GetAllAnnouncements(c.Request().Context())
 	if err != nil {
 		return err
 	}
@@ -183,13 +178,12 @@ func (h *NewsHandler) GetAllAnnouncements(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /announcements [post]
 func (h *NewsHandler) CreateAnnouncement(c echo.Context) error {
-	typeID := GetTypeID(c)
 	userID := GetUserID(c)
 	var req models.CreateAnnouncementRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	announcement, err := h.service.CreateAnnouncement(c.Request().Context(), typeID, userID, req)
+	announcement, err := h.service.CreateAnnouncement(c.Request().Context(), userID, req)
 	if err != nil {
 		return err
 	}
@@ -211,13 +205,12 @@ func (h *NewsHandler) CreateAnnouncement(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Router       /announcements/set-active [post]
 func (h *NewsHandler) SetActiveAnnouncement(c echo.Context) error {
-	typeID := GetTypeID(c)
 	userID := GetUserID(c)
 	var req models.SetActiveAnnouncementRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.SetActiveAnnouncement(c.Request().Context(), typeID, userID, req); err != nil {
+	if err := h.service.SetActiveAnnouncement(c.Request().Context(), userID, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Активное объявление обновлено")
@@ -236,12 +229,11 @@ func (h *NewsHandler) SetActiveAnnouncement(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Router       /announcements/{id}/hide [post]
 func (h *NewsHandler) HideAnnouncement(c echo.Context) error {
-	typeID := GetTypeID(c)
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err
 	}
-	if err := h.service.HideAnnouncement(c.Request().Context(), typeID, id); err != nil {
+	if err := h.service.HideAnnouncement(c.Request().Context(), id); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Объявление скрыто")
@@ -262,7 +254,6 @@ func (h *NewsHandler) HideAnnouncement(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Router       /announcements/{id} [put]
 func (h *NewsHandler) UpdateAnnouncement(c echo.Context) error {
-	typeID := GetTypeID(c)
 	userID := GetUserID(c)
 	id, err := ParseID(c, "id")
 	if err != nil {
@@ -272,7 +263,7 @@ func (h *NewsHandler) UpdateAnnouncement(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	announcement, err := h.service.UpdateAnnouncement(c.Request().Context(), typeID, userID, id, req)
+	announcement, err := h.service.UpdateAnnouncement(c.Request().Context(), userID, id, req)
 	if err != nil {
 		return err
 	}
@@ -291,12 +282,11 @@ func (h *NewsHandler) UpdateAnnouncement(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Router       /announcements/{id} [delete]
 func (h *NewsHandler) DeleteAnnouncement(c echo.Context) error {
-	typeID := GetTypeID(c)
 	id, err := ParseID(c, "id")
 	if err != nil {
 		return err
 	}
-	if err := h.service.DeleteAnnouncement(c.Request().Context(), typeID, id); err != nil {
+	if err := h.service.DeleteAnnouncement(c.Request().Context(), id); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Объявление удалено")

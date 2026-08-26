@@ -1,6 +1,9 @@
 <template>
   <section class="blacklist-page">
-    <div class="blacklist-card">
+    <div
+      class="blacklist-card"
+      data-testid="ob-admin-blacklist"
+    >
       <VehicleBlacklistTab
         v-show="activeTab === 'vehicles'"
         :current-user-name="currentUserName"
@@ -56,7 +59,8 @@ export default {
   components: { FilterTabs, VehicleBlacklistTab, PersonBlacklistTab },
   data() {
     return {
-      activeTab: 'vehicles',
+      // Из адреса: переход из сквозного поиска знает, в какой вкладке лежит найденное.
+      activeTab: this.$route?.query?.tab === 'persons' ? 'persons' : 'vehicles',
       vehicleCount: 0,
       personCount: 0,
       currentUserName: '',
@@ -113,9 +117,26 @@ export default {
 }
 
 .blacklist-card {
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg, 20px);
   overflow: hidden;
+}
+
+@media (max-width: 767.98px) {
+  /* Заголовок + табы в один флекс-ряд без wrap (nowrap выше) не помещаются на узких
+     экранах (iPhone SE ~320px) - позволяем блоку в целом переноситься на вторую строку,
+     сами табы "Машины"/"Люди" остаются рядом друг с другом. */
+  .bl-head-left {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  /* Пилюли FilterTabs высотой 30px ниже тач-таргета 44px (WCAG) - точечно поднимаем
+     зону нажатия только тут, не трогая общий FilterTabs.vue (другие потребители не
+     должны получить эту правку). */
+  .bl-head-left :deep(.filter-tab) {
+    min-height: 44px;
+  }
 }
 </style>

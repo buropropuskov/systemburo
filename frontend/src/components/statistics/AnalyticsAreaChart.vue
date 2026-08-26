@@ -3,12 +3,11 @@
     class="area-chart"
     :style="{ height: height + 'px' }"
   >
-    <VueApexCharts
+    <canvas
       v-if="hasData"
-      type="area"
-      :height="height"
-      :options="options"
-      :series="series"
+      ref="canvas"
+      role="img"
+      :aria-label="seriesName"
     />
     <div
       v-else
@@ -20,14 +19,32 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import VueApexCharts from 'vue3-apexcharts';
+import { computed, ref } from 'vue';
+import { formatDuration } from '@/utils/datetime';
+import { crosshairPlugin } from './linePlugins';
+import {
+  AXIS_LABEL,
+  GRID_COLOR,
+  TOOLTIP_STYLE,
+  hoverPointStyle,
+  useChartCanvas,
+  verticalGradient,
+} from './useChartCanvas';
 
 const props = defineProps({
   /** Точки ряда в форме [{ timestamp, count }] — совместимо с timeline дашборда. */
   data: {
     type: Array,
     default: () => [],
+  },
+  /**
+   * Явные подписи оси X. Нужны рядам без дат (тренд инсайтов — серия по дням
+   * без самих дат: движок отдаёт разреженные бины, восстановить даты нельзя).
+   * null -> подписи берутся из дат timestamp, как у timeline.
+   */
+  categories: {
+    type: Array,
+    default: null,
   },
   height: {
     type: Number,
@@ -47,9 +64,28 @@ const props = defineProps({
     type: Array,
     default: () => ['значение', 'значения', 'значений'],
   },
+  /** Дробная метрика (среднее и т.п.): ось Y и тултип не округляют до целых. */
+  isFloat: {
+    type: Boolean,
+    default: false,
+  },
+  /**
+   * Тип значения ряда. 'duration' — секунды: ось и тултип рисуют «2 ч 15 мин»
+   * вместо сырых 8100. Пусто — число с единицей из unitForms.
+   */
+  valueType: {
+    type: String,
+    default: '',
+  },
 });
 
-const hasData = computed(() => props.data.length > 0);
+const canvas = ref(null);
+
+// Ряд, где значения нет ни у одной точки (этап не прошёл никто), — это тоже «нет
+// данных»: рисовать пустую сетку с осями значило бы выдать отсутствие данных за сбой.
+const hasData = computed(() => props.data.some((d) => d.count != null));
+
+const isDuration = computed(() => props.valueType === 'duration');
 
 // Дата timeline приходит как 'YYYY-MM-DD'. Парсим вручную, без new Date(), чтобы
 // не словить сдвиг таймзоны (date-only -> UTC-полночь -> съезд на -3ч в МСК).
@@ -78,77 +114,107 @@ function pluralize(n) {
   return many;
 }
 
-const categories = computed(() => props.data.map((d) => formatShort(d.timestamp)));
-const fullLabels = computed(() => props.data.map((d) => formatFull(d.timestamp)));
-const values = computed(() => props.data.map((d) => Number(d.count) || 0));
+const categories = computed(() =>
+  props.categories ?? props.data.map((d) => formatShort(d.timestamp))
+);
+const fullLabels = computed(() =>
+  props.categories ?? props.data.map((d) => formatFull(d.timestamp))
+);
+// null/undefined — «нет данных» (производные метрики: этап никто не прошёл), и это
+// НЕ ноль: линия рвётся на такой точке, а не проседает на дно шкалы, иначе
+// «данных нет» читалось бы как «прошло мгновенно» (см. metricValue).
+const values = computed(() =>
+  props.data.map((d) => (d.count == null ? null : Number(d.count) || 0))
+);
 
-const series = computed(() => [{ name: props.seriesName, data: values.value }]);
+function formatAxis(v) {
+  if (isDuration.value) return formatDuration(v);
+  const num = Number(v) || 0;
+  return props.isFloat
+    ? num.toLocaleString('ru-RU', { maximumFractionDigits: 1 })
+    : Math.round(num).toLocaleString('ru-RU');
+}
 
-const options = computed(() => ({
-  chart: {
-    type: 'area',
-    height: props.height,
-    fontFamily: 'inherit',
-    toolbar: { show: false },
-    zoom: { enabled: false },
-    animations: { enabled: true, easing: 'easeinout', speed: 400 },
-  },
-  colors: [props.color],
-  dataLabels: { enabled: false },
-  stroke: { curve: 'smooth', width: 2, lineCap: 'round' },
-  // Мягкий вертикальный градиент в палитре проекта — аналитический стиль без неона.
-  fill: {
-    type: 'gradient',
-    gradient: {
-      shadeIntensity: 1,
-      opacityFrom: 0.32,
-      opacityTo: 0.02,
-      stops: [0, 95],
-    },
-  },
-  grid: {
-    borderColor: '#eef0f7',
-    strokeDashArray: 0,
-    xaxis: { lines: { show: false } },
-    padding: { top: 0, right: 8, bottom: 0, left: 8 },
-  },
-  markers: { size: 0, strokeWidth: 2, hover: { size: 5 } },
-  xaxis: {
-    categories: categories.value,
-    tickAmount: Math.min(8, categories.value.length),
-    labels: {
-      rotate: 0,
-      hideOverlappingLabels: true,
-      style: { colors: '#a2a2a2', fontSize: '11px' },
-    },
-    axisBorder: { show: false },
-    axisTicks: { show: false },
-    tooltip: { enabled: false },
-  },
-  yaxis: {
-    min: 0,
-    forceNiceScale: true,
-    labels: {
-      style: { colors: '#a2a2a2', fontSize: '11px' },
-      formatter: (v) => Math.round(v).toLocaleString('ru-RU'),
-    },
-  },
-  legend: { show: false },
-  tooltip: {
-    theme: 'dark',
-    x: {
-      formatter: (_val, opts) => fullLabels.value[opts?.dataPointIndex] ?? '',
-    },
-    y: {
-      formatter: (v) => {
-        const n = Math.round(Number(v) || 0);
-        return `${n.toLocaleString('ru-RU')} ${pluralize(n)}`;
+// У длительности единица уже внутри текста («2 ч 15 мин») — склонять нечего.
+// Точку-разрыв Chart.js подсказкой не показывает, но при наведении рядом
+// значение может прийти null — рисуем «—», а не «0».
+function formatTooltipValue(v) {
+  if (v == null) return '—';
+  if (isDuration.value) return formatDuration(v);
+  const num = Number(v) || 0;
+  const shown = props.isFloat
+    ? num.toLocaleString('ru-RU', { maximumFractionDigits: 2 })
+    : Math.round(num).toLocaleString('ru-RU');
+  return `${shown} ${pluralize(Math.round(num))}`;
+}
+
+const config = computed(() => ({
+  type: 'line',
+  data: {
+    labels: categories.value,
+    datasets: [
+      {
+        label: props.seriesName,
+        data: values.value,
+        borderColor: props.color,
+        borderWidth: 2,
+        // Мягкий вертикальный градиент в палитре проекта — аналитический стиль без неона.
+        backgroundColor: verticalGradient(props.color),
+        fill: true,
+        // Сглаживание кривой; 0.4 - привычный вид, который был у прежнего движка.
+        tension: 0.4,
+        pointRadius: 0,
+        ...hoverPointStyle(props.color),
+        // Разрыв на null не затягиваем: соединив соседей прямой, график
+        // показал бы значение там, где данных нет.
+        spanGaps: false,
+        // Запас сверху: ряд, упирающийся в потолок шкалы, рисует точку прямо на
+        // границе области, а Chart.js режет набор данных по этой границе - у
+        // точки срезало верх. layout.padding это не лечит, он двигает саму
+        // область, а не клип.
+        clip: { top: 12, right: 0, bottom: 0, left: 0 },
       },
-      title: { formatter: () => '' },
+    ],
+  },
+  plugins: [crosshairPlugin],
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    // Точка ряда на самом верху шкалы выходит за область графика и срезается
+    // краем холста - место под её радиус с обводкой.
+    layout: { padding: { top: 10 } },
+    animation: { duration: 400, easing: 'easeInOutQuad' },
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        ...TOOLTIP_STYLE,
+        // Рядом с точкой, а не по середине ряда: у края области подсказка
+        // разворачивается на другую сторону и точку не закрывает.
+        position: 'nearest',
+        callbacks: {
+          title: (items) => fullLabels.value[items?.[0]?.dataIndex] ?? '',
+          label: (item) => formatTooltipValue(item?.raw),
+        },
+      },
     },
-    marker: { show: true },
+    scales: {
+      x: {
+        grid: { display: false },
+        border: { display: false },
+        ticks: { ...AXIS_LABEL, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
+      },
+      y: {
+        beginAtZero: true,
+        grid: { color: GRID_COLOR },
+        border: { display: false },
+        ticks: { ...AXIS_LABEL, callback: (v) => formatAxis(v) },
+      },
+    },
   },
 }));
+
+useChartCanvas(canvas, config);
 </script>
 
 <style scoped>
@@ -163,7 +229,7 @@ const options = computed(() => ({
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 13px;
 }
 </style>

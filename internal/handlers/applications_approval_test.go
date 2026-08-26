@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -329,6 +330,19 @@ func TestForwardAttachments(t *testing.T) {
 		return rows
 	}
 
+	// forwardedMeta читает metadata сводной записи forwarded. #870 (срез 1.14): запись
+	// ушла в audit_log[application], metadata лежит внутри details->'metadata'.
+	forwardedMeta := func(t *testing.T, appID int) map[string]interface{} {
+		t.Helper()
+		var raw string
+		err := db.Raw("SELECT (details->'metadata')::text FROM audit_log WHERE entity_type = 'application' AND entity_id = ? AND action = 'forwarded'", appID).Scan(&raw).Error
+		require.NoError(t, err)
+		require.NotEmpty(t, raw, "должна быть запись истории forwarded")
+		var m map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(raw), &m))
+		return m
+	}
+
 	t.Run("subset_written_per_recipient", func(t *testing.T) {
 		testutil.CleanDB(t, db)
 		td := testutil.SeedTestData(t, db)
@@ -413,5 +427,48 @@ func TestForwardAttachments(t *testing.T) {
 		}
 		assert.ElementsMatch(t, []int{attID1, attID2}, got[respID])
 		assert.ElementsMatch(t, []int{attID1, attID2}, got[viewerID])
+	})
+
+	t.Run("history_whole_application", func(t *testing.T) {
+		testutil.CleanDB(t, db)
+		td := testutil.SeedTestData(t, db)
+
+		senderToken := testutil.RegisterAndLogin(t, e, "fa_sender5", "pass123", 1, td.OrgID, td.CompanyID)
+		appID, _, _ := createAppWithTwoAttachments(t, senderToken, "fa_cars5")
+
+		testutil.RegisterUser(t, e, "fa_resp5", "pass123", 1, td.OrgID, td.CompanyID)
+		respID := getUserID(t, db, "fa_resp5")
+
+		body := fmt.Sprintf(`{"users":[{"user_id":%d,"required_approval":true,"can_view":false}]}`, respID)
+		rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), body, testutil.AuthHeader(senderToken))
+		require.Equal(t, http.StatusOK, rec.Code, "forward: %s", rec.Body.String())
+
+		m := forwardedMeta(t, appID)
+		assert.Equal(t, true, m["whole"], "пустой attachment_ids -> переслана вся заявка")
+		if atts, ok := m["attachments"].([]interface{}); ok {
+			assert.Empty(t, atts, "у целой заявки список вложений пуст")
+		}
+	})
+
+	t.Run("history_specific_attachments", func(t *testing.T) {
+		testutil.CleanDB(t, db)
+		td := testutil.SeedTestData(t, db)
+
+		senderToken := testutil.RegisterAndLogin(t, e, "fa_sender6", "pass123", 1, td.OrgID, td.CompanyID)
+		appID, attID1, _ := createAppWithTwoAttachments(t, senderToken, "fa_cars6")
+
+		testutil.RegisterUser(t, e, "fa_resp6", "pass123", 1, td.OrgID, td.CompanyID)
+		respID := getUserID(t, db, "fa_resp6")
+
+		body := fmt.Sprintf(`{"users":[{"user_id":%d,"required_approval":true,"can_view":false}],"attachment_ids":[%d]}`, respID, attID1)
+		rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), body, testutil.AuthHeader(senderToken))
+		require.Equal(t, http.StatusOK, rec.Code, "forward: %s", rec.Body.String())
+
+		m := forwardedMeta(t, appID)
+		assert.Equal(t, false, m["whole"], "выбран subset -> не вся заявка")
+		atts, ok := m["attachments"].([]interface{})
+		require.True(t, ok, "attachments должен быть списком имён")
+		require.Len(t, atts, 1)
+		assert.Equal(t, "Cars A", atts[0], "имя выбранного вложения попадает в историю")
 	})
 }

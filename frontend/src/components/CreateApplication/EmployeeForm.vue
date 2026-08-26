@@ -7,10 +7,12 @@
     <div class="completion__header">
       <h3>Новый сотрудник</h3>
       <button
+        v-if="allowExistingSearch"
         class="completion__button"
+        data-testid="ob-form-existing"
         @click="openExistingEmployeesModal"
       >
-        Добавить существующего(-их)
+        {{ isNarrow ? 'Добавить сущ.' : 'Добавить существующего(-их)' }}
       </button>
     </div>
 
@@ -38,17 +40,19 @@
       </div>
     </div>
 
-    <div v-else>
+    <div
+      v-else
+      class="completion__body"
+    >
       <div
         v-if="fieldVisible('citizenship')"
         class="completion__citizenship"
       >
         <div class="citizenship__header">
-          <label class="citizenship__label">Гражданство <span
-            v-if="fieldRequired('citizenship')"
-            class="required"
-          >*</span></label>
-          <div class="citizenship-actions">
+          <div
+            class="citizenship-actions"
+            @click="revealBlockedHint($event)"
+          >
             <button
               v-if="editingEmployee"
               class="cancel-edit-btn"
@@ -74,26 +78,35 @@
               </div>
             </div>
           </div>
+          <!-- В DOM лейбл после кнопок: на мобилке шапка разворачивается в поток,
+               и лейбл встаёт прямо над своим дропдауном, а не над липкой строкой.
+               На десктопе order возвращает его влево. -->
+          <label class="citizenship__label">Гражданство <span
+            v-if="fieldRequired('citizenship')"
+            class="required"
+          >*</span></label>
         </div>
         <div class="citizenship__dropdown">
           <button 
+            ref="citizenshipButton"
             class="dropdown__button" 
             :disabled="editingEmployee && editingEmployee.isExisting"
             @click="toggleCitizenshipDropdown"
           >
             <div class="button__content">
               <span class="button__text">{{ selectedCitizenshipText }}</span>
-              <img
-                src="@/assets/icons/arrow.png"
+              <AppIcon
+                name="arrow"
                 class="button__arrow"
-                :class="{ 'button__arrow--open': isCitizenshipDropdownOpen }"
-              >
+                :class="{ 'button__arrow--up': citizenshipArrowUp }"
+              />
             </div>
           </button>
           <transition name="dropdown">
             <div
               v-if="isCitizenshipDropdownOpen"
               class="dropdown__menu"
+              :style="citizenshipMenuStyle"
             >
               <div 
                 v-for="citizenship in availableCitizenships" 
@@ -261,94 +274,73 @@
           <div class="completion__permission-header">
             <label class="input__label">Иное разрешение на работы</label>
           </div>
-          <div class="permission__dropdown">
+          <div
+            ref="permissionDropdown"
+            class="permission__dropdown"
+          >
             <button
+              type="button"
               class="permission__dropdown-button"
+              :class="{ 'permission__dropdown-button--placeholder': !selectedPermission }"
               :disabled="!effectivePatentRequired || permissionFieldDisabled || (editingEmployee && editingEmployee.isExisting)"
+              :title="selectedPermission || null"
               @click="togglePermissionDropdown"
             >
               <div class="permission__button-content">
-                <span class="permission__button-text">{{ selectedPermission || (effectivePatentRequired ? 'Выберите разрешение' : 'Не требуется') }}</span>
-                <img
-                  src="@/assets/icons/arrow.png"
+                <span class="permission__button-text">{{ selectedPermission || (effectivePatentRequired ? 'Не выбрано' : 'Не требуется') }}</span>
+                <AppIcon
+                  name="arrow"
                   class="permission__button-arrow"
-                  :class="{ 'permission__button-arrow--open': isPermissionDropdownOpen }"
-                >
+                  :class="{ 'permission__button-arrow--up': permissionArrowUp }"
+                />
               </div>
             </button>
             <transition name="dropdown">
               <div
                 v-if="isPermissionDropdownOpen"
                 class="permission__dropdown-menu"
+                :style="permissionMenuStyle"
               >
-                <div
-                  v-for="permission in availablePermissions"
-                  :key="permission"
-                  class="permission__dropdown-item"
-                  @click="selectPermission(permission)"
-                >
-                  <span class="permission__item-text">{{ permission }}</span>
+                <div class="permission__dropdown-search">
+                  <input
+                    ref="permissionSearch"
+                    v-model="permissionQuery"
+                    type="text"
+                    class="permission__search-input"
+                    placeholder="Поиск по списку"
+                    @click.stop
+                    @keydown.esc.prevent="isPermissionDropdownOpen = false"
+                    @keydown.enter.prevent="selectOnlyFoundPermission"
+                  >
+                </div>
+                <div class="permission__dropdown-list">
+                  <!-- "Не выбрано" остаётся в списке и при поиске: это единственный
+                       способ снять выбор, прятать его за очисткой запроса незачем. -->
+                  <div
+                    class="permission__dropdown-item"
+                    :class="{ 'permission__dropdown-item--selected': !selectedPermission }"
+                    @click="selectPermission('')"
+                  >
+                    <span class="permission__item-text permission__item-text--empty">Не выбрано</span>
+                  </div>
+                  <div
+                    v-for="permission in filteredPermissions"
+                    :key="permission"
+                    class="permission__dropdown-item"
+                    :class="{ 'permission__dropdown-item--selected': permission === selectedPermission }"
+                    @click="selectPermission(permission)"
+                  >
+                    <span class="permission__item-text">{{ permission }}</span>
+                  </div>
+                  <div
+                    v-if="filteredPermissions.length === 0"
+                    class="permission__dropdown-empty"
+                  >
+                    Ничего не найдено
+                  </div>
                 </div>
               </div>
             </transition>
-          </div>
-        </div>
-
-        <div
-          v-if="fieldVisible('patent') && effectivePatentRequired"
-          class="completion__files"
-        >
-          <div class="completion__files-header">
-            <label class="input__label">Фото, скан документа(-ов), подтверждающее иное разрешение на работы</label>
-          </div>
-          <div class="files__upload">
-            <input 
-              ref="fileInput" 
-              type="file"
-              multiple
-              accept="image/*,.pdf,.doc,.docx,.xlsx,.xls"
-              class="file-input"
-              :disabled="editingEmployee && editingEmployee.isExisting"
-              @change="handleFileUpload"
-            >
-            <button
-              class="upload-button"
-              :disabled="editingEmployee && editingEmployee.isExisting"
-              @click="triggerFileInput"
-            >
-              Загрузить
-            </button>
-          </div>
-          <div
-            v-if="uploadedFiles.length > 0"
-            class="uploaded-files"
-          >
-            <div
-              v-for="(file, index) in uploadedFiles"
-              :key="index"
-              class="uploaded-file"
-            >
-              <div class="file-preview">
-                <img
-                  v-if="file.type === 'image'"
-                  :src="file.preview"
-                  class="file-preview-image"
-                >
-                <img
-                  v-else
-                  :src="getFileIcon(file.extension)"
-                  class="file-icon"
-                >
-              </div>
-              <span class="file-name">{{ file.name }}</span>
-              <button
-                class="remove-file-btn"
-                :disabled="editingEmployee && editingEmployee.isExisting"
-                @click="removeFile(index)"
-              >
-                ×
-              </button>
-            </div>
           </div>
         </div>
       </div>
@@ -357,31 +349,18 @@
     <div
       v-if="fieldVisible('target_tables')"
       class="completion__passage"
+      data-testid="ob-form-places"
     >
       <label class="input__label">Места прохода (целевые таблицы) <span
         v-if="fieldRequired('target_tables')"
         class="required"
       >*</span></label>
-      <div
+      <TargetTablesGrid
         v-if="!loadingPassageTables && filteredPassageTables.length > 0"
-        class="passage__grid"
-      >
-        <div 
-          v-for="table in filteredPassageTables" 
-          :key="table.table.id"
-          class="passage__item"
-          :class="{ 
-            'passage__item--active': selectedPassageTables.includes(table.table.id) && table.table.status === 'active',
-            'passage__item--attached': attachedTablesIds.includes(table.table.id),
-            'passage__item--inactive': table.table.status !== 'active'
-          }"
-          @click="togglePassageTable(table)"
-          @mouseenter="showTableTooltip(table, $event)"
-          @mouseleave="hideTableTooltip"
-        >
-          {{ table.table.display_name }}
-        </div>
-      </div>
+        v-model="selectedPassageTables"
+        :tables="filteredPassageTables"
+        :attached-ids="attachedTablesIds"
+      />
       <div
         v-else-if="loadingPassageTables"
         class="loading-message"
@@ -402,21 +381,43 @@
       </div>
     </div>
 
+    <!-- Согласие субъекта на обработку его персональных данных (152-ФЗ). Показывается
+         и требуется по настройке полей вложения; у сотрудника, выбранного из реестра,
+         согласие уже получено при заведении записи - там отметка не спрашивается. -->
     <div
-      v-if="tableTooltip.visible" 
-      class="inactive-tooltip"
-      :style="{ top: tableTooltip.y + 'px', left: tableTooltip.x + 'px' }"
+      v-if="fieldVisible('pd_consent') && selectedExistingEmployees.length === 0"
+      class="completion__consent"
     >
-      <div class="inactive-tooltip-content">
-        {{ tableTooltip.text }}
-      </div>
+      <label class="consent-option">
+        <input
+          v-model="pdConsent"
+          type="checkbox"
+          data-testid="employee-pd-consent"
+        >
+        <span>
+          Работник дал <a
+            href="/data-processing"
+            target="_blank"
+            rel="noopener"
+            class="blue"
+            @click.stop
+          >согласие</a> на обработку своих персональных данных<span
+            v-if="fieldRequired('pd_consent')"
+            class="required"
+          >*</span>
+        </span>
+      </label>
     </div>
+
+    <!-- Предупреждения выбранных таблиц прохода (#1183): единая плавающая панель
+         рендерится в CreateApplication (@notices-change). -->
 
     <ExistingEmployeesModal
       :visible="showExistingEmployeesModal"
       :already-added-employees="existingEmployees"
       :user-organization-id="userOrganizationId"
       :initial-selected-employees="selectedExistingEmployees"
+      :z-index="existingModalZIndex"
       @employees-selected="onEmployeesSelected"
       @close="closeExistingEmployeesModal"
     />
@@ -427,16 +428,27 @@
 import { apiRequest } from '@/api/client'
 import { checkPersonBlacklist } from '@/api/blacklist'
 import { useAuthStore } from '@/stores/auth'
-import { useToast } from '@/composables/useToast'
+import { useDeletionsStore } from '@/stores/deletions'
 import ExistingEmployeesModal from '@/components/CreateApplication/ExistingEmployeesModal.vue'
+import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vue'
 import { useFormValidation } from '@/composables/useFormValidation'
+import { useNarrowScreen } from '@/composables/useNarrowScreen'
 import { useFieldConfig } from '@/composables/useFieldConfig'
+import { resetEmployeeFormState } from './entryFormReset'
+import { collectActiveWarnings } from '@/utils/warningWindows'
+import { buildScheduleReport } from '@/utils/scheduleCheck'
+import { findDuplicateEmployee, employeeLabel } from '@/utils/applicationDuplicates'
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { getCurrentInstance } from 'vue'
+import { getViewportZoom } from '@/utils/viewportScale'
+import AppIcon from '@/components/icons/AppIcon.vue'
 
 export default {
     name: 'EmployeeForm',
     components: {
-        ExistingEmployeesModal
+        AppIcon,
+        ExistingEmployeesModal,
+        TargetTablesGrid
     },
     props: {
         userOrganization: {
@@ -469,12 +481,31 @@ export default {
         disabled: {
             type: Boolean,
             default: false
+        },
+        // Ручное добавление (#1049): DTO ManualEmployee не имеет existing_employee_id,
+        // поэтому выбор "существующего" сотрудника создал бы дубликат - прячем поиск
+        // в этом контексте (зеркало VehicleForm.allowExistingSearch).
+        allowExistingSearch: {
+            type: Boolean,
+            default: true
+        },
+        // Слой окна «Добавить существующего(-их)». Дефолт 1000 - подача заявки; форма,
+        // встроенная в окно поверх детали заявки, поднимает его (#1685).
+        existingModalZIndex: {
+            type: Number,
+            default: 1000
+        },
+        // Срок заявки текущего вложения (#1183 S5): { date_from, date_to, time_from,
+        // time_to } в API-формате. Против него сверяется расписание (time_slots) таблиц
+        // прохода - предупреждаем, если проход закрыт на границе срока (зеркало VehicleForm).
+        entryPeriod: {
+            type: Object,
+            default: null
         }
     },
-    emits: ['edit-cancelled', 'employee-added', 'employee-updated', 'employees-added'],
+    emits: ['edit-cancelled', 'employee-added', 'employee-updated', 'employees-added', 'notices-change'],
     setup(props) {
         const instance = getCurrentInstance()
-        const toast = useToast()
         const { fieldVisible, fieldRequired } = useFieldConfig(() => props.fieldConfig)
 
         const { isValid, tooltipMessage, showTooltip } = useFormValidation(() => {
@@ -516,17 +547,27 @@ export default {
             if (fieldVisible('target_tables') && fieldRequired('target_tables')) {
                 rules.push({ check: vm.selectedPassageTables.length > 0, message: 'выберите хотя бы одно место прохода' })
             }
+            if (fieldVisible('pd_consent') && fieldRequired('pd_consent')) {
+                rules.push({ check: vm.pdConsent, message: 'отметьте согласие работника на обработку персональных данных' })
+            }
 
             return rules
         })
 
-        return { canAddEmployee: isValid, getTooltipMessage: tooltipMessage, showTooltip, toast, fieldVisible, fieldRequired }
+        // Причина блокировки кнопки живёт на hover - на телефоне его нет,
+        // поэтому там показываем её сразу под кнопкой.
+        const { isNarrow } = useNarrowScreen()
+        return { canAddEmployee: isValid, getTooltipMessage: tooltipMessage, showTooltip, fieldVisible, fieldRequired, isNarrow }
     },
     data() {
         return {
             lastName: '',
             firstName: '',
             middleName: '',
+            // Отметка о согласии субъекта. Ставится на каждого человека отдельно и
+            // сбрасывается после добавления: подтверждают конкретного работника, а не
+            // «вообще всех», кого заведут дальше.
+            pdConsent: false,
             position: '',
             passportSeriesNumber: '',
             patentNumber: '',
@@ -534,9 +575,16 @@ export default {
             availableCitizenships: [],
             selectedCitizenship: null,
             isCitizenshipDropdownOpen: false,
-            
+            citizenshipMenuStyle: null,
+            citizenshipMenuUp: false,
+
             selectedPermission: '',
             isPermissionDropdownOpen: false,
+            permissionMenuStyle: null,
+            permissionMenuUp: false,
+            permissionQuery: '',
+            // rAF-хендл пересчёта стороны раскрытия; null - пересчёт не запланирован.
+            dropDirectionFrame: null,
             availablePermissions: [
                 'Иностранцы с видом на жительство (ВНЖ) или разрешением на временное проживание (РВП)',
                 'Беженцы или получившие временное убежище в России',
@@ -556,14 +604,12 @@ export default {
                 'Творческие работники, учёные и педагоги, прибывшие по приглашению госучреждений культуры и искусства для участия в мероприятиях — до 30 календарных дней'
             ],
             
-            uploadedFiles: [],
             
             allPassageTables: [],
             attachedPassageTables: [],
             selectedPassageTables: [],
             loadingPassageTables: false,
-            autoPlacesNotified: sessionStorage.getItem('autoPlacesNotified') === 'true',
-            
+
             errors: {
                 passageTables: ''
             },
@@ -573,15 +619,15 @@ export default {
 
             editingEmployee: null,
 
-            tableTooltip: {
-                visible: false,
-                text: '',
-                x: 0,
-                y: 0
-            },
             // Проверка ЧС (#443): null или { is_blacklisted, reason }
             blacklistInfo: null,
-            blacklistTimeout: null
+            blacklistTimeout: null,
+            // Опорный момент для предупреждений окон (#1183 S4): тикает раз в минуту,
+            // чтобы баннер релевантных окон не залипал по времени.
+            warningNow: new Date(),
+            warningTimer: null,
+            // Дебаунс эмита предупреждений наверх (#1183 polish).
+            noticesTimer: null
         }
     },
     computed: {
@@ -590,6 +636,22 @@ export default {
         },
         isPatentRequired() {
             return this.selectedCitizenship ? this.selectedCitizenship.patent_required : false;
+        },
+        // Стрелка показывает, куда поедет меню: закрытая - в сторону раскрытия,
+        // открытая - в сторону сворачивания. Отсюда исключающее ИЛИ.
+        citizenshipArrowUp() {
+            return this.citizenshipMenuUp !== this.isCitizenshipDropdownOpen;
+        },
+        permissionArrowUp() {
+            return this.permissionMenuUp !== this.isPermissionDropdownOpen;
+        },
+        // Список из 16 длинных формулировок читать целиком дорого, поэтому поиск.
+        // Варианты запроса общие с остальными клиентскими фильтрами: терпят
+        // неверную раскладку и транслит ([[searchVariants]]).
+        filteredPermissions() {
+            const variants = buildSearchVariants(this.permissionQuery);
+            if (variants.length === 0) return this.availablePermissions;
+            return this.availablePermissions.filter((permission) => matchesSearch(permission, variants));
         },
         // patent трёхзначен: нет строки конфига -> условная логика по гражданству;
         // required=true -> всегда обязателен; required=false -> снова условная.
@@ -625,35 +687,142 @@ export default {
                     return { table: item };
                 }
             });
+        },
+        // Предупреждения выбранных таблиц прохода (#1183): группа на таблицу со
+        // свободным текстом (S1), активными окнами (S4) и отчётом "режим работы против
+        // окна пребывания срока" (S5). Реактивно к warningNow/entryPeriod; единая
+        // панель в CreateApplication обновляется на лету.
+        noticeGroups() {
+            const at = this.warningNow;
+            const groups = [];
+            this.selectedPassageTables.forEach(tableId => {
+                const item = this.allPassageTables.find(t => t.table && t.table.id === tableId);
+                if (!item) return;
+                const { free, windows } = collectActiveWarnings(
+                    { warning: item.table.warning, warning_windows: item.warning_windows },
+                    at
+                );
+                const schedule = buildScheduleReport(item.time_slots, this.entryPeriod);
+                if (free || windows.length || (schedule && schedule.anyClosed)) {
+                    groups.push({ id: `table-${item.table.id}`, name: item.table.display_name || item.table.name, free, windows, schedule });
+                }
+            });
+            return groups;
         }
     },
     watch: {
+        // Дропдаун гражданства закрывают из трёх мест (тоггл, выбор, клик вне),
+        // поэтому позиция живёт на одном вотчере, а не в каждом из них.
+        // Скролл и ресайз слушает onDropViewportChange - он работает и с закрытым
+        // меню, потому что стрелка на кнопке заранее показывает сторону раскрытия.
+        isCitizenshipDropdownOpen(open) {
+            this.citizenshipMenuStyle = open ? this.buildCitizenshipMenuStyle() : null;
+        },
+        // То же для разрешений: закрывается из тоггла, выбора и клика вне.
+        // Стиль считаем после рендера меню - высота подгоняется по его пунктам.
+        isPermissionDropdownOpen(open) {
+            if (open) {
+                this.$nextTick(() => {
+                    this.permissionMenuStyle = this.buildPermissionMenuStyle();
+                    // На телефоне фокус поднимает клавиатуру и съедает пол-экрана
+                    // вместе с только что раскрытым списком - там ставит курсор сам юзер.
+                    if (!this.isNarrow && this.$refs.permissionSearch) {
+                        this.$refs.permissionSearch.focus();
+                    }
+                });
+            } else {
+                this.permissionMenuStyle = null;
+                this.permissionQuery = '';
+            }
+        },
+        // Список укоротился - меню должно ужаться следом, иначе под ним висит пустота.
+        permissionQuery() {
+            if (!this.isPermissionDropdownOpen) return;
+            this.$nextTick(() => {
+                this.permissionMenuStyle = this.buildPermissionMenuStyle();
+            });
+        },
+        // Блок разрешения появляется вместе с требованием патента - к этому моменту
+        // кнопки ещё не было, и сторону раскрытия никто не считал.
+        effectivePatentRequired(required) {
+            if (required) this.$nextTick(this.updateDropDirections);
+        },
         lastName() { this.checkBlacklist(); },
         firstName() { this.checkBlacklist(); },
-        middleName() { this.checkBlacklist(); }
+        middleName() { this.checkBlacklist(); },
+        // Предупреждения наверх в единую панель, дебаунс - гасит дёрганье при быстрой
+        // смене таблиц/времени.
+        noticeGroups: {
+            handler(groups) {
+                if (this.noticesTimer) clearTimeout(this.noticesTimer);
+                this.noticesTimer = setTimeout(() => {
+                    this.$emit('notices-change', groups);
+                }, 150);
+            },
+            deep: true,
+            immediate: true
+        }
     },
     async mounted() {
+        // До загрузки справочников: слушатель не зависит от данных, а до его
+        // навешивания стрелки не знают сторону раскрытия.
+        window.addEventListener('scroll', this.onDropViewportChange, true);
+        window.addEventListener('resize', this.onDropViewportChange);
+
         await Promise.all([
             this.loadCitizenships(),
             this.loadPassageTables()
         ]);
 
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.citizenship__dropdown')) {
-                this.isCitizenshipDropdownOpen = false;
-            }
-            
-            if (!e.target.closest('.permission__dropdown')) {
-                this.isPermissionDropdownOpen = false;
-            }
-        });
+        document.addEventListener('click', this.handleDocumentClick);
+        this.warningTimer = setInterval(() => { this.warningNow = new Date(); }, 60000);
+
+        this.updateDropDirections();
     },
     beforeUnmount() {
+        if (this.hintTimer) clearTimeout(this.hintTimer);
+        this.stopDropDirectionWatch();
+        document.removeEventListener('click', this.handleDocumentClick);
         if (this.blacklistTimeout) {
             clearTimeout(this.blacklistTimeout);
         }
+        if (this.warningTimer) {
+            clearInterval(this.warningTimer);
+        }
+        if (this.noticesTimer) {
+            clearTimeout(this.noticesTimer);
+        }
+        this.$emit('notices-change', []);
     },
     methods: {
+        /**
+         * Причина блокировки на телефоне показывается по тапу на зону кнопки
+         * (сама кнопка disabled и события не даёт - на мобилке она прозрачна для
+         * тапа через pointer-events) и гаснет сама.
+         */
+        revealBlockedHint(event) {
+            // Тап по «Отменить» в режиме редактирования - не повод объяснять,
+            // почему заблокировано добавление.
+            if (event && event.target.closest('.cancel-edit-btn')) return;
+            if (!this.isNarrow || this.canAddEmployee) return;
+            this.showTooltip = true;
+            if (this.hintTimer) clearTimeout(this.hintTimer);
+            this.hintTimer = setTimeout(() => { this.showTooltip = false; }, 3000);
+        },
+
+        // Закрывает открытые дропдауны при клике вне них. Именованный метод (не
+        // анонимная стрелка в mounted) - иначе removeEventListener не снимет слушатель
+        // и он копится при частом откр/закр формы в модалке ручного добавления.
+        handleDocumentClick(e) {
+            if (!e.target.closest('.citizenship__dropdown')) {
+                this.isCitizenshipDropdownOpen = false;
+            }
+
+            if (!e.target.closest('.permission__dropdown')) {
+                this.isPermissionDropdownOpen = false;
+            }
+        },
+
         async loadCitizenships() {
             try {
                 const response = await apiRequest("/citizenships", {
@@ -690,14 +859,7 @@ export default {
 
         if (allTablesResponse.ok) {
             const tables = await allTablesResponse.json();
-            console.log('RAW DATA from /system-tables:', JSON.stringify(tables, null, 2));
-            
-            if (tables && tables.length > 0) {
-    console.log('First table structure:', tables[0]);
-    console.log('Has table field:', 'table' in tables[0]);
-    console.log('Has id field directly:', 'id' in tables[0]);
-}
-            
+
             // Нормализуем данные
             this.allPassageTables = tables.map(table => {
                 // Если данные уже в правильном формате
@@ -723,8 +885,6 @@ export default {
                     };
                 }
             });
-            
-            console.log('NORMALIZED allPassageTables:', this.allPassageTables);
         } else {
             const errorText = await allTablesResponse.text();
             console.error("Ошибка при загрузке системных таблиц:", errorText);
@@ -737,8 +897,7 @@ export default {
 
             if (orgTablesResponse.ok) {
                 const orgTables = await orgTablesResponse.json();
-                console.log('Organization tables:', orgTables);
-                
+
                 this.attachedPassageTables = orgTables.map(table => {
                     if (table.table) {
                         return table;
@@ -760,14 +919,6 @@ export default {
                         };
                     }
                 });
-                
-                const activeAttachedTables = this.attachedPassageTables.filter(table => table.table.status === 'active');
-                this.selectedPassageTables = activeAttachedTables.map(table => table.table.id);
-                if (this.selectedPassageTables.length > 0 && !this.autoPlacesNotified) {
-                    this.autoPlacesNotified = true;
-                    sessionStorage.setItem('autoPlacesNotified', 'true');
-                    this.toast.success('Места прохода выбраны автоматически для вашей организации');
-                }
             }
         }
 
@@ -778,8 +929,7 @@ export default {
 
             if (companyTablesResponse.ok) {
                 const companyTables = await companyTablesResponse.json();
-                console.log('Company tables:', companyTables);
-                
+
                 this.attachedPassageTables = companyTables.map(table => {
                     if (table.table) {
                         return table;
@@ -801,14 +951,6 @@ export default {
                         };
                     }
                 });
-                
-                const activeAttachedTables = this.attachedPassageTables.filter(table => table.table.status === 'active');
-                this.selectedPassageTables = activeAttachedTables.map(table => table.table.id);
-                if (this.selectedPassageTables.length > 0 && !this.autoPlacesNotified) {
-                    this.autoPlacesNotified = true;
-                    sessionStorage.setItem('autoPlacesNotified', 'true');
-                    this.toast.success('Места прохода выбраны автоматически для вашей компании');
-                }
             }
         }
 
@@ -822,37 +964,6 @@ export default {
         this.loadingPassageTables = false;
     }
 },
-
-        getTableTooltip(table) {
-            if (table.table.status !== 'active') {
-                if (table.table.status_comment) {
-                    return `Недоступно: ${table.table.status_comment}`;
-                }
-                return 'Недоступно';
-            }
-            return '';
-        },
-
-        showTableTooltip(table, event) {
-            if (table.table.status !== 'active') {
-                const tooltipText = table.table.status_comment 
-                    ? `Недоступно: ${table.table.status_comment}`
-                    : 'Недоступно';
-                
-                this.tableTooltip.text = tooltipText;
-                this.tableTooltip.visible = true;
-                
-                this.$nextTick(() => {
-                    const rect = event.target.getBoundingClientRect();
-                    this.tableTooltip.x = rect.left + rect.width / 2;
-                    this.tableTooltip.y = rect.top - 10;
-                });
-            }
-        },
-
-        hideTableTooltip() {
-            this.tableTooltip.visible = false;
-        },
 
         formatNameField(fieldName) {
             if (this[fieldName]) {
@@ -895,19 +1006,6 @@ export default {
             }, 500);
         },
 
-        togglePassageTable(table) {
-            if (table.table.status !== 'active') {
-                return;
-            }
-            
-            const index = this.selectedPassageTables.indexOf(table.table.id);
-            if (index > -1) {
-                this.selectedPassageTables.splice(index, 1);
-            } else {
-                this.selectedPassageTables.push(table.table.id);
-            }
-        },
-        
         validatePassageTables() {
             this.errors.passageTables = this.selectedPassageTables.length === 0 ? '' : '';
         },
@@ -949,9 +1047,24 @@ export default {
                 otherPermission: this.effectivePatentRequired ? this.selectedPermission : null,
                 passageTables: this.formatPassageTables(),
                 targetTables: [...this.selectedPassageTables],
+                pdConsent: this.pdConsent,
                 isExisting: false
             };
-            
+
+            const duplicate = findDuplicateEmployee(
+                this.existingEmployees,
+                newEmployee,
+                this.editingEmployee ? this.editingEmployee.id : null,
+            );
+            if (duplicate) {
+                useDeletionsStore().notify({
+                    prefix: `${employeeLabel(duplicate)} `,
+                    bold: 'уже добавлен в список',
+                    type: 'error',
+                });
+                return;
+            }
+
             if (this.editingEmployee) {
                 newEmployee.id = this.editingEmployee.id;
                 this.$emit('employee-updated', newEmployee);
@@ -961,8 +1074,9 @@ export default {
                 this.clearEmployeeFormPartial();
             }
         },
-        
+
         clearEmployeeFormPartial() {
+            this.pdConsent = false;
             this.lastName = '';
             this.firstName = '';
             this.middleName = '';
@@ -970,10 +1084,10 @@ export default {
             this.passportSeriesNumber = '';
             this.patentNumber = '';
             this.selectedPermission = '';
-            this.uploadedFiles = [];
         },
         
         clearEmployeeForm() {
+            this.pdConsent = false;
             this.lastName = '';
             this.firstName = '';
             this.middleName = '';
@@ -982,7 +1096,6 @@ export default {
             this.patentNumber = '';
             this.selectedPermission = '';
             this.selectedPassageTables = [];
-            this.uploadedFiles = [];
             this.errors.passageTables = '';
             this.selectedExistingEmployees = [];
             this.editingEmployee = null;
@@ -1004,12 +1117,12 @@ export default {
 
         addExistingEmployees() {
             if (this.selectedExistingEmployees.length === 0) {
-                alert('Выберите сотрудников для добавления');
+                useDeletionsStore().notify({ bold: 'Выберите сотрудников для добавления', type: 'error' });
                 return;
             }
 
             if (this.selectedPassageTables.length === 0) {
-                alert('Выберите места прохода');
+                useDeletionsStore().notify({ bold: 'Выберите места прохода', type: 'error' });
                 return;
             }
 
@@ -1025,11 +1138,43 @@ export default {
                 otherPermission: employee.other_permission,
                 passageTables: this.formatPassageTables(),
                 targetTables: [...this.selectedPassageTables],
+                // Сотрудник из реестра: согласие получено при заведении записи, поэтому
+                // отметка едет с ним и повторно её не спрашиваем. У записей, заведённых
+                // до появления поля, pd_consent_at пустой - тогда согласие подтверждают
+                // заново в карточке реестра.
+                pdConsent: !!employee.pd_consent_at,
                 isExisting: true,
                 existingEmployeeId: employee.id
             }));
-            
-            this.$emit('employees-added', employees);
+
+            // Модалка выбора уже гасит добавленные строки, но выбор мог устареть, а среди
+            // записей каталога встречаются двойники по паспорту - отсеиваем здесь ещё раз.
+            const list = [...this.existingEmployees];
+            const toAdd = [];
+            const skipped = [];
+            employees.forEach(employee => {
+                if (findDuplicateEmployee(list, employee)) {
+                    skipped.push(employeeLabel(employee));
+                    return;
+                }
+                list.push(employee);
+                toAdd.push(employee);
+            });
+
+            if (skipped.length > 0) {
+                useDeletionsStore().notify({
+                    prefix: `${skipped.join(', ')} `,
+                    bold: skipped.length > 1 ? 'уже в списке - пропущены' : 'уже добавлен в список',
+                    type: 'error',
+                });
+            }
+
+            if (toAdd.length === 0) {
+                this.clearExistingEmployeesSelection();
+                return;
+            }
+
+            this.$emit('employees-added', toAdd);
             this.clearExistingEmployeesSelection();
         },
 
@@ -1040,6 +1185,8 @@ export default {
         editEmployee(employee) {
             this.editingEmployee = employee;
             this.selectedExistingEmployees = [];
+            // Отметку согласия возвращаем в форму: правка фамилии не должна её терять.
+            this.pdConsent = employee.pdConsent === true;
             
             if (employee.isExisting) {
                 this.lastName = employee.lastName;
@@ -1078,14 +1225,42 @@ export default {
 
         cancelEdit() {
             this.$emit('edit-cancelled');
-            this.editingEmployee = null;
-            this.clearEmployeeForm();
+            resetEmployeeFormState(this);
         },
         
         toggleCitizenshipDropdown() {
             this.isCitizenshipDropdownOpen = !this.isCitizenshipDropdownOpen;
         },
-        
+
+        /**
+         * Список гражданств длинный: снизу его обрезает край экрана, поэтому
+         * высоту ограничиваем доступным местом, а если снизу тесно - раскрываем
+         * вверх. Формула зеркалит BaseDropdown.updateMenuPosition: rect отдаёт
+         * device-px под корневым zoom, innerHeight - незумленную высоту, поэтому
+         * к layout-px приводятся ОБА (при zoom=1 деление ничего не меняет).
+         */
+        buildCitizenshipMenuStyle() {
+            const btn = this.$refs.citizenshipButton;
+            if (!btn || typeof window === 'undefined') return null;
+            const space = this.measureDropSpace(btn);
+            if (!space) return null;
+            const flipUp = space.flipUp;
+            this.citizenshipMenuUp = flipUp;
+            const maxHeight = Math.max(160, Math.min(300, (flipUp ? space.above : space.below) - 16));
+            if (!flipUp) {
+                return { maxHeight: maxHeight + 'px' };
+            }
+            // top:'auto' обязателен - иначе базовое .dropdown__menu{top:100%}
+            // остаётся в силе и конфликтует с bottom.
+            return {
+                top: 'auto',
+                bottom: '100%',
+                marginTop: '0',
+                marginBottom: '5px',
+                maxHeight: maxHeight + 'px'
+            };
+        },
+
         selectCitizenship(citizenship) {
             this.selectedCitizenship = citizenship;
             this.isCitizenshipDropdownOpen = false;
@@ -1099,10 +1274,143 @@ export default {
             this.isPermissionDropdownOpen = !this.isPermissionDropdownOpen;
         },
         
+        /**
+         * Формула та же, что в buildCitizenshipMenuStyle, с двумя добавками.
+         * Высота режется по границе пункта: формулировки разрешений занимают
+         * две-три строки, и обрезанная посередине строка читается как баг вёрстки.
+         * Границы берутся по прокручиваемому предку: форму встраивают и в тело
+         * модалки ручного добавления, где меню обрезает её край, а не край экрана.
+         */
+        buildPermissionMenuStyle() {
+            const dropdown = this.$refs.permissionDropdown;
+            if (!dropdown || typeof window === 'undefined') return null;
+            const space = this.measureDropSpace(dropdown);
+            if (!space) return null;
+            const flipUp = space.flipUp;
+            this.permissionMenuUp = flipUp;
+            const available = Math.max(160, Math.min(300, (flipUp ? space.above : space.below) - 16));
+            const maxHeight = this.fitPermissionMenuToItems(available);
+            if (!flipUp) {
+                return { maxHeight: maxHeight + 'px' };
+            }
+            // top:'auto' обязателен - иначе базовое .permission__dropdown-menu{top:100%}
+            // остаётся в силе и конфликтует с bottom.
+            return {
+                top: 'auto',
+                bottom: '100%',
+                marginTop: '0',
+                marginBottom: '5px',
+                maxHeight: maxHeight + 'px'
+            };
+        },
+
+        /** Наибольшая высота меню, при которой последний видимый пункт помещается целиком. */
+        fitPermissionMenuToItems(limit) {
+            const menu = this.$refs.permissionDropdown.querySelector('.permission__dropdown-menu');
+            if (!menu) return limit;
+            // offsetHeight, а не getBoundingClientRect: во время анимации открытия rect врёт.
+            const borders = 2;
+            // Строка поиска не прокручивается вместе со списком, её высота - фикс. расход.
+            const search = menu.querySelector('.permission__dropdown-search');
+            const searchHeight = search ? search.offsetHeight : 0;
+            const listLimit = limit - searchHeight - borders;
+
+            // Строка "Ничего не найдено" занимает место наравне с пунктами, иначе
+            // список окажется на её высоту короче и заведёт полосу прокрутки.
+            let fitted = 0;
+            for (const row of menu.querySelectorAll('.permission__dropdown-item, .permission__dropdown-empty')) {
+                if (fitted + row.offsetHeight > listLimit) break;
+                fitted += row.offsetHeight;
+            }
+            if (fitted === 0) return limit;
+
+            // offsetHeight округляет дробную высоту вниз, и списку не хватает
+            // полупикселя - появляется полоса прокрутки на ровном месте.
+            const subpixelSlack = 1;
+            return Math.min(limit, searchHeight + fitted + borders + subpixelSlack);
+        },
+
+        /**
+         * Свободное место над и под якорем в layout-px и сторона раскрытия.
+         * rect отдаёт device-px под корневым zoom, innerHeight - незумленную высоту,
+         * поэтому к layout-px приводятся ОБА (при zoom=1 деление ничего не меняет).
+         */
+        measureDropSpace(anchor) {
+            if (!anchor || typeof window === 'undefined') return null;
+            const zoom = getViewportZoom() || 1;
+            const rect = anchor.getBoundingClientRect();
+            const bounds = this.dropBounds(anchor);
+            const below = (bounds.bottom - rect.bottom) / zoom;
+            const above = (rect.top - bounds.top) / zoom;
+            return { below, above, flipUp: below < 200 && above > below };
+        },
+
+        /** Границы, за которые меню выходить нельзя: экран и прокручиваемые предки. */
+        dropBounds(anchor) {
+            let top = 0;
+            let bottom = window.innerHeight;
+
+            for (let el = anchor.parentElement; el && el !== document.body; el = el.parentElement) {
+                const overflowY = getComputedStyle(el).overflowY;
+                if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden') {
+                    const rect = el.getBoundingClientRect();
+                    top = Math.max(top, rect.top);
+                    bottom = Math.min(bottom, rect.bottom);
+                }
+            }
+
+            return { top, bottom };
+        },
+
+        /**
+         * Стрелка на закрытой кнопке показывает, куда меню раскроется, поэтому
+         * сторону надо знать и до открытия: скролл страницы меняет её на ходу.
+         * Через requestAnimationFrame - обход предков дорог для каждого события скролла.
+         */
+        onDropViewportChange() {
+            if (this.dropDirectionFrame) return;
+            this.dropDirectionFrame = requestAnimationFrame(() => {
+                this.dropDirectionFrame = null;
+                this.updateDropDirections();
+                if (this.isCitizenshipDropdownOpen) {
+                    this.citizenshipMenuStyle = this.buildCitizenshipMenuStyle();
+                }
+                if (this.isPermissionDropdownOpen) {
+                    this.permissionMenuStyle = this.buildPermissionMenuStyle();
+                }
+            });
+        },
+
+        updateDropDirections() {
+            const citizenship = this.measureDropSpace(this.$refs.citizenshipButton);
+            if (citizenship) this.citizenshipMenuUp = citizenship.flipUp;
+
+            const permission = this.measureDropSpace(this.$refs.permissionDropdown);
+            if (permission) this.permissionMenuUp = permission.flipUp;
+        },
+
+        stopDropDirectionWatch() {
+            window.removeEventListener('scroll', this.onDropViewportChange, true);
+            window.removeEventListener('resize', this.onDropViewportChange);
+            if (this.dropDirectionFrame) {
+                cancelAnimationFrame(this.dropDirectionFrame);
+                this.dropDirectionFrame = null;
+            }
+        },
+
         selectPermission(permission) {
             this.selectedPermission = permission;
             this.isPermissionDropdownOpen = false;
-            this.patentNumber = '';
+            if (permission) {
+                this.patentNumber = '';
+            }
+        },
+
+        /** Enter в поиске выбирает вариант, только когда он остался один - иначе гадание. */
+        selectOnlyFoundPermission() {
+            if (this.filteredPermissions.length === 1) {
+                this.selectPermission(this.filteredPermissions[0]);
+            }
         },
 
         handlePatentInput() {
@@ -1111,69 +1419,23 @@ export default {
             }
         },
 
-        triggerFileInput() {
-            this.$refs.fileInput.click();
-        },
-
-        handleFileUpload(event) {
-            const files = Array.from(event.target.files);
-            files.forEach(file => {
-                const fileExtension = file.name.split('.').pop().toLowerCase();
-                const fileType = file.type.startsWith('image/') ? 'image' : 'document';
-                const fileData = {
-                    name: file.name,
-                    file: file,
-                    type: fileType,
-                    extension: fileExtension
-                };
-
-                if (fileType === 'image') {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        fileData.preview = e.target.result;
-                        this.uploadedFiles.push(fileData);
-                    };
-                    reader.readAsDataURL(file);
-                } else {
-                    this.uploadedFiles.push(fileData);
-                }
-            });
-            
-            event.target.value = '';
-        },
-
-        getFileIcon(extension) {
-            const icons = import.meta.glob('@/assets/icons/*.png', { eager: true, import: 'default' });
-            const iconMap = {
-                'pdf': icons['/src/assets/icons/pdf.png'],
-                'doc': icons['/src/assets/icons/doc.png'],
-                'docx': icons['/src/assets/icons/doc.png'],
-                'xlsx': icons['/src/assets/icons/xlsx.png'],
-                'xls': icons['/src/assets/icons/xlsx.png'],
-            };
-            return iconMap[extension] || icons['/src/assets/icons/document.png'];
-        },
-
-        removeFile(index) {
-            this.uploadedFiles.splice(index, 1);
-        }
     }
 }
 </script>
 <style scoped>
 .input__label {
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .required {
-    color: #ff4444;
+    color: var(--danger-text);
 }
 
 .data__completion {
     padding: 15px;
     width: 450px;
-    border-right: 1px solid #e6e6e6;
+    border-right: 1px solid var(--border);
 }
 
 .data__completion--locked {
@@ -1195,8 +1457,9 @@ export default {
 }
 
 .citizenship__label {
+    order: -1;
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .citizenship-actions {
@@ -1207,9 +1470,9 @@ export default {
 }
 
 .cancel-edit-btn {
-    background: #f8f8f8;
-    color: #333;
-    border: 1px solid #e6e6e6;
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
     border-radius: 15px;
     padding: 8px 15px;
     font-size: 12px;
@@ -1218,12 +1481,12 @@ export default {
 }
 
 .cancel-edit-btn:hover {
-    background: #e8e8e8;
+    background: var(--row-hover);
 }
 
 .add-button {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     border: none;
     border-radius: 15px;
     padding: 8px 15px;
@@ -1235,11 +1498,11 @@ export default {
 }
 
 .add-button:hover:not(:disabled) {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 .add-button:disabled {
-    background: #a2a2a2;
+    background: var(--text-muted);
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -1254,14 +1517,14 @@ export default {
 }
 
 .tooltip-content {
-    background: #333;
-    color: white;
+    background: var(--hint-bg);
+    color: var(--hint-text);
     padding: 10px 12px;
     border-radius: 8px;
     font-size: 12px;
     max-width: 420px;
     min-width: 420px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 8px var(--shadow-drop);
 }
 
 .tooltip-content::before {
@@ -1270,7 +1533,7 @@ export default {
     bottom: 100%;
     right: 40px;
     border: 5px solid transparent;
-    border-bottom-color: #333;
+    border-bottom-color: var(--hint-bg);
 }
 
 .citizenship__dropdown {
@@ -1280,8 +1543,8 @@ export default {
 .dropdown__button {
     width: 100%;
     height: 30px;
-    border: 1px solid #e6e6e6;
-    background-color: #FFF;
+    border: 1px solid var(--border);
+    background-color: var(--surface);
     border-radius: 50px;
     outline: none;
     cursor: pointer;
@@ -1290,11 +1553,11 @@ export default {
 }
 
 .dropdown__button:hover:not(:disabled) {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .dropdown__button:disabled {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -1315,7 +1578,7 @@ export default {
 
 .button__text {
     font-size: 14px;
-    color: #000;
+    color: var(--text);
     font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
@@ -1324,16 +1587,19 @@ export default {
     display: block;
 }
 
+/* Иконка нарисована остриём вправо, отсюда базовые 90deg (вниз). Вверх - это 270deg,
+   а не -90deg: поворот идёт дальше по кругу, а не отматывается назад через исходное
+   положение иконки, где она на миг встаёт боком. */
 .button__arrow {
     width: 10px;
     height: 10px;
-    transition: transform 0.2s;
+    transition: transform 0.2s ease-out;
     transform: rotate(90deg);
     flex-shrink: 0;
 }
 
-.button__arrow--open {
-    transform: rotate(-90deg);
+.button__arrow--up {
+    transform: rotate(270deg);
 }
 
 .dropdown__menu {
@@ -1341,11 +1607,11 @@ export default {
     top: 100%;
     left: 0;
     width: 100%;
-    background: #FFF;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     margin-top: 5px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 3px 10px var(--shadow-drop);
     z-index: 1000;
     max-height: 300px;
     overflow-y: auto;
@@ -1362,7 +1628,7 @@ export default {
 }
 
 .dropdown__item:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .dropdown__item:first-child {
@@ -1375,19 +1641,37 @@ export default {
 
 .item__text {
     font-size: 13px;
-    color: #333;
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
 .patent-required-badge {
-    background: #ffebee;
-    color: #c62828;
+    background: var(--danger-bg);
+    color: var(--danger-text);
     padding: 2px 6px;
     border-radius: 8px;
     font-size: 10px;
     font-weight: 500;
+}
+
+.completion__consent {
+    margin-top: 10px;
+}
+
+.consent-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 11px;
+    line-height: 1.3;
+    cursor: pointer;
+}
+
+.consent-option input[type="checkbox"] {
+    margin-top: 2px;
+    flex-shrink: 0;
 }
 
 .completion__fields {
@@ -1417,8 +1701,7 @@ export default {
 .completion__position-header,
 .completion__passport-header,
 .completion__patent-header,
-.completion__permission-header,
-.completion__files-header {
+.completion__permission-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1428,20 +1711,20 @@ export default {
 .name__input {
     width: 100%;
     height: 40px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
     padding: 0 15px;
     outline: none;
     font-size: 14px;
-    background: #FFF;
+    background: var(--surface);
 }
 
 .name__input:focus {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .name__input:disabled {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
     cursor: not-allowed;
 }
 
@@ -1452,7 +1735,7 @@ export default {
 
 .disabled-field .name__input,
 .disabled-field .permission__dropdown-button {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
     cursor: not-allowed;
 }
 
@@ -1463,28 +1746,28 @@ export default {
 
 .permission__dropdown {
     width: 100%;
-    height: 40px;
     position: relative;
 }
 
 .permission__dropdown-button {
     width: 100%;
-    height: 100%;
-    border: 1px solid #e6e6e6;
-    background-color: #FFF;
+    min-height: 40px;
+    border: 1px solid var(--border);
+    background-color: var(--surface);
     border-radius: 15px;
     outline: none;
     cursor: pointer;
-    padding: 0 15px;
+    padding: 8px 15px;
+    text-align: left;
     transition: border-color 0.2s;
 }
 
 .permission__dropdown-button:hover:not(:disabled) {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .permission__dropdown-button:disabled {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -1493,30 +1776,39 @@ export default {
     display: flex;
     align-items: center;
     width: 100%;
-    height: 100%;
     justify-content: space-between;
+    gap: 10px;
 }
 
+/* Формулировка разрешения длинная: даём ей всю ширину поля и две строки,
+   дальше многоточие (полный текст - в title кнопки и в самом меню). */
 .permission__button-text {
+    flex: 1;
+    min-width: 0;
     font-size: 14px;
-    color: #000;
-    white-space: nowrap;
+    color: var(--text);
+    line-height: 1.3;
+    text-align: left;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 150px;
-    display: block;
+}
+
+.permission__dropdown-button--placeholder .permission__button-text {
+    color: var(--text-muted);
 }
 
 .permission__button-arrow {
     width: 10px;
     height: 10px;
-    transition: transform 0.2s;
+    transition: transform 0.2s ease-out;
     transform: rotate(90deg);
     flex-shrink: 0;
 }
 
-.permission__button-arrow--open {
-    transform: rotate(-90deg);
+.permission__button-arrow--up {
+    transform: rotate(270deg);
 }
 
 .permission__dropdown-menu {
@@ -1524,26 +1816,76 @@ export default {
     top: 100%;
     left: 0;
     width: 100%;
-    background: #FFF;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     margin-top: 5px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 3px 10px var(--shadow-drop);
     z-index: 1000;
-    max-height: 220px;
+    /* Рабочий потолок ставит buildPermissionMenuStyle() по месту на экране,
+       здесь - запас на случай, если меню открыли до расчёта. */
+    max-height: 300px;
+    /* Колонка со скроллом на списке, а не на меню: строка поиска остаётся на месте,
+       а inline max-height ужимает список, а не режет его через overflow. */
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
 }
 
+.permission__dropdown-search {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.permission__search-input {
+    width: 100%;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.permission__search-input:focus {
+    border-color: var(--accent);
+}
+
+.permission__dropdown-list {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.permission__dropdown-empty {
+    padding: 12px 15px;
+    font-size: 13px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
 .permission__dropdown-item {
-    padding: 8px 15px;
+    padding: 10px 15px;
     cursor: pointer;
     transition: background-color 0.2s;
-    border-bottom: 1px solid #f5f5f5;
-    font-size: 12px;
+    border-bottom: 1px solid var(--surface-2);
 }
 
 .permission__dropdown-item:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
+}
+
+.permission__dropdown-item--selected {
+    background-color: var(--accent-tint);
+}
+
+.permission__dropdown-item--selected .permission__item-text {
+    color: var(--accent-text);
 }
 
 .permission__dropdown-item:last-child {
@@ -1551,194 +1893,43 @@ export default {
 }
 
 .permission__item-text {
-    font-size: 12px;
-    color: #333;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    display: block;
+    font-size: 13px;
+    line-height: 1.35;
+    color: var(--text);
+    overflow-wrap: break-word;
+}
+
+.permission__item-text--empty {
+    color: var(--text-muted);
 }
 
 /* File upload styles */
-.completion__files {
-    margin-top: 10px;
-}
-
-.files__upload {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-
-.file-input {
-    display: none;
-}
-
-.upload-button {
-    background: #4F5BDF;
-    color: white;
-    border: none;
-    border-radius: 15px;
-    padding: 8px 15px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.upload-button:hover:not(:disabled) {
-    background: #3a45c0;
-}
-
-.upload-button:disabled {
-    background: #a2a2a2;
-    cursor: not-allowed;
-    opacity: 0.6;
-}
-
-.uploaded-files {
-    margin-top: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.uploaded-file {
-    display: flex;
-    align-items: center;
-    padding: 8px 10px;
-    background: #f8f9fa;
-    border-radius: 8px;
-    border: 1px solid #e6e6e6;
-    gap: 10px;
-}
-
-.file-preview {
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.file-preview-image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 4px;
-}
-
-.file-icon {
-    width: 20px;
-    height: 20px;
-}
-
-.file-name {
-    font-size: 12px;
-    color: #333;
-    flex: 1;
-}
-
-.remove-file-btn {
-    background: none;
-    border: none;
-    color: #ff4444;
-    cursor: pointer;
-    font-size: 16px;
-    padding: 0;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.remove-file-btn:hover:not(:disabled) {
-    background: #ffebee;
-    border-radius: 50%;
-}
-
-.remove-file-btn:disabled {
-    cursor: not-allowed;
-    opacity: 0.6;
-}
 
 /* Passage tables styles */
 .completion__passage {
     margin-top: 15px;
 }
 
-.passage__grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    row-gap: 5px;
-    max-width: 425px;
-    margin-top: 5px;
-}
-
-.passage__item {
-    height: 30px;
-    background: #F2F2F2;
-    color: #a2a2a2;
-    border-radius: 50px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    padding: 0 10px;
-    text-align: center;
-    border: 1px solid transparent;
-    position: relative;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.passage__item:hover:not(.passage__item--active):not(.passage__item--inactive) {
-    background: #e8e8e8;
-}
-
-.passage__item--active {
-    background: #4F5BDF;
-    color: #fff;
-    border-color: #4F5BDF;
-}
-
-.passage__item--inactive {
-    background: #ffe6e6;
-    color: #ff6b6b;
-    border-color: #ffcccc;
-    cursor: not-allowed;
-    opacity: 0.7;
-}
-
-.passage__item--attached {
-    border-left: 3px solid #4F5BDF;
-}
-
 .error-message {
     font-size: 11px;
-    color: #ff4444;
+    color: var(--danger-text);
     margin-top: 5px;
 }
 
 .loading-message {
     font-size: 12px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     text-align: center;
     padding: 20px;
 }
 
 .no-tables-message {
     font-size: 12px;
-    color: #ff6b6b;
+    color: var(--danger-text);
     text-align: center;
     padding: 20px;
-    background: #fff5f5;
+    background: var(--danger-bg);
     border-radius: 8px;
     margin-top: 10px;
 }
@@ -1748,26 +1939,26 @@ export default {
     height: 25px;
     padding: 0 15px;
     border-radius: 50px;
-    background: #FFF;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     outline: none;
     font-size: 11px;
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-weight: 600;
     cursor: pointer;
 }
 
 .completion__button:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 /* Стили для существующих сотрудников */
 .existing-employees-info {
     margin-bottom: 15px;
     padding: 10px;
-    background: #f8f9fa;
+    background: var(--surface-2);
     border-radius: 10px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
 }
 
 .existing-employees-header {
@@ -1779,7 +1970,7 @@ export default {
 .existing-employees-count {
     font-size: 14px;
     font-weight: 500;
-    color: #333;
+    color: var(--text);
 }
 
 .existing-employees-actions {
@@ -1788,9 +1979,9 @@ export default {
 }
 
 .view-employees-btn {
-    background: white;
-    color: #4F5BDF;
-    border: 1px solid #4F5BDF;
+    background: var(--surface);
+    color: var(--accent-text);
+    border: 1px solid var(--accent);
     border-radius: 15px;
     padding: 5px 10px;
     font-size: 11px;
@@ -1798,12 +1989,12 @@ export default {
 }
 
 .view-employees-btn:hover {
-    background: #f0f2ff;
+    background: var(--accent-tint);
 }
 
 .add-existing-btn {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     border: none;
     border-radius: 15px;
     padding: 5px 10px;
@@ -1812,44 +2003,14 @@ export default {
 }
 
 .add-existing-btn:hover:not(:disabled) {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 .add-existing-btn:disabled {
-    background: #a2a2a2;
+    background: var(--text-muted);
     cursor: not-allowed;
     opacity: 0.6;
 }
-
-/* Tooltip для неактивных таблиц */
-.inactive-tooltip {
-    position: fixed;
-    transform: translateX(-50%) translateY(-100%);
-    z-index: 10000;
-    pointer-events: none;
-}
-
-.inactive-tooltip-content {
-    background: #333;
-    color: white;
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-size: 12px;
-    max-width: 300px;
-
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-}
-
-.inactive-tooltip-content::before {
-    content: '';
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-top-color: #333;
-}
-
 
 .dropdown-enter-active,
 .dropdown-leave-active {
@@ -1866,22 +2027,175 @@ export default {
     width: 100%;
     margin-top: 12px;
     padding: 12px;
-    background: #fff5f5;
-    border: 1px solid #f5c2c7;
+    background: var(--danger-bg);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
     border-radius: 10px;
 }
 
 .blacklist-warning .warning-title {
     font-weight: 600;
-    color: #b02a37;
+    color: var(--danger-text);
     margin: 0 0 5px 0;
     font-size: 14px;
 }
 
 .blacklist-warning .warning-details {
-    color: #b02a37;
+    color: var(--danger-text);
     margin: 0;
     font-size: 12px;
     line-height: 1.5;
+}
+
+/* Форма (450px) + список сотрудников рядом не влезают на планшете - стекаем в
+   колонку (form__data в CreateApplication.vue делает то же на этом же брейкпоинте). */
+@media (max-width: 1024px) {
+    .data__completion {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+}
+
+@media (max-width: 768px) {
+    /* Подсказка поверх НАД кнопкой: в потоке она двигала форму. Контейнер
+       кнопок - её positioned-родитель. */
+    .tooltip {
+        position: absolute;
+        top: auto;
+        bottom: calc(100% + 10px);
+        right: 0;
+        left: auto;
+        margin: 0;
+        width: min(320px, calc(100vw - 44px));
+        z-index: 1100;
+    }
+
+    .tooltip-content::before {
+        display: none;
+    }
+
+    /* Тап по заблокированной кнопке уходит контейнеру и показывает причину. */
+    .add-button:disabled {
+        pointer-events: none;
+    }
+
+    /* Кнопка «Добавить» - внизу формы, куда пользователь приходит, заполнив поля.
+       contents у двух обёрток выводит строку кнопок в прямые дети формы, флекс с
+       order отправляет её в конец; лейбл «Гражданство» остаётся над дропдауном. */
+    /* Места разгрузки и проезд - сиблинги этой обёртки, поэтому флекс с order
+       живёт на всей форме, а обёртка разворачивается. */
+    .data__completion {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .completion__body {
+        display: contents;
+    }
+
+    .completion__citizenship,
+    .citizenship__header {
+        display: contents;
+    }
+
+    .citizenship-actions {
+        order: 999;
+        justify-content: stretch;
+        margin-top: 4px;
+        padding: 4px 0;
+    }
+
+    .citizenship-actions .add-button {
+        flex: 1;
+        min-height: 44px;
+    }
+
+    .citizenship-actions .cancel-edit-btn {
+        min-height: 44px;
+    }
+
+    /* Компенсация потерянных отступов contents-обёрток. */
+    /* order:-1 нужен только десктопной строке шапки: во флексе всей формы он
+       утаскивал лейбл в самое начало. */
+    .citizenship__label {
+        order: 0;
+        display: block;
+        margin-bottom: 6px;
+    }
+
+    .citizenship__dropdown {
+        margin-bottom: 15px;
+    }
+
+    /* Заголовок блока и кнопка «Добавить сущ.» - строго одна строка. nowrap, а не
+       перенос: флекс решает про перенос по НАТУРАЛЬНОЙ ширине элемента, до
+       flex-shrink, поэтому сжимаемый заголовок кнопку в строке не удерживал -
+       «Новый сотрудник» (182px при 18.72px по умолчанию) плюс кнопка 124px требовали
+       316px при 308 доступных на 360, и кнопка падала под заголовок.
+       Кегль заголовка задан явно (по умолчанию h3 = 18.72px): 15px совпадает с
+       подписью соседнего списка, на узких телефонах 14px - как у неё же. */
+    .completion__header {
+        align-items: center;
+        flex-wrap: nowrap;
+        gap: 8px;
+    }
+
+    .completion__header h3 {
+        min-width: 0;
+        font-size: 15px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .completion__button {
+        flex-shrink: 0;
+        min-height: 36px;
+    }
+
+    .tooltip-content {
+        max-width: 100%;
+        white-space: pre-line;
+    }
+
+    .tooltip-content {
+        min-width: 0;
+        max-width: calc(100vw - 40px);
+    }
+
+    /* Ряды полей вставали в колонку только с 480 - на 481-768 ФИО и должность
+       ещё делили строку пополам. */
+    .completion__name-row {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .dropdown__button {
+        height: 40px;
+    }
+
+    .add-button {
+        min-height: 40px;
+        padding: 8px 18px;
+        font-size: 13px;
+    }
+
+    .completion__button {
+        height: 36px;
+        font-size: 12px;
+    }
+}
+
+/* Узкие телефоны: на 320 ряду шапки формы остаётся 268px, а «Новый сотрудник» 15px
+   вместе с кнопкой требуют 278. Кегль как у подписи соседнего списка (14px) и более
+   плотные поля кнопки дают 262 - заголовок читается целиком, без многоточия. */
+@media (max-width: 480px) {
+    .completion__header h3 {
+        font-size: 14px;
+    }
+
+    .completion__button {
+        padding: 0 12px;
+    }
 }
 </style>

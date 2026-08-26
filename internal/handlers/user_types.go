@@ -32,8 +32,7 @@ func NewUserTypesHandler(service services.UserTypeService) *UserTypesHandler {
 // @Failure      500 {object} models.HTTPError
 // @Router       /user-types-management [get]
 func (h *UserTypesHandler) GetAll(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
-	result, err := h.service.GetAllWithCount(c.Request().Context(), typeID)
+	result, err := h.service.GetAllWithCount(c.Request().Context())
 	if err != nil {
 		return err
 	}
@@ -54,13 +53,12 @@ func (h *UserTypesHandler) GetAll(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /user-types-management [post]
 func (h *UserTypesHandler) Create(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	userID, _ := c.Get("user_id").(int)
 	var req services.CreateUserTypeRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	id, err := h.service.Create(c.Request().Context(), typeID, userID, req)
+	id, err := h.service.Create(c.Request().Context(), userID, req)
 	if err != nil {
 		return err
 	}
@@ -85,7 +83,6 @@ func (h *UserTypesHandler) Create(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /user-types-management/{id} [put]
 func (h *UserTypesHandler) Update(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	userID, _ := c.Get("user_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -95,7 +92,7 @@ func (h *UserTypesHandler) Update(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.Update(c.Request().Context(), typeID, userID, id, req); err != nil {
+	if err := h.service.Update(c.Request().Context(), userID, id, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Тип пользователя успешно обновлен")
@@ -115,13 +112,12 @@ func (h *UserTypesHandler) Update(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /user-types-management/{id} [delete]
 func (h *UserTypesHandler) Delete(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	userID, _ := c.Get("user_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user type ID")
 	}
-	if err := h.service.Delete(c.Request().Context(), typeID, userID, id); err != nil {
+	if err := h.service.Delete(c.Request().Context(), userID, id); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Тип пользователя успешно удален")
@@ -138,14 +134,74 @@ func (h *UserTypesHandler) Delete(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /user-types-management/{id}/history [get]
 func (h *UserTypesHandler) GetHistory(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user type ID")
 	}
-	items, err := h.service.GetHistory(c.Request().Context(), typeID, id)
+	items, err := h.service.GetHistory(c.Request().Context(), id)
 	if err != nil {
 		return err
 	}
 	return RespondSuccess(c, items)
+}
+
+// GetBlockingUsers godoc
+// @Summary      Пользователи, блокирующие удаление типа
+// @Description  Возвращает всех пользователей типа (включая архивных), из-за которых
+// @Description  тип нельзя удалить. Требует права admin.
+// @Tags         user-types-management
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID типа пользователя"
+// @Success      200 {array} services.UserTypeMemberResponse
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /user-types-management/{id}/blocking-users [get]
+func (h *UserTypesHandler) GetBlockingUsers(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user type ID")
+	}
+	users, err := h.service.GetTypeUsers(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, users)
+}
+
+// ReassignUsers godoc
+// @Summary      Перенести всех пользователей типа в другой тип
+// @Description  Переносит всех пользователей типа в целевой (target_type_id),
+// @Description  освобождая исходный для удаления. Требует права admin.
+// @Tags         user-types-management
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID исходного типа"
+// @Param        request body services.ReassignUserTypeRequest true "ID целевого типа"
+// @Success      200 {object} map[string]int "reassigned"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /user-types-management/{id}/reassign-users [post]
+func (h *UserTypesHandler) ReassignUsers(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user type ID")
+	}
+	var req services.ReassignUserTypeRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if req.TargetTypeID <= 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не указан целевой тип пользователя")
+	}
+	userID, _ := c.Get("user_id").(int)
+	count, err := h.service.ReassignTypeUsers(c.Request().Context(), userID, id, req.TargetTypeID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]int{"reassigned": count})
 }

@@ -130,11 +130,12 @@ func buildPivotPlan(metric, pivotKey, granularity string, filters []models.Repor
 }
 
 // applyPivotCells вписывает cross-tab ячейки в уже собранные построчные данные и
-// возвращает добавочные pivot-колонки. Чистая функция. Колонки строятся по всем
-// встреченным значениям оси (детерминированный порядок — по убыванию суммы, затем
-// по имени), их ключи — pivotColumnPrefix+значение. Бины, которых нет среди rows
-// (отфильтрованы лимитом), игнорируются — cross-tab не добавляет новых строк.
-func applyPivotCells(rows []models.ReportMetricRow, cells []pivotCell, axisLabel string) []models.ReportMetricColumn {
+// возвращает добавочные pivot-колонки + их итоги (ключ колонки -> сумма по видимым
+// строкам, для строки «Итого»). Чистая функция. Колонки строятся по всем встреченным
+// значениям оси (детерминированный порядок — по убыванию суммы, затем по имени), их
+// ключи — pivotColumnPrefix+значение. Бины, которых нет среди rows (отфильтрованы
+// лимитом), игнорируются — cross-tab не добавляет новых строк, и в итоги не входят.
+func applyPivotCells(rows []models.ReportMetricRow, cells []pivotCell, axisLabel string) ([]models.ReportMetricColumn, map[string]int64) {
 	rowByLabel := make(map[string]int, len(rows))
 	for i, r := range rows {
 		rowByLabel[r.Label] = i
@@ -166,13 +167,16 @@ func applyPivotCells(rows []models.ReportMetricRow, cells []pivotCell, axisLabel
 	})
 
 	cols := make([]models.ReportMetricColumn, 0, len(pivots))
+	colTotals := make(map[string]int64, len(pivots))
 	for _, p := range pivots {
+		key := pivotColumnPrefix + p
 		cols = append(cols, models.ReportMetricColumn{
-			Key:   pivotColumnPrefix + p,
+			Key:   key,
 			Label: axisLabel + ": " + p,
 			Unit:  "шт",
 			Kind:  models.ReportColumnPivot,
 		})
+		colTotals[key] = pivotTotals[p]
 	}
 	// Строки без значения по колонке должны давать 0 (явный нуль для FE-таблицы).
 	for ri := range rows {
@@ -186,7 +190,7 @@ func applyPivotCells(rows []models.ReportMetricRow, cells []pivotCell, axisLabel
 			}
 		}
 	}
-	return cols
+	return cols, colTotals
 }
 
 // avgMetrics — метрики-средние: значение бина = счётчик / число календарных дней

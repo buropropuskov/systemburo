@@ -60,6 +60,34 @@ export const REPORT_PRESETS = [
     resultHint: 'Таблица: статус + число заявок, с итогом.',
     form: { mode: 'aggregate', metric: 'applications_count', dimension: 'status' },
   },
+  {
+    id: 'approval_time_trend',
+    title: 'Скорость согласования',
+    description: 'Среднее время от подачи заявки до её согласования по дням.',
+    resultHint: 'Таблица: дата + среднее время согласования, с трендом.',
+    form: { mode: 'aggregate', metric: 'avg_approval_time', dimension: 'period', granularity: 'day' },
+  },
+  {
+    id: 'processing_time_by_org',
+    title: 'Сроки обработки по организациям',
+    description: 'Среднее время от подачи до принятия заявки в работу в разрезе организаций.',
+    resultHint: 'Таблица: организация + среднее время обработки.',
+    form: { mode: 'aggregate', metric: 'avg_processing_time', dimension: 'organization' },
+  },
+  {
+    id: 'refusal_rate_trend',
+    title: 'Доля отказов по дням',
+    description: 'Динамика доли отклонённых и несогласованных заявок за период.',
+    resultHint: 'Таблица: дата + доля отказов (%), с трендом.',
+    form: { mode: 'aggregate', metric: 'refusal_rate', dimension: 'period', granularity: 'day' },
+  },
+  {
+    id: 'approver_response_time',
+    title: 'Время реакции согласующих',
+    description: 'Среднее время ответа каждого согласующего - от назначения до голоса.',
+    resultHint: 'Таблица: согласующий + среднее время реакции.',
+    form: { mode: 'aggregate', metric: 'avg_approver_response_time', dimension: 'by_approver' },
+  },
 ];
 
 /**

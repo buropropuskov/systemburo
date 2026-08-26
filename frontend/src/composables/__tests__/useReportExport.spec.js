@@ -1,5 +1,15 @@
-import { describe, it, expect } from 'vitest';
-import { reportToTable } from '../useReportExport';
+import { describe, it, expect, vi } from 'vitest';
+import { reportToTable, computeColumnWidths, useReportExport } from '../useReportExport';
+
+// PDF-ветку тестируем с мок-pdfmake: проверяем, что формат 'pdf' строит документ
+// через pdfmake (vfs + createPdf) и инициирует скачивание - без реального браузера.
+vi.mock('pdfmake/build/pdfmake', () => ({
+  default: {
+    addVirtualFileSystem: vi.fn(),
+    createPdf: vi.fn(() => ({ getBlob: (cb) => cb(new Blob(['%PDF'], { type: 'application/pdf' })) })),
+  },
+}));
+vi.mock('pdfmake/build/vfs_fonts', () => ({ default: {} }));
 
 describe('reportToTable', () => {
   it('мультиметрик aggregate: колонки-метрики, строки значений и строка итогов', () => {
@@ -41,6 +51,71 @@ describe('reportToTable', () => {
     expect(t.totalsRow).toEqual(['Итого', 3]);
   });
 
+  it('cross-tab pivot + float: pivot в values, дробная метрика в float_values/float_totals, период -> дд.мм.гггг', () => {
+    const t = reportToTable({
+      mode: 'aggregate',
+      dimension: 'period',
+      columns: [
+        { key: 'car_entries_count', label: 'Машины', unit: 'шт' },
+        { key: 'avg_cars_per_day', label: 'Среднее/день', unit: 'шт/день', float: true },
+        { key: 'att_propusk', label: 'Пропуск', kind: 'pivot' },
+      ],
+      metric_rows: [
+        {
+          label: '2026-06-01',
+          values: { car_entries_count: 10, att_propusk: 6 },
+          float_values: { avg_cars_per_day: 2.5 },
+        },
+      ],
+      totals: { car_entries_count: 10, att_propusk: 6 },
+      float_totals: { avg_cars_per_day: 2.5 },
+    });
+    expect(t.header).toEqual(['Значение разреза', 'Машины, шт', 'Среднее/день, шт/день', 'Пропуск']);
+    expect(t.rows).toEqual([['01.06.2026', 10, 2.5, 6]]);
+    expect(t.totalsRow).toEqual(['Итого', 10, 2.5, 6]);
+  });
+
+  it('длительность выгружается читаемой, непройденный этап — пустой ячейкой (#1240)', () => {
+    const t = reportToTable({
+      mode: 'aggregate',
+      dimension: 'organization',
+      columns: [
+        { key: 'avg_approval_time', label: 'Время согласования', type: 'duration' },
+        { key: 'avg_completion_time', label: 'Время до завершения', type: 'duration' },
+        { key: 'applications_count', label: 'Заявки', unit: 'шт' },
+      ],
+      metric_rows: [
+        { label: 'ООО А', values: { avg_approval_time: 8100, avg_completion_time: 259200, applications_count: 10 } },
+        // Этап завершения не пройден: движок ключ не выставляет, `?? 0` дал бы «0 мин».
+        { label: 'ООО Б', values: { avg_approval_time: 0, applications_count: 4 } },
+      ],
+      totals: { avg_approval_time: 5400, applications_count: 14 },
+    });
+    expect(t.rows).toEqual([
+      ['ООО А', '2 ч 15 мин', '3 сут', 10],
+      ['ООО Б', '0 с', '', 4],
+    ]);
+    expect(t.totalsRow).toEqual(['Итого', '1 ч 30 мин', '', 14]);
+    // Метрики остаются числовыми колонками (вправо), даже став текстом длительности.
+    expect(t.numericColumns).toEqual([false, true, true, true]);
+  });
+
+  it('непосчитанная доля (float без ключа) -> пустая ячейка, счётчик -> честный 0', () => {
+    const t = reportToTable({
+      mode: 'aggregate',
+      dimension: 'organization',
+      columns: [
+        { key: 'refusal_rate', label: 'Доля отказов', unit: '%', float: true },
+        { key: 'applications_count', label: 'Заявки', unit: 'шт' },
+      ],
+      // Заявок в бине не было: доли нет (ключ не выставлен), счётчик честно 0.
+      metric_rows: [{ label: 'ООО Б', values: {}, float_values: {} }],
+      totals: {},
+      float_totals: {},
+    });
+    expect(t.rows).toEqual([['ООО Б', '', 0]]);
+  });
+
   it('list: заголовки и строки по колонкам сущности, без итогов', () => {
     const t = reportToTable({
       mode: 'list',
@@ -55,5 +130,77 @@ describe('reportToTable', () => {
 
   it('пустой результат не падает', () => {
     expect(reportToTable(null).header).toEqual([]);
+  });
+});
+
+describe('computeColumnWidths', () => {
+  it('ширина колонки не меньше длины заголовка и самой длинной ячейки', () => {
+    const table = {
+      header: ['Значение разреза', 'Заявки, шт'],
+      rows: [['ООО Длинное Название Организации', 4], ['А', 1200]],
+      totalsRow: null,
+    };
+    const w = computeColumnWidths(table);
+    // col0: max('Значение разреза'=16, 'ООО Длинное Название Организации'=31) -> 31
+    expect(w[0]).toBe('ООО Длинное Название Организации'.length);
+    expect(w[0]).toBeGreaterThanOrEqual('Значение разреза'.length);
+    // col1: max('Заявки, шт'=10, '4'=1, '1200'=4) -> 10
+    expect(w[1]).toBe('Заявки, шт'.length);
+  });
+
+  it('учитывает строку итогов при расчёте ширины', () => {
+    const table = {
+      header: ['Разрез', 'N'],
+      rows: [['А', 1]],
+      totalsRow: ['Итого по всем разрезам', 1],
+    };
+    const w = computeColumnWidths(table);
+    expect(w[0]).toBe('Итого по всем разрезам'.length);
+  });
+
+  it('пустые/числовые ячейки не ломают расчёт', () => {
+    const table = { header: ['A', 'B'], rows: [[null, 0], ['', undefined]], totalsRow: null };
+    expect(computeColumnWidths(table)).toEqual([1, 1]);
+  });
+});
+
+describe('useReportExport — PDF-экспорт', () => {
+  it('формат pdf строит документ через pdfmake и скачивает файл', async () => {
+    const pdfMake = (await import('pdfmake/build/pdfmake')).default;
+    pdfMake.addVirtualFileSystem.mockClear();
+    pdfMake.createPdf.mockClear();
+
+    window.URL.createObjectURL = vi.fn(() => 'blob:test');
+    window.URL.revokeObjectURL = vi.fn();
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    const { exporting, exportReport } = useReportExport();
+    await exportReport(
+      { mode: 'aggregate', dimension: 'status', unit: 'шт', rows: [{ label: 'Завершено', value: 3 }], total: 3 },
+      { title: 'Отчёт', period: { from: '2026-06-01', to: '2026-06-07' } },
+      'pdf',
+    );
+
+    expect(pdfMake.addVirtualFileSystem).toHaveBeenCalledTimes(1);
+    expect(pdfMake.createPdf).toHaveBeenCalledTimes(1);
+    const doc = pdfMake.createPdf.mock.calls[0][0];
+    const tableNode = doc.content.find((n) => n.table);
+    expect(tableNode).toBeTruthy();
+    // шапка таблицы и строка данных попали в документ
+    expect(tableNode.table.body[0].map((c) => c.text)).toEqual(['Значение разреза', 'Количество, шт']);
+    expect(tableNode.table.body).toHaveLength(3); // header + строка + итого
+    expect(clickSpy).toHaveBeenCalled();
+    expect(window.URL.revokeObjectURL).toHaveBeenCalled();
+    expect(exporting.value).toBe(false);
+
+    clickSpy.mockRestore();
+  });
+
+  it('пустой результат бросает ошибку до обращения к pdfmake', async () => {
+    const pdfMake = (await import('pdfmake/build/pdfmake')).default;
+    pdfMake.createPdf.mockClear();
+    const { exportReport } = useReportExport();
+    await expect(exportReport(null, {}, 'pdf')).rejects.toThrow('Нет данных');
+    expect(pdfMake.createPdf).not.toHaveBeenCalled();
   });
 });

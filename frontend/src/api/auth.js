@@ -16,13 +16,6 @@ export async function refreshToken(token) {
   return res.json();
 }
 
-export async function logout(refreshTokenValue) {
-  return apiRequest('/logout', {
-    method: 'POST',
-    body: JSON.stringify({ refresh_token: refreshTokenValue }),
-  });
-}
-
 export async function getMe() {
   const res = await apiRequest('/users/me');
   return res.json();

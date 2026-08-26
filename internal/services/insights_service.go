@@ -21,13 +21,27 @@ const (
 // динамики» (flat), чтобы шум не выглядел трендом.
 const insightDeltaThreshold = 5.0
 
-// GetInsights собирает готовые инсайты за период: пик нагрузки по часам, сравнение
+// GetInsights отдаёт инсайты за период из тёплого кэша (если включён), иначе
+// считает напрямую. Результат кэшируется снимком в БД и переживает рестарт.
+func (s *statisticsService) GetInsights(ctx context.Context, from, to string) (*models.InsightsResponse, error) {
+	if s.insightsCache == nil {
+		return s.computeInsights(ctx, from, to)
+	}
+	f, errF := time.Parse("2006-01-02", from)
+	t, errT := time.Parse("2006-01-02", to)
+	if errF != nil || errT != nil {
+		return s.computeInsights(ctx, from, to) // невалидные даты - мимо кэша
+	}
+	return s.insightsCache.get(ctx, f, t)
+}
+
+// computeInsights собирает инсайты за период: пик нагрузки по часам, сравнение
 // с предыдущим периодом, топ мест и организаций, тренды. Всё считается вызовами
 // RunReport (движок отчётов), нового SQL нет.
 //
 // MVP: ~13 последовательных запросов на вызов. Если станет узким местом — блок
 // comparison (6 запросов) сворачивается в один запрос с двумя CTE по периодам.
-func (s *statisticsService) GetInsights(ctx context.Context, from, to string) (*models.InsightsResponse, error) {
+func (s *statisticsService) computeInsights(ctx context.Context, from, to string) (*models.InsightsResponse, error) {
 	resp := &models.InsightsResponse{
 		PeakHours:   []models.PeakHoursInsight{},
 		Comparisons: []models.ComparisonInsight{},

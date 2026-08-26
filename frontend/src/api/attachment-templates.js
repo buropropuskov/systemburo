@@ -1,4 +1,5 @@
 import { apiRequest } from './client';
+import { parseContentDispositionFilename } from '@/utils/download';
 
 /**
  * API клиент Excel-бланков и кастомных полей вложений (#183).
@@ -66,6 +67,68 @@ export async function updateMappings(uniqueAttachmentID, mappings, concatSeparat
     method: 'PUT',
     body: JSON.stringify(body),
   });
+  return res.json();
+}
+
+/**
+ * Изменить границы строк списка у активного шаблона без перезагрузки файла.
+ * @param {number} uniqueAttachmentID
+ * @param {{ listStartRow: number, listEndRow: number, maxListRows?: number }} params
+ */
+export async function updateTemplateParams(uniqueAttachmentID, {
+  listStartRow, listEndRow, maxListRows = 0, itemsMaxListRows = 0,
+}) {
+  const res = await apiRequest(`/attachments/${uniqueAttachmentID}/template/params`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      list_start_row: listStartRow,
+      list_end_row: listEndRow,
+      max_list_rows: maxListRows,
+      items_max_list_rows: itemsMaxListRows,
+    }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message || 'Не удалось сохранить параметры списка');
+  }
+  return res.json();
+}
+
+/**
+ * Шаблоны, с которых можно перенести привязки (все настроенные бланки системы).
+ * @returns {Promise<Array<{ template_id: number, unique_attachment_id: number,
+ *   attachment_name: string, attachment_type: string, original_file_name: string,
+ *   mappings_count: number, is_active: boolean }>>}
+ */
+export async function listTemplateSources() {
+  const res = await apiRequest('/attachments/template-sources');
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message || 'Не удалось получить список шаблонов');
+  }
+  return res.json();
+}
+
+/**
+ * Перенести привязки с другого шаблона в активный шаблон вложения.
+ * @param {number} uniqueAttachmentID
+ * @param {{ sourceTemplateID: number, replace?: boolean, copyParams?: boolean }} params
+ * @returns {Promise<{ copied: number, skipped_foreign_list: number, skipped_custom: number,
+ *   remapped_custom: number, skipped_duplicates: number, params_copied: boolean }>}
+ */
+export async function copyMappings(uniqueAttachmentID, { sourceTemplateID, replace = true, copyParams = false }) {
+  const res = await apiRequest(`/attachments/${uniqueAttachmentID}/template/copy-mappings`, {
+    method: 'POST',
+    body: JSON.stringify({
+      source_template_id: sourceTemplateID,
+      replace,
+      copy_params: copyParams,
+    }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message || 'Не удалось перенести привязки');
+  }
   return res.json();
 }
 
@@ -161,22 +224,49 @@ export async function getTemplateFile(uniqueAttachmentID) {
 /**
  * Скачать заполненный бланк для одного вложения заявки.
  * Возвращает Blob, который нужно сохранить через createObjectURL + link.click().
+ * @param {number} applicationID
+ * @param {number} attachmentID
+ * @param {{withDocuments?: boolean}} [options] withDocuments - подставить документы
+ *   участников (паспорт, патент, иное разрешение). Решение всё равно перепроверяет
+ *   сервер по правам detail.documents и detail.documents.export: без них бланк
+ *   приходит с прочерками.
+ *
+ * Источник (сохранённый файл архива против генерации заново) в интерфейсе не
+ * выбирается: заявителю разница непонятна, а бланк собирается заново всегда.
+ * Сохранённые копии забирают из раздела «Файловый архив», у сервера параметр
+ * source остался.
  */
-export async function downloadBlank(applicationID, attachmentID) {
+export async function downloadBlank(applicationID, attachmentID, { withDocuments } = {}) {
   const { apiRequestRaw } = await import('./client');
-  const res = await apiRequestRaw(`/applications/${applicationID}/blank?attachment_id=${attachmentID}`);
+  let url = `/applications/${applicationID}/blank?attachment_id=${attachmentID}`;
+  if (withDocuments) url += '&documents=1';
+  const res = await apiRequestRaw(url);
   if (!res.ok) {
     throw new Error(`Failed to download blank: ${res.status}`);
   }
   const blob = await res.blob();
-  // Извлекаем имя файла из Content-Disposition.
   const cd = res.headers.get('Content-Disposition') || '';
-  const utf8Match = cd.match(/filename\*=UTF-8''(.+)/i);
-  const basicMatch = cd.match(/filename="?([^";]+)"?/);
-  const filename = utf8Match
-    ? decodeURIComponent(utf8Match[1])
-    : basicMatch ? basicMatch[1] : `blank_${applicationID}_${attachmentID}.xlsx`;
+  const filename = parseContentDispositionFilename(cd, `blank_${applicationID}_${attachmentID}.xlsx`);
   return { blob, filename };
+}
+
+/**
+ * Загрузить заполненный бланк вложения как ArrayBuffer для предпросмотра в XlsxViewer (#706 S4).
+ * Тот же эндпоинт, что downloadBlank, но без сохранения в файл - буфер парсит exceljs во вьювере.
+ * @param {number} applicationID
+ * @param {number} attachmentID
+ * @param {{withDocuments?: boolean}} [options] withDocuments - показать документы
+ *   участников; проверяется сервером по правам, как и при скачивании.
+ * @returns {Promise<ArrayBuffer>}
+ */
+export async function previewBlank(applicationID, attachmentID, { withDocuments } = {}) {
+  const { apiRequestRaw } = await import('./client');
+  const docs = withDocuments ? '&documents=1' : '';
+  const res = await apiRequestRaw(`/applications/${applicationID}/blank?attachment_id=${attachmentID}${docs}`);
+  if (!res.ok) {
+    throw new Error(`Failed to preview blank: ${res.status}`);
+  }
+  return res.arrayBuffer();
 }
 
 /**

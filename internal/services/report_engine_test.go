@@ -30,6 +30,24 @@ func TestAggregateEngine_CoversCatalogDimensions(t *testing.T) {
 	}
 }
 
+// TestAggregateEngine_DimsPublishedInCatalog — обратная сторона
+// CoversCatalogDimensions: разрез, который движок умеет резолвить для метрики,
+// обязан быть заявлен каталогом. Иначе запись в dims мертва — buildAggregatePlan
+// сверяется с каталогом и отобьёт разрез раньше, чем дойдёт до схемы, а автор
+// схемы будет уверен, что разрез работает. period/hour_of_day/none строятся по
+// tsColumn, а не из dims, поэтому в этой проверке не участвуют.
+func TestAggregateEngine_DimsPublishedInCatalog(t *testing.T) {
+	for metric, schema := range aggMetricRegistry {
+		published := reportMetricRegistry[metric].dimensions
+		for dim := range schema.dims {
+			if !contains(published, dim) {
+				t.Errorf("metric %q: движок резолвит разрез %q, но каталог его не публикует — запись в dims мертва",
+					metric, dim)
+			}
+		}
+	}
+}
+
 // TestAggregateEngine_AggExprMatchesCatalog сверяет источники агрегата: каждая
 // метрика каталога (B1) должна иметь схему исполнения (B2) и наоборот.
 func TestAggregateEngine_AggExprMatchesCatalog(t *testing.T) {

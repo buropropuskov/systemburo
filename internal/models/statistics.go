@@ -59,6 +59,18 @@ type OnlinePeakPoint struct {
 	Peak int    `json:"peak"`
 }
 
+// OnlineUser — строка списка «кто онлайн» для модалки дашборда (#632 G7).
+// Только пользователи с last_seen в окне онлайна; last_seen отдаём, чтобы фронт
+// показал относительное «активен N назад». FullName собран из частей на бэке.
+type OnlineUser struct {
+	ID       int       `json:"id"`
+	Login    string    `json:"login"`
+	FullName string    `json:"full_name"`
+	Role     string    `json:"role"`
+	UserType string    `json:"user_type"`
+	LastSeen time.Time `json:"last_seen"`
+}
+
 // StatsTimelinePoint — одна точка графика (дата + количество).
 // Имя StatsTimelinePoint используется вместо TimelinePoint, т.к.
 // TimelinePoint уже занят в request_logs.go.

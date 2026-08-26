@@ -19,9 +19,10 @@ class UserControlPage {
     // "Пользователи не найдены", без поиска - "Пользователи отсутствуют".
     this.emptyState = this.root.locator('.no-users');
 
-    this.detailsPanel = this.root.locator('.user-details-panel');
-    this.detailsTitle = this.detailsPanel.getByRole('heading', { name: 'Редактирование' });
-    this.noSelectionMessage = this.root.locator('.no-selection-message');
+    // Редактирование переехало в модалку (#739): клик по строке открывает BaseModal
+    // c content-class user-edit-modal (телепортируется на body - ищем от page).
+    this.editModal = page.locator('.user-edit-modal');
+    this.detailsTitle = this.editModal.getByRole('heading', { name: 'Редактирование' });
   }
 
   async goto() {
@@ -43,11 +44,13 @@ class UserControlPage {
 
   async selectUser(username) {
     await this.row(username).click();
-    await this.detailsPanel.waitFor({ state: 'visible' });
+    await this.editModal.waitFor({ state: 'visible' });
   }
 
   async firstRowLogin() {
-    return this.rows.first().locator('.user-login').innerText();
+    const shown = await this.rows.first().locator('.user-login').innerText();
+    // В списке логин подписан с собачкой (#1567), а искать и сравнивать надо сам логин.
+    return shown.replace(/^\s*@/, '');
   }
 
   async expectLoaded() {

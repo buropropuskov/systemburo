@@ -49,24 +49,20 @@ describe('ForwardModal — выбор вложений (#680, срез fe-select
     expect(wrapper.vm.selectedAttachmentIds).toEqual([1, 2, 3]);
   });
 
-  it('частичный выбор переводит мастер-чекбокс в indeterminate', async () => {
+  it('мастер-тумблер вкл при всех выбранных и выкл при частичном выборе', async () => {
     const wrapper = await mountOpened();
     const all = wrapper.find('[data-testid="forward-modal-attachments-all"]');
     await wrapper.vm.$nextTick();
     expect(all.element.checked).toBe(true);
-    expect(all.element.indeterminate).toBe(false);
 
     await attachmentBoxes(wrapper)[1].setValue(false);
     await wrapper.vm.$nextTick();
     expect(all.element.checked).toBe(false);
-    expect(all.element.indeterminate).toBe(true);
 
-    // Снимаем оставшиеся - выбор пуст, indeterminate гаснет.
-    await attachmentBoxes(wrapper)[0].setValue(false);
-    await attachmentBoxes(wrapper)[2].setValue(false);
+    // Возврат всех - мастер-тумблер снова вкл.
+    await attachmentBoxes(wrapper)[1].setValue(true);
     await wrapper.vm.$nextTick();
-    expect(wrapper.vm.selectedAttachmentIds).toEqual([]);
-    expect(all.element.indeterminate).toBe(false);
+    expect(all.element.checked).toBe(true);
   });
 
   it('снятие галочки с вложения исключает его id из выбора', async () => {
@@ -118,5 +114,79 @@ describe('ForwardModal — выбор вложений (#680, срез fe-select
     await wrapper.setProps({ show: false });
     await wrapper.setProps({ show: true });
     expect(wrapper.vm.selectedAttachmentIds).toEqual([1, 2, 3]);
+  });
+});
+
+describe('ForwardModal — поиск пользователей (#1157)', () => {
+  it('без запроса показывает всех доступных пользователей', async () => {
+    const wrapper = await mountOpened();
+    expect(wrapper.vm.filteredUsers.map(u => u.id)).toEqual([USER.id]);
+  });
+
+  it('поиск матчит по варианту раскладки - EN-ввод находит кириллицу ФИО', async () => {
+    // "bdfyjd" на EN-раскладке физически совпадает с "иванов" на RU.
+    const wrapper = await mountOpened();
+    wrapper.vm.searchQuery = 'bdfyjd';
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.filteredUsers.map(u => u.id)).toEqual([USER.id]);
+  });
+
+  it('пустой поисковый запрос снова показывает всех пользователей', async () => {
+    const wrapper = await mountOpened();
+    wrapper.vm.searchQuery = 'bdfyjd';
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.filteredUsers).toHaveLength(1);
+
+    wrapper.vm.searchQuery = '';
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.filteredUsers.map(u => u.id)).toEqual([USER.id]);
+  });
+
+  it('нерелевантный запрос не находит пользователя', async () => {
+    const wrapper = await mountOpened();
+    wrapper.vm.searchQuery = 'zzz-no-match';
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.filteredUsers).toHaveLength(0);
+  });
+});
+
+describe('ForwardModal — сопроводительное сообщение (#967)', () => {
+  it('send эмитит введённое сообщение (обрезанное по краям)', async () => {
+    const wrapper = await mountOpened({ attachments: [] });
+    wrapper.vm.addUser(USER);
+    await wrapper.vm.$nextTick();
+    await wrapper.find('[data-testid="forward-modal-message"]').setValue('  Прошу согласовать  ');
+
+    await wrapper.find('[data-testid="forward-modal-button-send"]').trigger('click');
+
+    const events = wrapper.emitted('send');
+    expect(events).toHaveLength(1);
+    expect(events[0][0].message).toBe('Прошу согласовать');
+  });
+
+  it('без текста сообщение в payload пустое', async () => {
+    const wrapper = await mountOpened({ attachments: [] });
+    wrapper.vm.addUser(USER);
+    await wrapper.vm.$nextTick();
+
+    await wrapper.find('[data-testid="forward-modal-button-send"]').trigger('click');
+
+    expect(wrapper.emitted('send')[0][0].message).toBe('');
+  });
+
+  it('показывает предупреждение о видимости бюро пропусков', async () => {
+    const wrapper = await mountOpened();
+    const warning = wrapper.find('[data-testid="forward-modal-warning"]');
+    expect(warning.exists()).toBe(true);
+    expect(warning.text()).toContain('бюро пропусков');
+  });
+
+  it('повторное открытие сбрасывает сообщение', async () => {
+    const wrapper = await mountOpened({ attachments: [] });
+    await wrapper.find('[data-testid="forward-modal-message"]').setValue('черновик');
+    expect(wrapper.vm.message).toBe('черновик');
+    await wrapper.setProps({ show: false });
+    await wrapper.setProps({ show: true });
+    expect(wrapper.vm.message).toBe('');
   });
 });

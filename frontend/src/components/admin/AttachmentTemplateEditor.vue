@@ -1,7 +1,7 @@
 <template>
   <BaseModal
     :show="show"
-    width="95vw"
+    width="min(1600px, 95vw)"
     closable
     content-class="te-modal-rounded"
     :close-on-overlay="!rebindingMode"
@@ -51,10 +51,17 @@
         </div>
         <div
           v-else-if="pendingFieldPath"
-          class="te-action-banner te-action-banner--info"
+          class="te-action-banner"
+          :class="pendingIsForeignList ? 'te-action-banner--warning' : 'te-action-banner--info'"
         >
           <span>
             Привязка: <strong>{{ pendingFieldLabel }}</strong> - кликните на ячейку в документе
+            <template v-if="pendingIsForeignList">
+              . Это поле другого типа вложения, в бланке оно останется пустым
+            </template>
+            <template v-else-if="pendingIsListField">
+              . Поле списка: строки берутся из диапазона списка, важна только колонка ячейки
+            </template>
           </span>
           <button
             class="lk-button lk-button--ghost te-btn-sm"
@@ -159,6 +166,7 @@
             :mappings="enrichedMappings"
             :selected-cell="activeCellRef"
             :cell-colors="cellColorMap"
+            :concat-separator="concatSeparator"
             @cell-click="onCellClick"
             @cell-hover="onCellHover"
           />
@@ -186,11 +194,10 @@
           <div class="te-picker-header">
             <h4>Привязка полей системы</h4>
             <div class="te-search-wrap">
-              <img
-                src="@/assets/icons/search.png"
+              <AppIcon
+                name="search"
                 class="te-search-icon"
-                alt=""
-              >
+              />
               <input
                 v-model="searchQuery"
                 type="text"
@@ -353,6 +360,68 @@
             </div>
           </div>
 
+          <!-- Границы строк списка: правятся без перезагрузки файла -->
+          <div
+            v-if="template && template.file_path && !showUpload"
+            class="te-params-block"
+          >
+            <div class="te-params-fields">
+              <div class="te-form-field">
+                <label>Список с</label>
+                <input
+                  v-model.number="form.listStartRow"
+                  type="number"
+                  min="1"
+                  class="lk-input te-compact-input"
+                  data-testid="template-list-start"
+                >
+              </div>
+              <div class="te-form-field">
+                <label>Список по</label>
+                <input
+                  v-model.number="form.listEndRow"
+                  type="number"
+                  min="1"
+                  class="lk-input te-compact-input"
+                  data-testid="template-list-end"
+                >
+              </div>
+              <div class="te-form-field">
+                <label>Макс. строк</label>
+                <input
+                  v-model.number="form.maxListRows"
+                  type="number"
+                  min="0"
+                  class="lk-input te-compact-input"
+                  placeholder="авто"
+                  data-testid="template-list-max"
+                >
+              </div>
+              <div
+                v-if="showItemsRange"
+                class="te-form-field"
+              >
+                <label>Строк ТМЦ</label>
+                <input
+                  v-model.number="form.itemsMaxListRows"
+                  type="number"
+                  min="0"
+                  class="lk-input te-compact-input"
+                  placeholder="нет"
+                  data-testid="template-items-rows"
+                >
+              </div>
+            </div>
+            <button
+              class="lk-button lk-button--ghost te-btn-sm"
+              :disabled="savingParams || !listRangeChanged"
+              data-testid="template-params-save"
+              @click="saveParams"
+            >
+              {{ savingParams ? 'Сохранение...' : 'Сохранить' }}
+            </button>
+          </div>
+
           <!-- Настройка разделителя (для совмещения полей) -->
           <div
             v-if="template && template.file_path && !showUpload && hasCombinedCells"
@@ -411,7 +480,7 @@
             </div>
             <div class="te-upload-fields">
               <div class="te-form-field">
-                <label>Начало списка</label>
+                <label>Список с</label>
                 <input
                   v-model.number="form.listStartRow"
                   type="number"
@@ -421,7 +490,7 @@
                 >
               </div>
               <div class="te-form-field">
-                <label>Конец списка</label>
+                <label>Список по</label>
                 <input
                   v-model.number="form.listEndRow"
                   type="number"
@@ -431,7 +500,7 @@
                 >
               </div>
               <div class="te-form-field">
-                <label>Макс. записей</label>
+                <label>Макс. строк</label>
                 <input
                   v-model.number="form.maxListRows"
                   type="number"
@@ -466,6 +535,23 @@
           v-if="enabled && template && template.file_path"
           class="te-mappings-section"
         >
+          <div
+            v-if="foreignListMappings.length"
+            class="te-foreign-warning"
+          >
+            В списке есть {{ foreignListMappings.length }} привязк{{ foreignListMappings.length === 1 ? 'а' : 'и' }}
+            из другой группы полей ({{ foreignListMappings.map(m => getFieldLabel(m.field_path)).join(', ') }}).
+            У этого типа вложения такие данные не заполняются - ячейки останутся пустыми.
+          </div>
+          <div
+            v-if="itemsMappingsWithoutRange.length"
+            class="te-foreign-warning"
+            data-testid="template-items-range-hint"
+          >
+            Привязки к ТМЦ есть ({{ itemsMappingsWithoutRange.map(m => getFieldLabel(m.field_path)).join(', ') }}),
+            но число строк под таблицу не задано - ввозимый товар в бланк не попадёт.
+            Укажите «Строк под таблицу ТМЦ» выше и нажмите «Сохранить».
+          </div>
           <button
             class="te-section-toggle"
             @click="showMappings = !showMappings"
@@ -494,11 +580,39 @@
               :class="{ highlight: activeCellRef === m.cell_ref }"
             >
               <span class="te-mapping-cell">{{ m.cell_ref }}</span>
+              <span
+                v-if="m.cellTotal > 1"
+                class="te-mapping-order"
+                :data-hint="`Порядок склейки в ${m.cell_ref}: ${m.cellIndex} из ${m.cellTotal}`"
+              >{{ m.cellIndex }}/{{ m.cellTotal }}</span>
               <span class="te-mapping-field">{{ m.fieldLabel || m.field_path }}</span>
+              <span
+                v-if="m.cellTotal > 1"
+                class="te-mapping-move"
+              >
+                <button
+                  class="te-mapping-move-btn"
+                  :disabled="m.cellIndex === 1"
+                  title="Раньше в склейке"
+                  data-testid="mapping-move-up"
+                  @click="moveMappingInCell(idx, -1)"
+                >&#9650;</button>
+                <button
+                  class="te-mapping-move-btn"
+                  :disabled="m.cellIndex === m.cellTotal"
+                  title="Позже в склейке"
+                  data-testid="mapping-move-down"
+                  @click="moveMappingInCell(idx, 1)"
+                >&#9660;</button>
+              </span>
               <span
                 v-if="m.is_list_field"
                 class="te-list-badge"
               >список</span>
+              <span
+                v-else-if="m.repeatsInList"
+                class="te-list-badge te-list-badge--repeat"
+              >в каждой строке</span>
               <button
                 class="te-mapping-remove"
                 title="Удалить привязку"
@@ -516,6 +630,13 @@
           class="te-save-area"
         >
           <button
+            class="lk-button lk-button--ghost"
+            data-testid="template-copy-open"
+            @click="showCopyModal = true"
+          >
+            Скопировать привязки
+          </button>
+          <button
             class="lk-button lk-button--primary"
             :disabled="savingMappings"
             @click="saveMappings"
@@ -523,22 +644,37 @@
             {{ savingMappings ? 'Сохранение...' : 'Сохранить привязки' }}
           </button>
         </div>
+
+        <AttachmentMappingCopyModal
+          v-if="template && template.file_path"
+          :show="showCopyModal"
+          :unique-attachment-id="uniqueAttachmentId"
+          :attachment-type="attachmentType"
+          :current-mappings-count="mappings.length"
+          :current-template-id="template.id"
+          :target-file-name="template.original_file_name"
+          :unsaved-changes="hasUnsavedMappings"
+          @close="showCopyModal = false"
+          @copied="onMappingsCopied"
+        />
       </div>
     </div>
   </BaseModal>
 </template>
 
 <script>
-import { useUiStore } from '@/stores/ui';
+import { useDeletionsStore } from '@/stores/deletions';
 import {
-  getTemplate, uploadTemplate, updateMappings, deleteTemplate,
+  getTemplate, uploadTemplate, updateMappings, updateTemplateParams, deleteTemplate,
   getTemplateFields, getTemplateFile, saveBlobAs,
   listTemplates, setActiveTemplate, deleteTemplateByID, getTemplateFileByID,
   deactivateAllTemplates,
 } from '@/api/attachment-templates';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
+import AttachmentMappingCopyModal from './AttachmentMappingCopyModal.vue';
 import XlsxViewer from './XlsxViewer.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 const PATH_COLORS = [
   '#4F5BDF', '#e85d75', '#2e9e5a', '#e8a317', '#8e44ad',
@@ -555,15 +691,21 @@ function getPathColor(index) {
 }
 
 const GROUP_ORDER = [
-  'application', 'attachment', 'employee', 'car', 'item', 'custom',
+  'application', 'attachment', 'app_items', 'app_cars', 'employee', 'car', 'item', 'custom',
 ];
 
 export default {
   name: 'AttachmentTemplateEditor',
-  components: { BaseModal, ToggleSwitch, XlsxViewer },
+  components: {
+    AppIcon,
+    BaseModal, ToggleSwitch, XlsxViewer, AttachmentMappingCopyModal,
+  },
   props: {
     show: { type: Boolean, required: true },
     uniqueAttachmentId: { type: Number, required: true },
+    // Тип вложения задаёт, какая группа полей попадает в строки списка: у бланка
+    // имущества привязка car.* останется пустой (#1454).
+    attachmentType: { type: String, default: '' },
   },
   emits: ['close'],
   data() {
@@ -575,9 +717,13 @@ export default {
       enabled: false,
       showUpload: false,
       isDragging: false,
-      form: { file: null, listStartRow: 1, listEndRow: 1, maxListRows: 0 },
+      form: {
+        file: null, listStartRow: 1, listEndRow: 1, maxListRows: 0,
+        itemsMaxListRows: 0,
+      },
       uploading: false,
       savingMappings: false,
+      savingParams: false,
       concatSeparator: ', ',
       loadingTemplate: false,
       loadingFields: false,
@@ -599,6 +745,8 @@ export default {
       hoveredPathIndex: null,
       hoveredCellRef: '',
       templateDropdownOpen: false,
+      showCopyModal: false,
+      savedMappingsKey: '',
       svgWidth: 0,
       svgHeight: 0,
       rafId: null,
@@ -606,10 +754,20 @@ export default {
   },
   computed: {
     enrichedMappings() {
-      return this.mappings.map(m => ({
-        ...m,
-        fieldLabel: this.getFieldLabel(m.field_path),
-      }));
+      const seen = {};
+      const total = {};
+      for (const m of this.mappings) total[m.cell_ref] = (total[m.cell_ref] || 0) + 1;
+      return this.mappings.map(m => {
+        seen[m.cell_ref] = (seen[m.cell_ref] || 0) + 1;
+        return {
+          ...m,
+          fieldLabel: this.getFieldLabel(m.field_path),
+          repeatsInList: this.repeatsInList(m),
+          // Позиция в ячейке = порядок склейки: бланк соединяет поля в этом порядке.
+          cellIndex: seen[m.cell_ref],
+          cellTotal: total[m.cell_ref],
+        };
+      });
     },
     filteredFieldGroups() {
       let groups = this.fieldGroups.map(g => ({
@@ -646,6 +804,65 @@ export default {
         cellCounts[m.cell_ref] = (cellCounts[m.cell_ref] || 0) + 1;
       }
       return Object.values(cellCounts).some(c => c > 1);
+    },
+    // Группа полей, которая реально попадает в строки списка этого бланка.
+    listGroupForType() {
+      return { cars: 'car', people: 'employee', items: 'item' }[this.attachmentType] || '';
+    },
+    // Верхняя строка с привязками ТМЦ - с неё начинается таблица ввозимого товара.
+    // Отдельного поля под неё нет: привязка и есть указание места.
+    itemsSectionStart() {
+      const rows = this.mappings
+        .filter(m => m.field_path.startsWith('item.'))
+        .map(m => Number((/^[A-Za-z]+(\d+)$/.exec(String(m.cell_ref || '').trim()) || [])[1]))
+        .filter(n => n > 0);
+      return rows.length ? Math.min(...rows) : 0;
+    },
+    // Настройку таблицы ТМЦ показываем, только когда она нужна: поля имущества
+    // привязаны, а бланк не про сам ввоз (там ТМЦ заполняют собственный список).
+    showItemsRange() {
+      return this.attachmentType !== 'items' && this.itemsSectionStart > 0;
+    },
+    // Число строк задано - привязки item.* в этом бланке рабочие.
+    itemsRangeSet() {
+      return this.form.itemsMaxListRows > 0;
+    },
+    // Привязка поля-списка из чужой группы: значений у неё не будет, потому что
+    // источник (машины/сотрудники/ТМЦ) принадлежит другому типу вложения. Исключение -
+    // item.* при заданной таблице ТМЦ: она заполняется «Заявками на ввоз» заявки.
+    foreignListMappings() {
+      if (!this.listGroupForType) return [];
+      return this.mappings.filter(
+        m => m.is_list_field
+          && !m.field_path.startsWith(`${this.listGroupForType}.`)
+          && !(this.itemsRangeSet && m.field_path.startsWith('item.'))
+      );
+    },
+    // Привязки к ТМЦ есть, а строки таблицы не заданы - в бланке останется пустое место.
+    itemsMappingsWithoutRange() {
+      if (!this.showItemsRange || this.itemsRangeSet) return [];
+      return this.mappings.filter(m => m.is_list_field && m.field_path.startsWith('item.'));
+    },
+    // Локальные правки привязок, ещё не отправленные на сервер: перенос с другого
+    // шаблона идёт по серверному состоянию, поэтому о них надо предупредить.
+    hasUnsavedMappings() {
+      return this.mappingsKey(this.mappings) !== this.savedMappingsKey;
+    },
+    pendingIsForeignList() {
+      if (!this.pendingFieldPath || !this.listGroupForType) return false;
+      if (this.itemsRangeSet && this.pendingFieldPath.startsWith('item.')) return false;
+      return this.isListField(this.pendingFieldPath)
+        && !this.pendingFieldPath.startsWith(`${this.listGroupForType}.`);
+    },
+    listRangeChanged() {
+      if (!this.template) return false;
+      return this.form.listStartRow !== this.template.list_start_row
+        || this.form.listEndRow !== this.template.list_end_row
+        || this.form.maxListRows !== (this.template.max_list_rows || 0)
+        || this.form.itemsMaxListRows !== (this.template.items_max_list_rows || 0);
+    },
+    pendingIsListField() {
+      return !!this.pendingFieldPath && this.isListField(this.pendingFieldPath);
     },
     cellColorMap() {
       if (!this.showPaths) return new Map();
@@ -732,16 +949,21 @@ export default {
       try {
         const data = await getTemplate(this.uniqueAttachmentId);
         this.template = data;
-        this.mappings = (data && data.mappings) || [];
+        // Копия, а не сам массив ответа: правки привязок иначе мутируют
+        // template.mappings, и сохранённое состояние становится неотличимо от текущего.
+        this.mappings = ((data && data.mappings) || []).map(m => ({ ...m }));
+        this.savedMappingsKey = this.mappingsKey(this.mappings);
         this.enabled = !!(data && data.file_path);
         this.form.listStartRow = data && data.list_start_row || 1;
         this.form.listEndRow = data && data.list_end_row || 1;
         this.form.maxListRows = data && data.max_list_rows || 0;
+        this.form.itemsMaxListRows = data && data.items_max_list_rows || 0;
         this.concatSeparator = data && data.concat_separator || ', ';
         if (this.enabled) await this.loadTemplateFile();
       } catch {
         this.template = null;
         this.mappings = [];
+        this.savedMappingsKey = '';
         this.enabled = false;
         this.templateFileBuffer = null;
       } finally {
@@ -788,7 +1010,7 @@ export default {
         }
       } catch {
         this.enabled = !val;
-        useUiStore().error('Не удалось переключить генерацию бланка');
+        useDeletionsStore().notify({ bold: 'Не удалось переключить генерацию бланка', type: 'error' });
       }
     },
     onFileChange(e) {
@@ -810,12 +1032,12 @@ export default {
           listEndRow: this.form.listEndRow,
           maxListRows: this.form.maxListRows,
         });
-        useUiStore().success('Шаблон загружен');
+        useDeletionsStore().notify({ bold: 'Шаблон загружен' });
         this.showUpload = false;
         this.form.file = null;
         await this.loadTemplate();
       } catch (err) {
-        useUiStore().error(err.message || 'Не удалось загрузить шаблон');
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить шаблон: ', bold: err.message || 'ошибка сервера', type: 'error' });
       } finally {
         this.uploading = false;
       }
@@ -832,11 +1054,11 @@ export default {
       this.templateFileBuffer = null;
       try {
         await setActiveTemplate(this.uniqueAttachmentId, tmpl.id);
-        useUiStore().success('Шаблон активирован');
+        useDeletionsStore().notify({ bold: 'Шаблон активирован' });
         this.resetState();
         await Promise.all([this.loadTemplate(), this.loadFields()]);
       } catch {
-        useUiStore().error('Не удалось переключить шаблон');
+        useDeletionsStore().notify({ bold: 'Не удалось переключить шаблон', type: 'error' });
         this.loadingTemplate = false;
         this.loadingFields = false;
       }
@@ -844,23 +1066,23 @@ export default {
     async deleteSpecificTemplate(tmpl) {
       try {
         await deleteTemplateByID(this.uniqueAttachmentId, tmpl.id);
-        useUiStore().success('Шаблон удален');
+        useDeletionsStore().notify({ bold: 'Шаблон удалён' });
         if (tmpl.id === this.template?.id) {
           this.templateFileBuffer = null;
         }
         await this.loadTemplate();
       } catch {
-        useUiStore().error('Не удалось удалить шаблон');
+        useDeletionsStore().notify({ bold: 'Не удалось удалить шаблон', type: 'error' });
       }
     },
     async onDeleteTemplate() {
       try {
         await deleteTemplate(this.uniqueAttachmentId);
-        useUiStore().success('Шаблон удален');
+        useDeletionsStore().notify({ bold: 'Шаблон удалён' });
         this.templateFileBuffer = null;
         await this.loadTemplate();
       } catch {
-        useUiStore().error('Не удалось удалить шаблон');
+        useDeletionsStore().notify({ bold: 'Не удалось удалить шаблон', type: 'error' });
       }
     },
     async downloadCurrentTemplate() {
@@ -869,7 +1091,7 @@ export default {
         const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         saveBlobAs(blob, this.template.original_file_name || 'template.xlsx');
       } catch {
-        useUiStore().error('Не удалось скачать шаблон');
+        useDeletionsStore().notify({ bold: 'Не удалось скачать шаблон', type: 'error' });
       }
     },
 
@@ -942,6 +1164,20 @@ export default {
       this.rebindMapping = null;
     },
 
+    // Меняет порядок склейки внутри ячейки: переставляем привязку с соседней по той же
+    // ячейке, остальные привязки не двигаем.
+    moveMappingInCell(idx, dir) {
+      const cell = this.mappings[idx] && this.mappings[idx].cell_ref;
+      if (!cell) return;
+      const step = dir > 0 ? 1 : -1;
+      for (let i = idx + step; i >= 0 && i < this.mappings.length; i += step) {
+        if (this.mappings[i].cell_ref !== cell) continue;
+        const next = [...this.mappings];
+        [next[idx], next[i]] = [next[i], next[idx]];
+        this.mappings = next;
+        return;
+      }
+    },
     removeMapping(idx) {
       this.mappings.splice(idx, 1);
     },
@@ -960,6 +1196,18 @@ export default {
     },
     removeMappingsByPath(fieldPath) {
       this.mappings = this.mappings.filter(m => m.field_path !== fieldPath);
+    },
+    // Границы берём из сохранённого шаблона, а не из полей ввода: генерация бланка
+    // считает по сохранённым, пока админ не нажал «Сохранить».
+    repeatsInList(m) {
+      if (!m || m.is_list_field || !this.template) return false;
+      const start = this.template.list_start_row;
+      const end = this.template.list_end_row;
+      if (!start || !end || end < start) return false;
+      const parsed = /^[A-Za-z]+(\d+)$/.exec(String(m.cell_ref || '').trim());
+      if (!parsed) return false;
+      const row = Number(parsed[1]);
+      return row >= start && row <= end;
     },
     isListField(fieldPath) {
       for (const g of this.fieldGroups) {
@@ -992,15 +1240,46 @@ export default {
       if (!this.showPaths || !this.fieldPathUsed(fieldPath)) return {};
       return { borderColor: this.getFieldColor(fieldPath) };
     },
+    async saveParams() {
+      if (this.savingParams) return;
+      this.savingParams = true;
+      try {
+        await updateTemplateParams(this.uniqueAttachmentId, {
+          listStartRow: this.form.listStartRow,
+          listEndRow: this.form.listEndRow,
+          maxListRows: this.form.maxListRows,
+          itemsMaxListRows: this.form.itemsMaxListRows,
+        });
+        useDeletionsStore().notify({ bold: 'Границы списка сохранены' });
+        await this.loadTemplate();
+      } catch (err) {
+        useDeletionsStore().notify({
+          prefix: 'Не удалось сохранить границы: ',
+          bold: err.message || 'ошибка сервера',
+          type: 'error',
+        });
+      } finally {
+        this.savingParams = false;
+      }
+    },
+    mappingsKey(list) {
+      return (list || [])
+        .map(m => `${m.cell_ref}|${m.field_path}`)
+        .sort()
+        .join(',');
+    },
+    async onMappingsCopied() {
+      await this.loadTemplate();
+    },
     async saveMappings() {
       this.savingMappings = true;
       try {
         const payload = this.mappings.filter(m => m.cell_ref && m.field_path);
         await updateMappings(this.uniqueAttachmentId, payload, this.concatSeparator);
-        useUiStore().success('Привязки сохранены');
+        useDeletionsStore().notify({ bold: 'Привязки сохранены' });
         await this.loadTemplate();
       } catch (err) {
-        useUiStore().error(err.message || 'Не удалось сохранить');
+        useDeletionsStore().notify({ prefix: 'Не удалось сохранить: ', bold: err.message || 'ошибка сервера', type: 'error' });
       } finally {
         this.savingMappings = false;
       }
@@ -1229,16 +1508,24 @@ export default {
 }
 
 /* ---- Layout ---- */
+/* min-width:0 - иначе окно (flex-элемент оверлея) распирается минимальной шириной
+   отрисованного листа и вылезает за свой max-width, а раскладка прыгает. */
 .te-modal-body {
   display: flex;
   position: relative;
-  height: calc(92vh - 100px);
+  min-width: 0;
+  height: calc(var(--app-vh, 1vh) * 92 - 100px);
   min-height: 400px;
   overflow: hidden;
 }
 
+/* Место под предпросмотр резервируем долей окна: раньше панель тянулась по ширине
+   отрисованного листа, поэтому при загрузке и смене шаблона раскладка прыгала.
+   Лист шире доли - прокручивается внутри панели. */
 .te-preview-panel {
-  flex: 0 0 auto;
+  flex: 0 0 62%;
+  max-width: 62%;
+  min-width: 0;
   overflow: auto;
   border-right: 1px solid var(--color-border);
 }
@@ -1286,15 +1573,18 @@ export default {
 }
 
 .te-action-banner--warning {
-  background: #fff3cd;
-  border-bottom: 1px solid #ffc107;
-  color: #856404;
+  background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
+  border-bottom: 1px solid var(--warning);
+  color: var(--warning-text);
 }
 
+/* Баннер лежит поверх листа бланка, поэтому фон обязан быть непрозрачным: --accent-tint
+   полупрозрачен (в тёмной теме 0.22), и сквозь него просвечивала таблица. */
 .te-action-banner--info {
-  background: #e8f4fd;
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--surface));
   border-bottom: 1px solid var(--color-primary);
-  color: #1a4a7a;
+  color: var(--accent-text);
 }
 
 .te-banner-fade-enter-active {
@@ -1403,7 +1693,7 @@ export default {
   width: 100%;
   padding: 4px 8px;
   background: var(--color-danger);
-  color: #fff;
+  color: var(--fill-text);
   border: none;
   border-radius: 4px;
   font-size: 11px;
@@ -1413,7 +1703,7 @@ export default {
 }
 
 .te-path-delete-btn:hover {
-  background: #c82333;
+  background: var(--danger);
 }
 
 .te-popup-faded {
@@ -1438,8 +1728,8 @@ export default {
 .te-section {
   border: 1px solid var(--color-border);
   border-radius: 30px;
-  padding: 10px 16px;
-  background: #fff;
+  padding: 16px 20px;
+  background: var(--surface);
 }
 
 .te-section--compact {
@@ -1450,31 +1740,73 @@ export default {
 
 /* ---- Templates block ---- */
 .te-templates-block {
-  padding: 0;
-  background: #fff;
+  padding: 0 0 4px;
+  background: var(--surface);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 
 /* ---- Separator ---- */
+.te-params-block {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+/* Подписи полей разной высоты (часть переносится на две строки), поэтому равняем по
+   нижнему краю - иначе поля с короткой подписью висят выше соседних. */
+.te-params-fields {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Цвета те же, что у te-action-banner--warning выше: непрозрачная светлая плашка
+   с тёмным текстом читается в обеих темах, полупрозрачный фон в тёмной сливался. */
+.te-foreign-warning {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md, 15px);
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  color: #856404;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.te-repeat-note {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md, 15px);
+  background: var(--info-bg);
+  border: 1px solid var(--info);
+  color: var(--info-text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .te-separator-block {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 .te-separator-label {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--color-text-muted);
   white-space: nowrap;
 }
 
 .te-separator-input {
-  width: 60px;
-  padding: 4px 8px !important;
-  font-size: 12px !important;
+  width: 72px;
+  padding: 8px 12px !important;
+  font-size: 14px !important;
   text-align: center;
 }
 
@@ -1508,7 +1840,7 @@ export default {
 
 .te-file-actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -1525,18 +1857,18 @@ export default {
   padding: 16px;
   text-align: center;
   transition: all 0.2s ease;
-  background: #fff;
+  background: var(--surface);
 }
 
 .te-dropzone--active {
-  border-color: var(--color-primary);
-  background: #f0f4ff;
+  border-color: var(--accent);
+  background: var(--accent-tint);
 }
 
 .te-dropzone--has-file {
   border-style: solid;
   border-color: var(--color-success);
-  background: #f0fdf4;
+  background: var(--success-bg);
 }
 
 .te-dropzone__file {
@@ -1555,7 +1887,7 @@ export default {
 .te-dropzone__clear {
   background: none;
   border: none;
-  color: var(--color-danger);
+  color: var(--danger-text);
   font-size: 18px;
   cursor: pointer;
   line-height: 1;
@@ -1575,7 +1907,7 @@ export default {
 
 .te-dropzone__or {
   font-size: 11px;
-  color: #bbb;
+  color: var(--text-muted);
 }
 
 .te-dropzone__browse {
@@ -1591,18 +1923,39 @@ export default {
 .te-form-field {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 5px;
 }
 
 .te-form-field label {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
-  color: #888;
+  color: var(--text-muted);
+}
+
+/* Ряд границ списка: подписи в одну строку, поля одинаковой ширины - иначе колонки
+   разной высоты и ряд выглядит рваным. Панель узкая, поэтому поля переносятся, а не
+   наезжают на кнопку сохранения. */
+.te-params-fields {
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+
+.te-params-fields .te-form-field {
+  flex: 0 0 92px;
+  min-width: 0;
+}
+
+.te-params-fields .te-form-field label {
+  white-space: nowrap;
+}
+
+.te-params-fields .te-compact-input {
+  width: 100%;
 }
 
 .te-compact-input {
-  padding: 5px 8px !important;
-  font-size: 12px !important;
+  padding: 8px 12px !important;
+  font-size: 14px !important;
 }
 
 .te-upload-actions {
@@ -1622,7 +1975,7 @@ export default {
   padding: 3px 10px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
-  background: #fff;
+  background: var(--surface);
   font-size: 11px;
   cursor: pointer;
   transition: all 0.15s;
@@ -1631,21 +1984,21 @@ export default {
 }
 
 .te-cat-btn:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  border-color: var(--accent);
+  color: var(--accent-text);
 }
 
 .te-cat-btn.active {
   background: var(--color-primary);
-  color: #fff;
-  border-color: var(--color-primary);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 
 /* ---- Field picker ---- */
 .te-field-picker {
   border: 1px solid var(--color-border);
   border-radius: 30px;
-  background: #fff;
+  background: var(--surface);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1680,6 +2033,9 @@ export default {
   height: 12px;
   opacity: 0.45;
   pointer-events: none;
+  /* 12px - самый мелкий значок среза: 1.7 вырождается в 0.85px. */
+  stroke-width: 2.4;
+  color: var(--text);
 }
 
 .te-search-input {
@@ -1690,7 +2046,7 @@ export default {
 
 .te-pick-hint {
   font-size: 11px;
-  color: var(--color-primary);
+  color: var(--accent-text);
   font-weight: 500;
   animation: te-pulse 1.5s ease-in-out infinite;
 }
@@ -1739,31 +2095,31 @@ export default {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
   font-size: 11px;
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
   transition: all 0.15s;
   color: var(--color-text);
 }
 
 .te-field-chip:hover {
-  border-color: var(--color-primary);
-  background: #f0f4ff;
+  border-color: var(--accent);
+  background: var(--accent-tint);
 }
 
 .te-field-chip.active {
   background: var(--color-primary);
-  color: #fff;
-  border-color: var(--color-primary);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 
 .te-field-chip.used {
-  background: #e8f8e8;
+  background: var(--success-bg);
   border-color: var(--color-success);
-  color: #1a6e2e;
+  color: var(--success-text);
 }
 
 .te-field-chip.used:hover {
-  background: #d4f0d4;
+  background: color-mix(in srgb, var(--success) 22%, var(--surface));
 }
 
 .te-chip-label {
@@ -1785,14 +2141,14 @@ export default {
   border-radius: 50%;
   font-size: 13px;
   line-height: 1;
-  color: var(--color-danger);
-  background: rgba(220, 53, 69, 0.1);
+  color: var(--danger-text);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
   transition: all 0.15s;
 }
 
 .te-chip-remove:hover {
   background: var(--color-danger);
-  color: #fff;
+  color: var(--fill-text);
 }
 
 /* Remove popup */
@@ -1804,7 +2160,7 @@ export default {
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: 6px;
   box-shadow: var(--shadow-md);
@@ -1824,11 +2180,11 @@ export default {
 }
 
 .te-remove-popup__item:hover {
-  background: #fef2f2;
+  background: var(--danger-bg);
 }
 
 .te-remove-popup__x {
-  color: var(--color-danger);
+  color: var(--danger-text);
   font-size: 14px;
 }
 
@@ -1837,12 +2193,12 @@ export default {
   font-size: 11px;
   cursor: pointer;
   border-top: 1px solid var(--color-border);
-  color: var(--color-danger);
+  color: var(--danger-text);
   font-weight: 500;
 }
 
 .te-remove-popup__all:hover {
-  background: #fef2f2;
+  background: var(--danger-bg);
 }
 
 .te-no-results {
@@ -1856,7 +2212,7 @@ export default {
 .te-mappings-section {
   border: 1px solid var(--color-border);
   border-radius: 30px;
-  background: #fff;
+  background: var(--surface);
   flex-shrink: 0;
   overflow: hidden;
 }
@@ -1882,7 +2238,7 @@ export default {
 .te-mappings-count {
   font-size: 10px;
   background: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
   padding: 1px 6px;
   border-radius: var(--radius-pill);
   font-weight: 600;
@@ -1927,13 +2283,13 @@ export default {
 }
 
 .te-mapping-row.highlight {
-  background: #e8f4fd;
+  background: var(--accent-tint);
 }
 
 .te-mapping-cell {
   font-weight: 600;
   min-width: 30px;
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 .te-mapping-field {
@@ -1946,11 +2302,47 @@ export default {
 
 .te-list-badge {
   font-size: 9px;
-  background: #e3f2fd;
-  color: #1565c0;
+  background: var(--info-bg);
+  color: var(--info-text);
   padding: 1px 5px;
   border-radius: var(--radius-pill);
   font-weight: 500;
+}
+
+.te-mapping-order {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  color: var(--accent-contrast);
+  position: relative;
+}
+
+.te-mapping-move {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.te-mapping-move-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #666);
+  font-size: 9px;
+  line-height: 1;
+  padding: 2px 3px;
+  cursor: pointer;
+}
+
+.te-mapping-move-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.te-list-badge--repeat {
+  background: transparent;
+  border: 1px solid var(--info);
 }
 
 .te-mapping-remove {
@@ -1970,8 +2362,8 @@ export default {
 }
 
 .te-mapping-remove:hover {
-  background: rgba(220, 53, 69, 0.1);
-  color: var(--color-danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  color: var(--danger-text);
 }
 
 /* ---- Save ---- */
@@ -2005,7 +2397,7 @@ export default {
   width: 28px;
   height: 28px;
   border: 3px solid var(--color-border);
-  border-top-color: var(--color-primary);
+  border-top-color: var(--accent-text);
   border-radius: 50%;
   animation: te-spin 0.7s linear infinite;
 }
@@ -2029,7 +2421,9 @@ export default {
   }
 
   .te-preview-panel {
-    max-height: 50vh;
+    flex: 0 0 auto;
+    max-width: 100%;
+    height: 50vh;
     border-right: none;
     border-bottom: 1px solid var(--color-border);
   }
@@ -2043,6 +2437,12 @@ export default {
 <style>
 .te-modal-rounded.base-modal {
   border-radius: 40px;
+  /* Ширина окна задаётся явно и не зависит от содержимого: иначе окно тянулось за
+     шириной отрисованного листа, и раскладка прыгала между загрузкой и готовым
+     предпросмотром. Лист шире - прокручивается внутри своей панели. */
+  flex: 0 0 auto;
+  width: 95vw;
+  min-width: 0;
 }
 
 @media (max-width: 768px) {
@@ -2065,14 +2465,14 @@ export default {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
   font-size: 12px;
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
   transition: border-color 0.15s;
   color: var(--color-text);
 }
 
 .te-template-dropdown-trigger:hover {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
 }
 
 .te-dropdown-filename {
@@ -2097,7 +2497,7 @@ export default {
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: 20px;
   box-shadow: var(--shadow-md);
@@ -2114,7 +2514,7 @@ export default {
   font-size: 12px;
   text-align: left;
   cursor: pointer;
-  color: #000;
+  color: var(--text);
   transition: background 0.1s;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2126,14 +2526,14 @@ export default {
 }
 
 .te-dropdown-item.active {
-  background: #e8f4fd;
-  color: #000;
+  background: var(--accent-tint);
+  color: var(--text);
   font-weight: 500;
 }
 
 .te-dropdown-add {
   border-top: 1px solid var(--color-border);
-  color: #000;
+  color: var(--text);
   font-weight: 500;
 }
 

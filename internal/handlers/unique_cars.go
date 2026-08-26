@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"systemburo/internal/models"
 	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
@@ -21,11 +22,16 @@ func NewUniqueCarHandler(service services.UniqueCarService) *UniqueCarHandler {
 
 // GetAll godoc
 // @Summary      Получение уникальных машин
-// @Description  Возвращает список уникальных машин с фильтрацией по владельцу
+// @Description  Возвращает список уникальных машин с фильтрацией по владельцу. Без per_page -
+// @Description  полный массив (legacy, для ExistingCarsModal/CreateApplication). С per_page -
+// @Description  пагинация + серверный поиск search_query (#1158, срез 2, для CarsView).
 // @Tags         unique-cars
 // @Produce      json
 // @Security     BearerAuth
-// @Param        filter_type query string false "Тип фильтра: user, organization, company, all, all_system"
+// @Param        filter_type  query string false "Тип фильтра: user, organization, company, all, all_system"
+// @Param        search_query query string false "Поисковый запрос (номер/марка/формат/организация/компания)"
+// @Param        page         query int    false "Номер страницы (с per_page)"
+// @Param        per_page     query int    false "Размер страницы (<=100); наличие включает пагинацию"
 // @Success      200 {array} services.UniqueCarWithRelations
 // @Failure      401 {object} models.HTTPError
 // @Router       /unique-cars [get]
@@ -36,11 +42,30 @@ func (h *UniqueCarHandler) GetAll(c echo.Context) error {
 		filterType = "user"
 	}
 
-	cars, err := h.service.GetAll(c.Request().Context(), username, filterType)
+	// Legacy mode: без per_page отдаём полный массив без поиска, как раньше -
+	// ExistingCarsModal/CreateApplication дёргают этот путь без пагинации.
+	if c.QueryParam("per_page") == "" {
+		cars, err := h.service.GetAll(c.Request().Context(), username, filterType)
+		if err != nil {
+			return err
+		}
+		return RespondSuccess(c, cars)
+	}
+
+	var params models.PaginationParams
+	if err := c.Bind(&params); err != nil {
+		params = models.PaginationParams{}
+	}
+	params.Normalize()
+
+	searchQuery := c.QueryParam("search_query")
+	cars, total, err := h.service.GetAllPaginated(c.Request().Context(), username, filterType, searchQuery, params.Page, params.PerPage)
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, cars)
+	return RespondPaginated(c, cars, models.PaginationMeta{
+		Total: total, Page: params.Page, PerPage: params.PerPage,
+	})
 }
 
 // Create godoc
@@ -201,6 +226,30 @@ func (h *UniqueCarHandler) GetHistory(c echo.Context) error {
 	}
 
 	items, err := h.service.GetHistory(c.Request().Context(), username, id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, items)
+}
+
+// GetRegistryLog godoc
+// @Summary      Журнал реестра машин
+// @Description  Все события реестра: создание, правка полей, удаление - с автором и
+// @Description  временем. Единственный способ узнать, кем и когда удалена запись: у
+// @Description  исчезнувшей строки истории по id больше нет. Доступен администратору.
+// @Tags         unique-cars
+// @Produce      json
+// @Security     BearerAuth
+// @Param        limit query int false "Сколько записей вернуть (по умолчанию и максимум 500)"
+// @Success      200 {array} services.UniqueCarHistoryItem
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError "Не администратор"
+// @Router       /unique-cars/history [get]
+func (h *UniqueCarHandler) GetRegistryLog(c echo.Context) error {
+	username := c.Get("username").(string)
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+
+	items, err := h.service.GetRegistryLog(c.Request().Context(), username, limit)
 	if err != nil {
 		return err
 	}

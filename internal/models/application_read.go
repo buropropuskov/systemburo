@@ -19,7 +19,18 @@ type ApplicationReadResponse struct {
 	ReadAt    time.Time `json:"read_at"`
 }
 
-// UnreadCountResponse количество непрочитанных заявок.
+// UnreadCountResponse количество непрочитанных заявок и заявок с обновлённым статусом
+// (#1349). StatusUpdates - прочитанные заявки того же скоупа, статус/подтверждение которых
+// менялись после последнего просмотра пользователем. Старый фронт читает только count -
+// поле аддитивно, обратно совместимо.
 type UnreadCountResponse struct {
-	Count int `json:"count"`
+	Count         int `json:"count"`
+	StatusUpdates int `json:"status_updates"`
+}
+
+// StatusUpdatesCountResponse - число заявок ЛК с обновлённым статусом (#1349, GET
+// /applications/user/status-updates-count). Отдельный от Центра эндпоинт: у ЛК другая
+// матрица доступа (sender/organization, без гейта прочтения).
+type StatusUpdatesCountResponse struct {
+	StatusUpdates int `json:"status_updates"`
 }

@@ -80,6 +80,89 @@ func (h *StatisticsHandler) GetSummary(c echo.Context) error {
 	return RespondSuccess(c, summary)
 }
 
+// GetProcessingSummary godoc
+// @Summary      Сводка обработки заявок
+// @Description  Бандл вкладки «Обработка заявок»: KPI этапов пути заявки (среднее и 90-й перцентиль) со сравнением с прошлым периодом, качество обработки, топ медленных согласующих, разбивка по организациям
+// @Tags         statistics
+// @Produce      json
+// @Security     BearerAuth
+// @Param        from query string false "Начало периода (YYYY-MM-DD), по умолчанию 7 дней назад"
+// @Param        to   query string false "Конец периода (YYYY-MM-DD), по умолчанию сегодня"
+// @Success      200 {object} Response
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /statistics/processing-summary [get]
+func (h *StatisticsHandler) GetProcessingSummary(c echo.Context) error {
+	from, to := parseDateRange(c)
+	if from.After(to) {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid date range")
+	}
+	summary, err := h.service.GetProcessingSummary(c.Request().Context(), from, to)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, summary)
+}
+
+// GetProcessingJournal godoc
+// @Summary      Журнал обработки заявок
+// @Description  Сквозная лента событий обработки за период по времени убыванием: согласования и несогласования, принятия в работу, отказы принимающего и отзывы инициатором — кто, по какой заявке, в какой роли, когда и сколько рабочего времени Бюро на это ушло. Страница задаётся limit и offset, общее число подходящих событий — в meta.total. Фильтры role и q сужают выборку и учитываются в meta.total.
+// @Tags         statistics
+// @Produce      json
+// @Security     BearerAuth
+// @Param        from   query string false "Начало периода (YYYY-MM-DD), по умолчанию 7 дней назад"
+// @Param        to     query string false "Конец периода (YYYY-MM-DD), по умолчанию сегодня"
+// @Param        role   query string false "Роль события: approval, not_approved, acceptance, rejection или withdrawal (по умолчанию все)"
+// @Param        q      query string false "Поиск по номеру заявки или ФИО актора (подстрока, регистр не важен)"
+// @Param        limit  query int    false "Размер страницы (по умолчанию 50, максимум 200)"
+// @Param        offset query int    false "Смещение от начала ленты (по умолчанию 0)"
+// @Success      200 {object} Response
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /statistics/processing-journal [get]
+func (h *StatisticsHandler) GetProcessingJournal(c echo.Context) error {
+	from, to := parseDateRange(c)
+	if from.After(to) {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid date range")
+	}
+	limit, offset := 0, 0
+	if v := c.QueryParam("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			limit = n
+		}
+	}
+	if v := c.QueryParam("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			offset = n
+		}
+	}
+	// Клампим теми же правилами, что и сервис, чтобы meta отдавала реально
+	// применённый размер страницы и её номер, а не сырые значения из query.
+	limit, offset = services.NormalizeProcessingJournalPaging(limit, offset)
+
+	// Неизвестная роль — 400, а не тихий показ всех событий: иначе опечатка в
+	// параметре выглядела бы как «фильтр применён, просто ничего не отсеялось».
+	filter, err := services.NormalizeProcessingJournalFilter(services.ProcessingJournalFilter{
+		Role:   c.QueryParam("role"),
+		Search: c.QueryParam("q"),
+	})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid role filter")
+	}
+
+	entries, total, err := h.service.GetProcessingJournal(c.Request().Context(), from, to, filter, limit, offset)
+	if err != nil {
+		return err
+	}
+	return RespondPaginated(c, entries, models.PaginationMeta{
+		Total:   total,
+		Page:    offset/limit + 1,
+		PerPage: limit,
+	})
+}
+
 // GetOnlinePeaks godoc
 // @Summary      Дневные пики онлайна пользователей
 // @Description  Серия дневных пиков одновременного онлайна за период для графика динамики пользователей
@@ -103,6 +186,24 @@ func (h *StatisticsHandler) GetOnlinePeaks(c echo.Context) error {
 		return err
 	}
 	return RespondSuccess(c, points)
+}
+
+// GetOnlineUsers godoc
+// @Summary      Список пользователей онлайн
+// @Description  Пользователи с активностью (last_seen) за окно онлайна, по убыванию свежести. Для модалки «кто онлайн» на дашборде.
+// @Tags         statistics
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} Response
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /statistics/online-users [get]
+func (h *StatisticsHandler) GetOnlineUsers(c echo.Context) error {
+	users, err := h.service.GetOnlineUsers(c.Request().Context())
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, users)
 }
 
 // GetTimeline godoc

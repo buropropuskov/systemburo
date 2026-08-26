@@ -19,6 +19,22 @@ import (
 // окно живого access-токена.
 //
 // Должен стоять после JWTAuth (нужен user_id в context).
+//
+// Заблокированному/архивному оставляем доступ ТОЛЬКО на чтение (безопасные методы
+// GET/HEAD/OPTIONS): личный кабинет грузит свои данные (ФИО, заявки, уведомления,
+// статус блокировки из /permissions/my) под неснимаемой плашкой, но любая мутация
+// (POST/PUT/PATCH/DELETE) -- 403. Чужие/админские данные закрыты и на чтении:
+// permission-гейтнутые ручки всё равно 403 (резолвер: banned > admin, права пусты).
+// Раньше резалось всё подряд - юзер видел пустой кабинет + спам "недостаточно прав".
+func isSafeMethod(method string) bool {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return true
+	default:
+		return false
+	}
+}
+
 func BanCheck(svc *services.BanCheckService) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
@@ -33,10 +49,14 @@ func BanCheck(svc *services.BanCheckService) echo.MiddlewareFunc {
 				slog.Warn("ban_check: db lookup failed, fail-open", "user_id", userID, "error", err)
 				return next(c)
 			}
-			if banned {
-				return echo.NewHTTPError(http.StatusForbidden, "Учётная запись заблокирована")
-			}
-			if !active {
+			if banned || !active {
+				// Чтение (GET/HEAD/OPTIONS) пропускаем: кабинет показывается read-only.
+				if isSafeMethod(c.Request().Method) {
+					return next(c)
+				}
+				if banned {
+					return echo.NewHTTPError(http.StatusForbidden, "Учётная запись заблокирована")
+				}
 				return echo.NewHTTPError(http.StatusForbidden, "Учётная запись отключена")
 			}
 			return next(c)

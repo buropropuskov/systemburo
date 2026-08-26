@@ -5,22 +5,7 @@ import (
 	"time"
 )
 
-// LicensePlateFormatHistory логирует действия над форматом номеров: создание,
-// изменение, архивацию и восстановление. Нужна для аудита (#414): изменение
-// ячеек меняет правила валидации номеров, важно знать кто и когда.
-//
-// FormatID - над каким форматом действие, ActorUserID - кто его совершил.
-// FK намеренно без constraint: аудит должен пережить архивацию/удаление формата.
-type LicensePlateFormatHistory struct {
-	ID          int             `json:"id"`
-	FormatID    int             `gorm:"index;not null" json:"format_id"`
-	ActorUserID *int            `gorm:"index" json:"actor_user_id,omitempty"`
-	ActionType  string          `gorm:"size:32;index" json:"action_type"`
-	Details     json.RawMessage `gorm:"type:jsonb" json:"details,omitempty"`
-	CreatedAt   time.Time       `json:"created_at"`
-}
-
-// LicensePlateFormatActionType - константы для LicensePlateFormatHistory.ActionType.
+// LicensePlateFormatActionType - константы action-типов истории формата номеров.
 const (
 	LicensePlateFormatActionCreated  = "created"
 	LicensePlateFormatActionUpdated  = "updated"

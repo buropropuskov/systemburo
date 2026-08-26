@@ -94,6 +94,30 @@
             v-model="form.granularity"
             :tabs="granularityTabs"
           />
+          <template v-if="availablePivots.length">
+            <span class="rb__field-label rb__pivot-label">Развернуть в колонки</span>
+            <div class="rb__pills">
+              <button
+                type="button"
+                class="rb__pill"
+                :class="{ 'rb__pill--on': !form.pivot }"
+                @click="form.pivot = ''"
+              >
+                Без разворота
+              </button>
+              <button
+                v-for="p in availablePivots"
+                :key="p.key"
+                type="button"
+                class="rb__pill"
+                :class="{ 'rb__pill--on': form.pivot === p.key }"
+                @click="form.pivot = p.key"
+              >
+                {{ p.label }}
+              </button>
+            </div>
+            <span class="rb__hint">Каждое значение оси станет отдельным столбцом-счётчиком рядом с периодом.</span>
+          </template>
         </div>
       </div>
     </template>
@@ -180,34 +204,49 @@
           </button>
         </div>
         <div class="rb__period-dates">
-          <label class="rb__date">
-            <span class="rb__field-label">С</span>
-            <input
-              v-model="form.period.from"
-              type="date"
-              class="lk-input"
-              @change="activePeriodPreset = 'custom'"
-            >
-          </label>
-          <label class="rb__date">
-            <span class="rb__field-label">По</span>
-            <input
-              v-model="form.period.to"
-              type="date"
-              class="lk-input"
-              @change="activePeriodPreset = 'custom'"
-            >
-          </label>
+          <DateFilter
+            mode="range"
+            :date-range-start="periodStartDate"
+            :date-range-end="periodEndDate"
+            @update:date-range-start="onPeriodRangeStart"
+            @update:date-range-end="onPeriodRangeEnd"
+            @clear="onPeriodClear"
+          />
         </div>
       </div>
     </div>
 
-    <!-- Превью «что построим» -->
+    <!-- Превью «что построим»: описание + визуальный скелет колонок результата -->
     <div class="rb__preview">
       <span class="rb__preview-label">Что построим</span>
       <p class="rb__summary">
         {{ summary }}
       </p>
+      <div
+        v-if="previewColumns.length"
+        class="rb__skeleton"
+        aria-hidden="true"
+      >
+        <div
+          v-for="(col, i) in previewColumns"
+          :key="i"
+          class="rb__skel-col"
+          :class="`rb__skel-col--${col.kind}`"
+        >
+          <span class="rb__skel-head">
+            {{ col.label }}<span
+              v-if="col.kind === 'pivot'"
+              class="rb__skel-more"
+            >, …</span>
+          </span>
+          <span
+            v-if="col.sub"
+            class="rb__skel-sub"
+          >{{ col.sub }}</span>
+          <span class="rb__skel-cell" />
+          <span class="rb__skel-cell" />
+        </div>
+      </div>
       <p class="rb__preview-result">
         {{ resultHint }}
       </p>
@@ -221,8 +260,8 @@
           v-model="form.limit"
           type="number"
           min="1"
-          max="1000"
-          placeholder="100"
+          :max="MAX_REPORT_LIMIT"
+          :placeholder="String(limitPlaceholder)"
           class="lk-input rb__limit-input"
         >
       </label>
@@ -242,7 +281,9 @@
 import { reactive, ref, computed, watch, nextTick } from 'vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
-import { buildReportRequest } from '@/composables/useReportRequest';
+import DateFilter from '@/components/DateFilter.vue';
+import { buildReportRequest, defaultReportLimit, MAX_REPORT_LIMIT } from '@/composables/useReportRequest';
+import { formatDateRu } from '@/utils/datetime';
 
 const props = defineProps({
   catalog: { type: Object, required: true },
@@ -267,6 +308,9 @@ const form = reactive({
   metrics: props.catalog.metrics?.[0]?.key ? [props.catalog.metrics[0].key] : [],
   dimension: '',
   granularity: 'day',
+  // Ось cross-tab: значения разворачиваются в колонки. '' -> без разворота.
+  // Применима лишь при dimension='period' и метрике из pivot.metrics (см. availablePivots).
+  pivot: '',
   entity: props.catalog.list_entities?.[0]?.key || '',
   filters: {},
   period: { from: props.period?.from || '', to: props.period?.to || '' },
@@ -329,6 +373,22 @@ const availableDimensions = computed(() => {
   return [dimNoneOption.value, ...realDims];
 });
 
+// Оси cross-tab, применимые к текущему срезу: только при разрезе «период» и когда
+// ось поддерживает КАЖДУЮ выбранную метрику (бэк требует metrics ⊆ pivot.metrics,
+// иначе 400). Пустой набор метрик -> разворачивать нечего.
+const availablePivots = computed(() => {
+  if (form.dimension !== 'period') return [];
+  const sel = selectedMetrics.value;
+  if (!sel.length) return [];
+  return (props.catalog.pivots || []).filter(
+    (p) => sel.every((m) => (p.metrics || []).includes(m.key)),
+  );
+});
+
+const activePivot = computed(
+  () => availablePivots.value.find((p) => p.key === form.pivot) || null,
+);
+
 const selectedEntity = computed(
   () => (props.catalog.list_entities || []).find((e) => e.key === form.entity) || null,
 );
@@ -366,6 +426,12 @@ watch(availableDimensions, (dims) => {
   form.dimension = (firstReal || dims[0]).key;
 }, { immediate: true });
 
+// Ось разворота держим валидной: сменили разрез с «период» или метрику на
+// неподдерживаемую -> сбрасываем pivot, иначе ушлём в движок невалидную ось (400).
+watch(availablePivots, (pivots) => {
+  if (form.pivot && !pivots.some((p) => p.key === form.pivot)) form.pivot = '';
+});
+
 // Смена выгружаемой сущности обнуляет выбранные фильтры — у разных сущностей
 // разный набор применимых фильтров, чужие значения сбивали бы с толку.
 watch(() => form.entity, () => {
@@ -392,9 +458,9 @@ const canRun = computed(() =>
 
 const periodLabel = computed(() => {
   const { from, to } = form.period;
-  if (from && to) return `${from} — ${to}`;
-  if (from) return `с ${from}`;
-  if (to) return `по ${to}`;
+  if (from && to) return `${formatDateRu(from)} — ${formatDateRu(to)}`;
+  if (from) return `с ${formatDateRu(from)}`;
+  if (to) return `по ${formatDateRu(to)}`;
   return 'весь период';
 });
 
@@ -404,7 +470,10 @@ const summary = computed(() => {
   if (form.mode === 'aggregate') {
     const names = selectedMetrics.value.map((m) => m.label).join(', ') || '—';
     const dim = availableDimensions.value.find((d) => d.key === form.dimension)?.label || '—';
-    return `Считаем: ${names}; разрез «${dim}»${periodPart}.`;
+    const pivotPart = activePivot.value
+      ? `, развёрнуто по «${activePivot.value.label}» в колонки`
+      : '';
+    return `Считаем: ${names}; разрез «${dim}»${pivotPart}${periodPart}.`;
   }
   return `Выгрузка строк: «${selectedEntity.value?.label || '—'}»${periodPart}.`;
 });
@@ -412,6 +481,10 @@ const summary = computed(() => {
 const resultHint = computed(() => {
   if (form.mode === 'aggregate') {
     const n = selectedMetrics.value.length;
+    // Cross-tab: период в строках, каждое значение оси -> своя колонка-счётчик.
+    if (activePivot.value) {
+      return `Результат: строки по периоду, отдельная колонка-счётчик на каждое значение «${activePivot.value.label}», с итогами.`;
+    }
     // «Без разреза» -> один итоговый ряд без столбца разреза, поэтому формулировка
     // отличается от разбивки по реальному разрезу.
     if (form.dimension === 'none') {
@@ -429,6 +502,28 @@ const resultHint = computed(() => {
     : 'Результат: таблица строк.';
 });
 
+// Скелет колонок результата для превью «Что построим»: первый столбец — разрез
+// (или «Итог» без разреза), затем по столбцу на метрику, затем ось разворота
+// (pivot) — её значения станут динамическими колонками, поэтому показываем одну
+// «призрачную» колонку-маркер. list -> столбцы выгружаемой сущности.
+const previewColumns = computed(() => {
+  if (form.mode === 'list') {
+    return (selectedEntity.value?.columns || []).map((c) => ({ label: c.label, kind: 'data' }));
+  }
+  const cols = [];
+  const dimLabel = form.dimension === 'none'
+    ? 'Итог'
+    : (availableDimensions.value.find((d) => d.key === form.dimension)?.label || 'Разрез');
+  cols.push({ label: dimLabel, kind: 'dim' });
+  for (const m of selectedMetrics.value) {
+    cols.push({ label: m.label, sub: m.unit || '', kind: 'metric' });
+  }
+  if (activePivot.value) {
+    cols.push({ label: activePivot.value.label, sub: 'колонки по значениям', kind: 'pivot' });
+  }
+  return cols;
+});
+
 // Применить пресет/шаблон и сразу построить отчёт. Галерея-пресеты несут только
 // метрику/разрез; шаблоны (G2) дополнительно несут filters/period/period_preset.
 // Разрез сверяется watch'ем availableDimensions (ключи каталога валидны).
@@ -441,6 +536,9 @@ watch(() => props.preset, (p) => {
     form.metrics = p.metrics ? [...p.metrics] : (p.metric ? [p.metric] : []);
     form.dimension = p.dimension || '';
     form.granularity = p.granularity || 'day';
+    // Ось разворота из шаблона; невалидную (не period / чужая метрика) сбросит
+    // watch availablePivots до построения отчёта.
+    form.pivot = p.pivot || '';
   }
   // Период — синхронно (watch'и его не сбрасывают). Именованный пресет (неделя/
   // месяц/год/весь) пересчитываем на текущую дату; «custom»/произвольный — берём
@@ -491,15 +589,14 @@ function toggleFilter(key, value) {
 function computePeriod(kind) {
   if (kind === 'all') return { from: '', to: '' };
   const now = new Date();
-  const fmt = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-  const to = fmt(now);
+  const to = dateToIso(now);
   if (kind === 'week') {
     const monday = new Date(now);
     monday.setDate(now.getDate() - ((now.getDay() + 6) % 7)); // Пн = начало недели
-    return { from: fmt(monday), to };
+    return { from: dateToIso(monday), to };
   }
-  if (kind === 'month') return { from: fmt(new Date(now.getFullYear(), now.getMonth(), 1)), to };
-  if (kind === 'year') return { from: fmt(new Date(now.getFullYear(), 0, 1)), to };
+  if (kind === 'month') return { from: dateToIso(new Date(now.getFullYear(), now.getMonth(), 1)), to };
+  if (kind === 'year') return { from: dateToIso(new Date(now.getFullYear(), 0, 1)), to };
   return { from: '', to: '' };
 }
 
@@ -510,12 +607,60 @@ function applyPeriodPreset(kind) {
   activePeriodPreset.value = kind;
 }
 
+// Период хранится в form как ISO YYYY-MM-DD (формат бэка), а DateFilter работает с
+// Date-объектами в локальной зоне. Разбираем/собираем по календарным частям, не через
+// toISOString, чтобы не словить сдвиг даты на границе суток.
+function dateToIso(dt) {
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
+function isoToDate(iso) {
+  if (!iso) return null;
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+}
+
+const periodStartDate = computed(() => isoToDate(form.period.from));
+const periodEndDate = computed(() => isoToDate(form.period.to));
+
+// DateFilter эмитит update:* при каждом «Применить», даже когда даты не менялись.
+// Уводим период в 'custom' только при РЕАЛЬНОЙ смене границы — иначе «Применить»
+// на выставленном пресете без правок сбивал бы его подсветку (нативный input
+// раньше тоже молчал, пока значение не изменится).
+function onPeriodRangeStart(date) {
+  const iso = date ? dateToIso(date) : '';
+  if (iso === form.period.from) return;
+  form.period.from = iso;
+  activePeriodPreset.value = 'custom';
+}
+
+function onPeriodRangeEnd(date) {
+  const iso = date ? dateToIso(date) : '';
+  if (iso === form.period.to) return;
+  form.period.to = iso;
+  activePeriodPreset.value = 'custom';
+}
+
+function onPeriodClear() {
+  form.period.from = '';
+  form.period.to = '';
+  activePeriodPreset.value = 'custom';
+}
+
 // Снимок состояния формы для индикатора шагов мастера (родитель считает по нему
 // прогресс). metric — ключ первой выбранной метрики: шаг «что считаем» закрыт,
 // когда выбрана хотя бы одна. periodFilled — задан ли диапазон. immediate —
 // чтобы степпер был корректен сразу.
 const filterCount = computed(
   () => Object.values(form.filters).reduce((n, vals) => n + (vals?.length || 0), 0),
+);
+
+// Плейсхолдер поля «Строк» показывает, какой лимит уйдёт в запрос при пустом
+// поле: у разреза «период» это потолок (иначе хвост периода обрезался бы), у
+// остальных — дефолт движка.
+const limitPlaceholder = computed(
+  () => defaultReportLimit({ mode: form.mode, dimension: form.dimension }),
 );
 
 // Полный снимок состояния гида для сохранения в шаблон. Тот же формат принимает
@@ -526,6 +671,7 @@ const reportConfig = computed(() => ({
   metrics: [...form.metrics],
   dimension: form.dimension,
   granularity: form.granularity,
+  pivot: form.pivot,
   entity: form.entity,
   filters: { ...form.filters },
   period: { from: form.period.from, to: form.period.to },
@@ -601,7 +747,7 @@ function run() {
   height: 24px;
   border-radius: 50%;
   background: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
   font-size: 13px;
   font-weight: 700;
   display: grid;
@@ -647,18 +793,18 @@ function run() {
   padding: 12px 14px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
   transition: border-color 0.18s ease, background 0.18s ease;
 }
 
 .rb__metric:hover {
-  border-color: #c9cdf0;
-  background: #fcfcff;
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
+  background: var(--accent-tint);
 }
 
 .rb__metric--on {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   background: var(--color-primary-tint);
 }
 
@@ -675,10 +821,10 @@ function run() {
   margin-top: 1px;
   border: 2px solid var(--color-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--surface);
   display: grid;
   place-items: center;
-  color: #fff;
+  color: var(--accent-contrast);
   transition: background 0.18s ease, border-color 0.18s ease;
 }
 
@@ -691,7 +837,7 @@ function run() {
 
 .rb__metric--on .rb__metric-box {
   background: var(--color-primary);
-  border-color: var(--color-primary);
+  border-color: var(--accent);
 }
 
 .rb__metric--on .rb__metric-box svg {
@@ -730,7 +876,7 @@ function run() {
   padding: 10px 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--surface);
   font-size: 13px;
   color: var(--color-text);
   cursor: pointer;
@@ -738,13 +884,13 @@ function run() {
 }
 
 .rb__dim:hover {
-  border-color: #c9cdf0;
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 
 .rb__dim--on {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   background: var(--color-primary-tint);
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 .rb__dim-input {
@@ -764,7 +910,7 @@ function run() {
 }
 
 .rb__dim--on .rb__dim-dot {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
 }
 
 .rb__dim--on .rb__dim-dot::after {
@@ -817,7 +963,7 @@ function run() {
 .rb__pill {
   padding: 5px 13px;
   border: 1px solid var(--color-border);
-  background: #fff;
+  background: var(--surface);
   border-radius: var(--radius-pill);
   font-size: 13px;
   font-family: inherit;
@@ -827,13 +973,13 @@ function run() {
 }
 
 .rb__pill:hover {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
 }
 
 .rb__pill--on {
   background: var(--color-primary);
-  color: #fff;
-  border-color: var(--color-primary);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 
 .rb__pills-empty {
@@ -862,12 +1008,6 @@ function run() {
   gap: 14px;
 }
 
-.rb__date {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-
 .rb__preview {
   display: flex;
   flex-direction: column;
@@ -890,6 +1030,79 @@ function run() {
   margin: 0;
   font-size: 14px;
   color: var(--color-text);
+}
+
+/* Скелет колонок результата: горизонтальный набор «столбцов», каждый — заголовок
+   + пара призрачных ячеек. Даёт почувствовать форму таблицы до построения. */
+.rb__skeleton {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 2px;
+  padding-bottom: 4px;
+  overflow-x: auto;
+}
+
+.rb__skel-col {
+  flex: 1 1 0;
+  min-width: 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 10px);
+  background: var(--surface);
+}
+
+.rb__skel-col--dim {
+  background: var(--color-bg);
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
+}
+
+.rb__skel-col--metric {
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
+  background: var(--color-primary-tint);
+}
+
+/* Pivot-колонки динамические (значения оси) -> пунктир + многоточие-маркер. */
+.rb__skel-col--pivot {
+  border-style: dashed;
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.rb__skel-head {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+  /* Перенос вместо обрезки: при выгрузке строк колонок много (7+), длинные
+     подписи («Организация/Компания») не должны теряться под многоточием. */
+  overflow-wrap: anywhere;
+}
+
+.rb__skel-more {
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+.rb__skel-sub {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.rb__skel-cell {
+  height: 7px;
+  border-radius: 4px;
+  background: var(--color-border);
+}
+
+.rb__skel-col--metric .rb__skel-cell {
+  background: var(--accent);
+}
+
+.rb__pivot-label {
+  margin-top: 6px;
 }
 
 .rb__preview-result {
@@ -918,6 +1131,7 @@ function run() {
   width: 84px;
 }
 
+/* Планшет: свёрнутый сайдбар делает конструктор узким, 3-4 колонки не тянет. */
 @media (max-width: 980px) {
   .rb__metrics {
     grid-template-columns: repeat(2, 1fr);
@@ -928,22 +1142,51 @@ function run() {
   }
 }
 
-@media (max-width: 620px) {
-  .rb__metrics {
-    grid-template-columns: 1fr;
-    margin-left: 0;
+/* Мобилка (#1097, канонический брейкпоинт 768): контролы стопкой, левый отступ
+   под номер шага убираем (отъедает ширину), тач-зоны пилюль/карточек крупнее. */
+@media (max-width: 768px) {
+  .rb {
+    gap: 18px;
   }
 
   .rb__dims {
     grid-template-columns: repeat(2, 1fr);
-    margin-left: 0;
   }
 
+  .rb__metrics,
+  .rb__dims,
   .rb__group-title,
   .rb__gran,
   .rb__filters,
   .rb__period {
     margin-left: 0;
+  }
+
+  .rb__pill {
+    padding: 8px 14px;
+  }
+
+  .rb__dim {
+    padding: 12px;
+  }
+
+  .rb__metric {
+    padding: 13px 14px;
+  }
+
+  /* «Построить отчёт» на всю ширину под полем «Строк» — крупная зона нажатия. */
+  .rb__footer {
+    justify-content: flex-start;
+  }
+
+  .rb__footer .lk-button--primary {
+    flex: 1 1 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .rb__metrics {
+    grid-template-columns: 1fr;
   }
 }
 </style>

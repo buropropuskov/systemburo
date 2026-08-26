@@ -53,14 +53,28 @@
         height="18"
         aria-hidden="true"
       >
-        <path
+        <!-- Скрыть пароль: тот же глаз, что в открытом состоянии, перечёркнутый
+             по диагонали - пара читается как одно действие с двумя положениями. -->
+        <g
           fill="none"
           stroke="currentColor"
           stroke-width="1.6"
           stroke-linecap="round"
           stroke-linejoin="round"
-          d="M3 3l18 18M10.6 6.1A11 11 0 0 1 12 6c6.5 0 10 6 10 6a17.7 17.7 0 0 1-3.5 4.2M6.5 6.5C3.6 8.4 2 12 2 12s3.5 7 10 7c1.7 0 3.2-.4 4.5-1.1M9.9 9.9a3 3 0 0 0 4.2 4.2"
-        />
+        >
+          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+          <circle
+            cx="12"
+            cy="12"
+            r="3"
+          />
+          <line
+            x1="4.5"
+            y1="19.5"
+            x2="19.5"
+            y2="4.5"
+          />
+        </g>
       </svg>
     </button>
   </div>
@@ -97,29 +111,29 @@ function onInput(event) {
 .password-input__field {
   width: 100%;
   padding: 10px 38px 10px 12px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   font-size: 14px;
   font-family: inherit;
-  background: #fff;
+  background: var(--surface);
   color: inherit;
   transition: border-color 0.2s ease;
   box-sizing: border-box;
 }
 
 .password-input__field:focus {
-  border-color: var(--color-primary, #4F5BDF);
+  border-color: var(--color-primary, var(--accent));
   outline: none;
 }
 
 .password-input__field:disabled {
-  background: #f7f7f9;
-  color: #6b7280;
+  background: var(--accent-tint);
+  color: var(--text-muted);
   cursor: not-allowed;
 }
 
 .password-input__field::placeholder {
-  color: #9aa0a6;
+  color: var(--text-muted);
 }
 
 .password-input__toggle {
@@ -135,15 +149,15 @@ function onInput(event) {
   padding: 0;
   border: none;
   background: transparent;
-  color: #6e7280;
+  color: var(--text-muted);
   cursor: pointer;
   border-radius: 6px;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .password-input__toggle:hover:not(:disabled) {
-  background: #eef0ff;
-  color: var(--color-primary, #4F5BDF);
+  background: var(--accent-tint);
+  color: var(--color-primary, var(--accent-text));
 }
 
 .password-input__toggle:focus-visible {

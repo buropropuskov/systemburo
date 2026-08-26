@@ -1,5 +1,16 @@
 <template>
-  <div class="modal-content-inner">
+  <div
+    class="modal-content-inner"
+    :class="{ 'is-dragging': sheetDragging }"
+    :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
+    @touchstart="onSheetTouchStart"
+    @touchmove="onSheetTouchMove"
+    @touchend="onSheetTouchEnd"
+  >
+    <div
+      class="sheet-handle"
+      aria-hidden="true"
+    />
     <div class="modal-header">
       <div class="header-with-status">
         <h3 class="modal-title">
@@ -38,7 +49,10 @@
       </button>
     </div>
 
-    <div class="modal-body">
+    <div
+      ref="modalBody"
+      class="modal-body"
+    >
       <div
         v-if="table && table.table"
         class="place-details"
@@ -115,10 +129,6 @@
                         {{ formatTime(slot.open_time) }} – {{ formatTime(slot.close_time) }}
                       </span>
                       <div class="slot-badges">
-                        <span
-                          v-if="slot.is_next_day"
-                          class="next-day-badge"
-                        >+1</span>
                         <span
                           v-if="!slot.is_active"
                           class="inactive-badge"
@@ -208,6 +218,9 @@
 </template>
 
 <script>
+import { ref } from 'vue';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+
 export default {
     name: 'TableInfoModal',
     props: {
@@ -221,6 +234,24 @@ export default {
         }
     },
     emits: ['close'],
+    setup(_, { emit }) {
+        // Ползунок в шапке был нарисован, а жест не работал - подключаем свайп, как
+        // у окна места разгрузки: тянуть можно за ползунок и за любую часть окна,
+        // когда тело прокручено вверх.
+        const modalBody = ref(null);
+        const swipe = useSwipeDismiss(() => emit('close'), {
+            handleSelector: '.sheet-handle',
+            getScrollTop: () => modalBody.value?.scrollTop ?? 0,
+        });
+        return {
+            modalBody,
+            sheetOffset: swipe.offset,
+            sheetDragging: swipe.isDragging,
+            onSheetTouchStart: swipe.onTouchStart,
+            onSheetTouchMove: swipe.onTouchMove,
+            onSheetTouchEnd: swipe.onTouchEnd,
+        };
+    },
     data() {
         return {
             fullDayNames: ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'],
@@ -291,13 +322,27 @@ export default {
             }
         }
     },
+    mounted() {
+        // Свой Escape: без него жест закрывал сразу и карточку-родителя, тогда как
+        // крестик, затемнение и свайп закрывают только это окно.
+        document.addEventListener('keydown', this.handleKeydown, true);
+    },
     beforeUnmount() {
+        document.removeEventListener('keydown', this.handleKeydown, true);
         if (this.windowMouseMoveHandler) {
             window.removeEventListener('mousemove', this.windowMouseMoveHandler);
             window.removeEventListener('mouseup', this.windowMouseUpHandler);
         }
     },
     methods: {
+        handleKeydown(e) {
+            if (e.key !== 'Escape') return;
+            // Гасим всплытие: иначе тот же Escape поймает карточка-родитель и закроет
+            // сразу два уровня, хотя крестик и свайп закрывают только это окно.
+            e.stopPropagation();
+            this.$emit('close');
+        },
+
         close() {
             this.$emit('close');
         },
@@ -575,10 +620,21 @@ export default {
     height: 450px;
     display: flex;
     flex-direction: column;
-    background: #fff;
+    background: var(--surface);
     overflow: hidden;
     border-radius: 50px;
     box-shadow: var(--shadow-md);
+}
+
+/* Ползунок bottom-sheet - виден только на мобилке. */
+.sheet-handle {
+    display: none;
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    margin: 10px auto 2px;
+    flex-shrink: 0;
 }
 
 .modal-header {
@@ -588,7 +644,7 @@ export default {
     padding: 16px 24px;
     border-bottom: 1px solid var(--color-border);
     flex-shrink: 0;
-    background: #fff;
+    background: var(--surface);
 }
 
 .header-with-status {
@@ -603,7 +659,7 @@ export default {
     margin: 0;
     font-size: 16px;
     font-weight: 600;
-    color: #1a1a1a;
+    color: var(--text);
 }
 
 .modal-close {
@@ -619,12 +675,12 @@ export default {
 }
 
 .modal-close:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .time-info {
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .modal-body {
@@ -649,7 +705,7 @@ export default {
 .details-section {
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    background: #fff;
+    background: var(--surface);
     overflow: hidden;
     box-shadow: var(--shadow-sm);
 }
@@ -670,7 +726,7 @@ export default {
     margin: 0;
     font-size: 14px;
     font-weight: 600;
-    color: #333;
+    color: var(--text);
 }
 
 .section-body {
@@ -695,33 +751,34 @@ export default {
 
 .info-label {
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-weight: 400;
 }
 
 .info-value {
     font-size: 13px;
-    color: #333;
+    color: var(--text);
     font-weight: 500;
 }
 
 .comment-text {
     font-size: 12px;
-    color: #666;
+    color: var(--text-muted);
     font-style: italic;
     margin-top: 8px;
     padding: 8px 12px;
-    background: #fff3e0;
+    background: var(--warning-bg);
+    border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
     border-radius: 8px;
-    border-left: 3px solid #f39c12;
+    border-left: 3px solid var(--warning);
 }
 
 .location-description {
     font-size: 12px;
-    color: #333;
+    color: var(--text);
     margin-top: 8px;
     padding: 8px 12px;
-    background: #f8f9fa;
+    background: var(--surface-2);
     border-radius: 8px;
 }
 
@@ -737,39 +794,39 @@ export default {
 }
 
 .status-open {
-    background-color: #e6f7e6;
-    color: #2e7d32;
-    border: 1px solid #a5d6a7;
+    background-color: var(--success-bg);
+    color: var(--success-text);
+    border: 1px solid var(--success);
 }
 
 .status-closed {
-    background-color: #fff3e0;
-    color: #ef6c00;
-    border: 1px solid #ffcc80;
+    background-color: var(--warning-bg);
+    color: var(--warning-text);
+    border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
 }
 
 .status-inactive {
-    background-color: #ffebee;
-    color: #c62828;
-    border: 1px solid #ef9a9a;
+    background-color: var(--danger-bg);
+    color: var(--danger-text);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .map-link-btn {
     padding: 4px 12px;
-    background: #f0f3ff;
-    color: #4F5BDF;
+    background: var(--accent-tint);
+    color: var(--accent-text);
     text-decoration: none;
     border-radius: 30px;
     font-size: 12px;
     font-weight: 500;
     transition: all 0.2s ease;
-    border: 1px solid #4F5BDF;
+    border: 1px solid var(--accent);
     white-space: nowrap;
 }
 
 .map-link-btn:hover {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
 }
 
 .photo-container {
@@ -777,8 +834,8 @@ export default {
     width: 100%;
     height: 200px;
     overflow: hidden;
-    border: 1px solid #e6e6e6;
-    background: #f5f5f5;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
 }
 
 .photo-wrapper {
@@ -817,21 +874,21 @@ export default {
     height: 30px;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.9);
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 16px;
     font-weight: bold;
-    color: #333;
+    color: var(--text);
     transition: all 0.2s ease;
 }
 
 .photo-control-btn:hover {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
 }
 
 .no-photo-placeholder {
@@ -840,11 +897,11 @@ export default {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #f5f5f5;
-    color: #999;
+    background: var(--surface-2);
+    color: var(--text-muted);
     font-size: 14px;
     border-radius: 20px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
 }
 
 .schedule-grid {
@@ -854,26 +911,26 @@ export default {
 }
 
 .schedule-day-card {
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    box-shadow: 0 2px 6px var(--shadow-drop);
     transition: all 0.2s ease;
 }
 
 .schedule-day-card.current-day {
-    outline: 1px solid #4F5BDF;
+    outline: 1px solid var(--accent);
 }
 
 .schedule-day-card .day-name {
-    background: #f0f3ff;
+    background: var(--accent-tint);
     padding: 8px 10px;
     font-weight: 600;
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-size: 13px;
     text-align: center;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
 }
 
 .schedule-day-card .day-slots {
@@ -885,9 +942,9 @@ export default {
 
 .slot-badge {
     padding: 6px 8px;
-    background: #f8f9fa;
+    background: var(--surface-2);
     border-radius: 20px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     font-size: 11px;
     display: flex;
     flex-direction: column;
@@ -896,18 +953,18 @@ export default {
 }
 
 .slot-badge.active-slot {
-    background: #e8f5e9;
-    border-color: #81c784;
+    background: var(--success-bg);
+    border-color: var(--success);
 }
 
 .round-clock-text {
     font-weight: 500;
-    color: #000;
+    color: var(--text);
     font-size: 11px;
 }
 
 .slot-time {
-    color: #333;
+    color: var(--text);
     font-weight: 500;
 }
 
@@ -924,28 +981,46 @@ export default {
 }
 
 .next-day-badge {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
 }
 
 .inactive-badge {
-    background: #ffebee;
-    color: #c62828;
+    background: var(--danger-bg);
+    color: var(--danger-text);
 }
 
 .no-schedule {
     text-align: center;
-    color: #999;
+    color: var(--text-muted);
     font-size: 13px;
     font-style: italic;
     padding: 16px;
-    background: #f8f9fa;
+    background: var(--surface-2);
     border-radius: 8px;
 }
 
 @media (max-width: 768px) {
+    /* Bottom-sheet: во всю ширину снизу, скруглены только верхние углы (#1097 R4-10). */
+    .modal-content-inner {
+        height: auto;
+        max-height: 90dvh;
+        border-radius: 16px 16px 0 0;
+        /* Плавный возврат после недотянутого свайпа; во время перетаскивания
+           отключаем, чтобы лист шёл за пальцем 1:1. */
+        transition: transform 0.3s ease;
+    }
+
+    .modal-content-inner.is-dragging {
+        transition: none;
+    }
+
+    .sheet-handle {
+        display: block;
+    }
+
     .modal-header {
-        padding: 16px 20px;
+        padding: 6px 16px;
     }
     
     .modal-body {
