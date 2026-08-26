@@ -15,6 +15,12 @@ import "systemburo/internal/models"
 //     (Requirable=false): значение есть всегда;
 //   - people/cars/items - required совпадает со звёздочками и useFormValidation форм.
 
+// PDConsentFieldKey -- ключ поля «согласие субъекта на обработку персональных данных».
+// Заведён константой, потому что на него смотрят три разных места: форма подачи через
+// merged-конфиг, проверка при подаче и дополнении заявки, разбор бланка (там поле
+// исключено из построчной проверки - отметка ставится на весь список на сайте).
+const PDConsentFieldKey = "pd_consent"
+
 // Группы полей. common применяется ко всем типам вложения, остальные - к своему.
 const (
 	FieldGroupCommon = "common"
@@ -60,6 +66,11 @@ var attachmentFieldRegistry = []FieldDef{
 	{Key: "patent", Label: "Номер патента", Group: FieldGroupPeople, DefaultVisible: true, DefaultRequired: false, Requirable: true},
 	{Key: "work_permission", Label: "Иное разрешение на работы", Group: FieldGroupPeople, DefaultVisible: true, DefaultRequired: false, Requirable: true},
 	{Key: "target_tables", Label: "Места прохода", Group: FieldGroupPeople, DefaultVisible: true, DefaultRequired: true, Requirable: true},
+	// Согласие субъекта на обработку его персональных данных (152-ФЗ). У сотрудника
+	// вводят паспорт и патент, то есть данные третьего лица: отметка обязательна по
+	// умолчанию, а не по настройке админа. Снять обязательность он всё же может -
+	// у части заказчиков согласие собрано бумагой на весь подряд.
+	{Key: PDConsentFieldKey, Label: "Согласие на обработку персональных данных", Group: FieldGroupPeople, DefaultVisible: true, DefaultRequired: true, Requirable: true},
 
 	// cars
 	{Key: "number", Label: "Номер ТС", Group: FieldGroupCars, DefaultVisible: true, DefaultRequired: true, Requirable: true},
@@ -69,6 +80,12 @@ var attachmentFieldRegistry = []FieldDef{
 	// обязательно по умолчанию (как «Места прохода» у сотрудников): машину нельзя
 	// подать без выбора таблиц «Проезд». Админ может снять required в шаблоне полей.
 	{Key: "passage_tables", Label: "Проезд", Group: FieldGroupCars, DefaultVisible: true, DefaultRequired: true, Requirable: true},
+	// У машины вводят номер и марку, ФИО и документы владельца - нет; запись висит на
+	// организации, компании или учётной записи заявителя. Отдельного согласия субъекта
+	// такой набор не требует, а когда за машиной стоит физлицо, он покрыт общим
+	// согласием заявителя при подаче. Поэтому поле выключено: включит администратор,
+	// если юрист заказчика потребует - без правки кода.
+	{Key: PDConsentFieldKey, Label: "Согласие на обработку персональных данных", Group: FieldGroupCars, DefaultVisible: false, DefaultRequired: false, Requirable: true},
 
 	// items
 	{Key: "item_name", Label: "Наименование ТМЦ", Group: FieldGroupItems, DefaultVisible: true, DefaultRequired: true, Requirable: true},

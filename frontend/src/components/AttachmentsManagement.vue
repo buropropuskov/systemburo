@@ -50,11 +50,11 @@
               <p :class="{ 'active-sort': sortField === 'id' }">
                 ID
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{ sorted: sortField === 'id', desc: sortField === 'id' && sortDirection === 'desc' }"
-              >
+              />
             </div>
             <div
               class="header-col name-col"
@@ -63,11 +63,11 @@
               <p :class="{ 'active-sort': sortField === 'display_name' }">
                 Наименование
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{ sorted: sortField === 'display_name', desc: sortField === 'display_name' && sortDirection === 'desc' }"
-              >
+              />
             </div>
           </div>
 
@@ -160,11 +160,10 @@
                   title="Переименовать"
                   @click="startNameEdit"
                 >
-                  <img
-                    src="@/assets/icons/edit.png"
+                  <AppIcon
+                    name="edit"
                     class="name-edit-icon"
-                    alt=""
-                  >
+                  />
                 </button>
               </template>
               <span
@@ -538,6 +537,7 @@ import {
 } from '@/api/attachments';
 import { getTemplate } from '@/api/attachment-templates';
 import { getArchiveSettings } from '@/api/fileArchive';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 const SYSTEM_NAME_RE = /^[a-z0-9_]*$/;
 
@@ -560,6 +560,7 @@ export default {
     AttachmentFieldsModal,
     AttachmentTemplateEditor,
     UniqueAttachmentHistoryModal,
+    AppIcon,
   },
   setup() {
     // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
@@ -1087,17 +1088,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: 0.2s;
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {
@@ -1673,6 +1675,7 @@ export default {
 }
 
 .name-edit-icon {
+  color: var(--text);
   width: 16px;
   height: 16px;
   display: block;

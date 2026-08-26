@@ -1,14 +1,13 @@
 <template>
   <div
     class="donut-chart"
-    :style="{ height: height + 'px' }"
+    :style="{ height: fillHeight ? '100%' : height + 'px' }"
   >
-    <VueApexCharts
+    <canvas
       v-if="hasData"
-      type="donut"
-      :height="height"
-      :options="options"
-      :series="series"
+      ref="canvas"
+      role="img"
+      :aria-label="totalLabel"
     />
     <div
       v-else
@@ -20,8 +19,9 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import VueApexCharts from 'vue3-apexcharts';
+import { computed, ref } from 'vue';
+import { centerLabelPlugin, sliceLabelsPlugin } from './donutPlugins';
+import { TOOLTIP_STYLE, lighten, themeColor, useChartCanvas } from './useChartCanvas';
 
 const props = defineProps({
   /** Сегменты в форме [{ label, value }]; label — подпись доли (тип вложения, статус). */
@@ -59,7 +59,30 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  /**
+   * Занять высоту контейнера вместо фиксированной: кольцо рядом с колонкой
+   * чисел должно расти вместе с ней, иначе на длинном списке оно остаётся
+   * пятачком посреди пустой карточки.
+   */
+  fillHeight: {
+    type: Boolean,
+    default: false,
+  },
+  /**
+   * Рисовать кольцо и без данных: серый ободок с нулём в центре вместо
+   * заглушки текстом. Нужно там, где график - постоянная часть раскладки и его
+   * исчезновение читается как поломка, а не как «за период ничего не было».
+   */
+  emptyRing: {
+    type: Boolean,
+    default: false,
+  },
 });
+
+/** Высота строки легенды: её место резервирует кольцо без сегментов. */
+const LEGEND_RESERVE = 30;
+
+const canvas = ref(null);
 
 // Нулевые сегменты не рисуем — пустые доли искажают кольцо и легенду.
 const segments = computed(() =>
@@ -68,10 +91,28 @@ const segments = computed(() =>
     .filter((d) => d.value > 0),
 );
 
-const hasData = computed(() => segments.value.length > 0);
+const hasData = computed(() => segments.value.length > 0 || props.emptyRing);
 
-const labels = computed(() => segments.value.map((d) => d.label));
-const series = computed(() => segments.value.map((d) => d.value));
+// Кольцо без единого сегмента: рисуем ободок-заглушку, чтобы место графика не
+// пустело. Заглушка не сегмент данных - у неё нет подсказки, доли и легенды.
+const isEmptyRing = computed(() => segments.value.length === 0 && props.emptyRing);
+
+const labels = computed(() => (isEmptyRing.value ? [''] : segments.value.map((d) => d.label)));
+// Единица заглушки - не значение, а способ получить у Chart.js замкнутую дугу:
+// сегмент нулевой величины он не рисует вовсе.
+const series = computed(() => (isEmptyRing.value ? [1] : segments.value.map((d) => d.value)));
+
+// Палитру раскладываем по сегментам сами: сегментов может быть больше, чем
+// цветов, и тогда набор идёт по кругу.
+const segmentColors = computed(() =>
+  segments.value.map((_, i) => props.colors[i % props.colors.length]),
+);
+
+// Заглушка красится подложкой темы: ободок виден, но не притворяется данными.
+// Цвет отдаётся функцией, а НЕ массивом из одной функции: значения внутри
+// массива Chart.js раскладывает по сегментам как есть и вычисляемыми не считает
+// - функция уходила в холст цветом и кольцо рисовалось чёрным.
+const ringColor = themeColor('--surface-2', '#eef0f7');
 
 function pluralize(n) {
   const [one, few, many] = props.unitForms;
@@ -89,66 +130,76 @@ function formatValue(v) {
     : Math.round(num).toLocaleString('ru-RU');
 }
 
-const options = computed(() => ({
-  chart: {
-    type: 'donut',
-    height: props.height,
-    fontFamily: 'inherit',
-    toolbar: { show: false },
-    animations: { enabled: true, easing: 'easeinout', speed: 400 },
+const config = computed(() => ({
+  type: 'doughnut',
+  data: {
+    labels: labels.value,
+    datasets: [
+      {
+        data: series.value,
+        backgroundColor: isEmptyRing.value ? ringColor : segmentColors.value,
+        hoverBackgroundColor: isEmptyRing.value
+          ? ringColor
+          : segmentColors.value.map((c) => lighten(c, 0.06)),
+        // Разделитель в цвет карточки: белая обводка на тёмной теме читалась
+        // жирным кольцом вокруг диаграммы.
+        borderColor: themeColor('--surface', '#ffffff'),
+        borderWidth: 2,
+        hoverBorderColor: themeColor('--surface', '#ffffff'),
+      },
+    ],
   },
-  colors: props.colors,
-  labels: labels.value,
-  stroke: { width: 2, colors: ['#fff'] },
-  dataLabels: {
-    enabled: true,
-    // Внутри сегмента — доля в процентах (val уже процент для donut).
-    formatter: (val) => `${Math.round(val)}%`,
-    style: { fontSize: '12px', fontWeight: 600 },
-    dropShadow: { enabled: false },
-  },
-  plotOptions: {
-    pie: {
-      donut: {
-        size: '64%',
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    // Место снизу вместо скрытой легенды: без него пустое кольцо раздувалось
+    // на её высоту и рядом с соседним, у которого легенда есть, выглядело
+    // кольцом другого размера.
+    layout: { padding: { bottom: isEmptyRing.value ? LEGEND_RESERVE : 0 } },
+    // Толщина кольца: та же доля радиуса, что была у прежнего движка.
+    cutout: '64%',
+    animation: { duration: 400, easing: 'easeInOutQuad' },
+    plugins: {
+      sliceLabels: { display: !isEmptyRing.value },
+      legend: {
+        display: !isEmptyRing.value,
+        position: 'bottom',
         labels: {
-          show: true,
-          value: {
-            color: '#333',
-            fontSize: '20px',
-            fontWeight: 700,
-            formatter: (v) => formatValue(v),
-          },
-          total: {
-            show: true,
-            label: props.totalLabel,
-            color: '#a2a2a2',
-            fontSize: '12px',
-            formatter: (w) => {
-              const sum = w.globals.seriesTotals.reduce((a, b) => a + b, 0);
-              return formatValue(sum);
-            },
+          color: themeColor('--text', '#666'),
+          font: { size: 12 },
+          usePointStyle: true,
+          pointStyle: 'rectRounded',
+          boxWidth: 10,
+          boxHeight: 10,
+          padding: 12,
+        },
+      },
+      tooltip: {
+        ...TOOLTIP_STYLE,
+        enabled: !isEmptyRing.value,
+        callbacks: {
+          // Имя сегмента уже стоит в строке значения — отдельный заголовок
+          // повторял бы его.
+          title: () => '',
+          label: (item) => {
+            const num = Number(item?.raw) || 0;
+            return ` ${item?.label}: ${formatValue(num)} ${pluralize(Math.round(num))}`;
           },
         },
       },
     },
   },
-  states: { hover: { filter: { type: 'lighten', value: 0.06 } } },
-  legend: {
-    position: 'bottom',
-    fontSize: '12px',
-    labels: { colors: '#666' },
-    markers: { width: 10, height: 10, radius: 4 },
-    itemMargin: { horizontal: 8, vertical: 2 },
-  },
-  tooltip: {
-    theme: 'dark',
-    y: {
-      formatter: (v) => `${formatValue(v)} ${pluralize(Math.round(Number(v) || 0))}`,
-      title: { formatter: (name) => `${name}:` },
-    },
-  },
+  plugins: [
+    sliceLabelsPlugin,
+    centerLabelPlugin({
+      label: props.totalLabel,
+      format: formatValue,
+      total: isEmptyRing.value ? 0 : null,
+    }),
+  ],
 }));
+
+useChartCanvas(canvas, config);
 </script>
 
 <style scoped>

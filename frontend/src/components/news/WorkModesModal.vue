@@ -12,6 +12,7 @@
       >
         <div
           class="modes"
+          data-testid="ob-work-modes-window"
           :class="{ 'is-dragging': sheetDragging }"
           :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
           @touchstart="onSheetTouchStart"

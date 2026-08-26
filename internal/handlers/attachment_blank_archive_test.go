@@ -108,8 +108,16 @@ func TestAttachmentBlankArchiveSource(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, marker, 0o640))
 	require.NoError(t, os.WriteFile(foreignPath, foreignMarker, 0o640))
 
-	t.Run("отдаётся файл из реестра под своим именем", func(t *testing.T) {
+	// Сохранённая копия собрана с документами участников, и открыта она двоим:
+	// инициатору заявки (документы он сам и вводил) и носителю права на выгрузку.
+	t.Run("инициатор заявки получает сохранённый файл", func(t *testing.T) {
 		rec := testutil.GET(t, e, blankArchiveURL(appID, attID, "archive"), senderH)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		assert.Equal(t, string(marker), rec.Body.String())
+	})
+
+	t.Run("отдаётся файл из реестра под своим именем", func(t *testing.T) {
+		rec := testutil.GET(t, e, blankArchiveURL(appID, attID, "archive"), adminH)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		assert.Equal(t, string(marker), rec.Body.String(),
 			"ручка обязана отдать сохранённый файл, а не собрать бланк заново")

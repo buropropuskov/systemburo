@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -975,6 +976,25 @@ func (s *applicationService) CanAccessApplication(ctx context.Context, applicati
 		Where("application_id = ? AND user_id = ?", applicationID, user.ID).
 		Count(&count)
 	return count > 0
+}
+
+// IsApplicationSender отвечает, подал ли эту заявку сам пользователь. Узкая проверка
+// рядом с CanAccessApplication и намеренно уже неё: доступ к заявке есть и у
+// согласующих, принимающих и получателей пересылки, а сведения документов участников
+// вводил в форму именно инициатор - прятать их от него нечего и незачем.
+func (s *applicationService) IsApplicationSender(ctx context.Context, applicationID, userID int) (bool, error) {
+	if applicationID == 0 || userID == 0 {
+		return false, nil
+	}
+	var app models.Application
+	if err := s.db.WithContext(ctx).Select("id, sender_user_id").
+		Where("id = ?", applicationID).First(&app).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, fmt.Errorf("check application sender: %w", err)
+	}
+	return app.SenderUserID == userID, nil
 }
 
 // GetApplicationIDByAttachment возвращает ID заявки по ID вложения. Для manual-вложения

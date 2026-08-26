@@ -5,6 +5,7 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import GlobalSearchPanel from '../GlobalSearchPanel.vue';
 import { globalSearch } from '@/api/search';
+import { useOnboardingStore } from '@/stores/onboarding';
 
 // Панель показывает найденное, ввод идёт в поле меню и приходит сюда строкой. Проверяем
 // то, что ломается незаметно: разделы находятся без обращения к серверу, пустая строка
@@ -241,6 +242,45 @@ describe('GlobalSearchPanel', () => {
     expect(titles).toContain('Настройки');
   });
 
+  /**
+   * Онбординг раскрывает панель сам (reveal.open: 'search-panel') и рассказывает про
+   * неё отдельным шагом. Окно шага driver.js лежит вне панели, поэтому клик по нему
+   * приходил в общий обработчик «мимо панели»: панель сворачивалась в столбик,
+   * подсветка слетала, а вырез в затемнении оставался висеть на пустом месте.
+   */
+  it('панель, раскрытая туром, не сворачивается кликом мимо неё', async () => {
+    wrapper = mountPanel('Автомоб');
+    await flushPromises();
+    useOnboardingStore().setRevealOpen('search-panel');
+
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    await flushPromises();
+
+    expect(wrapper.find('.gsp--collapsed').exists()).toBe(false);
+  });
+
+  it('без сигнала тура клик мимо сворачивает панель как прежде', async () => {
+    wrapper = mountPanel('Автомоб');
+    await flushPromises();
+    useOnboardingStore().setRevealOpen(null);
+
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    await flushPromises();
+
+    expect(wrapper.find('.gsp--collapsed').exists()).toBe(true);
+  });
+
+  it('тур раскрыл другой узел - панель поиска ведёт себя обычно', async () => {
+    wrapper = mountPanel('Автомоб');
+    await flushPromises();
+    useOnboardingStore().setRevealOpen('admin-column');
+
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    await flushPromises();
+
+    expect(wrapper.find('.gsp--collapsed').exists()).toBe(true);
+  });
+
   // #1097 W4.1: на десктопе прозрачность подпёрта размытием, а на мобилке размытия нет
   // (backdrop-filter рвёт кадры при выезде, #1201) - и текст страницы читался сквозь
   // список находок. Проверяем по исходнику: scoped-CSS в jsdom не применяется.
@@ -252,5 +292,76 @@ describe('GlobalSearchPanel', () => {
     const surface = mobileBlock[1].match(/background:\s*color-mix\([^)]*var\(--surface\)\s*(\d+)%/);
     expect(surface).not.toBeNull();
     expect(Number(surface[1])).toBeGreaterThanOrEqual(95);
+  });
+});
+
+/**
+ * Выдача читается без знания устройства поиска: у раздела написано, сколько в нём
+ * нашлось, видно первые пять, а остальные раскрываются на месте - уходить со
+ * страницы за собственными результатами не нужно.
+ */
+describe('GlobalSearchPanel - сколько нашлось и где остальное', () => {
+  const users = (n) => ({
+    groups: [{
+      type: 'users',
+      title: 'Пользователи',
+      count: n,
+      items: Array.from({ length: n }, (_, i) => ({
+        id: i + 1, type: 'users', title: `Шумилин ${i + 1}`, subtitle: '@user', target: { entity: 'user', id: i + 1 },
+      })),
+    }],
+    total: n,
+  });
+
+  const showResults = async (n) => {
+    globalSearch.mockResolvedValue(users(n));
+    wrapper = mountPanel('Шумилин');
+    vi.advanceTimersByTime(400);
+    await flushPromises();
+  };
+
+  it('раздел говорит, сколько в нём нашлось', async () => {
+    await showResults(12);
+
+    expect(wrapper.find('.gsp__group-count').text()).toBe('12');
+  });
+
+  it('сразу показаны первые пять, остальные - за кнопкой с числом', async () => {
+    await showResults(12);
+
+    expect(wrapper.findAll('.gsp__row')).toHaveLength(5);
+    expect(wrapper.find('[data-testid="global-search-expand"]').text()).toContain('7');
+  });
+
+  it('раскрытие показывает остальные тут же, без перехода', async () => {
+    await showResults(12);
+
+    await wrapper.find('[data-testid="global-search-expand"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.findAll('.gsp__row')).toHaveLength(12);
+    expect(wrapper.find('[data-testid="global-search-expand"]').exists()).toBe(false);
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('когда результатов мало, ни счётчика лишнего, ни кнопки', async () => {
+    await showResults(1);
+
+    expect(wrapper.find('.gsp__group-count').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="global-search-expand"]').exists()).toBe(false);
+  });
+
+  it('новый запрос сворачивает раскрытое обратно', async () => {
+    await showResults(12);
+    await wrapper.find('[data-testid="global-search-expand"]').trigger('click');
+    await flushPromises();
+    expect(wrapper.findAll('.gsp__row')).toHaveLength(12);
+
+    globalSearch.mockResolvedValue(users(9));
+    await wrapper.setProps({ query: 'Шумил' });
+    vi.advanceTimersByTime(400);
+    await flushPromises();
+
+    expect(wrapper.findAll('.gsp__row')).toHaveLength(5);
   });
 });

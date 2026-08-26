@@ -68,11 +68,11 @@
                     @click="toggleTypeDropdown"
                   >
                     <span class="select-value">{{ getTableTypeLabel(newTable.table_type) }}</span>
-                    <img
-                      src="@/assets/icons/arrow.png"
+                    <AppIcon
+                      name="arrow"
                       class="select-arrow"
                       :class="{ rotated: typeDropdownOpen }"
-                    >
+                    />
                   </div>
                   <transition name="dropdown-fade">
                     <div
@@ -189,10 +189,12 @@
 import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions'
 import TextConstructor from './TextConstructor.vue'
+import AppIcon from '@/components/icons/AppIcon.vue'
 
 export default {
   name: 'TableConstructorCreateModal',
   components: {
+    AppIcon,
     TextConstructor
   },
   props: {

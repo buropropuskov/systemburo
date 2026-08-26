@@ -36,8 +36,11 @@ func (applicationSearchProvider) Title() string          { return "Заявки"
 func (applicationSearchProvider) PermissionKey() string { return KeyPagePersonal }
 
 func (applicationSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchRequest) ([]SearchItem, error) {
+	// Тело письма ищется только точным вхождением: нечёткое сравнение просматривает
+	// его целиком, а письма доходят до 70 килобайт (см. searchConditionFuzzyIn).
 	cols := []string{"a.application_number", "a.message", "o.name", "c.name"}
-	cond, args := searchCondition(cols, req.Raw)
+	fuzzyCols := []string{"a.application_number", "o.name", "c.name"}
+	cond, args := searchConditionFuzzyIn(cols, fuzzyCols, req.Raw)
 
 	// car_brand -- устаревшая колонка марки, но в данных заполнена именно она: снимок
 	// mark_name появился позже и есть у единиц записей. Ищем по обеим, иначе заявка не

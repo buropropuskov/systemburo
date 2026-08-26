@@ -7,19 +7,23 @@ import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
  * общее состояние.
  */
 const mocks = vi.hoisted(() => ({
-  state: { config: null, activeIndex: 0, moves: [] },
+  state: { config: null, activeIndex: 0, moves: [], destroys: 0 },
 }));
 
 vi.mock('driver.js', () => ({
   driver: (config) => {
     mocks.state.config = config;
     return {
+      getConfig: () => mocks.state.config,
+      // Настоящий driver заменяет конфиг целиком - мок ведёт себя так же, иначе
+      // потеря хуков при setConfig прошла бы мимо теста.
+      setConfig: (next) => { mocks.state.config = next; },
       getActiveIndex: () => mocks.state.activeIndex,
       moveNext: () => mocks.state.moves.push('next'),
       movePrevious: () => mocks.state.moves.push('prev'),
       moveTo: (i) => mocks.state.moves.push(`to:${i}`),
       drive: (i) => { mocks.state.activeIndex = i; },
-      destroy: () => {},
+      destroy: () => { mocks.state.destroys += 1; },
     };
   },
 }));
@@ -41,6 +45,7 @@ import {
   useOnboarding,
   STEP_DEMO_FALLBACK,
 } from '../useOnboarding';
+import { STAGE_PADDING, STAGE_RADIUS } from '@/components/onboarding/stageShape';
 
 /**
  * isMobileViewport - брейкпоинт (#1097 S11), по которому OnboardingTour решает,
@@ -248,6 +253,56 @@ describe('createDriver - шаг без цели', () => {
  * выбросить, в счёт не идёт - иначе в номерах дырка; шаг со скриншотом не
  * выбрасывается никогда и потому считается.
  */
+/**
+ * driver.js 1.4 держит зазор и скругление только в глобальном конфиге, поэтому
+ * форму выреза переключает хук начала перехода. Проверяем, что переключение
+ * доходит до конфига и не сносит остальную настройку.
+ */
+describe('createDriver - форма выреза по цели шага', () => {
+  const { createDriver } = useOnboarding();
+
+  const steps = [
+    { id: 'a', route: '/news', element: '[data-testid="rail"]', title: 'Навигация', description: 'x' },
+    { id: 'b', route: '/news', element: '[data-testid="bell"]', title: 'Уведомления', description: 'y' },
+  ];
+
+  const rect = (x, y, w, h) => ({
+    getBoundingClientRect: () => ({ x, y, width: w, height: h, left: x, top: y, right: x + w, bottom: y + h }),
+  });
+
+  beforeEach(() => {
+    storeState.steps = steps;
+    storeState.skippedIndexes = [];
+    mocks.state.activeIndex = 0;
+    window.innerWidth = 1440;
+    window.innerHeight = 900;
+  });
+
+  it('цель во всю высоту снимает зазор и скругление', () => {
+    createDriver(steps, { startIndex: 0 });
+    mocks.state.config.onHighlightStarted(rect(0, 0, 248, 900));
+    expect(mocks.state.config.stagePadding).toBe(0);
+    expect(mocks.state.config.stageRadius).toBe(0);
+  });
+
+  it('следующая обычная цель возвращает зазор и скругление', () => {
+    createDriver(steps, { startIndex: 0 });
+    mocks.state.config.onHighlightStarted(rect(0, 0, 248, 900));
+    mocks.state.config.onHighlightStarted(rect(1186, 12, 35, 35));
+    expect(mocks.state.config.stagePadding).toBe(STAGE_PADDING);
+    expect(mocks.state.config.stageRadius).toBe(STAGE_RADIUS);
+  });
+
+  it('подмена конфига сохраняет шаги и хуки - иначе тур встал бы после первого перехода', () => {
+    createDriver(steps, { startIndex: 0 });
+    mocks.state.config.onHighlightStarted(rect(0, 0, 248, 900));
+    expect(mocks.state.config.steps).toHaveLength(2);
+    expect(typeof mocks.state.config.onNextClick).toBe('function');
+    expect(typeof mocks.state.config.onHighlighted).toBe('function');
+    expect(mocks.state.config.overlayOpacity).toBe(0.78);
+  });
+});
+
 describe('createDriver - прогресс и подсказка следующего шага', () => {
   const { createDriver } = useOnboarding();
 
@@ -296,10 +351,20 @@ describe('createDriver - прогресс и подсказка следующе
     expect(popover.wrapper.querySelector('.ob-popover__step-label').textContent).toBe('Шаг 2 из 4');
   });
 
-  it('выброшенный шаг выпадает и из номера, и из итога', () => {
+  // Знаменатель по ходу тура не двигается: человек видел, как «из 57» тает до
+  // «из 48», и читал это как поломку. Выброшенный шаг убирает только свой номер.
+  it('выброшенный шаг выпадает из номера, но знаменатель держится', () => {
     storeState.skippedIndexes = [2];
     const popover = render(3);
-    expect(popover.wrapper.querySelector('.ob-popover__step-label').textContent).toBe('Шаг 3 из 3');
+    expect(popover.wrapper.querySelector('.ob-popover__step-label').textContent).toBe('Шаг 3 из 4');
+  });
+
+  it('сколько бы шагов ни выпало, знаменатель тот же', () => {
+    storeState.skippedIndexes = [1, 2];
+    const first = render(0).wrapper.querySelector('.ob-popover__step-label').textContent;
+    const last = render(3).wrapper.querySelector('.ob-popover__step-label').textContent;
+    expect(first).toBe('Шаг 1 из 4');
+    expect(last).toBe('Шаг 2 из 4');
   });
 
   it('номер растёт на каждом показанном шаге', () => {
@@ -317,5 +382,43 @@ describe('createDriver - прогресс и подсказка следующе
   it('шаг со скриншотом в подсказке не перескакивается - тур на него перейдёт', () => {
     const popover = render(0);
     expect(popover.wrapper.querySelector('.ob-popover__next-hint').textContent).toBe('Далее: Ваши заявки');
+  });
+});
+
+/**
+ * Промах мышью не должен стоить человеку всего обучения: driver по умолчанию
+ * читает клик по затемнению как выход, а авто-тур после выхода больше не
+ * всплывает. Выход остаётся крестиком, «Пропустить» и Esc.
+ */
+describe('createDriver - клик мимо окна шага', () => {
+  const { createDriver } = useOnboarding();
+
+  const steps = [
+    { id: 'a', route: '/news', element: '[data-testid="rail"]', title: 'Навигация', description: 'x' },
+    { id: 'b', route: '/news', element: '[data-testid="bell"]', title: 'Уведомления', description: 'y' },
+  ];
+
+  beforeEach(() => {
+    storeState.steps = steps;
+    storeState.skippedIndexes = [];
+    mocks.state.destroys = 0;
+  });
+
+  it('клик по затемнению обучение не обрывает', () => {
+    createDriver(steps, { startIndex: 0 });
+
+    // так driver зовёт хук: (активный элемент, шаг, контекст)
+    mocks.state.config.overlayClickBehavior(null, steps[0], {});
+
+    expect(mocks.state.destroys).toBe(0);
+    expect(mocks.state.moves).not.toContain('next');
+  });
+
+  it('поведение задано хуком, а не строкой - иначе driver вернётся к закрытию', () => {
+    createDriver(steps, { startIndex: 0 });
+
+    expect(typeof mocks.state.config.overlayClickBehavior).toBe('function');
+    // allowClose держит выход по Esc, обещанный в тексте первого шага
+    expect(mocks.state.config.allowClose).toBe(true);
   });
 });

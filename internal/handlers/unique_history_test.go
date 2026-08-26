@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -38,7 +39,12 @@ func TestUniqueEmployeeService_Update_RecordsChanges(t *testing.T) {
 	middleNameOld := "Иванович"
 	posOld := "Грузчик"
 	otherOld := "разрешение-1"
+	consentAt := time.Now().UTC()
 	emp := models.UniqueEmployee{
+		// Согласие субъекта у записи уже есть - так её создаёт живой поток (Create
+		// требует отметку). Без этого правка добавила бы отметку и история получила
+		// бы лишнее изменение pd_consent_at.
+		PDConsentAt:     &consentAt,
 		LastName:        &lastNameOld,
 		FirstName:       &firstNameOld,
 		MiddleName:      &middleNameOld,
@@ -56,6 +62,7 @@ func TestUniqueEmployeeService_Update_RecordsChanges(t *testing.T) {
 	newLast := "Петров"
 	newPos := "Старший грузчик"
 	req := services.NewUniqueEmployeeRequest{
+		PDConsent:       true,
 		LastName:        &newLast,
 		FirstName:       &firstNameOld,
 		MiddleName:      &middleNameOld,
@@ -124,6 +131,8 @@ func TestUniqueEmployeeService_Update_NoChange(t *testing.T) {
 	first := "Пётр"
 	middle := "Алексеевич"
 	emp := models.UniqueEmployee{
+		// Согласие субъекта у записи уже есть - так её создаёт живой поток.
+		PDConsentAt:    ptrTime(time.Now().UTC()),
 		LastName:       &last,
 		FirstName:      &first,
 		MiddleName:     &middle,
@@ -136,6 +145,7 @@ func TestUniqueEmployeeService_Update_NoChange(t *testing.T) {
 	svc := services.NewUniqueEmployeeService(db)
 
 	req := services.NewUniqueEmployeeRequest{
+		PDConsent:      true,
 		LastName:       &last,
 		FirstName:      &first,
 		MiddleName:     &middle,
@@ -242,6 +252,8 @@ func TestUniqueEmployeeService_GetHistory_ReturnsRecords(t *testing.T) {
 	first := "Иван"
 	pos := "Грузчик"
 	emp := models.UniqueEmployee{
+		// Согласие субъекта у записи уже есть - так её создаёт живой поток.
+		PDConsentAt:    ptrTime(time.Now().UTC()),
 		LastName:       &last,
 		FirstName:      &first,
 		Position:       &pos,
@@ -255,6 +267,7 @@ func TestUniqueEmployeeService_GetHistory_ReturnsRecords(t *testing.T) {
 
 	newLast := "Петров"
 	req := services.NewUniqueEmployeeRequest{
+		PDConsent:      true,
 		LastName:       &newLast,
 		FirstName:      &first,
 		Position:       &pos,
@@ -313,6 +326,8 @@ func TestUniqueEmployeeService_GetHistory_Forbidden(t *testing.T) {
 
 	last := "Сидоров"
 	emp := models.UniqueEmployee{
+		// Согласие субъекта у записи уже есть - так её создаёт живой поток.
+		PDConsentAt:    ptrTime(time.Now().UTC()),
 		LastName:       &last,
 		OrganizationID: &td.OrgID,
 		CompanyID:      &td.CompanyID,

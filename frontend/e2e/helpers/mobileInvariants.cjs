@@ -130,9 +130,6 @@ function smallTargets(min) {
     if (r.width === 0 || r.height === 0) continue;
     const cs = getComputedStyle(el);
     if (cs.visibility === 'hidden') continue;
-    // Внутренности сторонних виджетов (легенда графиков) размечены своими ролями, но
-    // их геометрия не наша - чинить её мы всё равно не станем.
-    if (el.closest('.apexcharts-canvas, .apexcharts-legend')) continue;
     // Элемент в середине анимации появления или ухода уже/ещё не в своём размере.
     if (/-(enter|leave)-(from|to|active)\b/.test(el.className || '')) continue;
     if (cs.opacity !== '' && parseFloat(cs.opacity) < 0.9) continue;

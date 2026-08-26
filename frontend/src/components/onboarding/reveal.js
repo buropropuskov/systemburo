@@ -37,7 +37,7 @@ const NAV_DRAWER_TRANSITION_MS = 300;
 const OPEN_REVEAL_TRANSITION_MS = 300;
 
 /** Допустимые значения `reveal.open` - расширять вместе с резолвером во владельце узла. */
-export const OPEN_TARGETS = ['admin-column', 'search-panel', 'first-application', 'first-attachment', 'attachment-blank', 'pass-report', 'work-modes', 'application-history'];
+export const OPEN_TARGETS = ['admin-column', 'search-panel', 'notifications', 'first-application', 'first-attachment', 'attachment-blank', 'pass-report', 'work-modes', 'application-history'];
 
 /** @returns {boolean} открыт ли бургер-drawer навигации сейчас. */
 export function isNavDrawerOpen() {
@@ -104,21 +104,30 @@ function resolveAxis(steps, index, axis) {
  *
  * @param {Array<object>} steps
  * @param {number} index
+ * @param {{ closeOthers?: boolean }} [options] `closeOthers: false` - только раскрыть,
+ *   ничего не сворачивая: так зовёт подготовка следующего шага, пока переход не состоялся
  * @returns {Promise<boolean>} раскрывали ли что-то именно на этом шаге - вызывающий
  *   по этому признаку решает, ждать ли цель долго (узел ещё едет) или коротко
  *   (узел давно открыт, и отсутствие цели значит «её тут нет»).
  */
-export async function applyReveal(steps, index) {
+export async function applyReveal(steps, index, { closeOthers = true } = {}) {
   const { mobile, open } = resolveReveal(steps, index);
 
   const store = useOnboardingStore();
-  const openChanged = store.revealOpen !== (open || null);
-  store.setRevealOpen(open);
+  // Подготовка следующего шага только РАСКРЫВАЕТ: сворачивать узел текущего шага
+  // ей рано. Прежде она снимала сигнал сразу по нажатию, и список уведомлений
+  // закрывался за 400 мс до того, как шаг сменится, - человек смотрел на подсветку
+  // пустого места под окном «Список уведомлений» (замечание владельца 21.08).
+  // Сворачивает то, что осталось лишним, уже подсветка нового шага.
+  const keepCurrent = !closeOthers && !open;
+  const openChanged = !keepCurrent && store.revealOpen !== (open || null);
+  if (!keepCurrent) store.setRevealOpen(open);
 
   let drawerOpened = false;
   if (isMobileViewport()) {
     const wantNav = mobile === 'nav';
-    drawerOpened = setNavDrawerOpen(wantNav) && wantNav;
+    // Тот же порядок для drawer: закрываем его не раньше смены шага.
+    if (wantNav || closeOthers) drawerOpened = setNavDrawerOpen(wantNav) && wantNav;
   }
 
   const revealed = drawerOpened || (openChanged && Boolean(open));

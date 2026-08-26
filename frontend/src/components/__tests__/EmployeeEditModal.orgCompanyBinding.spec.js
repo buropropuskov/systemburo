@@ -72,6 +72,7 @@ describe('EmployeeEditModal — привязка к организации и к
       lastName: 'Иванов',
       firstName: 'Иван',
       position: 'Монтажник',
+      pdConsent: true,
       passportSeriesNumber: '1234 567890',
       selectedCitizenship: CITIZENSHIPS[0],
     });

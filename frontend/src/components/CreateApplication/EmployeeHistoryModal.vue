@@ -32,12 +32,11 @@
                 aria-label="Экспорт в Excel"
                 @click="exportToExcel"
               >
-                <img
+                <AppIcon
                   v-if="!isExporting"
-                  src="@/assets/icons/export.png"
+                  name="export"
                   class="export-icon"
-                  alt=""
-                >
+                />
                 <span
                   v-if="!isExporting"
                   class="export-label"
@@ -77,11 +76,11 @@
                 >
                   <div class="select-trigger">
                     <span class="selected-value">{{ selectedUserName }}</span>
-                    <img 
-                      src="@/assets/icons/arrow.png" 
-                      class="select-arrow" 
+                    <AppIcon
+                      name="arrow"
+                      class="select-arrow"
                       :class="{ 'arrow-open': userDropdownOpen }"
-                    >
+                    />
                   </div>
                   <transition name="fade">
                     <div
@@ -118,11 +117,11 @@
                 >
                   <div class="select-trigger">
                     <span class="selected-value">{{ selectedPlaceName }}</span>
-                    <img 
-                      src="@/assets/icons/arrow.png" 
-                      class="select-arrow" 
+                    <AppIcon
+                      name="arrow"
+                      class="select-arrow"
                       :class="{ 'arrow-open': placeDropdownOpen }"
-                    >
+                    />
                   </div>
                   <transition name="fade">
                     <div
@@ -171,11 +170,11 @@
                   class="sort-btn"
                   @click="toggleSortOrder"
                 >
-                  <img
-                    src="@/assets/icons/sort.png"
+                  <AppIcon
+                    name="sort"
                     class="sort-icon"
                     :class="{ 'sort-asc': sortOrder === 'asc' }"
-                  >
+                  />
                   <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
                 </button>
               </div>
@@ -293,11 +292,12 @@ import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { useDeletionsStore } from '@/stores/deletions';
 import DateFilter from '../DateFilter.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 import ExcelJS from 'exceljs';
 
 export default {
   name: 'EmployeeHistoryModal',
-  components: { DateFilter },
+  components: { DateFilter, AppIcon },
   props: {
     lastName: {
       type: String,
@@ -1175,6 +1175,7 @@ export default {
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 14px;
   height: 14px;
   transition: transform 0.2s ease;

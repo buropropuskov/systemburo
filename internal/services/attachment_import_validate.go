@@ -76,6 +76,11 @@ var importExcludedEmployeeKeys = map[string]bool{
 	// (EmployeeForm.vue) требует патент/разрешение по признаку гражданства, а не по
 	// этому тумблеру - см. patentErrors ниже.
 	"patent": true,
+	// Согласие субъекта на обработку персональных данных в бланке не собирается: колонки
+	// под него в файле нет, а заявитель подтверждает его на сайте один раз на весь
+	// загружаемый список - тем же порядком, что и места прохода. Без исключения разбор
+	// любого бланка падал бы на каждой строке.
+	PDConsentFieldKey: true,
 }
 
 // importExcludedVehicleKeys - зеркало importExcludedEmployeeKeys для машин: места
@@ -83,6 +88,8 @@ var importExcludedEmployeeKeys = map[string]bool{
 var importExcludedVehicleKeys = map[string]bool{
 	"unloading_places": true,
 	"passage_tables":   true,
+	// Согласие подтверждается на сайте на весь список, см. importExcludedEmployeeKeys.
+	PDConsentFieldKey: true,
 }
 
 // mergedFieldByKey ищет поле реестра по ключу среди смерженных с оверрайдами полей типа.

@@ -130,30 +130,6 @@
   }
 }
 
-.driver-popover.ob-popover .ob-popover__cta {
-  display: block;
-  width: 100%;
-  margin: 14px 0 4px;
-  padding: 11px 16px;
-  border: none;
-  border-radius: var(--radius-pill);
-  background: var(--accent);
-  color: var(--accent-contrast);
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease, transform 0.1s ease;
-}
-
-.driver-popover.ob-popover .ob-popover__cta:hover {
-  background: var(--accent-hover);
-}
-
-.driver-popover.ob-popover .ob-popover__cta:active {
-  transform: scale(0.98);
-}
-
 /* --- Футер: прогресс сверху, затем ряд "Пропустить ... Назад Далее" --- */
 .driver-popover.ob-popover .driver-popover-footer {
   display: flex;
@@ -268,6 +244,21 @@
 /* Счётчик - кнопка: по нему раскрывается список шагов тура. Селекторы усилены
    до трёх классов: driver.css красит кнопки футера по `.driver-popover-footer
    button`, и одиночный класс он перебивает. */
+/*
+ * Название главы над счётчиком шагов. Держим тише самого счётчика: это ориентир
+ * «где я в туре», а не главная строка карточки.
+ */
+.driver-popover.ob-popover .ob-popover__chapter {
+  align-self: flex-start;
+  margin-bottom: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  opacity: 0.75;
+}
+
 .driver-popover.ob-popover .ob-popover__step-label {
   align-self: flex-start;
   width: auto;
@@ -401,8 +392,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .ob-popover__bar-fill,
-  .ob-popover__check,
-  .ob-popover__cta {
+  .ob-popover__check {
     transition: none;
     animation: none;
   }
@@ -445,6 +435,26 @@
 .ob-highlighted {
   position: relative;
   z-index: 12501;
+}
+
+/*
+ * driver.js 1.4 вешает прямому родителю подсвеченной цели правило
+ * `:not(body):has(> .driver-active-element) { overflow: hidden !important }`.
+ * Для выпадающей панели это стирает её с экрана: список уведомлений лежит
+ * внутри круглой кнопки-колокольчика 35x35, и на своём же шаге панель
+ * обрезалась до размеров кнопки. В DOM она при этом целая - 360x427, opacity 1,
+ * два десятка карточек внутри, - поэтому автопроверки по DOM были зелёными, а
+ * человек видел подсвеченную пустоту (жалоба владельца, три захода).
+ *
+ * Селектор повторяет драйверовский, но начинается с `html`: onboarding.css
+ * грузится из main.js, а driver.css приезжает позже вместе с чанком тура, и при
+ * равной специфичности победило бы правило библиотеки. Апстрим убрал своё
+ * правило в 1.6.0 («positioned highlighted elements and their children (e.g.
+ * dropdown menus) no longer get clipped», #454 и #563) - после обновления
+ * библиотеки эта строка станет безвредной, снимать её отдельно не нужно.
+ */
+html :not(body):has(> .driver-active-element) {
+  overflow: visible !important;
 }
 
 /*

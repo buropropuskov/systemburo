@@ -95,11 +95,11 @@
           >
             <div class="button__content">
               <span class="button__text">{{ selectedCitizenshipText }}</span>
-              <img
-                src="@/assets/icons/arrow.png"
+              <AppIcon
+                name="arrow"
                 class="button__arrow"
                 :class="{ 'button__arrow--up': citizenshipArrowUp }"
-              >
+              />
             </div>
           </button>
           <transition name="dropdown">
@@ -288,11 +288,11 @@
             >
               <div class="permission__button-content">
                 <span class="permission__button-text">{{ selectedPermission || (effectivePatentRequired ? 'Не выбрано' : 'Не требуется') }}</span>
-                <img
-                  src="@/assets/icons/arrow.png"
+                <AppIcon
+                  name="arrow"
                   class="permission__button-arrow"
                   :class="{ 'permission__button-arrow--up': permissionArrowUp }"
-                >
+                />
               </div>
             </button>
             <transition name="dropdown">
@@ -381,6 +381,34 @@
       </div>
     </div>
 
+    <!-- Согласие субъекта на обработку его персональных данных (152-ФЗ). Показывается
+         и требуется по настройке полей вложения; у сотрудника, выбранного из реестра,
+         согласие уже получено при заведении записи - там отметка не спрашивается. -->
+    <div
+      v-if="fieldVisible('pd_consent') && selectedExistingEmployees.length === 0"
+      class="completion__consent"
+    >
+      <label class="consent-option">
+        <input
+          v-model="pdConsent"
+          type="checkbox"
+          data-testid="employee-pd-consent"
+        >
+        <span>
+          Работник дал <a
+            href="/data-processing"
+            target="_blank"
+            rel="noopener"
+            class="blue"
+            @click.stop
+          >согласие</a> на обработку своих персональных данных<span
+            v-if="fieldRequired('pd_consent')"
+            class="required"
+          >*</span>
+        </span>
+      </label>
+    </div>
+
     <!-- Предупреждения выбранных таблиц прохода (#1183): единая плавающая панель
          рендерится в CreateApplication (@notices-change). -->
 
@@ -406,16 +434,19 @@ import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vu
 import { useFormValidation } from '@/composables/useFormValidation'
 import { useNarrowScreen } from '@/composables/useNarrowScreen'
 import { useFieldConfig } from '@/composables/useFieldConfig'
+import { resetEmployeeFormState } from './entryFormReset'
 import { collectActiveWarnings } from '@/utils/warningWindows'
 import { buildScheduleReport } from '@/utils/scheduleCheck'
 import { findDuplicateEmployee, employeeLabel } from '@/utils/applicationDuplicates'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { getCurrentInstance } from 'vue'
 import { getViewportZoom } from '@/utils/viewportScale'
+import AppIcon from '@/components/icons/AppIcon.vue'
 
 export default {
     name: 'EmployeeForm',
     components: {
+        AppIcon,
         ExistingEmployeesModal,
         TargetTablesGrid
     },
@@ -516,6 +547,9 @@ export default {
             if (fieldVisible('target_tables') && fieldRequired('target_tables')) {
                 rules.push({ check: vm.selectedPassageTables.length > 0, message: 'выберите хотя бы одно место прохода' })
             }
+            if (fieldVisible('pd_consent') && fieldRequired('pd_consent')) {
+                rules.push({ check: vm.pdConsent, message: 'отметьте согласие работника на обработку персональных данных' })
+            }
 
             return rules
         })
@@ -530,6 +564,10 @@ export default {
             lastName: '',
             firstName: '',
             middleName: '',
+            // Отметка о согласии субъекта. Ставится на каждого человека отдельно и
+            // сбрасывается после добавления: подтверждают конкретного работника, а не
+            // «вообще всех», кого заведут дальше.
+            pdConsent: false,
             position: '',
             passportSeriesNumber: '',
             patentNumber: '',
@@ -1009,6 +1047,7 @@ export default {
                 otherPermission: this.effectivePatentRequired ? this.selectedPermission : null,
                 passageTables: this.formatPassageTables(),
                 targetTables: [...this.selectedPassageTables],
+                pdConsent: this.pdConsent,
                 isExisting: false
             };
 
@@ -1037,6 +1076,7 @@ export default {
         },
 
         clearEmployeeFormPartial() {
+            this.pdConsent = false;
             this.lastName = '';
             this.firstName = '';
             this.middleName = '';
@@ -1047,6 +1087,7 @@ export default {
         },
         
         clearEmployeeForm() {
+            this.pdConsent = false;
             this.lastName = '';
             this.firstName = '';
             this.middleName = '';
@@ -1097,6 +1138,11 @@ export default {
                 otherPermission: employee.other_permission,
                 passageTables: this.formatPassageTables(),
                 targetTables: [...this.selectedPassageTables],
+                // Сотрудник из реестра: согласие получено при заведении записи, поэтому
+                // отметка едет с ним и повторно её не спрашиваем. У записей, заведённых
+                // до появления поля, pd_consent_at пустой - тогда согласие подтверждают
+                // заново в карточке реестра.
+                pdConsent: !!employee.pd_consent_at,
                 isExisting: true,
                 existingEmployeeId: employee.id
             }));
@@ -1139,6 +1185,8 @@ export default {
         editEmployee(employee) {
             this.editingEmployee = employee;
             this.selectedExistingEmployees = [];
+            // Отметку согласия возвращаем в форму: правка фамилии не должна её терять.
+            this.pdConsent = employee.pdConsent === true;
             
             if (employee.isExisting) {
                 this.lastName = employee.lastName;
@@ -1177,8 +1225,7 @@ export default {
 
         cancelEdit() {
             this.$emit('edit-cancelled');
-            this.editingEmployee = null;
-            this.clearEmployeeForm();
+            resetEmployeeFormState(this);
         },
         
         toggleCitizenshipDropdown() {
@@ -1607,6 +1654,24 @@ export default {
     border-radius: 8px;
     font-size: 10px;
     font-weight: 500;
+}
+
+.completion__consent {
+    margin-top: 10px;
+}
+
+.consent-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 11px;
+    line-height: 1.3;
+    cursor: pointer;
+}
+
+.consent-option input[type="checkbox"] {
+    margin-top: 2px;
+    flex-shrink: 0;
 }
 
 .completion__fields {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { formatDateRu, formatTimeAgo, formatReportCell, formatDuration, formatMonthRu } from '../datetime';
+import { formatDateRu, formatTimeAgo, formatReportCell, formatDuration, formatMonthRu, weekdayName } from '../datetime';
 
 describe('formatMonthRu', () => {
   it('YYYY-MM -> Месяц ГГГГ', () => {
@@ -174,5 +174,21 @@ describe('formatTimeAgo', () => {
     expect(formatTimeAgo('')).toBe('');
     expect(formatTimeAgo(null)).toBe('');
     expect(formatTimeAgo('не дата')).toBe('');
+  });
+});
+
+describe('weekdayName', () => {
+  it('называет день недели по дате', () => {
+    // 24.08.2026 - понедельник.
+    expect(weekdayName('2026-08-24T10:00:00')).toBe('Понедельник');
+    expect(weekdayName('2026-08-23T10:00:00')).toBe('Воскресенье');
+  });
+
+  it('пустое и невалидное значение не превращает в "Воскресенье"', () => {
+    // Индексация от нуля: невалидная дата дала бы NaN и undefined, а пустая строка
+    // до фикса вернула бы первый день списка.
+    expect(weekdayName('')).toBe('');
+    expect(weekdayName(null)).toBe('');
+    expect(weekdayName('не дата')).toBe('');
   });
 });

@@ -88,10 +88,10 @@
             title="Удалить"
             @click="deletePhoto(photo)"
           >
-            <img
-              src="@/assets/icons/trashcan.png"
+            <AppIcon
+              name="trashcan"
               class="action-icon-small"
-            >
+            />
           </button>
         </div>
       </div>
@@ -153,9 +153,11 @@
 import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions'
 import { useUiStore } from '@/stores/ui'
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'TableConstructorPhotoSection',
+  components: { AppIcon },
   props: {
     tableId: { type: Number, required: true },
     photos: { type: Array, default: () => [] }
@@ -480,10 +482,13 @@ export default {
 }
 
 .photo-delete-btn:hover .action-icon-small {
-  filter: brightness(0) invert(1);
+  color: var(--fill-text);
 }
 
 .action-icon-small {
+  /* Значок мельче 16px: общая обводка 1.7 садится в волосок, здесь плотнее. */
+  stroke-width: 2.2;
+  color: var(--text);
   width: 14px;
   height: 14px;
 }

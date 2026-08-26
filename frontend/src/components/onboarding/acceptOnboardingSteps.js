@@ -29,7 +29,7 @@ export const ACCEPT_ONBOARDING_VERSION = 1;
  *
  * Поля шага и точки расширения - в JSDoc `onboardingSteps.js`.
  *
- * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, demo?: string, requires?: string, optional?: boolean, optionalSegment?: boolean, expandRail?: boolean, celebrate?: boolean, cta?: string, ctaRoute?: string, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: string } }>}
+ * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, demo?: string, requires?: string, optional?: boolean, optionalSegment?: boolean, expandRail?: boolean, celebrate?: boolean, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: string } }>}
  */
 export const acceptOnboardingSteps = [
   // ── Сегмент /news: знакомство и дорога в Центр заявок ──
@@ -73,7 +73,6 @@ export const acceptOnboardingSteps = [
     // Список длиннее экрана: по центру его верх уезжал за край. Плюс человек
     // может открыть заявку сам - тогда тур сразу переходит к карточке.
     scrollTo: 'start',
-    advanceWhen: '[data-testid="ob-detail-card"]',
     side: 'top',
     align: 'start',
     title: 'Статусы заявок',
@@ -158,7 +157,7 @@ export const acceptOnboardingSteps = [
     requires: 'action.export.applications',
     title: 'Скачать бланки',
     description:
-      'Кнопка «Скачать» открывает окно «Скачивание бланков»: заполненные бланки заявки берутся по одному или все сразу. Кнопка есть только у заявок, для вложений которых бланки настроены.',
+      'Кнопка «Скачать» открывает окно «Скачивание бланков»: заполненные бланки заявки берутся по одному или все сразу. Кнопка есть только у заявок, для вложений которых бланки настроены. Паспортные данные участников попадают в файл только у тех, кому разрешена их выгрузка; остальным на их месте стоит прочерк.',
     reveal: { open: 'first-application' },
   },
   {
@@ -174,13 +173,12 @@ export const acceptOnboardingSteps = [
   },
   {
     id: 'acc-finish',
-    route: '/center',
-    element: null,
+    // Финал у всех туров один - см. комментарий в approveOnboardingSteps.
+    route: '/news',
+    element: '[data-testid="ob-start-button"]',
     celebrate: true,
-    cta: 'Открыть Центр заявок',
-    ctaRoute: '/center',
     title: 'Готово!',
     description:
-      'Порядок такой: отбираете заявки в Центре, открываете карточку и смотрите состав, принимаете в работу, раздаёте посты и места разгрузки, разбираете дополнения и наименования «на проверке». Закрытые заявки со временем сами уйдут в архив - удалять их не нужно.',
+      'Порядок такой: отбираете заявки в Центре, открываете карточку и смотрите состав, принимаете в работу, раздаёте посты и места разгрузки, разбираете дополнения и наименования «на проверке». Закрытые заявки со временем сами уйдут в архив - удалять их не нужно. Пройти обучение заново можно кнопкой «Обучение» вот здесь.',
   },
 ];

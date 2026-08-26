@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -185,7 +186,7 @@ func TestLogin_Success(t *testing.T) {
 	assert.NotEmpty(t, refreshCookie.Value)
 	assert.True(t, refreshCookie.HttpOnly, "cookie должна быть HttpOnly")
 	assert.Equal(t, http.SameSiteStrictMode, refreshCookie.SameSite)
-	assert.Equal(t, "/", refreshCookie.Path)
+	assert.Equal(t, "/api", refreshCookie.Path, "cookie ходит только к API, не за картинками и не на pgAdmin")
 
 	assert.Equal(t, td.OrgID, *resp.OrganizationID)
 	assert.Equal(t, td.CompanyID, *resp.CompanyID)
@@ -262,7 +263,11 @@ func TestRefreshToken_Success(t *testing.T) {
 	assert.NotEmpty(t, newRefreshCookie.Value)
 }
 
-func TestRefreshToken_BodyFallback(t *testing.T) {
+// Маркер продления принимается только из cookie. Раньше при её отсутствии он
+// читался из тела запроса - остаток тех времён, когда маркер отдавался клиенту в
+// JSON. Тест сторожит, что путь закрыт: тело с ДЕЙСТВИТЕЛЬНЫМ маркером сеанс не
+// продлевает.
+func TestRefreshToken_BodyIgnored(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -271,11 +276,18 @@ func TestRefreshToken_BodyFallback(t *testing.T) {
 	testutil.RegisterUser(t, e, "snakeuser", "pass123", 1, td.OrgID, td.CompanyID)
 	_, refreshToken := testutil.LoginUser(t, e, "snakeuser", "pass123")
 
-	// Fallback: если cookie нет, читаем из body snake_case.
 	body := `{"refresh_token":"` + refreshToken + `"}`
 	rec := testutil.POST(t, e, "/refresh-token", body, nil)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code, "тело запроса не должно продлевать сеанс")
 
-	assert.Equal(t, http.StatusOK, rec.Code)
+	// Тот же маркер в cookie работает - значит отказ выше про путь, а не про
+	// негодный маркер.
+	req := httptest.NewRequest(http.MethodPost, "/api/refresh-token", strings.NewReader("{}"))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: refreshToken})
+	viaCookie := httptest.NewRecorder()
+	e.ServeHTTP(viaCookie, req)
+	assert.Equal(t, http.StatusOK, viaCookie.Code, "cookie с тем же маркером должна продлевать сеанс")
 }
 
 func TestRefreshToken_InvalidToken(t *testing.T) {

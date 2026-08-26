@@ -241,6 +241,16 @@
                         <span class="detail-value">{{ formatTimeRange(vehicle.entry_time_from, vehicle.entry_time_to) || '-' }}</span>
                       </div>
                     </div>
+                    <!-- За кем закреплена запись реестра: служебная пометка бюро, поэтому
+                         подписью под блоком, а не строкой наравне с данными машины.
+                         Сервер отдаёт её только администратору, см. EmployeeDetailsModal. -->
+                    <p
+                      v-if="vehicle.user_name"
+                      class="owner-note"
+                      data-testid="vehicle-owner-login"
+                    >
+                      Запись закреплена за: {{ vehicle.user_name }}
+                    </p>
                   </div>
                 </div>
 
@@ -347,11 +357,11 @@
                       :disabled="entryExitHistory.length === 0 || isExporting"
                       @click="exportHistory"
                     >
-                      <img
+                      <AppIcon
                         v-if="!isExporting"
-                        src="@/assets/icons/export.png"
+                        name="export"
                         class="export-icon"
-                      >
+                      />
                       <span v-if="!isExporting">Экспорт</span>
                       <div
                         v-else
@@ -527,10 +537,12 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { checkVehicleBlacklist, createVehicleBlacklist } from '@/api/blacklist';
 import { listMarks } from '@/api/marks';
 import ExcelJS from 'exceljs';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
     name: 'VehicleDetailsModal',
     components: {
+        AppIcon,
         UnloadPlaceModal,
         TableInfoModal,
         CarHistoryModal,
@@ -1715,6 +1727,13 @@ useEscapeClose(() => emit('close'), () => props.show, props.source === 'applicat
 
 .detail-item.full-width {
   grid-column: 1 / -1;
+}
+
+.owner-note {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.75;
 }
 
 .detail-label {

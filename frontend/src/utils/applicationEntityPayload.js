@@ -24,6 +24,10 @@ export function toVehiclePayload(vehicles) {
         unload_place: vehicle.unloadingPlace,
         unload_places: vehicle.unloadPlaces || [],
         passage_tables: vehicle.passage_tables || [],
+        // Отметка о согласии субъекта на обработку персональных данных. У машин поле
+        // шаблона выключено по умолчанию, поэтому обычно приходит false и сервер просто
+        // не пишет отметку.
+        pd_consent: vehicle.pdConsent === true,
     }));
 }
 
@@ -42,6 +46,10 @@ export function toEmployeePayload(employees) {
         patent_number: employee.patentNumber,
         other_permission: employee.otherPermission,
         target_tables: employee.targetTables || [],
+        // Отметка о согласии субъекта на обработку персональных данных: дату и автора
+        // ставит сервер, отсюда уходит только факт подтверждения. Сотрудник, выбранный
+        // из реестра, приходит с pdConsent=true - согласие получено при заведении записи.
+        pd_consent: employee.pdConsent === true,
     }));
 }
 

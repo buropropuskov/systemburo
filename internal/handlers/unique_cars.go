@@ -232,6 +232,30 @@ func (h *UniqueCarHandler) GetHistory(c echo.Context) error {
 	return RespondSuccess(c, items)
 }
 
+// GetRegistryLog godoc
+// @Summary      Журнал реестра машин
+// @Description  Все события реестра: создание, правка полей, удаление - с автором и
+// @Description  временем. Единственный способ узнать, кем и когда удалена запись: у
+// @Description  исчезнувшей строки истории по id больше нет. Доступен администратору.
+// @Tags         unique-cars
+// @Produce      json
+// @Security     BearerAuth
+// @Param        limit query int false "Сколько записей вернуть (по умолчанию и максимум 500)"
+// @Success      200 {array} services.UniqueCarHistoryItem
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError "Не администратор"
+// @Router       /unique-cars/history [get]
+func (h *UniqueCarHandler) GetRegistryLog(c echo.Context) error {
+	username := c.Get("username").(string)
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+
+	items, err := h.service.GetRegistryLog(c.Request().Context(), username, limit)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, items)
+}
+
 // Lookup godoc
 // @Summary      Найти машину по номеру и марке
 // @Description  Поиск машины (LOWER/TRIM) для открытия карточки со страницы ЧС. 404 если нет.

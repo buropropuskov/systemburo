@@ -38,6 +38,11 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+// shutdownGrace - сколько main ждёт горутину остановки после того, как HTTP-сервер
+// закрылся. С запасом над её собственными окнами: 10 секунд на закрытие соединений,
+// затем по 5 на дожатие push-рассылки и запись журнала обращений.
+const shutdownGrace = 25 * time.Second
+
 // @title           Systemburo API
 // @version         1.0
 // @description     API системы управления пропусками (Бюро пропусков)
@@ -211,7 +216,11 @@ func main() {
 	e.Use(mw.CORS(cfg.CORSAllowedOrigins))
 	e.Use(mw.RateLimit(cfg.RateLimitPerMinute, cfg.RateLimitWindowSec))
 	e.Use(mw.PDAudit(db))
-	e.Use(mw.RequestLogger(db))
+	// Журнал обращений пишется пачками из фоновой горутины (#2125): обработчик
+	// только кладёт запись в очередь. Останавливается в graceful shutdown ниже,
+	// иначе остаток очереди уйдёт вместе с процессом.
+	requestLogWriter := mw.NewRequestLogWriter(db)
+	e.Use(requestLogWriter.Middleware())
 
 	// Services
 	userTypeService := services.NewUserTypeService(db)
@@ -301,6 +310,9 @@ func main() {
 	// Предупреждение об истекающем завтра пропуске (#1748, S4): раньше об этом
 	// узнавали постфактум, когда CheckExpiredAttachments уже деактивировал вложение.
 	expiryNotifyService := services.NewExpiryNotifyService(db, notificationService)
+	// Всплеск серверных ошибок (#2192): доля 5xx видна была только тому, кто сам
+	// открыл раздел мониторинга.
+	errorSpikeNotifyService := services.NewErrorSpikeNotifyService(db, notificationService, permissionResolver)
 	telegramService := services.NewTelegramService(cfg.TelegramBotToken, cfg.TelegramChatID)
 	bugReportService := services.NewBugReportService(db, telegramService)
 	// maintenance_scheduled (#1748 S5): уведомление активным пользователям при
@@ -360,7 +372,7 @@ func main() {
 	newsHandler := handlers.NewNewsHandler(newsService)
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	pushHandler := handlers.NewPushHandler(pushService)
-	requestLogsHandler := handlers.NewRequestLogsHandler(requestLogsService)
+	requestLogsHandler := handlers.NewRequestLogsHandler(requestLogsService, auditRecorder)
 	employeesHistoryHandler := handlers.NewEmployeesHistoryHandler(employeesHistoryService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService, permissionResolver)
 	// Типы файлов заявки: картинки и документы одним списком. Разделять их незачем -
@@ -607,6 +619,7 @@ func main() {
 		TablePassGate:       mw.RequireTablePassVerb(db, permissionResolver, accessDenialService),
 		Impersonation:       impersonationHandler,
 		JWTSecret:           []byte(cfg.JWTSecret),
+		JWTRefreshSecret:    []byte(cfg.JWTRefreshSecret),
 		UploadPath:          cfg.UploadPath,
 	})
 
@@ -629,6 +642,11 @@ func main() {
 	// инициатору. См. ExpiryNotifyService.NotifyExpiringSoon. Дедупликация от повторных
 	// рестартов - внутри сервиса (по существующему уведомлению за последние сутки).
 	go startExpiryNotifyScheduler(ctxSig, expiryNotifyService, resetLoc)
+
+	// Всплеск серверных ошибок (#2192): каждые пять минут считает долю ответов 5xx
+	// за такое же окно и зовёт носителей права на раздел мониторинга. Порог, окно и
+	// пауза между уведомлениями - константы сервиса.
+	go startErrorSpikeScheduler(ctxSig, errorSpikeNotifyService, services.ErrorSpikeCheckInterval)
 
 	// Архив access_denials: 3 мес retention, цикл раз в сутки.
 	go startAccessDenialsArchiver(ctxSig, accessDenialService, 90*24*time.Hour, 24*time.Hour)
@@ -679,8 +697,12 @@ func main() {
 	// и завершается без цикла.
 	go startFileArchiveWorker(ctxSig, blankExportService, cfg.ArchiveWorkerTick, cfg.ArchiveSweepInterval, resetLoc)
 
-	// Graceful shutdown
+	// Graceful shutdown. О завершении сообщаем каналом: e.Start возвращает
+	// ErrServerClosed сразу после e.Shutdown, и без ожидания main выходил, пока
+	// эта горутина только принималась дожимать фоновые отправки.
+	shutdownDone := make(chan struct{})
 	go func() {
+		defer close(shutdownDone)
 		<-ctxSig.Done()
 		slog.Info("shutting down server...")
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -695,6 +717,13 @@ func main() {
 		pushCtx, pushCancel := context.WithTimeout(context.Background(), services.PushShutdownGrace)
 		defer pushCancel()
 		pushService.Shutdown(pushCtx)
+
+		// Журнал обращений: в очереди писателя лежат записи уже обслуженных
+		// запросов. Без слива они пропадут - в журнале не окажется как раз тех
+		// обращений, что шли перед остановкой, а разбирают обычно их.
+		logCtx, logCancel := context.WithTimeout(context.Background(), mw.RequestLogShutdownGrace)
+		defer logCancel()
+		requestLogWriter.Shutdown(logCtx)
 	}()
 
 	// Start server
@@ -703,6 +732,14 @@ func main() {
 	if err := e.Start(addr); err != nil && err != http.ErrServerClosed {
 		slog.Error("server error", "error", err)
 		os.Exit(1)
+	}
+	// Даём горутине остановки доделать своё: дожать push-отправки и записать
+	// накопленный журнал обращений. Срок с запасом над их собственными окнами -
+	// если он всё же вышел, процесс уходит, но с записью в логе, а не молча.
+	select {
+	case <-shutdownDone:
+	case <-time.After(shutdownGrace):
+		slog.Warn("остановка не уложилась в отведённый срок - часть фоновых задач прервана")
 	}
 	slog.Info("server stopped")
 }
@@ -998,6 +1035,27 @@ func startDailyPassReportSaver(ctx context.Context, svc services.DailyPassReport
 
 // startOnlinePeakSnapshotter раз в interval фиксирует текущий онлайн как дневной
 // пик (#632). Останавливается по отмене ctx (graceful shutdown), горутина не течёт.
+// startErrorSpikeScheduler периодически проверяет долю серверных ошибок.
+//
+// Первой проверки при старте нет намеренно: сразу после подъёма журнал за окно
+// почти пуст, а первые запросы часто отвечают ошибкой, пока прогреваются
+// зависимости, - тревога на старте была бы ложной.
+func startErrorSpikeScheduler(ctx context.Context, svc services.ErrorSpikeNotifyService, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("error spike scheduler stopped")
+			return
+		case <-ticker.C:
+			if err := svc.CheckAndNotify(ctx); err != nil {
+				slog.Error("error spike check failed", "error", err)
+			}
+		}
+	}
+}
+
 func startOnlinePeakSnapshotter(ctx context.Context, svc services.StatisticsService, interval time.Duration) {
 	snapshot := func() {
 		if err := svc.SnapshotOnlinePeak(ctx); err != nil {

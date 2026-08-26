@@ -56,6 +56,25 @@ describe('позиционирование шагов', () => {
   });
 });
 
+describe('клип выпадающей цели', () => {
+  const css = readFileSync(resolve(__dirname, '../../../assets/onboarding.css'), 'utf8');
+
+  // driver.js 1.4 ставит родителю подсвеченной цели overflow:hidden!important, и
+  // список уведомлений (он лежит в круглой кнопке-колокольчике 35x35) исчезал с
+  // экрана на своём же шаге, оставаясь целым в DOM.
+  it('перебиваем overflow родителя цели, иначе выпадающая панель обрезается', () => {
+    const rule = css.match(/html :not\(body\):has\(> \.driver-active-element\)\s*\{[^}]*\}/s);
+    expect(rule?.[0]).toMatch(/overflow:\s*visible\s*!important/);
+  });
+
+  // Селектор должен быть специфичнее драйверовского: onboarding.css приезжает из
+  // main.js раньше, чем driver.css из чанка тура, и при равной специфичности
+  // побеждает правило библиотеки.
+  it('селектор специфичнее драйверовского', () => {
+    expect(css).toMatch(/html :not\(body\):has\(> \.driver-active-element\)/);
+  });
+});
+
 describe('переключение подсветки', () => {
   const engine = readFileSync(resolve(__dirname, '../../../composables/useOnboarding.js'), 'utf8');
   const css = readFileSync(resolve(__dirname, '../../../assets/onboarding.css'), 'utf8');
@@ -69,7 +88,13 @@ describe('переключение подсветки', () => {
   // driver.js снимает класс с прежней цели только в конце своей анимации: при
   // быстрых «Далее» пометки накапливались и над затемнением торчали три элемента.
   it('прежняя подсветка снимается в начале перехода', () => {
-    expect(engine).toMatch(/onHighlightStarted\(element\)\s*\{\s*dropStaleHighlights\(element\)/);
+    expect(engine).toMatch(/onHighlightStarted\(element\)\s*\{[^}]*dropStaleHighlights\(element\)/);
+  });
+
+  // Зазор и скругление выреза driver.js держит только в глобальном конфиге, а
+  // читает на каждом кадре: подогнать их под цель можно ровно в начале перехода.
+  it('форма выреза подгоняется под цель там же, в начале перехода', () => {
+    expect(engine).toMatch(/onHighlightStarted\(element\)\s*\{[^}]*applyStageShape\(driverObj, element\)/);
   });
 
   // Пока вырез едет, цель уже помечена классом driver.js. Если вешать на него
@@ -79,7 +104,7 @@ describe('переключение подсветки', () => {
   it('цель поднимается над затемнением по завершении перехода', () => {
     expect(css).toMatch(/\.ob-highlighted\s*\{[^}]*z-index/s);
     expect(css).not.toMatch(/\.driver-active-element\s*\{[^}]*z-index/s);
-    expect(engine).toMatch(/onHighlighted\(\)[\s\S]{0,120}raiseActiveHighlight\(\)/);
+    expect(engine).toMatch(/onHighlighted\(\)[\s\S]{0,120}raiseActiveHighlight\(driverObj\)/);
   });
 });
 

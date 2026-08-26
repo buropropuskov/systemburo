@@ -172,7 +172,7 @@ func (h *UsersHandler) ChangeOwnPassword(c echo.Context) error {
 	// погаснут. Без cookie (запрос мимо браузера) сохранять нечего - тогда
 	// отзываются все, как и раньше.
 	keep := ""
-	if cookie, err := c.Cookie(refreshCookieName); err == nil && cookie != nil {
+	if cookie, err := c.Cookie(services.RefreshCookieName); err == nil && cookie != nil {
 		keep = cookie.Value
 	}
 	if err := h.service.ChangeOwnPassword(c.Request().Context(), userID, req, requestMeta(c), keep); err != nil {

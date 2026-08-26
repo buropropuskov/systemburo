@@ -1,6 +1,8 @@
 package router
 
 import (
+	"net/http"
+
 	"systemburo/internal/handlers"
 	mw "systemburo/internal/middleware"
 	"systemburo/internal/services"
@@ -128,8 +130,11 @@ type Dependencies struct {
 	TablePassGate echo.MiddlewareFunc
 
 	// Misc
-	JWTSecret  []byte
-	UploadPath string
+	JWTSecret []byte
+	// JWTRefreshSecret нужен раздаче загруженных файлов: она пускает по cookie
+	// продления сеанса, потому что тег <img> заголовок Authorization не шлёт.
+	JWTRefreshSecret []byte
+	UploadPath       string
 }
 
 // Setup регистрирует все маршруты. См. Dependencies для описания полей.
@@ -230,11 +235,20 @@ func Setup(e *echo.Echo, d Dependencies) {
 	api := e.Group("/api")
 
 	// Статика загруженных файлов (фото мест разгрузки и системных таблиц).
-	// Публично, без JWT: тег <img> не отправляет Authorization. Под /api, чтобы
-	// прод-nginx (проксирует /api на backend) раздавал файлы без отдельного
-	// location и правок nginx.
+	// Под /api, чтобы прод-nginx (проксирует /api на backend) раздавал файлы без
+	// отдельного location и правок nginx. Доступ закрыт mw.FileAccess: тег <img>
+	// не отправляет Authorization, поэтому пропуском служит cookie продления
+	// сеанса (#2133). До этого каталог раздавался всем, кто знает адрес файла.
+	// Роут регистрируется вручную, а не через api.Group("/uploads").Static: группа
+	// echo заводит себе fallback RouteNotFound("/*"), он оказывается точнее
+	// статического "/uploads*" и перехватывает запросы файлов на 404.
 	if d.UploadPath != "" {
-		api.Static("/uploads", d.UploadPath)
+		api.Add(
+			http.MethodGet,
+			"/uploads*",
+			echo.StaticDirectoryHandler(echo.MustSubFS(e.Filesystem, d.UploadPath), false),
+			mw.FileAccess(d.JWTSecret, d.JWTRefreshSecret),
+		)
 	}
 
 	// Public routes. /login опционально защищён per-IP rate limiter-ом.
@@ -812,6 +826,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	ucg.GET("/ownership-info", uc.GetOwnershipInfo)
 	ucg.GET("/lookup", uc.Lookup, requireBlacklist)
 	ucg.GET("/:id/history", uc.GetHistory)
+	// Журнал всего реестра (включая удалённые записи) - раньше конкретного /:id/history,
+	// иначе «history» попало бы в :id и разбор номера вернул бы 400.
+	ucg.GET("/history", uc.GetRegistryLog)
 
 	// Реестр сотрудников (unique_employees)
 	ueg := protected.Group("/unique-employees")
@@ -822,6 +839,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	ueg.GET("/ownership-info", ue.GetOwnershipInfo)
 	ueg.GET("/lookup", ue.Lookup, requireBlacklist)
 	ueg.GET("/:id/history", ue.GetHistory)
+	ueg.GET("/history", ue.GetRegistryLog)
 
 	// Обратная связь. Отправка (POST) и свои обращения (GET /my) - любому
 	// авторизованному; админ-операции (список/статистика/статус/прочтение) -
@@ -1110,8 +1128,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// статистики): гейт page.statistics, как у всей остальной статистики дашборда.
 	notif.GET("/push/summary", push.GetSummary, mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageStatistics))
 
-	// Логи запросов (мониторинг) - целиком admin-only, page.admin (Ф5, ранее service checkAdmin).
-	rlg := protected.Group("/request-logs", requireAdmin)
+	// Логи запросов (мониторинг) - под page.admin.monitoring (#2125): тем же ключом
+	// раздел гейтится в меню и роутере фронта, а требование page.admin отбивало
+	// носителя ключа на API. Администраторы проходят через adminAll, личный
+	// deny-override на этот ключ раздел закрывает.
+	requireMonitoring := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminMonitoring)
+	rlg := protected.Group("/request-logs", requireMonitoring)
 	rlg.GET("", requestLogs.GetLogs)
 	rlg.GET("/users", requestLogs.GetUsers)
 	rlg.GET("/stats", requestLogs.GetStats)

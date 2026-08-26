@@ -11,12 +11,14 @@ import (
 
 // RequestLogsHandler -- HTTP-обработчики логов запросов.
 type RequestLogsHandler struct {
-	service services.RequestLogsService
+	service  services.RequestLogsService
+	recorder services.AuditRecorder
 }
 
-// NewRequestLogsHandler создаёт новый экземпляр RequestLogsHandler.
-func NewRequestLogsHandler(service services.RequestLogsService) *RequestLogsHandler {
-	return &RequestLogsHandler{service: service}
+// NewRequestLogsHandler создаёт новый экземпляр RequestLogsHandler. Рекордер нужен
+// выгрузке: снятие журнала файлом оставляет след в audit_log.
+func NewRequestLogsHandler(service services.RequestLogsService, recorder services.AuditRecorder) *RequestLogsHandler {
+	return &RequestLogsHandler{service: service, recorder: recorder}
 }
 
 // GetLogs godoc
@@ -27,9 +29,14 @@ func NewRequestLogsHandler(service services.RequestLogsService) *RequestLogsHand
 // @Param        user_id   query int    false "ID пользователя"
 // @Param        method    query string false "HTTP метод"
 // @Param        status    query int    false "HTTP статус"
+// @Param        status_min query int   false "Нижняя граница кода ответа (400 -- только ошибки)"
+// @Param        status_max query int   false "Верхняя граница кода ответа"
+// @Param        min_duration_ms query int false "Только ответы дольше указанного времени, мс"
 // @Param        from_date query string false "Дата начала (ISO 8601)"
 // @Param        to_date   query string false "Дата окончания (ISO 8601)"
 // @Param        search    query string false "Поиск по URL и username"
+// @Param        sort      query string false "Поле сортировки" Enums(created_at, method, url, status, username, duration) default(created_at)
+// @Param        order     query string false "Направление сортировки" Enums(asc, desc) default(desc)
 // @Param        page      query int    false "Страница" default(1)
 // @Param        per_page  query int    false "Записей на странице" default(20)
 // @Success      200 {object} Response
@@ -126,33 +133,6 @@ func (h *RequestLogsHandler) GetTimeline(c echo.Context) error {
 		return err
 	}
 	return RespondSuccess(c, points)
-}
-
-// Export godoc
-// @Summary      Экспорт логов в текстовый формат
-// @Tags         request-logs
-// @Produce      plain
-// @Security     BearerAuth
-// @Param        user_id   query int    false "ID пользователя"
-// @Param        method    query string false "HTTP метод"
-// @Param        status    query int    false "HTTP статус"
-// @Param        from_date query string false "Дата начала (ISO 8601)"
-// @Param        to_date   query string false "Дата окончания (ISO 8601)"
-// @Param        search    query string false "Поиск по URL и username"
-// @Success      200 {string} string
-// @Failure      401 {object} models.HTTPError
-// @Failure      403 {object} models.HTTPError
-// @Router       /request-logs/export [get]
-func (h *RequestLogsHandler) Export(c echo.Context) error {
-	var q models.RequestLogsQuery
-	if err := c.Bind(&q); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid query parameters")
-	}
-	text, err := h.service.Export(c.Request().Context(), q)
-	if err != nil {
-		return err
-	}
-	return c.String(http.StatusOK, text)
 }
 
 // GetHistory godoc

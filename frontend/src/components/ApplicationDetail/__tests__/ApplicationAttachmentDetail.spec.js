@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 
 import ApplicationAttachmentDetail from '../ApplicationAttachmentDetail.vue';
@@ -143,22 +143,30 @@ describe('ApplicationAttachmentDetail — кнопка "Пропустить" ov
     });
   }
 
-  it('canOverride=true: на помеченной строке есть кнопка «Принять» и стрелка меню', () => {
-    const wrapper = mountCarsWith([car({ blacklist_similar: flag() })], { canOverride: true });
+  it('canOverride+canRemove: на помеченной строке кнопка «Принять» и стрелка меню', () => {
+    const wrapper = mountCarsWith([car({ blacklist_similar: flag() })], { canOverride: true, canRemove: true });
     const btn = wrapper.find('[data-testid="blacklist-override-btn"]');
     expect(btn.exists()).toBe(true);
     expect(btn.text()).toContain('Принять');
     expect(wrapper.find('[data-testid="row-actions-toggle"]').exists()).toBe(true);
   });
 
+  it('canOverride без canRemove: стрелки нет - в меню остался бы дубль «Принять»', () => {
+    const wrapper = mountCarsWith([car({ blacklist_similar: flag() })], { canOverride: true });
+    expect(wrapper.find('[data-testid="blacklist-override-btn"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="row-actions-toggle"]').exists()).toBe(false);
+    // Кнопка остаётся цельной: половинку скругления обнуляет только сдвоенный вид.
+    expect(wrapper.find('.split-btn').classes()).toContain('split-btn--single');
+  });
+
   it('canOverride=false (дефолт): кнопки действия нет даже на помеченной строке', () => {
     const wrapper = mountCarsWith([car({ blacklist_similar: flag() })]);
-    expect(wrapper.find('.blacklist-override-btn').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="blacklist-override-btn"]').exists()).toBe(false);
   });
 
   it('overridden строка: кнопки нет даже при canOverride=true', () => {
     const wrapper = mountCarsWith([car({ blacklist_similar: flag({ overridden: true }) })], { canOverride: true });
-    expect(wrapper.find('.blacklist-override-btn').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="blacklist-override-btn"]').exists()).toBe(false);
   });
 
   it('клик по «Принять» сразу эмитит override-element, но НЕ open-vehicle', async () => {
@@ -653,5 +661,84 @@ describe('ApplicationAttachmentDetail — обрезка длинного зна
 
     const solo = wrapper.findAll('[data-testid="attachment-chip"]').filter((c) => c.classes().includes('chip--solo'));
     expect(solo).toHaveLength(0);
+  });
+});
+
+describe('ApplicationAttachmentDetail — куда раскрывается меню действий строки', () => {
+  const VIEWPORT = { width: 1200, height: 800 };
+  const MENU_WIDTH = 170;
+  const MARGIN = 8;
+  const GAP = 4;
+
+  function setViewport({ width, height }) {
+    Object.defineProperty(window, 'innerWidth', { value: width, writable: true, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: height, writable: true, configurable: true });
+  }
+
+  function mountFlagged() {
+    return mount(ApplicationAttachmentDetail, {
+      props: {
+        attachment: { id: 1, attachment_type: 'cars', attachment_display_name: 'Машины' },
+        cars: [car({ blacklist_similar: flag() })],
+        canOverride: true,
+        canRemove: true,
+      },
+      global: { stubs: { Teleport: true } },
+    });
+  }
+
+  /** Кнопка в jsdom не имеет размеров - подставляем те, что нужны расчёту. */
+  function openMenuAt(wrapper, rect) {
+    const toggle = wrapper.find('[data-testid="row-actions-toggle"]');
+    toggle.element.getBoundingClientRect = () => rect;
+    return toggle.trigger('click');
+  }
+
+  beforeEach(() => setViewport(VIEWPORT));
+
+  it('снизу есть место - меню встаёт под кнопкой', async () => {
+    const wrapper = mountFlagged();
+    await openMenuAt(wrapper, { top: 200, bottom: 220, right: 1000 });
+
+    expect(wrapper.vm.rowMenuOpenUp).toBe(false);
+    expect(wrapper.vm.rowMenuStyle.top).toBe(`${220 + GAP}px`);
+    expect(wrapper.vm.rowMenuStyle.bottom).toBe('auto');
+  });
+
+  it('строка у нижнего края - меню раскрывается вверх, а не уходит под край карточки', async () => {
+    const wrapper = mountFlagged();
+    await openMenuAt(wrapper, { top: 760, bottom: 780, right: 1000 });
+
+    expect(wrapper.vm.rowMenuOpenUp).toBe(true);
+    expect(wrapper.vm.rowMenuStyle.bottom).toBe(`${VIEWPORT.height - 760 + GAP}px`);
+    // top:'auto' обязателен - иначе обе координаты заданы и меню растягивается.
+    expect(wrapper.vm.rowMenuStyle.top).toBe('auto');
+  });
+
+  it('кнопка у правого края - меню прижато к полю, а не вылезает за окно', async () => {
+    const wrapper = mountFlagged();
+    await openMenuAt(wrapper, { top: 200, bottom: 220, right: VIEWPORT.width - 1 });
+
+    expect(wrapper.vm.rowMenuStyle.right).toBe(`${MARGIN}px`);
+  });
+
+  it('кнопка у левого края - левый край меню остаётся в окне', async () => {
+    const wrapper = mountFlagged();
+    await openMenuAt(wrapper, { top: 200, bottom: 220, right: 100 });
+
+    const right = Number.parseInt(wrapper.vm.rowMenuStyle.right, 10);
+    expect(VIEWPORT.width - right - MENU_WIDTH).toBeGreaterThanOrEqual(MARGIN);
+  });
+
+  it('прокрутка списка двигает меню за строкой, а не оставляет висеть', async () => {
+    const wrapper = mountFlagged();
+    const toggle = wrapper.find('[data-testid="row-actions-toggle"]');
+    toggle.element.getBoundingClientRect = () => ({ top: 200, bottom: 220, right: 1000 });
+    await toggle.trigger('click');
+    expect(wrapper.vm.rowMenuStyle.top).toBe(`${220 + GAP}px`);
+
+    toggle.element.getBoundingClientRect = () => ({ top: 100, bottom: 120, right: 1000 });
+    window.dispatchEvent(new Event('scroll'));
+    expect(wrapper.vm.rowMenuStyle.top).toBe(`${120 + GAP}px`);
   });
 });

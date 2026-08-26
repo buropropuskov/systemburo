@@ -43,6 +43,27 @@ test.describe('Password recovery + страницы-ошибки', () => {
     await expect(page).not.toHaveURL(/\/500/);
   });
 
+  test('кнопка "На главную" уводит с /500 и закрывает инцидент', async ({ page }) => {
+    await triggerServerError(page);
+
+    // Упали как раз на новостях - повторять там нечего, кнопка была бы дублем.
+    await expect(page.getByTestId('error-500-retry')).toBeHidden();
+    await page.getByTestId('error-500-home').click();
+    await expect(page).toHaveURL(/\/news/);
+    expect(await bugContext(page)).toBeNull();
+  });
+
+  test('повтор возвращает на страницу, где упал запрос', async ({ page }) => {
+    await loginAsSuperAdminUI(page);
+    await page.route('**/api/unique-cars**', (route) => route.fulfill({ status: 500, body: '' }));
+    await page.goto('/carsview');
+    await expect(page).toHaveURL(/\/500/);
+    await page.unroute('**/api/unique-cars**');
+
+    await page.getByTestId('error-500-retry').click();
+    await expect(page).toHaveURL(/\/carsview/);
+  });
+
   test('прямой заход на /500 без ошибки не показывает страницу инцидента', async ({ page }) => {
     await page.goto('/500');
     await expect(page).not.toHaveURL(/\/500/);

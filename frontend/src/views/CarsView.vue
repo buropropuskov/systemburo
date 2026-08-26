@@ -177,6 +177,15 @@
             >
               Добавить
             </button>
+            <!-- Журнал реестра открыт администратору, см. EmployeeView. -->
+            <button
+              v-if="canManageAllEntities"
+              class="log-button"
+              data-testid="cars-registry-log"
+              @click="showRegistryLog = true"
+            >
+              Журнал
+            </button>
             <RefreshButton
               :loading="loading"
               @refresh="fetchCars"
@@ -213,14 +222,14 @@
                 <p :class="{ 'active-sort': sortField === 'id' }">
                   №
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'id',
                     'desc': sortField === 'id' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col car-number-col"
@@ -229,14 +238,14 @@
                 <p :class="{ 'active-sort': sortField === 'number' }">
                   Номер
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'number',
                     'desc': sortField === 'number' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col brand-col"
@@ -245,14 +254,14 @@
                 <p :class="{ 'active-sort': sortField === 'mark' }">
                   Марка
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'mark',
                     'desc': sortField === 'mark' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col format-col"
@@ -261,14 +270,14 @@
                 <p :class="{ 'active-sort': sortField === 'format_name' }">
                   Формат номера
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'format_name',
                     'desc': sortField === 'format_name' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col status-col"
@@ -277,14 +286,14 @@
                 <p :class="{ 'active-sort': sortField === 'status' }">
                   Статус
                 </p>
-                <img
-                  src="@/assets/icons/sort.png"
+                <AppIcon
+                  name="sort"
                   class="sort-icon"
                   :class="{
                     'sorted': sortField === 'status',
                     'desc': sortField === 'status' && sortDirection === 'desc'
                   }"
-                >
+                />
               </div>
               <div
                 v-if="currentFilter === 'organization' || currentFilter === 'all_system'"
@@ -294,14 +303,14 @@
                 <p :class="{ 'active-sort': sortField === 'organization_name' }">
                   Организация
                 </p>
-                <img
-                  src="@/assets/icons/sort.png"
+                <AppIcon
+                  name="sort"
                   class="sort-icon"
                   :class="{
                     'sorted': sortField === 'organization_name',
                     'desc': sortField === 'organization_name' && sortDirection === 'desc'
                   }"
-                >
+                />
               </div>
               <div
                 v-if="currentFilter === 'company' || currentFilter === 'all_system'"
@@ -311,14 +320,14 @@
                 <p :class="{ 'active-sort': sortField === 'company_name' }">
                   Компания
                 </p>
-                <img
-                  src="@/assets/icons/sort.png"
+                <AppIcon
+                  name="sort"
                   class="sort-icon"
                   :class="{
                     'sorted': sortField === 'company_name',
                     'desc': sortField === 'company_name' && sortDirection === 'desc'
                   }"
-                >
+                />
               </div>
               <div class="header-col actions-col">
                 Действия
@@ -410,11 +419,10 @@
                         title="Изменить"
                         @click.stop="editCar(car)"
                       >
-                        <img
-                          src="@/assets/icons/edit.png"
-                          alt=""
+                        <AppIcon
+                          name="edit"
                           class="edit-icon"
-                        >
+                        />
                         <span class="action-btn__label">Изменить</span>
                       </button>
                       <button
@@ -423,11 +431,10 @@
                         title="Удалить"
                         @click.stop="openDeleteCarConfirmation(car)"
                       >
-                        <img
-                          src="@/assets/icons/trashcan.png"
-                          alt=""
+                        <AppIcon
+                          name="trashcan"
                           class="delete-icon"
-                        >
+                        />
                         <span class="action-btn__label">Удалить</span>
                       </button>
                       <span
@@ -544,7 +551,16 @@
             </p>
           </template>
           <template v-else-if="currentFilter === 'all_system'">
-            <p class="help__text">
+            <p
+              v-if="canManageAllEntities"
+              class="help__text"
+            >
+              Здесь отображаются <strong class="blue">все автомобили</strong>, которые есть в системе. Как администратор вы можете изменить или удалить любую машину, к какой бы организации она ни была привязана. Добавлять машины нужно на вкладках выше - там видно, за кем закрепится запись.
+            </p>
+            <p
+              v-else
+              class="help__text"
+            >
               Здесь отображаются <strong class="blue">все автомобили</strong>, которые есть в системе. В этой вкладке доступен только просмотр, добавление, редактирование и удаление машин недоступно.
             </p>
           </template>
@@ -572,7 +588,7 @@
     <!-- Модальное окно добавления машины - контракт окна из BaseModal (крестик,
          overlay, Escape, свайп-вниз/bottom-sheet на мобилке), а не своя разметка. -->
     <BaseModal
-      :show="showModal && currentFilter !== 'all_system'"
+      :show="showModal && (currentFilter !== 'all_system' || !!editingCar)"
       :title="editingCar ? 'Редактирование' : 'Добавление Т/С'"
       width="500px"
       radius="30px"
@@ -730,9 +746,36 @@
           </div>
         </div>
 
+        <!-- Привязка чужой записи: администратор её не переносит на себя, поэтому
+             вместо переключателей «привязать к моей организации» показываем, за кем
+             запись закреплена. -->
+        <div
+          v-if="editingForeignRecord"
+          class="completion__binding"
+        >
+          <label class="input__label">Привязка</label>
+          <div class="binding-info">
+            <p
+              class="binding-note"
+              data-testid="cars-foreign-binding-note"
+            >
+              Запись закреплена за
+              <strong v-if="editingCar.user_name">пользователем «{{ editingCar.user_name }}»</strong>
+              <strong v-else>другим пользователем</strong>
+              <template v-if="editingCar.organization_name">
+                , организация «{{ editingCar.organization_name }}»
+              </template>
+              <template v-if="editingCar.company_name">
+                , компания «{{ editingCar.company_name }}»
+              </template>.
+              Правка данных привязку не меняет.
+            </p>
+          </div>
+        </div>
+
         <!-- Привязка -->
         <div
-          v-if="currentFilter !== 'all_system'"
+          v-if="currentFilter !== 'all_system' && !editingForeignRecord"
           class="completion__binding"
         >
           <label class="input__label">Привязка</label>
@@ -770,6 +813,12 @@
         </div>
       </div>
     </BaseModal>
+    <RegistryLogModal
+      :show="showRegistryLog"
+      entity="cars"
+      @close="showRegistryLog = false"
+    />
+
     <ConfirmationModal
       :show="showDeleteCarModal"
       title="Подтверждение удаления"
@@ -812,6 +861,8 @@ import { apiRequest } from '@/api/client'
 import { getViewportZoom } from '@/utils/viewportScale'
 import { getUniqueCarsPaginated } from '@/api/cars'
 import { useInfiniteList } from '@/composables/useInfiniteList'
+import { useApplicationDetailLink } from '@/composables/useApplicationDetailLink'
+import { openItemFromRoute, registryScopeForRoute } from '@/utils/openQueryParam'
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
 import SearchComponent from '@/components/SearchComponent.vue';
@@ -819,12 +870,14 @@ import FilterButton from '@/components/ui/FilterButton.vue';
 import FilterSheet from '@/components/ui/FilterSheet.vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import RefreshButton from '@/components/RefreshButton.vue';
+import RegistryLogModal from '@/components/RegistryLogModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsModal.vue';
 import ApplicationDetail from '@/components/ApplicationDetail/ApplicationDetail.vue';
 import BaseModal from '@/components/ui/BaseModal.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 // Размер порции бесшовной подгрузки реестра машин (#1158, срез 2) - аналог
 // APPLICATIONS_PER_PAGE в ApplicationsCenter.
@@ -836,12 +889,14 @@ export default {
         FilterButton,
         FilterSheet,
         RefreshButton,
+        RegistryLogModal,
         LoaderSpinner,
         StatusBadge,
         ConfirmationModal,
         VehicleDetailsModal,
         ApplicationDetail,
-        BaseModal
+        BaseModal,
+        AppIcon,
     },
     setup() {
         // Бесшовная подгрузка реестра машин порциями (#1158, срез 2): composable
@@ -855,6 +910,7 @@ export default {
         const { isNarrow } = useNarrowScreen();
         return {
             isNarrow,
+            ...useApplicationDetailLink(),
             carsData: infiniteList.items,
             carsTotal: infiniteList.total,
             carsPage: infiniteList.page,
@@ -887,18 +943,17 @@ export default {
             // seq-guard (#632/#1158): смена фильтра/поиска до резолва предыдущего
             // fetchCars не должна запускать/продолжать устаревший loadAllRemainingCars.
             fetchSeq: 0,
-            currentFilter: 'user',
+            currentFilter: registryScopeForRoute(this.$route, (p) => usePermissionsStore().hasPermission(p)),
             // Мобилка: bottom-sheet с табами области (S3 эпика mobile-filter-collapse).
             showScopeSheet: false,
             ownershipInfo: null,
             showModal: false,
+            showRegistryLog: false,
             showDeleteCarModal: false,
             carToDelete: null,
             availableFormats: [],
             showDetailsViewModal: false,
             detailsCar: null,
-            showApplicationDetail: false,
-            selectedApplication: null,
             // Места разгрузки: список для имён + карта active_car_id -> [place ids]
             allUnloadingPlaces: [],
             carUnloadPlacesMap: {},
@@ -950,6 +1005,18 @@ export default {
         // по умолчанию; админ может отозвать ролью, не затрагивая изменение.
         canDeleteCars() {
             return usePermissionsStore().hasPermission('entity.cars.delete');
+        },
+        // Администратор системы: правит и удаляет запись независимо от привязки.
+        // Признак приходит из ownership-info - того же ответа, которым решает бэкенд,
+        // иначе кнопка появилась бы там, где сервер отвечает 403.
+        canManageAllEntities() {
+            return this.ownershipInfo?.can_manage_all === true;
+        },
+        // Правим запись, которая не относится ни к нам, ни к нашей организации или
+        // компании: так бывает только у администратора. Форма в этом режиме не
+        // предлагает переключатели привязки - они говорят про МОЮ организацию.
+        editingForeignRecord() {
+            return !!this.editingCar && !this.carBelongsToUser(this.editingCar);
         },
         // Поиск по тексту выполняется на бэке через search_query (#1158, срез 2) -
         // здесь не дублируем, carsData уже отфильтрован сервером.
@@ -1069,6 +1136,8 @@ export default {
         }
     },
     watch: {
+        // Пользователь уже на странице: mounted не перевызовется, а адрес сменился.
+        '$route.query.open'(val) { if (val) this.openFromSearchLink(); },
         // Поиск - на сервере (#1158, срез 2): дебаунс 300мс перед fetchCars (reset на
         // стр.1 + очистка аккумулятора уже даёт loadCarsList({reset:true})). withPlaces:false
         // - места разгрузки от search_query не зависят, тянуть их на каждый ввод не нужно.
@@ -1088,6 +1157,7 @@ export default {
         ]);
         // fetchCars сам подтягивает места разгрузки (allUnloadingPlaces + карта по машинам).
         await this.fetchCars();
+        this.openFromSearchLink();
         
         // Закрытие dropdown при клике вне
         document.addEventListener('click', (e) => {
@@ -1121,6 +1191,11 @@ export default {
         }
     },
     methods: {
+        /** Переход из сквозного поиска: `?q` сузил список, `?open` раскрывает карточку. */
+        openFromSearchLink() {
+            openItemFromRoute({ router: this.$router, route: this.$route, items: this.carsData, open: this.openCarDetails });
+        },
+
         /**
          * Тянет страницу на доступную высоту вьюпорта (под шапкой), чтобы таблица
          * занимала весь экран без скролла страницы. На мобильном (<=768px) сбрасываем.
@@ -1163,6 +1238,9 @@ export default {
                 entry_time_from: car.active_entry_time_from,
                 entry_time_to: car.active_entry_time_to,
                 isActive: car.status,
+                // Логин владельца сервер отдаёт только администратору, поэтому карточка
+                // рисует строку по факту наличия значения, а не по своей проверке роли.
+                user_name: car.user_name || null,
             };
             this.showDetailsViewModal = true;
         },
@@ -1170,24 +1248,26 @@ export default {
             this.showDetailsViewModal = false;
             this.detailsCar = null;
         },
-        handleOpenApplication(applicationId) {
-            if (!applicationId) return;
-            // ApplicationDetail сам догружает детали/вложения/читателей по id через watch.
-            this.selectedApplication = { id: applicationId };
-            this.showApplicationDetail = true;
-        },
-        closeApplicationDetail() {
-            this.showApplicationDetail = false;
-            this.selectedApplication = null;
-        },
+
         /**
          * Можно ли текущему пользователю редактировать/удалять машину.
          * Логика совпадает с backend canEditCar (unique_car_service.go):
-         * автор, или организация совпадает, или компания совпадает.
-         * filter=all_system - read-only по согласованию (PR #198).
+         * администратор системы правит любую запись, остальные - свою, своей
+         * организации или своей компании. До этого вкладка «Все в системе» была
+         * read-only для всех (PR #198); бюро обязано чинить записи контрагентов.
          */
         canEditCar(car) {
+            if (this.canManageAllEntities) return true;
             if (this.currentFilter === 'all_system') return false;
+            return this.carBelongsToUser(car);
+        },
+        /**
+         * Машина «своя»: автор записи, её организация или компания совпадает с
+         * текущим пользователем. Вынесено из canEditCar, потому что администратору
+         * право даёт не принадлежность, а роль - а форме правки нужно знать именно
+         * принадлежность, чтобы не переписать чужую привязку своей.
+         */
+        carBelongsToUser(car) {
             if (!this.ownershipInfo) return false;
             if (car.user_id != null && car.user_id === this.ownershipInfo.user_id) return true;
             if (car.organization_id != null && this.ownershipInfo.organization_id != null
@@ -1203,7 +1283,7 @@ export default {
             return this.canEditCar(car) && this.canDeleteCars;
         },
         canEditTooltip(car) {
-            if (this.currentFilter === 'all_system') return 'В режиме «Все в системе» редактирование запрещено';
+            if (this.currentFilter === 'all_system' && !this.canManageAllEntities) return 'В режиме «Все в системе» редактирование доступно только администратору';
             if (!this.canEditCar(car)) return 'Машина не привязана к вашей организации/компании - редактирование запрещено';
             return 'Недостаточно прав для изменения или удаления';
         },
@@ -1460,6 +1540,13 @@ export default {
             const currentNumber = this.numberParts.join(' ');
             if (currentNumber !== this.originalCarData.number) {
                 return true;
+            }
+
+            // У чужой записи привязку форма не показывает и не отправляет, поэтому и
+            // сравнивать нечего: иначе организация администратора не совпала бы с
+            // организацией записи, и «изменения» находились бы всегда.
+            if (this.editingForeignRecord) {
+                return false;
             }
 
             // Проверяем изменения в привязке к организации
@@ -1741,11 +1828,20 @@ export default {
                 const carData = {
                     number: number,
                     mark: this.selectedMark,
-                    format_id: this.selectedFormat.format.id,
-                    user_id: this.ownershipInfo.user_id,
-                    organization_id: this.bindToOrganization ? this.ownershipInfo.organization_id : null,
-                    company_id: this.bindToCompany ? this.ownershipInfo.company_id : null
+                    format_id: this.selectedFormat.format.id
                 };
+                if (this.editingForeignRecord) {
+                    // Администратор правит машину чужой организации: привязку переносим
+                    // как есть. Прежние поля брались из ownership-info правящего, то есть
+                    // машина контрагента переехала бы к бюро вместе с исправлением марки.
+                    // user_id не отправляем вовсе - сервер сохранит прежнего владельца.
+                    carData.organization_id = this.editingCar.organization_id ?? null;
+                    carData.company_id = this.editingCar.company_id ?? null;
+                } else {
+                    carData.user_id = this.ownershipInfo.user_id;
+                    carData.organization_id = this.bindToOrganization ? this.ownershipInfo.organization_id : null;
+                    carData.company_id = this.bindToCompany ? this.ownershipInfo.company_id : null;
+                }
 
                 let response;
                 if (this.editingCar) {
@@ -1784,14 +1880,11 @@ export default {
                     }
                 } else {
                     const errorData = await response.json();
+                    // Текст сервера показываем как есть - см. EmployeeEditModal (#2021):
+                    // он различает, где именно нашлась машина, а подмена отправляла
+                    // человека искать её в свой список, где её нет.
                     const errorMessage = errorData.message || "Ошибка при сохранении автомобиля";
-                    
-                    // Специальные сообщения для дубликатов
-                    if (errorMessage.includes("уже существует") || errorMessage.includes("already exists")) {
-                        useDeletionsStore().notify({ bold: 'Автомобиль уже привязан к вашему аккаунту', type: 'error' });
-                    } else {
-                        useDeletionsStore().notify({ bold: errorMessage, type: 'error' });
-                    }
+                    useDeletionsStore().notify({ bold: errorMessage, type: 'error' });
                 }
             } catch (error) {
                 console.error("Ошибка при сохранении автомобиля:", error);
@@ -1926,6 +2019,26 @@ export default {
     align-items: center;
 }
 
+/* Кнопка журнала стоит в шапке между «Добавить» и «Обновить», поэтому повторяет их
+   мерки: высота 25px, радиус 50px, текст 12px. Общий .lk-button здесь выбивался из
+   ряда - он крупнее и с другим радиусом. */
+.log-button {
+    height: 25px;
+    padding: 0 12px;
+    border-radius: 50px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.log-button:hover {
+    background: var(--surface-2);
+}
+
 .add-button {
     background: var(--accent);
     color: var(--accent-contrast);
@@ -2010,17 +2123,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-    filter: var(--icon-ink-filter);
+    color: var(--text);
 }
 
 .sort-icon {
+    color: var(--text-muted);
     width: 12px;
     height: 12px;
     transition: .2s;
 }
 
 .sort-icon.sorted {
-    filter: var(--icon-ink-filter);
+    color: var(--text);
 }
 
 .sort-icon.desc {
@@ -2180,6 +2294,7 @@ export default {
 }
 
 .edit-icon, .delete-icon {
+    color: var(--text);
     width: 16px;
     height: 16px;
     opacity: 0.7;

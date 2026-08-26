@@ -177,6 +177,16 @@
             >
               Добавить
             </button>
+            <!-- Журнал реестра открыт администратору: только там видно, кем и когда
+                 удалена запись - самой строки в реестре уже нет. -->
+            <button
+              v-if="canManageAllEntities"
+              class="log-button"
+              data-testid="employees-registry-log"
+              @click="showRegistryLog = true"
+            >
+              Журнал
+            </button>
             <RefreshButton
               :loading="loading"
               @refresh="fetchEmployees"
@@ -213,14 +223,14 @@
                 <p :class="{ 'active-sort': sortField === 'id' }">
                   №
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'id',
                     'desc': sortField === 'id' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col name-col"
@@ -229,14 +239,14 @@
                 <p :class="{ 'active-sort': sortField === 'last_name' }">
                   ФИО
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'last_name',
                     'desc': sortField === 'last_name' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col position-col"
@@ -245,14 +255,14 @@
                 <p :class="{ 'active-sort': sortField === 'position' }">
                   Должность
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <AppIcon
+                  name="sort"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'position',
                     'desc': sortField === 'position' && sortDirection === 'desc'
-                  }" 
-                >
+                  }"
+                />
               </div>
               <div
                 class="header-col status-col"
@@ -261,14 +271,14 @@
                 <p :class="{ 'active-sort': sortField === 'status' }">
                   Статус
                 </p>
-                <img
-                  src="@/assets/icons/sort.png"
+                <AppIcon
+                  name="sort"
                   class="sort-icon"
                   :class="{
                     'sorted': sortField === 'status',
                     'desc': sortField === 'status' && sortDirection === 'desc'
                   }"
-                >
+                />
               </div>
               <div
                 v-if="currentFilter === 'organization' || currentFilter === 'all_system'"
@@ -278,14 +288,14 @@
                 <p :class="{ 'active-sort': sortField === 'organization_name' }">
                   Организация
                 </p>
-                <img
-                  src="@/assets/icons/sort.png"
+                <AppIcon
+                  name="sort"
                   class="sort-icon"
                   :class="{
                     'sorted': sortField === 'organization_name',
                     'desc': sortField === 'organization_name' && sortDirection === 'desc'
                   }"
-                >
+                />
               </div>
               <div
                 v-if="currentFilter === 'company' || currentFilter === 'all_system'"
@@ -295,14 +305,14 @@
                 <p :class="{ 'active-sort': sortField === 'company_name' }">
                   Компания
                 </p>
-                <img
-                  src="@/assets/icons/sort.png"
+                <AppIcon
+                  name="sort"
                   class="sort-icon"
                   :class="{
                     'sorted': sortField === 'company_name',
                     'desc': sortField === 'company_name' && sortDirection === 'desc'
                   }"
-                >
+                />
               </div>
               <div class="header-col actions-col">
                 Действия
@@ -390,11 +400,10 @@
                         title="Изменить"
                         @click.stop="editEmployee(employee)"
                       >
-                        <img
-                          src="@/assets/icons/edit.png"
-                          alt=""
+                        <AppIcon
+                          name="edit"
                           class="edit-icon"
-                        >
+                        />
                         <span class="action-btn__label">Изменить</span>
                       </button>
                       <button
@@ -403,11 +412,10 @@
                         title="Удалить"
                         @click.stop="deleteEmployee(employee)"
                       >
-                        <img
-                          src="@/assets/icons/trashcan.png"
-                          alt=""
+                        <AppIcon
+                          name="trashcan"
                           class="delete-icon"
-                        >
+                        />
                         <span class="action-btn__label">Удалить</span>
                       </button>
                       <span
@@ -525,7 +533,16 @@
             </p>
           </template>
           <template v-else-if="currentFilter === 'all_system'">
-            <p class="help__text">
+            <p
+              v-if="canManageAllEntities"
+              class="help__text"
+            >
+              Здесь отображаются <strong class="blue">все сотрудники</strong>, которые есть в системе. Как администратор вы можете изменить или удалить любую запись, к какой бы организации она ни была привязана. Добавлять сотрудников нужно на вкладках выше - там видно, за кем закрепится запись.
+            </p>
+            <p
+              v-else
+              class="help__text"
+            >
               Здесь отображаются <strong class="blue">все сотрудники</strong>, которые есть в системе. В этой вкладке доступен только просмотр, добавление, редактирование и удаление сотрудников недоступно.
             </p>
           </template>
@@ -550,11 +567,18 @@
       </button>
     </div>
 
+    <RegistryLogModal
+      :show="showRegistryLog"
+      entity="employees"
+      @close="showRegistryLog = false"
+    />
+
     <EmployeeEditModal
       :visible="showModal"
       :editing-employee="editingEmployee"
       :citizenships="availableCitizenships"
       :ownership-info="ownershipInfo"
+      :foreign-record="!!editingEmployee && !employeeBelongsToUser(editingEmployee)"
       @saved="onEmployeeSaved"
       @close="closeModal"
     />
@@ -588,6 +612,8 @@ import { apiRequest } from '@/api/client'
 import { getViewportZoom } from '@/utils/viewportScale'
 import { getUniqueEmployeesPaginated } from '@/api/employees'
 import { useInfiniteList } from '@/composables/useInfiniteList'
+import { useApplicationDetailLink } from '@/composables/useApplicationDetailLink'
+import { openItemFromRoute, registryScopeForRoute } from '@/utils/openQueryParam'
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import { usePermissionsStore } from '@/stores/permissions';
@@ -596,11 +622,13 @@ import FilterButton from '@/components/ui/FilterButton.vue';
 import FilterSheet from '@/components/ui/FilterSheet.vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import RefreshButton from '@/components/RefreshButton.vue';
+import RegistryLogModal from '@/components/RegistryLogModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import EmployeeEditModal from '@/components/EmployeeEditModal.vue';
 import EmployeeDetailsModal from '@/components/CreateApplication/EmployeeDetailsModal.vue';
 import ApplicationDetail from '@/components/ApplicationDetail/ApplicationDetail.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 // Размер порции бесшовной подгрузки реестра сотрудников (#1158, срез 3) - аналог
 // CARS_PER_PAGE в CarsView.
@@ -612,11 +640,13 @@ export default {
         FilterButton,
         FilterSheet,
         RefreshButton,
+        RegistryLogModal,
         LoaderSpinner,
         StatusBadge,
         EmployeeEditModal,
         EmployeeDetailsModal,
-        ApplicationDetail
+        ApplicationDetail,
+        AppIcon,
     },
     setup() {
         // Бесшовная подгрузка реестра сотрудников порциями (#1158, срез 3): composable
@@ -630,6 +660,7 @@ export default {
         const { isNarrow } = useNarrowScreen();
         return {
             isNarrow,
+            ...useApplicationDetailLink(),
             employeesData: infiniteList.items,
             employeesTotal: infiniteList.total,
             employeesPage: infiniteList.page,
@@ -663,17 +694,16 @@ export default {
             // fetchEmployees не должна запускать/продолжать устаревший
             // loadAllRemainingEmployees.
             fetchSeq: 0,
-            currentFilter: 'user',
+            currentFilter: registryScopeForRoute(this.$route, (p) => usePermissionsStore().hasPermission(p)),
             // Мобилка: bottom-sheet с табами области (S3 эпика mobile-filter-collapse).
             showScopeSheet: false,
             ownershipInfo: null,
             showModal: false,
+            showRegistryLog: false,
             availableCitizenships: [],
             editingEmployee: null,
             showDetailsModal: false,
             detailsEmployee: null,
-            showApplicationDetail: false,
-            selectedApplication: null
         };
     },
     computed: {
@@ -698,6 +728,12 @@ export default {
         },
         // Право удалять из реестра сотрудников (кнопка «Удалить»). Базовая роль
         // выдаёт по умолчанию; админ может отозвать ролью, не затрагивая изменение.
+        // Администратор системы: правит и удаляет запись независимо от привязки.
+        // Признак приходит из ownership-info - того же ответа, по которому решает
+        // бэкенд, иначе кнопка появилась бы там, где сервер отвечает 403.
+        canManageAllEntities() {
+            return this.ownershipInfo?.can_manage_all === true;
+        },
         canDeleteEmployees() {
             return usePermissionsStore().hasPermission('entity.employees.delete');
         },
@@ -786,6 +822,8 @@ export default {
         }
     },
     watch: {
+        // Пользователь уже на странице: mounted не перевызовется, а адрес сменился.
+        '$route.query.open'(val) { if (val) this.openFromSearchLink(); },
         // Поиск - на сервере (#1158, срез 3): дебаунс 300мс перед fetchEmployees
         // (reset на стр.1 + очистка аккумулятора уже даёт loadEmployeesList({reset:true})).
         searchQuery(val) {
@@ -802,6 +840,7 @@ export default {
             this.fetchCitizenships()
         ]);
         await this.fetchEmployees();
+        this.openFromSearchLink();
         this._lastHeight = -1;
         this.$nextTick(this._applyHeight);
         window.addEventListener('resize', this._applyHeight);
@@ -823,6 +862,11 @@ export default {
         }
     },
     methods: {
+        /** Переход из сквозного поиска: `?q` сузил список, `?open` раскрывает карточку. */
+        openFromSearchLink() {
+            openItemFromRoute({ router: this.$router, route: this.$route, items: this.employeesData, open: this.openEmployeeDetails });
+        },
+
         /**
          * Тянет страницу на доступную высоту вьюпорта (под шапкой), чтобы таблица
          * занимала весь экран без скролла страницы. На мобильном (<=768px) сбрасываем:
@@ -847,10 +891,20 @@ export default {
         },
         /**
          * Можно ли редактировать/удалять сотрудника. Совпадает с backend
-         * canEditEmployee (unique_employee_service.go).
+         * canEditEmployee (unique_employee_service.go): администратор системы правит
+         * любую запись, остальные - свою, своей организации или своей компании.
          */
         canEditEmployee(emp) {
+            if (this.canManageAllEntities) return true;
             if (this.currentFilter === 'all_system') return false;
+            return this.employeeBelongsToUser(emp);
+        },
+        /**
+         * Сотрудник «свой»: запись автора, его организации или компании. Отдельно от
+         * canEditEmployee, потому что администратору право даёт роль, а карточке правки
+         * нужна именно принадлежность - чтобы не переписать чужую привязку своей.
+         */
+        employeeBelongsToUser(emp) {
             if (!this.ownershipInfo) return false;
             if (emp.user_id != null && emp.user_id === this.ownershipInfo.user_id) return true;
             if (emp.organization_id != null && this.ownershipInfo.organization_id != null
@@ -866,7 +920,7 @@ export default {
             return this.canEditEmployee(emp) && this.canDeleteEmployees;
         },
         canEditTooltip(emp) {
-            if (this.currentFilter === 'all_system') return 'В режиме «Все в системе» редактирование запрещено';
+            if (this.currentFilter === 'all_system' && !this.canManageAllEntities) return 'В режиме «Все в системе» редактирование доступно только администратору';
             if (!this.canEditEmployee(emp)) return 'Сотрудник не привязан к вашей организации/компании - редактирование запрещено';
             return 'Недостаточно прав для изменения или удаления';
         },
@@ -1070,6 +1124,10 @@ export default {
                 entry_date_to: employee.active_entry_date_to,
                 pass_time: employee.active_pass_time,
                 isActive: employee.status,
+                // Логин владельца сервер отдаёт только администратору, поэтому карточка
+                // рисует строку по факту наличия значения, а не по своей проверке роли.
+                user_name: employee.user_name || null,
+                pd_consent_at: employee.pd_consent_at || null,
                 target_tables: []
             };
             this.showDetailsModal = true;
@@ -1077,16 +1135,6 @@ export default {
         closeDetailsModal() {
             this.showDetailsModal = false;
             this.detailsEmployee = null;
-        },
-        handleOpenApplication(applicationId) {
-            if (!applicationId) return;
-            // ApplicationDetail сам догружает детали/вложения/читателей по id через watch.
-            this.selectedApplication = { id: applicationId };
-            this.showApplicationDetail = true;
-        },
-        closeApplicationDetail() {
-            this.showApplicationDetail = false;
-            this.selectedApplication = null;
         },
 
         showAddEmployeeModal() {
@@ -1240,6 +1288,26 @@ export default {
     align-items: center;
 }
 
+/* Кнопка журнала стоит в шапке между «Добавить» и «Обновить», поэтому повторяет их
+   мерки: высота 25px, радиус 50px, текст 12px. Общий .lk-button здесь выбивался из
+   ряда - он крупнее и с другим радиусом. */
+.log-button {
+    height: 25px;
+    padding: 0 12px;
+    border-radius: 50px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.log-button:hover {
+    background: var(--surface-2);
+}
+
 .add-button {
     background: var(--accent);
     color: var(--accent-contrast);
@@ -1324,17 +1392,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-    filter: var(--icon-ink-filter);
+    color: var(--text);
 }
 
 .sort-icon {
+    color: var(--text-muted);
     width: 12px;
     height: 12px;
     transition: .2s;
 }
 
 .sort-icon.sorted {
-    filter: var(--icon-ink-filter);
+    color: var(--text);
 }
 
 .sort-icon.desc {
@@ -1499,6 +1568,7 @@ export default {
 }
 
 .edit-icon, .delete-icon {
+    color: var(--text);
     width: 16px;
     height: 16px;
     opacity: 0.7;

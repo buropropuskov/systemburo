@@ -618,6 +618,9 @@ func buildEmployeeAttachment(templateID int, pool []appEmployeeCandidate, tableI
 			PatentNumber:         c.patentNumber,
 			OtherPermission:      c.otherPermission,
 			TargetTables:         tableIDsPicked,
+			// Данные вымышленные, но подача проходит тот же гейт согласия, что и живая:
+			// без отметки вложение с людьми не принимается.
+			PDConsent: true,
 		})
 	}
 

@@ -13,7 +13,7 @@ vi.mock('@/composables/useReportExport', async () => {
   return { useReportExport: () => ({ exporting: ref(false), exportReport: exportSpy }) };
 });
 
-// Apex-обёртки тянут vue3-apexcharts (нужен реальный SVG/измерения) — в юнит-тесте
+// Графики требуют настоящего холста или SVG с измерениями — в юнит-тесте
 // переключателя они не нужны, подменяем стабами и читаем переданные props.
 const areaStub = {
   name: 'AnalyticsAreaChart',

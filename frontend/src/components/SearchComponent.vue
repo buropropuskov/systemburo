@@ -7,18 +7,20 @@
       :value="modelValue"
       @input="handleInput"
     >
-    <img
-      src="@/assets/icons/search.png"
+    <AppIcon
+      name="search"
       class="search__icon"
-    >
+    />
   </div>
 </template>
 
 <script>
 import { buildSearchVariants } from '@/utils/searchVariants';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
     name: 'SearchComponent',
+    components: { AppIcon },
     props: {
         title: {
             type: String,
@@ -64,5 +66,8 @@ export default {
 .search__icon {
   width: 15px;
   height: 15px;
+  color: var(--text);
+  /* 1.7 при поле 24 даёт на 15px обводку 1.06px - бледнее прежнего растра. */
+  stroke-width: 2.2;
 }
 </style>

@@ -70,6 +70,14 @@ function dropEvent(file) {
   return { dataTransfer: { files: file ? [file] : [] } };
 }
 
+// Согласие субъекта - обязательная отметка на всю пачку (поле pd_consent реестра полей
+// вложения). Тесты ниже проверяют места и события, поэтому ставят её как данность;
+// поведение самой отметки проверяет BlankImportConsent.spec.js.
+async function markConsent(wrapper) {
+  const box = wrapper.find('[data-testid="bim-pd-consent-checkbox"]');
+  if (box.exists()) await box.setValue(true);
+}
+
 describe('BlankImportPanel (U4)', () => {
   beforeEach(() => {
     notifyMock.mockReset();
@@ -155,11 +163,12 @@ describe('BlankImportPanel (U4)', () => {
 
     expect(wrapper.emitted('stage')[0][0].rows[0]).toMatchObject({ lastName: 'Иванов', firstName: 'Иван' });
 
+    await markConsent(wrapper);
     await wrapper.find('[data-testid="bim-submit"]').trigger('click');
 
     const payload = wrapper.emitted('import')[0][0];
     expect(payload.attachmentType).toBe('people');
-    expect(payload.places).toEqual({ targetTables: [], passageTables: '' });
+    expect(payload.places).toEqual({ targetTables: [], passageTables: '', pdConsent: true });
   });
 
   it('скачивание пустого бланка и выход из режима просят родителя', async () => {
