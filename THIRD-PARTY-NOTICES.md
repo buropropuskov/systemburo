@@ -307,7 +307,7 @@
 | `github.com/go-pdf/fpdf` | v0.9.0 | MIT | Copyright (c) 2021 The Go-PDF authors; Copyright (c) 2020 David Barnes; Copyright (c) 2017 Kurt Jung and contributors acknowledged in the documentation |
 | `github.com/go-playground/locales` | v0.14.1 | MIT | Copyright (c) 2016 Go Playground |
 | `github.com/go-playground/universal-translator` | v0.18.1 | MIT | Copyright (c) 2016 Go Playground |
-| `github.com/go-playground/validator/v10` | v10.30.2 | MIT | Copyright (c) 2015 Dean Karn |
+| `github.com/go-playground/validator/v10` | v10.30.3 | MIT | Copyright (c) 2015 Dean Karn |
 | `github.com/golang-jwt/jwt/v5` | v5.3.1 | MIT | Copyright (c) 2012 Dave Grijalva; Copyright (c) 2021 golang-jwt maintainers |
 | `github.com/google/uuid` | v1.6.0 | BSD-3-Clause | Copyright (c) 2009,2014 Google Inc. All rights reserved |
 | `github.com/jackc/pgpassfile` | v1.0.0 | MIT | Copyright (c) 2019 Jack Christensen |
@@ -4511,7 +4511,7 @@ SOFTWARE.
 
 ### 7.82. MIT
 
-Компоненты: `github.com/go-playground/validator/v10` v10.30.2
+Компоненты: `github.com/go-playground/validator/v10` v10.30.3
 
 ```text
 The MIT License (MIT)
