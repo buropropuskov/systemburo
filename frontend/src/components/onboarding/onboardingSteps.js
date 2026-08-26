@@ -1,4 +1,4 @@
-import { MAIN_SECTIONS, ADMIN_GROUPS } from '@/constants/navSections';
+import { cabinetApplicationSteps } from './cabinetApplicationSteps';
 
 /**
  * Версия тура заявителя. Сверяется с пройденной версией, полученной с бэкенда:
@@ -41,8 +41,6 @@ export const ONBOARDING_VERSION = 3;
  * - `expandRail` если true - хост держит рельс навигации развёрнутым на время
  *                шага (и шага перед ним), возвращает прежнее состояние при выходе;
  * - `celebrate`  если true - в поповере рисуется галочка-празднование (финал);
- * - `cta`        текст финальной кнопки-CTA;
- * - `ctaRoute`   куда ведёт CTA (по умолчанию - оформление заявки);
  * - `demoAttachment` тип демо-вложения ('cars'/'people'), которое BlankSelector
  *                добавит на время шага, чтобы показать реальную форму;
  * - `dynamic`    карта «имя -> селектор»: `{имя}` в заголовке и описании заменяется
@@ -64,7 +62,7 @@ export const ONBOARDING_VERSION = 3;
  *                узел свёрнут на любой ширине и появляется только по действию
  *                пользователя. Механика - в reveal.js.
  *
- * @type {Array<{ id: string, route: string, element: string|null, waitFor?: string, dynamic?: Record<string, string>, advanceWhen?: string, scrollTo?: 'center'|'end'|'start', title: string, description: string, demo?: string, requires?: string, optional?: boolean, optionalSegment?: boolean, expandRail?: boolean, celebrate?: boolean, cta?: string, ctaRoute?: string, demoAttachment?: string, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: 'admin-column'|'search-panel'|'first-application' } }>}
+ * @type {Array<{ id: string, route: string, element: string|null, waitFor?: string, dynamic?: Record<string, string>, advanceWhen?: string, scrollTo?: 'center'|'end'|'start', title: string, description: string, demo?: string, requires?: string, optional?: boolean, optionalSegment?: boolean, expandRail?: boolean, celebrate?: boolean, demoAttachment?: string, side?: string, align?: string, reveal?: { mobile?: 'nav', open?: 'admin-column'|'search-panel'|'first-application' } }>}
  */
 export const onboardingSteps = [
   {
@@ -98,7 +96,7 @@ export const onboardingSteps = [
     element: '[data-testid="ob-announcement"]',
     title: 'Объявления',
     description:
-      'Объявления администрации. Здесь появляются обычные и важные объявления - так вы не пропустите срочную информацию. Нажмите, чтобы прочитать целиком.',
+      'Объявления администрации. Здесь появляются обычные и важные объявления - так вы не пропустите срочную информацию.',
   },
   {
     id: 'documents',
@@ -113,18 +111,18 @@ export const onboardingSteps = [
     element: '[data-testid="ob-work-modes"]',
     title: 'Режимы работы',
     description: 'Кнопка «Режимы работы» открывает расписание Бюро, мест разгрузки и мест прохода. Сейчас откроем.',
-    advanceWhen: '[data-testid="work-modes-modal"]',
+    advanceWhen: '[data-testid="ob-work-modes-window"]',
   },
   {
     id: 'work-modes-window',
     route: '/news',
-    element: '[data-testid="work-modes-modal"]',
+    // Окно, а не подложка: `work-modes-modal` висит на затемнении во весь экран.
+    element: '[data-testid="ob-work-modes-window"]',
     title: 'Расписание',
     description:
       'По каждой позиции видно, открыта она сейчас, закрыта или неактивна, и какой график действует сегодня. Сверьтесь с ним до подачи заявки: если время пребывания не попадает в график места, форма об этом предупредит.',
     optional: true,
-    // Тур открывает расписание сам - рассказ о кнопке без самого расписания
-    // человеку ничего не даёт.
+    // Расписание тур открывает сам: рассказ о кнопке без него ничего не даёт.
     reveal: { open: 'work-modes' },
   },
   {
@@ -134,7 +132,7 @@ export const onboardingSteps = [
     element: '[data-testid="ob-header-broadcast"]',
     title: 'Объявление в шапке',
     description:
-      'Пока объявление действует, оно висит в шапке подписью «Объявление» или «Важное объявление» и видно из любого раздела, а не только на «Обзоре». Нажмите, чтобы прочитать целиком.',
+      'Пока объявление действует, оно висит в шапке подписью «Объявление» или «Важное объявление» и видно из любого раздела, а не только на «Обзоре».',
     // Пилюля рисуется только при активном объявлении - без него шага быть не должно.
     optional: true,
   },
@@ -155,7 +153,22 @@ export const onboardingSteps = [
     route: '/news',
     element: '[data-testid="ob-header-notifications"]',
     title: 'Уведомления',
-    description: 'Колокольчик показывает количество непрочитанных уведомлений: смена статуса заявки, ответы согласующих и другие события. Нажмите, чтобы открыть список.',
+    description: 'Колокольчик показывает количество непрочитанных уведомлений: смена статуса заявки, ответы согласующих и другие события. Сейчас откроем список.',
+    // Человек может открыть список прямо сейчас - тогда тур перейдёт к разбору
+    // сам, а не оставит открытый список лежать под затемнением.
+    advanceWhen: '[data-testid="ob-notifications-panel"]',
+  },
+  {
+    id: 'header-notifications-panel',
+    side: 'bottom',
+    align: 'end',
+    route: '/news',
+    element: '[data-testid="ob-notifications-panel"]',
+    title: 'Список уведомлений',
+    description:
+      'Здесь копятся события: смена статуса заявки, ответы согласующих, вопросы по заявке. Свежие идут сверху, непрочитанные выделены, вкладки «Все» и «Непрочитанные» отбирают нужное. Пустой список значит, что нового нет. Шестерёнка ведёт к настройке: какие уведомления получать и куда.',
+    optional: true,
+    reveal: { open: 'notifications' },
   },
   {
     id: 'header-submit',
@@ -255,128 +268,7 @@ export const onboardingSteps = [
     optional: true,
     side: 'bottom',
   },
-  {
-    id: 'cabinet-download',
-    route: '/personal-cabinet',
-    element: '[data-testid="ob-application-download"]',
-    title: 'Скачать бланки',
-    description:
-      'Кнопка «Скачать» в строке заявки открывает окно «Скачивание бланков»: заполненные бланки можно взять по одному или все разом. Она есть только у заявок, для вложений которых бланки настроены.',
-    // Кнопки нет у заявок без бланков; на телефоне её убрали из строки - там
-    // скачивание живёт в самой карточке.
-    optional: true,
-    side: 'left',
-  },
-  {
-    // Показываем строку до открытия карточки: иначе окно появляется само собой
-    // и человек не понимает, откуда оно взялось.
-    id: 'cabinet-application-row',
-    route: '/personal-cabinet',
-    element: '[data-testid="ob-application-row"]',
-    title: 'Откройте заявку',
-    description: 'Клик по строке открывает карточку заявки - всё о ней в одном окне. Нажмите на любую или просто идите дальше: следующим шагом откроем первую сами.',
-    // Человек может нажать на строку прямо сейчас - тогда карточка появится
-    // поверх подсвеченной строки, и тур обязан перейти к рассказу о ней сам,
-    // иначе подсветка останется под открытым окном.
-    advanceWhen: '[data-testid="ob-detail-card"]',
-    optional: true,
-    side: 'bottom',
-  },
-  {
-    id: 'detail-opened',
-    route: '/personal-cabinet',
-    // Карточка целиком, а не её шапка: шаг знакомит с окном, и подсвеченная
-    // полоска сверху читалась как «тур показывает заголовок».
-    element: '[data-testid="ob-detail-card"]',
-    title: 'Вот ваша заявка',
-    description: 'Окно заявки: сверху - номер, дата подачи и действия над ней; ниже - состав заявки и её согласование. Закрывается крестиком справа или клавишей Esc.',
-    // У нового пользователя заявок нет, открывать нечего - тогда шаг показывается
-    // со скриншотом-примером вместо подсветки, а не выпадает молча вместе со всем
-    // сегментом карточки.
-    demo: 'applicationDetail',
-    optional: true,
-    side: 'bottom',
-    reveal: { open: 'first-application' },
-  },
-  {
-    id: 'detail-status',
-    route: '/personal-cabinet',
-    element: '[data-testid="ob-detail-status"]',
-    title: 'Статус и согласующие',
-    description:
-      'Блок «Согласование заявки» показывает, на какой стадии заявка, а если у неё есть согласующие - список «Ответственные за согласование»: у каждого свой статус и комментарий. Помеченные «Обязательно» решают судьбу заявки: без их согласия принять её в работу нельзя.',
-    optional: true,
-    side: 'left',
-    reveal: { open: 'first-application' },
-  },
-  {
-    id: 'detail-status-section',
-    route: '/personal-cabinet',
-    element: '[data-testid="ob-detail-status-section"]',
-    title: 'Статус заявки',
-    description:
-      'Когда заявку приняли в работу, отказали или завершили, здесь появляется блок «Статус заявки»: кто принял решение, когда и с каким комментарием. У заявки на согласовании его ещё нет.',
-    optional: true,
-    side: 'left',
-    reveal: { open: 'first-application' },
-  },
-  {
-    id: 'detail-questions',
-    route: '/personal-cabinet',
-    element: '[data-testid="application-questions"]',
-    title: 'Вопросы к заявке',
-    description:
-      'Блок «Вопросы к заявке» разворачивается по заголовку. Кнопка «Задать вопрос» заводит новый вопрос, ответы собираются в тред под ним. Так уточняют детали, не звоня и не подавая заявку заново; непрочитанное помечается меткой «Новое».',
-    optional: true,
-    side: 'bottom',
-    reveal: { open: 'first-application' },
-  },
-  {
-    id: 'detail-actions-intro',
-    route: '/personal-cabinet',
-    element: '[data-testid="ob-detail-header"]',
-    title: 'Что можно сделать с заявкой',
-    description:
-      'В шапке карточки собраны действия: дополнить, продублировать, скачать бланки, отозвать. Набор зависит от стадии заявки и ваших прав - часть кнопок появляется не всегда. Разберём их по очереди.',
-    optional: true,
-    side: 'bottom',
-    align: 'start',
-    reveal: { open: 'first-application' },
-  },
-  {
-    id: 'detail-supplement',
-    route: '/personal-cabinet',
-    element: '[data-testid="app-detail-button-supplement"]',
-    title: 'Дополнить поданную заявку',
-    description:
-      'Кнопка «Дополнить» добавляет машины, сотрудников или позиции в уже поданную заявку - вторую подавать не нужно. Если заявка уже в работе, добавка уйдёт на отдельный круг согласования, а выданные пропуска продолжат действовать.',
-    optional: true,
-    requires: 'action.supplement.application',
-    side: 'bottom',
-    reveal: { open: 'first-application' },
-  },
-  {
-    id: 'detail-duplicate',
-    route: '/personal-cabinet',
-    element: '[data-testid="ob-detail-duplicate"]',
-    title: 'Продублировать заявку',
-    description:
-      'Ездит один и тот же транспорт - не заполняйте всё заново. «Продублировать» создаёт копию заявки со всем содержимым, а из списка сразу выбирается срок для копии: на сегодня, на завтра, на неделю.',
-    optional: true,
-    side: 'bottom',
-    reveal: { open: 'first-application' },
-  },
-  {
-    id: 'detail-revoke',
-    route: '/personal-cabinet',
-    element: '[data-testid="ob-detail-revoke"]',
-    title: 'Отозвать свою заявку',
-    description:
-      'Передумали или ошиблись - кнопка «Отозвать» снимает заявку с рассмотрения, система переспросит перед этим. Отозвать можно только свою заявку и только пока она не закрыта.',
-    optional: true,
-    side: 'bottom',
-    reveal: { open: 'first-application' },
-  },
+  ...cabinetApplicationSteps,
   {
     id: 'cabinet-notifications',
     route: '/personal-cabinet',
@@ -654,86 +546,7 @@ export const onboardingSteps = [
     route: '/news',
     element: '[data-testid="ob-start-button"]',
     title: 'Готово, вы освоились!',
-    description: 'Возвращаемся на «Обзор». Это всё основное. Запустить обучение заново можно в любой момент - кнопкой «Обучение» вот здесь. Удачной работы!',
+    description: 'Вернулись на «Обзор и новости» - это всё основное. Обучение можно пройти заново в любой момент: кнопка «Обучение» вот здесь, и в ней же лежат туры для других ролей. Удачной работы!',
     celebrate: true,
-    cta: 'Подать первую заявку',
   },
 ];
-
-/**
- * Человеческое имя раздела по его route - подпись группы в списке шагов тура.
- * Берём из навигации системы, чтобы названия совпадали с тем, что человек видит
- * в меню; для страниц вне меню (таблицы постов) отдаём запасное имя.
- *
- * @param {string} route
- * @returns {string}
- */
-export function sectionTitleFor(route) {
-  const inMain = MAIN_SECTIONS.find((s) => s.path === route);
-  if (inMain) return inMain.label;
-  for (const group of ADMIN_GROUPS) {
-    const item = group.items.find((i) => i.path === route);
-    if (item) return `${group.title}: ${item.label}`;
-  }
-  if (route === '/admin/settings') return 'Настройки Бюро';
-  if (route?.startsWith('/table/')) return 'Таблица поста';
-  return 'Раздел системы';
-}
-
-/**
- * Шаги тура, сгруппированные по разделам, - для списка «перейти к шагу». Считаем
- * от полного набора: пользователь должен видеть и то, что уже прошёл, и то, что
- * впереди. Выброшенные в этом прохождении шаги (их целей на экране нет) из списка
- * убираем - прыгнуть на них всё равно некуда.
- *
- * @param {Array<{route: string, title: string}>} steps
- * @param {Array<number>|Set<number>} [skipped] индексы выброшенных шагов
- * @returns {Array<{ route: string, title: string, items: Array<{ index: number, title: string }> }>}
- */
-export function groupStepsBySection(steps, skipped = []) {
-  const dropped = skipped instanceof Set ? skipped : new Set(skipped);
-  const groups = [];
-  steps.forEach((step, index) => {
-    if (dropped.has(index)) return;
-    const last = groups[groups.length - 1];
-    if (last && last.route === step.route) last.items.push({ index, title: step.title });
-    else groups.push({ route: step.route, title: sectionTitleFor(step.route), items: [{ index, title: step.title }] });
-  });
-  return groups;
-}
-
-/**
- * Подряд идущие шаги начиная с `startIndex`, чей `route` совпадает с активной
- * страницей. Граница сегмента - первый шаг с другим route (cross-page переход).
- *
- * @param {Array<{ route: string }>} steps
- * @param {number} startIndex глобальный индекс первого шага сегмента
- * @param {string} routePath активный путь роутера
- * @returns {Array<object>}
- */
-export function collectSegment(steps, startIndex, routePath) {
-  const segment = [];
-  for (let i = startIndex; i < steps.length; i += 1) {
-    if (steps[i].route !== routePath) break;
-    segment.push(steps[i]);
-  }
-  return segment;
-}
-
-/**
- * Индекс первого шага ПОСЛЕ непрерывного блока шагов с данным `route`, начиная с
- * `fromIndex`. Нужен, чтобы перепрыгнуть недостижимый optional-сегмент
- * (фактовая таблица, роут-гард которой редиректит охранника) к следующему шагу
- * тура - финалу-празднованию на достижимой странице. Возвращает -1, если за
- * блоком шагов не осталось.
- *
- * @param {Array<{ route: string }>} steps
- * @param {number} fromIndex индекс первого шага недостижимого блока
- * @param {string} route route недостижимого блока
- * @returns {number} индекс следующего шага за блоком или -1
- */
-export function indexAfterRoute(steps, fromIndex, route) {
-  let i = fromIndex;
-  while (i < steps.length && steps[i].route === route) i += 1;
-  return i < steps.length ? i : -1;
-}

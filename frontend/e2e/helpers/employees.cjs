@@ -27,7 +27,10 @@ async function listEmployees(request, token) {
 async function createEmployee(request, token, data) {
   const res = await request.post(`${API_BASE}/unique-employees`, {
     headers: authHeaders(token),
-    data,
+    // Запись реестра создаётся только с подтверждённым согласием субъекта на обработку
+    // персональных данных - сервер без флага отвечает 400. Тест может прислать свой
+    // pd_consent, если проверяет именно этот отказ.
+    data: { pd_consent: true, ...data },
   });
   if (!res.ok() && res.status() !== 201) {
     throw new Error(`POST /unique-employees failed: ${res.status()} ${await res.text()}`);

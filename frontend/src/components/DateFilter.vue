@@ -121,102 +121,23 @@
                 <div class="quick-selection">
                   <div class="quick-buttons-list">
                     <button
+                      v-for="period in quickPeriods"
+                      :key="period.key"
                       class="quick-btn"
-                      :class="{ 'active': isQuickActive('today') }"
-                      @click="setQuickDate('today')"
+                      :class="{ 'active': isQuickActive(period.key) }"
+                      @click="setQuickDate(period.key)"
                     >
-                      Сегодня
-                    </button>
-                    <button
-                      class="quick-btn"
-                      :class="{ 'active': isQuickActive('yesterday') }"
-                      @click="setQuickDate('yesterday')"
-                    >
-                      Вчера
-                    </button>
-                    <button
-                      class="quick-btn"
-                      :class="{ 'active': isQuickActive('tomorrow') }"
-                      @click="setQuickDate('tomorrow')"
-                    >
-                      Завтра
-                    </button>
-                    <button
-                      class="quick-btn"
-                      :class="{ 'active': isQuickActive('dayBeforeYesterday') }"
-                      @click="setQuickDate('dayBeforeYesterday')"
-                    >
-                      Позавчера
-                    </button>
-                    <button
-                      class="quick-btn"
-                      :class="{ 'active': isQuickActive('dayAfterTomorrow') }"
-                      @click="setQuickDate('dayAfterTomorrow')"
-                    >
-                      Послезавтра
-                    </button>
-                    <button
-                      class="quick-btn"
-                      :class="{ 'active': isQuickActive('thisWeek') }"
-                      @click="setQuickDate('thisWeek')"
-                    >
-                      Эта неделя
-                    </button>
-                    <button
-                      class="quick-btn"
-                      :class="{ 'active': isQuickActive('lastWeek') }"
-                      @click="setQuickDate('lastWeek')"
-                    >
-                      Прошлая неделя
-                    </button>
-                    <button
-                      class="quick-btn"
-                      :class="{ 'active': isQuickActive('nextWeek') }"
-                      @click="setQuickDate('nextWeek')"
-                    >
-                      Следующая неделя
-                    </button>
-                    <button
-                      class="quick-btn"
-                      :class="{ 'active': isQuickActive('thisMonth') }"
-                      @click="setQuickDate('thisMonth')"
-                    >
-                      Этот месяц
-                    </button>
-                    <button
-                      class="quick-btn"
-                      :class="{ 'active': isQuickActive('lastMonth') }"
-                      @click="setQuickDate('lastMonth')"
-                    >
-                      Прошлый месяц
-                    </button>
-                    <button
-                      class="quick-btn"
-                      :class="{ 'active': isQuickActive('nextMonth') }"
-                      @click="setQuickDate('nextMonth')"
-                    >
-                      Следующий месяц
-                    </button>
-                    <button
-                      class="quick-btn"
-                      :class="{ 'active': isQuickActive('thisYear') }"
-                      @click="setQuickDate('thisYear')"
-                    >
-                      Этот год
-                    </button>
-                    <button
-                      class="quick-btn"
-                      :class="{ 'active': isQuickActive('lastYear') }"
-                      @click="setQuickDate('lastYear')"
-                    >
-                      Прошлый год
+                      {{ period.label }}
                     </button>
                   </div>
                 </div>
                             
                 <!-- Calendar справа -->
                 <div class="calendar-main">
-                  <div class="calendar-mode-switch">
+                  <div
+                    v-if="mode === 'range'"
+                    class="calendar-mode-switch"
+                  >
                     <button 
                       class="mode-btn" 
                       :class="{ 'active': !selectingRange }"
@@ -301,6 +222,7 @@ import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock
 import { ref } from 'vue';
 import { getViewportZoom } from '@/utils/viewportScale';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+import { QUICK_PERIODS, isSingleDayPeriod, periodBounds } from '@/utils/datePeriods';
 
 export default {
     name: 'DateFilter',
@@ -362,6 +284,13 @@ export default {
         };
     },
     computed: {
+        // В single-режиме предлагаем только периоды-в-один-день: диапазон родителю
+        // такого поля некуда деть, а показанный в календаре месяц без применённого
+        // фильтра читается как сломанный поиск.
+        quickPeriods() {
+            return this.mode === 'range' ? QUICK_PERIODS : QUICK_PERIODS.filter(p => p.single);
+        },
+        
         displayText() {
             if (!this.selectingRange && this.internalSelectedDate) {
                 // Режим одного дня
@@ -741,114 +670,26 @@ export default {
         },
         
         setQuickDate(period) {
+            const bounds = periodBounds(period);
+            if (!bounds) return;
+            const [start, end] = bounds;
             this.activeQuickDate = period;
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            let start, end;
-            
-            const periods = {
-                today: () => {
-                    const date = new Date(today);
-                    return [date, date];
-                },
-                yesterday: () => {
-                    const date = new Date(today);
-                    date.setDate(today.getDate() - 1);
-                    return [date, date];
-                },
-                tomorrow: () => {
-                    const date = new Date(today);
-                    date.setDate(today.getDate() + 1);
-                    return [date, date];
-                },
-                dayBeforeYesterday: () => {
-                    const date = new Date(today);
-                    date.setDate(today.getDate() - 2);
-                    return [date, date];
-                },
-                dayAfterTomorrow: () => {
-                    const date = new Date(today);
-                    date.setDate(today.getDate() + 2);
-                    return [date, date];
-                },
-                thisWeek: () => {
-                    const start = new Date(today);
-                    const day = start.getDay() || 7; // 0 = воскресенье, 1 = понедельник
-                    const diff = start.getDate() - day + 1; // Понедельник этой недели
-                    start.setDate(diff);
-                    
-                    const end = new Date(start);
-                    end.setDate(start.getDate() + 6); // Воскресенье этой недели
-                    return [start, end];
-                },
-                lastWeek: () => {
-                    const start = new Date(today);
-                    const day = start.getDay() || 7;
-                    const diff = start.getDate() - day - 6; // Понедельник прошлой недели
-                    start.setDate(diff);
-                    
-                    const end = new Date(start);
-                    end.setDate(start.getDate() + 6); // Воскресенье прошлой недели
-                    return [start, end];
-                },
-                nextWeek: () => {
-                    const start = new Date(today);
-                    const day = start.getDay() || 7;
-                    const diff = start.getDate() - day + 8; // Понедельник следующей недели
-                    start.setDate(diff);
-                    
-                    const end = new Date(start);
-                    end.setDate(start.getDate() + 6); // Воскресенье следующей недели
-                    return [start, end];
-                },
-                thisMonth: () => [
-                    new Date(today.getFullYear(), today.getMonth(), 1),
-                    new Date(today.getFullYear(), today.getMonth() + 1, 0)
-                ],
-                lastMonth: () => [
-                    new Date(today.getFullYear(), today.getMonth() - 1, 1),
-                    new Date(today.getFullYear(), today.getMonth(), 0)
-                ],
-                nextMonth: () => [
-                    new Date(today.getFullYear(), today.getMonth() + 1, 1),
-                    new Date(today.getFullYear(), today.getMonth() + 2, 0)
-                ],
-                thisYear: () => [
-                    new Date(today.getFullYear(), 0, 1),
-                    new Date(today.getFullYear(), 11, 31)
-                ],
-                lastYear: () => [
-                    new Date(today.getFullYear() - 1, 0, 1),
-                    new Date(today.getFullYear() - 1, 11, 31)
-                ],
-            };
-            
-            [start, end] = periods[period]();
-            
-            // Убедимся, что время сброшено
-            start.setHours(0, 0, 0, 0);
-            end.setHours(23, 59, 59, 999);
-            
-            // Определяем, является ли период одним днем
-            const isSingleDayPeriod = [
-                'today', 'yesterday', 'tomorrow', 
-                'dayBeforeYesterday', 'dayAfterTomorrow'
-            ].includes(period);
-            
-            if (isSingleDayPeriod) {
-                // Для выбора одного дня переключаем режим на "Один день"
+
+            // Однодневный период показываем как один день - и там, где родитель
+            // принимает только его, и в диапазонном поле (границы дня досчитает
+            // applySelection по mode).
+            if (isSingleDayPeriod(period) || this.mode !== 'range') {
                 this.selectingRange = false;
                 this.internalSelectedDate = new Date(start);
                 this.internalRangeStart = null;
                 this.internalRangeEnd = null;
             } else {
-                // Для выбора периода используем обе даты
                 this.selectingRange = true;
                 this.internalRangeStart = new Date(start);
                 this.internalRangeEnd = new Date(end);
                 this.internalSelectedDate = null;
             }
-            
+
             // Показываем месяц с начальной датой
             this.currentDate = new Date(start);
         },
@@ -868,40 +709,56 @@ export default {
             return false;
         },
         
+        /*
+         * Результат согласуем с пропом mode, а не с внутренним переключателем
+         * календаря. Родитель подписан на события своего режима: range-поле слушает
+         * только dateRangeStart/End, single-поле - только selectedDate. Пока выход
+         * зависел от selectingRange, выбор "не того вида" уходил в никуда: быстрый
+         * период ("Этот месяц") в single-поле и "Сегодня" в range-поле эмитили null
+         * туда, где родитель слушает, и он молча сбрасывал фильтр, тогда как в поле
+         * календаря оставался выбранный период - выглядело как "поиск по дате не
+         * работает" (Версии таблиц, мониторинг, отчёт по проходам).
+         */
         applySelection() {
-            if (!this.selectingRange && this.internalSelectedDate) {
-                // Режим одного дня
-                const date = new Date(this.internalSelectedDate);
-                date.setHours(0, 0, 0, 0);
-                this.$emit('update:selectedDate', date);
-                this.$emit('update:dateRangeStart', null);
-                this.$emit('update:dateRangeEnd', null);
-            } else if (this.selectingRange && this.internalRangeStart && this.internalRangeEnd) {
-                // Режим периода
-                const start = new Date(this.internalRangeStart);
-                start.setHours(0, 0, 0, 0);
-                const end = new Date(this.internalRangeEnd);
-                end.setHours(23, 59, 59, 999);
-                
-                this.$emit('update:selectedDate', null);
-                this.$emit('update:dateRangeStart', start);
-                this.$emit('update:dateRangeEnd', end);
-            } else if (this.selectingRange && this.internalRangeStart) {
-                // Если выбран только начальный день, делаем его и конечным
-                const date = new Date(this.internalRangeStart);
-                date.setHours(0, 0, 0, 0);
-                this.$emit('update:selectedDate', null);
-                this.$emit('update:dateRangeStart', date);
-                this.$emit('update:dateRangeEnd', date);
+            const start = this.internalRangeStart || this.internalSelectedDate;
+            const end = this.internalRangeEnd || start;
+
+            if (this.mode === 'range') {
+                if (start) {
+                    const from = new Date(start);
+                    from.setHours(0, 0, 0, 0);
+                    const to = new Date(end);
+                    to.setHours(23, 59, 59, 999);
+                    this.$emit('update:selectedDate', null);
+                    this.$emit('update:dateRangeStart', from);
+                    this.$emit('update:dateRangeEnd', to);
+                } else {
+                    this.emitNoSelection();
+                }
             } else {
-                // Ничего не выбрано
-                this.$emit('update:selectedDate', null);
-                this.$emit('update:dateRangeStart', null);
-                this.$emit('update:dateRangeEnd', null);
+                // Один день: диапазон сюда попасть не может (в single-режиме нет ни
+                // переключателя, ни периодов), но если дата пришла как начало
+                // диапазона - берём её, а не выбрасываем выбор.
+                const day = this.internalSelectedDate || start;
+                if (day) {
+                    const date = new Date(day);
+                    date.setHours(0, 0, 0, 0);
+                    this.$emit('update:selectedDate', date);
+                    this.$emit('update:dateRangeStart', null);
+                    this.$emit('update:dateRangeEnd', null);
+                } else {
+                    this.emitNoSelection();
+                }
             }
-            
+
             this.$emit('apply');
             this.showCalendar = false;
+        },
+
+        emitNoSelection() {
+            this.$emit('update:selectedDate', null);
+            this.$emit('update:dateRangeStart', null);
+            this.$emit('update:dateRangeEnd', null);
         },
         
         clearSelection() {

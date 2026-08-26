@@ -147,11 +147,10 @@
             aria-label="Поиск заявок"
             @click="toggleMobileSearch"
           >
-            <img
-              src="@/assets/icons/search.png"
+            <AppIcon
+              name="search"
               class="search-icon-btn__img"
-              alt=""
-            >
+            />
           </button>
         </div>
 
@@ -204,11 +203,10 @@
                 data-testid="center-input-search"
                 @input="onSearchInput"
               >
-              <img
-                src="@/assets/icons/search.png"
+              <AppIcon
+                name="search"
                 class="center__icon"
-                alt=""
-              >
+              />
             </div>
 
             <div
@@ -362,13 +360,12 @@
           data-testid="center-button-export"
           @click="exportRegistry"
         >
-          <img
-            src="@/assets/icons/export.png"
+          <AppIcon
+            name="export"
             class="filter-btn__icon export-btn__icon"
             width="16"
             height="16"
-            alt=""
-          >
+          />
           <span class="export-btn__text">{{ exporting ? 'Готовим...' : 'Выгрузить' }}</span>
         </button>
 
@@ -447,14 +444,14 @@
             <p :class="{ 'active-sort': sortField === 'confirmation' }">
               Подтверждение
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'confirmation',
                 'desc': sortField === 'confirmation' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col number-col"
@@ -463,14 +460,14 @@
             <p :class="{ 'active-sort': sortField === 'number' }">
               Номер заявки
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'number',
                 'desc': sortField === 'number' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col date-col"
@@ -479,14 +476,14 @@
             <p :class="{ 'active-sort': sortField === 'date' }">
               Дата и время
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'date',
                 'desc': sortField === 'date' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col organization-col"
@@ -495,14 +492,14 @@
             <p :class="{ 'active-sort': sortField === 'organization' }">
               Организация
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'organization',
                 'desc': sortField === 'organization' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col sender-col"
@@ -511,14 +508,14 @@
             <p :class="{ 'active-sort': sortField === 'sender' }">
               Отправитель
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'sender',
                 'desc': sortField === 'sender' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
           <div
             class="header-col status-col"
@@ -527,16 +524,19 @@
             <p :class="{ 'active-sort': sortField === 'status' }">
               Статус заявки
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <AppIcon
+              name="sort"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'status',
                 'desc': sortField === 'status' && sortDirection === 'desc'
-              }" 
-            >
+              }"
+            />
           </div>
-          <div class="header-col tags-col">
+          <div
+            ref="tagsHeaderCol"
+            class="header-col tags-col"
+          >
             <p>Теги</p>
           </div>
           <div class="header-col actions-col">
@@ -674,180 +674,10 @@
                   class="application-col tags-col"
                   data-label="Теги"
                 >
-                  <div
-                    v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking || application.sender_is_important || application.has_unseen_questions || application.has_open_supplement || application.has_files || pendingApprovalDays(application) !== null"
-                    class="application-tags"
-                    :class="{ 'application-tags--compact': tagsAreCompact(application) }"
-                  >
-                    <Badge
-                      v-if="pendingApprovalDays(application) !== null"
-                      variant="warning"
-                      size="sm"
-                      class="rt-tag rt-tag--awaiting tag-hint"
-                      :data-hint="pendingApprovalLabel(pendingApprovalDays(application))"
-                    >
-                      <svg
-                        class="rt-tag__icon rt-tag__icon--fixed"
-                        width="13"
-                        height="13"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      ><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
-                      <span class="rt-tag__text">{{ pendingApprovalShort(pendingApprovalDays(application)) }}</span>
-                    </Badge>
-                    <Badge
-                      v-if="blacklistFlagCount(application) > 0"
-                      variant="danger"
-                      size="sm"
-                      class="rt-tag rt-tag--chs blacklist-flag-badge tag-hint"
-                      :data-hint="blacklistFlagTitle()"
-                      data-testid="ob-center-blacklist-tag"
-                    >
-                      <span class="rt-tag__text">{{ blacklistFlagLabel(application) }}</span>
-                    </Badge>
-                    <Badge
-                      v-if="application.has_roof_access"
-                      variant="primary"
-                      size="sm"
-                      class="rt-tag rt-tag--roof tag-hint"
-                      data-hint="Доступ на крышу"
-                    >
-                      <svg
-                        class="rt-tag__icon"
-                        width="13"
-                        height="13"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      ><path d="M3 11l9-7 9 7" /><path d="M5 10v9h14v-9" /></svg>
-                      <span class="rt-tag__text">Крыша</span>
-                    </Badge>
-                    <Badge
-                      v-if="application.has_free_parking"
-                      variant="warning"
-                      size="sm"
-                      class="rt-tag rt-tag--parking tag-hint"
-                      data-hint="Бесплатная парковка"
-                    >
-                      <svg
-                        class="rt-tag__icon"
-                        width="13"
-                        height="13"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2.2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      ><path d="M8 4h8a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z" /><path d="M9 16V8h3.2a2.4 2.4 0 0 1 0 4.8H9" /></svg>
-                      <span class="rt-tag__text">Парковка</span>
-                    </Badge>
-                    <Badge
-                      v-if="application.sender_is_important"
-                      variant="info"
-                      size="sm"
-                      class="rt-tag rt-tag--important tag-hint"
-                      data-hint="Важный пользователь"
-                    >
-                      <svg
-                        class="rt-tag__icon"
-                        width="13"
-                        height="13"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      ><polygon points="12 2 15 8.6 22 9.3 16.8 14 18.3 21 12 17.3 5.7 21 7.2 14 2 9.3 9 8.6" /></svg>
-                      <span class="rt-tag__text">Важный</span>
-                    </Badge>
-                    <Badge
-                      v-if="application.has_files"
-                      variant="secondary"
-                      size="sm"
-                      class="rt-tag rt-tag--files tag-hint"
-                      data-hint="К заявке приложены файлы"
-                      :data-testid="`center-files-badge-${application.id}`"
-                    >
-                      <svg
-                        class="rt-tag__icon rt-tag__icon--fixed"
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      ><path d="M19.5 11l-7.8 7.8a4 4 0 0 1-5.7-5.7l8-8a2.5 2.5 0 0 1 3.6 3.6l-7.6 7.6a1 1 0 0 1-1.5-1.4l6.8-6.8" /></svg>
-                    </Badge>
-                    <Badge
-                      v-if="application.has_unseen_questions"
-                      variant="primary"
-                      size="sm"
-                      class="rt-tag rt-tag--questions tag-hint"
-                      data-hint="Есть новые вопросы или ответы"
-                      :data-testid="`center-questions-badge-${application.id}`"
-                    >
-                      <svg
-                        class="rt-tag__icon"
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      ><path d="M4 5.5h16a1 1 0 0 1 1 1v8.5a1 1 0 0 1-1 1H9.5L5.5 20v-3.5H4a1 1 0 0 1-1-1V6.5a1 1 0 0 1 1-1z" /></svg>
-                      <span class="rt-tag__text">Вопросы</span>
-                      <span
-                        class="rt-tag__q-dot"
-                        aria-hidden="true"
-                      />
-                    </Badge>
-                    <!-- Повторный круг по дополнению (#1685): статус заявки его не
-                         показывает, поэтому в списке о нём говорит отдельный тег. -->
-                    <Badge
-                      v-if="application.has_open_supplement"
-                      variant="info"
-                      size="sm"
-                      class="rt-tag rt-tag--supplement tag-hint"
-                      data-hint="Идёт согласование дополнения к заявке"
-                      :data-testid="`center-supplement-badge-${application.id}`"
-                    >
-                      <svg
-                        class="rt-tag__icon"
-                        width="13"
-                        height="13"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      ><line
-                        x1="12"
-                        y1="5"
-                        x2="12"
-                        y2="19"
-                      /><line
-                        x1="5"
-                        y1="12"
-                        x2="19"
-                        y2="12"
-                      /></svg>
-                      <span class="rt-tag__text">Дополнение</span>
-                    </Badge>
-                  </div>
+                  <ApplicationTags
+                    :application="application"
+                    :available-width="tagsColumnWidth"
+                  />
                 </div>
                 <div class="application-col actions-col">
                   <button
@@ -996,13 +826,14 @@ import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
 import SkeletonTable from '@/components/ui/SkeletonTable.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import DownloadBlanksModal from '@/components/applications/DownloadBlanksModal.vue';
-import Badge from '@/components/ui/Badge.vue';
+import ApplicationTags from '@/components/ApplicationTags.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
-import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/utils/blacklistBadge';
-import { pendingApprovalDays, pendingApprovalLabel, pendingApprovalShort } from '@/utils/pendingApproval';
+import { blacklistFlagCount } from '@/utils/blacklistBadge';
 import { stripHtml } from '@/utils/sanitize';
 import { useDeletionsStore } from '@/stores/deletions';
+import { copyText } from '@/utils/clipboard';
 import { useRevealFirstApplication } from '@/composables/useRevealFirstApplication';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 // Размер порции бесшовной подгрузки Центра (#1158, срез 1) - аналог PER_PAGE
 // в AccessibleAttachmentsView/TableVersionsView.
@@ -1020,8 +851,9 @@ export default {
         SkeletonTable,
         LoaderSpinner,
         DownloadBlanksModal,
-        Badge,
+        ApplicationTags,
         BaseDropdown,
+        AppIcon,
     },
     emits: ['refresh-data'],
     setup() {
@@ -1079,6 +911,11 @@ export default {
             selectedConfirmations: [],
             selectedApplicationStatuses: [],
             selectedTags: [],
+            // Реальная ширина колонки тегов (её замеряет ResizeObserver по ячейке
+            // шапки). От неё ApplicationTags решает, что показать текстом, что
+            // иконкой, а что свернуть в "+N". 0 = ограничения нет (мобильная
+            // карточка или замер ещё не сделан).
+            tagsColumnWidth: 0,
             organizations: [],
             companies: [],
             unloadPlaces: [],
@@ -1546,6 +1383,19 @@ export default {
             this._headerObs = new ResizeObserver(this._applyHeight);
             this._headerObs.observe(header);
         }
+
+        // Ширина колонки тегов - вход для их свёртки (ApplicationTags). Замеряем
+        // ячейку ШАПКИ: она одна на таблицу и живёт весь срок компонента, а ширину
+        // имеет ту же, что ячейки строк - у шапки и ряда общие padding и gap. Меняется
+        // она и от вьюпорта, и от закрепления нав-меню, поэтому нужен наблюдатель, а
+        // не разовый замер. В карточном режиме шапка скрыта -> ширина 0 -> теги идут
+        // полным текстом, как и задумано для мобилки.
+        if (this.$refs.tagsHeaderCol && typeof ResizeObserver !== 'undefined') {
+            this._tagsColObs = new ResizeObserver(([entry]) => {
+                this.tagsColumnWidth = Math.round(entry.contentRect.width);
+            });
+            this._tagsColObs.observe(this.$refs.tagsHeaderCol);
+        }
     },
     beforeUnmount() {
         this.disconnectApplicationsSentinel();
@@ -1554,6 +1404,10 @@ export default {
         if (this._headerObs) {
             this._headerObs.disconnect();
             this._headerObs = null;
+        }
+        if (this._tagsColObs) {
+            this._tagsColObs.disconnect();
+            this._tagsColObs = null;
         }
         if (this.shakeInterval) {
             clearInterval(this.shakeInterval);
@@ -1644,24 +1498,10 @@ export default {
         },
         async copyApplicationNumber(number) {
             if (!number) return;
-            try {
-                if (navigator.clipboard?.writeText) {
-                    await navigator.clipboard.writeText(String(number));
-                } else {
-                    const textarea = document.createElement('textarea');
-                    textarea.value = String(number);
-                    textarea.setAttribute('readonly', '');
-                    textarea.style.position = 'absolute';
-                    textarea.style.left = '-9999px';
-                    document.body.appendChild(textarea);
-                    textarea.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(textarea);
-                }
-                useDeletionsStore().notify({ prefix: 'Номер ', bold: String(number), suffix: ' скопирован' });
-            } catch {
-                useDeletionsStore().notify({ prefix: 'Не удалось скопировать номер', type: 'error' });
-            }
+            const copied = await copyText(number);
+            useDeletionsStore().notify(copied
+                ? { prefix: 'Номер ', bold: String(number), suffix: ' скопирован' }
+                : { prefix: 'Не удалось скопировать номер', type: 'error' });
         },
 
         // Организация
@@ -1889,30 +1729,6 @@ export default {
         },
 
         blacklistFlagCount,
-        blacklistFlagLabel,
-        blacklistFlagTitle() {
-            return BLACKLIST_FLAG_TITLE;
-        },
-
-        pendingApprovalDays,
-        pendingApprovalLabel,
-        pendingApprovalShort,
-
-        // Колонка тегов фиксированная (120/90px) - один текстовый тег влезает, два и больше нет.
-        // При 2+ тегах сворачиваем крыша/парковка/важный в иконки (ЧС держим текстом). Решение
-        // по данным, а не замером DOM - реактивно, без дёрганья на ре-рендерах.
-        tagsAreCompact(application) {
-            const count =
-                (this.blacklistFlagCount(application) > 0 ? 1 : 0) +
-                (this.pendingApprovalDays(application) !== null ? 1 : 0) +
-                (application.has_roof_access ? 1 : 0) +
-                (application.has_free_parking ? 1 : 0) +
-                (application.sender_is_important ? 1 : 0) +
-                (application.has_unseen_questions ? 1 : 0) +
-                (application.has_files ? 1 : 0) +
-                (application.has_open_supplement ? 1 : 0);
-            return count >= 2;
-        },
 
         // API методы
 
@@ -2436,8 +2252,8 @@ export default {
             }
         },
 
-        handleDuplicate(application) {
-            console.log('Дублирование заявки из ApplicationsCenter:', application?.application_number);
+        handleDuplicate() {
+            // Дублирование заявки не реализовано: событие принимается и игнорируется.
         },
 
         async getCurrentUser() {
@@ -2616,6 +2432,8 @@ export default {
 .search-icon-btn__img {
     width: 16px;
     height: 16px;
+    color: var(--text);
+    stroke-width: 2.1;
 }
 
 /* Мобилка: «Обновить» во втором ряду шапки Центра - только иконка, без подписи
@@ -2903,6 +2721,8 @@ export default {
 .center__icon {
     width: 15px;
     height: 15px;
+    color: var(--text);
+    stroke-width: 2.2;
 }
 
 .applications-table {
@@ -2985,17 +2805,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-    filter: var(--icon-ink-filter);
+    color: var(--text);
 }
 
 .sort-icon {
+    color: var(--text-muted);
     width: 12px;
     height: 12px;
     transition: .2s;
 }
 
 .sort-icon.sorted {
-    filter: var(--icon-ink-filter);
+    color: var(--text);
 }
 
 .sort-icon.desc {
@@ -3027,68 +2848,6 @@ export default {
     gap: 4px;
 }
 
-.blacklist-flag-badge {
-    max-width: 100%;
-}
-
-/* у .application-col нет overflow:hidden - на узкой раскладке даём бейджу перенестись,
-   а не вылезать в соседнюю колонку (специфичность бьёт white-space:nowrap из Badge). */
-.number-col .blacklist-flag-badge {
-    white-space: normal;
-}
-
-/* теги вложения (ЧС/крыша/парковка) в отдельной колонке (#529). Всё в ОДНУ строку (nowrap).
-   ЧС не сворачивается. Крыша/парковка -> иконки когда нав-меню закреплено (тесно) И в строке
-   есть ЧС или оба тега; одиночные крыша/парковка - текст. ЧС+оба (3 тега) - всегда иконки. */
-.application-tags {
-    display: flex;
-    gap: 4px;
-    flex-wrap: nowrap;
-    align-items: center;
-    min-width: 0;
-}
-
-/* Анимация сворачивания крыша/парковка: текст схлопывается по ширине, иконка раскрывается
-   (display не анимируется, поэтому через ширину + прозрачность). */
-/* Рамка тега цвета текста - ТОЛЬКО в тёмной теме: там приглушённая color-mix-рамка
-   Badge сливалась с подложкой. В светлой она остаётся прежней, как была до правки
-   (#1415). */
-.rt-tag {
-    gap: 0;
-    transition: padding 0.28s ease;
-}
-
-[data-theme="dark"] .rt-tag {
-    border-color: currentColor;
-}
-
-.rt-tag__text {
-    display: inline-block;
-    max-width: 150px;
-    opacity: 1;
-    overflow: hidden;
-    white-space: nowrap;
-    transition: max-width 0.28s ease, opacity 0.2s ease;
-}
-
-.rt-tag__icon {
-    display: inline-block;
-    width: 0;
-    height: 13px;
-    opacity: 0;
-    overflow: hidden;
-    flex-shrink: 0;
-    transition: width 0.28s ease, opacity 0.2s ease;
-}
-
-/* Иконка бейджа "ждёт согласования" видима всегда: бейдж компактный (иконка + "N дн."),
-   в отличие от roof/parking он не прячет текст и не участвует в --compact-свёртке. */
-.rt-tag__icon--fixed {
-    width: 13px;
-    opacity: 1;
-    margin-right: 3px;
-}
-
 /* текст с многоточием в flex-ячейке (на самой ячейке text-overflow:ellipsis не работает) */
 .ellip {
     display: block;
@@ -3099,127 +2858,14 @@ export default {
     white-space: nowrap;
 }
 
-/* hover-подсказка #333 под тегом (как у Отправителя) */
-.tag-hint {
-    position: relative;
-}
-
-.tag-hint::after {
-    content: attr(data-hint);
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 50%;
-    transform: translateX(-50%);
-    width: max-content;
-    max-width: 200px;
-    background: var(--hint-bg);
-    color: var(--hint-text);
-    padding: 5px 9px;
-    border-radius: 6px;
-    font-size: 11px;
-    line-height: 1.3;
-    text-align: center;
-    white-space: normal;
-    z-index: 1000;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.15s;
-    box-shadow: 0 2px 8px var(--shadow-drop);
-}
-
-.tag-hint::before {
-    content: '';
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-bottom-color: var(--hint-bg);
-    z-index: 1001;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.15s;
-}
-
-.tag-hint:hover::after,
-.tag-hint:hover::before {
-    opacity: 1;
-}
-
-/* Свёртка тегов: при 2+ тегах в фикс-колонке (класс --compact вешается по данным в
-   tagsAreCompact) крыша/парковка/важный схлопывают текст в иконку, без переноса на новую
-   строку. ЧС держим полным текстом - критичный флаг, его не прячем. */
-.application-tags--compact .rt-tag--roof .rt-tag__text,
-.application-tags--compact .rt-tag--parking .rt-tag__text,
-.application-tags--compact .rt-tag--important .rt-tag__text,
-.application-tags--compact .rt-tag--questions .rt-tag__text,
-.application-tags--compact .rt-tag--supplement .rt-tag__text {
-    max-width: 0;
-    opacity: 0;
-}
-
-.application-tags--compact .rt-tag--roof .rt-tag__icon,
-.application-tags--compact .rt-tag--parking .rt-tag__icon,
-.application-tags--compact .rt-tag--important .rt-tag__icon,
-.application-tags--compact .rt-tag--questions .rt-tag__icon,
-.application-tags--compact .rt-tag--supplement .rt-tag__icon {
-    width: 13px;
-    opacity: 1;
-}
-
-.application-tags--compact .rt-tag--roof.badge--sm,
-.application-tags--compact .rt-tag--parking.badge--sm,
-.application-tags--compact .rt-tag--important.badge--sm,
-.application-tags--compact .rt-tag--questions.badge--sm,
-.application-tags--compact .rt-tag--supplement.badge--sm {
-    padding: 4px;
-}
-
-/* Маркер вопросов: красная точка-индикатор поверх бейджа (видна всегда, #973). */
-.rt-tag--questions {
-    position: relative;
-}
-
-/* Файлы - серая скрепка без подписи: признак справочный, внимания к себе не
-   требует, в отличие от чёрного списка и новых вопросов. Подпись убрана - иконка
-   читается сама, а строка списка и без того плотная. */
-/* Круглый, как прочие теги-иконки в свёрнутом виде: содержимое одно - скрепка,
-   поэтому форма задаётся размером и половинным скруглением, а не отступами. */
-.rt-tag--files {
-    color: var(--text-muted);
-    border-color: var(--border);
-    background: var(--surface);
-    width: 23px;
-    height: 23px;
-    padding: 0;
-    border-radius: 50%;
-    justify-content: center;
-}
-
-/* Скрепка - единственное содержимое тега, поэтому отступа справа под подпись нет.
-   Класс --fixed обязателен: обычные иконки тегов свёрнуты (width: 0) и
-   раскрываются только по наведению. */
-.rt-tag--files .rt-tag__icon--fixed {
-    margin-right: 0;
-}
-
-.rt-tag__q-dot {
-    position: absolute;
-    top: -3px;
-    right: -3px;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--color-danger);
-    border: 1.5px solid var(--surface);
-    pointer-events: none;
-}
-
-/* Колонка тегов фиксированная: 120px когда таблица просторная, 90px когда тесно (нав-меню
-   закреплено). Базовое правило ДО @container, чтобы контейнерное переопределение (90px)
-   победило по порядку источника при равной специфичности. */
+/* Колонка тегов гибкая: базис под пару тегов, при нехватке места ужимается до
+   min-width (ширина заголовка "Теги"). Сжимается именно она - у текстовых колонок
+   flex-basis: 0, и сжимать им нечего. Раскладку внутри колонки считает
+   ApplicationTags по её РЕАЛЬНОЙ ширине: что влезло - текстом, остальное иконками,
+   хвост - счётчиком "+N". */
 .tags-col {
-    flex: 0 0 120px;
+    flex: 0 1 132px;
+    min-width: 84px;
     transition: flex-basis 0.3s ease;
 }
 
@@ -3227,11 +2873,11 @@ export default {
     overflow: visible;
 }
 
-/* тесно (нав-меню закреплено, ширина таблицы < 1300): колонка тегов -> 90px. Свёртку текста
-   в иконки делает tagsAreCompact по числу тегов (см. выше). */
-@container (max-width: 1300px) {
+/* Простор (нав-меню не закреплено, широкий монитор): колонка забирает больше, и теги
+   чаще остаются с подписями. */
+@container (min-width: 1600px) {
     .tags-col {
-        flex: 0 0 90px;
+        flex-basis: 168px;
     }
 }
 
@@ -3352,6 +2998,13 @@ export default {
 /* В колонке действий текста нет - там RefreshButton, обрезать его нечем и незачем. */
 .header-col.actions-col {
     overflow: visible;
+}
+
+/* Шапка колонки тегов сжимается по тому же минимуму, что ячейки строк: правило
+   .header-col выше обнуляет min-width всем заголовкам, и на предельно узкой таблице
+   шапка ушла бы уже данных - колонки разъехались бы. */
+.header-col.tags-col {
+    min-width: 84px;
 }
 
 .table-body {
@@ -4112,36 +3765,6 @@ export default {
     .application-col.message-col {
         font-size: 13px;
         color: var(--text-muted);
-    }
-
-    /* Теги в компактной карточке НЕ сворачиваем в иконки (W3.11) - показываем полным
-       текстом с переносом на новую строку. Нейтрализуем свёртку tagsAreCompact: те же
-       селекторы (0,3,0) идут ниже в источнике -> перебивают базовую свёртку. */
-    .application-tags {
-        flex-wrap: wrap;
-    }
-    .application-tags--compact .rt-tag--roof .rt-tag__text,
-    .application-tags--compact .rt-tag--parking .rt-tag__text,
-    .application-tags--compact .rt-tag--important .rt-tag__text,
-    .application-tags--compact .rt-tag--questions .rt-tag__text,
-    .application-tags--compact .rt-tag--supplement .rt-tag__text {
-        max-width: 150px;
-        opacity: 1;
-    }
-    .application-tags--compact .rt-tag--roof .rt-tag__icon,
-    .application-tags--compact .rt-tag--parking .rt-tag__icon,
-    .application-tags--compact .rt-tag--important .rt-tag__icon,
-    .application-tags--compact .rt-tag--questions .rt-tag__icon,
-    .application-tags--compact .rt-tag--supplement .rt-tag__icon {
-        width: 0;
-        opacity: 0;
-    }
-    .application-tags--compact .rt-tag--roof.badge--sm,
-    .application-tags--compact .rt-tag--parking.badge--sm,
-    .application-tags--compact .rt-tag--important.badge--sm,
-    .application-tags--compact .rt-tag--questions.badge--sm,
-    .application-tags--compact .rt-tag--supplement.badge--sm {
-        padding: 3px 8px;
     }
 
     /* Тач-таргеты >= 44px. Кнопка "Скачать" в карточке идёт собственной строкой (без

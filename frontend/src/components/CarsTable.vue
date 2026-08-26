@@ -154,11 +154,11 @@
             <p :class="{ 'active-sort': sortField === 'car_number' }">
               Номер Т/С
             </p>
-            <img
-              src="@/assets/icons/sort.png"
+            <AppIcon
+              name="sort"
               class="sort-icon"
               :class="{ 'sorted': sortField === 'car_number', 'desc': sortField === 'car_number' && sortDirection === 'desc' }"
-            >
+            />
           </div>
           <div
             v-if="isFieldInDom('car_brand')"
@@ -170,11 +170,11 @@
             <p :class="{ 'active-sort': sortField === 'car_brand' }">
               Марка
             </p>
-            <img
-              src="@/assets/icons/sort.png"
+            <AppIcon
+              name="sort"
               class="sort-icon"
               :class="{ 'sorted': sortField === 'car_brand', 'desc': sortField === 'car_brand' && sortDirection === 'desc' }"
-            >
+            />
           </div>
           <div
             v-if="isFieldInDom('organization')"
@@ -186,11 +186,11 @@
             <p :class="{ 'active-sort': sortField === 'organization' }">
               Организация
             </p>
-            <img
-              src="@/assets/icons/sort.png"
+            <AppIcon
+              name="sort"
               class="sort-icon"
               :class="{ 'sorted': sortField === 'organization', 'desc': sortField === 'organization' && sortDirection === 'desc' }"
-            >
+            />
           </div>
           <div
             v-if="isFieldInDom('company')"
@@ -202,11 +202,11 @@
             <p :class="{ 'active-sort': sortField === 'company' }">
               Компания
             </p>
-            <img
-              src="@/assets/icons/sort.png"
+            <AppIcon
+              name="sort"
               class="sort-icon"
               :class="{ 'sorted': sortField === 'company', 'desc': sortField === 'company' && sortDirection === 'desc' }"
-            >
+            />
           </div>
           <div
             v-if="isFieldInDom('application_id')"
@@ -218,11 +218,11 @@
             <p :class="{ 'active-sort': sortField === 'application_id' }">
               Номер заявки
             </p>
-            <img
-              src="@/assets/icons/sort.png"
+            <AppIcon
+              name="sort"
               class="sort-icon"
               :class="{ 'sorted': sortField === 'application_id', 'desc': sortField === 'application_id' && sortDirection === 'desc' }"
-            >
+            />
           </div>
           <div
             v-if="isFieldInDom('unload_place')"
@@ -234,11 +234,11 @@
             <p :class="{ 'active-sort': sortField === 'unload_place' }">
               Место разгрузки
             </p>
-            <img
-              src="@/assets/icons/sort.png"
+            <AppIcon
+              name="sort"
               class="sort-icon"
               :class="{ 'sorted': sortField === 'unload_place', 'desc': sortField === 'unload_place' && sortDirection === 'desc' }"
-            >
+            />
           </div>
           <div
             v-if="isFieldInDom('valid_until')"
@@ -250,11 +250,11 @@
             <p :class="{ 'active-sort': sortField === 'entry_date_to' }">
               Действует до
             </p>
-            <img
-              src="@/assets/icons/sort.png"
+            <AppIcon
+              name="sort"
               class="sort-icon"
               :class="{ 'sorted': sortField === 'entry_date_to', 'desc': sortField === 'entry_date_to' && sortDirection === 'desc' }"
-            >
+            />
           </div>
           <div
             v-if="isFieldInDom('time_range')"
@@ -266,11 +266,11 @@
             <p :class="{ 'active-sort': sortField === 'entry_time' }">
               Время
             </p>
-            <img
-              src="@/assets/icons/sort.png"
+            <AppIcon
+              name="sort"
               class="sort-icon"
               :class="{ 'sorted': sortField === 'entry_time', 'desc': sortField === 'entry_time' && sortDirection === 'desc' }"
-            >
+            />
           </div>
           <div
             v-if="isFieldInDom('status')"
@@ -282,11 +282,11 @@
             <p :class="{ 'active-sort': sortField === 'status' }">
               Статус
             </p>
-            <img
-              src="@/assets/icons/sort.png"
+            <AppIcon
+              name="sort"
               class="sort-icon"
               :class="{ 'sorted': sortField === 'status', 'desc': sortField === 'status' && sortDirection === 'desc' }"
-            >
+            />
           </div>
           <!-- Пустой spacer-заголовок над chevron-кнопкой "Подробнее" в строке -
                без него шапка короче строки на 1 колонку и заголовки уезжают. -->
@@ -519,14 +519,14 @@
                   <button
                     v-else
                     class="delete-btn rt-pass__act rt-pass__act--danger"
+                    title="Удалить"
                     :disabled="preview || isLoading"
                     @click="preview ? null : removeItemWithNotification(item)"
                   >
-                    <img
-                      src="@/assets/icons/trashcan.png"
-                      alt="Удалить"
+                    <AppIcon
+                      name="trashcan"
                       class="delete-icon rt-pass__act-icon"
-                    >
+                    />
                     <span class="rt-pass__act-label">Удалить</span>
                   </button>
                 </div>
@@ -642,6 +642,7 @@ import ExcelJS from 'exceljs';
 import { bulkMoveCarsTable, bulkAddCarsTable, bulkUnbindCarsTable } from '@/api/cars';
 import { pickOverflowFields, columnMinWidth, measureRowAvailableWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 const ENLARGED_KEY_PREFIX = 'enlarged-mode:cars:';
 
@@ -682,7 +683,8 @@ export default {
     LoaderSpinner,
     StatusBadge,
     SwitchToggle,
-    AnimatedCounter
+    AnimatedCounter,
+    AppIcon,
   },
   setup() {
     const { isPortrait, isCompact } = useOrientation();
@@ -2209,17 +2211,18 @@ export default {
 }
 
 .header-row .col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {
@@ -2391,6 +2394,7 @@ export default {
 }
 
 .delete-icon {
+  color: var(--text);
   width: 16px;
   height: 16px;
   opacity: 0.7;

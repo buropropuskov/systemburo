@@ -12,11 +12,11 @@
         >
           <div class="button__content">
             <span class="button__text">{{ selectedFormatText }}</span>
-            <img
-              src="@/assets/icons/arrow.png"
+            <AppIcon
+              name="arrow"
               class="button__arrow"
               :class="{ 'button__arrow--open': isFormatDropdownOpen }"
-            >
+            />
           </div>
         </button>
         <transition name="dropdown">
@@ -76,6 +76,7 @@
 <script>
 import { apiRequest } from '@/api/client';
 import { validatePartValue, formatPartValue, initializeNumberParts } from '@/composables/useNumberFormat';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 /**
  * Поячеечный ввод номера Т/С по выбранному формату (формат-дропдаун + ячейки). Markup и стили
@@ -85,6 +86,9 @@ import { validatePartValue, formatPartValue, initializeNumberParts } from '@/com
  */
 export default {
   name: 'VehicleNumberFormatInput',
+  components: {
+    AppIcon,
+  },
   props: {
     modelValue: { type: String, default: '' },
   },

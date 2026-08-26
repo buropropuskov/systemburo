@@ -134,6 +134,7 @@ describe('SupplementModal - сборка дополнения (#1685)', () => {
           unload_place: 'Ворота 2',
           unload_places: [7, 8],
           passage_tables: [21],
+          pd_consent: false,
         }],
       },
     ]);
@@ -156,6 +157,7 @@ describe('SupplementModal - сборка дополнения (#1685)', () => {
           citizenship_id: 1,
           position: 'Монтажник',
           passport_series_number: '4510 123456',
+          pd_consent: false,
           patent_number: null,
           other_permission: null,
           target_tables: [33],

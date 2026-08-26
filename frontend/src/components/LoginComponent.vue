@@ -227,11 +227,10 @@
               class="login__input"
               :style="input1Style"
             >
-              <img
-                src="@/assets/icons/login.png"
-                alt=""
+              <AppIcon
+                name="login"
                 class="input__icon"
-              >
+              />
               <input
                 v-model="formData.username"
                 class="input"
@@ -250,11 +249,10 @@
               class="login__input"
               :style="input2Style"
             >
-              <img
-                src="@/assets/icons/password.png"
-                alt=""
+              <AppIcon
+                name="password"
                 class="input__icon"
-              >
+              />
               <input
                 v-model="formData.password"
                 class="input"
@@ -304,12 +302,11 @@
                 <p class="button__text">
                   {{ getButtonText }}
                 </p>
-                <img
+                <AppIcon
                   v-if="!isLoading && !isSuccess"
-                  src="@/assets/icons/key-blue.png"
-                  alt=""
+                  name="key"
                   class="input__icon"
-                >
+                />
                 <div
                   v-if="isLoading"
                   class="spinner"
@@ -361,11 +358,10 @@
         </p>
         <div class="info__contacts">
           <div class="contact">
-            <img
-              src="@/assets/icons/email-blue.png"
+            <AppIcon
+              name="email"
               class="contact__icon"
-              alt=""
-            >
+            />
             <p
               class="contact__text contact__text--clickable"
               @click="copyEmail"
@@ -374,11 +370,10 @@
             </p>
           </div>
           <div class="contact">
-            <img
-              src="@/assets/icons/phone-blue.png"
+            <AppIcon
+              name="phone"
               class="contact__icon"
-              alt=""
-            >
+            />
             <p
               class="contact__text contact__text--clickable"
               @click="copyPhone"
@@ -406,12 +401,13 @@ import { useAuthStore } from '@/stores/auth'
 import { useContactsStore } from '@/stores/contacts'
 import { resolveLoginRedirect } from '@/utils/postLoginRedirect'
 import PasswordRecoveryModal from '@/components/PasswordRecoveryModal.vue'
+import AppIcon from '@/components/icons/AppIcon.vue'
 
 // Фолбэк-контакты Бюро, если в настройках системы они ещё не заданы.
 const FALLBACK_BUREAU_EMAIL = 'buropropuskov@dreamisland.ru'
 const FALLBACK_BUREAU_PHONE = '+7 (910) 083 00-55'
 export default {
-    components: { PasswordRecoveryModal },
+    components: { PasswordRecoveryModal, AppIcon },
     emits: ['login-success'],
     data() {
         return {
@@ -1110,6 +1106,8 @@ export default {
     .contact__icon {
         width: 20px;
         height: 20px;
+        flex-shrink: 0;
+        color: var(--accent-text);
     }
 
     .contact__text {
@@ -1196,9 +1194,18 @@ export default {
     }
 
     .input__icon {
-        width: 20px;
-        height: 20px;
+        width: 23px;
+        height: 23px;
+        flex-shrink: 0;
+        /* Глиф держит цвет подсказки в поле, а не текста: см. appIcons.js. */
+        color: var(--text-placeholder);
+        stroke-width: 2.4;
         transition: transform .5s;
+    }
+
+    /* Ключ на кнопке входа - фирменного цвета, в тон подписи кнопки. */
+    .login__button .input__icon {
+        color: var(--accent-text);
     }
 
     .input {
@@ -1344,7 +1351,7 @@ export default {
     }
 
     .login__button.cooling .input__icon {
-        filter: grayscale(1);
+        color: var(--text-muted);
         opacity: 0.45;
     }
 

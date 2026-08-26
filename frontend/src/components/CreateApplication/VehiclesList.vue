@@ -98,11 +98,11 @@
           <p :class="{ 'active-sort': sortField === 'number' }">
             №
           </p>
-          <img
-            src="@/assets/icons/sort.png"
+          <AppIcon
+            name="sort"
             class="sort-icon"
             :class="{ 'desc': sortField === 'number' && sortDirection === 'desc' }"
-          >
+          />
         </div>
         <div
           v-for="(row, index) in pagedVehicles"
@@ -124,11 +124,11 @@
           <p :class="{ 'active-sort': sortField === 'plate' }">
             Номер
           </p>
-          <img
-            src="@/assets/icons/sort.png"
+          <AppIcon
+            name="sort"
             class="sort-icon"
             :class="{ 'desc': sortField === 'plate' && sortDirection === 'desc' }"
-          >
+          />
         </div>
         <div
           v-for="(row, index) in pagedVehicles"
@@ -158,11 +158,11 @@
           <p :class="{ 'active-sort': sortField === 'mark' }">
             Марка
           </p>
-          <img
-            src="@/assets/icons/sort.png"
+          <AppIcon
+            name="sort"
             class="sort-icon"
             :class="{ 'desc': sortField === 'mark' && sortDirection === 'desc' }"
-          >
+          />
         </div>
         <div
           v-for="(row, index) in pagedVehicles"
@@ -198,22 +198,20 @@
             title="Редактировать"
             @click="$emit('edit-vehicle', row.item)"
           >
-            <img
-              src="@/assets/icons/edit.png"
-              alt="Редактировать"
+            <AppIcon
+              name="edit"
               class="edit-icon"
-            >
+            />
           </button>
           <button
             class="delete-btn"
             title="Удалить"
             @click="$emit('delete-vehicle', row.item.id)"
           >
-            <img
-              src="@/assets/icons/trashcan.png"
-              alt="Удалить"
+            <AppIcon
+              name="trashcan"
               class="delete-icon"
-            >
+            />
           </button>
         </div>
       </div>
@@ -397,6 +395,7 @@ import Pager from '@/components/ui/Pager.vue';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { useListSearchPagination } from '@/composables/useListSearchPagination';
 import { entityCountLabel } from '@/utils/entityCount';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
     name: 'VehiclesList',
@@ -405,7 +404,8 @@ export default {
         ConfirmationModal,
         Badge,
         DetailsIcon,
-        Pager
+        Pager,
+        AppIcon,
     },
     props: {
         vehicles: {
@@ -747,6 +747,7 @@ export default {
 }
 
 .sort-icon {
+    color: var(--text-muted);
     width: 10px;
     height: 10px;
     transition: all 0.2s ease;
@@ -983,6 +984,7 @@ export default {
 }
 
 .details-icon, .edit-icon, .delete-icon {
+    color: var(--text);
     width: 18px;
     height: 18px;
     opacity: 0.6;

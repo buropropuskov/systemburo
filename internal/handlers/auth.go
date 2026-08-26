@@ -10,7 +10,16 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-const refreshCookieName = "refresh_token"
+// refreshCookiePath - под /api, потому что читают cookie только продление
+// сеанса и выход, а раздача загруженных файлов проверяет её как пропуск
+// (см. middleware.FileAccess). Раньше стоял "/", и маркер продления ездил с
+// каждым запросом за картинкой и на страницу pgAdmin.
+const refreshCookiePath = "/api"
+
+// legacyRefreshCookiePath - прежний путь cookie. Выход чистит и его: у тех,
+// кто вошёл до сужения пути, в браузере лежит cookie с Path=/, и без явного
+// удаления она пережила бы выход и осталась бы годной ещё на неделю.
+const legacyRefreshCookiePath = "/"
 
 type AuthHandler struct {
 	service       services.AuthService
@@ -37,9 +46,9 @@ func NewAuthHandler(service services.AuthService, maintenance services.Maintenan
 // setRefreshCookie выставляет HttpOnly refresh cookie.
 func (h *AuthHandler) setRefreshCookie(c echo.Context, token string) {
 	c.SetCookie(&http.Cookie{
-		Name:     refreshCookieName,
+		Name:     services.RefreshCookieName,
 		Value:    token,
-		Path:     "/",
+		Path:     refreshCookiePath,
 		MaxAge:   h.refreshMaxAge,
 		HttpOnly: true,
 		Secure:   h.cookieSecure,
@@ -47,17 +56,20 @@ func (h *AuthHandler) setRefreshCookie(c echo.Context, token string) {
 	})
 }
 
-// clearRefreshCookie удаляет refresh cookie (MaxAge: -1).
+// clearRefreshCookie удаляет refresh cookie (MaxAge: -1) по текущему и прежнему
+// пути: браузер различает cookie с разным Path и сам старую не удалит.
 func (h *AuthHandler) clearRefreshCookie(c echo.Context) {
-	c.SetCookie(&http.Cookie{
-		Name:     refreshCookieName,
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   h.cookieSecure,
-		SameSite: http.SameSiteStrictMode,
-	})
+	for _, path := range []string{refreshCookiePath, legacyRefreshCookiePath} {
+		c.SetCookie(&http.Cookie{
+			Name:     services.RefreshCookieName,
+			Value:    "",
+			Path:     path,
+			MaxAge:   -1,
+			HttpOnly: true,
+			Secure:   h.cookieSecure,
+			SameSite: http.SameSiteStrictMode,
+		})
+	}
 }
 
 // Login godoc
@@ -103,21 +115,19 @@ func (h *AuthHandler) Login(c echo.Context) error {
 // @Tags         auth
 // @Accept       json
 // @Produce      json
-// @Param        request body models.RefreshTokenRequest true "Refresh token"
 // @Success      200 {object} models.TokenPairResponse
 // @Failure      401 {object} models.HTTPError "Invalid refresh token"
 // @Router       /refresh-token [post]
 func (h *AuthHandler) RefreshToken(c echo.Context) error {
-	var req models.RefreshTokenRequest
-	// Берём refresh_token из HttpOnly cookie. Body оставлен для
-	// обратной совместимости - если cookie нет, fallback на body.
-	if ck, err := c.Cookie(refreshCookieName); err == nil && ck.Value != "" {
-		req.RefreshToken = ck.Value
-	} else {
-		if err := c.Bind(&req); err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
-		}
+	// Только HttpOnly cookie: тела запроса здесь больше нет. Приём маркера из
+	// тела оставался с тех пор, как он ещё отдавался клиенту в JSON; фронт им не
+	// пользуется, а лишний путь в обновлении сеанса приходится держать в голове
+	// каждому, кто трогает авторизацию.
+	ck, err := c.Cookie(services.RefreshCookieName)
+	if err != nil || ck.Value == "" {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Invalid refresh token")
 	}
+	req := models.RefreshTokenRequest{RefreshToken: ck.Value}
 	resp, err := h.service.RefreshToken(c.Request().Context(), req, requestMeta(c))
 	if err != nil {
 		return err
@@ -135,18 +145,16 @@ func (h *AuthHandler) RefreshToken(c echo.Context) error {
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
-// @Param        request body models.LogoutRequest true "Refresh token для отзыва"
 // @Success      200 {string} string "Logged out successfully"
 // @Failure      401 {object} models.HTTPError
 // @Router       /logout [post]
 func (h *AuthHandler) Logout(c echo.Context) error {
 	username := c.Get("username").(string)
+	// Маркер берётся только из cookie. Её отсутствие выходу не мешает: cookie
+	// всё равно чистится, а сеанс без маркера отзывать нечего.
 	var req models.LogoutRequest
-	// Берём refresh из cookie, fallback на body.
-	if ck, err := c.Cookie(refreshCookieName); err == nil && ck.Value != "" {
+	if ck, err := c.Cookie(services.RefreshCookieName); err == nil {
 		req.RefreshToken = ck.Value
-	} else {
-		_ = c.Bind(&req)
 	}
 	if err := h.service.Logout(c.Request().Context(), username, req, requestMeta(c)); err != nil {
 		// Всё равно чистим cookie - даже если DB-запись не удалилась.

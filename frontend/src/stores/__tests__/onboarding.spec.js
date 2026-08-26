@@ -11,6 +11,8 @@ import {
 } from '@/components/onboarding/securityOnboardingSteps';
 import { getOnboardingStatus, markOnboardingComplete, getSecurityFactRoute } from '@/api/onboarding';
 import { getMyApprovalRole } from '@/api/approvers';
+import { getUserApplicationsPaginated } from '@/api/applications';
+import { syncDemoBackend } from '@/components/onboarding/demoBackend';
 
 vi.mock('@/api/onboarding', () => ({
   getOnboardingStatus: vi.fn(),
@@ -21,6 +23,24 @@ vi.mock('@/api/onboarding', () => ({
 vi.mock('@/api/approvers', () => ({
   getMyApprovalRole: vi.fn(),
 }));
+
+vi.mock('@/api/applications', () => ({
+  getUserApplicationsPaginated: vi.fn(),
+}));
+
+vi.mock('@/components/onboarding/demoBackend', () => ({
+  syncDemoBackend: vi.fn(),
+}));
+
+/**
+ * Девять шагов про карточку заявки живут под `needs: 'hasOwnApplication'`, и по
+ * умолчанию (заявок нет) их в наборе не будет. Тестам, которые ждут ПОЛНЫЙ тур,
+ * нужно сперва «завести» человеку заявку - как это делает gatingData на старте.
+ */
+async function withOwnApplication(store) {
+  getUserApplicationsPaginated.mockResolvedValue({ items: [{ id: 1 }], meta: { total: 1 } });
+  await store.ensureOwnApplication();
+}
 
 function createMockJWT(payload, expiresInSeconds = 3600) {
   const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
@@ -164,9 +184,10 @@ describe('onboarding store', () => {
       expect(store.currentStep).toBe(null);
     });
 
-    it('тур заявителя отдаёт свои шаги (при наличии прав на permission-шаги)', () => {
+    it('тур заявителя отдаёт свои шаги (при наличии прав на permission-шаги)', async () => {
       grant(...USER_TOUR_RIGHTS);
       const store = useOnboardingStore();
+      await withOwnApplication(store);
       store.start({ tour: 'user' });
       expect(store.steps).toEqual(onboardingSteps);
       expect(store.totalSteps).toBe(onboardingSteps.length);
@@ -181,20 +202,190 @@ describe('onboarding store', () => {
       expect(store.currentStep).toBe(securityOnboardingSteps[0]);
     });
 
-    it('набор шагов не зависит от типа пользователя - только от выбранного тура', () => {
+    it('набор шагов не зависит от типа пользователя - только от выбранного тура', async () => {
       grant(...USER_TOUR_RIGHTS);
       const auth = useAuthStore();
       auth.userTypeCode = 'security';
       const store = useOnboardingStore();
+      await withOwnApplication(store);
       store.start({ tour: 'user' });
       expect(store.steps).toEqual(onboardingSteps);
     });
   });
 
+  /**
+   * Тур одинаков для всех: у человека без своих заявок шаги про карточку никуда
+   * не деваются, а данные для них на время тура подставляются примерные (см.
+   * demoBackend.js). Знать заранее, есть ли заявка, всё равно нужно - от этого
+   * зависит, включать ли подмену.
+   */
+  /**
+   * Примерная заявка нужна ровно тем, у кого своей нет: остальным подмена стёрла
+   * бы настоящий список кабинета. И живёт она ровно столько, сколько тур.
+   */
+  describe('примерные данные включаются по надобности', () => {
+    beforeEach(() => syncDemoBackend.mockClear());
+
+    it('без своей заявки тур поднимает пример', async () => {
+      getUserApplicationsPaginated.mockResolvedValue({ items: [], meta: { total: 0 } });
+      const store = useOnboardingStore();
+      await store.ensureOwnApplication();
+      store.start({ tour: 'user' });
+
+      expect(syncDemoBackend).toHaveBeenCalledWith(true, false);
+    });
+
+    it('со своей заявкой пример не поднимается - список остаётся настоящим', async () => {
+      const store = useOnboardingStore();
+      await withOwnApplication(store);
+      store.start({ tour: 'user' });
+
+      expect(syncDemoBackend).toHaveBeenCalledWith(true, true);
+    });
+
+    it('конец тура снимает подмену', async () => {
+      getUserApplicationsPaginated.mockResolvedValue({ items: [], meta: { total: 0 } });
+      const store = useOnboardingStore();
+      await store.ensureOwnApplication();
+      store.start({ tour: 'user' });
+      store.stop();
+
+      expect(syncDemoBackend).toHaveBeenLastCalledWith(false);
+    });
+
+    it('смена пользователя тоже снимает подмену', () => {
+      const store = useOnboardingStore();
+      store.reset();
+      expect(syncDemoBackend).toHaveBeenLastCalledWith(false);
+    });
+  });
+
+  /**
+   * Тур длинный, и перерыв в нём - нормальная часть жизни: человека отвлекли,
+   * он обновил страницу, ушёл домой. Позиция должна пережить всё это.
+   */
+  describe('продолжение с сохранённого места', () => {
+    beforeEach(() => localStorage.clear());
+
+    it('следующий запуск поднимает тур с той же главы', () => {
+      const store = useOnboardingStore();
+      store.start({ tour: 'user' });
+      store.setIndex(18);
+      store.stop();
+
+      const again = useOnboardingStore();
+      again.start({ tour: 'user' });
+      expect(again.currentIndex).toBe(18);
+      expect(again.resumedFrom).toBe(18);
+    });
+
+    it('«пройти сначала» начинает с первого шага', () => {
+      const store = useOnboardingStore();
+      store.start({ tour: 'user' });
+      store.setIndex(18);
+      store.stop();
+
+      store.start({ tour: 'user', restart: true });
+      expect(store.currentIndex).toBe(0);
+      expect(store.resumedFrom).toBe(0);
+    });
+
+    it('меню знает, что есть с чего продолжить', () => {
+      const store = useOnboardingStore();
+      expect(store.hasProgress('user')).toBe(false);
+      store.start({ tour: 'user' });
+      store.setIndex(5);
+      expect(store.hasProgress('user')).toBe(true);
+    });
+
+    it('досмотренный до конца тур продолжать нечего', () => {
+      const store = useOnboardingStore();
+      store.start({ tour: 'user' });
+      store.setIndex(30);
+      store.markCompleted(true);
+      expect(store.hasProgress('user')).toBe(false);
+    });
+
+    it('позиция дальше последнего шага не уводит тур в пустоту', () => {
+      const store = useOnboardingStore();
+      store.start({ tour: 'user' });
+      const beyond = store.totalSteps + 50;
+      store.setIndex(beyond);
+      store.stop();
+
+      store.start({ tour: 'user' });
+      expect(store.currentIndex).toBeLessThan(store.totalSteps);
+    });
+  });
+
+  describe('состав тура не зависит от данных', () => {
+    it('без своей заявки шаги про её карточку остаются', async () => {
+      grant(...USER_TOUR_RIGHTS);
+      getUserApplicationsPaginated.mockResolvedValue({ items: [], meta: { total: 0 } });
+      const store = useOnboardingStore();
+      await store.ensureOwnApplication();
+      store.start({ tour: 'user' });
+
+      const ids = store.steps.map((s) => s.id);
+      expect(ids).toContain('cabinet-application-row');
+      expect(ids).toContain('detail-status');
+      expect(ids).toContain('detail-revoke');
+      expect(store.totalSteps).toBe(onboardingSteps.length);
+    });
+
+    it('с заявкой набор такой же', async () => {
+      grant(...USER_TOUR_RIGHTS);
+      const store = useOnboardingStore();
+      await withOwnApplication(store);
+      store.start({ tour: 'user' });
+
+      expect(store.totalSteps).toBe(onboardingSteps.length);
+      expect(store.steps.map((s) => s.id)).toContain('detail-revoke');
+    });
+
+    it('число шагов не меняется по ходу тура - состав известен на старте', async () => {
+      grant(...USER_TOUR_RIGHTS);
+      getUserApplicationsPaginated.mockResolvedValue({ items: [], meta: { total: 0 } });
+      const store = useOnboardingStore();
+      await store.ensureOwnApplication();
+      store.start({ tour: 'user' });
+
+      const before = store.totalSteps;
+      store.setIndex(5);
+      store.setIndex(20);
+      expect(store.totalSteps).toBe(before);
+    });
+
+    it('ошибка запроса читается как «заявок нет» - тогда включится пример', async () => {
+      grant(...USER_TOUR_RIGHTS);
+      getUserApplicationsPaginated.mockRejectedValue(new Error('сеть'));
+      const store = useOnboardingStore();
+      await store.ensureOwnApplication();
+      store.start({ tour: 'user' });
+
+      expect(store.hasOwnApplication).toBe(false);
+      expect(store.steps.map((s) => s.id)).toContain('detail-revoke');
+    });
+
+    it('запрос уходит один раз за сессию, сбрасывается вместе с пользователем', async () => {
+      getUserApplicationsPaginated.mockClear();
+      const store = useOnboardingStore();
+      await withOwnApplication(store);
+      await store.ensureOwnApplication();
+      expect(getUserApplicationsPaginated).toHaveBeenCalledTimes(1);
+
+      store.reset();
+      expect(store.hasOwnApplication).toBe(false);
+      await store.ensureOwnApplication();
+      expect(getUserApplicationsPaginated).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('requires - шаг без права выброшен из набора', () => {
-    it('без header.report_problem шага «Сообщить о проблеме» в туре нет', () => {
+    it('без header.report_problem шага «Сообщить о проблеме» в туре нет', async () => {
       grant(...USER_TOUR_RIGHTS.filter((k) => k !== 'header.report_problem'));
       const store = useOnboardingStore();
+      await withOwnApplication(store);
       store.start({ tour: 'user' });
 
       const dropped = USER_REQUIRES_STEPS.filter((s) => s.requires === 'header.report_problem').length;
@@ -203,8 +394,9 @@ describe('onboarding store', () => {
       expect(store.totalSteps).toBe(onboardingSteps.length - dropped);
     });
 
-    it('без прав выброшены все permission-шаги', () => {
+    it('без прав выброшены все permission-шаги', async () => {
       const store = useOnboardingStore();
+      await withOwnApplication(store);
       store.start({ tour: 'user' });
 
       expect(USER_REQUIRES_STEPS.length).toBeGreaterThan(0);
@@ -212,8 +404,9 @@ describe('onboarding store', () => {
       expect(store.totalSteps).toBe(onboardingSteps.length - USER_REQUIRES_STEPS.length);
     });
 
-    it('выброшенный шаг не сдвигает индексацию оставшихся (нет дырки в счётчике)', () => {
+    it('выброшенный шаг не сдвигает индексацию оставшихся (нет дырки в счётчике)', async () => {
       const store = useOnboardingStore();
+      await withOwnApplication(store);
       store.start({ tour: 'user' });
       // Шаги идут подряд без пропусков: набор без прав - это ровно конфигурация с
       // вырезанными requires-шагами, в том же порядке.
@@ -244,9 +437,10 @@ describe('onboarding store', () => {
       expect(withoutRights).toBe(withRights - countedDrop);
     });
 
-    it('без action.supplement.application шага «Дополнить» в туре нет (#1740)', () => {
+    it('без action.supplement.application шага «Дополнить» в туре нет (#1740)', async () => {
       grant(...USER_TOUR_RIGHTS.filter((k) => k !== 'action.supplement.application'));
       const store = useOnboardingStore();
+      await withOwnApplication(store);
       store.start({ tour: 'user' });
 
       expect(store.steps.some((s) => s.id === 'detail-supplement')).toBe(false);
@@ -255,9 +449,10 @@ describe('onboarding store', () => {
       expect(store.steps.some((s) => s.id === 'detail-revoke')).toBe(true);
     });
 
-    it('с правом шаг «Дополнить» возвращается на своё место в карточке (#1740)', () => {
+    it('с правом шаг «Дополнить» возвращается на своё место в карточке (#1740)', async () => {
       grant(...USER_TOUR_RIGHTS);
       const store = useOnboardingStore();
+      await withOwnApplication(store);
       store.start({ tour: 'user' });
 
       const ids = store.steps.map((s) => s.id);
@@ -265,10 +460,11 @@ describe('onboarding store', () => {
       expect(ids.indexOf('detail-supplement')).toBeLessThan(ids.indexOf('detail-revoke'));
     });
 
-    it('режим super пропускает все requires-шаги', () => {
+    it('режим super пропускает все requires-шаги', async () => {
       const permissions = usePermissionsStore();
       permissions.mode = 'super';
       const store = useOnboardingStore();
+      await withOwnApplication(store);
       store.start({ tour: 'user' });
       expect(store.totalSteps).toBe(onboardingSteps.length);
     });
@@ -514,12 +710,12 @@ describe('onboarding store', () => {
         'sec-fact-report-window',
         'sec-finish',
       ]);
-      // шаги фактовой таблицы - на её route, а финал всегда на достижимом
-      // /accessible-attachments (чтобы охранник без доступа к таблице дошёл до него)
+      // шаги фактовой таблицы - на её route, а финал всегда на «Обзоре»: он
+      // достижим любому вошедшему, и там же кнопка «Обучение» для повторного прохода
       expect(tail.slice(0, -1).every((s) => s.route === '/table/kpp_1')).toBe(true);
       const finalStep = tail[tail.length - 1];
       expect(finalStep.id).toBe('sec-finish');
-      expect(finalStep.route).toBe('/accessible-attachments');
+      expect(finalStep.route).toBe('/news');
     });
 
     it('без доступной фактовой таблицы (null) сегмент не добавляется', async () => {
@@ -534,7 +730,7 @@ describe('onboarding store', () => {
       expect(store.totalSteps).toBe(securityOnboardingSteps.length + 1);
       const last = store.steps[store.steps.length - 1];
       expect(last.id).toBe('sec-finish');
-      expect(last.route).toBe('/accessible-attachments');
+      expect(last.route).toBe('/news');
     });
 
     it('идемпотентен - резолвит один раз за сессию', async () => {

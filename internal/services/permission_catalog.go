@@ -49,6 +49,18 @@ const (
 	KeyDetailOpenApplication  = "detail.open_application"
 	KeyDetailEntryExitHistory = "detail.entry_exit_history"
 	KeyDetailDocuments        = "detail.documents"
+	// KeyDetailDocumentsExport - выгрузка документов человека (серия и номер паспорта,
+	// номер патента, иное разрешение) в заполненный бланк заявки. Право парное к
+	// detail.documents и работает только вместе с ним: видеть документы на экране
+	// карточки и вынести их файлом наружу - действия разного веса, и второе не должно
+	// доставаться каждому, кто может подать заявку. Отзыв detail.documents гасит и
+	// выгрузку, отдельным действием ходить не надо.
+	//
+	// В базовую роль не входит намеренно: администраторы получают ключ через adminAll,
+	// остальным он выдаётся точечно. Без права бланк уходит с прочерками в этих
+	// ячейках, а источник "сохранённый файл" закрывается - лежащая на диске копия
+	// собрана с документами, и обезличить её при отдаче нечем.
+	KeyDetailDocumentsExport = "detail.documents.export"
 
 	KeySectionRegistryOrganization = "section.registry.organization"
 	KeySectionRegistryCompany      = "section.registry.company"
@@ -188,7 +200,23 @@ func staticCatalog() []CatalogNode {
 		{Key: KeyDetailFullHistory, DisplayName: "Кнопка «Полная история»", Category: CatDetail},
 		{Key: KeyDetailOpenApplication, DisplayName: "Кнопка «Открыть заявку»", Category: CatDetail},
 		{Key: KeyDetailEntryExitHistory, DisplayName: "Раздел «История въездов и выездов»", Category: CatDetail},
-		{Key: KeyDetailDocuments, DisplayName: "Раздел «Документы»", Category: CatDetail},
+		{
+			Key:         KeyDetailDocuments,
+			DisplayName: "Раздел «Документы»",
+			Category:    CatDetail,
+			Children: []CatalogNode{
+				{
+					Key:         KeyDetailDocumentsExport,
+					DisplayName: "Документы: выгрузка в бланк",
+					Category:    CatDetail,
+					Description: "Разрешает скачивать бланк заявки с паспортными данными, номером " +
+						"патента и иным разрешением участников, а также забирать сохранённые копии " +
+						"бланков из файлового архива. Без права бланк скачивается с прочерками в этих " +
+						"ячейках. Работает только вместе с правом на раздел «Документы»: закрыт просмотр " +
+						"на экране - закрыта и выгрузка.",
+				},
+			},
+		},
 
 		// Сотрудники и автомобили
 		{Key: KeyEntityCarsRead, DisplayName: "Автомобили: просмотр", Category: CatRegistry},

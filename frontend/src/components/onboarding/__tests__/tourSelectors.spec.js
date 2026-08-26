@@ -53,6 +53,13 @@ function collectTestIds() {
       for (const m of source.matchAll(/content-testid\s*=\s*["']([^"'`${}]+)["']/g)) {
         found.add(m[1]);
       }
+      // testid из реестра-конфига, а не из разметки: ApplicationTags берёт имя у
+      // описания тега (applicationTags.js) и вешает через :data-testid. Якорь такой
+      // же живой - литерал лежит в исходнике рядом с признаком, по которому тег
+      // появляется, и исчезнет вместе с ним.
+      for (const m of source.matchAll(/testid:\s*\(\s*\w*\s*\)\s*=>\s*['"]([^'"`${}]+)['"]/g)) {
+        found.add(m[1]);
+      }
       // Условная привязка вида `:data-testid="выбран ? 'ob-blank-selected' : null"`:
       // имя тут - обычный литерал, и якорь на него настоящий. Шаблонные строки
       // по-прежнему не берём - там имя собирается в рантайме.
@@ -118,5 +125,28 @@ describe('якоря шагов туров существуют в исходн�
       .filter((s) => !s.element);
     expect(centered.length).toBeGreaterThan(0);
     centered.forEach((s) => expect(s.element ?? null).toBe(null));
+  });
+});
+
+/**
+ * Отдельный замок на модалку расписания. Тур целился в `work-modes-modal`, а этот
+ * testid стоит на затемняющей подложке во весь экран - вырез охватывал заодно всю
+ * страницу, и окно с фоном читались как одно подсвеченное пятно (жалоба владельца
+ * 21.08.2026). Проверяем, что якорь шага остался на самом окне: замок выше знает
+ * только, что селектор где-то есть, но не на КАКОМ узле.
+ */
+describe('якорь расписания - окно, а не подложка', () => {
+  const modal = fs.readFileSync(path.join(SRC_DIR, 'components/news/WorkModesModal.vue'), 'utf8');
+
+  it('testid шага стоит на окне, а не на overlay', () => {
+    const overlayBlock = modal.slice(modal.indexOf('modes-overlay'), modal.indexOf('class="modes"'));
+    expect(overlayBlock).not.toContain('ob-work-modes-window');
+    const windowBlock = modal.slice(modal.indexOf('class="modes"'), modal.indexOf('sheet-handle'));
+    expect(windowBlock).toContain('data-testid="ob-work-modes-window"');
+  });
+
+  it('шаг «Расписание» ведёт на окно', () => {
+    const step = allTourSteps().find((s) => s.id === 'work-modes-window');
+    expect(step.element).toBe('[data-testid="ob-work-modes-window"]');
   });
 });

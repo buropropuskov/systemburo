@@ -128,11 +128,11 @@
           >
             <div class="button__content">
               <span class="button__text">{{ selectedFormatText }}</span>
-              <img
-                src="@/assets/icons/arrow.png"
+              <AppIcon
+                name="arrow"
                 class="button__arrow"
                 :class="{ 'button__arrow--open': isFormatDropdownOpen }"
-              >
+              />
             </div>
           </button>
           <transition name="dropdown">
@@ -477,11 +477,14 @@ import { buildScheduleReport } from '@/utils/scheduleCheck'
 import { findDuplicateVehicle, vehicleLabel } from '@/utils/applicationDuplicates'
 import { getCurrentInstance } from 'vue'
 import ExistingCarsModal from '@/components/CreateApplication/ExistingCarsModal.vue'
+import { resetVehicleFormState } from './entryFormReset'
 import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vue'
+import AppIcon from '@/components/icons/AppIcon.vue'
 
 export default {
     name: 'VehicleForm',
     components: {
+        AppIcon,
         ExistingCarsModal,
         TargetTablesGrid
     },
@@ -1581,8 +1584,7 @@ export default {
 
         cancelEdit() {
             this.$emit('edit-cancelled');
-            this.editingVehicle = null;
-            this.clearVehicleForm();
+            resetVehicleFormState(this);
         },
         
         toggleMarkDropdown() {
@@ -2162,20 +2164,21 @@ export default {
 
 /* Стрелка - тот же inline SVG-шеврон, что у BaseDropdown.vue (см. другие дропдауны
    проекта): растровый arrow.png 10x10 на Retina-экранах масштабируется блоками
-   пикселей и выглядит зазубренным, SVG чёткий на любом DPI. Поворот 90/-90deg (не
-   0/180, как у BaseDropdown) сохранён - это боковое меню (dropdown__menu открывается
-   вправо от кнопки), не выпадающее вниз. */
+   пикселей и выглядит зазубренным, SVG чёткий на любом DPI. Поворот -90/90deg (не
+   0/180, как у BaseDropdown) - это боковое меню (dropdown__menu открывается вправо
+   от кнопки), не выпадающее вниз. Знак важен: шеврон нарисован остриём вниз, и
+   поворот по часовой уводит его влево, от меню. */
 .mark__button-arrow {
     width: 10px;
     height: 10px;
     color: var(--text-muted);
     transition: transform 0.2s;
-    transform: rotate(90deg);
+    transform: rotate(-90deg);
     flex-shrink: 0;
 }
 
 .mark__button-arrow--open {
-    transform: rotate(-90deg);
+    transform: rotate(90deg);
 }
 
 .mark__dropdown-menu {

@@ -140,14 +140,14 @@
               <p :class="{ 'active-sort': sortField === 'id' }">
                 ID
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{
                   'sorted': sortField === 'id',
                   'desc': sortField === 'id' && sortDirection === 'desc'
                 }"
-              >
+              />
             </div>
             <div
               class="header-col name-col"
@@ -156,14 +156,14 @@
               <p :class="{ 'active-sort': sortField === 'name' }">
                 Наименование
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{
                   'sorted': sortField === 'name',
                   'desc': sortField === 'name' && sortDirection === 'desc'
                 }"
-              >
+              />
             </div>
             <div
               class="header-col type-col"
@@ -172,14 +172,14 @@
               <p :class="{ 'active-sort': sortField === 'type' }">
                 Тип
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{
                   'sorted': sortField === 'type',
                   'desc': sortField === 'type' && sortDirection === 'desc'
                 }"
-              >
+              />
             </div>
             <div
               class="header-col users-col"
@@ -188,14 +188,14 @@
               <p :class="{ 'active-sort': sortField === 'user_count' }">
                 Пользователи
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{
                   'sorted': sortField === 'user_count',
                   'desc': sortField === 'user_count' && sortDirection === 'desc'
                 }"
-              >
+              />
             </div>
           </div>
 
@@ -728,7 +728,6 @@
 
 <script>
 import { mapState, mapActions } from 'pinia';
-import { apiRequest } from '@/api/client';
 import {
   getOrganizationMembers,
   reassignOrganizationUsers,
@@ -765,9 +764,13 @@ import LoaderSpinner from './ui/LoaderSpinner.vue';
 import OrgHistoryModal from './OrgHistoryModal.vue';
 import BulkOperationsModal from './directories/BulkOperationsModal.vue';
 import DirectoryModeration from './directory/DirectoryModeration.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
+import { fetchCurrentUserName } from '@/utils/currentUserName';
+import { openFromSearchLink } from '@/mixins/openFromSearchLink';
 
 export default {
   name: 'OrganizationsManagement',
+  mixins: [openFromSearchLink((vm) => vm.organizationsWithUsers, 'selectOrganization')],
   components: {
     DirectoryModeration,
     SearchComponent,
@@ -781,6 +784,7 @@ export default {
     LoaderSpinner,
     OrgHistoryModal,
     BulkOperationsModal,
+    AppIcon,
   },
   setup() {
     // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
@@ -1008,6 +1012,7 @@ export default {
     },
   },
   watch: {
+    organizationsWithUsers() { this.openFromSearchLink(); },
     showAddModal(newVal) {
       if (newVal) {
         this.$nextTick(() => {
@@ -1550,16 +1555,7 @@ export default {
     },
 
     async fetchCurrentUser() {
-      // Имя нужно для футера Excel-экспорта истории ("Отчёт сформировал").
-      try {
-        const res = await apiRequest('/users/me');
-        if (!res.ok) return;
-        const u = await res.json();
-        const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
-        this.currentUserName = parts.join(' ') || u.username || '';
-      } catch {
-        // Имя - необязательная деталь экспорта, молчим (footer покажет дефолт).
-      }
+      this.currentUserName = await fetchCurrentUserName();
     },
 
     sortBy(field) {
@@ -1751,17 +1747,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {

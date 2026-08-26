@@ -299,3 +299,51 @@ func TestBuiltinTemplateFields_CoversApprovers(t *testing.T) {
 		require.True(t, IsValidFieldPath(path), "путь %s должен быть в словаре", path)
 	}
 }
+
+// Транспорт «Автозаявок» в бланке ввоза: под него отведена одна ячейка «Марка и гос.
+// номер Т/С», поэтому несколько машин идут в ней по строкам.
+func TestResolveValue_ApplicationCars(t *testing.T) {
+	bctx := &BlankContext{
+		ApplicationCars: []ApplicationCarRow{
+			{Number: "О 593 УЕ 325", Mark: "ГАЗель", SourceName: "Автозаявка"},
+			{Number: "Х 101 ХХ 777", Mark: "MAN", SourceName: "Автозаявка"},
+			{Number: "К 050 УА 902", SourceName: "Автозаявка №2"},
+		},
+	}
+
+	require.Equal(t, "ГАЗель О 593 УЕ 325\nMAN Х 101 ХХ 777\nК 050 УА 902",
+		resolveValue(bctx, "app_cars.marks_numbers", 0),
+		"машина без марки печатается одним номером")
+	require.Equal(t, "О 593 УЕ 325\nХ 101 ХХ 777\nК 050 УА 902",
+		resolveValue(bctx, "app_cars.numbers", 0))
+	require.Equal(t, "ГАЗель\nMAN", resolveValue(bctx, "app_cars.marks", 0),
+		"пустые марки в перечень не попадают")
+	require.Equal(t, "3", resolveValue(bctx, "app_cars.count", 0))
+	require.Equal(t, "Автозаявка, Автозаявка №2", resolveValue(bctx, "app_cars.sources", 0))
+
+	// Заявка без автозаявок оставляет ячейку такой, как её задал шаблон.
+	empty := &BlankContext{}
+	for _, path := range []string{
+		"app_cars.marks_numbers", "app_cars.numbers", "app_cars.marks",
+		"app_cars.count", "app_cars.sources",
+	} {
+		require.Empty(t, resolveValue(empty, path, 0), "путь %s без машин", path)
+	}
+}
+
+func TestBuiltinTemplateFields_CoversApplicationCars(t *testing.T) {
+	for _, path := range []string{
+		"app_cars.marks_numbers", "app_cars.numbers", "app_cars.marks",
+		"app_cars.count", "app_cars.sources",
+	} {
+		require.True(t, IsValidFieldPath(path), "путь %s должен быть в словаре", path)
+	}
+	for _, g := range BuiltinTemplateFields() {
+		if g.Group != "app_cars" {
+			continue
+		}
+		for _, f := range g.Fields {
+			require.False(t, f.IsList, "поле %s не должно быть списочным", f.Path)
+		}
+	}
+}

@@ -46,11 +46,11 @@
                 <p :class="{ 'active-sort': sortField === 'id' }">
                   ID
                 </p>
-                <img
-                  src="@/assets/icons/sort.png"
+                <AppIcon
+                  name="sort"
                   class="sort-icon"
                   :class="{ sorted: sortField === 'id', desc: sortField === 'id' && sortDirection === 'desc' }"
-                >
+                />
               </div>
               <div
                 class="header-col name-col"
@@ -59,11 +59,11 @@
                 <p :class="{ 'active-sort': sortField === 'name' }">
                   Наименование
                 </p>
-                <img
-                  src="@/assets/icons/sort.png"
+                <AppIcon
+                  name="sort"
                   class="sort-icon"
                   :class="{ sorted: sortField === 'name', desc: sortField === 'name' && sortDirection === 'desc' }"
-                >
+                />
               </div>
               <div
                 class="header-col keys-col"
@@ -72,11 +72,11 @@
                 <p :class="{ 'active-sort': sortField === 'keys' }">
                   Прав
                 </p>
-                <img
-                  src="@/assets/icons/sort.png"
+                <AppIcon
+                  name="sort"
                   class="sort-icon"
                   :class="{ sorted: sortField === 'keys', desc: sortField === 'keys' && sortDirection === 'desc' }"
-                >
+                />
               </div>
             </div>
 
@@ -377,10 +377,11 @@ import {
   deletePermissionGroup,
   getPermissionCatalog,
 } from '@/api/permissions';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'AdminPermissionGroups',
-  components: { AdminPageShell, SearchComponent, RefreshButton, ConfirmationModal, LoaderSpinner, GroupPermissionsModal },
+  components: { AdminPageShell, SearchComponent, RefreshButton, ConfirmationModal, LoaderSpinner, GroupPermissionsModal, AppIcon },
   setup() {
     // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
     const overlay = { close: () => {} };
@@ -794,17 +795,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: 0.2s;
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {

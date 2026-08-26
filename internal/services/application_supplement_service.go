@@ -537,11 +537,11 @@ func (s *applicationService) insertSupplementEntities(ctx context.Context, tx *g
 		// Даты и время берём прямо из вложения тем же INSERT..SELECT: копия колонки в
 		// колонку исключает расхождение форматов с путём подачи.
 		err := tx.Raw(`
-			INSERT INTO cars (attachment_id, supplement_id, car_number, car_brand, unload_place, entry_date_from, entry_time_from, entry_date_to, entry_time_to, status)
-			SELECT a.id, ?, ?, ?, ?, a.entry_date_from, a.entry_time_from, a.entry_date_to, a.entry_time_to, 0
+			INSERT INTO cars (attachment_id, supplement_id, car_number, car_brand, unload_place, entry_date_from, entry_time_from, entry_date_to, entry_time_to, status, pd_consent_at, pd_consent_by_user_id)
+			SELECT a.id, ?, ?, ?, ?, a.entry_date_from, a.entry_time_from, a.entry_date_to, a.entry_time_to, 0, ?, ?
 			FROM attachments a WHERE a.id = ?
 			RETURNING id
-		`, supplementID, v.CarNumber, v.CarBrand, v.UnloadPlace, attID).Scan(&carID).Error
+		`, supplementID, v.CarNumber, v.CarBrand, v.UnloadPlace, consentAt(v.PDConsent, now), consentBy(v.PDConsent, actorID), attID).Scan(&carID).Error
 		if err != nil || carID == 0 {
 			slog.Error("дополнение: не удалось создать машину", "attachment_id", attID, "error", err)
 			return nil, nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating car")
@@ -592,6 +592,8 @@ func (s *applicationService) insertSupplementEntities(ctx context.Context, tx *g
 			PatentNumber:         nilIfBlankPtr(e.PatentNumber),
 			OtherPermission:      e.OtherPermission,
 			Status:               &statusZero,
+			PDConsentAt:          consentAt(e.PDConsent, now),
+			PDConsentByUserID:    consentBy(e.PDConsent, actorID),
 		}
 		if err := tx.Create(&employee).Error; err != nil {
 			slog.Error("дополнение: не удалось создать сотрудника", "attachment_id", attID, "error", err)

@@ -125,6 +125,10 @@
           >
             <div class="gsp__group-title">
               {{ group.title }}
+              <span
+                v-if="group.total > 1"
+                class="gsp__group-count"
+              >{{ group.total }}</span>
             </div>
             <button
               v-for="item in group.items"
@@ -147,6 +151,15 @@
                   class="gsp__row-subtitle"
                 >{{ item.subtitle }}</span>
               </span>
+            </button>
+            <button
+              v-if="group.hidden > 0"
+              type="button"
+              class="gsp__more"
+              data-testid="global-search-expand"
+              @click="expanded[group.type] = true"
+            >
+              Показать ещё {{ group.hidden }}
             </button>
           </div>
 
@@ -199,7 +212,11 @@ import { useGlobalSearch, MIN_QUERY_LENGTH } from '@/composables/useGlobalSearch
 import { ADMIN_GROUPS, MAIN_SECTIONS } from '@/constants/navSections';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { SEARCH_TARGETS } from '@/constants/searchTargets';
+
+/** Сколько строк раздела видно до раскрытия. Пять - столько, чтобы читалось разом. */
+const GROUP_PREVIEW = 5;
 import { SEARCH_ACTIONS } from '@/constants/searchActions';
+import { useOnboardingStore } from '@/stores/onboarding';
 
 /** Сколько разделов меню показывать: список длинный, а нужен обычно первый же. */
 const SECTIONS_LIMIT = 5;
@@ -222,6 +239,8 @@ export default {
   },
   data() {
     return {
+      // Какие разделы раскрыты целиком; новый запрос сворачивает всё обратно.
+      expanded: {},
       activeIndex: 0,
       // Закрепление переживает перезагрузку: это привычка работы, а не состояние
       // одного захода -- каждый раз закреплять заново раздражало бы.
@@ -289,21 +308,33 @@ export default {
       const groups = [];
       let index = 0;
 
-      const push = (type, title, items) => {
-        if (!items.length) return;
-        groups.push({ type, title, items: items.map((it) => ({ ...it, index: index++ })) });
+      // Раздел показывается свёрнутым до GROUP_PREVIEW строк: без этого выдача из
+      // нескольких разделов превращается в простыню, где ничего не найти. Остальное
+      // раскрывается на месте - уходить со страницы за своими же результатами незачем.
+      const push = (type, title, all) => {
+        if (!all.length) return;
+        const open = this.expanded[type];
+        const shown = open ? all : all.slice(0, GROUP_PREVIEW);
+        groups.push({
+          type,
+          title,
+          total: all.length,
+          hidden: all.length - shown.length,
+          items: shown.map((it) => ({ ...it, index: index++ })),
+        });
       };
 
       push('actions', 'Действия', this.actionItems);
       push('sections', 'Разделы', this.sectionItems);
       for (const g of this.groups) {
-        push(g.type, g.title, (g.items || []).map((it) => ({
+        const items = (g.items || []).map((it) => ({
           key: `${it.type}-${it.id}`,
           title: it.title,
           subtitle: it.subtitle,
           icon: SEARCH_TARGETS[it.target?.entity]?.icon || 'search',
           to: this.routeFor(it),
-        })));
+        }));
+        push(g.type, g.title, items);
       }
       return groups;
     },
@@ -340,6 +371,8 @@ export default {
       immediate: true,
       handler(val) {
         this.activeIndex = 0;
+        // Новый запрос - новые разделы: раскрытые сворачиваем обратно.
+        this.expanded = {};
         // Новый запрос разворачивает столбик: искать со свёрнутой панелью бессмысленно.
         if (val.trim()) this.collapsed = false;
         this.search(val);
@@ -378,6 +411,11 @@ export default {
      */
     onDocumentMousedown(e) {
       if (!this.open || this.pinned || this.collapsed) return;
+      // Панель раскрыл онбординг-тур: шаг рассказывает именно про открытый поиск,
+      // а окно шага лежит вне панели. Без этой проверки клик по окну сворачивал
+      // панель в столбик, подсветка слетала, а вырез в затемнении оставался
+      // висеть на опустевшем месте - шаг превращался в мёртвый.
+      if (useOnboardingStore().revealOpen === 'search-panel') return;
       if (this.$refs.panel?.contains(e.target)) return;
       if (e.target.closest?.('.search-btn')) return;
       this.collapsed = true;
@@ -604,6 +642,34 @@ export default {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Счётчик рядом с названием раздела: сколько всего нашлось, а не сколько видно. */
+.gsp__group-count {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--accent-tint);
+  color: var(--accent-text);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Строка остатка: приглушённее записей - это не результат, а путь к остальным. */
+.gsp__more {
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  font-size: 12px;
+  text-align: left;
+  color: var(--accent-text);
+  cursor: pointer;
+}
+
+.gsp__more:hover {
+  background: var(--accent-tint);
 }
 
 .gsp__row-subtitle {

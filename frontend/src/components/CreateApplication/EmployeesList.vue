@@ -91,13 +91,13 @@
           <p :class="{ 'active-sort': sortField === 'number' }">
             №
           </p>
-          <img 
-            src="@/assets/icons/sort.png" 
-            class="sort-icon" 
-            :class="{ 
+          <AppIcon
+            name="sort"
+            class="sort-icon"
+            :class="{
               'desc': sortField === 'number' && sortDirection === 'desc'
-            }" 
-          >
+            }"
+          />
         </div>
         <div
           class="header-col lastName-col"
@@ -106,13 +106,13 @@
           <p :class="{ 'active-sort': sortField === 'lastName' }">
             Фамилия
           </p>
-          <img 
-            src="@/assets/icons/sort.png" 
-            class="sort-icon" 
-            :class="{ 
+          <AppIcon
+            name="sort"
+            class="sort-icon"
+            :class="{
               'desc': sortField === 'lastName' && sortDirection === 'desc'
-            }" 
-          >
+            }"
+          />
         </div>
         <div
           class="header-col firstName-col"
@@ -121,13 +121,13 @@
           <p :class="{ 'active-sort': sortField === 'firstName' }">
             Имя
           </p>
-          <img 
-            src="@/assets/icons/sort.png" 
-            class="sort-icon" 
-            :class="{ 
+          <AppIcon
+            name="sort"
+            class="sort-icon"
+            :class="{
               'desc': sortField === 'firstName' && sortDirection === 'desc'
-            }" 
-          >
+            }"
+          />
         </div>
         <div
           class="header-col middleName-col"
@@ -136,13 +136,13 @@
           <p :class="{ 'active-sort': sortField === 'middleName' }">
             Отчество
           </p>
-          <img 
-            src="@/assets/icons/sort.png" 
-            class="sort-icon" 
-            :class="{ 
+          <AppIcon
+            name="sort"
+            class="sort-icon"
+            :class="{
               'desc': sortField === 'middleName' && sortDirection === 'desc'
-            }" 
-          >
+            }"
+          />
         </div>
         <div class="header-col actions-col">
           Действия
@@ -195,11 +195,10 @@
               title="Редактировать"
               @click="$emit('edit-employee', row.item)"
             >
-              <img
-                src="@/assets/icons/edit.png"
-                alt="Редактировать"
+              <AppIcon
+                name="edit"
                 class="edit-icon"
-              >
+              />
               <span class="act-label">Изменить</span>
             </button>
             <button
@@ -207,11 +206,10 @@
               title="Удалить"
               @click="$emit('delete-employee', row.item.id)"
             >
-              <img
-                src="@/assets/icons/trashcan.png"
-                alt="Удалить"
+              <AppIcon
+                name="trashcan"
                 class="delete-icon"
-              >
+              />
               <span class="act-label">Удалить</span>
             </button>
           </div>
@@ -282,10 +280,11 @@ import Pager from '@/components/ui/Pager.vue';
 import { useListSearchPagination } from '@/composables/useListSearchPagination';
 import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { entityCountLabel } from '@/utils/entityCount';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
     name: 'EmployeesList',
-    components: { EmployeeDetailsModal, ConfirmationModal, Badge, DetailsIcon, Pager },
+    components: { EmployeeDetailsModal, ConfirmationModal, Badge, DetailsIcon, Pager, AppIcon },
     props: {
         employees: {
             type: Array,
@@ -557,6 +556,7 @@ export default {
 }
 
 .sort-icon {
+    color: var(--text-muted);
     width: 10px;
     height: 10px;
     transition: all 0.2s ease;
@@ -700,6 +700,7 @@ export default {
 }
 
 .details-icon, .edit-icon, .delete-icon {
+    color: var(--text);
     width: 18px;
     height: 18px;
     opacity: 0.6;

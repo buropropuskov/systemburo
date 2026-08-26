@@ -75,20 +75,20 @@
             title="Редактировать"
             @click="editWindow(win)"
           >
-            <img
-              src="@/assets/icons/edit.png"
+            <AppIcon
+              name="edit"
               class="icon"
-            >
+            />
           </button>
           <button
             class="icon-btn"
             title="Удалить"
             @click="deleteWindow(win)"
           >
-            <img
-              src="@/assets/icons/trashcan.png"
+            <AppIcon
+              name="trashcan"
               class="icon"
-            >
+            />
           </button>
         </div>
       </div>
@@ -137,13 +137,13 @@
                 >
                   <div class="select-trigger">
                     <span>{{ dayOptionLabel(modalDay) }}</span>
-                    <img
-                      src="@/assets/icons/arrow.png"
+                    <AppIcon
+                      name="arrow"
                       class="select-arrow"
                       :class="{ open: dayDropdownOpen }"
                       width="9"
                       height="9"
-                    >
+                    />
                   </div>
                   <transition name="dropdown">
                     <div
@@ -267,10 +267,11 @@
 import { apiRequest } from '@/api/client';
 import { useDeletionsStore } from '@/stores/deletions';
 import ConfirmationModal from './ConfirmationModal.vue';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 export default {
   name: 'WarningWindowsEditor',
-  components: { ConfirmationModal },
+  components: { AppIcon, ConfirmationModal },
   props: {
     // Базовый URL ресурса-владельца окон, например '/unload-places/5' или
     // '/system-tables/12'. Компонент достраивает '/warning-windows[/{id}]'.
@@ -694,6 +695,9 @@ export default {
   background-color: var(--border);
 }
 .icon {
+  /* Значок мельче 16px: общая обводка 1.7 садится в волосок, здесь плотнее. */
+  stroke-width: 2.2;
+  color: var(--text);
   width: 13px;
   height: 13px;
   opacity: 0.6;

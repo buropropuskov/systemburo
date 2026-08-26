@@ -419,3 +419,32 @@ describe('ApplicationActionBar - роль принимающего приход�
     expect(wrapper.find(TAKE).exists()).toBe(true);
   });
 });
+
+/**
+ * Подсказка гейта стоит в одном ряду со статусными бейджами. Формулировка
+ * «Подтвердите пропуск по помеченным» не влезала в ширину плашки, переносилась на
+ * вторую строку и распирала весь ряд по высоте (жалоба владельца). Смысл при этом
+ * терять нельзя, поэтому полная фраза осталась подсказкой при наведении.
+ */
+describe('ApplicationActionBar - подсказка гейта ЧС держится в одну строку', () => {
+  const SFC = readFileSync(resolve(__dirname, '../ApplicationActionBar.vue'), 'utf8');
+
+  it('текст короткий', () => {
+    const wrapper = mountBar({ hasUnoverriddenBlacklistFlags: true });
+    const text = wrapper.find(HINT).text();
+    expect(text).toBe('Подтвердите метки ЧС');
+  });
+
+  it('перенос запрещён стилем, ширина плашки его больше не режет', () => {
+    const rule = SFC.match(/\.blacklist-gate-hint\s*\{([^}]*)\}/);
+    expect(rule).not.toBeNull();
+    expect(rule[1]).toMatch(/white-space:\s*nowrap/);
+    expect(rule[1]).not.toMatch(/max-width/);
+  });
+
+  it('полная формулировка осталась в подсказке при наведении', () => {
+    const wrapper = mountBar({ hasUnoverriddenBlacklistFlags: true });
+    expect(wrapper.find(HINT).attributes('title'))
+      .toBe('Подтвердите пропуск по всем помеченным элементам, чтобы согласовать заявку');
+  });
+});

@@ -136,14 +136,14 @@
               <p :class="{ 'active-sort': sortField === 'username' }">
                 Логин
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'username',
                   'desc': sortField === 'username' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
             <div
               class="header-col name-col"
@@ -152,14 +152,14 @@
               <p :class="{ 'active-sort': sortField === 'full_name' }">
                 Фамилия И.О.
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'full_name',
                   'desc': sortField === 'full_name' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
             <div
               class="header-col org-col"
@@ -168,14 +168,14 @@
               <p :class="{ 'active-sort': sortField === 'organization' }">
                 Организация / Отдел
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'organization',
                   'desc': sortField === 'organization' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
             <div
               class="header-col company-col"
@@ -184,14 +184,14 @@
               <p :class="{ 'active-sort': sortField === 'company' }">
                 Компания
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <AppIcon
+                name="sort"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'company',
                   'desc': sortField === 'company' && sortDirection === 'desc'
-                }" 
-              >
+                }"
+              />
             </div>
             <div
               class="header-col position-col"
@@ -200,14 +200,14 @@
               <p :class="{ 'active-sort': sortField === 'position' }">
                 Должность
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{
                   'sorted': sortField === 'position',
                   'desc': sortField === 'position' && sortDirection === 'desc'
                 }"
-              >
+              />
             </div>
             <div
               class="header-col type-col"
@@ -216,14 +216,14 @@
               <p :class="{ 'active-sort': sortField === 'user_type' }">
                 Тип
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{
                   'sorted': sortField === 'user_type',
                   'desc': sortField === 'user_type' && sortDirection === 'desc'
                 }"
-              >
+              />
             </div>
             <div
               class="header-col seen-col"
@@ -232,14 +232,14 @@
               <p :class="{ 'active-sort': sortField === 'last_seen' }">
                 В сети
               </p>
-              <img
-                src="@/assets/icons/sort.png"
+              <AppIcon
+                name="sort"
                 class="sort-icon"
                 :class="{
                   'sorted': sortField === 'last_seen',
                   'desc': sortField === 'last_seen' && sortDirection === 'desc'
                 }"
-              >
+              />
             </div>
           </div>
         </div>
@@ -713,21 +713,23 @@
                     type="button"
                     @click="generatePassword(selectedUser)"
                   >
-                    <img
-                      src="@/assets/icons/random.png"
+                    <AppIcon
+                      name="random"
                       class="generate-icon"
-                    >
+                    />
                     Генерировать
                   </button>
                   <button
                     :disabled="!changePasswordValid"
                     class="save-password-btn"
+                    title="Сохранить пароль"
+                    aria-label="Сохранить пароль"
                     @click="changeUserPassword(selectedUser)"
                   >
-                    <img
-                      src="@/assets/icons/save.png"
+                    <AppIcon
+                      name="save"
                       class="save-icon"
-                    >
+                    />
                   </button>
                 </div>
               </div>
@@ -1115,6 +1117,7 @@ import { formatUserLabel, formatLogin } from '@/utils/formatName'
 import { revokeUserConsent } from '@/api/pdConsent'
 import { isOnline, formatSeenShort, seenTitle, lastSeenSortKey } from '@/utils/presence'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
+import { openFromSearchLink } from '@/mixins/openFromSearchLink'
 import SearchComponent from './SearchComponent.vue';
 import RefreshButton from './RefreshButton.vue';
 import PasswordInput from './ui/PasswordInput.vue';
@@ -1138,6 +1141,7 @@ import { startImpersonation } from '@/api/impersonation';
 import { useUiStore } from '@/stores/ui';
 import { resetOnboardingForUser } from '@/api/onboarding';
 import { TOURS } from '@/components/onboarding/tours';
+import AppIcon from '@/components/icons/AppIcon.vue';
 
 // Тик подписей присутствия: раз в секунду, потому что младшая единица подписи -
 // секунды, и на более редком тике «12 с» висело бы неверным до полминуты. Пересчёт
@@ -1161,8 +1165,10 @@ export default {
     UserLoginHistory,
     UserAccessModal,
     UserAccessPlacesModal,
-    UserBulkOperationsModal
+    UserBulkOperationsModal,
+    AppIcon,
   },
+  mixins: [openFromSearchLink((vm) => vm.allUsers, 'selectUser', undefined, 'userSearch')],
   props: {
     allUsers: {
       type: Array,
@@ -1182,7 +1188,6 @@ export default {
   },
   data() {
     return {
-      userSearch: '',
       refreshing: false,
       consentRevoking: false,
       selectedUser: null,
@@ -1494,6 +1499,8 @@ export default {
     // selectedUser держит копию старого user и роль/права в карточке остаются
     // устаревшими до перезагрузки страницы.
     allUsers(list) {
+      // Список приехал - примесь раскроет карточку, если её просили в адресе.
+      this.openFromSearchLink();
       if (!this.selectedUser) return;
       const fresh = list.find((u) => u.username === this.selectedUser.username);
       if (fresh) this.selectedUser = { ...fresh, newPassword: this.selectedUser.newPassword || '' };
@@ -2394,11 +2401,6 @@ export default {
       this.showEditModal = true;
     },
 
-    closeDetails() {
-      this.closeEditModal();
-      this.selectedUser = null;
-    },
-
     sortBy(field) {
       if (this.sortField === field) {
         this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -2705,17 +2707,18 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon {
+  color: var(--text-muted);
   width: 12px;
   height: 12px;
   transition: .2s;
 }
 
 .sort-icon.sorted {
-  filter: var(--icon-ink-filter);
+  color: var(--text);
 }
 
 .sort-icon.desc {
@@ -2970,6 +2973,9 @@ export default {
 .generate-icon {
   width: 15px;
   height: 15px;
+  /* Значок случайного пароля был фирменного синего - остаётся им. */
+  color: var(--accent-text);
+  stroke-width: 2.2;
 }
 
 .save-password-btn {
@@ -2998,6 +3004,8 @@ export default {
 .save-icon {
   width: 16px;
   height: 16px;
+  /* Цвет наследуется от кнопки (--accent-contrast): дискета была белой на цветном. */
+  stroke-width: 2;
 }
 
 .input-hints {

@@ -1,10 +1,13 @@
 import { driver } from 'driver.js';
+import { waitForElement, ensureInView } from '@/components/onboarding/targetWaits';
 import 'driver.js/dist/driver.css';
 import { sanitizeHtml } from '@/utils/sanitize.js';
-import { getViewportZoom } from '@/utils/viewportScale';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { getDemo } from '@/components/onboarding/onboardingDemo';
-import { groupStepsBySection } from '@/components/onboarding/onboardingSteps';
+import { buildProgressBlock } from '@/components/onboarding/popoverProgress';
+import { isChapterEnd } from '@/components/onboarding/stepsFlow';
+import { createPopoverZoomFix } from '@/components/onboarding/popoverZoom';
+import { STAGE_PADDING, STAGE_RADIUS, applyStageShape, raiseActiveHighlight } from '@/components/onboarding/stageShape';
 
 /**
  * Мобильный брейкпоинт тура (#1097 S11) - совпадает с media-запросами
@@ -56,9 +59,16 @@ export function isSkippableStep(step) {
 }
 
 /**
- * Нумерация «Шаг N из M» по фактически пройденному маршруту: из счёта выпадают
- * только шаги, которые тур в ЭТОМ прохождении реально выбросил (их индексы
- * копит стор). Поэтому номер растёт на каждом показанном шаге и дырок в нём нет.
+ * Нумерация «Шаг N из M». Номер растёт на каждом ПОКАЗАННОМ шаге - выброшенные
+ * дырок в нём не оставляют. А знаменатель берём как есть, на весь набор, и по
+ * ходу тура не трогаем.
+ *
+ * Раньше из знаменателя вычитались выброшенные шаги, и человек видел, как число
+ * тает на глазах: «из 57» превращалось в «из 55», потом в «из 48». Состав набора
+ * решается до старта (права, данные - см. gatingData.js), а редкие шаги вроде
+ * «организация на проверке» зависят от конкретной заявки, и предсказать их
+ * нельзя. Пусть лучше тур закончится на «Шаг 11 из 13» - это читается как «два
+ * шага не понадобились», - чем знаменатель будет меняться под рукой.
  *
  * @param {Array<object>} steps все шаги тура
  * @param {number} currentIndex глобальный индекс текущего шага
@@ -67,12 +77,11 @@ export function isSkippableStep(step) {
  */
 export function countShownSteps(steps, currentIndex, skipped) {
   const dropped = skipped instanceof Set ? skipped : new Set(skipped || []);
-  const total = steps.length - [...dropped].filter((i) => i < steps.length).length;
   let index = 0;
   for (let i = 0; i <= currentIndex && i < steps.length; i += 1) {
     if (!dropped.has(i)) index += 1;
   }
-  return { index, total };
+  return { index, total: steps.length };
 }
 
 /**
@@ -91,95 +100,6 @@ export function useOnboarding() {
     }
   }
 
-  /**
-   * Дождаться появления и видимости элемента в DOM. Резолвит элементом или
-   * `null` по таймауту - тур никогда не падает из-за отсутствующей цели.
-   * `signal` позволяет хосту отменить ожидание (teardown/logout) и не оставить
-   * висящий интервал.
-   *
-   * @param {string} selector
-   * @param {number} [timeout]
-   * @param {AbortSignal} [signal]
-   * @returns {Promise<Element|null>}
-   */
-  function waitForElement(selector, timeout = 2500, signal) {
-    return new Promise((resolve) => {
-      const isVisible = (el) =>
-        el && (el.offsetParent !== null || el.getBoundingClientRect().width > 0);
-      // Готовность по СТАБИЛЬНОЙ высоте: элемент часто появляется пустым (скелетон/
-      // ещё не пришли данные) и дорастает. Если резолвить по факту появления,
-      // driver подсветит пустую рамку, а данные приедут уже под оверлеем. Поэтому
-      // ждём, пока высота перестанет меняться между опросами.
-      const measure = (el) => {
-        if (!isVisible(el)) return null;
-        const h = el.getBoundingClientRect().height;
-        return h > 0 ? h : null;
-      };
-
-      if (signal?.aborted) {
-        resolve(null);
-        return;
-      }
-
-      const start = Date.now();
-      let prevEl = null;
-      let prevHeight = null;
-      const cleanup = () => {
-        clearInterval(intervalId);
-        signal?.removeEventListener('abort', onAbort);
-      };
-      const onAbort = () => {
-        cleanup();
-        resolve(null);
-      };
-      const tick = () => {
-        const el = document.querySelector(selector);
-        const h = measure(el);
-        if (h !== null && el === prevEl && h === prevHeight) {
-          cleanup();
-          resolve(el);
-          return;
-        }
-        prevEl = el;
-        prevHeight = h;
-        if (Date.now() - start >= timeout) {
-          cleanup();
-          // По таймауту отдаём элемент, если он хотя бы виден (пусть driver
-          // подсветит как есть), иначе null - цель так и не появилась.
-          resolve(isVisible(el) ? el : null);
-        }
-      };
-      const intervalId = setInterval(tick, 120);
-      signal?.addEventListener('abort', onAbort);
-      tick();
-    });
-  }
-
-  /**
-   * Подвести цель в зону видимости до подсветки.
-   *
-   * driver.js скроллит сам, но на длинной форме заявки промахивается: после шага
-   * с формой сотрудников страница остаётся прокрученной вниз, и отметка согласия
-   * оказывается выше экрана - вырез рисуется за краем окна, а человек видит
-   * поповер без подсветки. Скроллим до показа, поэтому рамку driver меряет уже
-   * по конечному положению.
-   *
-   * @param {Element|null} el
-   * @param {'center'|'end'|'start'} [block] куда подвести цель. 'end' прижимает её
-   *   к низу экрана - так делают высокие формы, над которыми встаёт поповер.
-   * @returns {Promise<void>}
-   */
-  function ensureInView(el, block = 'center') {
-    // scrollIntoView есть не везде (jsdom в юнит-тестах) - тогда просто не скроллим.
-    if (!el?.getBoundingClientRect || typeof el.scrollIntoView !== 'function') return Promise.resolve();
-    const rect = el.getBoundingClientRect();
-    const margin = 24;
-    const fits = rect.top >= margin && rect.bottom <= window.innerHeight - margin;
-    if (fits && block !== 'end') return Promise.resolve();
-    el.scrollIntoView({ block, inline: 'nearest' });
-    // Кадр на применение скролла: без него driver померит прежнюю позицию.
-    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
-  }
 
   /**
    * Тело поповера: текст шага + демо-скриншот, если шаг показывается без живой
@@ -221,103 +141,18 @@ export function useOnboarding() {
     return sanitizeHtml(html);
   }
 
+
   /**
-   * Список шагов тура с переходом по клику. Тур длинный (у заявителя за сорок
-   * шагов), и без него вернуться к нужному месту можно было только прокликав
-   * всё заново.
-   *
-   * @param {number} currentGlobal глобальный индекс текущего шага
-   * @param {(index: number) => void} onJump
-   * @returns {HTMLElement}
+   * Кнопка выхода. На последнем шаге главы зовём её иначе: там обучение прерывать
+   * не жалко - глава дочитана, и вернуться можно ровно сюда же. В середине главы
+   * это по-прежнему «пропустить», чтобы человек не бросал раздел на середине.
    */
-  function buildStepList(currentGlobal, onJump) {
-    const store = useOnboardingStore();
-    const list = document.createElement('div');
-    list.className = 'ob-popover__steps';
-    list.setAttribute('data-testid', 'ob-step-list');
-
-    groupStepsBySection(store.steps, store.skippedIndexes).forEach((group) => {
-      const head = document.createElement('div');
-      head.className = 'ob-popover__steps-group';
-      head.textContent = group.title;
-      list.appendChild(head);
-
-      group.items.forEach((item) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'ob-popover__steps-item';
-        if (item.index === currentGlobal) btn.classList.add('is-current');
-        if (item.index < currentGlobal) btn.classList.add('is-passed');
-        btn.textContent = item.title;
-        btn.addEventListener('click', () => onJump(item.index));
-        list.appendChild(btn);
-      });
-    });
-    return list;
-  }
-
-  function buildProgressBlock(globalIndex, total, nextTitle, currentGlobal, onJump) {
-    const block = document.createElement('div');
-    block.className = 'ob-popover__progress';
-
-    const label = document.createElement('button');
-    label.type = 'button';
-    label.className = 'ob-popover__step-label';
-    label.setAttribute('data-testid', 'ob-step-counter');
-    label.textContent = `Шаг ${globalIndex} из ${total}`;
-    if (onJump) {
-      const list = buildStepList(currentGlobal, onJump);
-      label.addEventListener('click', () => {
-        const opening = !block.classList.contains('is-open');
-        if (opening) {
-          // Список - слой поверх карточки, а не её часть: иначе раскрытие
-          // растит поповер, и driver не переставляет его - нижние пункты
-          // оказываются за краем экрана. Сторону выбираем по свободному месту.
-          const rect = block.getBoundingClientRect();
-          const below = window.innerHeight - rect.bottom;
-          const up = below < Math.min(rect.top, 260);
-          block.classList.toggle('ob-popover__progress--up', up);
-          list.style.maxHeight = `${Math.max(140, Math.min(260, (up ? rect.top : below) - 16))}px`;
-          // Текущий шаг сразу в поле зрения - иначе в длинном туре список
-          // открывается на первом разделе, где искать нечего.
-          requestAnimationFrame(() => {
-            list.querySelector('.is-current')?.scrollIntoView({ block: 'center' });
-          });
-        }
-        block.classList.toggle('is-open', opening);
-      });
-      block.appendChild(list);
-      label.title = 'Показать список шагов';
-    } else {
-      label.disabled = true;
-    }
-
-    const bar = document.createElement('div');
-    bar.className = 'ob-popover__bar';
-    const fill = document.createElement('div');
-    fill.className = 'ob-popover__bar-fill';
-    // Заполнение через scaleX (анимируем transform, не width - правило проекта).
-    fill.style.transform = `scaleX(${total ? globalIndex / total : 0})`;
-    bar.appendChild(fill);
-
-    block.appendChild(label);
-    block.appendChild(bar);
-
-    if (nextTitle) {
-      const hint = document.createElement('div');
-      hint.className = 'ob-popover__next-hint';
-      hint.textContent = `Далее: ${nextTitle}`;
-      block.appendChild(hint);
-    }
-
-    return block;
-  }
-
-  function buildSkipButton(onSkip) {
+  function buildSkipButton(onSkip, atChapterEnd) {
     const skip = document.createElement('button');
     skip.type = 'button';
     skip.className = 'ob-popover__skip';
-    skip.textContent = 'Пропустить обучение';
+    skip.textContent = atChapterEnd ? 'Продолжить позже' : 'Пропустить обучение';
+    skip.setAttribute('data-testid', atChapterEnd ? 'ob-pause' : 'ob-skip');
     skip.addEventListener('click', onSkip);
     return skip;
   }
@@ -334,90 +169,19 @@ export function useOnboarding() {
     return wrap;
   }
 
-  function buildCtaButton(text, onClick) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'ob-popover__cta';
-    btn.textContent = text;
-    btn.addEventListener('click', onClick);
-    return btn;
-  }
-
   /**
    * Сконфигурировать driver-инстанс для одного сегмента (подряд идущих шагов
    * с общим route).
    *
    * @param {Array<object>} stepsForSegment
-   * @param {{ startIndex?: number, fallbackIndex?: number, onIndexChange?: (globalIndex: number) => void, onDestroyed?: () => void, onBoundaryNext?: () => void, onBoundaryPrev?: (segmentStartGlobal: number) => void, onCtaClick?: (ctaRoute?: string) => void, onCloseRequest?: () => void, onJumpTo?: (globalIndex: number) => void }} [options]
+   * @param {{ startIndex?: number, fallbackIndex?: number, onIndexChange?: (globalIndex: number) => void, onDestroyed?: () => void, onBoundaryNext?: () => void, onBoundaryPrev?: (segmentStartGlobal: number) => void, onCloseRequest?: () => void, onJumpTo?: (globalIndex: number) => void }} [options]
    * @returns {import('driver.js').Driver}
    */
-  function createDriver(stepsForSegment, { startIndex = 0, fallbackIndex = -1, onIndexChange, onDestroyed, onBoundaryNext, onBoundaryPrev, onCtaClick, onCloseRequest, onBeforeStep, onJumpTo } = {}) {
+  function createDriver(stepsForSegment, { startIndex = 0, fallbackIndex = -1, onIndexChange, onDestroyed, onBoundaryNext, onBoundaryPrev, onCloseRequest, onBeforeStep, onJumpTo } = {}) {
     const store = useOnboardingStore();
     const lastLocal = stepsForSegment.length - 1;
 
-    // ── Zoom-компенсация позиционирования driver.js ──────────────────────────────
-    // driver считает позицию поповера КОРРЕКТНО, но целиком в device-px (rect элемента,
-    // innerWidth/innerHeight) и пишет результат в inline left/top/right/bottom. Поповер
-    // живёт в <body> ВНУТРИ зазумленного <html> (масштаб под 1440 на мониторах >1440),
-    // где эти px трактуются как layout-px и домножаются на zoom - поповер уезжает
-    // вправо-вниз пропорционально zoom НА ВСЕХ шагах (и anchored, и центро-модальных).
-    // Однородно делим все четыре inset'а на zoom: выбор стороны и клэмпы driver'а
-    // сохраняются, т.к. масштабирование равномерное. Оверлей/spotlight НЕ трогаем -
-    // они самосогласованы (viewBox в device-px при width/height:100%).
-    // MutationObserver, а не одноразовый rAF: driver перезаписывает стили на СВОИХ
-    // внутренних scroll/resize-слушателях, до которых снаружи не дотянуться.
-    let zoomFixObserver = null;
-    let applyingZoomFix = false;
-    const zoomFixLast = {};
-    const INSETS = ['left', 'top', 'right', 'bottom'];
-
-    function applyPopoverZoomFix(wrapper) {
-      const z = getViewportZoom();
-      if (z === 1 || !wrapper) return;
-      const next = {};
-      let changed = false;
-      for (const prop of INSETS) {
-        const raw = wrapper.style[prop];
-        // 'auto'/пусто не трогаем; значение, которое записали мы сами - тоже
-        // (иначе поделим повторно и поповер уползёт вверх-влево).
-        if (!raw || raw === 'auto' || zoomFixLast[prop] === raw) continue;
-        const px = parseFloat(raw);
-        if (!Number.isFinite(px)) continue;
-        next[prop] = `${Math.round(px / z)}px`;
-        changed = true;
-      }
-      if (!changed) return;
-      applyingZoomFix = true;
-      // Коррекция масштаба - не переезд к новому шагу, а поправка той же позиции.
-      // С анимацией она читалась бы как «поповер доезжает» после каждого шага,
-      // поэтому на время правки переход выключаем.
-      wrapper.classList.add('ob-popover--instant');
-      for (const prop of Object.keys(next)) {
-        wrapper.style[prop] = next[prop];
-        zoomFixLast[prop] = next[prop];
-      }
-      requestAnimationFrame(() => wrapper.classList.remove('ob-popover--instant'));
-      applyingZoomFix = false;
-    }
-
-    function attachPopoverZoomFix(wrapper) {
-      detachPopoverZoomFix();
-      if (!wrapper || typeof MutationObserver === 'undefined') return;
-      zoomFixObserver = new MutationObserver(() => {
-        if (applyingZoomFix) return;
-        applyPopoverZoomFix(wrapper);
-      });
-      zoomFixObserver.observe(wrapper, { attributes: true, attributeFilter: ['style'] });
-      requestAnimationFrame(() => applyPopoverZoomFix(wrapper));
-    }
-
-    function detachPopoverZoomFix() {
-      if (zoomFixObserver) {
-        zoomFixObserver.disconnect();
-        zoomFixObserver = null;
-      }
-      for (const prop of INSETS) delete zoomFixLast[prop];
-    }
+    const zoomFix = createPopoverZoomFix();
 
     /**
      * Снять класс подсветки со всего, что не является текущей целью.
@@ -441,18 +205,6 @@ export function useOnboarding() {
         if (el === active) return;
         el.classList.remove('driver-active-element', 'driver-no-interaction', 'ob-highlighted');
       });
-    }
-
-    /**
-     * Поднять доехавшую цель над затемнением.
-     *
-     * driver.js вешает свой класс в НАЧАЛЕ перехода, когда вырез ещё едет к новой
-     * рамке, и цель успевала протыкать затемнение раньше подсветки. Свой класс
-     * ставим по завершении перехода - см. .ob-highlighted в onboarding.css.
-     */
-    function raiseActiveHighlight() {
-      const active = driverObj?.getActiveElement?.();
-      if (active && active.id !== 'driver-dummy-element') active.classList.add('ob-highlighted');
     }
 
     /**
@@ -524,13 +276,23 @@ export function useOnboarding() {
       // форме заявки это читалось как «сначала светятся инпуты»).
       animate: !prefersReducedMotion(),
       allowClose: true,
+      // Клавиши обрабатывает хост (OnboardingTour), а не driver. Свой обработчик
+      // библиотеки снимается на время переезда подсветки и подъёма следующего
+      // сегмента: нажатие в эти 300-400 мс уходило в никуда, и человек видел
+      // «тур завис» - жал ещё раз и только тогда двигался дальше.
+      allowKeyboardControl: false,
+      // Клик мимо окна шага обучение не обрывает. driver по умолчанию читает его
+      // как выход, и промах мышью стоил человеку всего тура разом: авто-тур
+      // после закрытия больше не всплывает. Хук-заглушка уводит driver с ветки
+      // "close" (см. его обработчик оверлея), не трогая allowClose - на нём
+      // держится выход по Esc, обещанный в тексте первого шага.
+      overlayClickBehavior: () => {},
       // Чётче выделение: затемнение фона плотнее, скругление 30px.
       // popoverOffset больше - карточка не наезжает на элемент.
       overlayOpacity: 0.78,
-      // Зазор вокруг подсвеченного: с 5px мелкие цели (галочка согласия) смотрелись
-      // обрезанными по краю выреза - «больше воздуха вокруг».
-      stagePadding: 10,
-      stageRadius: 30,
+      // Зазор и скругление - общие; на цели во весь экран их снимает applyStageShape.
+      stagePadding: STAGE_PADDING,
+      stageRadius: STAGE_RADIUS,
       popoverOffset: 16,
       popoverClass: 'ob-popover',
       nextBtnText: 'Далее',
@@ -676,28 +438,34 @@ export function useOnboarding() {
         if (step?.celebrate) {
           popover.wrapper.insertBefore(buildCelebrate(), popover.title);
         }
-        if (step?.cta) {
-          const cta = buildCtaButton(step.cta, () => onCtaClick?.(step.ctaRoute));
-          popover.description.insertAdjacentElement('afterend', cta);
-        }
-
         // Прогресс сверху футера.
         popover.footer.insertBefore(
-          buildProgressBlock(globalIndex, total, nextTitle, currentGlobal, onJumpTo),
+          buildProgressBlock({
+            steps: store.steps,
+            skipped: store.skippedIndexes,
+            globalIndex,
+            total,
+            nextTitle,
+            currentGlobal,
+            onJump: onJumpTo,
+          }),
           popover.footer.firstChild,
         );
         // "Пропустить" - первым в ряду кнопок (CSS прижимает Назад/Далее вправо).
         // На финале не показываем: там уже есть "Готово" и CTA.
         if (!step?.celebrate) {
           popover.footerButtons.insertBefore(
-            buildSkipButton(() => (onCloseRequest ? onCloseRequest() : driverObj.destroy())),
+            buildSkipButton(
+              () => (onCloseRequest ? onCloseRequest() : driverObj.destroy()),
+              isChapterEnd(store.steps, currentGlobal),
+            ),
             popover.footerButtons.firstChild,
           );
         }
 
         // Компенсация корневого zoom для позиционирования поповера - едина для ВСЕХ
-        // шагов (и anchored, и центро-модальных): см. attachPopoverZoomFix выше.
-        attachPopoverZoomFix(popover.wrapper);
+        // шагов (и anchored, и центро-модальных): см. popoverZoom.js.
+        zoomFix.attach(popover.wrapper);
       },
       // Esc / клик по оверлею / крестик идут сюда (g(true)) ДО гейта на
       // __activeStep - в отличие от onDestroyed это надёжно срабатывает, даже
@@ -711,16 +479,17 @@ export function useOnboarding() {
       // это только в конце своей анимации, и при быстрых «Далее» пометки
       // накапливались - на разделе «Автомобили» светились три элемента разом.
       onHighlightStarted(element) {
+        applyStageShape(driverObj, element);
         dropStaleHighlights(element);
       },
       onHighlighted() {
         dropStaleHighlights();
-        raiseActiveHighlight();
+        raiseActiveHighlight(driverObj);
         const localIndex = driverObj.getActiveIndex() ?? 0;
         onIndexChange?.(startIndex + localIndex);
       },
       onDestroyed() {
-        detachPopoverZoomFix();
+        zoomFix.detach();
         // Свой класс подъёма driver не знает - снимаем сами, иначе элемент
         // останется висеть над остальной страницей после закрытия тура.
         document.querySelectorAll('.ob-highlighted').forEach((el) => el.classList.remove('ob-highlighted'));
@@ -746,6 +515,9 @@ export function useOnboarding() {
      * должен продвинуться сам (человек выполнил действие, о котором шаг просил).
      */
     driverObj.obNext = () => driverObj.getConfig().onNextClick?.();
+
+    /** Шаг назад тем же путём, что кнопка «Назад» - для своей обработки стрелок. */
+    driverObj.obPrev = () => driverObj.getConfig().onPrevClick?.();
 
     /**
      * Перейти на шаг сегмента по глобальному индексу, собрав его заново. Ходом

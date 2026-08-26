@@ -332,7 +332,10 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 		services.WithFeedbackPermissionResolver(permissionResolver))
 	newsService := services.NewNewsService(db, services.WithNewsNotifications(notificationServiceEarly))
 	notificationService := notificationServiceEarly
-	requestLogsService := services.NewRequestLogsService(db)
+	// Снимок показателей включён и в тестах: в проде он стоит между обработчиком и
+	// базой, и собирать приложение без него значило бы проверять другую цепочку.
+	// Секунда - чтобы соседние обращения внутри одного теста не читали вчерашнее.
+	requestLogsService := services.NewRequestLogsService(db, services.WithRequestLogsStatsCache(time.Second))
 	employeesHistoryService := services.NewEmployeesHistoryService(db)
 	approverService := services.NewApproverService(db)
 	consentService := services.NewConsentService(db)
@@ -395,7 +398,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 	newsHandler := handlers.NewNewsHandler(newsService)
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	pushHandler := handlers.NewPushHandler(pushService)
-	requestLogsHandler := handlers.NewRequestLogsHandler(requestLogsService)
+	requestLogsHandler := handlers.NewRequestLogsHandler(requestLogsService, auditRecorder)
 	employeesHistoryHandler := handlers.NewEmployeesHistoryHandler(employeesHistoryService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService, permissionResolver)
 	applicationFileHandler := handlers.NewApplicationFileHandler(
@@ -578,6 +581,7 @@ func setupTestApp(t *testing.T, withConsentGate, withPasswordGate bool) (*echo.E
 		TablePassGate:       mw.RequireTablePassVerb(db, permissionResolver, accessDenialService),
 		Impersonation:       handlers.NewImpersonationHandler(services.NewImpersonationService(db, TestJWTSecret, permissionResolver, auditRecorder)),
 		JWTSecret:           []byte(TestJWTSecret),
+		JWTRefreshSecret:    []byte(TestJWTRefreshSecret),
 		UploadPath:          uploadDir,
 	})
 

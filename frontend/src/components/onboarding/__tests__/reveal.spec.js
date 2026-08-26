@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createPinia, setActivePinia } from 'pinia';
 import bus from '@/eventBus';
 import {
@@ -48,7 +51,64 @@ describe('reveal', () => {
 
   const idxOf = (steps, id) => steps.findIndex((s) => s.id === id);
 
-  describe('resolveReveal (чистая логика)', () => {
+  /**
+ * Порядок «сначала переход, потом сворачивание».
+ *
+ * Подготовка следующего шага раскрывает то, что ему нужно, но НЕ сворачивает узел
+ * текущего: между нажатием стрелки и сменой шага проходит около 400 мс, и всё это
+ * время человек смотрит на прежнее окно шага. Прежде список уведомлений гас сразу
+ * по нажатию - на экране оставались подсветка пустого места и подпись «Список
+ * уведомлений» (замечание владельца 21.08, снято из его же лога:
+ * `10.293 reveal=notifications шаг 3` -> `10.489 reveal=null шаг 3` ->
+ * `10.688 панель=false шаг 3` -> `10.889 шаг 4`).
+ */
+describe('applyReveal - раскрытие без преждевременного сворачивания', () => {
+  const steps = [
+    { id: 'bell', route: '/news' },
+    { id: 'panel', route: '/news', reveal: { open: 'notifications' } },
+    { id: 'search', route: '/news' },
+    { id: 'search-panel', route: '/news', reveal: { open: 'search-panel' } },
+  ];
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  it('подготовка шага без раскрытия не гасит узел предыдущего', async () => {
+    const store = useOnboardingStore();
+    store.setRevealOpen('notifications');
+
+    await applyReveal(steps, 2, { closeOthers: false });
+
+    expect(store.revealOpen).toBe('notifications');
+  });
+
+  it('подсветка того же шага гасит его, когда переход состоялся', async () => {
+    const store = useOnboardingStore();
+    store.setRevealOpen('notifications');
+
+    await applyReveal(steps, 2);
+
+    expect(store.revealOpen).toBe(null);
+  });
+
+  it('подготовка шага в хосте зовёт мягкий режим - иначе узел гаснет до перехода', () => {
+    const host = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), '../OnboardingTour.vue'), 'utf8');
+    expect(host).toMatch(/const revealed = await applyReveal\(store\.steps, globalIndex, \{ closeOthers: false \}\)/);
+  });
+
+  it('подготовка шага с раскрытием ставит свой узел и в мягком режиме', async () => {
+    const store = useOnboardingStore();
+    store.setRevealOpen('notifications');
+
+    await applyReveal(steps, 3, { closeOthers: false });
+
+    expect(store.revealOpen).toBe('search-panel');
+  });
+});
+
+describe('resolveReveal (чистая логика)', () => {
     it('reveal текущего шага имеет приоритет: рельс -> mobile nav', () => {
       const iR = idxOf(securityOnboardingSteps, 'sec-nav-rail');
       expect(resolveReveal(securityOnboardingSteps, iR)).toEqual({ mobile: 'nav', open: null });

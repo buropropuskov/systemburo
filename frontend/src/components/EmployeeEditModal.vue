@@ -200,8 +200,70 @@
         </div>
       </div>
 
+      <!-- Согласие субъекта на обработку персональных данных (152-ФЗ). У записи, где
+           согласие уже получено, показываем дату - подтверждать второй раз нечего. -->
+      <div class="completion__consent">
+        <label class="input__label">Согласие на обработку персональных данных</label>
+        <p
+          v-if="consentAlreadyGranted"
+          class="consent-granted"
+          data-testid="employee-consent-granted"
+        >
+          Получено {{ formatConsentDate(editingEmployee.pd_consent_at) }}
+        </p>
+        <label
+          v-else
+          class="consent-option"
+        >
+          <input
+            v-model="pdConsent"
+            type="checkbox"
+            data-testid="employee-registry-pd-consent"
+          >
+          <span>
+            Работник дал <a
+              href="/data-processing"
+              target="_blank"
+              rel="noopener"
+              class="blue"
+              @click.stop
+            >согласие</a> на обработку своих персональных данных<span class="required">*</span>
+          </span>
+        </label>
+      </div>
+
+      <!-- Привязка чужой записи: администратор её не переносит на себя, поэтому
+           вместо переключателей «привязать к моей организации» показываем, за кем
+           запись закреплена. -->
+      <div
+        v-if="foreignRecord"
+        class="completion__binding"
+      >
+        <label class="input__label">Привязка</label>
+        <div class="binding-info">
+          <p
+            class="binding-note"
+            data-testid="employee-foreign-binding-note"
+          >
+            Запись закреплена за
+            <strong v-if="editingEmployee && editingEmployee.user_name">пользователем «{{ editingEmployee.user_name }}»</strong>
+            <strong v-else>другим пользователем</strong>
+            <template v-if="editingEmployee && editingEmployee.organization_name">
+              , организация «{{ editingEmployee.organization_name }}»
+            </template>
+            <template v-if="editingEmployee && editingEmployee.company_name">
+              , компания «{{ editingEmployee.company_name }}»
+            </template>.
+            Правка данных привязку не меняет.
+          </p>
+        </div>
+      </div>
+
       <!-- Привязка -->
-      <div class="completion__binding">
+      <div
+        v-else
+        class="completion__binding"
+      >
         <label class="input__label">Привязка</label>
         <div class="binding-info">
           <p class="binding-note">
@@ -264,6 +326,13 @@ export default {
         ownershipInfo: {
             type: Object,
             default: null
+        },
+        // Правим запись, которая не относится ни к пользователю, ни к его организации
+        // или компании - так бывает только у администратора. Принадлежность считает
+        // вью (employeeBelongsToUser), чтобы правило жило в одном месте.
+        foreignRecord: {
+            type: Boolean,
+            default: false
         }
     },
     emits: ['saved', 'close'],
@@ -299,6 +368,10 @@ export default {
             bindToOrganization: false,
             bindToCompany: false,
 
+            // Отметка о согласии субъекта. Для новой записи обязательна (сервер без неё
+            // не создаёт запись), у существующей заполняется только если согласия ещё нет.
+            pdConsent: false,
+
             // Для проверки изменений при редактировании
             originalEmployeeData: null
         };
@@ -330,7 +403,16 @@ export default {
                     return false;
                 }
             }
+            if (!this.consentAlreadyGranted && !this.pdConsent) {
+                return false;
+            }
             return true;
+        },
+
+        // Согласие у записи уже зафиксировано - повторно его не спрашиваем и снять
+        // галочкой не даём: отметка живёт в базе с датой и автором.
+        consentAlreadyGranted() {
+            return !!(this.editingEmployee && this.editingEmployee.pd_consent_at);
         },
 
         /**
@@ -354,6 +436,9 @@ export default {
                 && !this.patentNumber.trim()
                 && (this.selectedPermission === 'Не выбрано' || !this.selectedPermission)) {
                 reasons.push('Для этого гражданства нужен номер патента или иное разрешение на работы');
+            }
+            if (!this.consentAlreadyGranted && !this.pdConsent) {
+                reasons.push('Отметьте согласие работника на обработку персональных данных');
             }
             return reasons.join('. ');
         }
@@ -431,6 +516,9 @@ export default {
 
                 this.bindToOrganization = !!this.editingEmployee.organization_id;
                 this.bindToCompany = !!this.editingEmployee.company_id;
+                // У записи без отметки согласие подтверждают заново: галочку начинаем
+                // снятой, иначе правка «поставила» бы согласие сама собой.
+                this.pdConsent = false;
             } else {
                 this.resetForm();
             }
@@ -447,6 +535,7 @@ export default {
             this.selectedPermission = 'Не выбрано';
             this.bindToOrganization = false;
             this.bindToCompany = false;
+            this.pdConsent = false;
             this.originalEmployeeData = null;
         },
 
@@ -458,6 +547,11 @@ export default {
             this.passportSeriesNumber = '';
             this.patentNumber = '';
             this.selectedPermission = 'Не выбрано';
+            // Отметка о согласии снимается вместе с данными: подтверждают конкретного
+            // человека, а не всех, кого заведут дальше. Оставшись стоять, она превращала
+            // осознанное подтверждение в состояние формы - следующего работника можно было
+            // добавить, не глядя на неё (форма подачи, EmployeeForm, снимает её так же).
+            this.pdConsent = false;
             if (!this.editingEmployee) {
                 this.bindToOrganization = false;
                 this.bindToCompany = false;
@@ -483,6 +577,13 @@ export default {
                 return true;
             }
 
+            // У чужой записи привязку карточка не показывает и не отправляет, поэтому и
+            // сравнивать нечего: организация администратора не совпала бы с организацией
+            // записи, и «изменения» находились бы всегда.
+            if (this.foreignRecord) {
+                return false;
+            }
+
             const currentOrgId = this.bindToOrganization ? this.ownershipInfo.organization_id : null;
             if (currentOrgId !== this.originalEmployeeData.organization_id) {
                 return true;
@@ -494,6 +595,14 @@ export default {
             }
 
             return false;
+        },
+
+        // Дата получения согласия: человеку нужен день, не отметка времени.
+        formatConsentDate(value) {
+            if (!value) return '';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return '';
+            return date.toLocaleDateString('ru-RU');
         },
 
         truncateText(text, maxLength) {
@@ -554,10 +663,20 @@ export default {
                     passport_series_number: this.passportSeriesNumber.trim(),
                     patent_number: this.isPatentRequired && this.patentNumber.trim() ? this.patentNumber.trim() : null,
                     other_permission: this.isPatentRequired && this.selectedPermission !== 'Не выбрано' ? this.selectedPermission : null,
-                    user_id: this.ownershipInfo.user_id,
-                    organization_id: this.bindToOrganization ? this.ownershipInfo.organization_id : null,
-                    company_id: this.bindToCompany ? this.ownershipInfo.company_id : null
+                    pd_consent: this.pdConsent || this.consentAlreadyGranted
                 };
+                if (this.foreignRecord) {
+                    // Администратор правит запись чужой организации: привязку переносим
+                    // как есть. Прежде поля брались из ownership-info правящего, то есть
+                    // сотрудник контрагента переехал бы к бюро вместе с исправлением ФИО.
+                    // user_id не отправляем совсем - сервер сохранит прежнего владельца.
+                    employeeData.organization_id = this.editingEmployee?.organization_id ?? null;
+                    employeeData.company_id = this.editingEmployee?.company_id ?? null;
+                } else {
+                    employeeData.user_id = this.ownershipInfo.user_id;
+                    employeeData.organization_id = this.bindToOrganization ? this.ownershipInfo.organization_id : null;
+                    employeeData.company_id = this.bindToCompany ? this.ownershipInfo.company_id : null;
+                }
 
                 let response;
                 if (this.editingEmployee) {
@@ -597,13 +716,12 @@ export default {
                     this.$emit('saved', savedEmployee);
                 } else {
                     const errorData = await response.json();
+                    // Текст сервера показываем как есть: он различает три случая -
+                    // запись уже у вас, у кого-то в организации или в компании. Прежде
+                    // два последних подменялись на «уже привязан к вашему аккаунту», и
+                    // человек шёл искать сотрудника в «Мои сотрудники», где его нет (#2021).
                     const errorMessage = errorData.message || 'Ошибка при сохранении сотрудника';
-
-                    if (errorMessage.includes('уже существует') || errorMessage.includes('already exists')) {
-                        useDeletionsStore().notify({ bold: 'Сотрудник уже привязан к вашему аккаунту', type: 'error' });
-                    } else {
-                        useDeletionsStore().notify({ bold: errorMessage, type: 'error' });
-                    }
+                    useDeletionsStore().notify({ bold: errorMessage, type: 'error' });
                 }
             } catch (error) {
                 console.error('Ошибка при сохранении сотрудника:', error);
@@ -907,6 +1025,31 @@ export default {
 .permission__item-text {
     font-size: 14px;
     color: var(--text);
+}
+
+.completion__consent {
+    margin-top: 14px;
+}
+
+.consent-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 11px;
+    line-height: 1.3;
+    cursor: pointer;
+    margin-top: 6px;
+}
+
+.consent-option input[type="checkbox"] {
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.consent-granted {
+    margin: 6px 0 0;
+    font-size: 11px;
+    color: var(--text-muted);
 }
 
 .completion__binding {

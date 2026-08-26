@@ -3,12 +3,11 @@
     class="bar-chart"
     :style="{ height: height + 'px' }"
   >
-    <VueApexCharts
+    <canvas
       v-if="hasData"
-      type="bar"
-      :height="height"
-      :options="options"
-      :series="series"
+      ref="canvas"
+      role="img"
+      :aria-label="seriesName"
     />
     <div
       v-else
@@ -20,9 +19,10 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import VueApexCharts from 'vue3-apexcharts';
+import { computed, ref } from 'vue';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { formatDuration } from '@/utils/datetime';
+import { AXIS_LABEL, GRID_COLOR, TOOLTIP_STYLE, lighten, useChartCanvas } from './useChartCanvas';
 
 const props = defineProps({
   /** Столбцы в форме [{ label, value }]; label — подпись оси X (час суток и т.п.). */
@@ -63,6 +63,9 @@ const props = defineProps({
   },
 });
 
+const canvas = ref(null);
+const { isNarrow } = useNarrowScreen();
+
 // Ряд, где значения нет ни у одного столбца (этап не прошёл никто), — это тоже «нет
 // данных»: рисовать пустую сетку с осями значило бы выдать отсутствие данных за сбой.
 const hasData = computed(() => props.data.some((d) => d.value != null));
@@ -76,7 +79,6 @@ const categories = computed(() => props.data.map((d) => String(d.label)));
 const values = computed(() =>
   props.data.map((d) => (d.value == null ? null : Number(d.value) || 0))
 );
-const series = computed(() => [{ name: props.seriesName, data: values.value }]);
 
 function pluralize(n) {
   const [one, few, many] = props.unitForms;
@@ -86,74 +88,6 @@ function pluralize(n) {
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
   return many;
 }
-
-const options = computed(() => ({
-  chart: {
-    type: 'bar',
-    height: props.height,
-    fontFamily: 'inherit',
-    toolbar: { show: false },
-    zoom: { enabled: false },
-    animations: { enabled: true, easing: 'easeinout', speed: 400 },
-  },
-  colors: [props.color],
-  dataLabels: { enabled: false },
-  plotOptions: {
-    bar: { columnWidth: '62%', borderRadius: 4, borderRadiusApplication: 'end' },
-  },
-  states: { hover: { filter: { type: 'lighten', value: 0.08 } } },
-  grid: {
-    borderColor: '#eef0f7',
-    strokeDashArray: 0,
-    xaxis: { lines: { show: false } },
-    padding: { top: 0, right: 8, bottom: 0, left: 8 },
-  },
-  xaxis: {
-    categories: categories.value,
-    tickAmount: Math.min(12, categories.value.length),
-    labels: {
-      rotate: 0,
-      hideOverlappingLabels: true,
-      style: { colors: '#a2a2a2', fontSize: '11px' },
-    },
-    axisBorder: { show: false },
-    axisTicks: { show: false },
-    tooltip: { enabled: false },
-  },
-  yaxis: {
-    min: 0,
-    forceNiceScale: true,
-    labels: {
-      style: { colors: '#a2a2a2', fontSize: '11px' },
-      formatter: (v) => formatAxis(v),
-    },
-  },
-  legend: { show: false },
-  // На узком экране 12 тиков «пика по часам» (24 бара) сливаются в нечитаемую
-  // полосу «00:0002:00...» - hideOverlappingLabels их не разводит. Ниже мобильного
-  // брейкпоинта (--bp-mobile 768) сокращаем число подписей оси X до ~6, бары все;
-  // и усекаем длинные категориальные подписи разреза отчёта (организация/место) -
-  // короткие числовые/статусы короче лимита и остаются целыми. trim ApexCharts тут
-  // не годится: его слот-ширина режет и короткие «00:00» до точки (проверено на 390).
-  responsive: [
-    {
-      breakpoint: 768,
-      options: {
-        xaxis: {
-          tickAmount: Math.min(6, categories.value.length),
-          labels: { formatter: (v) => truncateLabel(v) },
-        },
-      },
-    },
-  ],
-  tooltip: {
-    theme: 'dark',
-    y: {
-      formatter: (v) => formatTooltipValue(v),
-      title: { formatter: () => '' },
-    },
-  },
-}));
 
 // Длина, при которой подпись оси X ещё помещается в слот на телефоне; длиннее -
 // усекаем с многоточием. «00:00»/статусы короче и проходят как есть.
@@ -172,7 +106,7 @@ function formatAxis(v) {
 }
 
 // У длительности единица уже внутри текста («2 ч 15 мин») — склонять нечего.
-// Пропущенный столбец Apex тултипом не показывает, но значение может прийти
+// Пропущенный столбец подсказкой не показывается, но значение может прийти
 // null — рисуем «—», а не «0».
 function formatTooltipValue(v) {
   if (v == null) return '—';
@@ -183,6 +117,90 @@ function formatTooltipValue(v) {
     : Math.round(num).toLocaleString('ru-RU');
   return `${shown} ${pluralize(Math.round(num))}`;
 }
+
+// На узком экране 12 подписей «пика по часам» (24 бара) сливаются в нечитаемую
+// полосу «00:0002:00...». Ниже мобильного брейкпоинта (--bp-mobile 768) режем
+// число подписей оси X до 6, бары остаются все; длинные категориальные подписи
+// разреза отчёта (организация, место) усекаем по числу символов - короткие
+// числовые и статусы проходят целыми.
+const maxTicks = computed(() => (isNarrow.value ? 6 : 12));
+
+// Подпись берётся у самой шкалы: на категориальной оси в обработчик приходит
+// не текст, а номер деления, и после autoSkip номера идут с пропусками -
+// обращение к массиву по порядковому номеру давало бы чужую подпись.
+function narrowLabel(value) {
+  const label = typeof this?.getLabelForValue === 'function'
+    ? this.getLabelForValue(value)
+    : categories.value[value] ?? value;
+  return truncateLabel(label);
+}
+
+// Ключ callback добавляется ТОЛЬКО на узком экране. Записать его со значением
+// undefined нельзя: Chart.js накладывает переданные настройки на свои по наличию
+// ключа, а не по значению, поэтому явный undefined затирает штатный обработчик
+// категориальной оси - и вместо «00:00» на оси появляются номера делений
+// (проверено в браузере, юнит-тест на undefined этого не отличал).
+const xTicks = computed(() => ({
+  ...AXIS_LABEL,
+  maxRotation: 0,
+  autoSkip: true,
+  maxTicksLimit: maxTicks.value,
+  ...(isNarrow.value ? { callback: narrowLabel } : {}),
+}));
+
+const config = computed(() => ({
+  type: 'bar',
+  data: {
+    labels: categories.value,
+    datasets: [
+      {
+        label: props.seriesName,
+        data: values.value,
+        backgroundColor: props.color,
+        // Столбец под курсором светлеет - тот же отклик, что давал прежний
+        // движок. Оставив цвет прежним, подсказку не с чем связать: над каким
+        // из столбцов она всплыла, по самому графику не видно.
+        hoverBackgroundColor: lighten(props.color, 0.08),
+        borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
+        borderSkipped: false,
+        // 62% ширины слота под столбец - остальное зазор, как было раньше.
+        categoryPercentage: 0.9,
+        barPercentage: 0.69,
+      },
+    ],
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 400, easing: 'easeInOutQuad' },
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        ...TOOLTIP_STYLE,
+        position: 'nearest',
+        callbacks: {
+          label: (item) => formatTooltipValue(item?.raw),
+        },
+      },
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        border: { display: false },
+        ticks: xTicks.value,
+      },
+      y: {
+        beginAtZero: true,
+        grid: { color: GRID_COLOR },
+        border: { display: false },
+        ticks: { ...AXIS_LABEL, callback: (v) => formatAxis(v) },
+      },
+    },
+  },
+}));
+
+useChartCanvas(canvas, config);
 </script>
 
 <style scoped>

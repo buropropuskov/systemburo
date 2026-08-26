@@ -105,3 +105,31 @@ describe('TableConstructor — кнопка «Версии» архивной т
     expect(replace).toHaveBeenCalledWith({ query: {} });
   });
 });
+
+/**
+ * Один и тот же `?open=` обслуживает два перехода: возврат со страницы версий несёт
+ * ИМЯ архивной таблицы, а сквозной поиск - числовой id. Разбирать их одинаково
+ * нельзя: по id включённый архив прячет активную таблицу, и открывать нечего.
+ */
+describe('TableConstructor - параметр open от поиска и от страницы версий', () => {
+  it('числовой open не включает архивный режим', async () => {
+    const { wrapper } = mountC({ isActive: true, query: { open: '1' }, setSelected: false });
+    await flushPromises();
+
+    expect(wrapper.vm.showArchive).toBe(false);
+  });
+
+  it('имя таблицы в open по-прежнему открывает архив', async () => {
+    const { wrapper } = mountC({ isActive: false, query: { open: 'cargo_cars' }, setSelected: false });
+    await flushPromises();
+
+    expect(wrapper.vm.showArchive).toBe(true);
+  });
+
+  it('без параметра архив не включается', async () => {
+    const { wrapper } = mountC({ isActive: true, query: {}, setSelected: false });
+    await flushPromises();
+
+    expect(wrapper.vm.showArchive).toBe(false);
+  });
+});
